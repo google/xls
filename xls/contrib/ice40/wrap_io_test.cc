@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
@@ -65,7 +66,7 @@ TEST_P(WrapIOTest, Ice40WrapIOIdentity32b) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<VerilogInclude> includes,
                            io_strategy.GetIncludes());
 
-  XLS_VLOG(1) << file.Emit();
+  VLOG(1) << file.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit(), /*macro_definitions=*/{},
                                  includes);
@@ -94,7 +95,7 @@ TEST_P(WrapIOTest, WrapIOIncrement8b) {
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIO(kWrappedModuleName, "dtw",
                                               signature, &io_strategy, &file));
   EXPECT_NE(m, nullptr);
-  XLS_VLOG(1) << file.Emit();
+  VLOG(1) << file.Emit();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -134,7 +135,7 @@ TEST_P(WrapIOTest, WrapIONot16b) {
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIO(kWrappedModuleName, "dtw",
                                               signature, &io_strategy, &file));
   EXPECT_NE(m, nullptr);
-  XLS_VLOG(1) << file.Emit();
+  VLOG(1) << file.Emit();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,

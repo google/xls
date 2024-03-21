@@ -86,14 +86,14 @@ MultipleChannelOps FindMultipleChannelOps(Package* p) {
       if (node->Is<Send>()) {
         Send* send = node->As<Send>();
         absl::StatusOr<Channel*> channel = p->GetChannel(send->channel_name());
-        XLS_VLOG(4) << "Found send " << send->ToString();
+        VLOG(4) << "Found send " << send->ToString();
         result.multiple_sends[send->channel_name()].insert(send);
       }
       if (node->Is<Receive>()) {
         Receive* recv = node->As<Receive>();
         absl::StatusOr<Channel*> channel = p->GetChannel(recv->channel_name());
         result.multiple_receives[recv->channel_name()].insert(recv);
-        XLS_VLOG(4) << "Found recv " << recv->ToString();
+        VLOG(4) << "Found recv " << recv->ToString();
       }
     }
   }
@@ -110,10 +110,9 @@ MultipleChannelOps FindMultipleChannelOps(Package* p) {
         return elt.second.size() < 2;
       });
 
-  XLS_VLOG(4) << "After erasing single accesses, found "
-              << result.multiple_sends.size() << " multiple send channels and "
-              << result.multiple_receives.size()
-              << " multiple receive channels.";
+  VLOG(4) << "After erasing single accesses, found "
+          << result.multiple_sends.size() << " multiple send channels and "
+          << result.multiple_receives.size() << " multiple receive channels.";
 
   return result;
 }
@@ -854,9 +853,8 @@ absl::Status AddAdapterForMultipleReceives(
   std::string adapter_name =
       absl::StrFormat("chan_%s_io_receive_adapter", channel->name());
 
-  XLS_VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.",
-                                    channel->name(),
-                                    absl::StrJoin(token_dags, ", "));
+  VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.", channel->name(),
+                                absl::StrJoin(token_dags, ", "));
 
   ProcBuilder pb(adapter_name, "tok", p);
 
@@ -920,9 +918,8 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
   std::string adapter_name =
       absl::StrFormat("chan_%s_io_send_adapter", channel->name());
 
-  XLS_VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.",
-                                    channel->name(),
-                                    absl::StrJoin(token_dags, ", "));
+  VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.", channel->name(),
+                                absl::StrJoin(token_dags, ", "));
 
   ProcBuilder pb(adapter_name, "tok", p);
 
@@ -991,7 +988,7 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
 absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
     Package* p, const OptimizationPassOptions& options,
     PassResults* results) const {
-  XLS_VLOG(3) << "Running channel legalization pass.";
+  VLOG(3) << "Running channel legalization pass.";
   bool changed = false;
   MultipleChannelOps multiple_ops = FindMultipleChannelOps(p);
   for (const auto& [channel_name, ops] : multiple_ops.multiple_receives) {
@@ -1015,7 +1012,7 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       // exclusive- they will be handled during scheduling.
       continue;
     }
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Making receive channel adapter for channel `%s`, has receives (%s).",
         channel_name, absl::StrJoin(ops, ", "));
     XLS_RETURN_IF_ERROR(
@@ -1035,7 +1032,7 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       // exclusive- they will be handled during scheduling.
       continue;
     }
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Making send channel adapter for channel `%s`, has sends (%s).",
         channel_name, absl::StrJoin(ops, ", "));
     XLS_RETURN_IF_ERROR(AddAdapterForMultipleSends(p, streaming_channel, ops));

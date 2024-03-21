@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -91,8 +92,8 @@ absl::Status ProcConfigIrConverter::Finalize() {
 }
 
 absl::Status ProcConfigIrConverter::HandleBlock(const Block* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleBlock: " << node->ToString()
-              << " : " << node->span().ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleBlock: " << node->ToString() << " : "
+          << node->span().ToString();
   for (const Statement* statement : node->statements()) {
     XLS_RETURN_IF_ERROR(statement->Accept(this));
   }
@@ -104,8 +105,8 @@ absl::Status ProcConfigIrConverter::HandleStatement(const Statement* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleChannelDecl: "
-              << node->ToString() << " : " << node->span().ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleChannelDecl: " << node->ToString()
+          << " : " << node->span().ToString();
   std::string name = absl::StrCat(ProcStackToId(proc_id_.proc_stack),
                                   "_chandecl_", node->span().ToString());
   name = absl::StrReplaceAll(name, {{":", "_"},
@@ -151,7 +152,7 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleColonRef(const ColonRef* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleColonRef: " << node->ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleColonRef: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
   XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;
@@ -167,8 +168,7 @@ absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleInvocation(const Invocation* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleInvocation: "
-              << node->ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleInvocation: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
   XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;
@@ -176,7 +176,7 @@ absl::Status ProcConfigIrConverter::HandleInvocation(const Invocation* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleLet : " << node->ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleLet : " << node->ToString();
   XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
 
   if (ChannelDecl* decl = dynamic_cast<ChannelDecl*>(node->rhs());
@@ -206,7 +206,7 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleNameRef(const NameRef* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleNameRef : " << node->ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleNameRef : " << node->ToString();
   const NameDef* name_def = std::get<const NameDef*>(node->name_def());
   auto iter = node_to_ir_.find(name_def);
   if (iter == node_to_ir_.end()) {
@@ -226,7 +226,7 @@ absl::Status ProcConfigIrConverter::HandleNumber(const Number* node) {
 
 absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
   // Matches a param AST node to the actual arg for this Proc instance.
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleParam: " << node->ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleParam: " << node->ToString();
 
   int param_index = -1;
   for (int i = 0; i < f_->params().size(); i++) {
@@ -247,7 +247,7 @@ absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandleSpawn : " << node->ToString();
+  VLOG(4) << "ProcConfigIrConverter::HandleSpawn : " << node->ToString();
   std::vector<ProcConfigValue> config_args;
   XLS_ASSIGN_OR_RETURN(Proc * p, ResolveProc(node->callee(), type_info_));
   std::vector<Proc*> new_stack = proc_id_.proc_stack;
@@ -276,8 +276,8 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
 
 absl::Status ProcConfigIrConverter::HandleStructInstance(
     const StructInstance* node) {
-  XLS_VLOG(3) << "ProcConfigIrConverter::HandleStructInstance: "
-              << node->ToString();
+  VLOG(3) << "ProcConfigIrConverter::HandleStructInstance: "
+          << node->ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
   XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;

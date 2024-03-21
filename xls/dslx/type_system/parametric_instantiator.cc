@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -85,12 +86,11 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings) {
-  XLS_VLOG(5) << "Function instantiation @ " << span
-              << " type: " << function_type.ToString();
-  XLS_VLOG(5) << " parametric constraints: "
-              << ToString(parametric_constraints);
-  XLS_VLOG(5) << " arg types:              " << ToTypesString(args);
-  XLS_VLOG(5) << " explicit bindings:   " << ToString(explicit_bindings);
+  VLOG(5) << "Function instantiation @ " << span
+          << " type: " << function_type.ToString();
+  VLOG(5) << " parametric constraints: " << ToString(parametric_constraints);
+  VLOG(5) << " arg types:              " << ToTypesString(args);
+  VLOG(5) << " explicit bindings:   " << ToString(explicit_bindings);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::FunctionInstantiator::Make(
                            std::move(span), callee_fn, function_type, args, ctx,
@@ -103,12 +103,11 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints) {
-  XLS_VLOG(5) << "Struct instantiation @ " << span
-              << " type: " << struct_type.ToString();
-  XLS_VLOG(5) << " arg types:           " << ToTypesString(args);
-  XLS_VLOG(5) << " member types:        " << ToString(member_types);
-  XLS_VLOG(5) << " parametric constraints: "
-              << ToString(parametric_constraints);
+  VLOG(5) << "Struct instantiation @ " << span
+          << " type: " << struct_type.ToString();
+  VLOG(5) << " arg types:           " << ToTypesString(args);
+  VLOG(5) << " member types:        " << ToString(member_types);
+  VLOG(5) << " parametric constraints: " << ToString(parametric_constraints);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::StructInstantiator::Make(
                            std::move(span), struct_type, args, member_types,

@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -176,10 +177,10 @@ static bool IsEqualRecurse(
   }
 
   if (!node->IsDefinitelyEqualTo(other_node)) {
-    XLS_VLOG(2) << absl::StrFormat("Function %s != %s: node %s != %s",
-                                   node->function_base()->name(),
-                                   other_node->function_base()->name(),
-                                   node->GetName(), other_node->GetName());
+    VLOG(2) << absl::StrFormat("Function %s != %s: node %s != %s",
+                               node->function_base()->name(),
+                               other_node->function_base()->name(),
+                               node->GetName(), other_node->GetName());
     return false;
   }
 
@@ -195,14 +196,14 @@ static bool IsEqualRecurse(
 
 bool Function::IsDefinitelyEqualTo(const Function* other) const {
   if (this == other) {
-    XLS_VLOG(2) << absl::StrFormat("Function %s == %s: same pointer", name(),
-                                   other->name());
+    VLOG(2) << absl::StrFormat("Function %s == %s: same pointer", name(),
+                               other->name());
     return true;
   }
 
   // Must have the types of parameters in the same order.
   if (params().size() != other->params().size()) {
-    XLS_VLOG(2) << absl::StrFormat(
+    VLOG(2) << absl::StrFormat(
         "Function %s != %s: different number of parameters (%d vs %d)", name(),
         other->name(), params().size(), other->params().size());
     return false;
@@ -213,7 +214,7 @@ bool Function::IsDefinitelyEqualTo(const Function* other) const {
     // All we care about is the type (not the name) of the parameter so don't
     // use Param::IsDefinitelyEqualTo.
     if (!param(i)->GetType()->IsEqualTo(other->param(i)->GetType())) {
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Function %s != %s: type of parameter %d not the same (%s vs %s)",
           name(), other->name(), i, param(i)->GetType()->ToString(),
           other->param(i)->GetType()->ToString());
@@ -225,8 +226,8 @@ bool Function::IsDefinitelyEqualTo(const Function* other) const {
   bool result =
       IsEqualRecurse(return_value(), other->return_value(), &matched_pairs);
   if (result) {
-    XLS_VLOG(2) << absl::StrFormat("Function %s is equal to %s", name(),
-                                   other->name());
+    VLOG(2) << absl::StrFormat("Function %s is equal to %s", name(),
+                               other->name());
   }
   return result;
 }

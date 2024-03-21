@@ -104,7 +104,7 @@ class QueryEngineTest : public IrTestBase,
         "input", StringToTernaryVector(operand_known_bits).value(), &fb);
     make_op(operand, &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-    XLS_VLOG(3) << f->DumpIr();
+    VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
     return engine->ToString(f->return_value());
   }
@@ -123,7 +123,7 @@ class QueryEngineTest : public IrTestBase,
         "rhs", StringToTernaryVector(rhs_known_bits).value(), &fb);
     make_op(lhs, rhs, &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-    XLS_VLOG(3) << f->DumpIr();
+    VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
     return engine->ToString(f->return_value());
   }
@@ -134,7 +134,7 @@ class QueryEngineTest : public IrTestBase,
     BValue n = MakeValueWithKnownBits(
         "value", StringToTernaryVector(known_bits).value(), &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-    XLS_VLOG(3) << f->DumpIr();
+    VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
     return absl::StrCat("0b",
                         BitsToRawDigits(engine->MaxUnsignedValue(n.node()),
@@ -148,7 +148,7 @@ class QueryEngineTest : public IrTestBase,
     BValue n = MakeValueWithKnownBits(
         "value", StringToTernaryVector(known_bits).value(), &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-    XLS_VLOG(3) << f->DumpIr();
+    VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
     return absl::StrCat("0b",
                         BitsToRawDigits(engine->MinUnsignedValue(n.node()),
@@ -165,7 +165,7 @@ class QueryEngineTest : public IrTestBase,
     BValue rhs = MakeValueWithKnownBits(
         "rhs", StringToTernaryVector(rhs_known_bits).value(), &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-    XLS_VLOG(3) << f->DumpIr();
+    VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
     return engine->NodesKnownUnsignedNotEquals(lhs.node(), rhs.node());
   }
@@ -179,7 +179,7 @@ class QueryEngineTest : public IrTestBase,
     BValue rhs = MakeValueWithKnownBits(
         "rhs", StringToTernaryVector(rhs_known_bits).value(), &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-    XLS_VLOG(3) << f->DumpIr();
+    VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
     return engine->NodesKnownUnsignedEquals(lhs.node(), rhs.node());
   }

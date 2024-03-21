@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -170,11 +171,11 @@ absl::Status ProcJitContinuation::NextTick() {
     using std::swap;
     swap(input_, output_);
   }
-  XLS_VLOG(4) << "New state: "
-              << absl::StrJoin(GetState(), ", ",
-                               [](std::string* out, const Value& value) {
-                                 absl::StrAppend(out, value.ToString());
-                               });
+  VLOG(4) << "New state: "
+          << absl::StrJoin(GetState(), ", ",
+                           [](std::string* out, const Value& value) {
+                             absl::StrAppend(out, value.ToString());
+                           });
 
   if (!proc()->next_values().empty()) {
     // New-style state param evaluation; initialize the output state params to

@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -129,16 +130,16 @@ absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
 absl::StatusOr<bool> OptimizationFunctionBasePass::RunOnFunctionBase(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  XLS_VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
-                                    long_name(), f->name(),
-                                    results->invocations.size());
-  XLS_VLOG(3) << "Before:";
+  VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
+                                long_name(), f->name(),
+                                results->invocations.size());
+  VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());
 
   XLS_ASSIGN_OR_RETURN(bool changed,
                        RunOnFunctionBaseInternal(f, options, results));
 
-  XLS_VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+  VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
   XLS_VLOG_LINES(3, f->DumpIr());
   return changed;
 }
@@ -195,15 +196,14 @@ absl::StatusOr<bool> OptimizationFunctionBasePass::TransformNodesToFixedPoint(
 absl::StatusOr<bool> OptimizationProcPass::RunOnProc(
     Proc* proc, const OptimizationPassOptions& options,
     PassResults* results) const {
-  XLS_VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]",
-                                    long_name(), proc->name(),
-                                    results->invocations.size());
-  XLS_VLOG(3) << "Before:";
+  VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]", long_name(),
+                                proc->name(), results->invocations.size());
+  VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, proc->DumpIr());
 
   XLS_ASSIGN_OR_RETURN(bool changed, RunOnProcInternal(proc, options, results));
 
-  XLS_VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+  VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
   XLS_VLOG_LINES(3, proc->DumpIr());
   return changed;
 }

@@ -27,6 +27,7 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -245,7 +246,7 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   XLS_ASSIGN_OR_RETURN(int64_t member_index,
                        struct_type->GetMemberIndex(node->attr()));
 
-  XLS_VLOG(10) << "BytecodeEmitter::HandleAttr; member_index: " << member_index;
+  VLOG(10) << "BytecodeEmitter::HandleAttr; member_index: " << member_index;
 
   // This indexing literal needs to be unsigned since InterpValue::Index
   // requires an unsigned value.
@@ -341,8 +342,8 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleBlock @ " << node->span()
-              << " trailing semi? " << node->trailing_semi();
+  VLOG(5) << "BytecodeEmitter::HandleBlock @ " << node->span()
+          << " trailing semi? " << node->trailing_semi();
   const Expr* last_expression = nullptr;
   for (const Statement* s : node->statements()) {
     // Do not permit expression-statements to have a result on the stack for any
@@ -351,8 +352,7 @@ absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
       Add(Bytecode::MakePop(last_expression->span()));
     }
 
-    XLS_VLOG(5) << "BytecodeEmitter::HandleStatement: `" << s->ToString()
-                << "`";
+    VLOG(5) << "BytecodeEmitter::HandleStatement: `" << s->ToString() << "`";
     XLS_RETURN_IF_ERROR(absl::visit(Visitor{[&](Expr* e) {
                                               last_expression = e;
                                               return e->AcceptExpr(this);
@@ -542,7 +542,7 @@ static absl::Status CheckSupportedCastTypes(const AstNode* node,
 }
 
 absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleCast @ " << node->span();
+  VLOG(5) << "BytecodeEmitter::HandleCast @ " << node->span();
 
   const Expr* from_expr = node->expr();
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -676,8 +676,7 @@ absl::Status BytecodeEmitter::HandleBuiltinSendIf(const Invocation* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBuiltinDecode(const Invocation* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - Decode @ "
-              << node->span();
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - Decode @ " << node->span();
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -691,8 +690,8 @@ absl::Status BytecodeEmitter::HandleBuiltinDecode(const Invocation* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - CheckedCast @ "
-              << node->span();
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - CheckedCast @ "
+          << node->span();
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -707,8 +706,8 @@ absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
 
 absl::Status BytecodeEmitter::HandleBuiltinWideningCast(
     const Invocation* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - WideningCast @ "
-              << node->span();
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - WideningCast @ "
+          << node->span();
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -855,7 +854,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
                                Bytecode::SlotIndex(iterable_slot)));
 
   size_t index_slot = next_slotno_++;
-  XLS_VLOG(10) << "BytecodeEmitter::HandleFor; index_slot: " << index_slot;
+  VLOG(10) << "BytecodeEmitter::HandleFor; index_slot: " << index_slot;
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(0)));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
@@ -1055,8 +1054,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
 absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
       name_ref != nullptr && name_ref->IsBuiltin()) {
-    XLS_VLOG(10) << "HandleInvocation; builtin name_ref: "
-                 << name_ref->ToString();
+    VLOG(10) << "HandleInvocation; builtin name_ref: " << name_ref->ToString();
 
     if (name_ref->identifier() == "trace!") {
       if (node->args().size() != 1) {
@@ -1584,14 +1582,14 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
   for (size_t i = 0; i < jumps_to_next.size(); ++i) {
     size_t jump_offset = jumps_to_next[i];
     size_t next_offset = arm_offsets[i + 1];
-    XLS_VLOG(5) << "Patching jump offset " << jump_offset
-                << " to jump to next_offset " << next_offset;
+    VLOG(5) << "Patching jump offset " << jump_offset
+            << " to jump to next_offset " << next_offset;
     bytecode_.at(jump_offset).PatchJumpTarget(next_offset - jump_offset);
   }
 
   for (size_t offset : jumps_to_done) {
-    XLS_VLOG(5) << "Patching jump-to-done offset " << offset
-                << " to jump to done_offset " << done_offset;
+    VLOG(5) << "Patching jump-to-done offset " << offset
+            << " to jump to done_offset " << done_offset;
     bytecode_.at(offset).PatchJumpTarget(done_offset - offset);
   }
 

@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -186,7 +187,7 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
       ir_wrapper.top_module_, &ir_wrapper.import_data_, convert_options,
       ir_wrapper.package_.get()));
 
-  XLS_VLOG(3) << "IrWrapper Package (pre-opt):";
+  VLOG(3) << "IrWrapper Package (pre-opt):";
   XLS_VLOG_LINES(3, ir_wrapper.package_->DumpIr());
 
   // Optimize IR using default options

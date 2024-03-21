@@ -32,6 +32,7 @@
 #include "fuzztest/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
@@ -1047,8 +1048,7 @@ void CheckOutput(absl::Span<uint8_t const> expected_data,
       for (uint8_t byte : bytes) {
         strs.push_back(absl::StrFormat("%d", byte));
       }
-      XLS_VLOG(3) << absl::StreamFormat("%s: %s", name,
-                                        absl::StrJoin(strs, ", "));
+      VLOG(3) << absl::StreamFormat("%s: %s", name, absl::StrJoin(strs, ", "));
     };
     for (const auto& [name, data] : extra_data) {
       print_byte_vec(data, name);

@@ -155,7 +155,7 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
 
   yosys_tcl = absl::StrJoin(yosys_tcl_vec, "\n");
 
-  XLS_VLOG(1) << "about to start, yosys tcl: " << yosys_tcl;
+  VLOG(1) << "about to start, yosys tcl: " << yosys_tcl;
   return yosys_tcl;
 }
 
@@ -358,7 +358,7 @@ std::string YosysSynthesisServiceImpl::BuildSTACmds(
 
   sta_cmd = absl::StrJoin(sta_cmd_vec, "\n");
 
-  XLS_VLOG(1) << "about to start, sta cmd: " << sta_cmd;
+  VLOG(1) << "about to start, sta cmd: " << sta_cmd;
   return sta_cmd;
 }
 

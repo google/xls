@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/keyword_args.h"
@@ -51,7 +52,7 @@ class FunctionInterpreter : public IrInterpreter {
 
 absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
     Function* function, absl::Span<const Value> args) {
-  XLS_VLOG(3) << "Interpreting function " << function->name();
+  VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Function %s wants %d arguments, got %d.", function->name(),
@@ -71,15 +72,14 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
   FunctionInterpreter visitor(args);
   XLS_RETURN_IF_ERROR(function->Accept(&visitor));
   Value result = visitor.ResolveAsValue(function->return_value());
-  XLS_VLOG(2) << "Result = " << result;
+  VLOG(2) << "Result = " << result;
   InterpreterEvents events = visitor.GetInterpreterEvents();
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
 
 /* static */ absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
     Function* function, const absl::flat_hash_map<std::string, Value>& args) {
-  XLS_VLOG(2) << "Interpreting function " << function->name()
-              << " with arguments:";
+  VLOG(2) << "Interpreting function " << function->name() << " with arguments:";
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*function, args));
   return InterpretFunction(function, positional_args);

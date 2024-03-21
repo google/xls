@@ -132,19 +132,19 @@ absl::StatusOr<Block*> GetTopBlock(Package* package) {
 absl::Status RealMain(std::string_view opt_ir_path,
                       std::string_view block_ir_path,
                       std::string_view verilog_path) {
-  XLS_VLOG(1) << "Reading optimized IR file: " << opt_ir_path;
+  VLOG(1) << "Reading optimized IR file: " << opt_ir_path;
   XLS_ASSIGN_OR_RETURN(std::string opt_ir_contents,
                        GetFileContents(opt_ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> opt_package,
                        Parser::ParsePackage(opt_ir_contents));
 
-  XLS_VLOG(1) << "Reading block IR file: " << opt_ir_path;
+  VLOG(1) << "Reading block IR file: " << opt_ir_path;
   XLS_ASSIGN_OR_RETURN(std::string block_ir_contents,
                        GetFileContents(block_ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> block_package,
                        Parser::ParsePackage(block_ir_contents));
 
-  XLS_VLOG(1) << "Reading Verilog file: " << verilog_path;
+  VLOG(1) << "Reading Verilog file: " << verilog_path;
   XLS_ASSIGN_OR_RETURN(std::string verilog_contents,
                        GetFileContents(verilog_path));
 

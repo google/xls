@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -77,7 +78,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
        n->op() == Op::kShrl || n->op() == Op::kShra) &&
       IsLiteralZero(n->operand(1))) {
-    XLS_VLOG(2) << "FOUND: Useless operation of value with zero";
+    VLOG(2) << "FOUND: Useless operation of value with zero";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;
   }
@@ -105,7 +106,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
       }
     }
     if (unique_operands.size() != n->operand_count()) {
-      XLS_VLOG(2) << "FOUND: remove duplicate operands in and/or/nand/nor";
+      VLOG(2) << "FOUND: remove duplicate operands in and/or/nand/nor";
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<NaryOp>(unique_operands, n->op()).status());
       return true;
@@ -118,7 +119,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   //   Op(x)  =>  x
   if (n->Is<NaryOp>() && (n->op() == Op::kAnd || n->op() == Op::kOr) &&
       n->operand_count() == 1) {
-    XLS_VLOG(2) << "FOUND: replace single operand or(x) with x";
+    VLOG(2) << "FOUND: replace single operand or(x) with x";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;
   }
@@ -129,7 +130,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   //   Op(x)  =>  Not(x)
   if (n->Is<NaryOp>() && (n->op() == Op::kNor || n->op() == Op::kNand) &&
       n->operand_count() == 1) {
-    XLS_VLOG(2) << "FOUND: replace single operand nand/nor(x) with not(x)";
+    VLOG(2) << "FOUND: replace single operand nand/nor(x) with not(x)";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
     return true;
@@ -140,7 +141,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   //   XOR(x, x, ...)  =>  x  // Odd number of operands.
   //   XOR(x, x, ...)  =>  0  // Even number of operands.
   if (n->op() == Op::kXor && all_operands_same(n)) {
-    XLS_VLOG(2) << "FOUND: replace xor(x, x, ...) with 0 or 1";
+    VLOG(2) << "FOUND: replace xor(x, x, ...) with 0 or 1";
     if (n->operand_count() % 2 == 0) {
       // Even number of operands. Replace with zero.
       XLS_RETURN_IF_ERROR(
@@ -185,7 +186,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Xor(x, 0, y) => Xor(x, y)
   // Nor(x, 0, y) => Nor(x, y)
   if ((n->op() == Op::kOr || n->op() == Op::kXor || n->op() == Op::kNor)) {
-    XLS_VLOG(2) << "FOUND: remove zero valued operands from or, nor, or, xor";
+    VLOG(2) << "FOUND: remove zero valued operands from or, nor, or, xor";
     XLS_ASSIGN_OR_RETURN(bool changed, eliminate_operands_where(IsLiteralZero));
     if (changed) {
       return true;
@@ -194,7 +195,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // Or(x, -1, y) => -1
   if (n->op() == Op::kOr && AnyOperandWhere(n, IsLiteralAllOnes)) {
-    XLS_VLOG(2) << "FOUND: replace or(..., 1, ...) with 1";
+    VLOG(2) << "FOUND: replace or(..., 1, ...) with 1";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
     return true;
@@ -202,7 +203,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // Nor(x, -1, y) => 0
   if (n->op() == Op::kNor && AnyOperandWhere(n, IsLiteralAllOnes)) {
-    XLS_VLOG(2) << "FOUND: replace nor(..., 1, ...) with 0";
+    VLOG(2) << "FOUND: replace nor(..., 1, ...) with 0";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
     return true;
@@ -211,7 +212,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // And(x, -1, y) => And(x, y)
   // Nand(x, -1, y) => Nand(x, y)
   if (n->op() == Op::kAnd || n->op() == Op::kNand) {
-    XLS_VLOG(2) << "FOUND: remove all-ones operands from and/nand";
+    VLOG(2) << "FOUND: remove all-ones operands from and/nand";
     XLS_ASSIGN_OR_RETURN(bool changed,
                          eliminate_operands_where(IsLiteralAllOnes));
     if (changed) {
@@ -221,7 +222,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // And(x, 0) => 0
   if (n->op() == Op::kAnd && AnyOperandWhere(n, IsLiteralZero)) {
-    XLS_VLOG(2) << "FOUND: replace and(..., 0, ...) with 0";
+    VLOG(2) << "FOUND: replace and(..., 0, ...) with 0";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
     return true;
@@ -229,7 +230,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // Nand(x, 0) => 1
   if (n->op() == Op::kNand && AnyOperandWhere(n, IsLiteralZero)) {
-    XLS_VLOG(2) << "FOUND: replace nand(..., 0, ...) with 1";
+    VLOG(2) << "FOUND: replace nand(..., 0, ...) with 1";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
     return true;
@@ -254,7 +255,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Note that this won't be found through the ternary query engine because
   // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
   if (n->op() == Op::kAnd && has_inverted_operand(n)) {
-    XLS_VLOG(2) << "FOUND: replace and(x, not(x)) with 0";
+    VLOG(2) << "FOUND: replace and(x, not(x)) with 0";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
             .status());
@@ -266,7 +267,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Note that this won't be found through the ternary query engine because
   // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
   if (n->op() == Op::kOr && has_inverted_operand(n)) {
-    XLS_VLOG(2) << "FOUND: replace Or(x, not(x)) with 1...";
+    VLOG(2) << "FOUND: replace Or(x, not(x)) with 1...";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(Value(Bits::AllOnes(n->BitCountOrDie())))
             .status());
@@ -280,7 +281,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // conservatively it determines `not(UNKNOWN) = UNKNOWN`.
   if (n->op() == Op::kAdd && n->operand_count() == 2 &&
       has_inverted_operand(n)) {
-    XLS_VLOG(2) << "FOUND: replace Add(x, not(x)) with 1...";
+    VLOG(2) << "FOUND: replace Add(x, not(x)) with 1...";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(Value(Bits::AllOnes(n->BitCountOrDie())))
             .status());
@@ -290,7 +291,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Xor(x, -1) => Not(x)
   if (n->op() == Op::kXor && n->operand_count() == 2 &&
       IsLiteralAllOnes(n->operand(1))) {
-    XLS_VLOG(2) << "FOUND: Found xor with all ones";
+    VLOG(2) << "FOUND: Found xor with all ones";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
     return true;
@@ -298,7 +299,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // Sub(X, X) => Literal(0)
   if (n->op() == Op::kSub && all_operands_same(n)) {
-    XLS_VLOG(2) << "FOUND: Sub of value with itself";
+    VLOG(2) << "FOUND: Sub of value with itself";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
             .status());
@@ -328,7 +329,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
       }
     }
     if (should_transform) {
-      XLS_VLOG(2) << "FOUND: flatten nested associative nary ops";
+      VLOG(2) << "FOUND: flatten nested associative nary ops";
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
       return true;
@@ -353,7 +354,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     XLS_ASSIGN_OR_RETURN(Node * literal, n->function_base()->MakeNode<Literal>(
                                              n->loc(), Value(bits)));
     new_operands.push_back(literal);
-    XLS_VLOG(2)
+    VLOG(2)
         << "FOUND: fold literal operands of associative commutative operation";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
@@ -363,7 +364,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Pattern: Mul by 0
   if ((n->op() == Op::kSMul || n->op() == Op::kUMul) &&
       IsLiteralZero(n->operand(1))) {
-    XLS_VLOG(2) << "FOUND: Mul by 0";
+    VLOG(2) << "FOUND: Mul by 0";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
             .status());
@@ -372,7 +373,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // Pattern: Not(Not(x)) => x
   if (n->op() == Op::kNot && n->operand(0)->op() == Op::kNot) {
-    XLS_VLOG(2) << "FOUND: replace not(not(x)) with x";
+    VLOG(2) << "FOUND: replace not(not(x)) with x";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
     return true;
   }
@@ -380,7 +381,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Pattern: Double negative.
   //   -(-expr)
   if (n->op() == Op::kNeg && n->operand(0)->op() == Op::kNeg) {
-    XLS_VLOG(2) << "FOUND: Double negative";
+    VLOG(2) << "FOUND: Double negative";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)->operand(0)));
     return true;
   }
@@ -398,7 +399,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
           n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
       return true;
     }
-    XLS_VLOG(2) << "FOUND: eq comparison with bits[1]:0 or bits[1]:1";
+    VLOG(2) << "FOUND: eq comparison with bits[1]:0 or bits[1]:1";
     XLS_RET_CHECK(IsLiteralUnsignedOne(n->operand(1)));
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;

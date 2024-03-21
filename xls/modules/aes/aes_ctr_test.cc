@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -205,12 +206,11 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
                        XlsEncrypt(sample_data, jit_data));
   *xls_encrypt_dur += absl::Now() - start_time;
 
-  XLS_VLOG(1) << "Input plaintext:\n"
-              << FormatBlocks(sample_data.input_blocks, /*indent=*/4);
-  XLS_VLOG(1) << "Reference ciphertext:\n"
-              << FormatBlocks(reference_ciphertext, /*indent=*/4);
-  XLS_VLOG(1) << "XLS ciphertext:\n"
-              << FormatBlocks(xls_ciphertext, /*indent=*/4);
+  VLOG(1) << "Input plaintext:\n"
+          << FormatBlocks(sample_data.input_blocks, /*indent=*/4);
+  VLOG(1) << "Reference ciphertext:\n"
+          << FormatBlocks(reference_ciphertext, /*indent=*/4);
+  VLOG(1) << "XLS ciphertext:\n" << FormatBlocks(xls_ciphertext, /*indent=*/4);
 
   if (reference_ciphertext.size() != xls_ciphertext.size()) {
     std::cout << "Error: XLS and reference ciphertexts differ in num blocks: "
@@ -242,8 +242,7 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
   XLS_ASSIGN_OR_RETURN(std::vector<Block> xls_plaintext,
                        XlsEncrypt(decryption_data, jit_data));
 
-  XLS_VLOG(1) << "XLS plaintext:\n"
-              << FormatBlocks(xls_plaintext, /*indent=*/4);
+  VLOG(1) << "XLS plaintext:\n" << FormatBlocks(xls_plaintext, /*indent=*/4);
   *xls_encrypt_dur += absl::Now() - start_time;
   if (sample_data.input_blocks.size() != xls_plaintext.size()) {
     std::cout << "Error: XLS decrypted plaintext and input plaintext differ "
@@ -275,15 +274,15 @@ static absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
                        GetXlsRunfilePath(ir_path));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));
-  XLS_VLOG(1) << "Parsing IR.";
+  VLOG(1) << "Parsing IR.";
   XLS_ASSIGN_OR_RETURN(jit_data.package, Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(jit_data.proc,
                        jit_data.package->GetProc("__aes_ctr__aes_ctr_0_next"));
 
-  XLS_VLOG(1) << "JIT compiling.";
+  VLOG(1) << "JIT compiling.";
   XLS_ASSIGN_OR_RETURN(jit_data.proc_runtime,
                        CreateJitSerialProcRuntime(jit_data.package.get()));
-  XLS_VLOG(1) << "Created JIT!";
+  VLOG(1) << "Created JIT!";
 
   return jit_data;
 }

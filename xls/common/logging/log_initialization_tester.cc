@@ -28,8 +28,8 @@ int main(int argc, char** argv) {
   LOG(WARNING) << "WARNING message";
   LOG(ERROR) << "ERROR message";
 
-  XLS_VLOG(1) << "XLS_VLOG(1) message";
-  XLS_VLOG(2) << "XLS_VLOG(2) message";
+  VLOG(1) << "VLOG(1) message";
+  VLOG(2) << "VLOG(2) message";
 
   if (VLOG_IS_ON(1)) {
     LOG(INFO) << "VLOG_IS_ON(1) message\n";

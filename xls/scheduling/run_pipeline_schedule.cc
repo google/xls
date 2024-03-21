@@ -185,10 +185,10 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
     const DelayEstimator& delay_estimator, SDCScheduler& scheduler,
     SchedulingFailureBehavior failure_behavior,
     std::optional<int64_t> target_clock_period_ps = std::nullopt) {
-  XLS_VLOG(4) << "FindMinimumClockPeriod()";
-  XLS_VLOG(4) << "  pipeline stages = "
-              << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
-                                              : "(unspecified)");
+  VLOG(4) << "FindMinimumClockPeriod()";
+  VLOG(4) << "  pipeline stages = "
+          << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
+                                          : "(unspecified)");
   XLS_ASSIGN_OR_RETURN(int64_t function_cp_ps,
                        ComputeCriticalPath(f, delay_estimator));
 
@@ -211,9 +211,9 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
     pessimistic_clk_period_ps =
         std::max(pessimistic_clk_period_ps, *target_clock_period_ps);
   }
-  XLS_VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
-                                    optimistic_clk_period_ps,
-                                    pessimistic_clk_period_ps);
+  VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
+                                optimistic_clk_period_ps,
+                                pessimistic_clk_period_ps);
 
   // Check that it is in fact possible to
   // schedule this function at all; if not, return a useful error.
@@ -239,7 +239,7 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
             .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
-  XLS_VLOG(4) << "minimum clock period = " << min_clk_period_ps;
+  VLOG(4) << "minimum clock period = " << min_clk_period_ps;
 
   return min_clk_period_ps;
 }
@@ -251,11 +251,11 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
     FunctionBase* f, std::optional<int64_t> pipeline_stages,
     int64_t clock_period_ps, SDCScheduler& scheduler,
     SchedulingFailureBehavior failure_behavior) {
-  XLS_VLOG(4) << "FindMinimumWorstCaseThroughput()";
-  XLS_VLOG(4) << "  pipeline stages = "
-              << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
-                                              : "(unspecified)")
-              << ", clock period = " << clock_period_ps << " ps";
+  VLOG(4) << "FindMinimumWorstCaseThroughput()";
+  VLOG(4) << "  pipeline stages = "
+          << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
+                                          : "(unspecified)")
+          << ", clock period = " << clock_period_ps << " ps";
 
   Proc* proc = f->AsProcOrDie();
 
@@ -293,7 +293,7 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
           std::max(pessimistic_worst_case_throughput, backedge_length + 1);
     }
   }
-  XLS_VLOG(4) << absl::StreamFormat(
+  VLOG(4) << absl::StreamFormat(
       "Schedules at worst-case throughput %d; now binary searching over "
       "interval [1, %d]",
       pessimistic_worst_case_throughput, pessimistic_worst_case_throughput);
@@ -311,8 +311,7 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
             .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
-  XLS_VLOG(4) << "minimum worst-case throughput = "
-              << min_worst_case_throughput;
+  VLOG(4) << "minimum worst-case throughput = " << min_worst_case_throughput;
 
   return min_worst_case_throughput;
 }

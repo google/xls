@@ -18,6 +18,7 @@
 #include <string_view>
 #include <variant>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -49,8 +50,7 @@ absl::Status MakeTypeError(const TypeMismatchErrorData& data) {
 absl::Status MaybeExplainError(const TypeMismatchErrorData& data) {
   bool lhs_is_unit = data.lhs->IsUnit();
   bool rhs_is_unit = data.rhs->IsUnit();
-  XLS_VLOG(10) << "lhs is unit: " << lhs_is_unit
-               << " rhs is unit: " << rhs_is_unit;
+  VLOG(10) << "lhs is unit: " << lhs_is_unit << " rhs is unit: " << rhs_is_unit;
   bool only_one_side_is_unit = lhs_is_unit ^ rhs_is_unit;
   if (!only_one_side_is_unit) {
     return MakeTypeError(data);
@@ -71,7 +71,7 @@ absl::Status MaybeExplainError(const TypeMismatchErrorData& data) {
     return MakeTypeError(data);
   }
 
-  XLS_VLOG(10) << "unit name reference: " << unit_name_ref->ToString();
+  VLOG(10) << "unit name reference: " << unit_name_ref->ToString();
 
   AnyNameDef any_name_def = unit_name_ref->name_def();
   if (std::holds_alternative<BuiltinNameDef*>(any_name_def)) {
@@ -81,8 +81,8 @@ absl::Status MaybeExplainError(const TypeMismatchErrorData& data) {
   const NameDef* name_def = std::get<const NameDef*>(any_name_def);
   const AstNode* definer = name_def->definer();
   const Block* block = dynamic_cast<const Block*>(definer);
-  XLS_VLOG(10) << absl::StreamFormat("name_def: %s definer: %p block: %p",
-                                     name_def->ToString(), definer, block);
+  VLOG(10) << absl::StreamFormat("name_def: %s definer: %p block: %p",
+                                 name_def->ToString(), definer, block);
   if (block == nullptr || !block->trailing_semi()) {
     return MakeTypeError(data);
   }

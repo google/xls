@@ -306,20 +306,19 @@ absl::StatusOr<Bits> ModuleSimulator::RunAndReturnSingleOutput(
 
 absl::StatusOr<std::vector<ModuleSimulator::BitsMap>>
 ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
-  XLS_VLOG(1) << "Running Verilog module with signature:\n"
-              << signature_.ToString();
+  VLOG(1) << "Running Verilog module with signature:\n"
+          << signature_.ToString();
   if (VLOG_IS_ON(1)) {
-    XLS_VLOG(1) << "Arguments:\n";
+    VLOG(1) << "Arguments:\n";
     for (int64_t i = 0; i < inputs.size(); ++i) {
       const auto& input = inputs[i];
-      XLS_VLOG(1) << "  Set " << i << ":";
+      VLOG(1) << "  Set " << i << ":";
       for (const auto& pair : input) {
-        XLS_VLOG(1) << "    " << pair.first << " : "
-                    << pair.second.ToDebugString();
+        VLOG(1) << "    " << pair.first << " : " << pair.second.ToDebugString();
       }
     }
   }
-  XLS_VLOG(2) << "Verilog:\n" << verilog_text_;
+  VLOG(2) << "Verilog:\n" << verilog_text_;
 
   if (inputs.empty()) {
     return std::vector<BitsMap>();
@@ -475,12 +474,11 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   }
 
   if (VLOG_IS_ON(1)) {
-    XLS_VLOG(1) << "Results:\n";
+    VLOG(1) << "Results:\n";
     for (int64_t i = 0; i < outputs.size(); ++i) {
-      XLS_VLOG(1) << "  Set " << i << ":";
+      VLOG(1) << "  Set " << i << ":";
       for (const auto& pair : outputs[i]) {
-        XLS_VLOG(1) << "    " << pair.first << " : "
-                    << pair.second.ToDebugString();
+        VLOG(1) << "    " << pair.first << " : " << pair.second.ToDebugString();
       }
     }
   }
@@ -535,8 +533,8 @@ ModuleSimulator::CreateProcTestbench(
     const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
     const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
     std::optional<ReadyValidHoldoffs> holdoffs) const {
-  XLS_VLOG(1) << "Generating testbench for Verilog module with signature:\n"
-              << signature_.ToString();
+  VLOG(1) << "Generating testbench for Verilog module with signature:\n"
+          << signature_.ToString();
   if (VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs_values;
     for (const auto& [channel_name, channel_values] : channel_inputs) {
@@ -549,10 +547,10 @@ ModuleSimulator::CreateProcTestbench(
           channel_inputs_values[channel_name],
           BitsListToValueList(channel_values, data_port.type()));
     }
-    XLS_VLOG(1) << "Input channel values:\n";
-    XLS_VLOG(1) << ChannelValuesToString(channel_inputs_values);
+    VLOG(1) << "Input channel values:\n";
+    VLOG(1) << ChannelValuesToString(channel_inputs_values);
   }
-  XLS_VLOG(2) << "Verilog:\n" << verilog_text_;
+  VLOG(2) << "Verilog:\n" << verilog_text_;
 
   for (const auto& [channel_name, channel_values] : channel_inputs) {
     XLS_RETURN_IF_ERROR(
@@ -663,8 +661,8 @@ ModuleSimulator::RunInputSeriesProc(
           result_channel_values[channel_name],
           BitsListToValueList(channel_values, data_port.type()));
     }
-    XLS_VLOG(1) << "Result channel values:\n";
-    XLS_VLOG(1) << ChannelValuesToString(result_channel_values);
+    VLOG(1) << "Result channel values:\n";
+    VLOG(1) << ChannelValuesToString(result_channel_values);
   }
   return outputs;
 }

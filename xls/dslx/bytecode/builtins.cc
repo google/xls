@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -174,7 +175,7 @@ absl::Status RunBuiltinUpdate(const Bytecode& bytecode,
 
 absl::Status RunBuiltinBitSlice(const Bytecode& bytecode,
                                 InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin BitSlice.";
+  VLOG(3) << "Executing builtin BitSlice.";
   return RunTernaryBuiltin(
       [](const InterpValue& subject, const InterpValue& start,
          const InterpValue& width) -> absl::StatusOr<InterpValue> {
@@ -194,7 +195,7 @@ absl::Status RunBuiltinBitSlice(const Bytecode& bytecode,
 
 absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode,
                                       InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin BitSliceUpdate.";
+  VLOG(3) << "Executing builtin BitSliceUpdate.";
 
   return RunTernaryBuiltin(
       [](const InterpValue& subject, const InterpValue& start,
@@ -261,7 +262,7 @@ absl::Status RunBuiltinGate(const Bytecode& bytecode, InterpreterStack& stack) {
 
 absl::Status RunBuiltinEncode(const Bytecode& bytecode,
                               InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin encode.";
+  VLOG(3) << "Executing builtin encode.";
   XLS_RET_CHECK(!stack.empty());
 
   XLS_ASSIGN_OR_RETURN(InterpValue input, stack.Pop());
@@ -405,7 +406,7 @@ absl::Status RunBuiltinUMulp(const Bytecode& bytecode,
 
 absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode,
                                     InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin AddWithCarry.";
+  VLOG(3) << "Executing builtin AddWithCarry.";
   XLS_RET_CHECK_GE(stack.size(), 2);
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, stack.Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, stack.Pop());
@@ -416,7 +417,7 @@ absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode,
 
 absl::Status RunBuiltinAndReduce(const Bytecode& bytecode,
                                  InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin AndReduce.";
+  VLOG(3) << "Executing builtin AndReduce.";
   XLS_RET_CHECK(!stack.empty());
   XLS_ASSIGN_OR_RETURN(InterpValue value, stack.Pop());
   XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
@@ -428,7 +429,7 @@ absl::Status RunBuiltinAndReduce(const Bytecode& bytecode,
 absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
                                 const BytecodeInterpreterOptions& options) {
-  XLS_VLOG(3) << "Executing builtin AssertEq.";
+  VLOG(3) << "Executing builtin AssertEq.";
   XLS_RET_CHECK_GE(stack.size(), 2);
 
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, stack.Pop());
@@ -478,7 +479,7 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
 absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
                                 const BytecodeInterpreterOptions& options) {
-  XLS_VLOG(3) << "Executing builtin AssertLt.";
+  VLOG(3) << "Executing builtin AssertLt.";
   XLS_RET_CHECK_GE(stack.size(), 2);
 
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, stack.Pop());
@@ -511,7 +512,7 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
 }
 
 absl::Status RunBuiltinClz(const Bytecode& bytecode, InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin clz.";
+  VLOG(3) << "Executing builtin clz.";
   XLS_RET_CHECK(!stack.empty());
 
   XLS_ASSIGN_OR_RETURN(InterpValue input, stack.Pop());
@@ -524,7 +525,7 @@ absl::Status RunBuiltinClz(const Bytecode& bytecode, InterpreterStack& stack) {
 
 absl::Status RunBuiltinCover(const Bytecode& bytecode,
                              InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin `cover!`";
+  VLOG(3) << "Executing builtin `cover!`";
   XLS_RET_CHECK_GE(stack.size(), 2);
 
   XLS_ASSIGN_OR_RETURN(InterpValue string, stack.Pop());
@@ -535,7 +536,7 @@ absl::Status RunBuiltinCover(const Bytecode& bytecode,
 }
 
 absl::Status RunBuiltinCtz(const Bytecode& bytecode, InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin ctz.";
+  VLOG(3) << "Executing builtin ctz.";
   XLS_RET_CHECK(!stack.empty());
 
   XLS_ASSIGN_OR_RETURN(InterpValue input, stack.Pop());
@@ -566,7 +567,7 @@ absl::Status RunBuiltinEnumerate(const Bytecode& bytecode,
 
 absl::Status RunBuiltinOrReduce(const Bytecode& bytecode,
                                 InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin OrReduce.";
+  VLOG(3) << "Executing builtin OrReduce.";
   XLS_RET_CHECK(!stack.empty());
   XLS_ASSIGN_OR_RETURN(InterpValue value, stack.Pop());
   XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
@@ -650,7 +651,7 @@ absl::Status RunBuiltinZip(const Bytecode& bytecode, InterpreterStack& stack) {
 
 absl::Status RunBuiltinXorReduce(const Bytecode& bytecode,
                                  InterpreterStack& stack) {
-  XLS_VLOG(3) << "Executing builtin XorReduce.";
+  VLOG(3) << "Executing builtin XorReduce.";
   XLS_RET_CHECK(!stack.empty());
   XLS_ASSIGN_OR_RETURN(InterpValue value, stack.Pop());
   XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());

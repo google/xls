@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -160,7 +161,7 @@ absl::StatusOr<const AstNode*> ImportData::FindNode(AstNodeKind kind,
 
 absl::Status ImportData::AddToImporterStack(
     const Span& importer_span, const std::filesystem::path& imported) {
-  XLS_VLOG(3) << "Checking import span: " << importer_span;
+  VLOG(3) << "Checking import span: " << importer_span;
 
   ImportRecord new_import_record{imported, importer_span};
 
@@ -177,7 +178,7 @@ absl::Status ImportData::AddToImporterStack(
     }
   }
 
-  XLS_VLOG(3) << "Adding import span to stack: " << importer_span;
+  VLOG(3) << "Adding import span to stack: " << importer_span;
   importer_stack_.push_back(new_import_record);
   return absl::OkStatus();
 }
@@ -185,8 +186,8 @@ absl::Status ImportData::AddToImporterStack(
 absl::Status ImportData::PopFromImporterStack(const Span& import_span) {
   XLS_RET_CHECK(!importer_stack_.empty());
   XLS_RET_CHECK_EQ(import_span, importer_stack_.back().imported_from);
-  XLS_VLOG(3) << "Popping import span from stack: "
-              << importer_stack_.back().imported_from;
+  VLOG(3) << "Popping import span from stack: "
+          << importer_stack_.back().imported_from;
   importer_stack_.pop_back();
   return absl::OkStatus();
 }

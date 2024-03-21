@@ -299,9 +299,9 @@ static absl::Status EvaluateProcs(
 
       for (const auto& proc : package->procs()) {
         const auto& state = states.at(proc.get());
-        XLS_VLOG(1) << "Proc " << proc->name() << " : "
-                    << absl::StrFormat(
-                           "{%s}", absl::StrJoin(state, ", ", ValueFormatter));
+        VLOG(1) << "Proc " << proc->name() << " : "
+                << absl::StrFormat("{%s}",
+                                   absl::StrJoin(state, ", ", ValueFormatter));
       }
 
       // --ticks 0 stops when all outputs are verified

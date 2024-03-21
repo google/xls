@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -58,7 +59,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
   // We can't compare the JSON to a golden file because the underlying proto to
   // JSON library is nondeterministic in the order of fields so just check a
   // couple things.
-  XLS_VLOG(1) << json;
+  VLOG(1) << json;
   EXPECT_THAT(json, HasSubstr(R"("name": "main")"));
   EXPECT_THAT(json, HasSubstr(R"("id": "f0")"));
 
@@ -98,7 +99,7 @@ TEST_F(IrToJsonTest, SimpleFunctionWithSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
                                                       /*schedule=*/&schedule,
                                                       /*entry_name=*/"main"));
-  XLS_VLOG(1) << json;
+  VLOG(1) << json;
 }
 
 TEST_F(IrToJsonTest, MultipleFunctions) {
@@ -121,7 +122,7 @@ fn main(x: bits[32], xx: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
                                                       /*schedule=*/nullptr,
                                                       /*entry_name=*/"main"));
-  XLS_VLOG(1) << json;
+  VLOG(1) << json;
 }
 
 TEST_F(IrToJsonTest, SimpleProc) {
@@ -146,7 +147,7 @@ top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
                                                       /*schedule=*/nullptr,
                                                       /*entry_name=*/"main"));
-  XLS_VLOG(1) << json;
+  VLOG(1) << json;
 }
 
 }  // namespace

@@ -214,14 +214,14 @@ int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
       path_capacity = std::min(path_capacity, e->capacity);
       path_back[e->to] = {e, path_capacity};
       next_frontier.push_back(e->to);
-      XLS_VLOG(5) << "  Added " << graph.name(e->to) << " to the frontier";
+      VLOG(5) << "  Added " << graph.name(e->to) << " to the frontier";
     };
 
     for (NodeId node : frontier) {
-      XLS_VLOG(5) << "Visiting " << graph.name(node);
+      VLOG(5) << "Visiting " << graph.name(node);
       for (EdgeId edge_id : residual_graph->successors(node)) {
         ResidualEdge& edge = residual_graph->edge(edge_id);
-        XLS_VLOG(5) << absl::StreamFormat(
+        VLOG(5) << absl::StreamFormat(
             "  Traversing %s->%s", graph.name(edge.from), graph.name(edge.to));
         CHECK_GE(edge.capacity, 0);
         if (edge.capacity > 0) {
@@ -240,7 +240,7 @@ int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
               n = e->from;
             }
             if (VLOG_IS_ON(4)) {
-              XLS_VLOG(4) << "Augmented flow: " << augmented_flow_amount;
+              VLOG(4) << "Augmented flow: " << augmented_flow_amount;
               std::vector<const ResidualEdge*> augmented_path;
               NodeId n = sink;
               while (n != source) {
@@ -249,15 +249,15 @@ int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
                 n = e->from;
               }
               std::reverse(augmented_path.begin(), augmented_path.end());
-              XLS_VLOG(4) << "Augmented path: "
-                          << absl::StrJoin(
-                                 augmented_path, ", ",
-                                 [&](std::string* out, const ResidualEdge* e) {
-                                   absl::StrAppendFormat(
-                                       out, "%s->%s [new capacity %d]",
-                                       graph.name(e->from), graph.name(e->to),
-                                       e->capacity);
-                                 });
+              VLOG(4) << "Augmented path: "
+                      << absl::StrJoin(
+                             augmented_path, ", ",
+                             [&](std::string* out, const ResidualEdge* e) {
+                               absl::StrAppendFormat(
+                                   out, "%s->%s [new capacity %d]",
+                                   graph.name(e->from), graph.name(e->to),
+                                   e->capacity);
+                             });
             }
             return augmented_flow_amount;
           }
@@ -269,7 +269,7 @@ int64_t AugmentFlow(const Graph& graph, NodeId source, NodeId sink,
     next_frontier.clear();
   }
 
-  XLS_VLOG(4) << "No augmenting path found";
+  VLOG(4) << "No augmenting path found";
   return 0;
 }
 

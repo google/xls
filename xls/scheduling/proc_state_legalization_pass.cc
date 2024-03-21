@@ -20,6 +20,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
@@ -156,7 +157,7 @@ absl::StatusOr<bool> AddDefaultNextValues(
     XLS_ASSIGN_OR_RETURN(bool param_changed,
                          AddDefaultNextValue(proc, param, options));
     if (param_changed) {
-      XLS_VLOG(4) << "Added default next_value for param: " << param->name();
+      VLOG(4) << "Added default next_value for param: " << param->name();
       changed = true;
     }
   }

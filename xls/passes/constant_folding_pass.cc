@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -67,7 +68,7 @@ absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
     // TODO(meheff): 2019/6/26 Consider not folding loops with large trip counts
     // to avoid hanging at compile time.
     if (NodeIsConstantFoldable(node)) {
-      XLS_VLOG(2) << "Folding: " << *node;
+      VLOG(2) << "Folding: " << *node;
       std::vector<Value> operand_values;
       for (Node* operand : node->operands()) {
         operand_values.push_back(operand->As<Literal>()->value());

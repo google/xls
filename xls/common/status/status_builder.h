@@ -149,7 +149,7 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
 
   // Mutates the builder so that the result status will be VLOGged (without a
   // stack trace) when this builder is converted to a Status.  `verbose_level`
-  // indicates the verbosity level that would be passed to XLS_VLOG().  This
+  // indicates the verbosity level that would be passed to VLOG().  This
   // overrides the logging settings from earlier calls to any of the logging
   // mutator functions.  Returns `*this` to allow method chaining.
   StatusBuilder& VLog(int verbose_level) &;

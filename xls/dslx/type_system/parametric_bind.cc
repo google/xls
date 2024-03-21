@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/casts.h"
@@ -105,9 +106,9 @@ absl::Status ParametricBindTypeDim(const Type& param_type,
                                    const TypeDim& param_dim,
                                    const Type& arg_type, const TypeDim& arg_dim,
                                    ParametricBindContext& ctx) {
-  XLS_VLOG(5) << "ParametricBindTypeDim;" << " param_type: " << param_type
-              << " param_dim: " << param_dim << " arg_type: " << arg_type
-              << " arg_dim: " << arg_dim;
+  VLOG(5) << "ParametricBindTypeDim;" << " param_type: " << param_type
+          << " param_dim: " << param_dim << " arg_type: " << arg_type
+          << " arg_dim: " << arg_dim;
 
   XLS_RET_CHECK(!arg_dim.IsParametric()) << arg_dim.ToString();
 
@@ -125,7 +126,7 @@ absl::Status ParametricBindTypeDim(const Type& param_type,
   if (!ctx.parametric_env.contains(pdim_name)) {
     XLS_RET_CHECK(ctx.parametric_binding_types.contains(pdim_name))
         << "Cannot bind " << pdim_name << " : it has no associated type.";
-    XLS_VLOG(5) << "Binding " << pdim_name << " to " << arg_dim_i64;
+    VLOG(5) << "Binding " << pdim_name << " to " << arg_dim_i64;
     const Type& type = *ctx.parametric_binding_types.at(pdim_name);
     XLS_ASSIGN_OR_RETURN(TypeDim bit_count, type.GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(int64_t width, bit_count.GetAsInt64());
@@ -167,8 +168,8 @@ absl::Status ParametricBindTypeDim(const Type& param_type,
 
 absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
                             ParametricBindContext& ctx) {
-  XLS_VLOG(10) << "ParametricBind; param_type: " << param_type
-               << " arg_type: " << arg_type;
+  VLOG(10) << "ParametricBind; param_type: " << param_type
+           << " arg_type: " << arg_type;
   auto wrong_kind = [&]() {
     std::string message = absl::StrFormat(
         "expected argument kind '%s' to match parameter kind '%s'",

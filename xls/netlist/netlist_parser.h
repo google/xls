@@ -26,6 +26,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -491,7 +492,7 @@ absl::Status AbstractParser<EvalT>::ParseInstance(
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenParen));
     XLS_ASSIGN_OR_RETURN(AbstractNetRef<EvalT> net, ParseNetRef(module));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseParen));
-    XLS_VLOG(3) << "Adding named parameter assignment: " << pin_name;
+    VLOG(3) << "Adding named parameter assignment: " << pin_name;
     bool is_new = named_parameter_assignments.insert({pin_name, net}).second;
     if (!is_new) {
       return absl::InvalidArgumentError("Duplicate port seen: " + pin_name);

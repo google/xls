@@ -181,7 +181,7 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
                 "%s %s %s ? %s : %s", x_on_lhs ? "x" : k0_str,
                 OpToString(cmp_op), x_on_lhs ? k0_str : "x",
                 x_on_true ? "x" : k1_str, x_on_true ? k1_str : "x");
-            XLS_VLOG(1) << "Testing: " << expr_str;
+            VLOG(1) << "Testing: " << expr_str;
 
             auto p = CreatePackage();
             FunctionBuilder fb(TestName(), p.get());
@@ -195,7 +195,7 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
             XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                                      fb.BuildWithReturnValue(select));
 
-            XLS_VLOG(2) << "Before canonicalization: " << f->DumpIr();
+            VLOG(2) << "Before canonicalization: " << f->DumpIr();
 
             std::vector<Value> expected(kMaxValue);
             for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
@@ -207,8 +207,8 @@ TEST_F(CanonicalizePassTest, ExhaustiveClampTest) {
 
             XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
 
-            XLS_VLOG(2) << "changed: " << changed;
-            XLS_VLOG(2) << "After canonicalization: " << f->DumpIr();
+            VLOG(2) << "changed: " << changed;
+            VLOG(2) << "After canonicalization: " << f->DumpIr();
 
             for (int64_t x_value = 0; x_value < kMaxValue; ++x_value) {
               XLS_ASSERT_OK_AND_ASSIGN(

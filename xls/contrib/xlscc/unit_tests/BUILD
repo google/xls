@@ -247,6 +247,7 @@ cc_test(
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",
         "//xls/simulation:verilog_test_base",
+        "@com_google_absl//absl/log",
     ],
 )
 

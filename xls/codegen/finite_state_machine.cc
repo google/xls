@@ -270,14 +270,14 @@ UnconditionalFsmBlock& ConditionalFsmBlock::FindOrAddFinalAlternate() {
 
 absl::Status FsmBlockBase::AddDefaultOutputAssignments(
     const FsmOutput& output) {
-  XLS_VLOG(3) << absl::StreamFormat(
+  VLOG(3) << absl::StreamFormat(
       "AddDefaultOutputAssignments for output %s in block \"%s\"",
       output.logic_ref->GetName(), debug_name());
   // The count of the assignments along any code path through the block.
   int64_t assignment_count = 0;
   for (const Assignment& assignment : assignments_) {
     if (assignment.lhs == output.logic_ref) {
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Output is unconditionally assigned %s in block \"%s\"",
           assignment.rhs->Emit(nullptr), debug_name());
       assignment_count++;
@@ -290,8 +290,8 @@ absl::Status FsmBlockBase::AddDefaultOutputAssignments(
     // The conditional block has an assignment to the output somewhere beneath
     // it. Make sure there is an assignment on each alternate of the
     // conditional.
-    XLS_VLOG(3) << "Conditional block " << cond_block.debug_name()
-                << " assigns output " << output.logic_ref->GetName();
+    VLOG(3) << "Conditional block " << cond_block.debug_name()
+            << " assigns output " << output.logic_ref->GetName();
     cond_block.FindOrAddFinalAlternate();
     XLS_RETURN_IF_ERROR(cond_block.ForEachAlternate(
         [&](FsmBlockBase* alternate) -> absl::Status {
@@ -305,7 +305,7 @@ absl::Status FsmBlockBase::AddDefaultOutputAssignments(
         output.logic_ref->GetName()));
   }
   if (assignment_count == 0) {
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Adding assignment of %s to default value %s in block \"%s\"",
         output.logic_ref->Emit(nullptr), output.default_value->Emit(nullptr),
         debug_name());
@@ -376,13 +376,13 @@ bool AllSameAndNonNull(absl::Span<Expression* const> exprs) {
 
 absl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
     const FsmOutput& output) {
-  XLS_VLOG(3) << absl::StreamFormat(
+  VLOG(3) << absl::StreamFormat(
       "HoistCommonConditionalAssignments for output %s in block \"%s\"",
       output.logic_ref->GetName(), debug_name());
 
   for (const Assignment& assignment : assignments_) {
     if (assignment.lhs == output.logic_ref) {
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Output is unconditionally assigned %s in block \"%s\"",
           assignment.rhs->Emit(nullptr), debug_name());
       return assignment.rhs;
@@ -393,16 +393,16 @@ absl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
     if (!cond_block.HasAssignmentToOutput(output)) {
       continue;
     }
-    XLS_VLOG(3) << absl::StreamFormat(
-        "Conditional block \"%s\" assigns output %s", cond_block.debug_name(),
-        output.logic_ref->GetName());
+    VLOG(3) << absl::StreamFormat("Conditional block \"%s\" assigns output %s",
+                                  cond_block.debug_name(),
+                                  output.logic_ref->GetName());
     std::vector<Expression*> rhses;
     XLS_RETURN_IF_ERROR(cond_block.ForEachAlternate(
         [&](FsmBlockBase* alternate) -> absl::Status {
           XLS_ASSIGN_OR_RETURN(
               Expression * rhs,
               alternate->HoistCommonConditionalAssignments(output));
-          XLS_VLOG(3) << absl::StreamFormat(
+          VLOG(3) << absl::StreamFormat(
               "Alternate block \"%s\" assigns output %s to %s",
               cond_block.debug_name(), output.logic_ref->GetName(),
               rhs == nullptr ? "nullptr" : rhs->Emit(nullptr));
@@ -410,13 +410,13 @@ absl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
           return absl::OkStatus();
         }));
     if (!AllSameAndNonNull(rhses)) {
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Not all conditional block assign output %s to same value",
           output.logic_ref->GetName());
       return nullptr;
     }
 
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Conditional block assigns output %s to same value %s on all "
         "alternates",
         output.logic_ref->GetName(), rhses.front()->Emit(nullptr));
@@ -463,7 +463,7 @@ absl::Status FsmBuilder::BuildOutputLogic(LogicRef* state) {
   // not need this treatment because their value only changes on clock edges
   // which avoids any propagate of a multi-assignment glitch during simulation.
   for (FsmState& fsm_state : states_) {
-    XLS_VLOG(3) << "Adding default assignments for state " << fsm_state.name();
+    VLOG(3) << "Adding default assignments for state " << fsm_state.name();
     for (const FsmOutput& output : outputs_) {
       XLS_RETURN_IF_ERROR(fsm_state.AddDefaultOutputAssignments(output));
       XLS_RETURN_IF_ERROR(

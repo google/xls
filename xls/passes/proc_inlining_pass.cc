@@ -561,7 +561,7 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
   // predecessors of the node along paths with tokens.
   absl::flat_hash_map<Node*, absl::flat_hash_set<Receive*>> token_predecessors;
 
-  XLS_VLOG(4) << "VerifyTokenDependencies:";
+  VLOG(4) << "VerifyTokenDependencies:";
   for (Node* node : TopoSort(proc)) {
     predecessors[node] = {};
     token_predecessors[node] = {};
@@ -574,10 +574,10 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
       }
     }
 
-    XLS_VLOG(4) << absl::StrFormat("Receive predecessors of %s      : {%s}",
-                                   node->GetName(),
-                                   absl::StrJoin(predecessors.at(node), ", "));
-    XLS_VLOG(4) << absl::StrFormat(
+    VLOG(4) << absl::StrFormat("Receive predecessors of %s      : {%s}",
+                               node->GetName(),
+                               absl::StrJoin(predecessors.at(node), ", "));
+    VLOG(4) << absl::StrFormat(
         "Receive token predecessors of %s: {%s}", node->GetName(),
         absl::StrJoin(token_predecessors.at(node), ", "));
 
@@ -701,10 +701,10 @@ GetReceiveDataDependencies(Proc* inlined_proc) {
   XLS_RETURN_IF_ERROR(inlined_proc->Accept(&visitor));
 
   if (VLOG_IS_ON(3)) {
-    XLS_VLOG(3) << absl::StrFormat("Receive data dependencies for proc %s:",
-                                   inlined_proc->name());
+    VLOG(3) << absl::StrFormat("Receive data dependencies for proc %s:",
+                               inlined_proc->name());
     for (Node* node : TopoSort(inlined_proc)) {
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "  %s : %s", node->GetName(),
           visitor.GetValue(node).ToString([](const std::vector<Receive*>& t) {
             return absl::StrFormat("{%s}", absl::StrJoin(t, ", "));
@@ -817,7 +817,7 @@ class ProcThread {
   // nodes in the inlined proc. The activation network includes a single dummy
   // source and sink nodes as well.
   absl::Status CreateActivationNetwork() {
-    XLS_VLOG(3) << "CreateActivationNetwork " << inlined_proc_->name();
+    VLOG(3) << "CreateActivationNetwork " << inlined_proc_->name();
     XLS_ASSIGN_OR_RETURN(std::vector<NodeAndPredecessors> token_graph,
                          ComputeTopoSortedTokenDAG(inlined_proc_));
     // Create the state element for the activation bit of the proc thread.
@@ -899,7 +899,7 @@ class ProcThread {
   // committed to the corresponding element of container proc when the proc
   // thread tick is complete.
   absl::Status SetNextState(absl::Span<Node* const> next_state) {
-    XLS_VLOG(3) << "SetNextState proc thread for: " << inlined_proc_->name();
+    VLOG(3) << "SetNextState proc thread for: " << inlined_proc_->name();
 
     XLS_RET_CHECK_EQ(next_state.size(), inlined_proc_->GetStateElementCount());
 
@@ -941,7 +941,7 @@ class ProcThread {
 
     absl::flat_hash_map<Receive*, std::vector<ActivationNode*>> result;
 
-    XLS_VLOG(3) << "Activation node users of receives:";
+    VLOG(3) << "Activation node users of receives:";
     for (Receive* receive : receives) {
       result[receive];
       for (Node* node : receive_data_deps.at(receive)) {
@@ -958,7 +958,7 @@ class ProcThread {
         }
       }
       Channel* channel = GetChannelUsedByNode(receive).value();
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "  %s receive (%s) : %s", channel->name(), receive->GetName(),
           absl::StrJoin(result.at(receive), ", ",
                         [](std::string* out, ActivationNode* n) {
@@ -993,7 +993,7 @@ class ProcThread {
       Receive* original_receive = anode.original_node.value()->As<Receive>();
       XLS_ASSIGN_OR_RETURN(Channel * channel,
                            GetChannelUsedByNode(anode.original_node.value()));
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "  Receive on channel %s (%s, %s, %d bits), users: %s",
           channel->name(), ChannelKindToString(channel->kind()),
           ChannelOpsToString(channel->supported_ops()),
@@ -1035,8 +1035,7 @@ class ProcThread {
         // from inlining single-value channels to avoid relying on these subtle
         // and potentially erroneous arguments. A potential alternative might be
         // "direct" channels mentioned in the github issue.
-        XLS_VLOG(3)
-            << "    No need to save data because channel is single-value.";
+        VLOG(3) << "    No need to save data because channel is single-value.";
         continue;
       }
 
@@ -1048,7 +1047,7 @@ class ProcThread {
               Channel * send_channel,
               GetChannelUsedByNode(user_anode->original_node.value()));
           if (send_channel->kind() == ChannelKind::kSingleValue) {
-            XLS_VLOG(3) << absl::StrFormat(
+            VLOG(3) << absl::StrFormat(
                 "    Must save data because activation node %s is send on "
                 "single-value channel %s",
                 user_anode->name, send_channel->name());
@@ -1061,7 +1060,7 @@ class ProcThread {
             TreeBitLocation{anode.activation_out, 0},
             TreeBitLocation{user_anode->activation_out, 0});
         if (!user_always_ready) {
-          XLS_VLOG(3) << absl::StrFormat(
+          VLOG(3) << absl::StrFormat(
               "    Must save data because activation node %s is not "
               "necessarily active in same tick as receive on channel %s",
               user_anode->name, channel->name());
@@ -1071,7 +1070,7 @@ class ProcThread {
       }
 
       if (!save_data) {
-        XLS_VLOG(3) << absl::StreamFormat(
+        VLOG(3) << absl::StreamFormat(
             "    No need to save data. All users activated.");
         continue;
       }
@@ -1144,8 +1143,8 @@ class ProcThread {
       absl::flat_hash_map<Channel*, VirtualChannel>& virtual_channels) {
     XLS_RET_CHECK_EQ(send->function_base(), container_proc_);
     XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(send));
-    XLS_VLOG(3) << absl::StreamFormat("Converting send %s on channel %s",
-                                      send->GetName(), ch->name());
+    VLOG(3) << absl::StreamFormat("Converting send %s on channel %s",
+                                  send->GetName(), ch->name());
 
     Node* result;
     if (ch->supported_ops() == ChannelOps::kSendReceive) {
@@ -1171,8 +1170,8 @@ class ProcThread {
     XLS_RET_CHECK_EQ(receive->function_base(), container_proc_);
     XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(receive));
 
-    XLS_VLOG(3) << absl::StreamFormat("Converting receive %s on channel %s",
-                                      receive->GetName(), ch->name());
+    VLOG(3) << absl::StreamFormat("Converting receive %s on channel %s",
+                                  receive->GetName(), ch->name());
 
     Node* result;
     if (ch->supported_ops() == ChannelOps::kSendReceive) {
@@ -1194,8 +1193,8 @@ class ProcThread {
       XLS_RET_CHECK_EQ(ch->kind(), ChannelKind::kSingleValue);
       result = receive;
     }
-    XLS_VLOG(3) << absl::StreamFormat("Receive %s converted to %s",
-                                      receive->GetName(), result->GetName());
+    VLOG(3) << absl::StreamFormat("Receive %s converted to %s",
+                                  receive->GetName(), result->GetName());
 
     activation_node->data_out = result;
     return result;
@@ -1249,13 +1248,12 @@ class ProcThread {
                             "proc inlining (%s).",
                             node->GetName(), op_name));
     }
-    XLS_VLOG(3) << absl::StreamFormat("Converting %s %s to activated %s",
-                                      op_name, node->GetName(), op_name);
+    VLOG(3) << absl::StreamFormat("Converting %s %s to activated %s", op_name,
+                                  node->GetName(), op_name);
     XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(
         condition_operand_index, new_condition, /*type_must_match=*/true));
-    XLS_VLOG(3) << absl::StreamFormat("Converted %s %s condition to %s",
-                                      op_name, node->GetName(),
-                                      new_condition->GetName());
+    VLOG(3) << absl::StreamFormat("Converted %s %s condition to %s", op_name,
+                                  node->GetName(), new_condition->GetName());
     activation_node->data_out = node;
     return node;
   }
@@ -1335,9 +1333,9 @@ class ProcThread {
 
 absl::StatusOr<StateElement*> ProcThread::AllocateState(
     std::string_view name, const Value& initial_value) {
-  XLS_VLOG(3) << absl::StreamFormat(
-      "AllocateState: %s, size: %d, initial value %s", name,
-      initial_value.GetFlatBitCount(), initial_value.ToString());
+  VLOG(3) << absl::StreamFormat("AllocateState: %s, size: %d, initial value %s",
+                                name, initial_value.GetFlatBitCount(),
+                                initial_value.ToString());
   XLS_ASSIGN_OR_RETURN(
       StateElement element,
       StateElement::Create(name, initial_value, container_proc_));
@@ -1348,8 +1346,8 @@ absl::StatusOr<StateElement*> ProcThread::AllocateState(
 absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
     std::string_view name, absl::Span<Node* const> activations_in,
     std::optional<Node*> original_node) {
-  XLS_VLOG(3) << absl::StreamFormat("AllocateActivationNode: %s, inputs (%s)",
-                                    name, absl::StrJoin(activations_in, ", "));
+  VLOG(3) << absl::StreamFormat("AllocateActivationNode: %s, inputs (%s)", name,
+                                absl::StrJoin(activations_in, ", "));
 
   ActivationNode activation_node;
   activation_node.name = name;
@@ -1428,8 +1426,8 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualSend(
   }
 
   XLS_RET_CHECK_EQ(channel, virtual_channel.GetChannel());
-  XLS_VLOG(3) << absl::StreamFormat("Creating virtual send on channel %s",
-                                    channel->name());
+  VLOG(3) << absl::StreamFormat("Creating virtual send on channel %s",
+                                channel->name());
 
   XLS_RET_CHECK_EQ(activation_node->activations_in.size(), 1);
   Node* activation_in = activation_node->activations_in.front();
@@ -1465,8 +1463,8 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
         "Conditional receives on single-value channels are not supported");
   }
 
-  XLS_VLOG(3) << absl::StreamFormat("Creating virtual receive on channel %s",
-                                    channel->name());
+  VLOG(3) << absl::StreamFormat("Creating virtual receive on channel %s",
+                                channel->name());
   // Logic indicating whether the receive will stall:
   //
   //   stall = predicate && !data_valid
@@ -1559,8 +1557,8 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
 
 absl::StatusOr<Send*> ProcThread::ConvertToActivatedSend(
     Send* send, ActivationNode* activation_node) {
-  XLS_VLOG(3) << absl::StreamFormat("Converting send %s to activated send",
-                                    send->GetName());
+  VLOG(3) << absl::StreamFormat("Converting send %s to activated send",
+                                send->GetName());
   XLS_RET_CHECK_EQ(activation_node->activations_in.size(), 1);
   Node* activation_in = activation_node->activations_in.front();
   Send* activated_send;
@@ -1571,15 +1569,15 @@ absl::StatusOr<Send*> ProcThread::ConvertToActivatedSend(
   } else {
     XLS_ASSIGN_OR_RETURN(activated_send, AddSendPredicate(send, activation_in));
   }
-  XLS_VLOG(3) << absl::StreamFormat("Activated send: %s",
-                                    activated_send->GetName());
+  VLOG(3) << absl::StreamFormat("Activated send: %s",
+                                activated_send->GetName());
   return activated_send;
 }
 
 absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
     Receive* receive, ActivationNode* activation_node) {
-  XLS_VLOG(3) << absl::StreamFormat(
-      "Converting receive %s to activated receive", receive->GetName());
+  VLOG(3) << absl::StreamFormat("Converting receive %s to activated receive",
+                                receive->GetName());
 
   XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(receive));
   XLS_RET_CHECK_EQ(activation_node->activations_in.size(), 1);
@@ -1594,8 +1592,8 @@ absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
     XLS_ASSIGN_OR_RETURN(activated_receive,
                          AddReceivePredicate(receive, activation_in));
   }
-  XLS_VLOG(3) << absl::StreamFormat("Activated receive: %s",
-                                    activated_receive->GetName());
+  VLOG(3) << absl::StreamFormat("Activated receive: %s",
+                                activated_receive->GetName());
 
   // Save the current uses of the receive.
   std::vector<Node*> old_users(activated_receive->users().begin(),
@@ -1651,7 +1649,7 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   };
 
   for (Node* node : topo_sort) {
-    XLS_VLOG(3) << absl::StreamFormat("Inlining node %s", node->GetName());
+    VLOG(3) << absl::StreamFormat("Inlining node %s", node->GetName());
     if (node->Is<Param>()) {
       if (node == proc_to_inline->TokenParam()) {
         // Connect the inlined token network from `proc` to the token parameter
@@ -1813,7 +1811,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
     proc_threads.push_back(std::move(proc_thread));
   }
 
-  XLS_VLOG(3) << "After inlining procs:\n" << p->DumpIr();
+  VLOG(3) << "After inlining procs:\n" << p->DumpIr();
 
   // Changes were made to IsCheapForBdds which breaks proc inlining. Replicate
   // the old IsCheapForBdds function here. This doesn't matter because proc
@@ -1859,7 +1857,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
 
   XLS_RETURN_IF_ERROR(SetProcState(container_proc, state_elements));
 
-  XLS_VLOG(3) << "After transforming proc state:\n" << p->DumpIr();
+  VLOG(3) << "After transforming proc state:\n" << p->DumpIr();
 
   // Delete inlined procs.
   XLS_RETURN_IF_ERROR(p->SetTop(container_proc));
@@ -1893,7 +1891,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
     }
   }
 
-  XLS_VLOG(3) << "After deleting inlined procs:\n" << p->DumpIr();
+  VLOG(3) << "After deleting inlined procs:\n" << p->DumpIr();
 
   return true;
 }

@@ -282,8 +282,8 @@ AbstractInterpreter<EvalT>::InterpretModule(
       processed_cells[cell]->inputs.insert({wire, std::move(input.second)});
     }
     if constexpr (std::is_convertible<EvalT, int>()) {
-      XLS_VLOG(2) << "Input : " << input.first->name() << " : "
-                  << static_cast<int>(input.second);
+      VLOG(2) << "Input : " << input.first->name() << " : "
+              << static_cast<int>(input.second);
     }
   }
 
@@ -314,7 +314,7 @@ AbstractInterpreter<EvalT>::InterpretModule(
 
     rtl::AbstractNetRef<EvalT> wire = active_wires.front();
     active_wires.pop_front();
-    XLS_VLOG(2) << "Processing wire: " << wire->name();
+    VLOG(2) << "Processing wire: " << wire->name();
 
     for (const auto cell : wire->connected_input_cells()) {
       auto processed_cell_state = processed_cells[cell].get();
@@ -338,9 +338,9 @@ AbstractInterpreter<EvalT>::InterpretModule(
           num_available_threads_--;
           num_pending_outputs++;
           input_queue_guard_.Unlock();
-          XLS_VLOG(2) << "Dispatched cell: " << cell->name();
+          VLOG(2) << "Dispatched cell: " << cell->name();
         } else {
-          XLS_VLOG(2) << "Processing locally cell: " << cell->name();
+          VLOG(2) << "Processing locally cell: " << cell->name();
           XLS_ASSIGN_OR_RETURN(
               auto results, InterpretCell(cell, processed_cell_state->inputs));
           UpdateProcessedState(processed_cells, active_wires, outputs, module,

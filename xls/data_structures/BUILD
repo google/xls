@@ -230,6 +230,7 @@ cc_library(
     hdrs = ["path_cut.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -340,6 +341,7 @@ cc_test(
     deps = [
         ":binary_decision_diagram",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
@@ -355,6 +357,7 @@ cc_test(
     deps = [
         ":min_cut",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/random:mocking_bit_gen",
@@ -372,6 +375,7 @@ cc_test(
     srcs = ["path_cut_test.cc"],
     deps = [
         ":path_cut",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:strong_int",

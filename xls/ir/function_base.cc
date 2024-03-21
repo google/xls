@@ -26,6 +26,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -117,8 +118,8 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
 absl::Status FunctionBase::RemoveNode(Node* node) {
   XLS_RET_CHECK(node->users().empty()) << node->GetName();
   XLS_RET_CHECK(!HasImplicitUse(node)) << node->GetName();
-  XLS_VLOG(4) << absl::StrFormat("Removing node from FunctionBase %s: %s",
-                                 name(), node->ToString());
+  VLOG(4) << absl::StrFormat("Removing node from FunctionBase %s: %s", name(),
+                             node->ToString());
   ++package()->transform_metrics().nodes_removed;
   std::vector<Node*> unique_operands;
   for (Node* operand : node->operands()) {
@@ -205,8 +206,8 @@ Block* FunctionBase::AsBlockOrDie() {
 }
 
 Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
-  XLS_VLOG(4) << absl::StrFormat("Adding node to FunctionBase %s: %s", name(),
-                                 node->ToString());
+  VLOG(4) << absl::StrFormat("Adding node to FunctionBase %s: %s", name(),
+                             node->ToString());
   ++package()->transform_metrics().nodes_added;
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());

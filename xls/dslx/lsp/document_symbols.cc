@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/types/variant.h"
 #include "external/verible/common/lsp/lsp-protocol-enums.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
@@ -28,7 +29,7 @@ namespace xls::dslx {
 namespace {
 
 std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Function& f) {
-  XLS_VLOG(3) << "ToDocumentSymbols; f: " << f.identifier();
+  VLOG(3) << "ToDocumentSymbols; f: " << f.identifier();
   verible::lsp::DocumentSymbol ds = {
       .name = f.identifier(),
       .kind = verible::lsp::SymbolKind::kMethod,
@@ -73,8 +74,8 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(
 }  // namespace
 
 std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Module& m) {
-  XLS_VLOG(1) << "ToDocumentSymbols; module: " << m.name() << " has "
-              << m.top().size() << " top-level elements";
+  VLOG(1) << "ToDocumentSymbols; module: " << m.name() << " has "
+          << m.top().size() << " top-level elements";
   std::vector<verible::lsp::DocumentSymbol> result;
   for (const ModuleMember& member : m.top()) {
     std::vector<verible::lsp::DocumentSymbol> symbols =

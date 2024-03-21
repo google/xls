@@ -22,6 +22,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -382,7 +383,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
     Node* node, absl::Span<const typename AbstractEvaluatorT::Vector> operands,
     AbstractEvaluatorT* evaluator,
     std::function<typename AbstractEvaluatorT::Vector(Node*)> default_handler) {
-  XLS_VLOG(3) << "Handling " << node->ToString();
+  VLOG(3) << "Handling " << node->ToString();
   class CompatVisitor final : public AbstractNodeEvaluator<AbstractEvaluatorT> {
    public:
     CompatVisitor(AbstractEvaluatorT& eval,

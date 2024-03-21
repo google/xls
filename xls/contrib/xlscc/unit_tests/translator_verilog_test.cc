@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_pass.h"
@@ -116,7 +117,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
                            translator->GenerateIR_Block(&package, block_spec));
 
-  XLS_VLOG(1) << "Simplifying IR..." << std::endl;
+  VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -129,9 +130,9 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
       xls::verilog::ModuleSignature signature,
       xls::verilog::GenerateSignature(codegen_options(), unit.top_block));
 
-  XLS_VLOG(1) << package.DumpIr() << std::endl;
+  VLOG(1) << package.DumpIr() << std::endl;
 
-  XLS_VLOG(1) << verilog << std::endl;
+  VLOG(1) << verilog << std::endl;
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -256,7 +257,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
                            translator->GenerateIR_Block(&package, block_spec));
 
-  XLS_VLOG(1) << "Simplifying IR..." << std::endl;
+  VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -270,9 +271,9 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
       std::string verilog,
       xls::verilog::GenerateVerilog(unit.top_block, codegen_options()));
 
-  XLS_VLOG(1) << package.DumpIr() << std::endl;
+  VLOG(1) << package.DumpIr() << std::endl;
 
-  XLS_VLOG(1) << verilog << std::endl;
+  VLOG(1) << verilog << std::endl;
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);

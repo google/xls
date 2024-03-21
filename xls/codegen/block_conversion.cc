@@ -35,6 +35,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -1805,7 +1806,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
       MakeInputValidPortsForInputChannels(streaming_io.inputs, stage_count,
                                           valid_suffix, block));
   streaming_io.all_active_inputs_valid = all_active_inputs_valid;
-  XLS_VLOG(3) << "After Inputs Valid";
+  VLOG(3) << "After Inputs Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_ASSIGN_OR_RETURN(
@@ -1813,7 +1814,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
       MakeInputReadyPortsForOutputChannels(streaming_io.outputs, stage_count,
                                            ready_suffix, block));
   streaming_io.all_active_outputs_ready = all_active_outputs_ready;
-  XLS_VLOG(3) << "After Outputs Ready";
+  VLOG(3) << "After Outputs Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_ASSIGN_OR_RETURN(
@@ -1822,7 +1823,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
                                    streaming_io.state_registers, stage_count,
                                    valid_suffix, block));
   streaming_io.all_active_states_valid = all_active_states_valid;
-  XLS_VLOG(3) << "After States Valid";
+  VLOG(3) << "After States Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
@@ -1830,7 +1831,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
   XLS_RETURN_IF_ERROR(
       MakePipelineStagesForValidIO(streaming_io, reset_behavior, block));
 
-  XLS_VLOG(3) << "After Valids";
+  VLOG(3) << "After Valids";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   for (std::optional<StateRegister>& state_register :
@@ -1842,7 +1843,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
         UpdateStateRegisterWithReset(reset_behavior, *state_register, block));
   }
 
-  XLS_VLOG(3) << "After State Updated";
+  VLOG(3) << "After State Updated";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   if (options.reset().has_value() && options.reset()->reset_data_path()) {
@@ -1850,7 +1851,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
         reset_behavior, absl::MakeSpan(streaming_io.pipeline_registers),
         block));
 
-    XLS_VLOG(3) << "After Datapath Reset Updated";
+    VLOG(3) << "After Datapath Reset Updated";
     XLS_VLOG_LINES(3, block->DumpIr());
   }
 
@@ -1863,7 +1864,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
                            absl::MakeSpan(streaming_io.state_registers),
                            streaming_io.node_to_stage_map, block));
 
-  XLS_VLOG(3) << "After Bubble Flow Control (pipeline)";
+  VLOG(3) << "After Bubble Flow Control (pipeline)";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   {
@@ -1880,7 +1881,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
         block));
   }
 
-  XLS_VLOG(3) << "After Outputs Valid";
+  VLOG(3) << "After Outputs Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // Handle flow control for the single pipeline stage case.
@@ -1894,14 +1895,14 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
     bubble_flow_control.data_load_enable = {input_stage_enable};
   }
 
-  XLS_VLOG(3) << "After Single Stage Flow Control (state)";
+  VLOG(3) << "After Single Stage Flow Control (state)";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
       bubble_flow_control.data_load_enable, streaming_io.inputs, ready_suffix,
       block));
 
-  XLS_VLOG(3) << "After Ready";
+  VLOG(3) << "After Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   return streaming_io.stage_valid;
@@ -2962,13 +2963,13 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
   }
 
   XLS_RETURN_IF_ERROR(block->AddClockPort("clk"));
-  XLS_VLOG(3) << "Schedule Used";
+  VLOG(3) << "Schedule Used";
   XLS_VLOG_LINES(3, schedule.ToString());
 
   XLS_ASSIGN_OR_RETURN((auto [streaming_io_and_pipeline, concurrent_stages]),
                        CloneNodesIntoPipelinedBlock(schedule, options, block));
 
-  XLS_VLOG(3) << "After Pipeline";
+  VLOG(3) << "After Pipeline";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   int64_t number_of_outputs = 0;
@@ -2983,18 +2984,18 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
                          AreStreamingOutputsMutuallyExclusive(proc));
 
     if (streaming_outputs_mutually_exclusive) {
-      XLS_VLOG(3) << absl::StrFormat(
+      VLOG(3) << absl::StrFormat(
           "%d streaming outputs determined to be mutually exclusive",
           streaming_io_and_pipeline.outputs.size());
     } else {
-      XLS_VLOG(3) << absl::StrFormat(
+      VLOG(3) << absl::StrFormat(
           "%d streaming outputs not proven to be mutually exclusive -- "
           "assuming false",
           streaming_io_and_pipeline.outputs.size());
     }
   }
 
-  XLS_VLOG(3) << "After Pipeline";
+  VLOG(3) << "After Pipeline";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
@@ -3011,28 +3012,28 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
   std::copy(pipelined_valid.begin() + 1, pipelined_valid.end(),
             std::back_inserter(proc_metadata.valid_flops));
 
-  XLS_VLOG(3) << "After Flow Control";
+  VLOG(3) << "After Flow Control";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   if (!streaming_outputs_mutually_exclusive) {
     XLS_RETURN_IF_ERROR(
         AddOneShotOutputLogic(options, streaming_io_and_pipeline, block));
   }
-  XLS_VLOG(3) << absl::StrFormat("After Output Triggers");
+  VLOG(3) << absl::StrFormat("After Output Triggers");
   XLS_VLOG_LINES(3, block->DumpIr());
 
   if (options.flop_inputs() || options.flop_outputs()) {
     XLS_RETURN_IF_ERROR(AddInputOutputFlops(options, streaming_io_and_pipeline,
                                             block, proc_metadata.valid_flops));
   }
-  XLS_VLOG(3) << "After Input or Output Flops";
+  VLOG(3) << "After Input or Output Flops";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   if (options.add_idle_output()) {
     XLS_RETURN_IF_ERROR(AddIdleOutput(proc_metadata.valid_flops,
                                       streaming_io_and_pipeline, block));
   }
-  XLS_VLOG(3) << "After Add Idle Output";
+  VLOG(3) << "After Add Idle Output";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // RemoveDeadTokenNodes() mutates metadata.
@@ -3046,14 +3047,14 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
   //                codegen pipeline.
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));
 
-  XLS_VLOG(3) << "After RemoveDeadTokenNodes";
+  VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // TODO: add simplification pass here to remove unnecessary `1 & x`
 
   XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
       unit.metadata[block].streaming_io_and_pipeline, block));
-  XLS_VLOG(3) << "After UpdateChannelMetadata";
+  VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   return absl::OkStatus();
@@ -3278,7 +3279,7 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
     const PackagePipelineSchedules& schedules, const CodegenOptions& options,
     Package* package) {
   XLS_RET_CHECK_GT(schedules.size(), 0);
-  XLS_VLOG(3) << "Converting package to pipelined blocks:";
+  VLOG(3) << "Converting package to pipelined blocks:";
   XLS_VLOG_LINES(3, package->DumpIr());
 
   if (options.manual_control().has_value()) {
@@ -3391,7 +3392,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
 
 absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
     Proc* proc, const CodegenOptions& options) {
-  XLS_VLOG(3) << "Converting proc to combinational block:";
+  VLOG(3) << "Converting proc to combinational block:";
   XLS_VLOG_LINES(3, proc->DumpIr());
 
   // In a combinational module, the proc cannot have any state to avoid
@@ -3430,7 +3431,7 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
                          AreStreamingOutputsMutuallyExclusive(proc));
 
     if (streaming_outputs_mutually_exclusive) {
-      XLS_VLOG(3) << absl::StrFormat(
+      VLOG(3) << absl::StrFormat(
           "%d streaming outputs determined to be mutually exclusive",
           number_of_outputs);
     } else {
@@ -3458,12 +3459,12 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
       .concurrent_stages = std::nullopt,
   };
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));
-  XLS_VLOG(3) << "After RemoveDeadTokenNodes";
+  VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, unit.DumpIr());
 
   XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
       unit.metadata[unit.top_block].streaming_io_and_pipeline, unit.top_block));
-  XLS_VLOG(3) << "After UpdateChannelMetadata";
+  VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, unit.DumpIr());
 
   unit.GcMetadata();

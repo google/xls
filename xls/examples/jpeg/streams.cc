@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -172,8 +173,8 @@ absl::Status BitStream::LookaheadOneByte() {
   lookahead_bits_ += 8;
   if (byte == 0xff) {
     XLS_ASSIGN_OR_RETURN(uint8_t marker, byte_stream_->Pop());
-    XLS_VLOG(3) << absl::StreamFormat("Bit stream encountered marker: %#02x",
-                                      marker);
+    VLOG(3) << absl::StreamFormat("Bit stream encountered marker: %#02x",
+                                  marker);
     // Not clear whether we ever have to do anything with this marker or we can
     // assume it's always effectively EOI.
     if (marker != kEoiMarker) {

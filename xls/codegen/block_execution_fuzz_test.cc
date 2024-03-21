@@ -27,6 +27,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
 #include "google/protobuf/text_format.h"
@@ -98,11 +99,11 @@ class BaseExecutionFuzzer {
     google::protobuf::TextFormat::ParseFromString(
         GetFileContents(GetXlsRunfilePath(kCodegenOptsFile).value()).value(),
         &original_codegen_flags);
-    XLS_VLOG(2) << "Codegen opts (original): "
-                << original_codegen_flags.DebugString();
+    VLOG(2) << "Codegen opts (original): "
+            << original_codegen_flags.DebugString();
     CodegenFlagsProto codegen_flags =
         FuzzFiles::ModifyOptions(original_codegen_flags);
-    XLS_VLOG(2) << "Codegen opts (new): " << codegen_flags.DebugString();
+    VLOG(2) << "Codegen opts (new): " << codegen_flags.DebugString();
     SchedulingOptionsFlagsProto schedule;
     google::protobuf::TextFormat::ParseFromString(
         GetFileContents(GetXlsRunfilePath(kScheduleOptsFile).value()).value(),

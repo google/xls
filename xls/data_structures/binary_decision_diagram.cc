@@ -155,18 +155,18 @@ absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
     BddNodeIndex expr,
     const absl::flat_hash_map<BddNodeIndex, bool>& variable_values) const {
   BddNodeIndex result = expr;
-  XLS_VLOG(2) << "Evaluating node: " << static_cast<int64_t>(expr);
-  XLS_VLOG(2) << "  expression = " << ToStringDnf(expr, /*minterm_limit=*/5);
+  VLOG(2) << "Evaluating node: " << static_cast<int64_t>(expr);
+  VLOG(2) << "  expression = " << ToStringDnf(expr, /*minterm_limit=*/5);
   if (VLOG_IS_ON(3)) {
-    XLS_VLOG(3) << "  variable values: ";
+    VLOG(3) << "  variable values: ";
     std::vector<BddNodeIndex> variables;
     for (const auto& pair : variable_values) {
       variables.push_back(pair.first);
     }
     std::sort(variables.begin(), variables.end());
     for (BddNodeIndex node : variables) {
-      XLS_VLOG(3) << "    variable " << GetNode(node).variable << ": "
-                  << variable_values.at(node);
+      VLOG(3) << "    variable " << GetNode(node).variable << ": "
+              << variable_values.at(node);
     }
   }
   while (result != zero() && result != one()) {
@@ -179,7 +179,7 @@ absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
     result = variable_values.at(var_node) ? GetNode(result).high
                                           : GetNode(result).low;
   }
-  XLS_VLOG(2) << "  result = " << (result == one() ? true : false);
+  VLOG(2) << "  result = " << (result == one() ? true : false);
   return result == one();
 }
 

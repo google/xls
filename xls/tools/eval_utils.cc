@@ -24,6 +24,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -56,7 +57,7 @@ absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
   for (const auto& line :
        absl::StrSplit(contents, '\n', absl::SkipWhitespace())) {
     if (0 == (li % 500)) {
-      XLS_VLOG(1) << "Parsing values file at line " << li;
+      VLOG(1) << "Parsing values file at line " << li;
     }
     li++;
     XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(line));
@@ -96,7 +97,7 @@ ParseChannelValues(std::string_view all_channel_values,
   int64_t line_number = 0, values_per_channel = 0;
   for (const auto& line : absl::StrSplit(all_channel_values, '\n')) {
     if (0 == (line_number % 500)) {
-      XLS_VLOG(1) << "Parsing at line " << line_number;
+      VLOG(1) << "Parsing at line " << line_number;
     }
     line_number++;
     if (line.empty() || (line.find_first_not_of(' ') == std::string::npos)) {
@@ -116,14 +117,14 @@ ParseChannelValues(std::string_view all_channel_values,
           return absl::FailedPreconditionError(absl::StrFormat(
               "Channel name '%s' declare more than once.", channel_name));
         }
-        XLS_VLOG(1) << "Parsing start of channel " << channel_name;
+        VLOG(1) << "Parsing start of channel " << channel_name;
         state = kParsingChannel;
         break;
       }
       case kParsingChannel: {
         if (line == "}") {
           channel_to_values[channel_name] = channel_values;
-          XLS_VLOG(1) << "Adding channel: " << channel_name;
+          VLOG(1) << "Adding channel: " << channel_name;
           values_per_channel = 0;
           channel_values.clear();
           state = kExpectStartOfChannel;

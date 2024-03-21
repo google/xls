@@ -25,6 +25,7 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -59,7 +60,7 @@ extern absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
                                                   DeduceCtx* ctx) {
-  XLS_VLOG(5) << "DeduceArray; node: " << node->ToString();
+  VLOG(5) << "DeduceArray; node: " << node->ToString();
 
   std::vector<std::unique_ptr<Type>> member_types;
   for (Expr* member : node->members()) {

@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -158,7 +159,7 @@ LanguageServerAdapter::GenerateParseDiagnostics(std::string_view uri) const {
 
 std::vector<verible::lsp::DocumentSymbol>
 LanguageServerAdapter::GenerateDocumentSymbols(std::string_view uri) const {
-  XLS_VLOG(1) << "GenerateDocumentSymbols; uri: " << uri;
+  VLOG(1) << "GenerateDocumentSymbols; uri: " << uri;
   if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     return ToDocumentSymbols(parsed->module());
   }
@@ -168,7 +169,7 @@ LanguageServerAdapter::GenerateDocumentSymbols(std::string_view uri) const {
 std::vector<verible::lsp::Location> LanguageServerAdapter::FindDefinitions(
     std::string_view uri, const verible::lsp::Position& position) const {
   const Pos pos = ConvertLspPositionToPos(uri, position);
-  XLS_VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
+  VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
   if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     std::optional<Span> maybe_definition_span =
         xls::dslx::FindDefinition(parsed->module(), pos);

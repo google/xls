@@ -27,6 +27,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -174,7 +175,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
                                         /*start=*/bit_slice->start() +
                                             operand_bit_slice->start(),
                                         /*width=*/bit_slice->width()));
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(bitslice(x)) => bitslice(x): %s",
         bit_slice->GetName());
     XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_bitslice));
@@ -236,7 +237,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       operand_start += concat_operand_width;
     }
     absl::c_reverse(new_operands);
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(concat(...)) => concat(bitslice(), ...): %s",
         bit_slice->GetName());
     XLS_RETURN_IF_ERROR(
@@ -276,7 +277,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
         sliced_operands.push_back(new_operand);
       }
       XLS_ASSIGN_OR_RETURN(Node * pre_sliced, operand->Clone(sliced_operands));
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Replacing bitslice(op(...)) => op(bitslice(), bitslice(), ...): %s",
           bit_slice->GetName());
       XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(pre_sliced));
@@ -332,7 +333,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
           Node * replacement,
           make_bit_slice(bit_slice->loc(), x, bit_slice->start(),
                          bit_slice->width()));
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Replacing bitslice(ext(x)) => bitslice(x): %s",
           bit_slice->GetName());
       XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(replacement));
@@ -345,7 +346,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
             Node * x_slice,
             make_bit_slice(bit_slice->loc(), x, /*start=*/bit_slice->start(),
                            /*width=*/x_bit_count - bit_slice->start()));
-        XLS_VLOG(3) << absl::StreamFormat(
+        VLOG(3) << absl::StreamFormat(
             "Replacing bitslice(ext(x)) => ext(bitslice(x)): %s",
             bit_slice->GetName());
         XLS_RETURN_IF_ERROR(
@@ -360,7 +361,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
             Node * x_sign_bit,
             make_bit_slice(bit_slice->loc(), x,
                            /*start=*/x_bit_count - 1, /*width=*/1));
-        XLS_VLOG(3) << absl::StreamFormat(
+        VLOG(3) << absl::StreamFormat(
             "Replacing bitslice(signext(x)) => ext(signbit(x)): %s",
             bit_slice->GetName());
         XLS_RETURN_IF_ERROR(
@@ -401,7 +402,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
         Node * sliced_to_shift,
         make_bit_slice(operand->loc(), to_shift, bit_slice->start(),
                        bit_slice->width()));
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(shift(x, y)) => shift(bitslice(x), y): %s",
         bit_slice->GetName());
     XLS_ASSIGN_OR_RETURN(BinOp * new_shift,
@@ -412,9 +413,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       if (user == bit_slice) {
         continue;
       }
-      XLS_VLOG(3) << absl::StreamFormat("Replacing %s with %s in: %s",
-                                        operand->GetName(),
-                                        new_shift->GetName(), user->ToString());
+      VLOG(3) << absl::StreamFormat("Replacing %s with %s in: %s",
+                                    operand->GetName(), new_shift->GetName(),
+                                    user->ToString());
       XLS_ASSIGN_OR_RETURN(
           BitSlice * new_user,
           make_bit_slice(user->loc(), new_shift,
@@ -430,7 +431,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   if (bit_slice->start() == 0 && operand->op() == Op::kDecode &&
       !operand->function_base()->HasImplicitUse(operand) &&
       all_operand_users_are_subslices()) {
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(decode(x), 0, %d) => decode<u%d>(x): %s",
         bit_slice->width(), bit_slice->width(), bit_slice->GetName());
     XLS_ASSIGN_OR_RETURN(Decode * new_decode,
@@ -441,9 +442,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       if (user == bit_slice) {
         continue;
       }
-      XLS_VLOG(3) << absl::StreamFormat(
-          "Replacing %s with %s in: %s", operand->GetName(),
-          new_decode->GetName(), user->ToString());
+      VLOG(3) << absl::StreamFormat("Replacing %s with %s in: %s",
+                                    operand->GetName(), new_decode->GetName(),
+                                    user->ToString());
       XLS_ASSIGN_OR_RETURN(
           BitSlice * new_user,
           make_bit_slice(user->loc(), new_decode,
@@ -474,7 +475,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       new_operands.push_back(sliced_operand);
     }
     XLS_ASSIGN_OR_RETURN(Node * new_select, select->Clone(new_operands));
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Replacing bitslice(sel(s, [...])) => sel(s, [bitslice(), ...]): %s",
         bit_slice->GetName());
     XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_select));
@@ -483,9 +484,9 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
       if (user == bit_slice) {
         continue;
       }
-      XLS_VLOG(3) << absl::StreamFormat(
-          "Replacing %s with %s in: %s", operand->GetName(),
-          new_select->GetName(), user->ToString());
+      VLOG(3) << absl::StreamFormat("Replacing %s with %s in: %s",
+                                    operand->GetName(), new_select->GetName(),
+                                    user->ToString());
       XLS_ASSIGN_OR_RETURN(
           BitSlice * new_user,
           make_bit_slice(user->loc(), new_select,
@@ -573,7 +574,7 @@ absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update) {
                              /*width=*/start_int64));
     concat_operands.push_back(slice);
   }
-  XLS_VLOG(3) << absl::StreamFormat(
+  VLOG(3) << absl::StreamFormat(
       "Replacing bitslice update %s with constant start index with concat "
       "and bitslice operations",
       update->GetName());
@@ -604,7 +605,7 @@ absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(
   }
 
   XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
-  XLS_VLOG(3) << absl::StreamFormat(
+  VLOG(3) << absl::StreamFormat(
       "Replacing dynamic bitslice %s with static bitslice",
       bit_slice->GetName());
   XLS_RETURN_IF_ERROR(bit_slice
@@ -675,7 +676,7 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice,
           // We can't have inaccessible items as options in the select.
           *index, absl::MakeSpan(array_elements).subspan(0, addressable_items),
           /*default_value=*/past_the_end));
-  XLS_VLOG(3) << absl::StreamFormat(
+  VLOG(3) << absl::StreamFormat(
       "Replacing dynamic bit slice %s with constant-scaled start index with: "
       "select %s",
       bit_slice->GetName(), select->GetName());
@@ -777,7 +778,7 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update,
   absl::c_reverse(updated_array_elements);
   XLS_ASSIGN_OR_RETURN(Node * updated_bits, update->ReplaceUsesWithNew<Concat>(
                                                 updated_array_elements));
-  XLS_VLOG(3) << absl::StreamFormat(
+  VLOG(3) << absl::StreamFormat(
       "Replacing bitslice update %s with constant-scaled start index with: "
       "array conversion %s, array update %s, and flattening %s",
       update->GetName(), array->GetName(), array_update->GetName(),

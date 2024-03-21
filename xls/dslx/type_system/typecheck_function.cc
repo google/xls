@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -64,7 +65,7 @@ void WarnIfConfusinglyNamedLikeTest(Function& f, DeduceCtx* ctx) {
 }  // namespace
 
 absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
-  XLS_VLOG(2) << "Typechecking fn: " << f.identifier();
+  VLOG(2) << "Typechecking fn: " << f.identifier();
 
   WarnIfConfusinglyNamedLikeTest(f, ctx);
 
@@ -113,16 +114,15 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
   // Assert type consistency between the body and deduced return types.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> body_type,
                        DeduceAndResolve(f.body(), ctx));
-  XLS_VLOG(3) << absl::StrFormat("Resolved return type: %s => %s",
-                                 return_type->ToString(),
-                                 body_type->ToString());
+  VLOG(3) << absl::StrFormat("Resolved return type: %s => %s",
+                             return_type->ToString(), body_type->ToString());
   if (body_type->IsMeta()) {
     return TypeInferenceErrorStatus(f.body()->span(), body_type.get(),
                                     "Types cannot be returned from functions");
   }
   if (*return_type != *body_type) {
-    XLS_VLOG(5) << "return type: " << return_type->ToString()
-                << " body type: " << body_type->ToString();
+    VLOG(5) << "return type: " << return_type->ToString()
+            << " body type: " << body_type->ToString();
     if (f.tag() == FunctionTag::kProcInit) {
       return ctx->TypeMismatchError(
           f.body()->span(), f.body(), *body_type, f.return_type(), *return_type,

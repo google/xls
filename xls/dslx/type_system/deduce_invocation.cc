@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -204,7 +205,7 @@ absl::Status InstantiateParametricArgs(
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          DeduceAndResolve(arg, ctx));
-    XLS_VLOG(5) << absl::StreamFormat(
+    VLOG(5) << absl::StreamFormat(
         "InstantiateParametricArgs; arg: `%s` deduced: `%s` @ %s",
         arg->ToString(), type->ToString(), arg->span().ToString());
     XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
@@ -217,7 +218,7 @@ absl::Status InstantiateParametricArgs(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
                                                        DeduceCtx* ctx) {
-  XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString();
+  VLOG(5) << "Deducing type for invocation: " << node->ToString();
 
   // Detect direct recursion. Indirect recursion is currently not syntactically
   // possible (as of 2023-08-22) since you cannot refer to a name that has not
@@ -344,7 +345,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceZeroMacro(const ZeroMacro* node,
                                                       DeduceCtx* ctx) {
-  XLS_VLOG(5) << "DeduceZeroMacro; node: `" << node->ToString() << "`";
+  VLOG(5) << "DeduceZeroMacro; node: `" << node->ToString() << "`";
   // Note: since it's a macro the parser checks arg count and parametric count.
   //
   // This says the type of the parametric type arg is the type of the result.

@@ -110,11 +110,11 @@ ComputeDistancesToNodes(FunctionBase* f, absl::Span<Node* const> topo_sort,
   }
 
   if (VLOG_IS_ON(4)) {
-    XLS_VLOG(4) << "All-pairs critical-path distances:";
+    VLOG(4) << "All-pairs critical-path distances:";
     for (Node* target : topo_sort) {
-      XLS_VLOG(4) << absl::StrFormat("  distances to %s:", target->GetName());
+      VLOG(4) << absl::StrFormat("  distances to %s:", target->GetName());
       for (Node* source : topo_sort) {
-        XLS_VLOG(4) << absl::StrFormat(
+        VLOG(4) << absl::StrFormat(
             "    %s -> %s : %s", source->GetName(), target->GetName(),
             distances_to_node.at(target).contains(source)
                 ? absl::StrCat(distances_to_node.at(target).at(source))
@@ -173,11 +173,11 @@ ComputeCombinationalDelayConstraints(
   }
 
   if (VLOG_IS_ON(4)) {
-    XLS_VLOG(4) << absl::StrFormat("Constraints (clock period: %dps):",
-                                   clock_period_ps);
+    VLOG(4) << absl::StrFormat("Constraints (clock period: %dps):",
+                               clock_period_ps);
     for (Node* node : topo_sort) {
-      XLS_VLOG(4) << absl::StrFormat("  %s: [%s]", node->GetName(),
-                                     absl::StrJoin(result.at(node), ", "));
+      VLOG(4) << absl::StrFormat("  %s: [%s]", node->GetName(),
+                                 absl::StrJoin(result.at(node), ", "));
     }
   }
   return result;
@@ -256,9 +256,9 @@ absl::Status SDCSchedulingModel::AddCausalConstraint(
   model_.AddLinearConstraint(
       cycle_at_user - cycle_at_node >= static_cast<double>(min_delay),
       absl::StrFormat("causal_%s_%s", node->GetName(), user_str));
-  XLS_VLOG(2) << "Setting causal constraint: "
-              << absl::StrFormat("cycle[%s] - cycle[%s] ≥ %d", user_str,
-                                 node->GetName(), min_delay);
+  VLOG(2) << "Setting causal constraint: "
+          << absl::StrFormat("cycle[%s] - cycle[%s] ≥ %d", user_str,
+                             node->GetName(), min_delay);
 
   return absl::OkStatus();
 }
@@ -275,9 +275,9 @@ absl::Status SDCSchedulingModel::AddLifetimeConstraint(
   model_.AddLinearConstraint(
       lifetime_at_node + cycle_at_node - cycle_at_user >= 0,
       absl::StrFormat("lifetime_%s_%s", node->GetName(), user_str));
-  XLS_VLOG(2) << "Setting lifetime constraint: "
-              << absl::StrFormat("lifetime[%s] + cycle[%s] - cycle[%s] ≥ 0",
-                                 node->GetName(), node->GetName(), user_str);
+  VLOG(2) << "Setting lifetime constraint: "
+          << absl::StrFormat("lifetime[%s] + cycle[%s] - cycle[%s] ≥ 0",
+                             node->GetName(), node->GetName(), user_str);
 
   return absl::OkStatus();
 }
@@ -303,18 +303,18 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
     if (next == state) {
       continue;
     }
-    XLS_VLOG(2) << "Setting backedge constraint (II): "
-                << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
-                                   next->GetName(), state->GetName(), II);
+    VLOG(2) << "Setting backedge constraint (II): "
+            << absl::StrFormat("cycle[%s] - cycle[%s] < %d", next->GetName(),
+                               state->GetName(), II);
     backedge_constraint_.emplace(
         std::make_pair(state, next),
         DiffLessThanConstraint(next, state, II, "backedge"));
   }
   for (Next* next : proc->next_values()) {
     Node* state = next->param();
-    XLS_VLOG(2) << "Setting backedge constraint (II): "
-                << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
-                                   next->GetName(), state->GetName(), II);
+    VLOG(2) << "Setting backedge constraint (II): "
+            << absl::StrFormat("cycle[%s] - cycle[%s] < %d", next->GetName(),
+                               state->GetName(), II);
     backedge_constraint_.emplace(
         std::make_pair(state, next),
         DiffLessThanConstraint(next, state, II, "backedge"));
@@ -379,11 +379,11 @@ absl::Status SDCSchedulingModel::AddIOConstraint(
         continue;
       }
 
-      XLS_VLOG(2) << "Setting IO constraint: "
-                  << absl::StrFormat("%d ≤ cycle[%s] - cycle[%s] ≤ %d",
-                                     constraint.MinimumLatency(),
-                                     target->GetName(), source->GetName(),
-                                     constraint.MaximumLatency());
+      VLOG(2) << "Setting IO constraint: "
+              << absl::StrFormat("%d ≤ cycle[%s] - cycle[%s] ≤ %d",
+                                 constraint.MinimumLatency(), target->GetName(),
+                                 source->GetName(),
+                                 constraint.MaximumLatency());
       io_constraints_[constraint].push_back({
           .lower = DiffAtLeastConstraint(target, source,
                                          constraint.MinimumLatency(), "io"),
@@ -403,8 +403,8 @@ absl::Status SDCSchedulingModel::AddNodeInCycleConstraint(
 
   model_.AddLinearConstraint(cycle_var_.at(node) == static_cast<double>(cycle),
                              absl::StrFormat("nic_%s", node->GetName()));
-  XLS_VLOG(2) << "Setting node-in-cycle constraint: "
-              << absl::StrFormat("cycle[%s] = %d", node->GetName(), cycle);
+  VLOG(2) << "Setting node-in-cycle constraint: "
+          << absl::StrFormat("cycle[%s] = %d", node->GetName(), cycle);
 
   return absl::OkStatus();
 }
@@ -416,9 +416,9 @@ absl::Status SDCSchedulingModel::AddDifferenceConstraint(
   int64_t max_difference = constraint.GetMaxDifference();
   DiffAtMostConstraint(a, b, max_difference, "diff");
 
-  XLS_VLOG(2) << "Setting difference constraint: "
-              << absl::StrFormat("cycle[%s] - cycle[%s] ≤ %d", a->GetName(),
-                                 b->GetName(), max_difference);
+  VLOG(2) << "Setting difference constraint: "
+          << absl::StrFormat("cycle[%s] - cycle[%s] ≤ %d", a->GetName(),
+                             b->GetName(), max_difference);
 
   return absl::OkStatus();
 }
@@ -427,14 +427,14 @@ absl::Status SDCSchedulingModel::AddRFSLConstraint(
     const RecvsFirstSendsLastConstraint& constraint) {
   for (Node* node : topo_sort_) {
     if (node->Is<Receive>()) {
-      XLS_VLOG(2) << "Setting receive-in-first-cycle constraint: "
-                  << absl::StrFormat("cycle[%s] ≤ 0", node->GetName());
+      VLOG(2) << "Setting receive-in-first-cycle constraint: "
+              << absl::StrFormat("cycle[%s] ≤ 0", node->GetName());
       model_.AddLinearConstraint(cycle_var_.at(node) <= 0,
                                  absl::StrFormat("recv_%s", node->GetName()));
     } else if (node->Is<Send>()) {
-      XLS_VLOG(2) << "Setting send-in-last-cycle constraint: "
-                  << absl::StrFormat("%s ≤ cycle[%s]", last_stage_.name(),
-                                     node->GetName());
+      VLOG(2) << "Setting send-in-last-cycle constraint: "
+              << absl::StrFormat("%s ≤ cycle[%s]", last_stage_.name(),
+                                 node->GetName());
       model_.AddLinearConstraint(cycle_var_.at(node) >= last_stage_,
                                  absl::StrFormat("send_%s", node->GetName()));
     }
@@ -557,9 +557,9 @@ void SDCSchedulingModel::SetClockPeriod(int64_t clock_period_ps) {
       }
 
       // Newly related; add constraint.
-      XLS_VLOG(2) << "Setting timing constraint: "
-                  << absl::StrFormat("1 ≤ %s - %s", target->GetName(),
-                                     source->GetName());
+      VLOG(2) << "Setting timing constraint: "
+              << absl::StrFormat("1 ≤ %s - %s", target->GetName(),
+                                 source->GetName());
       timing_constraint_.emplace(
           key, DiffAtLeastConstraint(target, source, 1, "timing"));
     }

@@ -159,7 +159,7 @@ static std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
 static absl::StatusOr<std::optional<Value>> LinksToTable(
     absl::Span<const Link> links) {
   if (links.empty()) {
-    XLS_VLOG(3) << "Empty chain.";
+    VLOG(3) << "Empty chain.";
     return std::nullopt;
   }
 
@@ -216,17 +216,17 @@ static absl::StatusOr<std::optional<Value>> LinksToTable(
   // (else_value in the diagram above) is not dead and must be a literal in
   // order for this to be converted into a table lookup.
   if (!links.back().next->Is<Literal>()) {
-    XLS_VLOG(3) << "Final fall-through case is not a literal: "
-                << links.back().next->ToString();
+    VLOG(3) << "Final fall-through case is not a literal: "
+            << links.back().next->ToString();
     return std::nullopt;
   }
   const Value& else_value = links.back().next->As<Literal>()->value();
 
-  XLS_VLOG(3) << "Index width: " << index_width;
+  VLOG(3) << "Index width: " << index_width;
   if (index_space_size.has_value()) {
-    XLS_VLOG(3) << "Index space size: " << index_space_size.value();
+    VLOG(3) << "Index space size: " << index_space_size.value();
   }
-  XLS_VLOG(3) << "map.size(): " << map.size();
+  VLOG(3) << "map.size(): " << map.size();
 
   if (index_space_size.has_value() && map.size() < index_space_size.value() &&
       map.size() * 2 > index_space_size.value()) {
@@ -263,7 +263,7 @@ static absl::StatusOr<std::optional<Value>> LinksToTable(
   //    - Extract a constant factor, e.g., 0, 4, 8, ... -> 0, 1, 2, ...
   //  - Handle "partial" chains - those that only cover part of the match space
 
-  XLS_VLOG(3) << "Cannot convert link chain to table lookup";
+  VLOG(3) << "Cannot convert link chain to table lookup";
   return std::nullopt;
 }
 
@@ -273,18 +273,17 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
   bool changed = false;
   absl::flat_hash_set<Node*> transformed;
   for (Node* node : ReverseTopoSort(f)) {
-    XLS_VLOG(3) << "Considering node: " << node->ToString();
+    VLOG(3) << "Considering node: " << node->ToString();
     if (transformed.contains(node)) {
-      XLS_VLOG(3) << absl::StreamFormat("Already transformed %s",
-                                        node->GetName());
+      VLOG(3) << absl::StreamFormat("Already transformed %s", node->GetName());
       continue;
     }
     // Check if this node is the start of a chain of selects. This also
     // identifies the common index.
     std::optional<Link> start = MatchLink(node);
     if (!start.has_value()) {
-      XLS_VLOG(3) << absl::StreamFormat("%s is not the start of a chain.",
-                                        node->GetName());
+      VLOG(3) << absl::StreamFormat("%s is not the start of a chain.",
+                                    node->GetName());
       continue;
     }
 
@@ -316,18 +315,18 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
       links.push_back(link.value());
     }
 
-    XLS_VLOG(3) << absl::StreamFormat("Chain of length %d found", links.size());
+    VLOG(3) << absl::StreamFormat("Chain of length %d found", links.size());
     if (VLOG_IS_ON(4)) {
       for (auto it = links.rbegin(); it != links.rend(); ++it) {
-        XLS_VLOG(4) << absl::StreamFormat(
-            "  %s = (%s == %d) ? %s : %s", it->node->GetName(),
-            it->index->GetName(), it->key, it->value.ToString(),
-            it->next->GetName());
+        VLOG(4) << absl::StreamFormat("  %s = (%s == %d) ? %s : %s",
+                                      it->node->GetName(), it->index->GetName(),
+                                      it->key, it->value.ToString(),
+                                      it->next->GetName());
       }
     }
 
     if (links.size() <= 2) {
-      XLS_VLOG(3) << "Chain is too short.";
+      VLOG(3) << "Chain is too short.";
       continue;
     }
 
@@ -338,7 +337,7 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
       continue;
     }
 
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Replacing chain starting at %s with index of array: %s",
         node->GetName(), table.value().ToString());
 

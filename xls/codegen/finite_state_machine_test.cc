@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -46,7 +47,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsm) {
   foo->NextState(bar);
 
   XLS_ASSERT_OK(fsm.Build());
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  f.Emit());
 }
@@ -74,7 +75,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
       f.Add(qux_out->logic_ref, f.PlainLiteral(1, SourceInfo()), SourceInfo()));
 
   XLS_ASSERT_OK(fsm.Build());
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  f.Emit());
 }
@@ -112,7 +113,7 @@ TEST_P(FiniteStateMachineTest, SimpleFsm) {
   done_state->SetOutput(fsm_done_out, 1);
 
   XLS_ASSERT_OK(fsm.Build());
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  f.Emit());
 }
@@ -154,7 +155,7 @@ TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
 
   module->Add<ContinuousAssignment>(SourceInfo(), qux, fsm_qux_out->logic_ref);
 
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  f.Emit());
 }
@@ -179,7 +180,7 @@ TEST_P(FiniteStateMachineTest, CounterFsm) {
   qux->NextState(foo);
 
   XLS_ASSERT_OK(fsm.Build());
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  f.Emit());
 }
@@ -227,7 +228,7 @@ TEST_P(FiniteStateMachineTest, ComplexFsm) {
   happy->OnCondition(foo_in).NextState(hungry).SetOutput(sleep, 1);
 
   XLS_ASSERT_OK(fsm.Build());
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  f.Emit());
 }
@@ -300,7 +301,7 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
   }
 
   XLS_ASSERT_OK(fsm.Build());
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  f.Emit());
@@ -325,7 +326,7 @@ TEST_P(FiniteStateMachineTest, MultipleAssignments) {
   state->SetOutput(out, 123);
   state->OnCondition(a).SetOutput(out, 44);
 
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   EXPECT_THAT(
       fsm.Build(),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -353,7 +354,7 @@ TEST_P(FiniteStateMachineTest, MultipleConditionalAssignments) {
   // Even setting output to same value is an error.
   state->OnCondition(b).SetOutput(out, 44);
 
-  XLS_VLOG(1) << f.Emit();
+  VLOG(1) << f.Emit();
   EXPECT_THAT(
       fsm.Build(),
       StatusIs(absl::StatusCode::kInvalidArgument,

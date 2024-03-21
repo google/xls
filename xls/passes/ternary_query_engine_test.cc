@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -72,7 +73,7 @@ class TernaryQueryEngineTest : public IrTestBase {
         "rhs", StringToTernaryVector(rhs_known_bits).value(), &fb);
     make_op(lhs, rhs, &fb);
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
-    XLS_VLOG(3) << f->DumpIr();
+    VLOG(3) << f->DumpIr();
     TernaryQueryEngine query_engine;
     XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
     return query_engine.ToString(f->return_value());

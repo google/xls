@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/jpeg/constants.h"
@@ -136,12 +137,12 @@ static absl::StatusOr<std::array<uint8_t, kCoeffPerMcu>> IdctToU8(
   // Implementation note: we use a singleton here to avoid reloading each time.
   static std::unique_ptr<IdctChen> idct = IdctChen::Create().value();
   std::array<int32_t, kCoeffPerMcu> spatial;
-  XLS_VLOG(3) << "pre-IDCT: " << ToString(data);
+  VLOG(3) << "pre-IDCT: " << ToString(data);
   using PackedArrayViewT = PackedArrayView<PackedBitsView<32>, kCoeffPerMcu>;
   XLS_RETURN_IF_ERROR(idct->Run(
       PackedArrayViewT(&const_cast<std::array<int32_t, kCoeffPerMcu>&>(data)),
       PackedArrayViewT(&spatial)));
-  XLS_VLOG(3) << "post-IDCT: " << ToString(spatial);
+  VLOG(3) << "post-IDCT: " << ToString(spatial);
   // "Clamp" translated values (centered around 0) into the 0..255 range
   std::array<uint8_t, kCoeffPerMcu> clamped;
   for (int i = 0; i < spatial.size(); ++i) {
@@ -189,12 +190,11 @@ static const HuffmanTable* FindHuffmanTable(
 static absl::StatusOr<std::array<uint8_t, kCoeffPerMcu>> DecodeComponentMcu(
     uint8_t c, const DecodeCtx& ctx, BitStream* bit_stream,
     std::array<int32_t, kColorLimit>* dc_carry) {
-  XLS_VLOG(3) << absl::StreamFormat("Decoding MCU for component at index: %d",
-                                    c);
+  VLOG(3) << absl::StreamFormat("Decoding MCU for component at index: %d", c);
   std::array<int32_t, kCoeffPerMcu> data = {0};
   XLS_ASSIGN_OR_RETURN(bool at_eof, bit_stream->AtEof());
   if (at_eof) {
-    XLS_VLOG(3) << "At end of bit stream, trivial MCU";
+    VLOG(3) << "At end of bit stream, trivial MCU";
     return IdctToU8(data);
   }
 
@@ -226,13 +226,13 @@ static absl::StatusOr<std::array<uint8_t, kCoeffPerMcu>> DecodeComponentMcu(
     XLS_RET_CHECK_LT(matched->bits + to_pop,
                      kHuffmanCodeSizeLimit + kBitsToPopLimit);
     XLS_ASSIGN_OR_RETURN(int16_t symbol, bit_stream->PopCoeff(to_pop));
-    XLS_VLOG(3) << "Popped DC symbol: " << symbol;
+    VLOG(3) << "Popped DC symbol: " << symbol;
     (*dc_carry)[c] += static_cast<int32_t>(symbol);
     int32_t quantization_coeff = qtable.data[0];
     int32_t value = (*dc_carry)[c] * quantization_coeff;
     data[0] = value;
-    XLS_VLOG(3) << "Dequantized DC value (index 0): " << data[0]
-                << " quantization coeff: " << quantization_coeff;
+    VLOG(3) << "Dequantized DC value (index 0): " << data[0]
+            << " quantization coeff: " << quantization_coeff;
   }
 
   uint8_t ac_tableno = ctx.component_data[c].ac_table;
@@ -256,13 +256,13 @@ static absl::StatusOr<std::array<uint8_t, kCoeffPerMcu>> DecodeComponentMcu(
     XLS_RETURN_IF_ERROR(bit_stream->PopN(matched->bits).status());
     if (matched->value == 0) {
       // AC coefficient indicates End of Block.
-      XLS_VLOG(3) << "Popped AC coefficient indicating End of Block";
+      VLOG(3) << "Popped AC coefficient indicating End of Block";
       break;
     }
 
     uint8_t leading_zeros = matched->GetLeadingZeros();
     coeff += leading_zeros;
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Saw %d leading zeros, now at coefficient %d.", leading_zeros, coeff);
     if (coeff >= kCoeffPerMcu) {
       return MalformedInputError(absl::StrFormat(
@@ -271,12 +271,12 @@ static absl::StatusOr<std::array<uint8_t, kCoeffPerMcu>> DecodeComponentMcu(
 
     uint8_t to_pop = matched->GetBitsToPop();
     XLS_ASSIGN_OR_RETURN(int16_t symbol, bit_stream->PopCoeff(to_pop));
-    XLS_VLOG(3) << "Popped AC symbol: " << symbol;
+    VLOG(3) << "Popped AC symbol: " << symbol;
     uint8_t index = kZigZagMap[coeff];
     int32_t value =
         static_cast<int32_t>(symbol) * static_cast<int32_t>(qtable.data[coeff]);
-    XLS_VLOG(3) << absl::StreamFormat("Dequantized AC value (index %d): %d",
-                                      index, value);
+    VLOG(3) << absl::StreamFormat("Dequantized AC value (index %d): %d", index,
+                                  value);
     data[index] = value;
     coeff += 1;
   }
@@ -292,8 +292,8 @@ Rgb ToRgb(uint8_t y, uint8_t cb, uint8_t cr) {
   double g = y - 0.34414 * cbz - 0.71414 * crz;
   double b = y + 1.772   * cbz;
   // clang-format on
-  XLS_VLOG(3) << absl::StreamFormat("YCbCr (%d, %d, %d) => RGB (%f, %f, %f)", y,
-                                    cb, cr, r, g, b);
+  VLOG(3) << absl::StreamFormat("YCbCr (%d, %d, %d) => RGB (%f, %f, %f)", y, cb,
+                                cr, r, g, b);
   return Rgb{.r = ClampToU8(r), .g = ClampToU8(g), .b = ClampToU8(b)};
 }
 
@@ -313,8 +313,8 @@ static absl::StatusOr<DecodedJpeg> DecodeMcus(uint8_t nf, uint16_t mcu_height,
                                               uint16_t mcu_width,
                                               const DecodeCtx& ctx,
                                               ByteStream* byte_stream) {
-  XLS_VLOG(3) << "Quantization table count at start of MCU decoding: "
-              << ctx.quantization_tables.size();
+  VLOG(3) << "Quantization table count at start of MCU decoding: "
+          << ctx.quantization_tables.size();
   if (nf != 3) {
     return absl::UnimplementedError(
         "Only 3 color channels are currently handled.");
@@ -326,9 +326,9 @@ static absl::StatusOr<DecodedJpeg> DecodeMcus(uint8_t nf, uint16_t mcu_height,
   }
   std::array<int32_t, 3> dc_carry = {0, 0, 0};
   for (int32_t mcu_y = 0; mcu_y < mcu_height; ++mcu_y) {
-    XLS_VLOG(3) << "Decoding MCU row: " << mcu_y;
+    VLOG(3) << "Decoding MCU row: " << mcu_y;
     for (int32_t mcu_x = 0; mcu_x < mcu_height; ++mcu_x) {
-      XLS_VLOG(3) << "Decoding MCU column: " << mcu_x;
+      VLOG(3) << "Decoding MCU column: " << mcu_x;
       std::array<std::array<uint8_t, kCoeffPerMcu>, kColorLimit> color_data;
       for (uint8_t c = 0; c < nf; ++c) {
         XLS_ASSIGN_OR_RETURN(
@@ -346,17 +346,16 @@ static absl::StatusOr<DecodedJpeg> DecodeMcus(uint8_t nf, uint16_t mcu_height,
         if (row < ctx.sof0_data->y && col < ctx.sof0_data->x) {
           Rgb rgb = ToRgb(y, cb, cr);
           lines[row][col] = rgb;
-          XLS_VLOG(3)
-              << absl::StreamFormat(
-                     "Color converted row/col (%d, %d) YCbCr{%u %u %u} => ",
-                     row, col, y, cb, cr)
-              << rgb;
+          VLOG(3) << absl::StreamFormat(
+                         "Color converted row/col (%d, %d) YCbCr{%u %u %u} => ",
+                         row, col, y, cb, cr)
+                  << rgb;
         }
       }
     }
   }
 
-  XLS_VLOG(3) << absl::StreamFormat(
+  VLOG(3) << absl::StreamFormat(
       "Completed decoding MCUs; height: %d width: %d => lines: %d", mcu_height,
       mcu_width, lines.size());
   return DecodedJpeg{ctx.sof0_data->y, ctx.sof0_data->x, std::move(lines)};
@@ -366,14 +365,14 @@ static absl::Status DecodeApp0Segment(ByteStream& byte_stream, DecodeCtx& ctx) {
   XLS_ASSIGN_OR_RETURN(uint16_t length, byte_stream.PopHiLo());
   // Note: the length is not generally necessary to be used in the APP0 segment,
   // since sizes of entities to pop are all known.
-  XLS_VLOG(3) << "APP0 segment length: " << length;
+  VLOG(3) << "APP0 segment length: " << length;
   // "JFIF\0" indicator.
   XLS_RETURN_IF_ERROR(byte_stream.DropExpectedMulti(
       {0x4a, 0x46, 0x49, 0x46, 0x00}, "JFIF indicator"));
   XLS_ASSIGN_OR_RETURN(uint8_t version_major, byte_stream.Pop());
   XLS_ASSIGN_OR_RETURN(uint8_t version_minor, byte_stream.Pop());
-  XLS_VLOG(5) << absl::StreamFormat("APP0 version: %u.%u", version_major,
-                                    version_minor);
+  VLOG(5) << absl::StreamFormat("APP0 version: %u.%u", version_major,
+                                version_minor);
   // 0: no units, X and Y specify pixel aspect ratio.
   // 1: X and Y are dots per inch.
   // 2: X and Y are dots per cm.
@@ -384,8 +383,7 @@ static absl::Status DecodeApp0Segment(ByteStream& byte_stream, DecodeCtx& ctx) {
   }
   XLS_ASSIGN_OR_RETURN(uint16_t x_density, byte_stream.PopHiLo());
   XLS_ASSIGN_OR_RETURN(uint16_t y_density, byte_stream.PopHiLo());
-  XLS_VLOG(5) << absl::StreamFormat("density x: %u y: %u", x_density,
-                                    y_density);
+  VLOG(5) << absl::StreamFormat("density x: %u y: %u", x_density, y_density);
   XLS_ASSIGN_OR_RETURN(uint8_t x_thumbnail, byte_stream.Pop());
   XLS_ASSIGN_OR_RETURN(uint8_t y_thumbnail, byte_stream.Pop());
   XLS_ASSIGN_OR_RETURN(std::vector<uint8_t> thumbnail_rgb,
@@ -398,7 +396,7 @@ static absl::Status DecodeSof0Segment(ByteStream& byte_stream, DecodeCtx& ctx) {
   XLS_ASSIGN_OR_RETURN(uint16_t length_u16, byte_stream.PopHiLo());
   // Note: the length is not generally necessary to be used in the SOF0 segment,
   // since sizes of entities to pop are all known.
-  XLS_VLOG(3) << "SOF0 segment length: " << length_u16;
+  VLOG(3) << "SOF0 segment length: " << length_u16;
   // p: sample precision (precision in bits for samples of the components
   // in the frame).
   XLS_ASSIGN_OR_RETURN(uint8_t p, byte_stream.Pop());
@@ -434,7 +432,7 @@ static absl::Status DecodeSof0Segment(ByteStream& byte_stream, DecodeCtx& ctx) {
                            .nf = nf,
                            .component_ids = component_ids,
                            .component_qtabs = component_qtabs};
-  XLS_VLOG(3) << "SOF0: " << ctx.sof0_data->ToString();
+  VLOG(3) << "SOF0: " << ctx.sof0_data->ToString();
   return absl::OkStatus();
 }
 
@@ -472,7 +470,7 @@ static absl::Status DecodeDqtSegment(ByteStream& byte_stream, DecodeCtx& ctx) {
   XLS_ASSIGN_OR_RETURN(uint16_t length_u16, byte_stream.PopHiLo());
   auto length = static_cast<int32_t>(length_u16);
   length -= 2;  // The two length bytes themselves are included.
-  XLS_VLOG(3) << "DQT marker; length: " << length;
+  VLOG(3) << "DQT marker; length: " << length;
   while (length > 0) {
     // p_q: quantization table element precision; 0: 8-bit 1: 16-bit
     // t_q: quantization table destination identifier
@@ -482,14 +480,14 @@ static absl::Status DecodeDqtSegment(ByteStream& byte_stream, DecodeCtx& ctx) {
         << "qtable destination identifier out of range: " << t_q;
     // q_k: Quantization table elements (in zig-zag scan order).
     XLS_ASSIGN_OR_RETURN(auto q_k, byte_stream.PopN<kCoeffPerMcu>());
-    XLS_VLOG(3) << absl::StreamFormat("qtable at index %d has identifier %d",
-                                      ctx.quantization_tables.size(), t_q);
+    VLOG(3) << absl::StreamFormat("qtable at index %d has identifier %d",
+                                  ctx.quantization_tables.size(), t_q);
     ctx.quantization_tables.push_back(
         QuantizationTable{.precision = static_cast<Precision>(p_q),
                           .identifier = t_q,
                           .data = q_k});
-    XLS_VLOG(3) << "Quantization table count now: "
-                << ctx.quantization_tables.size();
+    VLOG(3) << "Quantization table count now: "
+            << ctx.quantization_tables.size();
     length -= static_cast<int32_t>(kCoeffPerMcu) + 1;
   }
   XLS_RET_CHECK_EQ(length, 0);
@@ -499,7 +497,7 @@ static absl::Status DecodeDqtSegment(ByteStream& byte_stream, DecodeCtx& ctx) {
 static absl::StatusOr<DecodedJpeg> DecodeSosSegment(ByteStream& byte_stream,
                                                     DecodeCtx& ctx) {
   XLS_ASSIGN_OR_RETURN(uint16_t ls, byte_stream.PopHiLo());
-  XLS_VLOG(3) << "SOS segment length: " << ls;
+  VLOG(3) << "SOS segment length: " << ls;
   XLS_ASSIGN_OR_RETURN(uint8_t ns, byte_stream.Pop());
   for (int64_t i = 0; i < ns; ++i) {
     XLS_ASSIGN_OR_RETURN(uint8_t csj, byte_stream.Pop());
@@ -509,8 +507,8 @@ static absl::StatusOr<DecodedJpeg> DecodeSosSegment(ByteStream& byte_stream,
     XLS_RET_CHECK_LT(taj, 4);
     ctx.component_data.push_back(
         SosComponentData{.component = csj, .dc_table = tdj, .ac_table = taj});
-    XLS_VLOG(3) << absl::StreamFormat("SOS component %d: %s", i,
-                                      ctx.component_data.back().ToString());
+    VLOG(3) << absl::StreamFormat("SOS component %d: %s", i,
+                                  ctx.component_data.back().ToString());
   }
   // ss: Start of spectral or predictor selection -- we need this to be
   // zero.

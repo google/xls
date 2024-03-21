@@ -353,7 +353,7 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
               bdd_query_engine.bdd_function().GetBddNode(node, bit_index);
           if (bdd_node == bdd_query_engine.bdd_function().bdd().zero() ||
               bdd_node == bdd_query_engine.bdd_function().bdd().one()) {
-            XLS_VLOG(1) << absl::StreamFormat(
+            VLOG(1) << absl::StreamFormat(
                 "%s:%d in stage %d is known %s", node->GetName(), bit_index, i,
                 bdd_node == bdd_query_engine.bdd_function().bdd().zero()
                     ? "zero"
@@ -361,7 +361,7 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
             constants_per_stage[i]++;
             total_constants++;
           } else if (bdd_nodes.contains(bdd_node)) {
-            XLS_VLOG(1) << absl::StreamFormat(
+            VLOG(1) << absl::StreamFormat(
                 "%s:%d in stage %d duplicate of %s:%d", node->GetName(),
                 bit_index, i, bdd_nodes.at(bdd_node).first->GetName(),
                 bdd_nodes.at(bdd_node).second);
@@ -705,7 +705,7 @@ absl::Status RunInterpreterAndJit(FunctionBase* function_base,
 }
 
 absl::Status RealMain(std::string_view path) {
-  XLS_VLOG(1) << "Reading contents at path: " << path;
+  VLOG(1) << "Reading contents at path: " << path;
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(contents));

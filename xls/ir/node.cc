@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -61,12 +62,12 @@ Node::Node(Op op, Type* type, const SourceInfo& loc, std::string_view name,
       name_(name.empty() ? "" : function_base_->UniquifyNodeName(name)) {}
 
 void Node::AddOperand(Node* operand) {
-  XLS_VLOG(3) << " Adding operand " << operand->GetName() << " as #"
-              << operands_.size() << " operand of " << GetName();
+  VLOG(3) << " Adding operand " << operand->GetName() << " as #"
+          << operands_.size() << " operand of " << GetName();
   operands_.push_back(operand);
   operand->AddUser(this);
-  XLS_VLOG(3) << " " << operand->GetName()
-              << " user now: " << operand->GetUsersString();
+  VLOG(3) << " " << operand->GetName()
+          << " user now: " << operand->GetUsersString();
 }
 
 void Node::AddOperands(absl::Span<Node* const> operands) {

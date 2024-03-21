@@ -336,21 +336,21 @@ absl::StatusOr<EnumDefProto> ToProto(const EnumDef& enum_def) {
 }
 
 absl::StatusOr<EnumTypeProto> ToProto(const EnumType& enum_type) {
-  XLS_VLOG(5) << "Converting EnumType to proto: " << enum_type.ToString();
+  VLOG(5) << "Converting EnumType to proto: " << enum_type.ToString();
   EnumTypeProto proto;
   XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_def(),
                        ToProto(enum_type.nominal_type()));
   XLS_ASSIGN_OR_RETURN(*proto.mutable_size(), ToProto(enum_type.size()));
   proto.set_is_signed(enum_type.is_signed());
-  XLS_VLOG(5) << "- proto: " << proto.ShortDebugString();
+  VLOG(5) << "- proto: " << proto.ShortDebugString();
   return proto;
 }
 
 absl::StatusOr<MetaTypeProto> ToProto(const MetaType& meta_type) {
-  XLS_VLOG(5) << "Converting MetaType to proto: " << meta_type.ToString();
+  VLOG(5) << "Converting MetaType to proto: " << meta_type.ToString();
   MetaTypeProto proto;
   XLS_ASSIGN_OR_RETURN(*proto.mutable_wrapped(), ToProto(*meta_type.wrapped()));
-  XLS_VLOG(5) << "- proto: " << proto.ShortDebugString();
+  VLOG(5) << "- proto: " << proto.ShortDebugString();
   return proto;
 }
 
@@ -368,12 +368,12 @@ ChannelDirectionProto ToProto(ChannelDirection d) {
 }
 
 absl::StatusOr<ChannelTypeProto> ToProto(const ChannelType& channel_type) {
-  XLS_VLOG(5) << "Converting ChannelType to proto: " << channel_type.ToString();
+  VLOG(5) << "Converting ChannelType to proto: " << channel_type.ToString();
   ChannelTypeProto proto;
   XLS_ASSIGN_OR_RETURN(*proto.mutable_payload(),
                        ToProto(channel_type.payload_type()));
   proto.set_direction(ToProto(channel_type.direction()));
-  XLS_VLOG(5) << "- proto: " << proto.ShortDebugString();
+  VLOG(5) << "- proto: " << proto.ShortDebugString();
   return proto;
 }
 
@@ -508,7 +508,7 @@ absl::StatusOr<TypeDim> FromProto(const TypeDimProto& ctdp) {
 
 absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
                                                 const ImportData& import_data) {
-  XLS_VLOG(5) << "Converting TypeProto to C++: " << ctp.ShortDebugString();
+  VLOG(5) << "Converting TypeProto to C++: " << ctp.ShortDebugString();
   switch (ctp.type_oneof_case()) {
     case TypeProto::TypeOneofCase::kBitsType: {
       XLS_ASSIGN_OR_RETURN(TypeDim dim, FromProto(ctp.bits_type().dim()));

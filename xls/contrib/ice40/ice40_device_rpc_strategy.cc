@@ -245,16 +245,15 @@ absl::Status Ice40DeviceRpcStrategy::Connect(int64_t device_ordinal) {
   LOG(INFO) << "input speed:  " << SpeedString(input_speed);
   LOG(INFO) << "output speed: " << SpeedString(output_speed);
 
-  XLS_VLOG(1) << "input modes:   " << InputModesToString(t.c_iflag);
-  XLS_VLOG(1) << "control modes: " << ControlModesToString(t.c_cflag);
-  XLS_VLOG(1) << "local modes:   " << LocalModesToString(t.c_lflag);
+  VLOG(1) << "input modes:   " << InputModesToString(t.c_iflag);
+  VLOG(1) << "control modes: " << ControlModesToString(t.c_cflag);
+  VLOG(1) << "local modes:   " << LocalModesToString(t.c_lflag);
 
 #ifdef LINUX
-  XLS_VLOG(1) << "c_line: " << std::hex << static_cast<int>(t.c_line);
+  VLOG(1) << "c_line: " << std::hex << static_cast<int>(t.c_line);
 #endif
   for (int i = 0; i < NCCS; ++i) {
-    XLS_VLOG(3) << "c_cc[" << i << "]: " << std::hex
-                << static_cast<int>(t.c_cc[i]);
+    VLOG(3) << "c_cc[" << i << "]: " << std::hex << static_cast<int>(t.c_cc[i]);
   }
 
   tty_fd_ = fd;
@@ -299,8 +298,8 @@ absl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
   int64_t output_bits = function_type.return_type()->GetFlatBitCount();
   std::vector<uint8_t> result(CeilOfRatio(output_bits, int64_t{8}));
 
-  XLS_VLOG(3) << "Reading device response; expecting " << result.size()
-              << " bytes.";
+  VLOG(3) << "Reading device response; expecting " << result.size()
+          << " bytes.";
 
   int64_t bytes_read = 0;
   while (bytes_read < result.size()) {

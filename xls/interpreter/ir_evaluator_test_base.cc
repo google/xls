@@ -28,6 +28,7 @@
 #include "gtest/gtest.h"
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -968,7 +969,7 @@ TEST_P(IrEvaluatorTestBase, SMulpSignExtensionNotSound) {
           bits_ops::SignExtend(bits_ops::SMul(x_bits, y_bits), result_width);
       XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
                                RunWithBitsNoEvents(function, {x_bits, y_bits}));
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "smulp(bits[%d]: %v, bits[%d]: %v) = bits[%d]: %v =? %v", x_width,
           x_bits, y_width, y_bits, result_width, actual, product);
       if (actual != product) {
@@ -1123,7 +1124,7 @@ TEST_P(IrEvaluatorTestBase, UMulpZeroExtensionNotSound) {
           bits_ops::ZeroExtend(bits_ops::UMul(x_bits, y_bits), result_width);
       XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
                                RunWithBitsNoEvents(function, {x_bits, y_bits}));
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "umulp(bits[%d]: %v, bits[%d]: %v) = bits[%d]: %v =? %v", x_width,
           x_bits, y_width, y_bits, result_width, actual, product);
       if (actual != product) {
@@ -1560,11 +1561,10 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHot) {
   };
 
   for (const auto& example : examples) {
-    XLS_VLOG(2) << "input: "
-                << BitsToString(example.input, FormatPreference::kBinary, true)
-                << " expected: "
-                << BitsToString(example.output, FormatPreference::kBinary,
-                                true);
+    VLOG(2) << "input: "
+            << BitsToString(example.input, FormatPreference::kBinary, true)
+            << " expected: "
+            << BitsToString(example.output, FormatPreference::kBinary, true);
     EXPECT_THAT(RunWithNoEvents(function, {Value(example.input)}),
                 IsOkAndHolds(Value(example.output)));
   }
@@ -1591,11 +1591,10 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotMsbPrio) {
   };
 
   for (const auto& example : examples) {
-    XLS_VLOG(2) << "input: "
-                << BitsToString(example.input, FormatPreference::kBinary, true)
-                << " expected: "
-                << BitsToString(example.output, FormatPreference::kBinary,
-                                true);
+    VLOG(2) << "input: "
+            << BitsToString(example.input, FormatPreference::kBinary, true)
+            << " expected: "
+            << BitsToString(example.output, FormatPreference::kBinary, true);
     EXPECT_THAT(RunWithNoEvents(function, {Value(example.input)}),
                 IsOkAndHolds(Value(example.output)));
   }

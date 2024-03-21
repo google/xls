@@ -972,7 +972,7 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
     translator->SetRlimit(z3_rlimit);
     if (RunSolver(ctx, solvers::z3::BitVectorToBoolean(ctx, translated)) ==
         Z3_L_FALSE) {
-      XLS_VLOG(3) << "Proved that " << node << " is always false";
+      VLOG(3) << "Proved that " << node << " is always false";
       // A constant false node is mutually exclusive with all other nodes.
       for (const auto& [other, other_index] : predicate_nodes) {
         if (index != other_index) {
@@ -983,7 +983,7 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
   }
 
   for (const auto& [node, index] : predicate_nodes) {
-    XLS_VLOG(3) << "Predicate: " << node;
+    VLOG(3) << "Predicate: " << node;
   }
 
   int64_t known_false = 0;
@@ -1062,15 +1062,15 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
         XLS_RETURN_IF_ERROR(p->MarkNotMutuallyExclusive(node_a, node_b));
       } else {
         unknown += 1;
-        XLS_VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
-                    << node_a->GetName() << " and " << node_b->GetName();
+        VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
+                << node_a->GetName() << " and " << node_b->GetName();
       }
     }
   }
 
-  XLS_VLOG(3) << "known_false = " << known_false;
-  XLS_VLOG(3) << "known_true  = " << known_true;
-  XLS_VLOG(3) << "unknown     = " << unknown;
+  VLOG(3) << "known_false = " << known_false;
+  VLOG(3) << "known_true  = " << known_true;
+  VLOG(3) << "unknown     = " << unknown;
 
   XLS_RETURN_IF_ERROR(seh.status());
 
@@ -1115,12 +1115,12 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
             absl::StrFormat("%s [%s]", node->GetName(),
                             p.GetPredicate(node).value()->GetName()));
       }
-      XLS_VLOG(3) << "Merge class: " << merge_class.size() << ", op = " << op;
-      XLS_VLOG(3) << "    " << absl::StrJoin(name_pred_pairs, ", ");
+      VLOG(3) << "Merge class: " << merge_class.size() << ", op = " << op;
+      VLOG(3) << "    " << absl::StrJoin(name_pred_pairs, ", ");
     }
   }
 
-  XLS_VLOG(3) << "Successfully computed mutual exclusion for " << f->name();
+  VLOG(3) << "Successfully computed mutual exclusion for " << f->name();
 
   bool changed = false;
   for (const absl::flat_hash_set<Node*>& merge_class : merge_classes) {

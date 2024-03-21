@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/logging.h"
@@ -61,7 +62,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
                                      /*schedule=*/nullptr,
                                      /*entry_name=*/"main"));
 
-  XLS_VLOG(1) << proto.ir_html();
+  VLOG(1) << proto.ir_html();
   ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
@@ -88,7 +89,7 @@ TEST_F(IrToProtoTest, SimpleFunctionWithSchedule) {
                                      /*schedule=*/&schedule,
                                      /*entry_name=*/"main"));
 
-  XLS_VLOG(1) << proto.ir_html();
+  VLOG(1) << proto.ir_html();
   ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
@@ -114,7 +115,7 @@ fn main(x: bits[32], xx: bits[32]) -> bits[32] {
                                      /*schedule=*/nullptr,
                                      /*entry_name=*/"main"));
 
-  XLS_VLOG(1) << proto.ir_html();
+  VLOG(1) << proto.ir_html();
   ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
@@ -142,7 +143,7 @@ top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
                                      /*schedule=*/nullptr,
                                      /*entry_name=*/"main"));
 
-  XLS_VLOG(1) << proto.ir_html();
+  VLOG(1) << proto.ir_html();
   ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 
@@ -173,7 +174,7 @@ top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
                                      /*schedule=*/nullptr,
                                      /*entry_name=*/"main"));
 
-  XLS_VLOG(1) << proto.ir_html();
+  VLOG(1) << proto.ir_html();
   ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
 }
 

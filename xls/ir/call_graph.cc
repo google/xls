@@ -90,10 +90,10 @@ std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base) {
   DfsVisit(function_base, &visited, &post_order);
 
   if (VLOG_IS_ON(2)) {
-    XLS_VLOG(2) << absl::StreamFormat("DependentFunctions(%s):",
-                                      function_base->name());
+    VLOG(2) << absl::StreamFormat("DependentFunctions(%s):",
+                                  function_base->name());
     for (FunctionBase* f : post_order) {
-      XLS_VLOG(2) << "  " << f->name();
+      VLOG(2) << "  " << f->name();
     }
   }
   return post_order;

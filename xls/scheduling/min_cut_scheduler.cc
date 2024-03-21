@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -50,7 +51,7 @@ namespace {
 absl::Status SplitAfterCycle(FunctionBase* f, int64_t cycle,
                              const DelayEstimator& delay_estimator,
                              sched::ScheduleBounds* bounds) {
-  XLS_VLOG(3) << "Splitting after cycle " << cycle;
+  VLOG(3) << "Splitting after cycle " << cycle;
 
   // The nodes which need to be partitioned are those which can be scheduled in
   // either 'cycle' or 'cycle + 1'.
@@ -148,11 +149,11 @@ absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
     FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
     const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
     absl::Span<const SchedulingConstraint> constraints) {
-  XLS_VLOG(3) << "MinCutScheduler()";
-  XLS_VLOG(3) << "  pipeline stages = " << pipeline_stages;
+  VLOG(3) << "MinCutScheduler()";
+  VLOG(3) << "  pipeline stages = " << pipeline_stages;
   XLS_VLOG_LINES(4, f->DumpIr());
 
-  XLS_VLOG(4) << "Initial bounds:";
+  VLOG(4) << "Initial bounds:";
   XLS_VLOG_LINES(4, bounds->ToString());
 
   for (const SchedulingConstraint& constraint : constraints) {
@@ -199,8 +200,8 @@ absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
   std::optional<sched::ScheduleBounds> best_bounds;
   for (const std::vector<int64_t>& cut_order :
        GetMinCutCycleOrders(pipeline_stages - 1)) {
-    XLS_VLOG(3) << absl::StreamFormat("Trying cycle order: {%s}",
-                                      absl::StrJoin(cut_order, ", "));
+    VLOG(3) << absl::StreamFormat("Trying cycle order: {%s}",
+                                  absl::StrJoin(cut_order, ", "));
     sched::ScheduleBounds trial_bounds = *bounds;
     // Partition the nodes at each cycle boundary. For each iteration, this
     // splits the nodes into those which must be scheduled at or before the

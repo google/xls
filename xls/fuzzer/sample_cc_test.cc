@@ -17,6 +17,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.h"
@@ -46,7 +47,7 @@ TEST(SampleCcTest, SerializeDeserializeFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(Sample copy,
                            Sample::Deserialize(sample.Serialize()));
 
-  XLS_VLOG(1) << sample.Serialize();
+  VLOG(1) << sample.Serialize();
   EXPECT_EQ(sample, copy);
 
   EXPECT_EQ(sample.options().input_is_dslx(), copy.options().input_is_dslx());
@@ -79,7 +80,7 @@ TEST(SampleCcTest, SerializeDeserializeProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Sample copy,
                            Sample::Deserialize(sample.Serialize()));
 
-  XLS_VLOG(1) << sample.Serialize();
+  VLOG(1) << sample.Serialize();
   EXPECT_EQ(sample, copy);
 
   EXPECT_EQ(sample.options().sample_type(), copy.options().sample_type());

@@ -24,6 +24,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -164,7 +165,7 @@ class Scanner {
 
   // Pop the current token, advance token pointer to next token.
   Token PopToken() {
-    XLS_VLOG(6) << "Popping token: " << tokens_[token_idx_];
+    VLOG(6) << "Popping token: " << tokens_[token_idx_];
     return tokens_.at(token_idx_++);
   }
 

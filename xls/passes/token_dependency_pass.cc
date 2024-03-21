@@ -19,6 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -74,7 +75,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
       }
     }
   }
-  XLS_VLOG(3) << "Token deps:";
+  VLOG(3) << "Token deps:";
   XLS_VLOG_LINES(3, relation_to_string(token_deps));
 
   // This is a relation over the set of nodes in the program. If a value was
@@ -89,12 +90,12 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
     }
   }
 
-  XLS_VLOG(3) << "Data deps:";
+  VLOG(3) << "Data deps:";
   XLS_VLOG_LINES(3, relation_to_string(data_deps));
 
   // The transitive closure of the token dependency relation.
   NodeRelation token_deps_closure = TransitiveClosure<Node*>(token_deps);
-  XLS_VLOG(3) << "Token deps closure:";
+  VLOG(3) << "Token deps closure:";
   XLS_VLOG_LINES(3, relation_to_string(token_deps_closure));
 
   auto dfs = [&](Node* root,
@@ -151,7 +152,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
     }
   }
 
-  XLS_VLOG(3) << "IO to receive:";
+  VLOG(3) << "IO to receive:";
   XLS_VLOG_LINES(3, relation_to_string(io_to_receive));
 
   // A relation similar to `io_to_receive`, except that receives are only
@@ -184,7 +185,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
       }
     }
   }
-  XLS_VLOG(3) << "Minimal IO to receive:";
+  VLOG(3) << "Minimal IO to receive:";
   XLS_VLOG_LINES(3, relation_to_string(minimal_io_to_receive));
 
   bool changed = false;

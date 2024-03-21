@@ -51,7 +51,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, FunctionBase* module,
     const CodegenOptions& options, const DelayEstimator* delay_estimator) {
-  XLS_VLOG(2) << "Generating pipelined module for module:";
+  VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, module->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());
 
@@ -92,7 +92,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PackagePipelineSchedules& schedules, Package* package,
     const CodegenOptions& options, const DelayEstimator* delay_estimator) {
-  XLS_VLOG(2) << "Generating pipelined module for module:";
+  VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, package->DumpIr());
   if (VLOG_IS_ON(2)) {
     for (const auto& [_, schedule] : schedules) {

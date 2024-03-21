@@ -17,6 +17,7 @@
 #include <cmath>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -112,7 +113,7 @@ absl::StatusOr<double> ComputeDelay(rtl::Cell* cell) {
   XLS_ASSIGN_OR_RETURN(double p,
                        GetParasiticDelay(cell->kind(), cell->inputs().size()));
   double d = g * h + p;
-  XLS_VLOG(4) << absl::StreamFormat("g: %f h: %f p: %f d=gh+p: %f", g, h, p, d);
+  VLOG(4) << absl::StreamFormat("g: %f h: %f p: %f d=gh+p: %f", g, h, p, d);
   return d;
 }
 

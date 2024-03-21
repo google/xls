@@ -283,9 +283,9 @@ absl::StatusOr<bool> StillFailsHelper(
                          InvokeSubprocess(argv));
 
     if (subproc_result.exit_status != 0) {
-      XLS_VLOG(2) << "stdout:  \"\"\"" << subproc_result.stdout << "\"\"\"";
-      XLS_VLOG(2) << "stderr:  \"\"\"" << subproc_result.stderr << "\"\"\"";
-      XLS_VLOG(2) << "retcode: " << subproc_result.exit_status;
+      VLOG(2) << "stdout:  \"\"\"" << subproc_result.stdout << "\"\"\"";
+      VLOG(2) << "stderr:  \"\"\"" << subproc_result.stderr << "\"\"\"";
+      VLOG(2) << "retcode: " << subproc_result.exit_status;
     }
     if (absl::GetFlag(FLAGS_test_executable_crash_is_bug)) {
       return !subproc_result.normal_termination;
@@ -322,7 +322,7 @@ absl::StatusOr<bool> StillFailsHelper(
 absl::StatusOr<bool> StillFails(
     std::string_view ir_text, std::optional<std::vector<Value>> inputs,
     absl::flat_hash_map<std::string, bool>* test_cache) {
-  XLS_VLOG(1) << "=== Verifying contents still fails";
+  VLOG(1) << "=== Verifying contents still fails";
   XLS_VLOG_LINES(2, ir_text);
 
   if (test_cache != nullptr) {
@@ -356,7 +356,7 @@ absl::Status VerifyStillFails(
         absl::StrCat("Unexpected PASS: ", description, "\n\nIR\n", ir_text));
   }
 
-  XLS_VLOG(1) << "Confirmed: sample still fails.";
+  VLOG(1) << "Confirmed: sample still fails.";
   return absl::OkStatus();
 }
 
@@ -688,7 +688,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
               f->AsFunctionOrDie()->return_value()->GetType() &&
           f != f->package()->GetTop()) {
         // Can't change type of a non-top function.
-        XLS_VLOG(1) << "Unable to change return type of a non-top function";
+        VLOG(1) << "Unable to change return type of a non-top function";
         return SimplificationResult::kDidNotChange;
       }
       *which_transform =
@@ -698,7 +698,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
     return ReplaceImplicitUse(orig, replacement);
   }
 
-  XLS_VLOG(1) << "Unable to simplify return value node";
+  VLOG(1) << "Unable to simplify return value node";
   return SimplificationResult::kDidNotChange;
 }
 
@@ -877,7 +877,7 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   // Replace node with a constant (all zeros or all ones).
   if (n->Is<Param>() && n->IsDead()) {
     // Can't replace unused params with constant.
-    XLS_VLOG(1) << "Candidate for constant-replacement is a dead parameter.";
+    VLOG(1) << "Candidate for constant-replacement is a dead parameter.";
     return SimplificationResult::kDidNotChange;
   }
 
@@ -913,7 +913,7 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
 
   // Otherwise replace with all zeros.
   if (n->Is<Literal>() && n->As<Literal>()->value().IsAllZeros()) {
-    XLS_VLOG(1) << "Candidate for zero-replacement already a literal zero.";
+    VLOG(1) << "Candidate for zero-replacement already a literal zero.";
     return SimplificationResult::kDidNotChange;
   }
   XLS_RETURN_IF_ERROR(
@@ -932,8 +932,7 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
   Package new_pkg = Package(f->package()->name());
   auto it = f->nodes().begin();
   auto off = absl::Uniform(rng, 0, f->node_count());
-  XLS_VLOG(3) << "Attempting to extract node " << off << " from "
-              << f->DumpIr();
+  VLOG(3) << "Attempting to extract node " << off << " from " << f->DumpIr();
   std::advance(it, off);
   Node* to_extract = *it;
   if (f->IsFunction() && to_extract == f->AsFunctionOrDie()->return_value()) {
@@ -943,8 +942,8 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
   *which_transform =
       absl::StrFormat("Extracting node %s into an independent function.",
                       to_extract->ToString());
-  XLS_VLOG(3) << "Attempting to extract " << to_extract->ToString() << " from "
-              << f->DumpIr();
+  VLOG(3) << "Attempting to extract " << to_extract->ToString() << " from "
+          << f->DumpIr();
   if (to_extract->Is<RegisterWrite>() || to_extract->Is<Send>() ||
       to_extract->Is<Receive>() || to_extract->Is<AfterAll>()) {
     // Don't want to deal with these nodes.
@@ -998,8 +997,8 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
            n->GetType()->AsTupleOrDie()->element_types().subspan(1)) {
         auto maybe_type = new_pkg.MapTypeFromOtherPackage(other_type);
         if (!maybe_type.ok()) {
-          XLS_VLOG(1) << "     unable to map type" << other_type->ToString()
-                      << " due to " << maybe_type.status();
+          VLOG(1) << "     unable to map type" << other_type->ToString()
+                  << " due to " << maybe_type.status();
           return failure;
         }
         types.push_back(*maybe_type);
@@ -1013,8 +1012,8 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
     } else if (n->Is<RegisterRead>()) {
       auto maybe_type = new_pkg.MapTypeFromOtherPackage(n->GetType());
       if (!maybe_type.ok()) {
-        XLS_VLOG(1) << "     unable to map type" << n->GetType()->ToString()
-                    << " due to " << maybe_type.status();
+        VLOG(1) << "     unable to map type" << n->GetType()->ToString()
+                << " due to " << maybe_type.status();
         return failure;
       }
       XLS_ASSIGN_OR_RETURN(
@@ -1033,8 +1032,8 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
       }
       auto maybe_node = n->CloneInNewFunction(new_ops, new_func);
       if (!maybe_node.ok()) {
-        XLS_VLOG(1) << "     unable to clone type" << n->ToString()
-                    << " due to " << maybe_node.status();
+        VLOG(1) << "     unable to clone type" << n->ToString() << " due to "
+                << maybe_node.status();
         return failure;
       }
       old_to_new_map[n] = *maybe_node;
@@ -1237,7 +1236,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
       break;
     }
 
-    XLS_VLOG(1) << "=== Simplification attempt " << total_attempts;
+    VLOG(1) << "=== Simplification attempt " << total_attempts;
 
     FunctionBase* candidate;
     if (absl::GetFlag(FLAGS_simplify_top_only)) {
@@ -1284,7 +1283,7 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     // going until we do. We still bump the counter to make sure we don't end up
     // wedged in a state where we can't simplify anything.
     if (simplification.result == SimplificationResult::kDidNotChange) {
-      XLS_VLOG(1) << "Did not change the sample.";
+      VLOG(1) << "Did not change the sample.";
       failed_simplification_attempts++;
       if (simplification_iterations > 0) {
         failed_attempts_between_tests++;

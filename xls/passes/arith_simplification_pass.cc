@@ -304,7 +304,7 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(Node* node) {
       Literal * new_literal,
       node->function_base()->MakeNode<Literal>(node->loc(), Value(solution)));
 
-  XLS_VLOG(2) << "FOUND: compairson of injective operation.";
+  VLOG(2) << "FOUND: compairson of injective operation.";
   XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                               binary_op->operand, new_literal, compare->op)
                           .status());
@@ -615,7 +615,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     const bool is_signed = n->op() == Op::kSMul;
     if (rhs.IsPowerOfTwo() &&
         (!is_signed || (is_signed && bits_ops::SGreaterThan(rhs, 0)))) {
-      XLS_VLOG(2) << "FOUND: Div/Mul by positive power of two";
+      VLOG(2) << "FOUND: Div/Mul by positive power of two";
       // Extend/trunc operand 0 (the non-literal operand) to the width of the
       // div/mul then shift by a constant amount.
       XLS_ASSIGN_OR_RETURN(
@@ -633,7 +633,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
         // Unsigned divide operation is replaced with shift right logical.
         shift_op = Op::kShrl;
       }
-      XLS_VLOG(2) << "FOUND: div/mul of positive power of two";
+      VLOG(2) << "FOUND: div/mul of positive power of two";
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<BinOp>(adjusted_lhs, shift_amount, shift_op)
               .status());
@@ -647,7 +647,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     const bool is_signed = n->op() == Op::kSMod;
 
     if (rhs.IsOne() || rhs.IsZero()) {
-      XLS_VLOG(2) << "FOUND: UMod/SMod by one or zero";
+      VLOG(2) << "FOUND: UMod/SMod by one or zero";
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
       return true;
@@ -655,7 +655,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 
     if (rhs.IsPowerOfTwo() &&
         (!is_signed || (is_signed && bits_ops::SGreaterThan(rhs, 0)))) {
-      XLS_VLOG(2) << "FOUND: UMod/SMod by a positive power of two";
+      VLOG(2) << "FOUND: UMod/SMod by a positive power of two";
       // Truncate operand 0 to the relevant low bits, then zero-extend it to the
       // width of the mod.
       XLS_ASSIGN_OR_RETURN(Node * truncated_lhs,
@@ -769,7 +769,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     auto concat_operands = (n->op() == Op::kShll)
                                ? std::vector<Node*>{slice, zero}
                                : std::vector<Node*>{zero, slice};
-    XLS_VLOG(2) << "FOUND: logical shift by constant";
+    VLOG(2) << "FOUND: logical shift by constant";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Concat>(concat_operands).status());
     return true;
@@ -777,7 +777,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 
   // SignExt(SignExt(x, w_0), w_1) => SignExt(x, w_1)
   if (n->op() == Op::kSignExt && n->operand(0)->op() == Op::kSignExt) {
-    XLS_VLOG(2) << "FOUND: replace signext(signext(x)) with signext(x)";
+    VLOG(2) << "FOUND: replace signext(signext(x)) with signext(x)";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<ExtendOp>(n->operand(0)->operand(0),
                                         n->BitCountOrDie(), Op::kSignExt)
@@ -812,7 +812,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
                                            n->loc(), n->operand(0),
                                            /*start=*/bit_count - slice_width,
                                            /*width=*/slice_width));
-    XLS_VLOG(2) << "FOUND: replace ashr by constant with signext(slice(x))";
+    VLOG(2) << "FOUND: replace ashr by constant with signext(slice(x))";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<ExtendOp>(slice, bit_count, Op::kSignExt)
             .status());
@@ -821,7 +821,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 
   // An arithmetic shift-right of a 1-bit value is a no-op.
   if (n->op() == Op::kShra && n->operand(0)->BitCountOrDie() == 1) {
-    XLS_VLOG(2) << "FOUND: arithmetic shift-right of 1-bit value";
+    VLOG(2) << "FOUND: arithmetic shift-right of 1-bit value";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;
   }
@@ -839,7 +839,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     // bits[1]:1. (For correctness, that case must be handled first.)
     XLS_RET_CHECK(n->op() != Op::kShra || n->operand(0)->BitCountOrDie() > 1);
 
-    XLS_VLOG(2) << "FOUND: shift right of constant 1";
+    VLOG(2) << "FOUND: shift right of constant 1";
     Node* x = n->operand(1);
     XLS_ASSIGN_OR_RETURN(Literal * zero,
                          n->function_base()->MakeNode<Literal>(
@@ -859,7 +859,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // A 1-wide decode can be simplified to a test for equality with zero; any
   // other index results in zero output.
   if (n->op() == Op::kDecode && n->BitCountOrDie() == 1) {
-    XLS_VLOG(2) << "FOUND: 1-wide decode";
+    VLOG(2) << "FOUND: 1-wide decode";
     XLS_ASSIGN_OR_RETURN(
         Literal * zero,
         n->function_base()->MakeNode<Literal>(
@@ -876,7 +876,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // a 1-bit operand.
   if (n->op() == Op::kDecode && n->operand(0)->BitCountOrDie() == 1 &&
       n->BitCountOrDie() == 2) {
-    XLS_VLOG(2) << "FOUND: decode of 1-bit operand";
+    VLOG(2) << "FOUND: decode of 1-bit operand";
     XLS_ASSIGN_OR_RETURN(
         Node * not_operand,
         n->function_base()->MakeNode<UnOp>(n->loc(), n->operand(0), Op::kNot));
@@ -914,8 +914,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
       n->operand(0)->op() == Op::kNeg && n->operand(1)->op() == Op::kNeg &&
       (is_removable_negate(n->operand(0)) ||
        is_removable_negate(n->operand(1)))) {
-    XLS_VLOG(2)
-        << "FOUND: Signed comparison of negated operands with no other use";
+    VLOG(2) << "FOUND: Signed comparison of negated operands with no other use";
     Node* lhs = n->operand(0)->operand(0);
     Node* rhs = n->operand(1)->operand(0);
 
@@ -966,7 +965,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   if (IsBitsCompare(n) && IsSignedCompare(n) &&
       n->operand(0)->op() == Op::kNeg && n->operand(1)->Is<Literal>() &&
       is_removable_negate(n->operand(0))) {
-    XLS_VLOG(2) << "FOUND: Signed comparison of negation to literal";
+    VLOG(2) << "FOUND: Signed comparison of negation to literal";
     Node* expr = n->operand(0)->operand(0);
     Literal* k = n->operand(1)->As<Literal>();
 
@@ -1029,7 +1028,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
               n->function_base()->MakeNode<Concat>(
                   concat->loc(), concat->operands().subspan(1)));
         }
-        XLS_VLOG(2) << "FOUND: Removal of zext of shift amount";
+        VLOG(2) << "FOUND: Removal of zext of shift amount";
         XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(1, new_shift_amount,
                                                     /*type_must_match=*/false));
         return true;
@@ -1053,7 +1052,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
                            n->function_base()->MakeNode<Concat>(
                                concat->loc(), concat->operands().subspan(1)));
     }
-    XLS_VLOG(2) << "FOUND: Removal of zext of decode index";
+    VLOG(2) << "FOUND: Removal of zext of decode index";
 
     int64_t n_width = n->BitCountOrDie();
     int64_t operand_width = new_index->BitCountOrDie();
@@ -1089,7 +1088,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     if (clamp_expr.has_value() &&
         bits_ops::UGreaterThanOrEqual(clamp_expr->upper_limit,
                                       n->BitCountOrDie())) {
-      XLS_VLOG(2) << "FOUND: Removal of unnecessary shift guard";
+      VLOG(2) << "FOUND: Removal of unnecessary shift guard";
       XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(1, clamp_expr->node));
       return true;
     }
@@ -1100,7 +1099,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     if (clamp_expr.has_value() &&
         bits_ops::UGreaterThanOrEqual(clamp_expr->upper_limit,
                                       n->BitCountOrDie())) {
-      XLS_VLOG(2) << "FOUND: Removal of unnecessary decode guard";
+      VLOG(2) << "FOUND: Removal of unnecessary decode guard";
       XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(0, clamp_expr->node));
       return true;
     }
@@ -1114,8 +1113,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
       n->op() == Op::kSMulp) {
     for (Node* operand : n->operands()) {
       if (operand->BitCountOrDie() == 0) {
-        XLS_VLOG(2) << "FOUND: replace " << OpToString(n->op())
-                    << "(bits[0], ...) with 0";
+        VLOG(2) << "FOUND: replace " << OpToString(n->op())
+                << "(bits[0], ...) with 0";
         XLS_RETURN_IF_ERROR(
             n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
         return true;
@@ -1131,7 +1130,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   if (NarrowingEnabled(opt_level) && IsBitsCompare(n) &&
       IsLiteralZero(n->operand(1))) {
     if (n->op() == Op::kSLt) {
-      XLS_VLOG(2) << "FOUND: SLt(x, 0)";
+      VLOG(2) << "FOUND: SLt(x, 0)";
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<BitSlice>(
                                n->operand(0),
                                /*start=*/n->operand(0)->BitCountOrDie() - 1,
@@ -1140,7 +1139,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
       return true;
     }
     if (n->op() == Op::kSGe) {
-      XLS_VLOG(2) << "FOUND: SGe(x, 0)";
+      VLOG(2) << "FOUND: SGe(x, 0)";
       XLS_ASSIGN_OR_RETURN(
           Node * sign_bit,
           n->function_base()->MakeNode<BitSlice>(
@@ -1159,7 +1158,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // de-optimization.
   if (n->op() == Op::kNot && OpIsCompare(n->operand(0)->op()) &&
       HasSingleUse(n->operand(0))) {
-    XLS_VLOG(2) << "FOUND: Not(CompareOp(x, y))";
+    VLOG(2) << "FOUND: Not(CompareOp(x, y))";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<CompareOp>(n->operand(0)->operand(0),
                                          n->operand(0)->operand(1),
@@ -1179,9 +1178,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   int64_t leading_zeros, trailing_ones;
   if (NarrowingEnabled(opt_level) && IsBitsCompare(n) &&
       IsLiteralMask(n->operand(1), &leading_zeros, &trailing_ones)) {
-    XLS_VLOG(2) << "Found comparison to literal mask; leading zeros: "
-                << leading_zeros << " trailing ones: " << trailing_ones
-                << " :: " << n;
+    VLOG(2) << "Found comparison to literal mask; leading zeros: "
+            << leading_zeros << " trailing ones: " << trailing_ones
+            << " :: " << n;
     switch (n->op()) {
       case Op::kULt: {
         XLS_ASSIGN_OR_RETURN(
@@ -1238,7 +1237,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     Literal* lhs_literal = n->operand(0)->As<Literal>();
     const Bits& lhs = lhs_literal->value().bits();
     if (lhs.IsPowerOfTwo()) {
-      XLS_VLOG(2) << "FOUND: shift left of power of two";
+      VLOG(2) << "FOUND: shift left of power of two";
       int64_t k = lhs.CountTrailingZeros();
       int64_t n_bit_count = n->operand(1)->BitCountOrDie();
       int64_t decode_width = lhs.bit_count();

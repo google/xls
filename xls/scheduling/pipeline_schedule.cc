@@ -25,6 +25,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -581,7 +582,7 @@ PackagePipelineSchedulesFromProto(Package* p,
                                   const PackagePipelineSchedulesProto& proto) {
   PackagePipelineSchedules schedules;
   for (const auto& [fb_name, _] : proto.schedules()) {
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Converting proto for Functionbase with name %s", fb_name);
     XLS_ASSIGN_OR_RETURN(FunctionBase * fb, p->GetFunctionBaseByName(fb_name));
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,

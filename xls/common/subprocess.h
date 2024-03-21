@@ -79,8 +79,8 @@ absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
 // Ex:
 //   auto streams_or_status = SubprocessResultToStrings(InvokeSubprocess(...));
 //   if (streams_or_status.ok()) {
-//     XLS_VLOG() << "stdout:" << streams_or_status->first;
-//     XLS_VLOG() << "stderr:" << streams_or_status->second;
+//     VLOG() << "stdout:" << streams_or_status->first;
+//     VLOG() << "stderr:" << streams_or_status->second;
 //   }
 absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
     absl::StatusOr<SubprocessResult> result);

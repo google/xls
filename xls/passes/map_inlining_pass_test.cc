@@ -66,7 +66,7 @@ fn main() -> bits[16][4] {
           m::Invoke(m::ArrayIndex(m::Array(), /*indices=*/{m::Literal(2)})),
           m::Invoke(m::ArrayIndex(m::Array(), /*indices=*/{m::Literal(3)}))));
 
-  XLS_VLOG(1) << package->DumpIr();
+  VLOG(1) << package->DumpIr();
 }
 
 TEST_F(MapInliningPassTest, InputArrayOrLiteral) {

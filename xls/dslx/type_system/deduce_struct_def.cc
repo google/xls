@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -97,8 +98,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructDef(const StructDef* node,
   auto wrapped = std::make_unique<StructType>(std::move(members), *node);
   auto result = std::make_unique<MetaType>(std::move(wrapped));
   ctx->type_info()->SetItem(node->name_def(), *result);
-  XLS_VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
-                                    node->ToString(), result->ToString());
+  VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
+                                node->ToString(), result->ToString());
   return result;
 }
 

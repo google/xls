@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
@@ -50,8 +51,8 @@ absl::StatusOr<std::string> ConvertDslxToIr(
     std::string_view dslx, std::string_view path, std::string_view module_name,
     std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
-  XLS_VLOG(5) << "path: " << path << " module name: " << module_name
-              << " stdlib_path: " << dslx_stdlib_path;
+  VLOG(5) << "path: " << path << " module name: " << module_name
+          << " stdlib_path: " << dslx_stdlib_path;
   dslx::ImportData import_data(dslx::CreateImportData(
       std::string(dslx_stdlib_path), additional_search_paths,
       dslx::kDefaultWarningsSet));

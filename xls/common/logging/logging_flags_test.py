@@ -34,7 +34,7 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertNotIn('INFO message', comp.stderr)
     self.assertNotIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertNotIn('XLS_VLOG', comp.stderr)
+    self.assertNotIn('VLOG', comp.stderr)
 
   def test_log_level_0(self):
     comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=0'],
@@ -46,7 +46,7 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertNotIn('XLS_VLOG', comp.stderr)
+    self.assertNotIn('VLOG', comp.stderr)
 
   def test_log_level_1(self):
     comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=1'],
@@ -58,7 +58,7 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertNotIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertNotIn('XLS_VLOG', comp.stderr)
+    self.assertNotIn('VLOG', comp.stderr)
 
   def test_log_level_2(self):
     comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=2'],
@@ -70,7 +70,7 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertNotIn('INFO message', comp.stderr)
     self.assertNotIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertNotIn('XLS_VLOG', comp.stderr)
+    self.assertNotIn('VLOG', comp.stderr)
 
   def test_vlog_level_1(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
@@ -83,8 +83,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertIn('XLS_VLOG(1) message', comp.stderr)
-    self.assertNotIn('XLS_VLOG(2) message', comp.stderr)
+    self.assertIn('VLOG(1) message', comp.stderr)
+    self.assertNotIn('VLOG(2) message', comp.stderr)
     self.assertIn('VLOG_IS_ON(1)', comp.stderr)
     self.assertNotIn('VLOG_IS_ON(2)', comp.stderr)
 
@@ -99,8 +99,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertIn('XLS_VLOG(1) message', comp.stderr)
-    self.assertIn('XLS_VLOG(2) message', comp.stderr)
+    self.assertIn('VLOG(1) message', comp.stderr)
+    self.assertIn('VLOG(2) message', comp.stderr)
     self.assertIn('VLOG_IS_ON(1)', comp.stderr)
     self.assertIn('VLOG_IS_ON(2)', comp.stderr)
 
@@ -115,7 +115,7 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertNotIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertNotIn('XLS_VLOG', comp.stderr)
+    self.assertNotIn('VLOG', comp.stderr)
 
   def test_vmodule_matches_filename_level_1(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
@@ -134,8 +134,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertIn('XLS_VLOG(1) message', comp.stderr)
-    self.assertNotIn('XLS_VLOG(2) message', comp.stderr)
+    self.assertIn('VLOG(1) message', comp.stderr)
+    self.assertNotIn('VLOG(2) message', comp.stderr)
     self.assertIn('VLOG_IS_ON(1)', comp.stderr)
     self.assertNotIn('VLOG_IS_ON(2)', comp.stderr)
 
@@ -156,8 +156,8 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertIn('XLS_VLOG(1) message', comp.stderr)
-    self.assertIn('XLS_VLOG(2) message', comp.stderr)
+    self.assertIn('VLOG(1) message', comp.stderr)
+    self.assertIn('VLOG(2) message', comp.stderr)
     self.assertIn('VLOG_IS_ON(1)', comp.stderr)
     self.assertIn('VLOG_IS_ON(2)', comp.stderr)
 
@@ -173,7 +173,7 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
     self.assertIn('ERROR message', comp.stderr)
-    self.assertNotIn('XLS_VLOG', comp.stderr)
+    self.assertNotIn('VLOG', comp.stderr)
 
 
 if __name__ == '__main__':

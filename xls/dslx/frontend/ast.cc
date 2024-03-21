@@ -1452,8 +1452,8 @@ std::string Binop::ToStringInternal() const {
   std::string lhs = lhs_->ToString();
   {
     Precedence lhs_precedence = lhs_->GetPrecedence();
-    XLS_VLOG(10) << "lhs_expr: `" << lhs << "` precedence: " << lhs_precedence
-                 << " op_precedence: " << op_precedence;
+    VLOG(10) << "lhs_expr: `" << lhs << "` precedence: " << lhs_precedence
+             << " op_precedence: " << op_precedence;
     if (WeakerThan(lhs_precedence, op_precedence)) {
       Parenthesize(&lhs);
     } else if (binop_kind_ == BinopKind::kLt &&
@@ -1716,9 +1716,8 @@ std::string Cast::ToStringInternal() const {
   std::string lhs = expr_->ToString();
   Precedence arg_precedence = expr_->GetPrecedence();
   if (WeakerThan(arg_precedence, Precedence::kAs)) {
-    XLS_VLOG(10) << absl::StreamFormat(
-        "expr `%s` precedence: %s weaker than 'as'", lhs,
-        PrecedenceToString(arg_precedence));
+    VLOG(10) << absl::StreamFormat("expr `%s` precedence: %s weaker than 'as'",
+                                   lhs, PrecedenceToString(arg_precedence));
     Parenthesize(&lhs);
   }
   return absl::StrFormat("%s as %s", lhs, type_annotation_->ToString());

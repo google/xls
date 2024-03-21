@@ -19,6 +19,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -58,7 +59,7 @@ absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,
 
 absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
                                     const ParametricEnv& bindings) {
-  XLS_VLOG(5) << "Converting concrete type to IR: " << type;
+  VLOG(5) << "Converting concrete type to IR: " << type;
 
   struct Visitor : public TypeVisitor {
    public:
@@ -78,9 +79,9 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
                            TypeToIr(package_, t.element_type(), bindings_));
       xls::Type* result = package_->GetArrayType(element_count, element_type);
-      XLS_VLOG(5) << "Converted type to IR; concrete type: " << t
-                  << " ir: " << result->ToString()
-                  << " element_count: " << element_count;
+      VLOG(5) << "Converted type to IR; concrete type: " << t
+              << " ir: " << result->ToString()
+              << " element_count: " << element_count;
       retval_ = result;
       return absl::OkStatus();
     }

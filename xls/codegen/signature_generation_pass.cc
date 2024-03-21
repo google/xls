@@ -14,6 +14,7 @@
 
 #include "xls/codegen/signature_generation_pass.h"
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -29,8 +30,8 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
   bool changed = false;
-  XLS_VLOG(3) << absl::StreamFormat("Metadata has %d blocks",
-                                    unit->metadata.size());
+  VLOG(3) << absl::StreamFormat("Metadata has %d blocks",
+                                unit->metadata.size());
   for (auto& [block, metadata] : unit->metadata) {
     if (metadata.signature.has_value()) {
       return absl::InvalidArgumentError("Signature already generated.");

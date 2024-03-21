@@ -23,6 +23,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -61,9 +62,9 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     DeduceCtx* ctx, DeduceCtx* parent_ctx, const Invocation* invocation,
     Function& callee_fn, const FunctionType& fn_type,
     const std::vector<InstantiateArg>& instantiate_args) {
-  XLS_VLOG(5) << "InstantiateParametricFunction; callee_fn: "
-              << callee_fn.identifier() << " invocation: `"
-              << invocation->ToString() << "` @ " << invocation->span();
+  VLOG(5) << "InstantiateParametricFunction; callee_fn: "
+          << callee_fn.identifier() << " invocation: `"
+          << invocation->ToString() << "` @ " << invocation->span();
 
   {
     // As a special case, flag recursion (that otherwise shows up as unresolved
@@ -116,9 +117,8 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
 
     auto* parametric_expr = std::get<Expr*>(eot);
 
-    XLS_VLOG(5) << "Populating callee parametric `" << binding->ToString()
-                << "` via invocation expression: "
-                << parametric_expr->ToString();
+    VLOG(5) << "Populating callee parametric `" << binding->ToString()
+            << "` via invocation expression: " << parametric_expr->ToString();
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
                          ParametricBindingToType(binding, ctx));

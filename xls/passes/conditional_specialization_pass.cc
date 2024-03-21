@@ -27,6 +27,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -127,9 +128,9 @@ class ConditionSet {
   // arbitrarily picking one of the conflicting conditions and transforming
   // based on it is fine.
   void AddCondition(const Condition& condition) {
-    XLS_VLOG(4) << absl::StreamFormat("ConditionSet for (%s, %d) : %s",
-                                      condition.node->GetName(),
-                                      condition.value, this->ToString());
+    VLOG(4) << absl::StreamFormat("ConditionSet for (%s, %d) : %s",
+                                  condition.node->GetName(), condition.value,
+                                  this->ToString());
     CHECK(!condition.node->Is<Literal>());
     conditions_.insert(condition);
     // The conditions are ordering in topological sort order (based on
@@ -201,10 +202,10 @@ class ConditionMap {
   // and operand index `operand_no`.
   void SetEdgeConditionSet(Node* node, int64_t operand_no,
                            ConditionSet condition_set) {
-    XLS_VLOG(4) << absl::StrFormat(
-        "Setting conditions on %s->%s (operand %d): %s",
-        node->operand(operand_no)->GetName(), node->GetName(), operand_no,
-        condition_set.ToString());
+    VLOG(4) << absl::StrFormat("Setting conditions on %s->%s (operand %d): %s",
+                               node->operand(operand_no)->GetName(),
+                               node->GetName(), operand_no,
+                               condition_set.ToString());
     std::pair<Node*, int64_t> key = {node, operand_no};
     CHECK(!edge_conditions_.contains(key));
     edge_conditions_.insert({key, std::move(condition_set)});
@@ -284,9 +285,9 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
                                      const QueryEngine* query_engine) {
   for (const Condition& condition : condition_set.conditions()) {
     if (condition.node == node) {
-      XLS_VLOG(4) << absl::StreamFormat("%s trivially implies %s==%d",
-                                        condition_set.ToString(),
-                                        node->GetName(), condition.value);
+      VLOG(4) << absl::StreamFormat("%s trivially implies %s==%d",
+                                    condition_set.ToString(), node->GetName(),
+                                    condition.value);
       return UBits(condition.value, node->BitCountOrDie());
     }
   }
@@ -300,9 +301,8 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
       query_engine->ImpliedNodeValue(predicates, node);
 
   if (implied_value.has_value()) {
-    XLS_VLOG(4) << absl::StreamFormat("%s implies %s==%v",
-                                      condition_set.ToString(), node->GetName(),
-                                      implied_value.value());
+    VLOG(4) << absl::StreamFormat("%s implies %s==%v", condition_set.ToString(),
+                                  node->GetName(), implied_value.value());
   }
   return implied_value;
 }
@@ -338,15 +338,15 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   bool changed = false;
   for (Node* node : ReverseTopoSort(f)) {
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
-    XLS_VLOG(4) << absl::StreamFormat("Considering node %s: %s",
-                                      node->GetName(), set.ToString());
+    VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
+                                  set.ToString());
 
     if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
         !node->Is<Next>()) {
       // Inputs to side-effecting operations should not change so don't assume
       // any conditions for this node or it's predecessors.
-      XLS_VLOG(4) << absl::StreamFormat("Node %s is side-effecting",
-                                        node->GetName());
+      VLOG(4) << absl::StreamFormat("Node %s is side-effecting",
+                                    node->GetName());
       continue;
     }
 
@@ -356,7 +356,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     // from the users because this value is unconditionally live and therefore
     // its computed value should not be changed.
     if (!f->HasImplicitUse(node)) {
-      XLS_VLOG(4) << absl::StreamFormat(
+      VLOG(4) << absl::StreamFormat(
           "%s has no implicit use, computing intersection of conditions of "
           "users",
           node->GetName());
@@ -435,7 +435,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         continue;
       }
 
-      XLS_VLOG(4) << absl::StreamFormat(
+      VLOG(4) << absl::StreamFormat(
           "%s is a conditional send, assuming predicate %s is true for data %s",
           node->GetName(), predicate->GetName(), send->data()->GetName());
 
@@ -456,7 +456,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         continue;
       }
 
-      XLS_VLOG(4) << absl::StreamFormat(
+      VLOG(4) << absl::StreamFormat(
           "%s is a conditional next_value, assuming predicate %s is true for "
           "data %s",
           node->GetName(), predicate->GetName(), next->value()->GetName());
@@ -467,8 +467,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                                         std::move(edge_set));
     }
 
-    XLS_VLOG(4) << absl::StreamFormat("Conditions for %s : %s", node->GetName(),
-                                      set.ToString());
+    VLOG(4) << absl::StreamFormat("Conditions for %s : %s", node->GetName(),
+                                  set.ToString());
 
     // Now specialize any operands (if possible) based on the conditions.
     for (int64_t operand_no = 0; operand_no < node->operand_count();
@@ -482,18 +482,18 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
       const ConditionSet& edge_set =
           condition_map.GetEdgeConditionSet(operand, node);
-      XLS_VLOG(4) << absl::StrFormat("Conditions on edge %s -> %s: %s",
-                                     operand->GetName(), node->GetName(),
-                                     edge_set.ToString());
+      VLOG(4) << absl::StrFormat("Conditions on edge %s -> %s: %s",
+                                 operand->GetName(), node->GetName(),
+                                 edge_set.ToString());
 
       // First check to see if the condition set directly implies a value for
       // the operand. If so replace with the implied value.
       if (std::optional<Bits> implied_value =
               ImpliedNodeValue(edge_set, operand, query_engine.get());
           implied_value.has_value()) {
-        XLS_VLOG(3) << absl::StreamFormat("Replacing operand %d of %s with %v",
-                                          operand_no, node->GetName(),
-                                          implied_value.value());
+        VLOG(3) << absl::StreamFormat("Replacing operand %d of %s with %v",
+                                      operand_no, node->GetName(),
+                                      implied_value.value());
         XLS_ASSIGN_OR_RETURN(
             Literal * literal,
             f->MakeNode<Literal>(operand->loc(), Value(implied_value.value())));
@@ -536,7 +536,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           }
           Node* implied_case =
               GetSelectedCase(select, implied_selector.value());
-          XLS_VLOG(3) << absl::StreamFormat(
+          VLOG(3) << absl::StreamFormat(
               "Conditions for edge (%s, %s) imply selector %s of select %s has "
               "value %v",
               operand->GetName(), node->GetName(),
@@ -546,7 +546,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           src = implied_case;
         }
         if (replacement.has_value()) {
-          XLS_VLOG(3) << absl::StreamFormat(
+          VLOG(3) << absl::StreamFormat(
               "Replacing operand %d of %s with %s due to implied selector "
               "value(s)",
               operand_no, node->GetName(), replacement.value()->GetName());

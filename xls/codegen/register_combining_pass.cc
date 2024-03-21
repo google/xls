@@ -19,6 +19,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -51,8 +52,8 @@ absl::Status CombineRegisters(absl::Span<const RegisterData> mutex_group,
 
   // No need to change load-enable bits, we're merging into the top which has
   // the right bits already.
-  XLS_VLOG(2) << "Collapsing " << mutex_group.size() << " registers into "
-              << mutex_group.front().reg->ToString();
+  VLOG(2) << "Collapsing " << mutex_group.size() << " registers into "
+          << mutex_group.front().reg->ToString();
   for (const RegisterData& merge : mutex_group.subspan(1)) {
     XLS_RETURN_IF_ERROR(merge.read->ReplaceUsesWith(first.read));
     cleanup_regs.insert(merge.reg);
@@ -83,7 +84,7 @@ absl::StatusOr<bool> RunOnBlock(Block* block, CodegenMetadata& metadata,
                                 const CodegenPassOptions& options) {
   if (options.codegen_options.register_merge_strategy() ==
       CodegenOptions::RegisterMergeStrategy::kDontMerge) {
-    XLS_VLOG(2) << "Not merging any registers due to manual disabling of pass.";
+    VLOG(2) << "Not merging any registers due to manual disabling of pass.";
     return false;
   }
   if (!metadata.concurrent_stages) {
@@ -93,7 +94,7 @@ absl::StatusOr<bool> RunOnBlock(Block* block, CodegenMetadata& metadata,
   candidate_registers.reserve(block->GetRegisters().size());
   // State registers (but not their valid/reset regs) are candidates for
   // merging.
-  XLS_VLOG(2) << block->DumpIr();
+  VLOG(2) << block->DumpIr();
   for (const auto& maybe_reg :
        metadata.streaming_io_and_pipeline.state_registers) {
     if (maybe_reg) {

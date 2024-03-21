@@ -204,6 +204,7 @@ cc_library(
     hdrs = ["streams.h"],
     deps = [
         ":constants",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -235,6 +236,7 @@ cc_library(
         ":constants",
         ":idct_chen_jit_wrapper",
         ":streams",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
@@ -246,6 +248,7 @@ cc_test(
     srcs = ["jpeg_grm_test.cc"],
     deps = [
         ":jpeg_grm",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

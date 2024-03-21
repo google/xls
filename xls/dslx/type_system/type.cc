@@ -68,7 +68,7 @@ Type::~Type() = default;
   result.reserve(ts.size());
   for (const auto& t : ts) {
     CHECK(t != nullptr);
-    XLS_VLOG(10) << "CloneSpan; cloning: " << t->ToString();
+    VLOG(10) << "CloneSpan; cloning: " << t->ToString();
     result.push_back(t->CloneToUnique());
   }
   return result;
@@ -369,8 +369,8 @@ absl::StatusOr<std::unique_ptr<Type>> BitsConstructorType::MapSize(
 }
 
 bool BitsConstructorType::operator==(const Type& other) const {
-  XLS_VLOG(10) << "BitsConstructorType::operator==; this: " << ToString()
-               << " other: " << other.ToString();
+  VLOG(10) << "BitsConstructorType::operator==; this: " << ToString()
+           << " other: " << other.ToString();
   if (auto* t = dynamic_cast<const BitsConstructorType*>(&other)) {
     return t->is_signed_ == is_signed_;
   }
@@ -417,8 +417,8 @@ BitsType::BitsType(bool is_signed, TypeDim size)
     : is_signed_(is_signed), size_(std::move(size)) {}
 
 bool BitsType::operator==(const Type& other) const {
-  XLS_VLOG(10) << "BitsType::operator==; this: " << ToString()
-               << " other: " << other.ToString();
+  VLOG(10) << "BitsType::operator==; this: " << ToString()
+           << " other: " << other.ToString();
   if (auto* t = dynamic_cast<const BitsType*>(&other)) {
     return t->is_signed_ == is_signed_ && t->size_ == size_;
   }
@@ -669,8 +669,8 @@ std::string ArrayType::ToString() const {
 }
 
 bool ArrayType::operator==(const Type& other) const {
-  XLS_VLOG(10) << "ArrayType::operator==; this: " << ToString()
-               << " other: " << other.ToString();
+  VLOG(10) << "ArrayType::operator==; this: " << ToString()
+           << " other: " << other.ToString();
   if (auto* o = dynamic_cast<const ArrayType*>(&other)) {
     return size_ == o->size_ && *element_type_ == *o->element_type_;
   }
@@ -678,9 +678,9 @@ bool ArrayType::operator==(const Type& other) const {
     if (auto* b = dynamic_cast<const BitsType*>(&other)) {
       const auto* bc =
           dynamic_cast<const BitsConstructorType*>(&element_type());
-      XLS_VLOG(10) << "size: " << size() << " b->size: " << b->size()
-                   << " bc->is_signed(): " << bc->is_signed()
-                   << " b->is_signed(): " << b->is_signed();
+      VLOG(10) << "size: " << size() << " b->size: " << b->size()
+               << " bc->is_signed(): " << bc->is_signed()
+               << " b->is_signed(): " << b->is_signed();
       return size() == b->size() &&
              bc->is_signed() == TypeDim::CreateBool(b->is_signed());
     }

@@ -23,6 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
@@ -80,7 +81,7 @@ class IrEvaluatorTestBase
                                                 std::string_view program) {
     XLS_ASSIGN_OR_RETURN(Function * function,
                          Parser::ParseFunction(program, package));
-    XLS_VLOG(1) << "Dumped:\n" << function->DumpIr();
+    VLOG(1) << "Dumped:\n" << function->DumpIr();
     return function;
   }
 

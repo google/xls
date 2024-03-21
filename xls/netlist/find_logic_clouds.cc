@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
@@ -62,7 +63,7 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
 
   for (auto& item : module.cells()) {
     Cell* cell = item.get();
-    XLS_VLOG(4) << "Considering cell: " << cell->name();
+    VLOG(4) << "Considering cell: " << cell->name();
 
     // Flop output connectivity is excluded from the equivalence class, so we
     // get partitions along flop (output) boundaries.
@@ -70,47 +71,46 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
       // For flops we just make sure an equivalence class is present in the
       // map, in case it doesn't have any cells on the input side.
       get_uf(cell);
-      XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                  << " equivalence classes for " << cell_to_uf.size()
-                  << " cells.";
+      VLOG(4) << "--- Now " << count_equivalence_classes()
+              << " equivalence classes for " << cell_to_uf.size() << " cells.";
       continue;
     }
 
     for (auto& input : cell->inputs()) {
-      XLS_VLOG(4) << "- Considering input net: " << input.netref->name();
+      VLOG(4) << "- Considering input net: " << input.netref->name();
       for (Cell* connected : input.netref->connected_cells()) {
         if (cell == connected) {
           continue;
         }
         if (connected->kind() == CellKind::kFlop) {
-          XLS_VLOG(4) << absl::StreamFormat(
+          VLOG(4) << absl::StreamFormat(
               "-- Cell is connected to flop cell %s on an input pin; not "
               "merging equivalence classes.",
               connected->name());
           continue;
         }
-        XLS_VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
-                                          cell->name(), connected->name());
+        VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
+                                      cell->name(), connected->name());
         cell_to_uf.Union(get_uf(cell), get_uf(connected));
-        XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                    << " equivalence classes for " << cell_to_uf.size()
-                    << " cells.";
+        VLOG(4) << "--- Now " << count_equivalence_classes()
+                << " equivalence classes for " << cell_to_uf.size()
+                << " cells.";
       }
     }
 
     for (const auto& iter : cell->outputs()) {
       NetRef output = iter.netref;
-      XLS_VLOG(4) << "- Considering output net: " << output->name();
+      VLOG(4) << "- Considering output net: " << output->name();
       for (Cell* connected : output->connected_cells()) {
         if (cell == connected) {
           continue;
         }
-        XLS_VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
-                                          cell->name(), connected->name());
+        VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
+                                      cell->name(), connected->name());
         cell_to_uf.Union(get_uf(cell), get_uf(connected));
-        XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                    << " equivalence classes for " << cell_to_uf.size()
-                    << " cells.";
+        VLOG(4) << "--- Now " << count_equivalence_classes()
+                << " equivalence classes for " << cell_to_uf.size()
+                << " cells.";
       }
     }
   }

@@ -140,12 +140,12 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
     if (select_chain.size() <= 4) {
       continue;
     }
-    XLS_VLOG(4) << absl::StreamFormat("Considering select chain rooted at %s:",
-                                      node->ToString());
+    VLOG(4) << absl::StreamFormat("Considering select chain rooted at %s:",
+                                  node->ToString());
     if (VLOG_IS_ON(4)) {
       for (Select* s : select_chain) {
-        XLS_VLOG(4) << absl::StreamFormat("  %s // selector: %s", s->ToString(),
-                                          SelectorToString(s->selector()));
+        VLOG(4) << absl::StreamFormat("  %s // selector: %s", s->ToString(),
+                                      SelectorToString(s->selector()));
       }
     }
 
@@ -153,7 +153,7 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
     std::transform(select_chain.begin(), select_chain.end(), selectors.begin(),
                    [](Select* s) { return s->selector(); });
     if (!query_engine.AtMostOneNodeTrue(selectors)) {
-      XLS_VLOG(4) << "Cannot collapse: more than one selector may be true.";
+      VLOG(4) << "Cannot collapse: more than one selector may be true.";
       continue;
     }
     std::vector<Node*> cases(selectors.size());
@@ -163,14 +163,14 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
       // All the selectors may be simultaneously false, so we need to add a
       // "fall-through" case whose selector is the NOR of all the other
       // selectors.
-      XLS_VLOG(4) << "All selectors may be false.";
+      VLOG(4) << "All selectors may be false.";
       XLS_ASSIGN_OR_RETURN(Node * nor_of_selectors,
                            node->function_base()->MakeNode<NaryOp>(
                                node->loc(), std::vector{selectors}, Op::kNor));
       selectors.push_back(nor_of_selectors);
       cases.push_back(select_chain.back()->get_case(0));
     }
-    XLS_VLOG(4) << "Replacing select chain with one-hot-select.";
+    VLOG(4) << "Replacing select chain with one-hot-select.";
     XLS_ASSIGN_OR_RETURN(Node * ohs_selector,
                          node->function_base()->MakeNode<Concat>(
                              node->loc(), std::vector{selectors}));
@@ -242,7 +242,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
     if (!known_prefix.empty() || !known_suffix.empty()) {
       if (known_prefix.size() == node->BitCountOrDie()) {
-        XLS_VLOG(2)
+        VLOG(2)
             << "Replacing node with its (entirely known) bits: " << node
             << " as "
             << Value(Bits(known_prefix)).ToString(FormatPreference::kBinary);
@@ -256,8 +256,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                      node->users().end());
         std::vector<Node*> concat_elements;
         if (!known_prefix.empty()) {
-          XLS_VLOG(2) << node->GetName()
-                      << " has known bits prefix: " << Bits(known_prefix);
+          VLOG(2) << node->GetName()
+                  << " has known bits prefix: " << Bits(known_prefix);
           XLS_ASSIGN_OR_RETURN(Node * prefix_literal,
                                node->function_base()->MakeNode<Literal>(
                                    node->loc(), Value(Bits(known_prefix))));
@@ -271,8 +271,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                     known_suffix.size()));
         concat_elements.push_back(sliced_node);
         if (!known_suffix.empty()) {
-          XLS_VLOG(2) << node->GetName()
-                      << " has known bits suffix: " << Bits(known_suffix);
+          VLOG(2) << node->GetName()
+                  << " has known bits suffix: " << Bits(known_suffix);
           XLS_ASSIGN_OR_RETURN(Node * suffix_literal,
                                node->function_base()->MakeNode<Literal>(
                                    node->loc(), Value(Bits(known_suffix))));
@@ -298,7 +298,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     OneHotSelect* ohs = node->As<OneHotSelect>();
     if (query_engine.AtLeastOneBitTrue(ohs->selector()) &&
         query_engine.AtMostOneBitTrue(ohs->selector())) {
-      XLS_VLOG(2) << absl::StreamFormat(
+      VLOG(2) << absl::StreamFormat(
           "Replacing one-hot-select %swith two-way select", node->GetName());
       XLS_ASSIGN_OR_RETURN(Node * bit0_selector,
                            node->function_base()->MakeNode<BitSlice>(

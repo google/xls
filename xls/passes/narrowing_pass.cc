@@ -223,7 +223,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         });
     XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_ltt.AsView()));
     XLS_RETURN_IF_ERROR(replace_with(value));
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Range analysis found precise value for %s == %s %s, replacing with "
         "literal\n",
         to_replace->GetName(), value.ToString(), context);
@@ -402,7 +402,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(Node * narrowed_rhs,
                            c->function_base()->MakeNode<BitSlice>(
                                c->loc(), c->operand(1), start, bit_count));
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Narrowing operands of comparison %s to slice [%d:%d]", c->GetName(),
           start, start + bit_count);
       return c
@@ -438,7 +438,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
           compare->op() != Op::kEq && compare->op() != Op::kNe) {
         XLS_ASSIGN_OR_RETURN(new_op, SignedCompareToUnsigned(compare->op()));
       }
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Leading %d bits and trailing %d bits of comparison operation %s "
           "match",
           matched_leading_bits, matched_trailing_bits, compare->GetName());
@@ -856,7 +856,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   // when the leading bits match on both sides and just doing a sign extend.
   // i.e. lhs[MSB] = lhs[MSB-1] = ... and rhs[MSB] = rhs[MSB-1] = ...,
   absl::Status HandleSub(BinOp* sub) override {
-    XLS_VLOG(3) << "Trying to narrow sub: " << sub->ToString();
+    VLOG(3) << "Trying to narrow sub: " << sub->ToString();
     XLS_RET_CHECK_EQ(sub->op(), Op::kSub);
 
     Node* lhs = sub->operand(0);
@@ -897,7 +897,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return Change();
   }
   absl::Status HandleAdd(BinOp* add) override {
-    XLS_VLOG(3) << "Trying to narrow add: " << add->ToString();
+    VLOG(3) << "Trying to narrow add: " << add->ToString();
 
     XLS_RET_CHECK_EQ(add->op(), Op::kAdd);
 
@@ -954,7 +954,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   // Try to narrow the operands and/or the result of a multiply.
   absl::Status MaybeNarrowMultiply(ArithOp* mul) {
-    XLS_VLOG(3) << "Trying to narrow multiply: " << mul->ToString();
+    VLOG(3) << "Trying to narrow multiply: " << mul->ToString();
 
     XLS_RET_CHECK(mul->op() == Op::kSMul || mul->op() == Op::kUMul);
 
@@ -963,15 +963,14 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     const int64_t result_bit_count = mul->BitCountOrDie();
     const int64_t lhs_bit_count = lhs->BitCountOrDie();
     const int64_t rhs_bit_count = rhs->BitCountOrDie();
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
         result_bit_count, lhs_bit_count, rhs_bit_count);
 
     // The result can be unconditionally narrowed to the sum of the operand
     // widths, then zero/sign extended.
     if (result_bit_count > lhs_bit_count + rhs_bit_count) {
-      XLS_VLOG(3)
-          << "Result is wider than sum of operands. Narrowing multiply.";
+      VLOG(3) << "Result is wider than sum of operands. Narrowing multiply.";
       XLS_ASSIGN_OR_RETURN(
           Node * narrowed_mul,
           mul->function_base()->MakeNode<ArithOp>(
@@ -1169,7 +1168,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   // Try to narrow the operands and/or the result of a multiply.
   absl::Status MaybeNarrowPartialMultiply(PartialProductOp* mul) {
-    XLS_VLOG(3) << "Trying to narrow multiply: " << mul->ToString();
+    VLOG(3) << "Trying to narrow multiply: " << mul->ToString();
 
     XLS_RET_CHECK(mul->op() == Op::kSMulp || mul->op() == Op::kUMulp);
 
@@ -1178,7 +1177,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     const int64_t result_bit_count = mul->width();
     const int64_t lhs_bit_count = lhs->BitCountOrDie();
     const int64_t rhs_bit_count = rhs->BitCountOrDie();
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
         result_bit_count, lhs_bit_count, rhs_bit_count);
 
@@ -1190,8 +1189,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
             PartialMultiplyImmediateSum(mul);
         result_bit_count > lhs_bit_count + rhs_bit_count &&
         add_immediately_after.has_value()) {
-      XLS_VLOG(3)
-          << "Result is wider than sum of operands. Narrowing multiply.";
+      VLOG(3) << "Result is wider than sum of operands. Narrowing multiply.";
       int64_t narrowed_width = lhs_bit_count + rhs_bit_count;
       XLS_ASSIGN_OR_RETURN(Node * narrowed_mul,
                            mul->function_base()->MakeNode<PartialProductOp>(
@@ -1670,12 +1668,11 @@ static void RangeAnalysisLog(FunctionBase* f,
         for (Node* parent : parents_map[node]) {
           parents.push_back(parent->ToString());
         }
-        XLS_VLOG(3) << "narrowing_pass: " << OpToString(node->op())
-                    << " shrinkable: "
-                    << "current size = " << current_size << "; "
-                    << "compressed size = " << compressed_size << "; "
-                    << "convex hull size = " << hull_size << "; "
-                    << "parents = [" << absl::StrJoin(parents, ", ") << "]\n";
+        VLOG(3) << "narrowing_pass: " << OpToString(node->op())
+                << " shrinkable: " << "current size = " << current_size << "; "
+                << "compressed size = " << compressed_size << "; "
+                << "convex hull size = " << hull_size << "; " << "parents = ["
+                << absl::StrJoin(parents, ", ") << "]\n";
       }
 
       bool inputs_all_maximal = true;
@@ -1693,8 +1690,8 @@ static void RangeAnalysisLog(FunctionBase* f,
       }
       if (!inputs_all_maximal &&
           range_query_engine.GetIntervals(node).Get({}).IsMaximal()) {
-        XLS_VLOG(3) << "narrowing_pass: range analysis lost precision for "
-                    << node << "\n";
+        VLOG(3) << "narrowing_pass: range analysis lost precision for " << node
+                << "\n";
       }
 
       if (ternary_query_engine.IsTracked(node) &&
@@ -1713,8 +1710,8 @@ static void RangeAnalysisLog(FunctionBase* f,
   }
 
   if (bits_saved != 0) {
-    XLS_VLOG(3) << "narrowing_pass: range analysis saved " << bits_saved
-                << " bits in " << f << "\n";
+    VLOG(3) << "narrowing_pass: range analysis saved " << bits_saved
+            << " bits in " << f << "\n";
   }
 }
 

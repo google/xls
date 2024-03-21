@@ -29,6 +29,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -229,9 +230,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // Causes node "n" to accept this visitor (basic double-dispatch).
   absl::Status Visit(const AstNode* n) {
-    XLS_VLOG(6) << this << " visiting: `" << n->ToString() << "` ("
-                << n->GetNodeTypeName() << ")"
-                << " @ " << SpanToString(n->GetSpan());
+    VLOG(6) << this << " visiting: `" << n->ToString() << "` ("
+            << n->GetNodeTypeName() << ")" << " @ "
+            << SpanToString(n->GetSpan());
     return n->Accept(this);
   }
 
@@ -388,7 +389,7 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
                   : Fileno(0)),
       proc_data_(proc_data),
       is_top_(is_top) {
-  XLS_VLOG(5) << "Constructed IR converter: " << this;
+  VLOG(5) << "Constructed IR converter: " << this;
 }
 
 bool FunctionConverter::GetRequiresImplicitToken(dslx::Function* f) const {
@@ -402,7 +403,7 @@ void FunctionConverter::SetFunctionBuilder(
 }
 
 void FunctionConverter::AddConstantDep(ConstantDef* constant_def) {
-  XLS_VLOG(2) << "Adding constant dep: " << constant_def->ToString();
+  VLOG(2) << "Adding constant dep: " << constant_def->ToString();
   constant_deps_.push_back(constant_def);
 }
 
@@ -418,7 +419,7 @@ absl::Status FunctionConverter::DefAlias(const AstNode* from,
         from->GetNodeTypeName(), to->ToString(), to->GetNodeTypeName()));
   }
   IrValue value = it->second;
-  XLS_VLOG(6) << absl::StreamFormat(
+  VLOG(6) << absl::StreamFormat(
       "Aliased node '%s' (%s) to be same as '%s' (%s): %s", to->ToString(),
       to->GetNodeTypeName(), from->ToString(), from->GetNodeTypeName(),
       IrValueToString(value));
@@ -444,10 +445,10 @@ absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
     const std::function<absl::StatusOr<BValue>(const SourceInfo&)>& ir_func) {
   SourceInfo loc = ToSourceInfo(node->GetSpan());
   XLS_ASSIGN_OR_RETURN(BValue result, ir_func(loc));
-  XLS_VLOG(6) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
-                                    node->ToString(), node->GetNodeTypeName(),
-                                    IrValueToString(result),
-                                    SpanToString(node->GetSpan()));
+  VLOG(6) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
+                                node->ToString(), node->GetNodeTypeName(),
+                                IrValueToString(result),
+                                SpanToString(node->GetSpan()));
   SetNodeToIr(node, result);
   return result;
 }
@@ -482,9 +483,9 @@ absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
                         node->GetNodeTypeName(), node->ToString()));
   }
   const IrValue& ir_value = it->second;
-  XLS_VLOG(6) << absl::StreamFormat("Using node '%s' (%p) as IR value %s.",
-                                    node->ToString(), node,
-                                    IrValueToString(ir_value));
+  VLOG(6) << absl::StreamFormat("Using node '%s' (%p) as IR value %s.",
+                                node->ToString(), node,
+                                IrValueToString(ir_value));
   if (std::holds_alternative<BValue>(ir_value)) {
     return std::get<BValue>(ir_value);
   }
@@ -493,9 +494,8 @@ absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
 }
 
 void FunctionConverter::SetNodeToIr(const AstNode* node, IrValue value) {
-  XLS_VLOG(6) << absl::StreamFormat("Setting node '%s' (%p) to IR value %s.",
-                                    node->ToString(), node,
-                                    IrValueToString(value));
+  VLOG(6) << absl::StreamFormat("Setting node '%s' (%p) to IR value %s.",
+                                node->ToString(), node, IrValueToString(value));
   node_to_ir_[node] = std::move(value);
 }
 
@@ -622,7 +622,7 @@ absl::Status FunctionConverter::HandleZeroMacro(const ZeroMacro* node) {
 }
 
 absl::Status FunctionConverter::HandleParam(const Param* node) {
-  XLS_VLOG(5) << "FunctionConverter::HandleParam: " << node->ToString();
+  VLOG(5) << "FunctionConverter::HandleParam: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        ResolveTypeToIr(node->type_annotation()));
   Def(node->name_def(), [&](const SourceInfo& loc) {
@@ -644,15 +644,15 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
     for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_.value())) {
       if (k == node->identifier()) {
         if (std::holds_alternative<Value>(v)) {
-          XLS_VLOG(4) << "Reference to Proc member: " << k
-                      << " : Value : " << std::get<Value>(v).ToString();
+          VLOG(4) << "Reference to Proc member: " << k
+                  << " : Value : " << std::get<Value>(v).ToString();
           CValue cvalue;
           cvalue.ir_value = std::get<Value>(v);
           cvalue.value = function_builder_->Literal(cvalue.ir_value);
           SetNodeToIr(from, cvalue);
         } else {
-          XLS_VLOG(4) << "Reference to Proc member: " << k
-                      << " : Chan  : " << std::get<Channel*>(v)->ToString();
+          VLOG(4) << "Reference to Proc member: " << k
+                  << " : Chan  : " << std::get<Channel*>(v)->ToString();
           SetNodeToIr(from, std::get<Channel*>(v));
         }
       }
@@ -665,20 +665,19 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
 absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
   // We've already evaluated constants to their values; we don't need to dive
   // into them for [useless] IR conversion.
-  XLS_VLOG(5) << "Visiting ConstantDef expr: " << node->value()->ToString();
+  VLOG(5) << "Visiting ConstantDef expr: " << node->value()->ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue iv,
                        current_type_info_->GetConstExpr(node->value()));
   XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
   Def(node->value(), [this, &value](const SourceInfo& loc) {
     return function_builder_->Literal(value, loc);
   });
-  XLS_VLOG(5) << "Aliasing NameDef for constant: "
-              << node->name_def()->ToString();
+  VLOG(5) << "Aliasing NameDef for constant: " << node->name_def()->ToString();
   return DefAlias(node->value(), /*to=*/node->name_def());
 }
 
 absl::Status FunctionConverter::HandleLet(const Let* node) {
-  XLS_VLOG(5) << "FunctionConverter::HandleLet: " << node->ToString();
+  VLOG(5) << "FunctionConverter::HandleLet: " << node->ToString();
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
@@ -712,8 +711,8 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     //  index: Index of node in the current tree level (e.g. leftmost is 0).
     auto walk = [&](NameDefTree* x, int64_t level,
                     int64_t index) -> absl::Status {
-      XLS_VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`",
-                                        level, index, x->ToString());
+      VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
+                                    index, x->ToString());
       levels.resize(level);
       levels.push_back(Def(x, [this, &levels, x, index](SourceInfo loc) {
         if (!loc.Empty()) {
@@ -1079,7 +1078,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   XLS_ASSIGN_OR_RETURN(RangeData range_data, GetRangeData(node->iterable()));
 
-  XLS_VLOG(5) << "Converting for-loop @ " << node->span();
+  VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_data_, module_, import_data_,
                                    options_, proc_data_, /*is_top=*/false);
   body_converter.set_parametric_env_map(parametric_env_map_);
@@ -1230,7 +1229,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
         dynamic_cast<TypeAlias*>(definer) != nullptr) {
       continue;
     }
-    XLS_VLOG(5) << "Converting freevar name: " << freevar_name_def->ToString();
+    VLOG(5) << "Converting freevar name: " << freevar_name_def->ToString();
 
     std::optional<IrValue> ir_value = GetNodeToIr(freevar_name_def);
     if (!ir_value.has_value()) {
@@ -1299,7 +1298,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   XLS_ASSIGN_OR_RETURN(xls::Function * body_function,
                        body_builder_ptr->Build());
-  XLS_VLOG(5) << "Converted body function: " << body_function->name();
+  VLOG(5) << "Converted body function: " << body_function->name();
 
   std::vector<BValue> invariant_args;
   for (const NameDef* nd : relevant_name_defs) {
@@ -1337,9 +1336,9 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
     const BValue& matched_value, const Type& matched_type) {
   if (matcher->is_leaf()) {
     NameDefTree::Leaf leaf = matcher->leaf();
-    XLS_VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
-                                      ToAstNode(leaf)->ToString(),
-                                      ToAstNode(leaf)->GetNodeTypeName());
+    VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
+                                  ToAstNode(leaf)->ToString(),
+                                  ToAstNode(leaf)->GetNodeTypeName());
     auto equality = [&]() -> absl::StatusOr<BValue> {
       XLS_RETURN_IF_ERROR(Visit(ToAstNode(leaf)));
       XLS_ASSIGN_OR_RETURN(BValue to_match, Use(ToAstNode(leaf)));
@@ -1428,8 +1427,7 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
                                       CallingConvention::kTypical,
                                       /*free_keys=*/{}, &parametric_env));
   XLS_ASSIGN_OR_RETURN(BValue arg_value, Use(arg));
-  XLS_VLOG(5) << "Mapping with builtin; arg: "
-              << arg_value.GetType()->ToString();
+  VLOG(5) << "Mapping with builtin; arg: " << arg_value.GetType()->ToString();
   auto* array_type = arg_value.GetType()->AsArrayOrDie();
   std::optional<xls::Function*> f = package()->TryGetFunction(mangled_name);
   if (!f.has_value()) {
@@ -1459,7 +1457,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   }
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Expr* fn_node = node->args()[1];
-  XLS_VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
+  VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
   std::optional<const ParametricEnv*> node_parametric_env =
       GetInvocationCalleeBindings(node);
 
@@ -1468,7 +1466,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   if (auto* name_ref = dynamic_cast<NameRef*>(fn_node)) {
     map_fn_name = name_ref->identifier();
     if (IsNameParametricBuiltin(map_fn_name)) {
-      XLS_VLOG(5) << "Map of parametric builtin: " << map_fn_name;
+      VLOG(5) << "Map of parametric builtin: " << map_fn_name;
       return DefMapWithBuiltin(node, name_ref, node->args()[0],
                                *node_parametric_env.value());
     }
@@ -1493,8 +1491,8 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
       std::string mangled_name,
       MangleDslxName(lookup_module->name(), mapped_fn->identifier(), convention,
                      free_set, node_parametric_env.value()));
-  XLS_VLOG(5) << "Getting function with mangled name: " << mangled_name
-              << " from package: " << package()->name();
+  VLOG(5) << "Getting function with mangled name: " << mangled_name
+          << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
   return Def(node, [&](const SourceInfo& loc) -> BValue {
     return function_builder_->Map(arg, f, loc);
@@ -1582,17 +1580,17 @@ absl::Status FunctionConverter::HandleArray(const Array* node) {
 absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
                                                     xls::Function* f,
                                                     std::vector<BValue> args) {
-  XLS_VLOG(5) << "HandleUdfInvocation: " << f->name() << " via "
-              << node->ToString();
+  VLOG(5) << "HandleUdfInvocation: " << f->name() << " via "
+          << node->ToString();
   XLS_RET_CHECK(package_data_.ir_to_dslx.contains(f)) << f->name();
   dslx::Function* dslx_callee =
       dynamic_cast<dslx::Function*>(package_data_.ir_to_dslx.at(f));
 
   const bool callee_requires_implicit_token =
       GetRequiresImplicitToken(dslx_callee);
-  XLS_VLOG(6) << "HandleUdfInvocation: callee: " << dslx_callee->ToString()
-              << " callee_requires_implicit_token: "
-              << callee_requires_implicit_token;
+  VLOG(6) << "HandleUdfInvocation: callee: " << dslx_callee->ToString()
+          << " callee_requires_implicit_token: "
+          << callee_requires_implicit_token;
   if (callee_requires_implicit_token) {
     XLS_RET_CHECK(implicit_token_data_.has_value()) << absl::StreamFormat(
         "If callee (%s @ %s) requires an implicit token, caller must require "
@@ -1786,7 +1784,7 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
 }
 
 absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
-  XLS_VLOG(5) << "FunctionConverter::HandleInvocation: " << node->ToString();
+  VLOG(5) << "FunctionConverter::HandleInvocation: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
   auto accept_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
     std::vector<BValue> values;
@@ -2192,7 +2190,7 @@ absl::Status FunctionConverter::HandleFunction(
   XLS_RET_CHECK(node != nullptr);
   Function& f = *node;
 
-  XLS_VLOG(5) << "HandleFunction: " << f.ToString();
+  VLOG(5) << "HandleFunction: " << f.ToString();
 
   if (parametric_env != nullptr) {
     SetParametricEnv(parametric_env);
@@ -2218,8 +2216,8 @@ absl::Status FunctionConverter::HandleFunction(
     XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
   }
 
-  XLS_VLOG(6) << "Function " << f.identifier() << " requires_implicit_token? "
-              << (requires_implicit_token ? "true" : "false");
+  VLOG(6) << "Function " << f.identifier() << " requires_implicit_token? "
+          << (requires_implicit_token ? "true" : "false");
   if (requires_implicit_token) {
     XLS_RETURN_IF_ERROR(AddImplicitTokenParams());
     XLS_RET_CHECK(implicit_token_data_.has_value());
@@ -2234,8 +2232,8 @@ absl::Status FunctionConverter::HandleFunction(
   FfiPartialValueSubstituteHelper const_prefill(f.extern_verilog_module());
 
   for (ParametricBinding* parametric_binding : f.parametric_bindings()) {
-    XLS_VLOG(5) << "Resolving parametric binding: "
-                << parametric_binding->ToString();
+    VLOG(5) << "Resolving parametric binding: "
+            << parametric_binding->ToString();
 
     std::optional<InterpValue> parametric_value =
         GetParametricBinding(parametric_binding->identifier());
@@ -2257,13 +2255,13 @@ absl::Status FunctionConverter::HandleFunction(
   // If there is foreign function data, all constant values are replaced now.
   builder_ptr->SetForeignFunctionData(const_prefill.GetUpdatedFfiData());
 
-  XLS_VLOG(3) << "Function has " << constant_deps_.size() << " constant deps";
+  VLOG(3) << "Function has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {
-    XLS_VLOG(5) << "Visiting constant dep: " << dep->ToString();
+    VLOG(5) << "Visiting constant dep: " << dep->ToString();
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
-  XLS_VLOG(5) << "body: " << f.body()->ToString();
+  VLOG(5) << "body: " << f.body()->ToString();
   XLS_RETURN_IF_ERROR(Visit(f.body()));
 
   XLS_ASSIGN_OR_RETURN(BValue return_value, Use(f.body()));
@@ -2279,7 +2277,7 @@ absl::Status FunctionConverter::HandleFunction(
 
   XLS_ASSIGN_OR_RETURN(xls::Function * ir_fn,
                        builder_ptr->BuildWithReturnValue(return_value));
-  XLS_VLOG(5) << "Built function: " << ir_fn->name();
+  VLOG(5) << "Built function: " << ir_fn->name();
   XLS_RETURN_IF_ERROR(VerifyFunction(ir_fn));
 
   // If it's a public fallible function, or it's the entry function for the
@@ -2308,7 +2306,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     ImportData* import_data, const ParametricEnv* parametric_env,
     const ProcId& proc_id, ProcConversionData* proc_data) {
   XLS_RET_CHECK(type_info != nullptr);
-  XLS_VLOG(5) << "HandleProcNextFunction: " << f->ToString();
+  VLOG(5) << "HandleProcNextFunction: " << f->ToString();
 
   if (parametric_env != nullptr) {
     SetParametricEnv(parametric_env);
@@ -2361,8 +2359,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   proc_id_ = proc_id;
 
   for (ParametricBinding* parametric_binding : f->parametric_bindings()) {
-    XLS_VLOG(5) << "Resolving parametric binding: "
-                << parametric_binding->ToString();
+    VLOG(5) << "Resolving parametric binding: "
+            << parametric_binding->ToString();
 
     std::optional<InterpValue> parametric_value =
         GetParametricBinding(parametric_binding->identifier());
@@ -2389,9 +2387,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
         DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
   }
 
-  XLS_VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
+  VLOG(3) << "Proc has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {
-    XLS_VLOG(5) << "Visiting constant dep: " << dep->ToString();
+    VLOG(5) << "Visiting constant dep: " << dep->ToString();
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
@@ -2417,9 +2415,8 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
   if (std::optional<Import*> import = node->ResolveImportSubject()) {
-    XLS_VLOG(6) << "ColonRef @ " << node->span()
-                << " was import subject; import: "
-                << import.value()->ToString();
+    VLOG(6) << "ColonRef @ " << node->span()
+            << " was import subject; import: " << import.value()->ToString();
     std::optional<const ImportedInfo*> imported =
         current_type_info_->GetImported(*import);
     XLS_RET_CHECK(imported.has_value());
@@ -2542,8 +2539,7 @@ absl::Status FunctionConverter::HandleStructInstance(
 
 absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     const Invocation* node) {
-  XLS_VLOG(5) << "Getting callee identifier for invocation: "
-              << node->ToString();
+  VLOG(5) << "Getting callee identifier for invocation: " << node->ToString();
   Expr* callee = node->callee();
   std::string callee_name;
   Module* m;
@@ -2580,17 +2576,17 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   std::optional<const ParametricEnv*> resolved_parametric_env =
       GetInvocationCalleeBindings(node);
   XLS_RET_CHECK(resolved_parametric_env.has_value());
-  XLS_VLOG(5) << absl::StreamFormat(
-      "Node `%s` (%s) @ %s parametric bindings %s", node->ToString(),
-      node->GetNodeTypeName(), node->span().ToString(),
-      (*resolved_parametric_env)->ToString());
+  VLOG(5) << absl::StreamFormat("Node `%s` (%s) @ %s parametric bindings %s",
+                                node->ToString(), node->GetNodeTypeName(),
+                                node->span().ToString(),
+                                (*resolved_parametric_env)->ToString());
   XLS_RET_CHECK(!(*resolved_parametric_env)->empty());
   return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
                         resolved_parametric_env.value());
 }
 
 absl::Status FunctionConverter::HandleBinop(const Binop* node) {
-  XLS_VLOG(5) << "HandleBinop: " << node->ToString();
+  VLOG(5) << "HandleBinop: " << node->ToString();
   std::optional<const Type*> lhs_type =
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
@@ -2726,8 +2722,8 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
 }
 
 absl::Status FunctionConverter::HandleAttr(const Attr* node) {
-  XLS_VLOG(5) << "FunctionConverter::HandleAttr: " << node->ToString() << " @ "
-              << node->span().ToString();
+  VLOG(5) << "FunctionConverter::HandleAttr: " << node->ToString() << " @ "
+          << node->span().ToString();
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   std::optional<const Type*> lhs_type =
       current_type_info_->GetItem(node->lhs());
@@ -2749,7 +2745,7 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
 }
 
 absl::Status FunctionConverter::HandleBlock(const Block* node) {
-  XLS_VLOG(5) << "FunctionConverter::HandleBlock; node: " << node->ToString();
+  VLOG(5) << "FunctionConverter::HandleBlock; node: " << node->ToString();
   Expr* last_expr = nullptr;
 
   for (const Statement* s : node->statements()) {
@@ -2776,8 +2772,7 @@ absl::Status FunctionConverter::HandleBlock(const Block* node) {
 }
 
 absl::Status FunctionConverter::HandleStatement(const Statement* node) {
-  XLS_VLOG(5) << "FunctionConverter::HandleStatement; node: "
-              << node->ToString();
+  VLOG(5) << "FunctionConverter::HandleStatement; node: " << node->ToString();
   return absl::visit(Visitor{
                          [&](Expr* e) -> absl::Status {
                            XLS_RETURN_IF_ERROR(Visit(ToAstNode(e)));
@@ -3089,7 +3084,7 @@ absl::Status FunctionConverter::HandleBuiltinRev(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleBuiltinSignex(const Invocation* node) {
-  XLS_VLOG(5) << "FunctionConverter::HandleBuiltinSignex: " << node->ToString();
+  VLOG(5) << "FunctionConverter::HandleBuiltinSignex: " << node->ToString();
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
 

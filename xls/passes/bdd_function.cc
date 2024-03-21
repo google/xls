@@ -329,8 +329,8 @@ class BddStatistics {
 /* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
     FunctionBase* f, int64_t path_limit,
     std::optional<std::function<bool(const Node*)>> node_filter) {
-  XLS_VLOG(1) << absl::StreamFormat(
-      "BddFunction::Run(%s), %d nodes:", f->name(), f->node_count());
+  VLOG(1) << absl::StreamFormat("BddFunction::Run(%s), %d nodes:", f->name(),
+                                f->node_count());
   XLS_VLOG_LINES(5, f->DumpIr());
 
   auto bdd_function = absl::WrapUnique(new BddFunction(f));
@@ -346,14 +346,14 @@ class BddStatistics {
     return v;
   };
 
-  XLS_VLOG(3) << "BDD expressions:";
+  VLOG(3) << "BDD expressions:";
   absl::flat_hash_map<Node*, SaturatingBddNodeVector> values;
   BddStatistics bdd_stats;
   for (Node* node : TopoSort(f)) {
-    XLS_VLOG(3) << "node: " << node->ToString();
+    VLOG(3) << "node: " << node->ToString();
     if (!node->GetType()->IsBits()) {
-      XLS_VLOG(3) << "  skipping node, type is not bits: "
-                  << node->GetType()->ToString();
+      VLOG(3) << "  skipping node, type is not bits: "
+              << node->GetType()->ToString();
       continue;
     }
 
@@ -369,10 +369,10 @@ class BddStatistics {
         (node_filter.has_value() && !node_filter.value()(node)) ||
         std::any_of(node->operands().begin(), node->operands().end(),
                     [](Node* o) { return !o->GetType()->IsBits(); })) {
-      XLS_VLOG(3) << "  node filtered out.";
+      VLOG(3) << "  node filtered out.";
       values[node] = create_new_node_vector(node);
     } else {
-      XLS_VLOG(3) << "  computing BDD value...";
+      VLOG(3) << "  computing BDD value...";
       std::vector<SaturatingBddNodeVector> operand_values;
       operand_values.reserve(node->operand_count());
       for (Node* operand : node->operands()) {
@@ -393,9 +393,9 @@ class BddStatistics {
       }
     }
     if (VLOG_IS_ON(5)) {
-      XLS_VLOG(5) << "  " << node->GetName() << ":";
+      VLOG(5) << "  " << node->GetName() << ":";
       for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-        XLS_VLOG(5) << absl::StreamFormat(
+        VLOG(5) << absl::StreamFormat(
             "    bit %d : %s", i,
             bdd_function->bdd().ToStringDnf(
                 std::get<BddNodeIndex>(values.at(node)[i]),
@@ -431,7 +431,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
   absl::flat_hash_map<BddNodeIndex, bool> bdd_variable_values;
   XLS_RET_CHECK_EQ(args.size(), function->params().size());
   for (Node* node : TopoSort(function)) {
-    XLS_VLOG(3) << "node: " << node;
+    VLOG(3) << "node: " << node;
     Value result;
     if (node->Is<Param>()) {
       XLS_ASSIGN_OR_RETURN(int64_t param_index,
@@ -461,7 +461,7 @@ absl::StatusOr<Value> BddFunction::Evaluate(
     }
     values[node] = result;
 
-    XLS_VLOG(3) << "  result: " << result;
+    VLOG(3) << "  result: " << result;
     // Write BDD variable values into the map used for evaluation.
     if (node_map_.contains(node)) {
       const BddNodeVector& bdd_vector = node_map_.at(node);

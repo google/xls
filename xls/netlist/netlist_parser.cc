@@ -19,6 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -184,7 +185,7 @@ absl::StatusOr<Token> Scanner::Peek() {
 absl::StatusOr<Token> Scanner::Pop() {
   XLS_ASSIGN_OR_RETURN(Token result, Peek());
   lookahead_.reset();
-  XLS_VLOG(3) << "Popping token: " << result.ToString();
+  VLOG(3) << "Popping token: " << result.ToString();
   return result;
 }
 

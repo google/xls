@@ -70,7 +70,7 @@ absl::Status RealMain(std::string_view textproto_path,
 
   CHECK_OK(ParseTextProtoFile(textproto_path, proto.get()));
 
-  XLS_VLOG(1) << "Proto contents:";
+  VLOG(1) << "Proto contents:";
   XLS_VLOG_LINES(1, proto->DebugString());
 
   CHECK_OK(SetProtobinFile(output_path, *proto));

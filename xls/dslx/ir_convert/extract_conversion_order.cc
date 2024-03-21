@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -232,10 +233,9 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
       // We need to make sure we convert the mapped function!
       XLS_RET_CHECK_EQ(invocation->args().size(), 2);
       Expr* fn_node = invocation->args()[1];
-      XLS_VLOG(5) << "map() invoking: " << fn_node->ToString();
+      VLOG(5) << "map() invoking: " << fn_node->ToString();
       if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
-        XLS_VLOG(5) << "map() invoking ColonRef: "
-                    << mapped_colon_ref->ToString();
+        VLOG(5) << "map() invoking ColonRef: " << mapped_colon_ref->ToString();
         identifier = mapped_colon_ref->attr();
         std::optional<Import*> import =
             mapped_colon_ref->ResolveImportSubject();
@@ -244,9 +244,9 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
             type_info_->GetImported(*import);
         XLS_RET_CHECK(info.has_value());
         this_m = (*info)->module;
-        XLS_VLOG(5) << "Module for callee: " << this_m->name();
+        VLOG(5) << "Module for callee: " << this_m->name();
       } else {
-        XLS_VLOG(5) << "map() invoking NameRef";
+        VLOG(5) << "map() invoking NameRef";
         auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
         XLS_RET_CHECK(mapped_name_ref != nullptr);
         identifier = mapped_name_ref->identifier();
@@ -427,17 +427,17 @@ class InvocationVisitor : public ExprVisitor {
 
     // See if there are parametric bindings to use in the callee for this
     // invocation.
-    XLS_VLOG(5) << "Getting callee bindings for invocation: "
-                << node->ToString() << " @ " << node->span()
-                << " caller bindings: " << bindings_.ToString();
+    VLOG(5) << "Getting callee bindings for invocation: " << node->ToString()
+            << " @ " << node->span()
+            << " caller bindings: " << bindings_.ToString();
 
     std::optional<const ParametricEnv*> callee_bindings =
         type_info_->GetInvocationCalleeBindings(node, bindings_);
 
     if (callee_bindings.has_value()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
-      XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
-                  << " for node: " << node->ToString();
+      VLOG(5) << "Found callee bindings: " << **callee_bindings
+              << " for node: " << node->ToString();
       std::optional<TypeInfo*> instantiation_type_info =
           type_info_->GetInvocationTypeInfo(node, bindings_);
 
@@ -573,10 +573,9 @@ class InvocationVisitor : public ExprVisitor {
       // We need to make sure we convert the mapped function!
       XLS_RET_CHECK_EQ(invocation->args().size(), 2);
       Expr* fn_node = invocation->args()[1];
-      XLS_VLOG(5) << "map() invoking: " << fn_node->ToString();
+      VLOG(5) << "map() invoking: " << fn_node->ToString();
       if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
-        XLS_VLOG(5) << "map() invoking ColonRef: "
-                    << mapped_colon_ref->ToString();
+        VLOG(5) << "map() invoking ColonRef: " << mapped_colon_ref->ToString();
         identifier = mapped_colon_ref->attr();
         std::optional<Import*> import =
             mapped_colon_ref->ResolveImportSubject();
@@ -586,9 +585,9 @@ class InvocationVisitor : public ExprVisitor {
         XLS_RET_CHECK(info.has_value());
         this_m = (*info)->module;
         callee_type_info = (*info)->type_info;
-        XLS_VLOG(5) << "Module for callee: " << this_m->name();
+        VLOG(5) << "Module for callee: " << this_m->name();
       } else {
-        XLS_VLOG(5) << "map() invoking NameRef";
+        VLOG(5) << "map() invoking NameRef";
         auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
         XLS_RET_CHECK(mapped_name_ref != nullptr);
         identifier = mapped_name_ref->identifier();
@@ -708,7 +707,7 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
 static absl::StatusOr<std::vector<Callee>> GetCallees(
     Expr* node, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
     std::optional<ProcId> proc_id) {
-  XLS_VLOG(5) << "Getting callees of " << node->ToString();
+  VLOG(5) << "Getting callees of " << node->ToString();
   CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings, std::move(proc_id));
   XLS_RETURN_IF_ERROR(node->AcceptExpr(&visitor));
@@ -758,8 +757,8 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
   Expr* body = std::get<Function*>(f)->body();
   XLS_ASSIGN_OR_RETURN(const std::vector<Callee> orig_callees,
                        GetCallees(body, m, type_info, bindings, proc_id));
-  XLS_VLOG(5) << "Original callees of " << std::get<Function*>(f)->identifier()
-              << ": " << CalleesToString(orig_callees);
+  VLOG(5) << "Original callees of " << std::get<Function*>(f)->identifier()
+          << ": " << CalleesToString(orig_callees);
   XLS_RETURN_IF_ERROR(ProcessCallees(orig_callees, ready));
 
   XLS_RET_CHECK(!IsReady(f, m, bindings, ready));
@@ -770,7 +769,7 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
   }
 
   auto* fn = std::get<Function*>(f);
-  XLS_VLOG(3) << "Adding to ready sequence: " << fn->identifier();
+  VLOG(3) << "Adding to ready sequence: " << fn->identifier();
   XLS_ASSIGN_OR_RETURN(
       ConversionRecord cr,
       ConversionRecord::Make(fn, invocation, m, type_info, bindings,
@@ -914,7 +913,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   // be a single instance of the function to convert.
   RemoveFunctionDuplicates(&ready);
 
-  XLS_VLOG(5) << "Ready list: " << ConversionRecordsToString(ready);
+  VLOG(5) << "Ready list: " << ConversionRecordsToString(ready);
 
   return ready;
 }

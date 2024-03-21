@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -56,7 +57,7 @@ namespace {
 absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
                            DeduceCtx* ctx) {
   Proc* proc = test_proc->proc();
-  XLS_VLOG(2) << "Typechecking test proc: " << proc->identifier();
+  VLOG(2) << "Typechecking test proc: " << proc->identifier();
 
   const std::vector<Param*> config_params = proc->config().params();
   if (config_params.size() != 1) {
@@ -139,7 +140,7 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     }
   }
 
-  XLS_VLOG(2) << "Finished typechecking test proc: " << proc->identifier();
+  VLOG(2) << "Finished typechecking test proc: " << proc->identifier();
   return absl::OkStatus();
 }
 
@@ -147,8 +148,8 @@ static bool CanTypecheckProc(Proc* p) {
   for (Param* param : p->config().params()) {
     if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) ==
         nullptr) {
-      XLS_VLOG(3) << "Can't typecheck " << p->identifier() << " at top-level: "
-                  << "its `config` function has a non-channel param.";
+      VLOG(3) << "Can't typecheck " << p->identifier() << " at top-level: "
+              << "its `config` function has a non-channel param.";
       return false;
     }
   }
@@ -175,8 +176,7 @@ static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
         "https://github.com/google/xls/issues/81");
   }
 
-  XLS_VLOG(2) << "Typechecking quickcheck function: "
-              << quickcheck_f.ToString();
+  VLOG(2) << "Typechecking quickcheck function: " << quickcheck_f.ToString();
   ScopedFnStackEntry scoped(quickcheck_f, ctx, WithinProc::kNo);
   XLS_RETURN_IF_ERROR(TypecheckFunction(quickcheck_f, ctx));
   scoped.Finish();
@@ -191,8 +191,8 @@ static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
                                   "Quickcheck functions must return a bool.");
   }
 
-  XLS_VLOG(2) << "Finished typechecking quickcheck function: "
-              << quickcheck_f.ToString();
+  VLOG(2) << "Finished typechecking quickcheck function: "
+          << quickcheck_f.ToString();
   return absl::OkStatus();
 }
 
@@ -229,12 +229,12 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
       }
     }
 
-    XLS_VLOG(2) << "Typechecking function: `" << f.ToString() << "`";
+    VLOG(2) << "Typechecking function: `" << f.ToString() << "`";
     ScopedFnStackEntry scoped_entry(
         f, ctx, within_proc ? WithinProc::kYes : WithinProc::kNo);
     XLS_RETURN_IF_ERROR(TypecheckFunction(f, ctx));
     scoped_entry.Finish();
-    XLS_VLOG(2) << "Finished typechecking function: " << f.ToString();
+    VLOG(2) << "Finished typechecking function: " << f.ToString();
   } else if (std::holds_alternative<Proc*>(member)) {
     // Just skip procs, as we typecheck their config & next functions (see the
     // previous else/if arm).
@@ -244,11 +244,11 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
     XLS_RETURN_IF_ERROR(TypecheckQuickcheck(qc, ctx));
   } else if (std::holds_alternative<StructDef*>(member)) {
     StructDef* struct_def = std::get<StructDef*>(member);
-    XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();
+    VLOG(2) << "Typechecking struct: " << struct_def->ToString();
     ScopedFnStackEntry scoped(ctx, module);
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
     scoped.Finish();
-    XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
+    VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
   } else if (std::holds_alternative<TestFunction*>(member)) {
     TestFunction* tf = std::get<TestFunction*>(member);
     if (tf->fn().IsParametric()) {
@@ -263,12 +263,11 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
         CheckTestProc(std::get<TestProc*>(member), module, ctx));
   } else if (std::holds_alternative<TypeAlias*>(member)) {
     TypeAlias* type_alias = std::get<TypeAlias*>(member);
-    XLS_VLOG(2) << "Typechecking type alias: " << type_alias->ToString();
+    VLOG(2) << "Typechecking type alias: " << type_alias->ToString();
     ScopedFnStackEntry scoped(ctx, module);
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
     scoped.Finish();
-    XLS_VLOG(2) << "Finished typechecking type alias: "
-                << type_alias->ToString();
+    VLOG(2) << "Finished typechecking type alias: " << type_alias->ToString();
   } else if (std::holds_alternative<ConstAssert*>(member)) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
   } else {

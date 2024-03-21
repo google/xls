@@ -32,10 +32,10 @@ namespace sched {
 std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
     FunctionBase* f, absl::Span<Node* const> partitionable_nodes) {
   if (VLOG_IS_ON(4)) {
-    XLS_VLOG(4) << "Computing min-cut of function " << f->name()
-                << ", partitionable nodes:";
+    VLOG(4) << "Computing min-cut of function " << f->name()
+            << ", partitionable nodes:";
     for (Node* node : partitionable_nodes) {
-      XLS_VLOG(4) << "  " << node->GetName();
+      VLOG(4) << "  " << node->GetName();
     }
   }
 
@@ -186,13 +186,13 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
     }
   }
   if (VLOG_IS_ON(4)) {
-    XLS_VLOG(4) << "Before cut";
+    VLOG(4) << "Before cut";
     for (Node* node : partitions.first) {
-      XLS_VLOG(4) << "  " << node->GetName();
+      VLOG(4) << "  " << node->GetName();
     }
-    XLS_VLOG(4) << "After cut";
+    VLOG(4) << "After cut";
     for (Node* node : partitions.second) {
-      XLS_VLOG(4) << "  " << node->GetName();
+      VLOG(4) << "  " << node->GetName();
     }
   }
   return partitions;

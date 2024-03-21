@@ -210,7 +210,7 @@ static void WarnOnInappropriateConstantName(std::string_view identifier,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceConstantDef(const ConstantDef* node,
                                                         DeduceCtx* ctx) {
-  XLS_VLOG(5) << "Noting constant: " << node->ToString();
+  VLOG(5) << "Noting constant: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> result,
                        ctx->Deduce(node->value()));
   const FnStackEntry& peek_entry = ctx->fn_stack().back();
@@ -707,7 +707,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBlock(const Block* node,
 // import.
 static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToModule(
     const ColonRef* node, Module* module, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "DeduceColonRefToModule; node: `" << node->ToString() << "`";
+  VLOG(5) << "DeduceColonRefToModule; node: `" << node->ToString() << "`";
   std::optional<ModuleMember*> elem = module->FindMemberWithName(node->attr());
   if (!elem.has_value()) {
     return TypeInferenceErrorStatus(
@@ -732,8 +732,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToModule(
     auto& f = *f_ptr;
 
     if (!imported_type_info->Contains(f.name_def())) {
-      XLS_VLOG(2) << "Function name not in imported_type_info; indicates it is "
-                     "parametric.";
+      VLOG(2) << "Function name not in imported_type_info; indicates it is "
+                 "parametric.";
       XLS_RET_CHECK(f.IsParametric());
       // We don't type check parametric functions until invocations.
       // Let's typecheck this imported parametric function with respect to its
@@ -801,7 +801,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
                                                      DeduceCtx* ctx) {
-  XLS_VLOG(5) << "Deducing type for ColonRef @ " << node->span().ToString();
+  VLOG(5) << "Deducing type for ColonRef @ " << node->span().ToString();
 
   ImportData* import_data = ctx->import_data();
   XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
@@ -1024,9 +1024,8 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
   }
 
   XLS_ASSIGN_OR_RETURN(int64_t as_64b, value.GetBitValueViaSign());
-  XLS_VLOG(3) << absl::StreamFormat("Slice %s bound @ %s has value: %d",
-                                    bound_name, bound->span().ToString(),
-                                    as_64b);
+  VLOG(3) << absl::StreamFormat("Slice %s bound @ %s has value: %d", bound_name,
+                                bound->span().ToString(), as_64b);
   return as_64b;
 }
 
@@ -1202,9 +1201,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceIndex(const Index* node,
                                     "Index is not unsigned-bits typed.");
   }
 
-  XLS_VLOG(10) << absl::StreamFormat("Index RHS: `%s` constexpr? %d",
-                                     rhs->ToString(),
-                                     ctx->type_info()->IsKnownConstExpr(rhs));
+  VLOG(10) << absl::StreamFormat("Index RHS: `%s` constexpr? %d",
+                                 rhs->ToString(),
+                                 ctx->type_info()->IsKnownConstExpr(rhs));
 
   // If we know the array size concretely and the index is a constexpr
   // expression, we can check it is in bounds.
@@ -1215,7 +1214,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceIndex(const Index* node,
       ctx->type_info()->IsKnownConstExpr(rhs)) {
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
                          ctx->type_info()->GetConstExpr(rhs));
-    XLS_VLOG(10) << "Index RHS is known constexpr value: " << constexpr_value;
+    VLOG(10) << "Index RHS is known constexpr value: " << constexpr_value;
     XLS_ASSIGN_OR_RETURN(uint64_t constexpr_index,
                          constexpr_value.GetBitValueUnsigned());
     XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
@@ -1527,7 +1526,7 @@ static absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
     const StructInstance* node, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "Deducing type for struct instance: " << node->ToString();
+  VLOG(5) << "Deducing type for struct instance: " << node->ToString();
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                        ctx->Deduce(ToAstNode(node->struct_ref())));
@@ -1628,9 +1627,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
 
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> all_names,
                        struct_type->GetMemberNames());
-  XLS_VLOG(5) << "SplatStructInstance @ " << node->span() << " seen names: ["
-              << absl::StrJoin(validated.seen_names, ", ") << "] "
-              << " all names: [" << absl::StrJoin(all_names, ", ") << "]";
+  VLOG(5) << "SplatStructInstance @ " << node->span() << " seen names: ["
+          << absl::StrJoin(validated.seen_names, ", ") << "] "
+          << " all names: [" << absl::StrJoin(all_names, ", ") << "]";
 
   if (validated.seen_names.size() == all_names.size()) {
     ctx->warnings()->Add(
@@ -1751,9 +1750,8 @@ static absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
 
   // Now we try to constexpr evaluate it.
   const ParametricEnv parametric_env = ctx->GetCurrentParametricEnv();
-  XLS_VLOG(5) << "Attempting to evaluate dimension expression: `"
-              << dim_expr->ToString()
-              << "` via parametric env: " << parametric_env;
+  VLOG(5) << "Attempting to evaluate dimension expression: `"
+          << dim_expr->ToString() << "` via parametric env: " << parametric_env;
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
       ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
       dim_expr, dim_type.get()));
@@ -1776,8 +1774,8 @@ static absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
     return TypeDim(std::move(parametric_expr_or).value());
   }
 
-  XLS_VLOG(3) << "Could not convert dim expr to parametric expr; status: "
-              << parametric_expr_or.status();
+  VLOG(3) << "Could not convert dim expr to parametric expr; status: "
+          << parametric_expr_or.status();
 
   // If we can't evaluate it to a parametric expression we give an error.
   return TypeInferenceErrorStatus(
@@ -1830,9 +1828,8 @@ static absl::StatusOr<TypeDim> DimToConcreteBool(const Expr* dim_expr,
 
   // Now we try to constexpr evaluate it.
   const ParametricEnv parametric_env = ctx->GetCurrentParametricEnv();
-  XLS_VLOG(5) << "Attempting to evaluate dimension expression: `"
-              << dim_expr->ToString()
-              << "` via parametric env: " << parametric_env;
+  VLOG(5) << "Attempting to evaluate dimension expression: `"
+          << dim_expr->ToString() << "` via parametric env: " << parametric_env;
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
       ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
       dim_expr, dim_type.get()));
@@ -1854,8 +1851,8 @@ static absl::StatusOr<TypeDim> DimToConcreteBool(const Expr* dim_expr,
     return TypeDim(std::move(parametric_expr_or).value());
   }
 
-  XLS_VLOG(3) << "Could not convert dim expr to parametric expr; status: "
-              << parametric_expr_or.status();
+  VLOG(3) << "Could not convert dim expr to parametric expr; status: "
+          << parametric_expr_or.status();
 
   // If we can't evaluate it to a parametric expression we give an error.
   return TypeInferenceErrorStatus(
@@ -1867,7 +1864,7 @@ static absl::StatusOr<TypeDim> DimToConcreteBool(const Expr* dim_expr,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceChannelTypeAnnotation(
     const ChannelTypeAnnotation* node, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "DeduceChannelTypeAnnotation; node: " << node->ToString();
+  VLOG(5) << "DeduceChannelTypeAnnotation; node: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> payload_type,
                        Deduce(node->payload(), ctx));
   XLS_RET_CHECK(payload_type->IsMeta())
@@ -1905,14 +1902,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTupleTypeAnnotation(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
     const ArrayTypeAnnotation* node, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "DeduceArrayTypeAnnotation; node: " << node->ToString();
+  VLOG(5) << "DeduceArrayTypeAnnotation; node: " << node->ToString();
 
   std::unique_ptr<Type> t;
   if (auto* element_type =
           dynamic_cast<BuiltinTypeAnnotation*>(node->element_type());
       element_type != nullptr && element_type->GetBitCount() == 0) {
-    XLS_VLOG(5) << "DeduceArrayTypeAnnotation; bits type constructor: "
-                << node->ToString();
+    VLOG(5) << "DeduceArrayTypeAnnotation; bits type constructor: "
+            << node->ToString();
 
     std::optional<TypeDim> dim;
     if (element_type->builtin_type() == BuiltinType::kXN) {
@@ -1926,8 +1923,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
                                      std::move(dim).value());
     }
   } else {
-    XLS_VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
-                << node->element_type()->ToString();
+    VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
+            << node->element_type()->ToString();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> e,
                          ctx->Deduce(node->element_type()));
     XLS_ASSIGN_OR_RETURN(
@@ -1935,8 +1932,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
                           "array element type position"));
     XLS_ASSIGN_OR_RETURN(TypeDim dim, DimToConcreteUsize(node->dim(), ctx));
     t = std::make_unique<ArrayType>(std::move(e), std::move(dim));
-    XLS_VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
-                                      node->ToString(), t->ToString());
+    VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
+                                  node->ToString(), t->ToString());
   }
   auto result = std::make_unique<MetaType>(std::move(t));
   return result;
@@ -1957,9 +1954,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
 static absl::StatusOr<std::unique_ptr<Type>> ConcretizeStructAnnotation(
     const TypeRefTypeAnnotation* type_annotation, const StructDef* struct_def,
     const Type& base_type, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "ConcreteStructAnnotation; type_annotation: "
-              << type_annotation->ToString()
-              << " struct_def: " << struct_def->ToString();
+  VLOG(5) << "ConcreteStructAnnotation; type_annotation: "
+          << type_annotation->ToString()
+          << " struct_def: " << struct_def->ToString();
 
   // Note: if there are too *few* annotated parametrics, some of them may be
   // derived.
@@ -1982,8 +1979,8 @@ static absl::StatusOr<std::unique_ptr<Type>> ConcretizeStructAnnotation(
     ExprOrType eot = type_annotation->parametrics()[i];
     XLS_RET_CHECK(std::holds_alternative<Expr*>(eot));
     Expr* annotated_parametric = std::get<Expr*>(eot);
-    XLS_VLOG(5) << "annotated_parametric: `" << annotated_parametric->ToString()
-                << "`";
+    VLOG(5) << "annotated_parametric: `" << annotated_parametric->ToString()
+            << "`";
 
     XLS_ASSIGN_OR_RETURN(TypeDim ctd,
                          DimToConcreteUsize(annotated_parametric, ctx));
@@ -2147,8 +2144,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                                                   DeduceCtx* ctx) {
   const ParametricEnv caller_parametric_env =
       ctx->fn_stack().back().parametric_env();
-  XLS_VLOG(5) << "Deducing type for invocation: `" << node->ToString()
-              << "` caller symbolic bindings: " << caller_parametric_env;
+  VLOG(5) << "Deducing type for invocation: `" << node->ToString()
+          << "` caller symbolic bindings: " << caller_parametric_env;
 
   auto resolve_proc = [](const Instantiation* node,
                          DeduceCtx* ctx) -> absl::StatusOr<Proc*> {
@@ -2302,13 +2299,13 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNameRef(const NameRef* node,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceConstRef(const ConstRef* node,
                                                      DeduceCtx* ctx) {
-  XLS_VLOG(3) << "DeduceConstRef; node: `" << node->ToString() << "` @ "
-              << node->span();
+  VLOG(3) << "DeduceConstRef; node: `" << node->ToString() << "` @ "
+          << node->span();
   // ConstRef is a subtype of NameRef, same deduction rule works.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, DeduceNameRef(node, ctx));
   XLS_ASSIGN_OR_RETURN(InterpValue value,
                        ctx->type_info()->GetConstExpr(node->name_def()));
-  XLS_VLOG(3) << " DeduceConstRef; value: " << value.ToString();
+  VLOG(3) << " DeduceConstRef; value: " << value.ToString();
   ctx->type_info()->NoteConstExpr(node, std::move(value));
   return type;
 }
@@ -2452,7 +2449,7 @@ absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, DeduceInternal(node, ctx));
   XLS_RET_CHECK(type != nullptr);
   ctx->type_info()->SetItem(node, *type);
-  XLS_VLOG(5) << absl::StreamFormat(
+  VLOG(5) << absl::StreamFormat(
       "Deduced type of `%s` @ %p (kind: %s) => %s in %p", node->ToString(),
       node, node->GetNodeTypeName(), type->ToString(), ctx->type_info());
 

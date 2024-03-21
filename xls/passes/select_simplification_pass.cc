@@ -85,7 +85,7 @@ absl::StatusOr<bool> SqueezeSelect(
                        f->MakeNode<Literal>(select->loc(), Value(const_lsb)));
   XLS_ASSIGN_OR_RETURN(Node * new_select, make_select(select, new_cases));
   Node* select_node = select;
-  XLS_VLOG(2) << absl::StrFormat("Squeezing select: %s", select->ToString());
+  VLOG(2) << absl::StrFormat("Squeezing select: %s", select->ToString());
   XLS_RETURN_IF_ERROR(select_node
                           ->ReplaceUsesWithNew<Concat>(std::vector<Node*>{
                               msb_literal, new_select, lsb_literal})
@@ -204,7 +204,7 @@ absl::StatusOr<OneHotSelect*> SliceOneHotSelect(OneHotSelect* ohs,
 // 'a', and 'b' are the same (have the same BitSource).
 int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
                                  const QueryEngine& query_engine) {
-  XLS_VLOG(5) << "Finding runs of non-distinct bits starting at " << start;
+  VLOG(5) << "Finding runs of non-distinct bits starting at " << start;
   // Do a reduction via intersection of the set of matching pairs within
   // 'cases'. When the intersection is empty, the run is over.
   MatchedPairs matches;
@@ -220,13 +220,13 @@ int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
       matches = std::move(new_matches);
     }
 
-    XLS_VLOG(5) << "  " << i << ": " << ToString(matches);
+    VLOG(5) << "  " << i << ": " << ToString(matches);
     if (matches.empty()) {
       break;
     }
     ++i;
   }
-  XLS_VLOG(5) << " run of " << i - start;
+  VLOG(5) << " run of " << i - start;
   return i - start;
 }
 
@@ -235,13 +235,13 @@ int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
 // bit index. For example:
 int64_t RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
                               const QueryEngine& query_engine) {
-  XLS_VLOG(5) << "Finding runs of distinct case bit starting at " << start;
+  VLOG(5) << "Finding runs of distinct case bit starting at " << start;
   int64_t i = start;
   while (i < cases.front()->BitCountOrDie() &&
          PairsOfBitsWithSameSource(cases, i, query_engine).empty()) {
     ++i;
   }
-  XLS_VLOG(5) << " run of " << i - start << " bits";
+  VLOG(5) << " run of " << i - start << " bits";
   return i - start;
 }
 
@@ -262,14 +262,14 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
     return std::vector<OneHotSelect*>();
   }
 
-  XLS_VLOG(4) << "Trying to split: " << ohs->ToString();
+  VLOG(4) << "Trying to split: " << ohs->ToString();
   if (VLOG_IS_ON(4)) {
     for (int64_t i = 0; i < ohs->cases().size(); ++i) {
       Node* cas = ohs->get_case(i);
-      XLS_VLOG(4) << "  case (" << i << "): " << cas->ToString();
+      VLOG(4) << "  case (" << i << "): " << cas->ToString();
       for (int64_t j = 0; j < cas->BitCountOrDie(); ++j) {
-        XLS_VLOG(4) << "    bit " << j << ": "
-                    << ToString(GetBitSource(cas, j, query_engine));
+        VLOG(4) << "    bit " << j << ": "
+                << ToString(GetBitSource(cas, j, query_engine));
       }
     }
   }
@@ -297,8 +297,7 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
     start += run;
   }
   std::reverse(ohs_slices.begin(), ohs_slices.end());
-  XLS_VLOG(2) << absl::StrFormat("Splitting one-hot-select: %s",
-                                 ohs->ToString());
+  VLOG(2) << absl::StrFormat("Splitting one-hot-select: %s", ohs->ToString());
   XLS_RETURN_IF_ERROR(ohs->ReplaceUsesWithNew<Concat>(ohs_slices).status());
   return new_ohses;
 }
@@ -310,8 +309,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   if (node->Is<Select>() && node->As<Select>()->selector()->Is<Literal>()) {
     Select* sel = node->As<Select>();
     const Bits& selector = sel->selector()->As<Literal>()->value().bits();
-    XLS_VLOG(2) << absl::StrFormat(
-        "Simplifying select with constant selector: %s", node->ToString());
+    VLOG(2) << absl::StrFormat("Simplifying select with constant selector: %s",
+                               node->ToString());
     if (bits_ops::UGreaterThan(
             selector, UBits(sel->cases().size() - 1, selector.bit_count()))) {
       XLS_RET_CHECK(sel->default_value().has_value());
@@ -350,7 +349,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           node->function_base()->MakeNode<Literal>(
               node->loc(), Value(UBits(0, node->BitCountOrDie()))));
     }
-    XLS_VLOG(2) << absl::StrFormat(
+    VLOG(2) << absl::StrFormat(
         "Simplifying one-hot-select with constant selector: %s",
         node->ToString());
     XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(replacement));
@@ -362,8 +361,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     Select* sel = node->As<Select>();
     if (sel->AllCases(
             [&](Node* other_case) { return other_case == sel->any_case(); })) {
-      XLS_VLOG(2) << absl::StrFormat(
-          "Simplifying select with identical cases: %s", node->ToString());
+      VLOG(2) << absl::StrFormat("Simplifying select with identical cases: %s",
+                                 node->ToString());
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(sel->any_case()));
       return true;
     }
@@ -388,7 +387,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           Node * selected_zero,
           f->MakeNode<Literal>(node->loc(),
                                Value(UBits(0, sel->BitCountOrDie()))));
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Simplifying one-hot-select with identical cases: %s",
           node->ToString());
       XLS_RETURN_IF_ERROR(
@@ -430,8 +429,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                  node->loc(), sel->selector(), case_elements));
         selected_elements.push_back(selected_element);
       }
-      XLS_VLOG(2) << absl::StrFormat(
-          "Decomposing tuple-typed one-hot-select: %s", node->ToString());
+      VLOG(2) << absl::StrFormat("Decomposing tuple-typed one-hot-select: %s",
+                                 node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Tuple>(selected_elements).status());
       return true;
@@ -455,8 +454,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                 node->loc(), sel->selector(), case_elements, default_element));
         selected_elements.push_back(selected_element);
       }
-      XLS_VLOG(2) << absl::StrFormat("Decomposing tuple-typed select: %s",
-                                     node->ToString());
+      VLOG(2) << absl::StrFormat("Decomposing tuple-typed select: %s",
+                                 node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Tuple>(selected_elements).status());
       return true;
@@ -500,8 +499,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       std::reverse(new_selectors.begin(), new_selectors.end());
       XLS_ASSIGN_OR_RETURN(Node * new_selector,
                            f->MakeNode<Concat>(node->loc(), new_selectors));
-      XLS_VLOG(2) << absl::StrFormat("Select with equivalent cases: %s",
-                                     node->ToString());
+      VLOG(2) << absl::StrFormat("Select with equivalent cases: %s",
+                                 node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
               .status());
@@ -541,8 +540,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         Node * rhs,
         f->MakeNode<NaryOp>(select->loc(), std::vector<Node*>{s_not, on_false},
                             Op::kAnd));
-    XLS_VLOG(2) << absl::StrFormat("Decomposing single-bit select: %s",
-                                   node->ToString());
+    VLOG(2) << absl::StrFormat("Decomposing single-bit select: %s",
+                               node->ToString());
     XLS_RETURN_IF_ERROR(
         select
             ->ReplaceUsesWithNew<NaryOp>(std::vector<Node*>{lhs, rhs}, Op::kOr)
@@ -633,8 +632,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       XLS_ASSIGN_OR_RETURN(Node * new_selector,
                            node->function_base()->MakeNode<Concat>(
                                select->loc(), new_selector_parts));
-      XLS_VLOG(2) << absl::StrFormat("Merging consecutive one-hot-selects: %s",
-                                     node->ToString());
+      VLOG(2) << absl::StrFormat("Merging consecutive one-hot-selects: %s",
+                                 node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
               .status());
@@ -661,7 +660,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                          GatherBits(select->selector(), nonzero_indices));
     std::vector<Node*> new_cases =
         GatherFromSequence(select->cases(), nonzero_indices);
-    XLS_VLOG(2) << absl::StrFormat(
+    VLOG(2) << absl::StrFormat(
         "Literal zero cases removed from one-hot-select: %s", node->ToString());
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
@@ -699,8 +698,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         node->function_base()->MakeNode<ExtendOp>(
             node->loc(), selector,
             /*new_bit_count=*/sel->BitCountOrDie(), Op::kSignExt));
-    XLS_VLOG(2) << absl::StrFormat("Binary select with zero case: %s",
-                                   node->ToString());
+    VLOG(2) << absl::StrFormat("Binary select with zero case: %s",
+                               node->ToString());
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<NaryOp>(
                 std::vector<Node*>{sel->get_case(nonzero_case_no),
@@ -860,7 +859,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       }
     }
     if (x != nullptr) {
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Consecutive binary select with common cases: %s", node->ToString());
       XLS_ASSIGN_OR_RETURN(p_x, sel0->ReplaceUsesWithNew<Select>(
                                     p_x, std::vector<Node*>{y, x},
@@ -933,8 +932,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         Node * and1,
         node->function_base()->MakeNode<NaryOp>(
             node->loc(), std::vector<Node*>{sel1, ohs->get_case(1)}, Op::kAnd));
-    XLS_VLOG(2) << absl::StrFormat("Decompose single-bit one-hot-select: %s",
-                                   node->ToString());
+    VLOG(2) << absl::StrFormat("Decompose single-bit one-hot-select: %s",
+                               node->ToString());
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<NaryOp>(
                                 std::vector<Node*>{and0, and1}, Op::kOr)
                             .status());
@@ -948,8 +947,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     XLS_ASSIGN_OR_RETURN(Node * inv_operand,
                          node->function_base()->MakeNode<UnOp>(
                              node->loc(), node->operand(0), Op::kNot));
-    XLS_VLOG(2) << absl::StrFormat(
-        "Replace single-bit input one-hot to concat: %s", node->ToString());
+    VLOG(2) << absl::StrFormat("Replace single-bit input one-hot to concat: %s",
+                               node->ToString());
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<Concat>(
                 std::vector<Node*>{inv_operand, node->operand(0)})
@@ -969,7 +968,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
                            node->function_base()->MakeNode<CompareOp>(
                                node->loc(), node->operand(0), zero, Op::kEq));
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Replace one-hot with mutually exclusive input: %s",
           node->ToString());
       XLS_RETURN_IF_ERROR(

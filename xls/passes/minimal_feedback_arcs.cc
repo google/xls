@@ -327,21 +327,21 @@ absl::StatusOr<absl::flat_hash_set<Channel*>> MinimalFeedbackArcs(
   StableEdgeMap successors_copy = graph.successor_edges;
 
   if (VLOG_IS_ON(3)) {
-    XLS_VLOG(3) << "Predecessors:";
+    VLOG(3) << "Predecessors:";
     for (const auto& [key, values] : graph.predecessor_edges) {
-      XLS_VLOG(3) << absl::StreamFormat("\t%v: {%s}", *key,
-                                        absl::StrJoin(values, ", "));
+      VLOG(3) << absl::StreamFormat("\t%v: {%s}", *key,
+                                    absl::StrJoin(values, ", "));
     }
-    XLS_VLOG(3) << "Successors:";
+    VLOG(3) << "Successors:";
     for (const auto& [key, values] : successors_copy) {
-      XLS_VLOG(3) << absl::StreamFormat("\t%v: {%s}", *key,
-                                        absl::StrJoin(values, ", "));
+      VLOG(3) << absl::StreamFormat("\t%v: {%s}", *key,
+                                    absl::StrJoin(values, ", "));
     }
   }
 
   std::vector<Node*> arrangement = GreedyFAS(graph);
-  XLS_VLOG(3) << absl::StreamFormat("Arrangement s: [%s]\n",
-                                    absl::StrJoin(arrangement, ", "));
+  VLOG(3) << absl::StreamFormat("Arrangement s: [%s]\n",
+                                absl::StrJoin(arrangement, ", "));
 
   // The feedback nodes are those that have successors that occur earlier in the
   // arrangement. Add those nodes' associated channels to the result set.
@@ -356,8 +356,8 @@ absl::StatusOr<absl::flat_hash_set<Channel*>> MinimalFeedbackArcs(
     if (itr == successors_copy.end()) {
       continue;
     }
-    XLS_VLOG(5) << absl::StreamFormat("successors to %v are {%s}\n", *node,
-                                      absl::StrJoin(itr->second, ", "));
+    VLOG(5) << absl::StreamFormat("successors to %v are {%s}\n", *node,
+                                  absl::StrJoin(itr->second, ", "));
     // Find internal channel operations that have already been seen and add them
     // to the result set.
     for (Node* successor : itr->second) {
@@ -368,8 +368,8 @@ absl::StatusOr<absl::flat_hash_set<Channel*>> MinimalFeedbackArcs(
       }
     }
   }
-  XLS_VLOG(3) << absl::StreamFormat("minimal feedback arc set: {%s}\n",
-                                    absl::StrJoin(result, ", "));
+  VLOG(3) << absl::StreamFormat("minimal feedback arc set: {%s}\n",
+                                absl::StrJoin(result, ", "));
   return result;
 }
 }  // namespace xls

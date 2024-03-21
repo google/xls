@@ -204,7 +204,7 @@ absl::StatusOr<std::string> RunCommand(
       options.timeout_seconds().has_value()
           ? std::make_optional(absl::Seconds(*options.timeout_seconds()))
           : std::nullopt;
-  XLS_VLOG(1) << "Running: " << desc;
+  VLOG(1) << "Running: " << desc;
   Stopwatch timer;
   XLS_ASSIGN_OR_RETURN(SubprocessResult result,
                        InvokeSubprocess(argv, run_dir, timeout));
@@ -223,13 +223,13 @@ absl::StatusOr<std::string> RunCommand(
       run_dir / absl::StrCat(basename, ".stderr"), result.stderr));
   if (VLOG_IS_ON(4)) {
     // stdout and stderr can be long so split them by line to avoid clipping.
-    XLS_VLOG(4) << basename << " stdout:";
+    VLOG(4) << basename << " stdout:";
     XLS_VLOG_LINES(4, result.stdout);
 
-    XLS_VLOG(4) << basename << " stderr:";
+    VLOG(4) << basename << " stderr:";
     XLS_VLOG_LINES(4, result.stderr);
   }
-  XLS_VLOG(1) << desc << " complete, elapsed " << elapsed;
+  VLOG(1) << desc << " complete, elapsed " << elapsed;
   if (!result.normal_termination) {
     return absl::InternalError(
         absl::StrCat("Subprocess call failed: ", command_string));
@@ -269,7 +269,7 @@ absl::StatusOr<std::filesystem::path> DslxToIrFunction(
   XLS_ASSIGN_OR_RETURN(
       std::string ir_text,
       RunCommand("Converting DSLX to IR", *command, args, run_dir, options));
-  XLS_VLOG(3) << "Unoptimized IR:\n" << ir_text;
+  VLOG(3) << "Unoptimized IR:\n" << ir_text;
 
   std::filesystem::path ir_path = run_dir / "sample.ir";
   XLS_RETURN_IF_ERROR(SetFileContents(ir_path, ir_text));
@@ -344,7 +344,7 @@ absl::StatusOr<std::filesystem::path> Codegen(
   XLS_ASSIGN_OR_RETURN(
       std::string verilog_text,
       RunCommand("Generating Verilog", *command, args, run_dir, options));
-  XLS_VLOG(3) << "Verilog:\n" << verilog_text;
+  VLOG(3) << "Verilog:\n" << verilog_text;
   std::filesystem::path verilog_path =
       run_dir / (options.use_system_verilog() ? "sample.sv" : "sample.v");
   XLS_RETURN_IF_ERROR(SetFileContents(verilog_path, verilog_text));
@@ -364,7 +364,7 @@ absl::StatusOr<std::filesystem::path> OptimizeIr(
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir_text,
       RunCommand("Optimizing IR", *command, {ir_path}, run_dir, options));
-  XLS_VLOG(3) << "Optimized IR:\n" << opt_ir_text;
+  VLOG(3) << "Optimized IR:\n" << opt_ir_text;
   std::filesystem::path opt_ir_path = run_dir / "sample.opt.ir";
   XLS_RETURN_IF_ERROR(SetFileContents(opt_ir_path, opt_ir_text));
   return opt_ir_path;
@@ -672,7 +672,7 @@ absl::StatusOr<std::filesystem::path> DslxToIrProc(
   XLS_ASSIGN_OR_RETURN(
       std::string ir_text,
       RunCommand("Converting DSLX to IR", *command, args, run_dir, options));
-  XLS_VLOG(3) << "Unoptimized IR:\n" << ir_text;
+  VLOG(3) << "Unoptimized IR:\n" << ir_text;
   std::filesystem::path ir_path = run_dir / "sample.ir";
   XLS_RETURN_IF_ERROR(SetFileContents(ir_path, ir_text));
   return ir_path;
@@ -817,8 +817,8 @@ absl::Status SampleRunner::RunFromFiles(
     const std::filesystem::path& options_path,
     const std::optional<std::filesystem::path>& args_path,
     const std::optional<std::filesystem::path>& ir_channel_names_path) {
-  XLS_VLOG(1) << "Running sample in directory " << run_dir_;
-  XLS_VLOG(1) << "Reading sample files.";
+  VLOG(1) << "Running sample in directory " << run_dir_;
+  VLOG(1) << "Reading sample files.";
 
   XLS_ASSIGN_OR_RETURN(std::string options_text, GetFileContents(options_path));
   XLS_ASSIGN_OR_RETURN(SampleOptions options,
@@ -871,13 +871,13 @@ absl::Status SampleRunner::RunFunction(
   std::filesystem::path ir_path;
   if (options.input_is_dslx()) {
     if (args_batch.has_value()) {
-      XLS_VLOG(1) << "Interpreting DSLX file.";
+      VLOG(1) << "Interpreting DSLX file.";
       Stopwatch t;
       XLS_ASSIGN_OR_RETURN(
           results["interpreted DSLX"],
           InterpretDslxFunction(input_text, "main", *args_batch, run_dir_));
       absl::Duration elapsed = t.GetElapsedTime();
-      XLS_VLOG(1) << "Interpreting DSLX complete, elapsed: " << elapsed;
+      VLOG(1) << "Interpreting DSLX complete, elapsed: " << elapsed;
       timing_.set_interpret_dslx_ns(absl::ToInt64Nanoseconds(elapsed));
     }
 
@@ -1030,14 +1030,14 @@ absl::Status SampleRunner::RunProc(
   std::filesystem::path ir_path;
   if (options.input_is_dslx()) {
     if (args_batch.has_value()) {
-      XLS_VLOG(1) << "Interpreting DSLX file.";
+      VLOG(1) << "Interpreting DSLX file.";
       Stopwatch t;
       XLS_ASSIGN_OR_RETURN(results["interpreted DSLX"],
                            InterpretDslxProc(input_text, "main", *args_batch,
                                              tick_count, run_dir_));
       reference = results["interpreted DSLX"];
       absl::Duration elapsed = t.GetElapsedTime();
-      XLS_VLOG(1) << "Interpreting DSLX complete, elapsed: " << elapsed;
+      VLOG(1) << "Interpreting DSLX complete, elapsed: " << elapsed;
       timing_.set_interpret_dslx_ns(absl::ToInt64Nanoseconds(elapsed));
     }
 

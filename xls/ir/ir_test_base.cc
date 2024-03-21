@@ -154,7 +154,7 @@ void IrTestBase::RunAndExpectEq(
   // location is captured as a default argument to RunAndExpectEq.
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
                              "RunAndExpectEq failed");
-  XLS_VLOG(3) << "Package text:\n" << package_text;
+  VLOG(3) << "Package text:\n" << package_text;
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            ParsePackage(package_text));
   absl::flat_hash_map<std::string, Value> arg_values;
@@ -297,7 +297,7 @@ void IrTestBase::RunAndExpectEq(
     for (const auto& pair : args) {
       arg_set.insert(pair);
     }
-    XLS_VLOG(3) << "Verilog text:\n" << result.verilog_text;
+    VLOG(3) << "Verilog text:\n" << result.verilog_text;
     verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
                                        verilog::FileType::kVerilog,
                                        &verilog::GetDefaultVerilogSimulator());

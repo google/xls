@@ -28,6 +28,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -1539,7 +1540,7 @@ absl::Status VerifyName(FunctionBase* function_base) {
 
 // Verify common invariants to function-level constructs.
 absl::Status VerifyFunctionBase(FunctionBase* function) {
-  XLS_VLOG(2) << absl::StreamFormat("Verifying function %s:", function->name());
+  VLOG(2) << absl::StreamFormat("Verifying function %s:", function->name());
   XLS_VLOG_LINES(4, function->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyName(function));
@@ -1809,7 +1810,7 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
 }  // namespace
 
 absl::Status VerifyPackage(Package* package, bool codegen) {
-  XLS_VLOG(4) << absl::StreamFormat("Verifying package %s:\n", package->name());
+  VLOG(4) << absl::StreamFormat("Verifying package %s:\n", package->name());
   XLS_VLOG_LINES(4, package->DumpIr());
 
   for (auto& function : package->functions()) {
@@ -1881,7 +1882,7 @@ absl::Status VerifyPackage(Package* package, bool codegen) {
 }
 
 absl::Status VerifyFunction(Function* function, bool codegen) {
-  XLS_VLOG(4) << "Verifying function:\n";
+  VLOG(4) << "Verifying function:\n";
   XLS_VLOG_LINES(4, function->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(function));
@@ -2053,7 +2054,7 @@ static absl::Status VerifyProcInstantiations(Proc* proc) {
 }
 
 absl::Status VerifyProc(Proc* proc, bool codegen) {
-  XLS_VLOG(4) << "Verifying proc:\n";
+  VLOG(4) << "Verifying proc:\n";
   XLS_VLOG_LINES(4, proc->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
@@ -2329,7 +2330,7 @@ static absl::Status VerifyFifoInstantiation(Package* package,
 }
 
 absl::Status VerifyBlock(Block* block, bool codegen) {
-  XLS_VLOG(4) << "Verifying block:\n";
+  VLOG(4) << "Verifying block:\n";
   XLS_VLOG_LINES(4, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(block));
@@ -2453,7 +2454,7 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
 }
 
 absl::Status VerifyNode(Node* node, bool codegen) {
-  XLS_VLOG(4) << "Verifying node: " << node->ToString();
+  VLOG(4) << "Verifying node: " << node->ToString();
 
   for (Node* operand : node->operands()) {
     XLS_RET_CHECK(operand->HasUser(node))

@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -90,13 +91,12 @@ absl::StatusOr<std::optional<std::vector<Next*>>> RemoveLiteralPredicate(
 
   Literal* literal_predicate = predicate->As<Literal>();
   if (literal_predicate->value().IsAllZeros()) {
-    XLS_VLOG(2) << "Identified node as dead due to zero predicate; removing: "
-                << *next;
+    VLOG(2) << "Identified node as dead due to zero predicate; removing: "
+            << *next;
     XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next, split_depth));
     return std::vector<Next*>();
   }
-  XLS_VLOG(2) << "Identified node as always live; removing predicate: "
-              << *next;
+  VLOG(2) << "Identified node as always live; removing predicate: " << *next;
   XLS_ASSIGN_OR_RETURN(Next * new_next, next->ReplaceUsesWithNew<Next>(
                                             /*param=*/next->param(),
                                             /*value=*/next->value(),

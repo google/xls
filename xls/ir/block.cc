@@ -168,10 +168,10 @@ std::vector<Node*> Block::DumpOrder() const {
   absl::flat_hash_map<Node*, int64_t> reg_depth =
       ComputeRegisterDepthToLeaves(this, register_writes_);
 
-  XLS_VLOG(4) << "Node dump order priorities:";
+  VLOG(4) << "Node dump order priorities:";
   for (Node* node : nodes()) {
     priorities[node] = DumpOrderPriority(node, this, reg_depth);
-    XLS_VLOG(4) << absl::StreamFormat(
+    VLOG(4) << absl::StreamFormat(
         "%s: (%d, %d, %d)", node->GetName(), std::get<0>(priorities.at(node)),
         std::get<1>(priorities.at(node)), std::get<2>(priorities.at(node)));
   }
@@ -368,8 +368,8 @@ absl::StatusOr<Register*> Block::AddRegister(std::string_view requested_name,
   std::string name =
       register_name_uniquer_.GetSanitizedUniqueName(requested_name);
   if (name != requested_name) {
-    XLS_VLOG(2) << "Multiple registers with name `" << requested_name
-                << "` requested. Using name `" << name << "`.";
+    VLOG(2) << "Multiple registers with name `" << requested_name
+            << "` requested. Using name `" << name << "`.";
   }
   if (reset.has_value()) {
     if (type != package()->GetTypeForValue(reset.value().reset_value)) {

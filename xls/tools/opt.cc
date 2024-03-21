@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -44,10 +45,10 @@ namespace xls::tools {
 absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
                                              const OptOptions& options) {
   if (!options.top.empty()) {
-    XLS_VLOG(3) << "OptimizeIrForEntry; top: '" << options.top
-                << "'; opt_level: " << options.opt_level;
+    VLOG(3) << "OptimizeIrForEntry; top: '" << options.top
+            << "'; opt_level: " << options.opt_level;
   } else {
-    XLS_VLOG(3) << "OptimizeIrForEntry; opt_level: " << options.opt_level;
+    VLOG(3) << "OptimizeIrForEntry; opt_level: " << options.opt_level;
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
@@ -60,7 +61,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
   }
-  XLS_VLOG(3) << "Top entity: '" << top.value()->name() << "'";
+  VLOG(3) << "Top entity: '" << top.value()->name() << "'";
 
   std::unique_ptr<OptimizationCompoundPass> pipeline;
   if (!options.pass_list) {

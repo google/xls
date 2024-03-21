@@ -511,12 +511,12 @@ static std::optional<DocRef> EmitCommentsBetween(
   CHECK_LE(start_pos.value(), limit_pos);
   const Span span(start_pos.value(), limit_pos);
 
-  XLS_VLOG(3) << "Looking for comments in span: " << span;
+  VLOG(3) << "Looking for comments in span: " << span;
 
   std::vector<DocRef> pieces;
 
   std::vector<const CommentData*> items = comments.GetComments(span);
-  XLS_VLOG(3) << "Found " << items.size() << " comment data items";
+  VLOG(3) << "Found " << items.size() << " comment data items";
   std::optional<Span> previous_comment_span;
   for (size_t i = 0; i < items.size(); ++i) {
     const CommentData* comment_data = items[i];
@@ -526,9 +526,9 @@ static std::optional<DocRef> EmitCommentsBetween(
     if (previous_comment_span.has_value() &&
         previous_comment_span->start().lineno() + 1 !=
             comment_data->span.start().lineno()) {
-      XLS_VLOG(3) << "previous comment span: " << previous_comment_span.value()
-                  << " this comment span: " << comment_data->span
-                  << " -- inserting hard line";
+      VLOG(3) << "previous comment span: " << previous_comment_span.value()
+              << " this comment span: " << comment_data->span
+              << " -- inserting hard line";
       pieces.push_back(arena.hard_line());
     }
 
@@ -630,16 +630,15 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     const Pos& stmt_start = stmt_span->start();
     const Pos& stmt_limit = stmt_span->limit();
 
-    XLS_VLOG(5) << "stmt: `" << stmt->ToString()
-                << "` span: " << stmt_span.value()
-                << " last_entity_pos: " << last_entity_pos;
+    VLOG(5) << "stmt: `" << stmt->ToString() << "` span: " << stmt_span.value()
+            << " last_entity_pos: " << last_entity_pos;
 
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
             last_entity_pos, stmt_start, comments, arena, &last_comment_span)) {
-      XLS_VLOG(5) << "emitting comment ahead of: `" << stmt->ToString() << "`"
-                  << " last entity position: " << last_entity_pos
-                  << " last_comment_span: " << last_comment_span.value();
+      VLOG(5) << "emitting comment ahead of: `" << stmt->ToString() << "`"
+              << " last entity position: " << last_entity_pos
+              << " last_comment_span: " << last_comment_span.value();
       // If there's a line break between the last entity and this comment, we
       // retain it in the output (i.e. in paragraph style).
       if (last_entity_pos != start_entity_pos &&
@@ -660,8 +659,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
       }
 
     } else {  // No comments to emit ahead of the statement.
-      XLS_VLOG(5) << "no comments to emit ahead of statement: "
-                  << stmt->ToString();
+      VLOG(5) << "no comments to emit ahead of statement: " << stmt->ToString();
       // If there's a line break between the last entity and this statement, we
       // retain it in the output (i.e. in paragraph style).
       if (last_entity_pos.lineno() + 1 < stmt_start.lineno()) {
@@ -684,9 +682,9 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
     const Pos next_line(stmt_limit.filename(), stmt_limit.lineno() + 1, 0);
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
             last_entity_pos, next_line, comments, arena, &last_comment_span)) {
-      XLS_VLOG(3) << "Saw after-statement comment: "
-                  << arena.ToDebugString(comments_doc.value())
-                  << " last_comment_span: " << last_comment_span.value();
+      VLOG(3) << "Saw after-statement comment: "
+              << arena.ToDebugString(comments_doc.value())
+              << " last_comment_span: " << last_comment_span.value();
       statements.push_back(arena.space());
       statements.push_back(arena.space());
       statements.push_back(arena.MakeAlign(comments_doc.value()));
@@ -706,8 +704,8 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
   if (std::optional<DocRef> comments_doc =
           EmitCommentsBetween(last_entity_pos, n.span().limit(), comments,
                               arena, &last_comment_span)) {
-    XLS_VLOG(5) << "last entity position: " << last_entity_pos
-                << " last_comment_span.start: " << last_comment_span->start();
+    VLOG(5) << "last entity position: " << last_entity_pos
+            << " last_comment_span.start: " << last_comment_span->start();
 
     // If there's a line break between the last entity and this comment, we
     // retain it in the output (i.e. in paragraph style).
@@ -1466,7 +1464,7 @@ DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
   std::optional<Pos> last_data_limit;
   absl::flat_hash_map<int64_t, CommentData> line_to_comment;
   for (const CommentData& cd : comments) {
-    XLS_VLOG(3) << "comment on line: " << cd.span.start().lineno();
+    VLOG(3) << "comment on line: " << cd.span.start().lineno();
     // Note: we don't have multi-line comments for now, so we just note the
     // start line number for the comment.
     line_to_comment[cd.span.start().lineno()] = cd;
@@ -1491,7 +1489,7 @@ bool Comments::HasComments(const Span& in_span) const {
 
 std::vector<const CommentData*> Comments::GetComments(
     const Span& node_span) const {
-  XLS_VLOG(3) << "GetComments; node_span: " << node_span;
+  VLOG(3) << "GetComments; node_span: " << node_span;
 
   // Implementation note: this will typically be a single access (as most things
   // will be on a single line), so we prefer a flat hash map to a btree map.
@@ -1845,9 +1843,9 @@ static void FmtStructMembers(const StructDef& n, const Comments& comments,
                         member_span.limit().lineno() + 1, 0);
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
             last_member_pos, next_line, comments, arena, &last_comment_span)) {
-      XLS_VLOG(3) << "Saw after-member comment: "
-                  << arena.ToDebugString(comments_doc.value())
-                  << " last_comment_span: " << last_comment_span.value();
+      VLOG(3) << "Saw after-member comment: "
+              << arena.ToDebugString(comments_doc.value())
+              << " last_comment_span: " << last_comment_span.value();
       body_pieces.push_back(arena.space());
       body_pieces.push_back(arena.space());
       body_pieces.push_back(arena.MakeAlign(comments_doc.value()));
@@ -2137,8 +2135,8 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
       continue;
     }
 
-    XLS_VLOG(3) << "Fmt; " << node->GetNodeTypeName()
-                << " module member: " << node->ToString();
+    VLOG(3) << "Fmt; " << node->GetNodeTypeName()
+            << " module member: " << node->ToString();
 
     // If there are comment blocks between the last member position and the
     // member we're about the process, we need to emit them.
@@ -2159,8 +2157,8 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
       pieces.push_back(comments_doc.value());
       pieces.push_back(arena.hard_line());
 
-      XLS_VLOG(3) << "last_comment_span: " << last_comment_span.value()
-                  << " this member start: " << member_start;
+      VLOG(3) << "last_comment_span: " << last_comment_span.value()
+              << " this member start: " << member_start;
 
       // If the comment abuts the module member we don't put a newline in
       // between, we assume the comment is associated with the member.
@@ -2184,9 +2182,9 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
     const Pos next_line(member_limit.filename(), member_limit.lineno() + 1, 0);
     if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
             last_entity_pos, next_line, comments, arena, &last_comment_span)) {
-      XLS_VLOG(3) << "Saw after-statement comment: "
-                  << arena.ToDebugString(comments_doc.value())
-                  << " last_comment_span: " << last_comment_span.value();
+      VLOG(3) << "Saw after-statement comment: "
+              << arena.ToDebugString(comments_doc.value())
+              << " last_comment_span: " << last_comment_span.value();
       pieces.push_back(arena.space());
       pieces.push_back(arena.space());
       pieces.push_back(arena.MakeAlign(comments_doc.value()));

@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -133,14 +134,14 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
     while (frame->pc() < frame->bf()->bytecodes().size()) {
       const std::vector<Bytecode>& bytecodes = frame->bf()->bytecodes();
       const Bytecode& bytecode = bytecodes.at(frame->pc());
-      XLS_VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
-                  << bytecode.ToString();
-      XLS_VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
-                                        stack_.ToString());
+      VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
+              << bytecode.ToString();
+      VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
+                                    stack_.ToString());
       int64_t old_pc = frame->pc();
       XLS_RETURN_IF_ERROR(EvalNextInstruction());
-      XLS_VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
-                                        stack_.ToString());
+      VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
+                                    stack_.ToString());
 
       if (bytecode.op() == Bytecode::Op::kCall) {
         frame = &frames_.back();
@@ -191,8 +192,8 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
                         frame->pc(), bytecodes.size()));
   }
   const Bytecode& bytecode = bytecodes.at(frame->pc());
-  XLS_VLOG(10) << "Running bytecode: " << bytecode.ToString()
-               << " depth before: " << stack_.size();
+  VLOG(10) << "Running bytecode: " << bytecode.ToString()
+           << " depth before: " << stack_.size();
   switch (bytecode.op()) {
     case Bytecode::Op::kUAdd: {
       XLS_RETURN_IF_ERROR(EvalAdd(bytecode, /*is_signed=*/false));
@@ -500,7 +501,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
-  XLS_VLOG(3) << "BytecodeInterpreter::EvalCall: " << bytecode.ToString();
+  VLOG(3) << "BytecodeInterpreter::EvalCall: " << bytecode.ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue callee, Pop());
   if (callee.IsBuiltinFunction()) {
     frames_.back().IncrementPc();
@@ -911,16 +912,16 @@ absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
     case Kind::kRange: {
       XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem::RangeData range,
                            item.range());
-      XLS_VLOG(10) << "value: " << value.ToString()
-                   << " start: " << range.start.ToString()
-                   << " limit: " << range.limit.ToString();
+      VLOG(10) << "value: " << value.ToString()
+               << " start: " << range.start.ToString()
+               << " limit: " << range.limit.ToString();
       XLS_ASSIGN_OR_RETURN(InterpValue val_ge_start, value.Ge(range.start));
       XLS_ASSIGN_OR_RETURN(InterpValue val_lt_limit, value.Lt(range.limit));
       XLS_ASSIGN_OR_RETURN(InterpValue conjunction,
                            val_ge_start.BitwiseAnd(val_lt_limit));
-      XLS_VLOG(10) << "val_ge_start: " << val_ge_start.ToString()
-                   << " val_lt_limit: " << val_lt_limit.ToString()
-                   << " conjunction: " << conjunction.ToString();
+      VLOG(10) << "val_ge_start: " << val_ge_start.ToString()
+               << " val_lt_limit: " << val_lt_limit.ToString()
+               << " conjunction: " << conjunction.ToString();
       return conjunction.IsTrue();
     }
     case Kind::kLoad: {
@@ -1208,7 +1209,7 @@ absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
 absl::StatusOr<std::optional<int64_t>> BytecodeInterpreter::EvalJumpRelIf(
     int64_t pc, const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue top, Pop());
-  XLS_VLOG(2) << "jump_rel_if value: " << top.ToString();
+  VLOG(2) << "jump_rel_if value: " << top.ToString();
   if (top.IsTrue()) {
     XLS_ASSIGN_OR_RETURN(Bytecode::JumpTarget target, bytecode.jump_target());
     return pc + target.value();

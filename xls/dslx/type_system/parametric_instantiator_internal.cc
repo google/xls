@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/die_if_null.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -76,8 +77,8 @@ absl::StatusOr<std::unique_ptr<Type>> Resolve(
             ToParametricEnv(ParametricEnv(parametric_env_map)));
         return TypeDim(std::move(evaluated));
       }));
-  XLS_VLOG(5) << "Resolved " << annotated.ToString() << " to "
-              << resolved->ToString();
+  VLOG(5) << "Resolved " << annotated.ToString() << " to "
+          << resolved->ToString();
   return resolved;
 }
 
@@ -153,7 +154,7 @@ absl::Status EagerlyPopulateParametricEnvMap(
     } else {
       continue;  // e.g. <X: u32> has no default expr
     }
-    XLS_VLOG(5) << "name: " << name << " expr: " << expr->ToString();
+    VLOG(5) << "name: " << name << " expr: " << expr->ToString();
 
     // Note: we may have created values in early parametrics that are used in
     // the types of subsequent expressions; e.g.:
@@ -174,13 +175,13 @@ absl::Status EagerlyPopulateParametricEnvMap(
     // expression.
     const ParametricEnv env(parametric_env_map);
 
-    XLS_VLOG(5) << absl::StreamFormat("Evaluating expr: `%s` in env: %s",
-                                      expr->ToString(), env.ToString());
+    VLOG(5) << absl::StreamFormat("Evaluating expr: `%s` in env: %s",
+                                  expr->ToString(), env.ToString());
 
     absl::StatusOr<InterpValue> result = InterpretExpr(ctx, expr, env);
 
-    XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
-                << expr->span() << " to status: " << result.status();
+    VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ " << expr->span()
+            << " to status: " << result.status();
 
     XLS_RETURN_IF_ERROR(result.status());
 
@@ -236,8 +237,8 @@ ParametricInstantiator::ParametricInstantiator(
     ordered.insert(identifier);
   }
 
-  XLS_VLOG(5) << "ParametricInstantiator; span: " << span_ << " ordered: ["
-              << absl::StrJoin(ordered, ", ") << "]";
+  VLOG(5) << "ParametricInstantiator; span: " << span_ << " ordered: ["
+          << absl::StrJoin(ordered, ", ") << "]";
 
   for (const ParametricConstraint& constraint : parametric_constraints) {
     const std::string& identifier = constraint.identifier();
@@ -276,7 +277,7 @@ absl::Status ParametricInstantiator::InstantiateOneArg(int64_t i,
                                    arg_type, message);
   }
 
-  XLS_VLOG(5) << absl::StreamFormat(
+  VLOG(5) << absl::StreamFormat(
       "Symbolically binding param %d formal %s against arg %s", i,
       param_type.ToString(), arg_type.ToString());
   ParametricBindContext ctx{span_, parametric_binding_types_,
@@ -292,10 +293,10 @@ FunctionInstantiator::Make(
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics) {
-  XLS_VLOG(5) << "Making FunctionInstantiator for " << function_type.ToString()
-              << " with " << parametric_constraints.size()
-              << " parametric constraints and " << explicit_parametrics.size()
-              << " explicit constraints";
+  VLOG(5) << "Making FunctionInstantiator for " << function_type.ToString()
+          << " with " << parametric_constraints.size()
+          << " parametric constraints and " << explicit_parametrics.size()
+          << " explicit constraints";
   if (args.size() != function_type.params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "ArgCountMismatchError: %s Expected %d parameter(s) but got %d "
@@ -310,12 +311,12 @@ FunctionInstantiator::Make(
 absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
   ScopedFnStackEntry parametric_env_expr_scope(callee_fn_, &ctx(),
                                                WithinProc::kNo);
-  XLS_VLOG(5) << absl::StreamFormat(
+  VLOG(5) << absl::StreamFormat(
       "Entering parametric env scope; callee fn: `%s`",
       callee_fn_.identifier());
 
   // Phase 1: instantiate actuals against parametrics in left-to-right order.
-  XLS_VLOG(10) << "Phase 1: instantiate actuals";
+  VLOG(10) << "Phase 1: instantiate actuals";
   for (int64_t i = 0; i < args().size(); ++i) {
     const Type& param_type = *param_types_[i];
     const Type& arg_type = *args()[i].type();
@@ -327,7 +328,7 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
       span(), GetKindName(), &ctx()));
 
   // Phase 2: resolve and check.
-  XLS_VLOG(10) << "Phase 2: resolve-and-check";
+  VLOG(10) << "Phase 2: resolve-and-check";
   for (int64_t i = 0; i < args().size(); ++i) {
     const Type& param_type = *param_types_[i];
     const Type& arg_type = *args()[i].type();
@@ -349,8 +350,8 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
   const Type& orig = function_type_->return_type();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved,
                        Resolve(orig, parametric_env_map()));
-  XLS_VLOG(5) << "Resolved return type from " << orig.ToString() << " to "
-              << resolved->ToString();
+  VLOG(5) << "Resolved return type from " << orig.ToString() << " to "
+          << resolved->ToString();
 
   if (resolved->HasParametricDims()) {
     return TypeInferenceErrorStatus(

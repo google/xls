@@ -54,6 +54,7 @@ cc_test(
         "//xls/simulation:module_testbench",
         "//xls/simulation:module_testbench_thread",
         "//xls/simulation:verilog_test_base",
+        "@com_google_absl//absl/log",
     ],
 )
 

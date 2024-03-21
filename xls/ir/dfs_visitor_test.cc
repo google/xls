@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -37,7 +38,7 @@ namespace {
 class TestVisitor : public DfsVisitorWithDefault {
  public:
   absl::Status DefaultHandler(Node* node) override {
-    XLS_VLOG(1) << "Visiting " << node->GetName();
+    VLOG(1) << "Visiting " << node->GetName();
     visited_.push_back(node);
     visited_set_.insert(node);
     return absl::OkStatus();

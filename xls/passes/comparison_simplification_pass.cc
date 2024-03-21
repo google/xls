@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -238,18 +239,18 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
   //  Nor(Eq(x, 42), Eq(x, 37))
   //              => RangeEquivalence{x, [[0, 36], [38, 41], [42, MAX]]}
   absl::flat_hash_map<Node*, RangeEquivalence> equivalences;
-  XLS_VLOG(3) << absl::StreamFormat("Range equivalences for function `%s`:",
-                                    f->name());
+  VLOG(3) << absl::StreamFormat("Range equivalences for function `%s`:",
+                                f->name());
   for (Node* node : TopoSort(f)) {
     std::optional<RangeEquivalence> equivalence =
         ComputeRangeEquivalence(node, equivalences);
     if (!equivalence.has_value()) {
-      XLS_VLOG(3) << absl::StreamFormat("  %s : <none>", node->GetName());
+      VLOG(3) << absl::StreamFormat("  %s : <none>", node->GetName());
       continue;
     }
-    XLS_VLOG(3) << absl::StreamFormat("  %s : %s in %s", node->GetName(),
-                                      equivalence.value().node->GetName(),
-                                      equivalence.value().range.ToString());
+    VLOG(3) << absl::StreamFormat("  %s : %s in %s", node->GetName(),
+                                  equivalence.value().node->GetName(),
+                                  equivalence.value().range.ToString());
     equivalences[node] = equivalence.value();
   }
 

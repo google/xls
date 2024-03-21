@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -133,14 +134,14 @@ absl::Status CreateNetList(
                          Cell::Create(entry, cell_name, param_assignments, clk,
                                       /*dummy_net=*/nullptr));
     XLS_ASSIGN_OR_RETURN(Cell * module_cell, module->AddCell(cell));
-    XLS_VLOG(2) << "Added cell: " << module_cell->name();
-    XLS_VLOG(2) << " - Inputs";
+    VLOG(2) << "Added cell: " << module_cell->name();
+    VLOG(2) << " - Inputs";
     for (const auto& input : module_cell->inputs()) {
-      XLS_VLOG(2) << "   - " << input.netref->name();
+      VLOG(2) << "   - " << input.netref->name();
     }
-    XLS_VLOG(2) << " - Outputs";
+    VLOG(2) << " - Outputs";
     for (const auto& output : module_cell->outputs()) {
-      XLS_VLOG(2) << "   - " << output.netref->name();
+      VLOG(2) << "   - " << output.netref->name();
     }
     for (auto& pair : param_assignments) {
       pair.second->NoteConnectedCell(module_cell);
@@ -258,7 +259,7 @@ absl::StatusOr<Module> CreateModule(
     for (const std::string& entry_input_name : entry_input_names) {
       std::string module_input_name =
           absl::StrCat(module_name, "_c", i, "_", entry_input_name);
-      XLS_VLOG(2) << "Creating module input : " << module_input_name;
+      VLOG(2) << "Creating module input : " << module_input_name;
       XLS_RET_CHECK_OK(
           module.AddNetDecl(NetDeclKind::kInput, module_input_name));
       child_params[entry_input_name] =
@@ -266,7 +267,7 @@ absl::StatusOr<Module> CreateModule(
     }
 
     std::string child_output_name = absl::StrCat(module_name, "_c", i, "_o");
-    XLS_VLOG(2) << "Creating child output : " << child_output_name;
+    VLOG(2) << "Creating child output : " << child_output_name;
     XLS_RET_CHECK_OK(module.AddNetDecl(NetDeclKind::kWire, child_output_name));
     child_params[pins.begin()->first] =
         module.ResolveNet(child_output_name).value();
@@ -294,7 +295,7 @@ absl::StatusOr<Module> CreateModule(
     std::string new_input_name =
         absl::StrCat(module_name, "_",
                      entry_input_names.size() - child_outputs.size(), "_o");
-    XLS_VLOG(2) << "Synthesizing module input: " << new_input_name;
+    VLOG(2) << "Synthesizing module input: " << new_input_name;
     XLS_RET_CHECK_OK(module.AddNetDecl(NetDeclKind::kInput, new_input_name));
     child_outputs.push_back(new_input_name);
   }
@@ -370,7 +371,7 @@ TEST(NetlistTranslatorTest_Standalone, HandlesSubmodules) {
   XLS_ASSERT_OK_AND_ASSIGN(Z3_ast z3_output,
                            translator->GetTranslation(module_3.outputs()[0]));
   std::string ast_text = Z3_ast_to_string(ctx, z3_output);
-  XLS_VLOG(1) << "Z3 AST:" << '\n' << ast_text;
+  VLOG(1) << "Z3 AST:" << '\n' << ast_text;
   int not_pos = ast_text.find("bvnot");
   int and_pos = ast_text.find("bvand");
   int or_pos = ast_text.find("bvor");

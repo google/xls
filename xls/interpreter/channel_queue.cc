@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -55,7 +56,7 @@ absl::Status ChannelQueue::AttachGenerator(GeneratorFn generator) {
 }
 
 absl::Status ChannelQueue::Write(const Value& value) {
-  XLS_VLOG(4) << absl::StreamFormat(
+  VLOG(4) << absl::StreamFormat(
       "Writing value to channel instance `%s`: { %s }",
       channel_instance()->ToString(), value.ToString());
   absl::MutexLock lock(&mutex_);
@@ -70,8 +71,7 @@ absl::Status ChannelQueue::Write(const Value& value) {
   }
 
   WriteInternal(value);
-  XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements",
-                                    queue_.size());
+  VLOG(4) << absl::StreamFormat("Channel now has %d elements", queue_.size());
   return absl::OkStatus();
 }
 
@@ -100,12 +100,11 @@ std::optional<Value> ChannelQueue::Read() {
     }
   }
   std::optional<Value> value = ReadInternal();
-  XLS_VLOG(4) << absl::StreamFormat(
+  VLOG(4) << absl::StreamFormat(
       "Reading data from channel instance %s: %s",
       channel_instance()->ToString(),
       value.has_value() ? value->ToString() : "(none)");
-  XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements",
-                                    queue_.size());
+  VLOG(4) << absl::StreamFormat("Channel now has %d elements", queue_.size());
   return value;
 }
 

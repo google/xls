@@ -25,6 +25,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -106,12 +107,12 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
 
   // Adds information on channels.
   Package* p = block->package();
-  XLS_VLOG(5) << "GenerateSignature called on package:";
+  VLOG(5) << "GenerateSignature called on package:";
   XLS_VLOG_LINES(5, p->DumpIr());
   for (const Channel* const ch : p->channels()) {
-    XLS_VLOG(5) << absl::StreamFormat("Channel block name: %s\nblock name: %s",
-                                      ch->GetBlockName().value_or("<none>"),
-                                      block->name());
+    VLOG(5) << absl::StreamFormat("Channel block name: %s\nblock name: %s",
+                                  ch->GetBlockName().value_or("<none>"),
+                                  block->name());
     if (ch->GetBlockName() != block->name()) {
       continue;
     }
@@ -155,16 +156,16 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
 
   int64_t register_levels = 0;
   if (options.flop_inputs()) {
-    XLS_VLOG(3) << absl::StreamFormat("Adding input latency = %d - 1.",
-                                      options.GetInputLatency());
+    VLOG(3) << absl::StreamFormat("Adding input latency = %d - 1.",
+                                  options.GetInputLatency());
     // Schedule has been adjusted by MaybeAddInputOutputFlopsToSchedule(), but
     // this does not take zero-latency buffers into account. We subtract 1 from
     // latency only if inputs are zero-latency.
     register_levels += options.GetInputLatency() - 1;
   }
   if (options.flop_outputs()) {
-    XLS_VLOG(3) << absl::StreamFormat("Adding output latency = %d - 1.",
-                                      options.GetOutputLatency());
+    VLOG(3) << absl::StreamFormat("Adding output latency = %d - 1.",
+                                  options.GetOutputLatency());
     // Similar to above, if the output is flopped with zero-latency buffers we
     // should shorten the latency.
     register_levels += options.GetOutputLatency() - 1;
@@ -180,11 +181,11 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
                                           const std::pair<Node*, Stage>& rhs) {
           return lhs.second < rhs.second;
         })->second;
-    XLS_VLOG(3) << absl::StreamFormat("Adding pipeline registers = %d.",
-                                      pipeline_registers - 1);
+    VLOG(3) << absl::StreamFormat("Adding pipeline registers = %d.",
+                                  pipeline_registers - 1);
     register_levels += pipeline_registers;
   }
-  XLS_VLOG(3) << absl::StreamFormat("Register levels = %d .", register_levels);
+  VLOG(3) << absl::StreamFormat("Register levels = %d .", register_levels);
   if (register_levels == 0 && !options.emit_as_pipeline()) {
     // Block has no registers. The block is combinational.
     b.WithCombinationalInterface();

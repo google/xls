@@ -123,7 +123,7 @@ class GeneratedTester : public XlsccTestBase {
             top.value(),
             xls::verilog::CodegenOptions().use_system_verilog(false)));
 
-    XLS_VLOG(3) << "Verilog text:\n" << result.verilog_text;
+    VLOG(3) << "Verilog text:\n" << result.verilog_text;
     xls::verilog::ModuleSimulator simulator(
         result.signature, result.verilog_text, xls::verilog::FileType::kVerilog,
         &xls::verilog::GetDefaultVerilogSimulator());

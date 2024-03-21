@@ -21,6 +21,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -146,9 +147,9 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     for (Node* candidate : node_buckets.at(hash)) {
       if (is_same_value(node, candidate)) {
         XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(candidate));
-        XLS_VLOG(4) << "Found identical value:";
-        XLS_VLOG(4) << "  Node: " << node->ToString();
-        XLS_VLOG(4) << "  Replacement: " << candidate->ToString();
+        VLOG(4) << "Found identical value:";
+        VLOG(4) << "  Node: " << node->ToString();
+        VLOG(4) << "  Replacement: " << candidate->ToString();
         changed = true;
         replaced = true;
         break;

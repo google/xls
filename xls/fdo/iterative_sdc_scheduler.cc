@@ -245,7 +245,7 @@ absl::Status RefineDelayEstimations(
       std::vector<int64_t> delay_list,
       options.synthesizer->SynthesizeNodesConcurrentlyAndGetDelays(nodes_list));
 
-  XLS_VLOG(1) << "Number of modules generated is " << nodes_list.size();
+  VLOG(1) << "Number of modules generated is " << nodes_list.size();
   for (int64_t j = 0; j < delay_list.size(); ++j) {
     const NodeSet &nodes = nodes_list[j];
     int64_t delay = delay_list[j];
@@ -314,12 +314,12 @@ absl::Status IterativeSDCSchedulingModel::AddTimingConstraints(
     for (Node *target : p.second) {
       number_constraints++;
       DiffAtLeastConstraint(target, source, 1, "timing");
-      XLS_VLOG(2) << "Setting timing constraint: "
-                  << absl::StrFormat("1 ≤ %s - %s", target->GetName(),
-                                     source->GetName());
+      VLOG(2) << "Setting timing constraint: "
+              << absl::StrFormat("1 ≤ %s - %s", target->GetName(),
+                                 source->GetName());
     }
   }
-  XLS_VLOG(2) << "Number of timing constraints added: " << number_constraints;
+  VLOG(2) << "Number of timing constraints added: " << number_constraints;
   return absl::OkStatus();
 }
 
@@ -381,11 +381,11 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
     absl::Span<const SchedulingConstraint> constraints,
     const IterativeSDCSchedulingOptions &options,
     const SchedulingFailureBehavior failure_behavior) {
-  XLS_VLOG(3) << "SDCScheduler()";
-  XLS_VLOG(3) << "  pipeline stages = "
-              << (pipeline_stages.has_value()
-                      ? absl::StrCat(pipeline_stages.value())
-                      : "(unspecified)");
+  VLOG(3) << "SDCScheduler()";
+  VLOG(3) << "  pipeline stages = "
+          << (pipeline_stages.has_value()
+                  ? absl::StrCat(pipeline_stages.value())
+                  : "(unspecified)");
   XLS_VLOG_LINES(4, f->DumpIr());
 
   if (options.iteration_number < 1 || options.delay_driven_path_number < 0 ||

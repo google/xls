@@ -23,6 +23,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/logging/logging.h"
@@ -67,7 +68,7 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
         reg_read->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(reg->type()))
             .status());
     removed_regs.insert(reg);
-    XLS_VLOG(3) << "Removing zero-width register " << reg->name();
+    VLOG(3) << "Removing zero-width register " << reg->name();
     XLS_RETURN_IF_ERROR(block->RemoveNode(reg_read));
     XLS_RETURN_IF_ERROR(block->RemoveNode(reg_write));
     XLS_RETURN_IF_ERROR(block->RemoveRegister(reg));

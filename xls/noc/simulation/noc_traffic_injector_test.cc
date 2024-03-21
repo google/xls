@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -430,9 +431,9 @@ TEST(NocTrafficInjectorTest, MeasureTrafficInjectionRate) {
       bits_sent_per_destination_index_[source][flit.flit.destination_index] +=
           flit.flit.data_bit_count;
 
-      XLS_VLOG(1) << absl::StrFormat(
-          "  - Source %x Measured %d bits Now %d\n", source.AsUInt64(),
-          flit.flit.data_bit_count, bits_sent_[source]);
+      VLOG(1) << absl::StrFormat("  - Source %x Measured %d bits Now %d\n",
+                                 source.AsUInt64(), flit.flit.data_bit_count,
+                                 bits_sent_[source]);
       return absl::OkStatus();
     }
 

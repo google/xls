@@ -36,6 +36,7 @@
 
 #include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -260,7 +261,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   }
   std::string bin_name = std::filesystem::path(argv[0]).filename();
 
-  XLS_VLOG(1) << absl::StreamFormat(
+  VLOG(1) << absl::StreamFormat(
       "Running %s; argv: [ %s ], cwd: %s", bin_name, absl::StrJoin(argv, " "),
       cwd.has_value() ? cwd->string()
                       : std::filesystem::current_path().string());
@@ -303,7 +304,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
         // Timeout has lapsed, try to kill the subprocess.
         timeout_expired.store(true);
         if (kill(pid, SIGKILL) == 0) {
-          XLS_VLOG(1) << "Watchdog killed " << pid;
+          VLOG(1) << "Watchdog killed " << pid;
         }
       }
     };
@@ -315,7 +316,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   std::vector<std::string> output_strings;
   absl::Status read_status = ReadFileDescriptors(fds, output_strings);
   if (!read_status.ok()) {
-    XLS_VLOG(1) << "ReadFileDescriptors non-ok status: " << read_status;
+    VLOG(1) << "ReadFileDescriptors non-ok status: " << read_status;
   }
   const std::string& stdout_output = output_strings[0];
   const std::string& stderr_output = output_strings[1];

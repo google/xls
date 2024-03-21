@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -27,8 +28,7 @@ namespace xls {
 absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
     const FunctionBase& function,
     const absl::flat_hash_map<std::string, Value>& kwargs) {
-  XLS_VLOG(2) << "Interpreting function " << function.name()
-              << " with arguments:";
+  VLOG(2) << "Interpreting function " << function.name() << " with arguments:";
 
   // Make nice error messages with the name in the error message if a kwarg is
   // missing.
@@ -43,7 +43,7 @@ absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
   std::vector<Value> positional_args;
   positional_args.resize(kwargs.size());
   for (const auto& pair : kwargs) {
-    XLS_VLOG(2) << "  " << pair.first << " = " << pair.second;
+    VLOG(2) << "  " << pair.first << " = " << pair.second;
     XLS_ASSIGN_OR_RETURN(Param * param, function.GetParamByName(pair.first));
     XLS_ASSIGN_OR_RETURN(int64_t param_index, function.GetParamIndex(param));
     positional_args.at(param_index) = pair.second;

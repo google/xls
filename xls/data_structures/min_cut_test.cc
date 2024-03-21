@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/random/mocking_bit_gen.h"
 #include "absl/random/random.h"
@@ -247,8 +248,8 @@ TEST(MinCutTest, LargeDirectedGraphs) {
             min_cut.source_partition.size() + min_cut.sink_partition.size(),
             graph.node_count());
 
-        XLS_VLOG(3) << graph.ToString();
-        XLS_VLOG(3) << min_cut.ToString(graph);
+        VLOG(3) << graph.ToString();
+        VLOG(3) << min_cut.ToString(graph);
 
         // Verify that moving a node from source partition to sink partition or
         // vice versa does not decrease the cut cost.

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -33,11 +34,11 @@
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
-/*static*/ SchedulingUnit SchedulingUnit::CreateForSingleFunction(
+/* static */ SchedulingUnit SchedulingUnit::CreateForSingleFunction(
     FunctionBase* f) {
   return SchedulingUnit(f);
 }
-/*static*/ SchedulingUnit SchedulingUnit::CreateForWholePackage(Package* p) {
+/* static */ SchedulingUnit SchedulingUnit::CreateForWholePackage(Package* p) {
   return SchedulingUnit(p);
 }
 
@@ -101,16 +102,16 @@ absl::StatusOr<bool> SchedulingOptimizationFunctionBasePass::RunOnFunctionBase(
     FunctionBase* f, SchedulingUnit* s, const SchedulingPassOptions& options,
     SchedulingPassResults* results) const {
   XLS_RET_CHECK_EQ(f->package(), s->GetPackage());
-  XLS_VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
-                                    long_name(), f->name(),
-                                    results->invocations.size());
-  XLS_VLOG(3) << "Before:";
+  VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
+                                long_name(), f->name(),
+                                results->invocations.size());
+  VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());
 
   XLS_ASSIGN_OR_RETURN(bool changed,
                        RunOnFunctionBaseInternal(f, s, options, results));
 
-  XLS_VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+  VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
   XLS_VLOG_LINES(3, f->DumpIr());
   return changed;
 }

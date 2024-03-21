@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -184,7 +185,7 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   bool changed = false;
   for (FunctionBase* f : p->GetFunctionBases()) {
     if (!reached.contains(f)) {
-      XLS_VLOG(2) << "Removing: " << f->name();
+      VLOG(2) << "Removing: " << f->name();
       XLS_RETURN_IF_ERROR(p->RemoveFunctionBase(f));
       changed = true;
     }
@@ -199,7 +200,7 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
     }
   }
   for (Channel* channel : channels_to_remove) {
-    XLS_VLOG(2) << "Removing channel: " << channel->name();
+    VLOG(2) << "Removing channel: " << channel->name();
     XLS_RETURN_IF_ERROR(p->RemoveChannel(channel));
     changed = true;
   }

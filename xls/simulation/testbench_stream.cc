@@ -157,10 +157,9 @@ TestbenchStreamThread::Create(const TestbenchStream& stream,
 
 void TestbenchStreamThread::RunInputStream(
     TestbenchStreamThread::Producer producer) {
-  XLS_VLOG(1) << absl::StrFormat("RunInputStream [%s]", stream_.name);
+  VLOG(1) << absl::StrFormat("RunInputStream [%s]", stream_.name);
   thread_ = absl::WrapUnique(new Thread([this, producer]() {
-    XLS_VLOG(1) << absl::StrFormat("Thread for stream `%s` started",
-                                   stream_.name);
+    VLOG(1) << absl::StrFormat("Thread for stream `%s` started", stream_.name);
     absl::StatusOr<FileLineWriter> writer =
         FileLineWriter::Create(named_pipe_.path());
     if (!writer.ok()) {
@@ -173,20 +172,19 @@ void TestbenchStreamThread::RunInputStream(
     while (true) {
       std::optional<Bits> bits = producer();
       if (!bits.has_value()) {
-        XLS_VLOG(1) << absl::StrFormat(
+        VLOG(1) << absl::StrFormat(
             "Producer returned std::nullopt for stream `%s`", stream_.name);
         break;
       }
-      XLS_VLOG(1) << absl::StrFormat(
-          "Value produced for stream `%s` : %s", stream_.name,
-          BitsToString(*bits, FormatPreference::kHex));
+      VLOG(1) << absl::StrFormat("Value produced for stream `%s` : %s",
+                                 stream_.name,
+                                 BitsToString(*bits, FormatPreference::kHex));
       CHECK_EQ(bits->bit_count(), stream_.width);
       absl::Status write_status =
           writer->WriteLine(BitsToString(*bits, FormatPreference::kPlainHex));
       if (!write_status.ok()) {
-        XLS_VLOG(1) << absl::StrFormat(
-            "Writing value to stream `%s` failed: %s", stream_.name,
-            write_status.message());
+        VLOG(1) << absl::StrFormat("Writing value to stream `%s` failed: %s",
+                                   stream_.name, write_status.message());
         MaybeSetError(write_status);
         break;
       }
@@ -196,10 +194,9 @@ void TestbenchStreamThread::RunInputStream(
 
 void TestbenchStreamThread::RunOutputStream(
     TestbenchStreamThread::Consumer consumer) {
-  XLS_VLOG(1) << absl::StrFormat("RunOutputStream [%s]", stream_.name);
+  VLOG(1) << absl::StrFormat("RunOutputStream [%s]", stream_.name);
   thread_ = absl::WrapUnique(new Thread([this, consumer]() {
-    XLS_VLOG(1) << absl::StrFormat("Thread for stream `%s` started",
-                                   stream_.name);
+    VLOG(1) << absl::StrFormat("Thread for stream `%s` started", stream_.name);
     absl::StatusOr<FileLineReader> reader =
         FileLineReader::Create(named_pipe_.path());
     if (!reader.ok()) {
@@ -219,14 +216,14 @@ void TestbenchStreamThread::RunOutputStream(
       }
       if (!line->has_value()) {
         // The other end of the pipe has been closed.
-        XLS_VLOG(1) << absl::StrFormat(
+        VLOG(1) << absl::StrFormat(
             "Line reader for stream `%s` returned std::nullopt. Pipe has been "
             "closed.",
             stream_.name);
         break;
       }
-      XLS_VLOG(1) << absl::StrFormat("Read from stream `%s`: %s", stream_.name,
-                                     line->value());
+      VLOG(1) << absl::StrFormat("Read from stream `%s`: %s", stream_.name,
+                                 line->value());
       // TODO(meheff): 2023/11/8 Support capturing X values.
       if (absl::StrContains(line->value(), "x") ||
           absl::StrContains(line->value(), "X")) {
@@ -249,7 +246,7 @@ void TestbenchStreamThread::RunOutputStream(
       }
       absl::Status result = consumer(*value);
       if (!result.ok()) {
-        XLS_VLOG(1) << absl::StrFormat(
+        VLOG(1) << absl::StrFormat(
             "Consumer for stream `%s` returned an error: %s", stream_.name,
             result.message());
         MaybeSetError(result);

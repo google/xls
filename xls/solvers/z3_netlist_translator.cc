@@ -160,7 +160,7 @@ absl::Status NetlistTranslator::Translate() {
   while (!active_wires.empty()) {
     NetRef ref = active_wires.front();
     active_wires.pop_front();
-    XLS_VLOG(2) << "Processing wire " << ref->name();
+    VLOG(2) << "Processing wire " << ref->name();
 
     // Check every connected cell to see if all of its inputs are now
     // available.
@@ -179,7 +179,7 @@ absl::Status NetlistTranslator::Translate() {
 
       cell_inputs[cell].erase(ref);
       if (cell_inputs[cell].empty()) {
-        XLS_VLOG(2) << "Processing cell " << cell->name();
+        VLOG(2) << "Processing cell " << cell->name();
         XLS_RETURN_IF_ERROR(TranslateCell(*cell));
 
         for (const auto& output : cell->outputs()) {
@@ -346,9 +346,8 @@ NetlistTranslator::TranslateStateTable(const Cell& cell) {
       const StateTableSignal signal = kv.second;
       if (signal != StateTableSignal::kHigh &&
           signal != StateTableSignal::kLow) {
-        XLS_VLOG(1) << "Non-high or -low input signal encountered: "
-                    << cell.name() << ":" << input_name << ": "
-                    << static_cast<int>(signal);
+        VLOG(1) << "Non-high or -low input signal encountered: " << cell.name()
+                << ":" << input_name << ": " << static_cast<int>(signal);
         continue;
       }
 

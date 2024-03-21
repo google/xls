@@ -26,6 +26,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -1174,7 +1175,7 @@ absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
         absl::StrFormat("'%s' is not a parametric builtin", builtin_name));
   }
   const std::string& signature = it->second.signature;
-  XLS_VLOG(5) << builtin_name << " => " << signature;
+  VLOG(5) << builtin_name << " => " << signature;
   const auto& lambda_map = GetSignatureToLambdaMap();
   auto it2 = lambda_map.find(signature);
   CHECK(it2 != lambda_map.end()) << signature;

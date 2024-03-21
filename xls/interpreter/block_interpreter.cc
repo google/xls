@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -92,7 +93,7 @@ class BlockInterpreter : public IrInterpreter {
     };
 
     next_reg_state_[reg_write->GetRegister()->name()] = get_next_reg_state();
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Next register value for register %s: %s",
         reg_write->GetRegister()->name(),
         next_reg_state_.at(reg_write->GetRegister()->name()).ToString());

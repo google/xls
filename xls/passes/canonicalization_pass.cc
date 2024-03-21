@@ -193,7 +193,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   Op op = n->op();
   if (OpIsCommutative(op) && n->operand_count() == 2) {
     if (n->operand(0)->Is<Literal>() && !n->operand(1)->Is<Literal>()) {
-      XLS_VLOG(2) << "Replaced 'op(literal, x) with op(x, literal)";
+      VLOG(2) << "Replaced 'op(literal, x) with op(x, literal)";
       XLS_ASSIGN_OR_RETURN(Node * replacement,
                            n->Clone({n->operand(1), n->operand(0)}));
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement));
@@ -205,9 +205,8 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   if (OpIsCompare(n->op()) && n->operand(0)->Is<Literal>() &&
       !n->operand(1)->Is<Literal>()) {
     Op commuted_op = CompareOpCommuted(n->op());
-    XLS_VLOG(2) << absl::StreamFormat(
-        "Replaced %s(literal, x) with %s(x, literal)", OpToString(n->op()),
-        OpToString(commuted_op));
+    VLOG(2) << absl::StreamFormat("Replaced %s(literal, x) with %s(x, literal)",
+                                  OpToString(n->op()), OpToString(commuted_op));
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<CompareOp>(
                              n->operand(1), n->operand(0), commuted_op)
                             .status());
@@ -222,7 +221,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
       n->operand(1)->GetType()->IsBits()) {
     const Bits& literal = n->operand(1)->As<Literal>()->value().bits();
     if (n->op() == Op::kUGe && !literal.IsZero()) {
-      XLS_VLOG(2) << "Replaced Uge(x, K) with Ugt(x, K - 1)";
+      VLOG(2) << "Replaced Uge(x, K) with Ugt(x, K - 1)";
       Bits k_minus_one = bits_ops::Decrement(literal);
       XLS_ASSIGN_OR_RETURN(
           Literal * new_literal,
@@ -233,7 +232,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
       return true;
     }
     if (n->op() == Op::kULe && !literal.IsAllOnes()) {
-      XLS_VLOG(2) << "Replaced ULe(x, literal) with Ult(x, literal + 1)";
+      VLOG(2) << "Replaced ULe(x, literal) with Ult(x, literal + 1)";
       Bits k_plus_one = bits_ops::Increment(literal);
       XLS_ASSIGN_OR_RETURN(
           Literal * new_literal,
@@ -260,7 +259,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<BinOp>(n->operand(0), neg_rhs, Op::kAdd)
             .status());
-    XLS_VLOG(2) << "Replaced 'sub(lhs, rhs)' with 'add(lhs, -rhs)'";
+    VLOG(2) << "Replaced 'sub(lhs, rhs)' with 'add(lhs, -rhs)'";
     return true;
   }
 

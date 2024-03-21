@@ -18,6 +18,7 @@
 #include <utility>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -95,7 +96,7 @@ bool BddQueryEngine::AtMostOneTrue(
       result =
           bdd().Or(result, bdd().And(GetBddNode(bits[i]), GetBddNode(bits[j])));
       if (ExceedsPathLimit(result)) {
-        XLS_VLOG(3) << "AtMostOneTrue exceeded path limit of " << path_limit_;
+        VLOG(3) << "AtMostOneTrue exceeded path limit of " << path_limit_;
         return false;
       }
     }
@@ -113,7 +114,7 @@ bool BddQueryEngine::AtLeastOneTrue(
     }
     result = bdd().Or(result, GetBddNode(location));
     if (ExceedsPathLimit(result)) {
-      XLS_VLOG(3) << "AtLeastOneTrue exceeded path limit of " << path_limit_;
+      VLOG(3) << "AtLeastOneTrue exceeded path limit of " << path_limit_;
       return false;
     }
   }

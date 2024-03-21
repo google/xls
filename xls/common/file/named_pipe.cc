@@ -46,18 +46,18 @@ absl::StatusOr<std::optional<std::string>> FileLineReader::ReadLine() {
   int c;
   while ((c = fgetc(file_.get())) != EOF) {
     if (static_cast<char>(c) == '\n') {
-      XLS_VLOG(1) << "ReadLine: " << result;
+      VLOG(1) << "ReadLine: " << result;
       return result;
     }
     result += static_cast<char>(c);
   }
   if (ferror(file_.get())) {
-    XLS_VLOG(1) << "Error reading from file";
+    VLOG(1) << "Error reading from file";
     return absl::InternalError(absl::StrFormat(
         "Error reading line from file %s", file_.path().string()));
   }
   // At end-of-file.
-  XLS_VLOG(1) << "ReadLine at EOF";
+  VLOG(1) << "ReadLine at EOF";
   return std::nullopt;
 }
 
@@ -68,7 +68,7 @@ absl::StatusOr<std::optional<std::string>> FileLineReader::ReadLine() {
 }
 
 absl::Status FileLineWriter::WriteLine(std::string_view line) {
-  XLS_VLOG(1) << "WriteLine: " << line;
+  VLOG(1) << "WriteLine: " << line;
   if (!line.empty()) {
     size_t written = fwrite(line.data(), line.size(), 1, file_.get());
     if (written == 0) {

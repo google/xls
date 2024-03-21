@@ -14,10 +14,11 @@
 
 #include "xls/common/logging/log_lines.h"
 
+#include <cstddef>
 #include <string_view>
 
+#include "absl/base/log_severity.h"
 #include "absl/log/log.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls {
 namespace logging {

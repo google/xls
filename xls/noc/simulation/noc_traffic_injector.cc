@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -126,9 +127,9 @@ absl::Status MatchFlowToSourceAndRunAction(
 
         run_action(i, j);
 
-        XLS_VLOG(1) << absl::StrFormat("Mapped flow %s %s to nc %x index %d\n",
-                                       flow.GetName(), port_name,
-                                       network_components[j].AsUInt64(), j);
+        VLOG(1) << absl::StrFormat("Mapped flow %s %s to nc %x index %d\n",
+                                   flow.GetName(), port_name,
+                                   network_components[j].AsUInt64(), j);
         break;
       }
     }
@@ -253,8 +254,8 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToVCs(
     }
 
     injector.flows_index_to_vc_index_map_[i] = vc_index;
-    XLS_VLOG(1) << absl::StrFormat("Mapped flow %s vc %s to vc index %d\n",
-                                   flow.GetName(), flow_vc, vc_index);
+    VLOG(1) << absl::StrFormat("Mapped flow %s vc %s to vc index %d\n",
+                               flow.GetName(), flow_vc, vc_index);
   }
 
   return absl::OkStatus();

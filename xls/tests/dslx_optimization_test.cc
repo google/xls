@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -95,7 +96,7 @@ fn main(i: u32) -> (bool, u32) {
                            dslx::CallingConvention::kTypical));
   XLS_ASSERT_OK(package->SetTopByName(mangled_name));
   Function* entry = package->GetTop().value()->AsFunctionOrDie();
-  XLS_VLOG(1) << package->DumpIr();
+  VLOG(1) << package->DumpIr();
   // Verify that no ArrayIndex or ArrayUpdate operations exist in the IR.
   // TODO(b/159035667): The optimized IR is much more complicated than it should
   // be. When optimizations have been added which simplify the IR, add stricter

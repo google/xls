@@ -27,6 +27,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -299,7 +300,7 @@ ExtractSignalValues(std::string_view stdout_str) {
     int64_t instance;
     XLS_RET_CHECK(absl::SimpleAtoi(instance_str, &instance));
 
-    XLS_VLOG(1) << absl::StreamFormat(
+    VLOG(1) << absl::StreamFormat(
         "Found output `%s` width %d value %s instance #%d", output_name, width,
         output_value, instance);
 
@@ -673,7 +674,7 @@ std::vector<std::string> ModuleTestbench::GatherExpectedTraces() const {
 }
 
 absl::Status ModuleTestbench::Run() const {
-  XLS_VLOG(1) << "ModuleTestbench::Run()";
+  VLOG(1) << "ModuleTestbench::Run()";
   if (!streams_.empty()) {
     return absl::InvalidArgumentError(
         "Testbenches with streaming IO should be run with RunWithStreamingIO");
@@ -684,8 +685,8 @@ absl::Status ModuleTestbench::Run() const {
   XLS_ASSIGN_OR_RETURN(stdout_stderr,
                        simulator_->Run(verilog_text, file_type_,
                                        /*macro_definitions=*/{}, includes_));
-  XLS_VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
-  XLS_VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;
+  VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
+  VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;
   const std::string& stdout_str = stdout_stderr.first;
   return CaptureOutputsAndCheckExpectations(stdout_str);
 }
@@ -695,7 +696,7 @@ absl::Status ModuleTestbench::RunWithStreamingIo(
         input_producers,
     const absl::flat_hash_map<std::string, TestbenchStreamThread::Consumer>&
         output_consumers) const {
-  XLS_VLOG(1) << "ModuleTestbench::RunWithStreamingIo()";
+  VLOG(1) << "ModuleTestbench::RunWithStreamingIo()";
 
   // Verify all inputs and output consumer/producers are there.
   for (const std::unique_ptr<TestbenchStream>& stream : streams_) {
@@ -739,20 +740,20 @@ absl::Status ModuleTestbench::RunWithStreamingIo(
         stream->path_macro_name,
         absl::StrFormat("\"%s\"", stream_path.string())});
   }
-  XLS_VLOG(1) << "Starting simulation.";
+  VLOG(1) << "Starting simulation.";
   std::pair<std::string, std::string> stdout_stderr;
   XLS_ASSIGN_OR_RETURN(
       stdout_stderr,
       simulator_->Run(verilog_text, file_type_, macro_definitions, includes_));
 
-  XLS_VLOG(1) << "Simulation done.";
+  VLOG(1) << "Simulation done.";
 
   for (TestbenchStreamThread& thread : stream_threads) {
     XLS_RETURN_IF_ERROR(thread.Join());
   }
 
-  XLS_VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
-  XLS_VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;
+  VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
+  VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;
 
   const std::string& stdout_str = stdout_stderr.first;
   return CaptureOutputsAndCheckExpectations(stdout_str);

@@ -418,9 +418,9 @@ StreamingJitBlockEvaluator::EvaluateChannelizedSequentialBlock(
     }
 
     if (VLOG_IS_ON(3)) {
-      XLS_VLOG(3) << absl::StrFormat("Inputs Cycle %d", cycle);
+      VLOG(3) << absl::StrFormat("Inputs Cycle %d", cycle);
       for (const auto& [name, val] : input_set) {
-        XLS_VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());
+        VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());
       }
     }
 
@@ -439,9 +439,9 @@ StreamingJitBlockEvaluator::EvaluateChannelizedSequentialBlock(
     }
 
     if (VLOG_IS_ON(3)) {
-      XLS_VLOG(3) << absl::StrFormat("Outputs Cycle %d", cycle);
+      VLOG(3) << absl::StrFormat("Outputs Cycle %d", cycle);
       for (const auto& [name, val] : outputs) {
-        XLS_VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());
+        VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());
       }
     }
 

@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -265,7 +266,7 @@ class PathGraph {
       cache[k] = *best;
     }
 
-    XLS_VLOG(3) << "cache = " << CacheToString(cache) << "\n";
+    VLOG(3) << "cache = " << CacheToString(cache) << "\n";
 
     CacheItem optimal = cache[PathNodeId(NumNodes() - 1)];
     std::sort(optimal.cut_edges.begin(), optimal.cut_edges.end());

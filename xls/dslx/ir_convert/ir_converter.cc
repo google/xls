@@ -34,6 +34,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -242,13 +243,13 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                               ImportData* import_data,
                               const ConvertOptions& options,
                               PackageData& package_data) {
-  XLS_VLOG(3) << "Conversion order: ["
-              << absl::StrJoin(
-                     order, "\n\t",
-                     [](std::string* out, const ConversionRecord& record) {
-                       absl::StrAppend(out, record.ToString());
-                     })
-              << "]";
+  VLOG(3) << "Conversion order: ["
+          << absl::StrJoin(
+                 order, "\n\t",
+                 [](std::string* out, const ConversionRecord& record) {
+                   absl::StrAppend(out, record.ToString());
+                 })
+          << "]";
   // We need to convert Functions before procs: Channels are declared inside
   // Functions, but exist as "global" entities in the IR. By processing
   // Functions first, we can collect the declarations of these global data so we
@@ -307,12 +308,12 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   }
 
   for (const ConversionRecord& record : order) {
-    XLS_VLOG(3) << "Converting to IR: " << record.ToString();
+    VLOG(3) << "Converting to IR: " << record.ToString();
     XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
         package_data, record, import_data, &proc_data, options));
   }
 
-  XLS_VLOG(3) << "Verifying converted package";
+  VLOG(3) << "Verifying converted package";
   if (options.verify_ir) {
     XLS_RETURN_IF_ERROR(VerifyPackage(package_data.package));
   }

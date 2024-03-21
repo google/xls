@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -325,10 +326,10 @@ class BlockGenerator {
     XLS_ASSIGN_OR_RETURN(std::optional<ResetProto> reset_proto,
                          GetBlockResetProto(block));
     if (reset_proto.has_value()) {
-      XLS_VLOG(5) << absl::StreamFormat("Reset proto for %s: %s", block->name(),
-                                        reset_proto->DebugString());
+      VLOG(5) << absl::StreamFormat("Reset proto for %s: %s", block->name(),
+                                    reset_proto->DebugString());
     } else {
-      XLS_VLOG(5) << absl::StreamFormat("No reset proto for %s", block->name());
+      VLOG(5) << absl::StreamFormat("No reset proto for %s", block->name());
     }
     std::optional<std::string_view> clock_name;
     if (block->GetClockPort().has_value()) {
@@ -367,7 +368,7 @@ class BlockGenerator {
       XLS_ASSIGN_OR_RETURN(std::vector<Stage> stages,
                            SplitBlockIntoStages(block_));
       for (int64_t stage_num = 0; stage_num < stages.size(); ++stage_num) {
-        XLS_VLOG(2) << "Emitting stage: " << stage_num;
+        VLOG(2) << "Emitting stage: " << stage_num;
         const Stage& stage = stages.at(stage_num);
         mb_.NewDeclarationAndAssignmentSections();
         XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_reads, stage_num));
@@ -455,7 +456,7 @@ class BlockGenerator {
   absl::Status EmitLogic(absl::Span<Node* const> nodes,
                          std::optional<int64_t> stage = std::nullopt) {
     for (Node* node : nodes) {
-      XLS_VLOG(3) << "Emitting logic for: " << node->GetName();
+      VLOG(3) << "Emitting logic for: " << node->GetName();
 
       // TODO(google/xls#653): support per-node overrides?
       std::optional<OpOverride*> op_override =
@@ -656,7 +657,7 @@ class BlockGenerator {
   absl::Status DeclareRegisters(absl::Span<Register* const> registers) {
     const std::optional<verilog::Reset>& reset = mb_.reset();
     for (Register* reg : registers) {
-      XLS_VLOG(3) << "Declaring register " << reg->name();
+      VLOG(3) << "Declaring register " << reg->name();
       Expression* reset_expr = nullptr;
       if (reg->reset().has_value()) {
         XLS_RET_CHECK(reset.has_value());
@@ -898,7 +899,7 @@ absl::StatusOr<std::vector<Block*>> GatherInstantiatedBlocks(Block* top) {
 absl::StatusOr<std::string> GenerateVerilog(Block* top,
                                             const CodegenOptions& options,
                                             VerilogLineMap* verilog_line_map) {
-  XLS_VLOG(2) << absl::StreamFormat(
+  VLOG(2) << absl::StreamFormat(
       "Generating Verilog for packge with with top level block `%s`:",
       top->name());
   XLS_VLOG_LINES(2, top->DumpIr());
@@ -942,7 +943,7 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
     }
   }
 
-  XLS_VLOG(2) << "Verilog output:";
+  VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);
 
   return text;

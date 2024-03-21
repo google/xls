@@ -429,7 +429,7 @@ absl::StatusOr<TestResultData> ParseAndProve(
   }
 
   Function* f = it->second->f();
-  XLS_VLOG(1) << "Found quickcheck function: " << f->identifier();
+  VLOG(1) << "Found quickcheck function: " << f->identifier();
 
   Package package(entry_module->name());
 
@@ -448,7 +448,7 @@ absl::StatusOr<TestResultData> ParseAndProve(
   XLS_ASSIGN_OR_RETURN(xls::Function * ir_function,
                        package.GetFunction(ir_function_name));
 
-  XLS_VLOG(1) << "Found IR function: " << ir_function->name();
+  VLOG(1) << "Found IR function: " << ir_function->name();
 
   XLS_ASSIGN_OR_RETURN(
       bool proven,
@@ -456,7 +456,7 @@ absl::StatusOr<TestResultData> ParseAndProve(
                             solvers::z3::Predicate::NotEqualToZero(),
                             absl::InfiniteDuration()));
 
-  XLS_VLOG(1) << "Proven? " << (proven ? "true" : "false");
+  VLOG(1) << "Proven? " << (proven ? "true" : "false");
 
   if (proven) {
     result.Finish(TestResult::kAllPassed, absl::Now() - start);
@@ -478,8 +478,8 @@ absl::StatusOr<TestResultData> ParseAndTest(
                           std::string_view test_name, const Pos& start_pos,
                           const absl::Time& start,
                           const absl::Duration& duration, bool is_quickcheck) {
-    XLS_VLOG(1) << "Handling error; status: " << status
-                << " test_name: " << test_name;
+    VLOG(1) << "Handling error; status: " << status
+            << " test_name: " << test_name;
     absl::StatusOr<PositionalErrorData> data_or =
         GetPositionalErrorData(status);
 

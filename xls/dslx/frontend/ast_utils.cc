@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -443,7 +444,7 @@ const Number* IsBareNumber(const AstNode* node, bool* is_boolean) {
 
 bool ContainedWithinFunction(const Invocation& invocation,
                              const Function& caller) {
-  XLS_VLOG(10) << absl::StreamFormat(
+  VLOG(10) << absl::StreamFormat(
       "Checking whether invocation `%s` @ %v is contained within caller `%s` @ "
       "%v",
       invocation.ToString(), invocation.span(), caller.identifier(),
@@ -452,20 +453,19 @@ bool ContainedWithinFunction(const Invocation& invocation,
   CHECK(parent != nullptr) << absl::StreamFormat(
       "invocation node had no parent set: `%s` @ %v", invocation.ToString(),
       invocation.span());
-  XLS_VLOG(10) << absl::StreamFormat("node `%s` has parent: `%s`",
-                                     invocation.ToString(), parent->ToString());
+  VLOG(10) << absl::StreamFormat("node `%s` has parent: `%s`",
+                                 invocation.ToString(), parent->ToString());
 
   while (parent->kind() != AstNodeKind::kFunction) {
     const AstNode* new_parent = parent->parent();
     CHECK(new_parent != nullptr);
-    XLS_VLOG(10) << absl::StreamFormat("transitive; node `%s` has parent: `%s`",
-                                       parent->ToString(),
-                                       new_parent->ToString());
+    VLOG(10) << absl::StreamFormat("transitive; node `%s` has parent: `%s`",
+                                   parent->ToString(), new_parent->ToString());
     parent = new_parent;
   }
 
   bool contained = &caller == parent;
-  XLS_VLOG(10) << absl::StreamFormat(
+  VLOG(10) << absl::StreamFormat(
       "caller: %p vs found parent: %p; invocation contained? %s", &caller,
       parent, contained ? "true" : "false");
 

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -87,9 +88,9 @@ static absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
   XLS_ASSIGN_OR_RETURN(Block xls_ciphertext, XlsEncrypt(key, key_bytes, input));
   *xls_encrypt_dur += absl::Now() - start_time;
 
-  XLS_VLOG(2) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
-              << '\n';
-  XLS_VLOG(2) << "XLS ciphertext: " << FormatBlock(xls_ciphertext) << '\n';
+  VLOG(2) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
+          << '\n';
+  VLOG(2) << "XLS ciphertext: " << FormatBlock(xls_ciphertext) << '\n';
 
   // Verify the ciphertexts match, to ensure we're actually doing the encryption
   // properly.
@@ -105,7 +106,7 @@ static absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
   XLS_ASSIGN_OR_RETURN(Block xls_decrypted, XlsDecrypt(key, key_bytes, input));
   *xls_decrypt_dur += absl::Now() - start_time;
 
-  XLS_VLOG(2) << "Decrypted plaintext: " << FormatBlock(xls_decrypted) << '\n';
+  VLOG(2) << "Decrypted plaintext: " << FormatBlock(xls_decrypted) << '\n';
 
   // We can just compare the XLS result to the input to verify we're decrypting
   // right.

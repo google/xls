@@ -130,8 +130,8 @@ absl::Status Lec::Init() {
     // up the corresponding netlist bits. The netlist outputs do not contain
     // references to bits that are actually unused, instead having nullptr in
     // those indices.
-    XLS_VLOG(3) << "Stage output [IR] node: " << node->GetName()
-                << " : width: " << node->GetType()->GetFlatBitCount();
+    VLOG(3) << "Stage output [IR] node: " << node->GetName()
+            << " : width: " << node->GetType()->GetFlatBitCount();
     std::vector<Z3_ast> ir_bits = ir_translator_->FlattenValue(
         node->GetType(), ir_translator_->GetTranslation(node),
         /*little_endian=*/true);
@@ -141,8 +141,7 @@ absl::Status Lec::Init() {
 
     for (int i = 0; i < ir_bits.size(); i++) {
       if (netlist_bits[i] == nullptr) {
-        XLS_VLOG(3) << "  Skipping " << node->GetName() << " IR output bit "
-                    << i;
+        VLOG(3) << "  Skipping " << node->GetName() << " IR output bit " << i;
         ir_outputs_.push_back(x);
         netlist_outputs_.push_back(x);
       } else {
@@ -363,7 +362,7 @@ absl::flat_hash_map<std::string, Z3_ast> Lec::FlattenNetlistInputs() {
       // Get the cell...
       auto status_or_cell = module_->ResolveCell(name);
       if (!status_or_cell.ok()) {
-        XLS_VLOG(3) << "Could not resolve input cell: " << name << "; skipping";
+        VLOG(3) << "Could not resolve input cell: " << name << "; skipping";
         LOG(INFO) << "Could not resolve input cell: " << name << "; skipping";
         continue;
       }
@@ -461,7 +460,7 @@ std::pair<std::string, std::string> Lec::GetComparisonStrings(
 
   auto status_or_nl_bits = GetNetlistZ3ForIr(node);
   if (!status_or_nl_bits.ok()) {
-    XLS_VLOG(2) << "Node " << node->GetName() << " not present in netlist.";
+    VLOG(2) << "Node " << node->GetName() << " not present in netlist.";
     return std::make_pair("", "");
   }
   std::vector<Z3_ast> nl_bits = status_or_nl_bits.value();

@@ -18,6 +18,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/logging/logging.h"
@@ -72,8 +73,7 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
       if (std::holds_alternative<InputPort*>(port)) {
         InputPort* input_port = std::get<InputPort*>(port);
         if (input_port->GetType()->GetFlatBitCount() == 0) {
-          XLS_VLOG(4) << "Removing zero-width input port "
-                      << input_port->name();
+          VLOG(4) << "Removing zero-width input port " << input_port->name();
           XLS_RETURN_IF_ERROR(input_port
                                   ->ReplaceUsesWithNew<xls::Literal>(
                                       ZeroOfType(input_port->GetType()))
@@ -84,8 +84,7 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
       } else if (std::holds_alternative<OutputPort*>(port)) {
         OutputPort* output_port = std::get<OutputPort*>(port);
         if (output_port->operand(0)->GetType()->GetFlatBitCount() == 0) {
-          XLS_VLOG(4) << "Removing zero-width output port "
-                      << output_port->name();
+          VLOG(4) << "Removing zero-width output port " << output_port->name();
           XLS_RETURN_IF_ERROR(block->RemoveNode(output_port));
           changed = true;
         }

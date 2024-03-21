@@ -27,6 +27,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -1277,7 +1278,7 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(unit.top_block, options));
 
-  XLS_VLOG(3) << "Verilog:";
+  VLOG(3) << "Verilog:";
   XLS_VLOG_LINES(3, verilog);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,

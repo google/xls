@@ -51,7 +51,7 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
   int64_t bits_sent = 0;
 
   for (cycle = 0; cycle < 10'000'000; ++cycle) {
-    XLS_VLOG(2) << "Cycle " << cycle << ":";
+    VLOG(2) << "Cycle " << cycle << ":";
 
     std::vector<DataPacket> packets = model.GetNewCyclePackets(cycle);
 
@@ -59,7 +59,7 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
       EXPECT_EQ(p.vc, 1);
       EXPECT_EQ(p.source_index, 10);
       EXPECT_EQ(p.destination_index, 3);
-      XLS_VLOG(2) << "  -  " << p.ToString();
+      VLOG(2) << "  -  " << p.ToString();
 
       bits_sent += p.data.bit_count();
     }
@@ -71,10 +71,10 @@ TEST(TrafficModelsTest, GeneralizedGeometricModelTest) {
   double expected_traffic = model.ExpectedTrafficRateInMiBps(500);
   double measured_traffic = monitor.MeasuredTrafficRateInMiBps(500);
 
-  XLS_VLOG(1) << "Packet " << num_packets;
-  XLS_VLOG(1) << "Cycles " << cycle;
-  XLS_VLOG(1) << "Expected Traffic " << expected_traffic;
-  XLS_VLOG(1) << "Measured Traffic " << measured_traffic;
+  VLOG(1) << "Packet " << num_packets;
+  VLOG(1) << "Cycles " << cycle;
+  VLOG(1) << "Expected Traffic " << expected_traffic;
+  VLOG(1) << "Measured Traffic " << measured_traffic;
 
   EXPECT_EQ(bits_sent, monitor.MeasuredBitsSent());
   EXPECT_EQ(num_packets, monitor.MeasuredPacketCount());
@@ -128,7 +128,7 @@ TEST(TrafficModelsTest, ReplayModelTest) {
   int64_t bits_sent = 0;
 
   for (cycle = 0; cycle < 5; ++cycle) {
-    XLS_VLOG(2) << "Cycle " << cycle << ":";
+    VLOG(2) << "Cycle " << cycle << ":";
 
     std::vector<DataPacket> packets = model.GetNewCyclePackets(cycle);
 
@@ -136,7 +136,7 @@ TEST(TrafficModelsTest, ReplayModelTest) {
       EXPECT_EQ(p.vc, 1);
       EXPECT_EQ(p.source_index, 10);
       EXPECT_EQ(p.destination_index, 3);
-      XLS_VLOG(2) << "  -  " << p.ToString();
+      VLOG(2) << "  -  " << p.ToString();
 
       bits_sent += p.data.bit_count();
     }
@@ -148,10 +148,10 @@ TEST(TrafficModelsTest, ReplayModelTest) {
   double expected_traffic = model.ExpectedTrafficRateInMiBps(500);
   double measured_traffic = monitor.MeasuredTrafficRateInMiBps(500);
 
-  XLS_VLOG(1) << "Packet " << num_packets;
-  XLS_VLOG(1) << "Cycles " << cycle;
-  XLS_VLOG(1) << "Expected Traffic " << expected_traffic;
-  XLS_VLOG(1) << "Measured Traffic " << measured_traffic;
+  VLOG(1) << "Packet " << num_packets;
+  VLOG(1) << "Cycles " << cycle;
+  VLOG(1) << "Expected Traffic " << expected_traffic;
+  VLOG(1) << "Measured Traffic " << measured_traffic;
 
   EXPECT_EQ(bits_sent, monitor.MeasuredBitsSent());
   EXPECT_EQ(num_packets, monitor.MeasuredPacketCount());

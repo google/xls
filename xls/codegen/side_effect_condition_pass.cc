@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -160,14 +161,14 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
       if (!should_be_rewritten) {
         continue;
       }
-      XLS_VLOG(3) << absl::StreamFormat("Rewriting condition for %v", *node);
+      VLOG(3) << absl::StreamFormat("Rewriting condition for %v", *node);
       auto itr =
           metadata.streaming_io_and_pipeline.node_to_stage_map.find(node);
       XLS_RET_CHECK(itr !=
                     metadata.streaming_io_and_pipeline.node_to_stage_map.end());
       int64_t condition_stage = itr->second;
-      XLS_VLOG(5) << absl::StreamFormat("Condition is in stage %d.",
-                                        condition_stage);
+      VLOG(5) << absl::StreamFormat("Condition is in stage %d.",
+                                    condition_stage);
       std::optional<Node*> stage_guard = stage_guards[condition_stage];
       XLS_RET_CHECK(stage_guard.has_value()) << absl::StreamFormat(
           "Stage guard not found for stage %d.", condition_stage);

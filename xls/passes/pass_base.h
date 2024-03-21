@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -130,9 +131,9 @@ class PassBase {
   // fixed point computation.
   virtual absl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
                                    ResultsT* results) const {
-    XLS_VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
-                                      results->invocations.size());
-    XLS_VLOG(3) << "Before:";
+    VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
+                                  results->invocations.size());
+    VLOG(3) << "Before:";
     XLS_VLOG_LINES(3, ir->DumpIr());
     int64_t ir_count_before = ir->GetNodeCount();
 
@@ -141,7 +142,7 @@ class PassBase {
                            << ": " << long_name() << " [short: " << short_name()
                            << "]");
 
-    XLS_VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
     XLS_VLOG_LINES(3, ir->DumpIr());
     // Perform a fast check nothing seems to have changed if we aren't told it
     // has.
@@ -339,7 +340,7 @@ class FixedPointCompoundPassBase
       local_changed = compound_result.changed();
       aggregate_result.AccumulateCompoundPassResult(compound_result);
     }
-    XLS_VLOG(1) << absl::StreamFormat(
+    VLOG(1) << absl::StreamFormat(
         "Fixed point compound pass %s iterated %d times.", this->long_name(),
         iteration_count);
     XLS_VLOG_LINES(2, aggregate_result.ToString());
@@ -353,9 +354,9 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     IrT* ir, const OptionsT& options, ResultsT* results,
     std::string_view top_level_name,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
-  XLS_VLOG(1) << "Running " << this->short_name()
-              << " compound pass on package " << ir->name();
-  XLS_VLOG(2) << "Start of compound pass " << this->short_name() << ":";
+  VLOG(1) << "Running " << this->short_name() << " compound pass on package "
+          << ir->name();
+  VLOG(2) << "Start of compound pass " << this->short_name() << ":";
   XLS_VLOG_LINES(5, ir->DumpIr());
 
   // Invariant checkers may be passed in from parent compound passes or
@@ -381,9 +382,9 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
   CompoundPassResult aggregate_result;
   bool changed = false;
   for (const auto& pass : passes_) {
-    XLS_VLOG(1) << absl::StreamFormat("Running %s (%s, #%d) pass on package %s",
-                                      pass->long_name(), pass->short_name(),
-                                      results->invocations.size(), ir->name());
+    VLOG(1) << absl::StreamFormat("Running %s (%s, #%d) pass on package %s",
+                                  pass->long_name(), pass->short_name(),
+                                  results->invocations.size(), ir->name());
 
     TransformMetrics before_metrics;
     if (VLOG_IS_ON(1)) {
@@ -392,8 +393,8 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
 
     if (!pass->IsCompound() && options.bisect_limit &&
         results->invocations.size() >= options.bisect_limit) {
-      XLS_VLOG(1) << "Skipping pass " << pass->short_name()
-                  << " due to hitting bisect limit.";
+      VLOG(1) << "Skipping pass " << pass->short_name()
+              << " due to hitting bisect limit.";
       continue;
     }
 
@@ -401,7 +402,7 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
                      [&](const std::string& name) {
                        return pass->short_name() == name;
                      }) != options.skip_passes.end()) {
-      XLS_VLOG(1) << "Skipping pass. Contained in skip_passes option.";
+      VLOG(1) << "Skipping pass. Contained in skip_passes option.";
       continue;
     }
 
@@ -443,12 +444,12 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
 #endif
     changed = changed || pass_changed;
     TransformMetrics pass_metrics = ir->transform_metrics() - before_metrics;
-    XLS_VLOG(1) << absl::StreamFormat(
+    VLOG(1) << absl::StreamFormat(
         "[elapsed %s] Pass %s %s.", FormatDuration(duration),
         pass->short_name(),
         (pass_changed ? "changed IR" : "did not change IR"));
     if (pass_changed) {
-      XLS_VLOG(1) << absl::StrFormat("Metrics: %s", pass_metrics.ToString());
+      VLOG(1) << absl::StrFormat("Metrics: %s", pass_metrics.ToString());
     }
     if (!pass->IsCompound()) {
       results->invocations.push_back(
@@ -470,11 +471,11 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
       XLS_RETURN_IF_ERROR(run_invariant_checkers(
           absl::StrFormat("after '%s' pass, dynamic pass #%d",
                           pass->long_name(), results->invocations.size() - 1)));
-      XLS_VLOG(1) << absl::StreamFormat(
+      VLOG(1) << absl::StreamFormat(
           "Ran invariant checkers [elapsed %s]",
           FormatDuration(absl::Now() - checker_start));
     }
-    XLS_VLOG(5) << "After " << pass->long_name() << ":";
+    VLOG(5) << "After " << pass->long_name() << ":";
     XLS_VLOG_LINES(5, ir->DumpIr());
   }
 

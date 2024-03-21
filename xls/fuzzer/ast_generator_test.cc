@@ -209,13 +209,13 @@ TEST(AstGeneratorTest, GeneratesZeroWidthValues) {
   constexpr int64_t kNumSamples = 5000;
   for (int64_t i = 0; i < kNumSamples; ++i) {
     AstGenerator g(options, rng);
-    XLS_VLOG(1) << "Generating sample: " << i;
+    VLOG(1) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", module_name));
     std::string text = module.module->ToString();
     if (absl::StrContains(text, "uN[0]") || absl::StrContains(text, "sN[0]")) {
-      XLS_VLOG(1) << absl::StrFormat("Saw zero-width type after %d samples", i);
+      VLOG(1) << absl::StrFormat("Saw zero-width type after %d samples", i);
       saw_zero_width = true;
     }
   }

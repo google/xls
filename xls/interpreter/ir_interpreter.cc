@@ -494,8 +494,8 @@ absl::Status IrInterpreter::HandleArrayConcat(ArrayConcat* concat) {
 }
 
 absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
-  XLS_VLOG(2) << "Checking assert " << assert_op->ToString();
-  XLS_VLOG(2) << "Condition is " << ResolveAsBool(assert_op->condition());
+  VLOG(2) << "Checking assert " << assert_op->ToString();
+  VLOG(2) << "Condition is " << ResolveAsBool(assert_op->condition());
   if (!ResolveAsBool(assert_op->condition())) {
     GetInterpreterEvents().assert_msgs.push_back(assert_op->message());
   }
@@ -538,7 +538,7 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
       return make_error("Too many operands");
     }
 
-    XLS_VLOG(3) << "Trace output: " << trace_output;
+    VLOG(3) << "Trace output: " << trace_output;
 
     GetInterpreterEvents().trace_msgs.push_back(TraceMessage{
         .message = trace_output,
@@ -647,7 +647,7 @@ absl::Status IrInterpreter::HandleUMul(ArithOp* mul) {
 
 absl::Status IrInterpreter::HandleSMulp(PartialProductOp* mul) {
   const int64_t mul_width = mul->width();
-  XLS_VLOG(1) << "mul_width = " << mul_width << "\n";
+  VLOG(1) << "mul_width = " << mul_width << "\n";
   Bits result = bits_ops::SMul(ResolveAsBits(mul->operand(0)),
                                ResolveAsBits(mul->operand(1)));
 
@@ -664,7 +664,7 @@ absl::Status IrInterpreter::HandleSMulp(PartialProductOp* mul) {
 
 absl::Status IrInterpreter::HandleUMulp(PartialProductOp* mul) {
   const int64_t mul_width = mul->width();
-  XLS_VLOG(1) << "mul_width = " << mul_width << "\n";
+  VLOG(1) << "mul_width = " << mul_width << "\n";
   Bits result = bits_ops::UMul(ResolveAsBits(mul->operand(0)),
                                ResolveAsBits(mul->operand(1)));
   Bits offset = MulpOffsetForSimulation(mul_width, /*shift_size=*/2);
@@ -867,15 +867,15 @@ absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
   if (VLOG_IS_ON(4) &&
       std::all_of(node->operands().begin(), node->operands().end(),
                   [this](Node* o) { return NodeValuesMap().contains(o); })) {
-    XLS_VLOG(4) << absl::StreamFormat("%s operands:", node->GetName());
+    VLOG(4) << absl::StreamFormat("%s operands:", node->GetName());
     for (int64_t i = 0; i < node->operand_count(); ++i) {
-      XLS_VLOG(4) << absl::StreamFormat(
+      VLOG(4) << absl::StreamFormat(
           "  operand %d (%s): %s", i, node->operand(i)->GetName(),
           ResolveAsValue(node->operand(i)).ToString());
     }
   }
-  XLS_VLOG(3) << absl::StreamFormat("Result of %s: %s", node->ToString(),
-                                    result.ToString());
+  VLOG(3) << absl::StreamFormat("Result of %s: %s", node->ToString(),
+                                result.ToString());
 
   XLS_RET_CHECK(!NodeValuesMap().contains(node));
   if (!ValueConformsToType(result, node->GetType())) {

@@ -83,8 +83,8 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
 absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
     const absl::flat_hash_map<ChannelInstance*, int64_t>& output_counts,
     std::optional<int64_t> max_ticks) {
-  XLS_VLOG(3) << absl::StreamFormat("TickUntilOutput on package %s",
-                                    package()->name());
+  VLOG(3) << absl::StreamFormat("TickUntilOutput on package %s",
+                                package()->name());
   // Create a deterministically sorted vector of the output channels for
   // deterministic behavior and error messages.
   std::vector<ChannelInstance*> output_channels;
@@ -95,11 +95,10 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
   }
 
   if (VLOG_IS_ON(3)) {
-    XLS_VLOG(3) << "Expected outputs produced for each channel instance:";
+    VLOG(3) << "Expected outputs produced for each channel instance:";
     for (ChannelInstance* channel_instance : output_channels) {
-      XLS_VLOG(3) << absl::StreamFormat("  %s : %d",
-                                        channel_instance->ToString(),
-                                        output_counts.at(channel_instance));
+      VLOG(3) << absl::StreamFormat("  %s : %d", channel_instance->ToString(),
+                                    output_counts.at(channel_instance));
     }
   }
 
@@ -141,8 +140,8 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilOutput(
 
 absl::StatusOr<int64_t> ProcRuntime::TickUntilBlocked(
     std::optional<int64_t> max_ticks) {
-  XLS_VLOG(3) << absl::StreamFormat("TickUntilBlocked on package %s",
-                                    package()->name());
+  VLOG(3) << absl::StreamFormat("TickUntilBlocked on package %s",
+                                package()->name());
   int64_t ticks = 0;
   while (!max_ticks.has_value() || ticks < max_ticks.value()) {
     XLS_ASSIGN_OR_RETURN(NetworkTickResult result, TickInternal());

@@ -195,8 +195,8 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
 
 std::string AstGenerator::GenSym() {
   std::string result = absl::StrCat("x", next_name_index_++);
-  XLS_VLOG(10) << "generated fresh symbol: " << result << " @ "
-               << GetSymbolizedStackTraceAsString();
+  VLOG(10) << "generated fresh symbol: " << result << " @ "
+           << GetSymbolizedStackTraceAsString();
   return result;
 }
 

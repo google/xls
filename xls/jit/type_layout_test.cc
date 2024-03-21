@@ -309,14 +309,14 @@ TEST_F(TypeLayoutTest, JitTypes) {
     XLS_ASSERT_OK_AND_ASSIGN(Type * type,
                              Parser::ParseType(type_str, package.get()));
     TypeLayout layout = CreateTypeLayout(type);
-    XLS_VLOG(1) << layout.ToString();
+    VLOG(1) << layout.ToString();
 
     std::vector<Type*> leaf_types = GetLeafTypes(type);
     ASSERT_EQ(leaf_types.size(), layout.elements().size());
 
     for (int64_t i = 0; i < kValuesPerType; ++i) {
       Value value = RandomValue(type, bitgen);
-      XLS_VLOG(1) << value.ToString();
+      VLOG(1) << value.ToString();
 
       std::vector<uint8_t> buffer(layout.size(), 0xff);
       layout.ValueToNativeLayout(value, buffer.data());

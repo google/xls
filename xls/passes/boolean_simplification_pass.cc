@@ -461,8 +461,8 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
       absl::flat_hash_map<Node*, Bits> memoized_results;
       XLS_ASSIGN_OR_RETURN(Bits result, FlowFromFrontierToNode(
                                             frontier, node, memoized_results));
-      XLS_VLOG(3) << "Flow result for " << node << ": "
-                  << BitsToString(result, FormatPreference::kBinary, true);
+      VLOG(3) << "Flow result for " << node << ": "
+              << BitsToString(result, FormatPreference::kBinary, true);
       XLS_ASSIGN_OR_RETURN(Node * replacement,
                            ResolveTruthTable(result, operands, node));
       if (replacement == nullptr) {
@@ -506,7 +506,7 @@ absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBaseInternal(
   for (auto& pair : visitor.node_replacements()) {
     Node* node = pair.first;
     Node* replacement = pair.second;
-    XLS_VLOG(3) << "Replacing " << node << " with " << replacement;
+    VLOG(3) << "Replacing " << node << " with " << replacement;
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement));
   }
   return !visitor.node_replacements().empty();

@@ -25,6 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -223,8 +224,8 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     ctx->type_info()->NoteRequiresImplicitToken(*caller, true);
   }
 
-  XLS_VLOG(5) << "Instantiating builtin parametric: "
-              << callee_nameref->identifier();
+  VLOG(5) << "Instantiating builtin parametric: "
+          << callee_nameref->identifier();
   XLS_ASSIGN_OR_RETURN(
       SignatureFn fsignature,
       GetParametricBuiltinSignature(callee_nameref->identifier()));
@@ -239,10 +240,9 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
         MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
                          arg, ctx->fn_stack().back().parametric_env()));
 
-    XLS_VLOG(5)
-        << "TypecheckParametricBuiltinInvocation.constexpr_eval; argno: "
-        << argno << " expr: `" << arg->ToString() << "`"
-        << " env: " << EnvMapToString(env);
+    VLOG(5) << "TypecheckParametricBuiltinInvocation.constexpr_eval; argno: "
+            << argno << " expr: `" << arg->ToString() << "`"
+            << " env: " << EnvMapToString(env);
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
@@ -278,10 +278,10 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
   const ParametricEnv& fn_parametric_env =
       ctx->fn_stack().back().parametric_env();
 
-  XLS_VLOG(5) << "TypeInfo::AddInvocationCallBindings; type_info: "
-              << ctx->type_info() << "; node: `" << invocation->ToString()
-              << "`; caller_env: " << fn_parametric_env
-              << "; callee_env: " << tab.parametric_env;
+  VLOG(5) << "TypeInfo::AddInvocationCallBindings; type_info: "
+          << ctx->type_info() << "; node: `" << invocation->ToString()
+          << "`; caller_env: " << fn_parametric_env
+          << "; callee_env: " << tab.parametric_env;
 
   // Note that, since this is not a user-defined function, there is no derived
   // type information for it.
@@ -328,8 +328,8 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
     const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
                               InterpValue>& constexpr_env) {
-  XLS_VLOG(5) << "Typechecking invocation: `" << invocation->ToString()
-              << "` @ " << invocation->span();
+  VLOG(5) << "Typechecking invocation: `" << invocation->ToString() << "` @ "
+          << invocation->span();
   XLS_VLOG_LINES(5, ctx->GetFnStackDebugString());
 
   Expr* callee = invocation->callee();
@@ -504,8 +504,8 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
   // Assert type consistency between the body and deduced return types.
   if (annotated_return_type != *resolved_body_type) {
-    XLS_VLOG(5) << "annotated_return_type: " << annotated_return_type
-                << " resolved_body_type: " << resolved_body_type->ToString();
+    VLOG(5) << "annotated_return_type: " << annotated_return_type
+            << " resolved_body_type: " << resolved_body_type->ToString();
 
     if (callee_fn.tag() == FunctionTag::kProcInit) {
       return ctx->TypeMismatchError(

@@ -137,7 +137,7 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
     const llvm::orc::MaterializationResponsibility& responsibility) {
   llvm::Module* bare_module = module.getModuleUnlocked();
 
-  XLS_VLOG(2) << "Unoptimized module IR:";
+  VLOG(2) << "Unoptimized module IR:";
   XLS_VLOG_LINES(2, DumpLlvmModuleToString(bare_module));
   if (jit_observer_ != nullptr &&
       jit_observer_->GetNotificationOptions().unoptimized_module) {
@@ -189,7 +189,7 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
   }
   mpm.run(*bare_module, mam);
 
-  XLS_VLOG(2) << "Optimized module IR:";
+  VLOG(2) << "Optimized module IR:";
   XLS_VLOG_LINES(2, DumpLlvmModuleToString(bare_module));
   if (jit_observer_ != nullptr &&
       jit_observer_->GetNotificationOptions().optimized_module) {
@@ -210,10 +210,10 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
     llvm::legacy::PassManager mpm;
     if (target_machine_->addPassesToEmitFile(
             mpm, ostream, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
-      XLS_VLOG(3) << "Could not create ASM generation pass!";
+      VLOG(3) << "Could not create ASM generation pass!";
     }
     mpm.run(*bare_module);
-    XLS_VLOG(3) << "Generated ASM:";
+    VLOG(3) << "Generated ASM:";
     std::string asm_code(stream_buffer.begin(), stream_buffer.end());
     XLS_VLOG_LINES(3, asm_code);
     if (observe_asm_code) {
@@ -378,9 +378,9 @@ absl::Status OrcJit::Init() {
     std::string cpu = target_machine_->getTargetCPU().str();
     std::string feature_string =
         target_machine_->getTargetFeatureString().str();
-    XLS_VLOG(1) << "LLVM target triple: " << triple;
-    XLS_VLOG(1) << "LLVM target CPU: " << cpu;
-    XLS_VLOG(1) << "LLVM target feature string: " << feature_string;
+    VLOG(1) << "LLVM target triple: " << triple;
+    VLOG(1) << "LLVM target CPU: " << cpu;
+    VLOG(1) << "LLVM target feature string: " << feature_string;
     XLS_VLOG_LINES(
         1,
         absl::StrFormat("llc invocation:\n  llc [input.ll] --filetype=obj "
@@ -410,7 +410,7 @@ absl::Status OrcJit::Init() {
           llvm::legacy::PassManager mpm;
           if (target_machine_->addPassesToEmitFile(
                   mpm, ostream, nullptr, llvm::CodeGenFileType::ObjectFile)) {
-            XLS_VLOG(3) << "Could not create ASM generation pass!";
+            VLOG(3) << "Could not create ASM generation pass!";
           }
           mpm.run(*module.getModuleUnlocked());
 
@@ -447,7 +447,7 @@ namespace {
 // instruction itself. This is a very common error which is not checked by the
 // LLVM verifier(!).
 absl::Status VerifyModule(const llvm::Module& module) {
-  XLS_VLOG(4) << DumpLlvmModuleToString(&module);
+  VLOG(4) << DumpLlvmModuleToString(&module);
   for (const llvm::Function& function : module.functions()) {
     for (const llvm::BasicBlock& basic_block : function) {
       for (const llvm::Instruction& inst : basic_block) {

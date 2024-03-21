@@ -468,8 +468,8 @@ absl::Status CollectElementCounts(const std::string& top_package,
                                               message, fd, message_record));
       message_record->children[field_name].count = count;
     } else {
-      XLS_VLOG(1) << "Unsupported field type: " << fd->type() << " : "
-                  << field_name;
+      VLOG(1) << "Unsupported field type: " << fd->type() << " : "
+              << field_name;
       message_record->children[field_name].count = 0;
     }
   }

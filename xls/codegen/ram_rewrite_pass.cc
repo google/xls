@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -385,9 +386,9 @@ absl::StatusOr<bool> Ram1RWRewrite(
   };
 
   // Peel off each field from the data port's operand.
-  XLS_VLOG(3) << "req_data_port op = "
-              << rw_block_ports.req_ports.req_data->operand(0)
-                     ->ToStringWithOperandTypes();
+  VLOG(3) << "req_data_port op = "
+          << rw_block_ports.req_ports.req_data->operand(0)
+                 ->ToStringWithOperandTypes();
   XLS_ASSIGN_OR_RETURN(
       Node * req_addr,
       tuple_index(rw_block_ports.req_ports.req_data->operand(0), 0));
@@ -867,8 +868,8 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
 
   for (const std::unique_ptr<RamConfiguration>& ram_configuration :
        options.codegen_options.ram_configurations()) {
-    XLS_VLOG(2) << "Rewriting channels for ram "
-                << ram_configuration->ram_name() << ".";
+    VLOG(2) << "Rewriting channels for ram " << ram_configuration->ram_name()
+            << ".";
     XLS_ASSIGN_OR_RETURN(bool this_one_changed,
                          RamRewrite(unit, options, *ram_configuration));
     changed = changed || this_one_changed;

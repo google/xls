@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
@@ -143,7 +144,7 @@ class MakeZeroVisitor : public TypeVisitor {
 absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span) {
-  XLS_VLOG(5) << "MakeZeroValue; type: " << type << " @ " << span;
+  VLOG(5) << "MakeZeroValue; type: " << type << " @ " << span;
   MakeZeroVisitor v(import_data, span);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   XLS_RET_CHECK(v.result().has_value());

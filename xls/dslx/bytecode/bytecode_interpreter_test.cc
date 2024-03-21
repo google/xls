@@ -24,6 +24,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
@@ -2421,11 +2422,11 @@ fn main(x: u2, y: u2) -> u2 {
                   },
                   BytecodeInterpreterOptions().rollover_hook(
                       [&](const Span& s) { source_spans.push_back(s); })));
-    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
-                << " result: " << result.ToString();
+    VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+            << " result: " << result.ToString();
 
     for (const Span& source_span : source_spans) {
-      XLS_VLOG(1) << "Rollover span: " << source_span;
+      VLOG(1) << "Rollover span: " << source_span;
     }
 
     if (x + y >= 4) {  // We should have a rollover in these cases.
@@ -2457,11 +2458,11 @@ fn main(x: u2, y: u2) -> u2 {
                   },
                   BytecodeInterpreterOptions().rollover_hook(
                       [&](const Span& s) { source_spans.push_back(s); })));
-    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
-                << " result: " << result.ToString();
+    VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+            << " result: " << result.ToString();
 
     for (const Span& source_span : source_spans) {
-      XLS_VLOG(1) << "Rollover span: " << source_span;
+      VLOG(1) << "Rollover span: " << source_span;
     }
 
     if (static_cast<int64_t>(x) - static_cast<int64_t>(y) <
@@ -2494,11 +2495,11 @@ fn main(x: u2, y: u2) -> u2 {
                   },
                   BytecodeInterpreterOptions().rollover_hook(
                       [&](const Span& s) { source_spans.push_back(s); })));
-    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
-                << " result: " << result.ToString();
+    VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+            << " result: " << result.ToString();
 
     for (const Span& source_span : source_spans) {
-      XLS_VLOG(1) << "Rollover span: " << source_span;
+      VLOG(1) << "Rollover span: " << source_span;
     }
 
     if (x * y >= 4) {  // We should have a rollover in these cases.
@@ -2532,9 +2533,8 @@ fn main(x: s2, y: s2) -> s2 {
 
       XLS_ASSERT_OK_AND_ASSIGN(int64_t got, result.GetBitValueViaSign());
       bool rollover = x * y != got;
-      XLS_VLOG(1) << " x: " << x << " y: " << y
-                  << " result: " << result.ToString()
-                  << " rollover: " << rollover;
+      VLOG(1) << " x: " << x << " y: " << y << " result: " << result.ToString()
+              << " rollover: " << rollover;
       if (rollover) {
         ASSERT_EQ(source_spans.size(), 1);
         EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");

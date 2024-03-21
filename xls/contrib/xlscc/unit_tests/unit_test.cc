@@ -93,9 +93,9 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
     for (const auto& [key, val] : args) {
       input_str << key << ":" << val << " ";
     }
-    XLS_VLOG(1) << absl::StrFormat("Run test in (%s) out %i", input_str.str(),
-                                   expected)
-                << std::endl;
+    VLOG(1) << absl::StrFormat("Run test in (%s) out %i", input_str.str(),
+                               expected)
+            << std::endl;
   }
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
   XLS_ASSERT_OK_AND_ASSIGN(

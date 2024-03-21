@@ -25,6 +25,7 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -71,10 +72,10 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
                                const std::filesystem::path& path)
       -> std::optional<std::filesystem::path> {
     auto full_path = std::filesystem::path(base) / path;
-    XLS_VLOG(3) << "Trying path: " << full_path;
+    VLOG(3) << "Trying path: " << full_path;
     attempted.push_back(std::string{full_path});
     if (FileExists(full_path).ok()) {
-      XLS_VLOG(3) << "Found existing file for import path: " << full_path;
+      VLOG(3) << "Found existing file for import path: " << full_path;
       return full_path;
     }
     return std::nullopt;
@@ -96,13 +97,13 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
     return std::nullopt;
   };
 
-  XLS_VLOG(3) << "Attempting CWD-relative import path.";
+  VLOG(3) << "Attempting CWD-relative import path.";
   if (std::optional<std::filesystem::path> cwd_relative_path =
           try_path("", subject_path)) {
     return *cwd_relative_path;
   }
 
-  XLS_VLOG(3) << "Attempting runfile-based import path via " << subject_path;
+  VLOG(3) << "Attempting runfile-based import path via " << subject_path;
   if (absl::StatusOr<std::string> runfile_path =
           GetXlsRunfilePath(GetXLSRootDir() / subject_path);
       runfile_path.ok() && FileExists(*runfile_path).ok()) {
@@ -112,14 +113,14 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   if (subject_parent_path.has_value()) {
     // This one is generally required for genrules in-house, where the first
     // part of the path under the depot root is stripped off for some reason.
-    XLS_VLOG(3) << "Attempting CWD-based parent import path via "
-                << *subject_parent_path;
+    VLOG(3) << "Attempting CWD-based parent import path via "
+            << *subject_parent_path;
     if (std::optional<std::filesystem::path> cwd_relative_path =
             try_path("", *subject_parent_path)) {
       return *cwd_relative_path;
     }
-    XLS_VLOG(3) << "Attempting runfile-based parent import path via "
-                << *subject_parent_path;
+    VLOG(3) << "Attempting runfile-based parent import path via "
+            << *subject_parent_path;
     if (absl::StatusOr<std::string> runfile_path = GetXlsRunfilePath(
             absl::StrCat(GetXLSRootDir(), *subject_parent_path));
         runfile_path.ok() && FileExists(*runfile_path).ok()) {
@@ -128,7 +129,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   }
   // Look through the externally-supplied additional search paths.
   for (const std::filesystem::path& search_path : additional_search_paths) {
-    XLS_VLOG(3) << "Attempting search path root: " << search_path;
+    VLOG(3) << "Attempting search path root: " << search_path;
     if (auto found = try_paths(search_path)) {
       return *found;
     }
@@ -148,11 +149,11 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
                                      const Span& import_span) {
   XLS_RET_CHECK(import_data != nullptr);
   if (import_data->Contains(subject)) {
-    XLS_VLOG(3) << "DoImport (cached) subject: " << subject.ToString();
+    VLOG(3) << "DoImport (cached) subject: " << subject.ToString();
     return import_data->Get(subject);
   }
 
-  XLS_VLOG(3) << "DoImport (uncached) subject: " << subject.ToString();
+  VLOG(3) << "DoImport (uncached) subject: " << subject.ToString();
 
   XLS_ASSIGN_OR_RETURN(
       std::filesystem::path found_path,
@@ -167,8 +168,7 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
 
   absl::Span<std::string const> pieces = subject.pieces();
   std::string fully_qualified_name = absl::StrJoin(pieces, ".");
-  XLS_VLOG(3) << "Parsing and typechecking " << fully_qualified_name
-              << ": start";
+  VLOG(3) << "Parsing and typechecking " << fully_qualified_name << ": start";
 
   Scanner scanner(found_path, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);

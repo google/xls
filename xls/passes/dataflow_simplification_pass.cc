@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -133,10 +134,10 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
   absl::flat_hash_map<LeafTypeTreeView<NodeSource>, Node*> source_map;
   for (Node* node : TopoSort(func)) {
     LeafTypeTreeView<NodeSource> source = visitor.GetValue(node);
-    XLS_VLOG(3) << absl::StrFormat("Considering `%s`: %s", node->GetName(),
-                                   source.ToString());
+    VLOG(3) << absl::StrFormat("Considering `%s`: %s", node->GetName(),
+                               source.ToString());
     auto [it, inserted] = source_map.insert({source, node});
-    XLS_VLOG(3) << "Inserted: " << inserted;
+    VLOG(3) << "Inserted: " << inserted;
     // Skip empty tuples (and tuples of empty tuples, etc) as these carry no
     // data and are trivially substitutable with other nodes of the same
     // type. This can result in inflooping as, for example, parameters replace
@@ -144,8 +145,8 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
     if (!inserted && !IsEmptyType(node->GetType())) {
       // An equivalent node exists in the graph. Repace this node with its
       // equivalent.
-      XLS_VLOG(2) << absl::StrFormat("Replacing `%s` with equivalent `%s`",
-                                     node->GetName(), it->second->GetName());
+      VLOG(2) << absl::StrFormat("Replacing `%s` with equivalent `%s`",
+                                 node->GetName(), it->second->GetName());
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(it->second));
       changed = true;
       continue;

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -59,8 +60,8 @@ SerialProcRuntime::Create(
 
 absl::StatusOr<SerialProcRuntime::NetworkTickResult>
 SerialProcRuntime::TickInternal() {
-  XLS_VLOG(3) << absl::StreamFormat("TickInternal on package %s",
-                                    package()->name());
+  VLOG(3) << absl::StreamFormat("TickInternal on package %s",
+                                package()->name());
   // Map containing any blocked proc instances and the channels they are blocked
   // on.
   absl::flat_hash_map<ChannelInstance*, ProcInstance*> blocked_instances;
@@ -74,8 +75,8 @@ SerialProcRuntime::TickInternal() {
 
   // Put all proc instances on the ready list.
   for (ProcInstance* instance : elaboration().proc_instances()) {
-    XLS_VLOG(3) << absl::StreamFormat("Proc instance `%s` added to ready list",
-                                      instance->GetName());
+    VLOG(3) << absl::StreamFormat("Proc instance `%s` added to ready list",
+                                  instance->GetName());
     ready_instances.push_back(
         QueueElement{.instance = instance,
                      .evaluator = evaluators_.at(instance->proc()).get(),
@@ -88,11 +89,11 @@ SerialProcRuntime::TickInternal() {
     const QueueElement element = ready_instances.front();
     ready_instances.pop_front();
 
-    XLS_VLOG(3) << absl::StreamFormat("Ticking proc instance `%s`",
-                                      element.instance->GetName());
+    VLOG(3) << absl::StreamFormat("Ticking proc instance `%s`",
+                                  element.instance->GetName());
     XLS_ASSIGN_OR_RETURN(TickResult tick_result,
                          element.evaluator->Tick(*element.continuation));
-    XLS_VLOG(3) << "Tick result: " << tick_result;
+    VLOG(3) << "Tick result: " << tick_result;
 
     progress_made |= tick_result.progress_made;
     progress_made_on_io_procs |=
@@ -100,7 +101,7 @@ SerialProcRuntime::TickInternal() {
     if (tick_result.execution_state == TickExecutionState::kSentOnChannel) {
       ChannelInstance* channel_instance = tick_result.channel_instance.value();
       if (blocked_instances.contains(channel_instance)) {
-        XLS_VLOG(3) << absl::StreamFormat(
+        VLOG(3) << absl::StreamFormat(
             "Unblocking proc instance `%s` and adding to ready list",
             blocked_instances.at(channel_instance)->GetName());
         ProcInstance* instance = blocked_instances.at(channel_instance);
@@ -115,7 +116,7 @@ SerialProcRuntime::TickInternal() {
     } else if (tick_result.execution_state ==
                TickExecutionState::kBlockedOnReceive) {
       ChannelInstance* channel_instance = tick_result.channel_instance.value();
-      XLS_VLOG(3) << absl::StreamFormat(
+      VLOG(3) << absl::StreamFormat(
           "Proc instance `%s` is now blocked on channel instance `%s`",
           element.instance->GetName(), channel_instance->ToString());
       blocked_instances[channel_instance] = element.instance;

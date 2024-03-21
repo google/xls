@@ -25,6 +25,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -116,22 +117,21 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
       ops_vec[argument_idx] = argument;
       return node->Clone(ops_vec);
     };
-    XLS_VLOG(2) << "Sinking " << node << " into its select argument "
-                << select_val;
+    VLOG(2) << "Sinking " << node << " into its select argument " << select_val;
     if (select_val->default_value()) {
       XLS_ASSIGN_OR_RETURN(new_default,
                            sink_operation(*select_val->default_value()));
-      XLS_VLOG(2) << "    default for new select is " << *new_default;
+      VLOG(2) << "    default for new select is " << *new_default;
     }
     for (Node* c : select_val->cases()) {
       XLS_ASSIGN_OR_RETURN(Node * new_case, sink_operation(c));
       new_cases.push_back(new_case);
-      XLS_VLOG(2) << "    case for new select is " << new_case;
+      VLOG(2) << "    case for new select is " << new_case;
     }
     XLS_ASSIGN_OR_RETURN(Node * new_sel,
                          node->ReplaceUsesWithNew<Select>(
                              select_val->selector(), new_cases, new_default));
-    XLS_VLOG(2) << "    new select is " << new_sel;
+    VLOG(2) << "    new select is " << new_sel;
     return true;
   }
   return false;
@@ -151,8 +151,8 @@ absl::StatusOr<bool> StrengthReduceNode(
 
   if (NarrowingEnabled(opt_level) && !node->Is<Literal>() &&
       node->GetType()->IsBits() && query_engine.AllBitsKnown(node)) {
-    XLS_VLOG(2) << "Replacing node with its (entirely known) bits: " << node
-                << " as " << ToString(query_engine.GetTernary(node).Get({}));
+    VLOG(2) << "Replacing node with its (entirely known) bits: " << node
+            << " as " << ToString(query_engine.GetTernary(node).Get({}));
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Literal>(
                                 Value(ternary_ops::ToKnownBitsValues(
                                     query_engine.GetTernary(node).Get({}))))

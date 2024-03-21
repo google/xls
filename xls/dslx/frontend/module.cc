@@ -44,11 +44,11 @@ namespace xls::dslx {
 
 Module::Module(std::string name, std::optional<std::filesystem::path> fs_path)
     : AstNode(this), name_(std::move(name)), fs_path_(std::move(fs_path)) {
-  XLS_VLOG(3) << "Created module \"" << name_ << "\" @ " << this;
+  VLOG(3) << "Created module \"" << name_ << "\" @ " << this;
 }
 
 Module::~Module() {
-  XLS_VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
+  VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
 }
 
 std::string Module::ToString() const {

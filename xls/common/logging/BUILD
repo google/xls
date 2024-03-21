@@ -23,6 +23,22 @@ package(
 )
 
 cc_library(
+    name = "log_lines",
+    srcs = ["log_lines.cc"],
+    hdrs = ["log_lines.h"],
+    visibility = ["//xls:xls_utility_users"],
+    deps = [
+        ":log_flags",
+        "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:die_if_null",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "scoped_mock_log",
     testonly = True,
     hdrs = ["scoped_mock_log.h"],
@@ -34,23 +50,6 @@ cc_library(
         "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "log_lines",
-    srcs = ["log_lines.cc"],
-    hdrs = ["log_lines.h"],
-    visibility = ["//xls:xls_utility_users"],
-    deps = [
-        ":log_flags",
-        ":logging",
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:die_if_null",
-        "@com_google_absl//absl/status",
     ],
 )
 
@@ -81,15 +80,12 @@ cc_library(
     alwayslink = 1,
 )
 
+# Empty placeholder. To be removed in next change.
 cc_library(
     name = "logging",
     hdrs = ["logging.h"],
     visibility = ["//xls:xls_utility_users"],
-    deps = [
-        ":log_flags",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-    ],
+    deps = [],
 )
 
 py_test(

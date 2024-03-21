@@ -70,8 +70,8 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
     return false;
   }
   for (int64_t i : to_remove) {
-    XLS_VLOG(2) << "Removing zero-width state element: "
-                << proc->GetStateParam(i)->GetName();
+    VLOG(2) << "Removing zero-width state element: "
+            << proc->GetStateParam(i)->GetName();
     std::vector<Next*> next_values(
         proc->next_values(proc->GetStateParam(i)).begin(),
         proc->next_values(proc->GetStateParam(i)).end());
@@ -153,9 +153,9 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
   }
   for (int64_t i : to_remove) {
     Value value = proc->GetInitValueElement(i);
-    XLS_VLOG(2) << "Removing constant state element: "
-                << proc->GetStateParam(i)->GetName()
-                << " (value: " << value.ToString() << ")";
+    VLOG(2) << "Removing constant state element: "
+            << proc->GetStateParam(i)->GetName()
+            << " (value: " << value.ToString() << ")";
     std::vector<Next*> next_values(
         proc->next_values(proc->GetStateParam(i)).begin(),
         proc->next_values(proc->GetStateParam(i)).end());
@@ -257,7 +257,7 @@ ComputeStateDependencies(Proc* proc) {
     state_dependencies.insert({node, visitor.FlattenNodeBitmaps(node)});
   }
   if (VLOG_IS_ON(3)) {
-    XLS_VLOG(3) << "State dependencies (** side-effecting operation):";
+    VLOG(3) << "State dependencies (** side-effecting operation):";
     for (Node* node : TopoSort(proc)) {
       std::vector<std::string> dependent_elements;
       for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
@@ -265,9 +265,9 @@ ComputeStateDependencies(Proc* proc) {
           dependent_elements.push_back(proc->GetStateParam(i)->GetName());
         }
       }
-      XLS_VLOG(3) << absl::StrFormat("  %s : {%s}%s", node->GetName(),
-                                     absl::StrJoin(dependent_elements, ", "),
-                                     OpIsSideEffecting(node->op()) ? "**" : "");
+      VLOG(3) << absl::StrFormat("  %s : {%s}%s", node->GetName(),
+                                 absl::StrJoin(dependent_elements, ", "),
+                                 OpIsSideEffecting(node->op()) ? "**" : "");
     }
   }
   return std::move(state_dependencies);
@@ -324,7 +324,7 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
           // doesn't make the parameter observable.
           continue;
         }
-        XLS_VLOG(4) << absl::StreamFormat(
+        VLOG(4) << absl::StreamFormat(
             "State element `%s` (%d) is observable because side-effecting node "
             "`%s` depends on it",
             proc->GetStateParam(i)->GetName(), i, node->GetName());
@@ -342,7 +342,7 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
         // that `node` is dependent on.
         for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
           if (state_dependencies.at(node).Get(i)) {
-            XLS_VLOG(4) << absl::StreamFormat(
+            VLOG(4) << absl::StreamFormat(
                 "Unioning state elements `%s` (%d) and `%s` (%d) because next "
                 "state of `%s` (node `%s`) depends on `%s`",
                 proc->GetStateParam(next_state_index)->GetName(),
@@ -364,16 +364,16 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
   // Gather unobservable state element indices into `to_remove`.
   std::vector<int64_t> to_remove;
   to_remove.reserve(proc->GetStateElementCount());
-  XLS_VLOG(3) << "Observability of state elements:";
+  VLOG(3) << "Observability of state elements:";
   for (int64_t i = proc->GetStateElementCount() - 1; i >= 0; --i) {
     if (!observable_state_index.has_value() ||
         state_components.Find(i) != observable_state_index.value()) {
       to_remove.push_back(i);
-      XLS_VLOG(3) << absl::StrFormat("  %s (%d) : NOT observable",
-                                     proc->GetStateParam(i)->GetName(), i);
+      VLOG(3) << absl::StrFormat("  %s (%d) : NOT observable",
+                                 proc->GetStateParam(i)->GetName(), i);
     } else {
-      XLS_VLOG(3) << absl::StrFormat("  %s (%d) : observable",
-                                     proc->GetStateParam(i)->GetName(), i);
+      VLOG(3) << absl::StrFormat("  %s (%d) : observable",
+                                 proc->GetStateParam(i)->GetName(), i);
     }
   }
   if (to_remove.empty()) {
@@ -400,7 +400,7 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
   }
 
   for (int64_t i : to_remove) {
-    XLS_VLOG(2) << absl::StreamFormat(
+    VLOG(2) << absl::StreamFormat(
         "Removing dead state element %s of type %s",
         proc->GetStateParam(i)->GetName(),
         proc->GetStateParam(i)->GetType()->ToString());

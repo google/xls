@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -122,8 +123,7 @@ bool operator<=(Requirement lhs, Requirement rhs) {
 void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                          const int64_t default_text_width,
                          std::vector<std::string>& pieces) {
-  XLS_VLOG(1) << "PrettyPrintInternal; default text width: "
-              << default_text_width;
+  VLOG(1) << "PrettyPrintInternal; default text width: " << default_text_width;
 
   // We maintain a stack to keep track of doc emission we still need to perform.
   // Every entry notes the document to emit, what mode it was in (flat or
@@ -162,9 +162,9 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
     absl::visit(
         Visitor{
             [&](const std::string& s) {
-              XLS_VLOG(3) << "emitting text: `" << s
-                          << "` at virtual outcol: " << virtual_outcol
-                          << " (size " << s.size() << ")";
+              VLOG(3) << "emitting text: `" << s
+                      << "` at virtual outcol: " << virtual_outcol << " (size "
+                      << s.size() << ")";
               // Text is simply emitted to the output and we bump the output
               // column tracker accordingly.
               emit(s);
@@ -186,7 +186,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               }
             },
             [&](const Align& align) {
-              XLS_VLOG(3) << "Align; outcol: " << virtual_outcol;
+              VLOG(3) << "Align; outcol: " << virtual_outcol;
               // Align sets the alignment for the nested doc to the current
               // line's output column and then emits the nested doc.
               stack.push_back(StackEntry{&arena.Deref(align.arg), entry.mode(),
@@ -194,8 +194,8 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                                          entry.text_width()});
             },
             [&](const PrefixedReflow& prefixed) {
-              XLS_VLOG(3) << "PrefixedReflow; prefix: `" << prefixed.prefix
-                          << "` text: `" << prefixed.text << "`";
+              VLOG(3) << "PrefixedReflow; prefix: `" << prefixed.prefix
+                      << "` text: `" << prefixed.text << "`";
               std::vector<std::string_view> lines =
                   absl::StrSplit(prefixed.text, '\n');
               const std::string& prefix = prefixed.prefix;
@@ -207,8 +207,8 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                 const int64_t remaining_cols =
                     entry.text_width() - virtual_outcol;
 
-                XLS_VLOG(5) << "PrefixedReflow; handling line: `" << line
-                            << "` remaining cols: " << remaining_cols;
+                VLOG(5) << "PrefixedReflow; handling line: `" << line
+                        << "` remaining cols: " << remaining_cols;
                 if (prefix.size() + line.size() < remaining_cols) {
                   // If it all fits in available cols, place it there in its
                   // entirety.
@@ -254,14 +254,13 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                         const std::string& next_tok = remaining_toks.front();
                         if (virtual_outcol + next_tok.size() >
                             entry.text_width()) {
-                          XLS_VLOG(5)
-                              << "PrefixedReflow; adding carriage "
-                                 "return in advance of: `"
-                              << next_tok
-                              << "` as it will not fit; virtual outcol: "
-                              << virtual_outcol
-                              << " tok width: " << next_tok.size()
-                              << " text width: " << entry.text_width();
+                          VLOG(5) << "PrefixedReflow; adding carriage "
+                                     "return in advance of: `"
+                                  << next_tok
+                                  << "` as it will not fit; virtual outcol: "
+                                  << virtual_outcol
+                                  << " tok width: " << next_tok.size()
+                                  << " text width: " << entry.text_width();
                           emit_cr(entry.indent());
                           break;
                         }
@@ -292,8 +291,8 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                     entry.CloneWithDoc(&arena.Deref(flat_choice.on_flat)));
               } else {
                 CHECK_EQ(entry.mode(), Mode::kBreak);
-                XLS_VLOG(3) << "emitting FlatChoice as break mode: "
-                            << entry.doc()->ToDebugString(arena);
+                VLOG(3) << "emitting FlatChoice as break mode: "
+                        << entry.doc()->ToDebugString(arena);
                 stack.push_back(
                     entry.CloneWithDoc(&arena.Deref(flat_choice.on_break)));
               }
@@ -312,14 +311,13 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               int64_t remaining_cols_with_newline =
                   entry.text_width() - entry.indent() - 4;
 
-              XLS_VLOG(3) << "NestIfFlatFits; on_other.flat_requirement: "
-                          << RequirementToString(on_other.flat_requirement)
-                          << " remaining_cols: " << remaining_cols
-                          << " on_nested_flat.flat_requirement: "
-                          << RequirementToString(
-                                 on_nested_flat.flat_requirement)
-                          << " remaining_cols_with_newline: "
-                          << remaining_cols_with_newline;
+              VLOG(3) << "NestIfFlatFits; on_other.flat_requirement: "
+                      << RequirementToString(on_other.flat_requirement)
+                      << " remaining_cols: " << remaining_cols
+                      << " on_nested_flat.flat_requirement: "
+                      << RequirementToString(on_nested_flat.flat_requirement)
+                      << " remaining_cols_with_newline: "
+                      << remaining_cols_with_newline;
               if (on_other.flat_requirement <= remaining_cols) {
                 stack.push_back(StackEntry(&on_other, Mode::kFlat,
                                            virtual_outcol, entry.text_width()));
@@ -347,11 +345,11 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                   arena.Deref(group.arg).flat_requirement;
               Mode mode = grouped_requirement > remaining_cols ? Mode::kBreak
                                                                : Mode::kFlat;
-              XLS_VLOG(3) << "grouped_requirement: "
-                          << RequirementToString(grouped_requirement)
-                          << " remaining_cols: " << remaining_cols
-                          << "; now using mode: " << mode << " arg: "
-                          << arena.Deref(group.arg).ToDebugString(arena);
+              VLOG(3) << "grouped_requirement: "
+                      << RequirementToString(grouped_requirement)
+                      << " remaining_cols: " << remaining_cols
+                      << "; now using mode: " << mode << " arg: "
+                      << arena.Deref(group.arg).ToDebugString(arena);
               stack.push_back(StackEntry{&arena.Deref(group.arg), mode,
                                          entry.indent(), entry.text_width()});
             }},

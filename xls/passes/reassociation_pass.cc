@@ -150,7 +150,7 @@ absl::StatusOr<Node*> CreateSum(absl::Span<Node* const> nodes) {
 // Reassociate() is run. Also, literals are grouped together across add and
 // subtract expressions.
 absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
-  XLS_VLOG(4) << "Reassociating subtracts";
+  VLOG(4) << "Reassociating subtracts";
   bool changed = false;
   // Keep track of which nodes we've already considered for reassociation so we
   // don't revisit subexpressions multiple times.
@@ -159,15 +159,15 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
   // Traverse the nodes in reverse order because we construct expressions for
   // reassociation starting from the roots.
   for (Node* node : ReverseTopoSort(f)) {
-    XLS_VLOG(4) << "Considering node: " << node->GetName();
+    VLOG(4) << "Considering node: " << node->GetName();
 
     if (visited_nodes.contains(node)) {
-      XLS_VLOG(4) << "  Already visited.";
+      VLOG(4) << "  Already visited.";
       continue;
     }
 
     if (node->op() != Op::kAdd && node->op() != Op::kSub) {
-      XLS_VLOG(4) << "  Is not add or subtract.";
+      VLOG(4) << "  Is not add or subtract.";
       continue;
     }
 
@@ -195,12 +195,12 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
           terms.push_back(leaf.node->GetName());
         }
       }
-      XLS_VLOG(4) << "Found expression: " << absl::StrJoin(terms, " + ");
-      XLS_VLOG(4) << "subtract count: " << subtract_count;
+      VLOG(4) << "Found expression: " << absl::StrJoin(terms, " + ");
+      VLOG(4) << "subtract count: " << subtract_count;
     }
 
     if (subtract_count == 0) {
-      XLS_VLOG(4) << "No subtracts, nothing to do.";
+      VLOG(4) << "No subtracts, nothing to do.";
       continue;
     }
 
@@ -233,8 +233,8 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
       // The expression tree had a single subtract and no literal was found that
       // could be negated. Nothing to do here as we would transform into an
       // expression with a single subtraction anyway.
-      XLS_VLOG(4) << "Only a single subtract and no negated literals found,"
-                     "continuing.";
+      VLOG(4) << "Only a single subtract and no negated literals found,"
+                 "continuing.";
       continue;
     }
 
@@ -245,7 +245,7 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
       // the above loop.
       XLS_RET_CHECK(negated_constant);
       XLS_ASSIGN_OR_RETURN(replacement, CreateSum(nonnegated_nodes));
-      XLS_VLOG(4) << "All nodes non-negated. Replacing with chain of adds.";
+      VLOG(4) << "All nodes non-negated. Replacing with chain of adds.";
     } else {
       // Create a subtraction with the LHS being the sum of 'nonnegated_nodes'
       // and the RHS a sum of 'negated_nodes'.
@@ -254,15 +254,15 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
       XLS_ASSIGN_OR_RETURN(Node * rhs, CreateSum(negated_nodes));
       XLS_ASSIGN_OR_RETURN(replacement,
                            f->MakeNode<BinOp>(node->loc(), lhs, rhs, Op::kSub));
-      XLS_VLOG(4) << "Expression includes negated and non-negated terms. "
-                     "Replacing with single subtraction.";
+      VLOG(4) << "Expression includes negated and non-negated terms. "
+                 "Replacing with single subtraction.";
     }
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(replacement));
 
     changed = true;
   }
 
-  XLS_VLOG(4) << "Finished reassociating  subtracts, changed = " << changed;
+  VLOG(4) << "Finished reassociating  subtracts, changed = " << changed;
 
   return changed;
 }
@@ -475,18 +475,18 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       continue;
     }
 
-    XLS_VLOG(4) << "Reassociated expression rooted at: " << node->GetName();
-    XLS_VLOG(4) << "  is_full_width_addition: " << is_full_width_addition;
+    VLOG(4) << "Reassociated expression rooted at: " << node->GetName();
+    VLOG(4) << "  is_full_width_addition: " << is_full_width_addition;
 
     auto node_joiner = [](std::string* s, Node* node) {
       absl::StrAppendFormat(s, "%s (%s)", node->GetName(),
                             node->GetType()->ToString());
     };
-    XLS_VLOG(4) << "  operations to reassociate:  "
-                << absl::StrJoin(interior_nodes, ", ", node_joiner);
-    XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ", node_joiner);
-    XLS_VLOG(4) << "  literals leaves:  "
-                << absl::StrJoin(literals, ", ", node_joiner);
+    VLOG(4) << "  operations to reassociate:  "
+            << absl::StrJoin(interior_nodes, ", ", node_joiner);
+    VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ", node_joiner);
+    VLOG(4) << "  literals leaves:  "
+            << absl::StrJoin(literals, ", ", node_joiner);
 
     auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
       if (is_full_width_addition) {
@@ -509,7 +509,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
             node->function_base()->MakeNode<ExtendOp>(
                 node->loc(), rhs, /*new_bit_count=*/addition_width,
                 node->operand(0)->op()));
-        XLS_VLOG(4) << absl::StreamFormat(
+        VLOG(4) << absl::StreamFormat(
             "Creating new add of type %s: %s (%s) + %s (%s) ",
             extended_lhs->GetType()->ToString(), lhs->GetName(),
             lhs->GetType()->ToString(), rhs->GetName(),
@@ -538,8 +538,8 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       inputs.push_back(literal_expr);
     }
 
-    XLS_VLOG(4) << "  inputs before balancing:  "
-                << absl::StrJoin(inputs, ", ", node_joiner);
+    VLOG(4) << "  inputs before balancing:  "
+            << absl::StrJoin(inputs, ", ", node_joiner);
 
     // Reassociate the expressions into a balanced tree. First, reduce the
     // number of inputs to a power of two. Then build a balanced tree.
@@ -560,8 +560,8 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       inputs = std::move(next_inputs);
     }
 
-    XLS_VLOG(4) << "  inputs after balancing:  "
-                << absl::StrJoin(inputs, ", ", node_joiner);
+    VLOG(4) << "  inputs after balancing:  "
+            << absl::StrJoin(inputs, ", ", node_joiner);
 
     XLS_RET_CHECK(IsPowerOfTwo(inputs.size()));
     while (inputs.size() != 1) {

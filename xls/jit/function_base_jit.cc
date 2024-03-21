@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -324,7 +325,7 @@ class BufferAllocator {
         std::max(alignment_,
                  type_converter_->GetTypePreferredAlignment(node->GetType()));
     current_offset_ = offset + node_size;
-    XLS_VLOG(3) << absl::StreamFormat(
+    VLOG(3) << absl::StreamFormat(
         "Allocated %s at offset %d (size = %d): total size %d", node->GetName(),
         offset, node_size, current_offset_);
   }
@@ -661,8 +662,8 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
   b.CreateRet(interrupt_execution == nullptr ? b.getFalse()
                                              : interrupt_execution);
 
-  XLS_VLOG(3) << "Partition function:";
-  XLS_VLOG(3) << DumpLlvmObjectToString(*wrapper.function());
+  VLOG(3) << "Partition function:";
+  VLOG(3) << DumpLlvmObjectToString(*wrapper.function());
   return wrapper.function();
 }
 
@@ -800,8 +801,8 @@ struct PartitionedFunction {
 absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
     FunctionBase* xls_function, BufferAllocator& allocator,
     JitBuilderContext& jit_context) {
-  XLS_VLOG(4) << "BuildFunction:";
-  XLS_VLOG(4) << xls_function->DumpIr();
+  VLOG(4) << "BuildFunction:";
+  VLOG(4) << xls_function->DumpIr();
   std::vector<Partition> partitions = PartitionFunctionBase(xls_function);
 
   std::vector<Node*> inputs = GetJittedFunctionInputs(xls_function);

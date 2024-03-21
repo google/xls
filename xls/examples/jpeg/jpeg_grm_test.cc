@@ -18,6 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -171,7 +172,7 @@ TEST(JpegGrm, OneMcuAllWhiteImage) {
   for (int y = 0; y < jpeg.y; ++y) {
     for (int x = 0; x < jpeg.x; ++x) {
       const Rgb& rgb = jpeg.lines[y][x];
-      XLS_VLOG(1) << absl::StreamFormat("(y, x) = (%d, %d) => ", y, x) << rgb;
+      VLOG(1) << absl::StreamFormat("(y, x) = (%d, %d) => ", y, x) << rgb;
       ASSERT_EQ(rgb.r, 255);
       ASSERT_EQ(rgb.g, 255);
       ASSERT_EQ(rgb.b, 255);

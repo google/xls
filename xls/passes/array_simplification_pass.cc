@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -145,8 +146,8 @@ absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func) {
         Node* index = array_index->indices()[i];
         ArrayType* array_type = subtype->AsArrayOrDie();
         if (IndexIsDefinitelyOutOfBounds(index, array_type, query_engine)) {
-          XLS_VLOG(2) << absl::StrFormat("Clamping array index: %s",
-                                         node->ToString());
+          VLOG(2) << absl::StrFormat("Clamping array index: %s",
+                                     node->ToString());
           XLS_ASSIGN_OR_RETURN(
               Literal * new_index,
               func->MakeNode<Literal>(index->loc(),
@@ -192,8 +193,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   //   array_index(A, {}) => A
   //
   if (array_index->indices().empty()) {
-    XLS_VLOG(2) << absl::StrFormat("Array-index with degenerate index: %s",
-                                   array_index->ToString());
+    VLOG(2) << absl::StrFormat("Array-index with degenerate index: %s",
+                               array_index->ToString());
     XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(array_index->array()));
     return SimplifyResult::Changed({array_index->array()});
   }
@@ -215,7 +216,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       XLS_ASSIGN_OR_RETURN(
           uint64_t operand_no,
           first_index->As<Literal>()->value().bits().ToUint64());
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Array-index of array operation with literal index: %s",
           array_index->ToString());
       XLS_ASSIGN_OR_RETURN(
@@ -255,7 +256,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
         index = index - array_size;
       }
       XLS_RET_CHECK(indexed_operand != nullptr);
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Array-index of array concat with literal index: %s",
           array_index->ToString());
 
@@ -286,8 +287,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     combined_indices.insert(combined_indices.end(),
                             array_index->indices().begin(),
                             array_index->indices().end());
-    XLS_VLOG(2) << absl::StrFormat("Consecutive array-index operations: %s",
-                                   array_index->ToString());
+    VLOG(2) << absl::StrFormat("Consecutive array-index operations: %s",
+                               array_index->ToString());
     XLS_ASSIGN_OR_RETURN(ArrayIndex * new_array_index,
                          array_index->ReplaceUsesWithNew<ArrayIndex>(
                              operand->array(), combined_indices));
@@ -304,7 +305,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   if (IsBinarySelect(array_index->array())) {
     Select* select = array_index->array()->As<Select>();
     if (select->get_case(0) == select->get_case(1)) {
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Replacing array-index of select with select of array-indexes (same "
           "operand): %s",
           array_index->ToString());
@@ -319,7 +320,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     // TODO(meheff): Consider cases where selects with multiple users are still
     // advantageous to transform.
     if (select->users().size() == 1) {
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Replacing array-index of select with select of array-indexes: %s",
           array_index->ToString());
       XLS_ASSIGN_OR_RETURN(
@@ -392,8 +393,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     // Remove the matching prefix from the
     // front of the array-index indices because the new array-index indexes into
     // the lower dimensional update value. so
-    XLS_VLOG(2) << absl::StrFormat("Array-index of array-update (case 1): %s",
-                                   array_index->ToString());
+    VLOG(2) << absl::StrFormat("Array-index of array-update (case 1): %s",
+                               array_index->ToString());
     XLS_ASSIGN_OR_RETURN(
         ArrayIndex * new_array_index,
         array_index->ReplaceUsesWithNew<ArrayIndex>(
@@ -412,8 +413,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       IndicesAreDefinitelyInBounds(array_index->indices(),
                                    array_index->array()->GetType(),
                                    query_engine)) {
-    XLS_VLOG(2) << absl::StrFormat("Array-index of array-update (case 2): %s",
-                                   array_index->ToString());
+    VLOG(2) << absl::StrFormat("Array-index of array-update (case 2): %s",
+                               array_index->ToString());
     XLS_RETURN_IF_ERROR(
         array_index->ReplaceOperandNumber(0, array_update->array_to_update()));
     return SimplifyResult::Changed({array_index});
@@ -433,8 +434,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
   //   array_update(A, v, {}) => v
   //
   if (array_update->indices().empty()) {
-    XLS_VLOG(2) << absl::StrFormat("Array-update with degenerate index: %s",
-                                   array_update->ToString());
+    VLOG(2) << absl::StrFormat("Array-update with degenerate index: %s",
+                               array_update->ToString());
     XLS_RETURN_IF_ERROR(
         array_update->ReplaceUsesWith(array_update->update_value()));
     return SimplifyResult::Changed({array_update});
@@ -474,8 +475,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
     Node* idx = array_update->indices().front();
     if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
-      XLS_VLOG(2) << absl::StrFormat("Hoist array update above array: %s",
-                                     array_update->ToString());
+      VLOG(2) << absl::StrFormat("Hoist array update above array: %s",
+                                 array_update->ToString());
 
       // Indices are always interpreted as unsigned numbers.
       XLS_ASSIGN_OR_RETURN(uint64_t operand_no,
@@ -524,9 +525,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
         new_update_indices.insert(new_update_indices.end(),
                                   subupdate->indices().begin(),
                                   subupdate->indices().end());
-        XLS_VLOG(2) << absl::StrFormat(
-            "Sequential array update above array: %s",
-            array_update->ToString());
+        VLOG(2) << absl::StrFormat("Sequential array update above array: %s",
+                                   array_update->ToString());
         XLS_ASSIGN_OR_RETURN(
             ArrayUpdate * new_array_update,
             array_update->ReplaceUsesWithNew<ArrayUpdate>(
@@ -551,12 +551,12 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
                                        query_engine)) {
         // array_update necessarily overwrites the values updated in the
         // array update 'prev'. 'prev' update can be elided.
-        XLS_VLOG(3) << absl::StreamFormat(
+        VLOG(3) << absl::StreamFormat(
             "In chain of updates starting at %s, an index is written more than "
             "once, skipping the first write of this index (%s)",
             array_update->GetName(), prev->GetName());
-        XLS_VLOG(2) << absl::StrFormat("Chain of single-use array updates: %s",
-                                       array_update->ToString());
+        VLOG(2) << absl::StrFormat("Chain of single-use array updates: %s",
+                                   array_update->ToString());
         XLS_RETURN_IF_ERROR(
             current->ReplaceOperandNumber(0, prev->array_to_update()));
 
@@ -596,7 +596,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
     Node* idx = array_update->indices().front();
     if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
-      XLS_VLOG(2) << absl::StrFormat(
+      VLOG(2) << absl::StrFormat(
           "Array-update of literal with literal index: %s",
           array_update->ToString());
 
@@ -709,8 +709,8 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update) {
     return std::nullopt;
   }
 
-  XLS_VLOG(2) << absl::StrFormat("Flattening chain of array-updates: %s",
-                                 array_update->ToString());
+  VLOG(2) << absl::StrFormat("Flattening chain of array-updates: %s",
+                             array_update->ToString());
 
   std::vector<Node*> array_elements;
   for (int64_t i = 0; i < subarray_size; ++i) {
@@ -845,8 +845,8 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
                        GetIndexedElementType(origin_array->GetType(),
                                              common_index_prefix->size()));
   if (array->GetType() == origin_array_subtype) {
-    XLS_VLOG(2) << absl::StrFormat(
-        "Replace array of array-indexes with array: %s", array->ToString());
+    VLOG(2) << absl::StrFormat("Replace array of array-indexes with array: %s",
+                               array->ToString());
     if (common_index_prefix->empty()) {
       XLS_RETURN_IF_ERROR(array->ReplaceUsesWith(origin_array));
       return SimplifyResult::Changed({origin_array});
@@ -890,8 +890,8 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Select* select) {
     return SimplifyResult::Unchanged();
   }
 
-  XLS_VLOG(2) << absl::StrFormat("Hoist select above array-update: %s",
-                                 array_update->ToString());
+  VLOG(2) << absl::StrFormat("Hoist select above array-update: %s",
+                             array_update->ToString());
 
   XLS_ASSIGN_OR_RETURN(ArrayIndex * original_value,
                        select->function_base()->MakeNode<ArrayIndex>(
@@ -930,7 +930,7 @@ absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Select* select) {
     return SimplifyResult::Unchanged();
   }
 
-  XLS_VLOG(2) << absl::StrFormat(
+  VLOG(2) << absl::StrFormat(
       "Convert select of arrays to arrays of selects: %s", select->ToString());
 
   ArrayType* array_type = select->GetType()->AsArrayOrDie();
@@ -991,7 +991,7 @@ absl::StatusOr<SimplifyResult> SimplifySelect(Select* select,
     return SimplifyResult::Unchanged();
   }
 
-  XLS_VLOG(2) << absl::StrFormat(
+  VLOG(2) << absl::StrFormat(
       "Replace select of array updates with single array update: %s",
       select->ToString());
 

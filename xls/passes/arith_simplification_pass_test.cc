@@ -916,9 +916,9 @@ TEST_F(ArithSimplificationPassTest, SDivWithLiteralDivisorSweep) {
       } else {
         expected = Value(SBits(dividend / divisor, 3));
       }
-      XLS_VLOG(1) << absl::StreamFormat("%d / %d = %d (%s)", dividend, divisor,
-                                        expected.bits().ToInt64().value(),
-                                        expected.ToString());
+      VLOG(1) << absl::StreamFormat("%d / %d = %d (%s)", dividend, divisor,
+                                    expected.bits().ToInt64().value(),
+                                    expected.ToString());
       XLS_ASSERT_OK_AND_ASSIGN(
           InterpreterResult<Value> before_result,
           InterpretFunction(f, {Value(SBits(dividend, 3))}));

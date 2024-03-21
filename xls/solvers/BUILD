@@ -239,6 +239,7 @@ cc_test(
         ":z3_utils",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",

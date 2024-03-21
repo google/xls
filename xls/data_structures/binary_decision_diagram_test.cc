@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/log.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -291,8 +292,8 @@ TEST(BinaryDecisionDiagramTest, ThreeVariableExhaustive) {
       }
       return result;
     };
-    XLS_VLOG(1) << "truth_table = " << to_binary(truth_table);
-    XLS_VLOG(1) << "func = " << bdd.ToStringDnf(func);
+    VLOG(1) << "truth_table = " << to_binary(truth_table);
+    VLOG(1) << "func = " << bdd.ToStringDnf(func);
 
     // Now evaluate the function for all inputs
     for (bool x2 : {false, true}) {

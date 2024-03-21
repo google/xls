@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
@@ -88,8 +89,8 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const ParametricEnv& bindings,
     const Expr* expr, const Type* type) {
-  XLS_VLOG(5) << "ConstexprEvaluator::Evaluate; expr: " << expr->ToString()
-              << " @ " << expr->span();
+  VLOG(5) << "ConstexprEvaluator::Evaluate; expr: " << expr->ToString() << " @ "
+          << expr->span();
   if (type != nullptr) {
     XLS_RET_CHECK(!type->IsMeta());
   }
@@ -170,7 +171,7 @@ absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
-  XLS_VLOG(3) << "ConstexprEvaluator::HandleArray : " << expr->ToString();
+  VLOG(3) << "ConstexprEvaluator::HandleArray : " << expr->ToString();
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
     GET_CONSTEXPR_OR_RETURN(InterpValue value, member);
@@ -209,7 +210,7 @@ absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
-  XLS_VLOG(3) << "ConstexprEvaluator::HandleBinop : " << expr->ToString();
+  VLOG(3) << "ConstexprEvaluator::HandleBinop : " << expr->ToString();
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->rhs());
   return InterpretExpr(expr);
@@ -229,9 +230,8 @@ absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
       type_info_->NoteConstExpr(body_expr,
                                 type_info_->GetConstExpr(body_expr).value());
     } else {
-      XLS_VLOG(10)
-          << "ConstexprEvaluator::HandleBlock; expr was not constexpr: "
-          << body_expr->ToString();
+      VLOG(10) << "ConstexprEvaluator::HandleBlock; expr was not constexpr: "
+               << body_expr->ToString();
       all_statements_constexpr = false;
     }
   }
@@ -247,7 +247,7 @@ absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {
-  XLS_VLOG(3) << "ConstexprEvaluator::HandleCast : " << expr->ToString();
+  VLOG(3) << "ConstexprEvaluator::HandleCast : " << expr->ToString();
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->expr());
   return InterpretExpr(expr);
 }
@@ -276,7 +276,7 @@ absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
 // While a channel's *contents* aren't constexpr, the existence of the channel
 // itself is.
 absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
-  XLS_VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
+  VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
   // Keep in mind that channels come in tuples, so peel out the first element.
   std::optional<Type*> maybe_decl_type = type_info_->GetItem(expr);
   if (!maybe_decl_type.has_value()) {
@@ -363,8 +363,8 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
             }
 
             if (!std::holds_alternative<ConstantDef*>(*maybe_member.value())) {
-              XLS_VLOG(3) << "ConstRef \"" << expr->ToString()
-                          << "\" is not constexpr evaluatable.";
+              VLOG(3) << "ConstRef \"" << expr->ToString()
+                      << "\" is not constexpr evaluatable.";
               return absl::OkStatus();
             }
 
@@ -409,7 +409,7 @@ absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
-  XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
+  VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
 
   if (std::holds_alternative<Expr*>(expr->rhs())) {
@@ -481,8 +481,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
   XLS_RET_CHECK(!type.IsMeta())
       << "Got invalid type when evaluating number: " << type.ToString() << " @ "
       << expr.span();
-  XLS_VLOG(4) << "Evaluating number: " << expr.ToString() << " @ "
-              << expr.span();
+  VLOG(4) << "Evaluating number: " << expr.ToString() << " @ " << expr.span();
 
   std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
 
@@ -680,8 +679,8 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
       << "expr `" << node->ToString()
       << "` from module: " << node->owner()->name()
       << " vs type info module: " << type_info->module()->name();
-  XLS_VLOG(5) << "Creating constexpr environment for node: `"
-              << node->ToString() << "`";
+  VLOG(5) << "Creating constexpr environment for node: `" << node->ToString()
+          << "`";
   absl::flat_hash_map<std::string, InterpValue> env;
   absl::flat_hash_map<std::string, InterpValue> values;
 
@@ -691,8 +690,8 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
 
   // Collect all the freevars that are constexpr.
   FreeVariables freevars = GetFreeVariables(node);
-  XLS_VLOG(5) << "freevar count for `" << node->ToString()
-              << "`: " << freevars.GetFreeVariableCount();
+  VLOG(5) << "freevar count for `" << node->ToString()
+          << "`: " << freevars.GetFreeVariableCount();
   freevars = freevars.DropBuiltinDefs();
   for (const auto& [name, name_refs] : freevars.values()) {
     const NameRef* target_ref = nullptr;
@@ -716,16 +715,16 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
   }
 
   for (const ConstRef* const_ref : freevars.GetConstRefs()) {
-    XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString()
-                << " def: " << const_ref->ToString();
+    VLOG(5) << "analyzing constant reference: " << const_ref->ToString()
+            << " def: " << const_ref->ToString();
     Expr* const_expr = const_ref->GetValue();
     absl::StatusOr<InterpValue> value = type_info->GetConstExpr(const_expr);
     if (!value.ok()) {
       continue;
     }
 
-    XLS_VLOG(5) << "freevar env record: " << const_ref->identifier() << " => "
-                << value->ToString();
+    VLOG(5) << "freevar env record: " << const_ref->identifier() << " => "
+            << value->ToString();
     env.insert({const_ref->identifier(), *value});
   }
 

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/concurrent_stage_groups.h"
@@ -93,8 +94,8 @@ void ReduceChains(std::list<std::deque<RegisterData>>& chains,
           !IsClobbered(it->front(), modified_entry->back())) {
         absl::c_copy(*modified_entry, std::back_inserter(*it));
         chains.erase(modified_entry);
-        XLS_VLOG(2) << "Merged chain now (len: " << it->size()
-                    << "): " << it->front() << " -> " << it->back();
+        VLOG(2) << "Merged chain now (len: " << it->size()
+                << "): " << it->front() << " -> " << it->back();
         return;
       }
     } else {
@@ -103,9 +104,9 @@ void ReduceChains(std::list<std::deque<RegisterData>>& chains,
           !IsClobbered(modified_entry->front(), it->back())) {
         absl::c_copy(*it, std::back_inserter(*modified_entry));
         chains.erase(it);
-        XLS_VLOG(2) << "Merged chain now(len: " << modified_entry->size()
-                    << "): " << modified_entry->front() << " -> "
-                    << modified_entry->back();
+        VLOG(2) << "Merged chain now(len: " << modified_entry->size()
+                << "): " << modified_entry->front() << " -> "
+                << modified_entry->back();
         return;
       }
     }
@@ -162,17 +163,17 @@ std::vector<std::vector<RegisterData>> SplitOneChain(
 }  // namespace
 
 void RegisterChains::InsertAndReduce(const RegisterData& data) {
-  XLS_VLOG(2) << "Adding to chain " << data;
+  VLOG(2) << "Adding to chain " << data;
   auto modified_entry = InsertIntoChain(chains_, data);
   if (modified_entry->size() == 1) {
-    XLS_VLOG(2) << "Chain is singleton.";
+    VLOG(2) << "Chain is singleton.";
     // Left as a singleton so nothing to merge (If a merge was possible the
     // singleton would have been put onto that chain instead).
     return;
   }
-  XLS_VLOG(2) << "Chain now (len: " << modified_entry->size()
-              << "): " << modified_entry->front() << " -> "
-              << modified_entry->back();
+  VLOG(2) << "Chain now (len: " << modified_entry->size()
+          << "): " << modified_entry->front() << " -> "
+          << modified_entry->back();
 
   ReduceChains(chains_, modified_entry,
                /*is_front_modified=*/modified_entry->front() == data);
@@ -182,7 +183,7 @@ absl::StatusOr<std::vector<std::vector<RegisterData>>>
 RegisterChains::SplitBetweenMutexRegions(
     const ConcurrentStageGroups& groups,
     const CodegenPassOptions& options) const {
-  XLS_VLOG(2) << "Concurrent Groups\n" << groups;
+  VLOG(2) << "Concurrent Groups\n" << groups;
   std::vector<std::vector<RegisterData>> results;
   results.reserve(chains_.size());
   for (const auto& chain : chains_) {

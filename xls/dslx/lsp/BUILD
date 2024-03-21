@@ -49,6 +49,7 @@ cc_library(
         ":find_definition",
         ":lsp_type_utils",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -116,6 +117,7 @@ cc_library(
     hdrs = ["document_symbols.h"],
     deps = [
         ":lsp_type_utils",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
         "//xls/dslx/frontend:ast",

@@ -20,6 +20,7 @@
 #include <variant>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -57,15 +58,15 @@ static absl::StatusOr<
 ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
                                         const TypeInfo* type_info,
                                         TypeAlias* type_def) {
-  XLS_VLOG(5) << "ResolveTypeDefToDirectColonRefSubject; type_def: `"
-              << type_def->ToString() << "`";
+  VLOG(5) << "ResolveTypeDefToDirectColonRefSubject; type_def: `"
+          << type_def->ToString() << "`";
 
   TypeDefinition td = type_def;
   while (std::holds_alternative<TypeAlias*>(td)) {
     TypeAlias* next_type_alias = std::get<TypeAlias*>(td);
-    XLS_VLOG(5) << "TypeAlias: `" << next_type_alias->ToString() << "`";
+    VLOG(5) << "TypeAlias: `" << next_type_alias->ToString() << "`";
     TypeAnnotation* type = next_type_alias->type_annotation();
-    XLS_VLOG(5) << "TypeAnnotation: `" << type->ToString() << "`";
+    VLOG(5) << "TypeAnnotation: `" << type->ToString() << "`";
 
     if (auto* bti = dynamic_cast<BuiltinTypeAnnotation*>(type);
         bti != nullptr) {
@@ -81,8 +82,7 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
     // support parametric TypeDefs.
     XLS_RET_CHECK(type_ref_type != nullptr)
         << type->ToString() << " :: " << type->GetNodeTypeName();
-    XLS_VLOG(5) << "TypeRefTypeAnnotation: `" << type_ref_type->ToString()
-                << "`";
+    VLOG(5) << "TypeRefTypeAnnotation: `" << type_ref_type->ToString() << "`";
 
     td = type_ref_type->type_ref()->type_definition();
   }
@@ -118,8 +118,8 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
 absl::Status TryEnsureFitsInType(const Number& number,
                                  const BitsLikeProperties& bits_like,
                                  const Type& type) {
-  XLS_VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
-              << number.span();
+  VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
+          << number.span();
 
   std::optional<bool> maybe_signed;
   if (!bits_like.is_signed.IsParametric()) {
@@ -208,7 +208,7 @@ bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
 }
 
 absl::Status ValidateNumber(const Number& number, const Type& type) {
-  XLS_VLOG(5) << "Validating " << number.ToString() << " vs " << type;
+  VLOG(5) << "Validating " << number.ToString() << " vs " << type;
 
   if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
       bits_like.has_value()) {
@@ -237,8 +237,8 @@ absl::Status ValidateNumber(const Number& number, const Type& type) {
 // Returns the entity the subject name_ref is referring to.
 static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
     NameRef* name_ref, ImportData* import_data, const TypeInfo* type_info) {
-  XLS_VLOG(5) << "ResolveColonRefNameRefSubject for `" << name_ref->ToString()
-              << "`";
+  VLOG(5) << "ResolveColonRefNameRefSubject for `" << name_ref->ToString()
+          << "`";
 
   std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
       name_ref->name_def();
@@ -248,9 +248,8 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
 
   const NameDef* name_def = std::get<const NameDef*>(any_name_def);
   AstNode* definer = name_def->definer();
-  XLS_VLOG(5) << " ResolveColonRefNameRefSubject definer: `"
-              << definer->ToString()
-              << "` type: " << definer->GetNodeTypeName();
+  VLOG(5) << " ResolveColonRefNameRefSubject definer: `" << definer->ToString()
+          << "` type: " << definer->GetNodeTypeName();
 
   if (Import* import = dynamic_cast<Import*>(definer); import != nullptr) {
     std::optional<const ImportedInfo*> imported =
@@ -286,7 +285,7 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
 absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
     ImportData* import_data, const TypeInfo* type_info,
     const ColonRef* colon_ref) {
-  XLS_VLOG(5) << "ResolveColonRefSubject for " << colon_ref->ToString();
+  VLOG(5) << "ResolveColonRefSubject for " << colon_ref->ToString();
 
   // If the subject is a name reference we use a helper routine.
   if (std::holds_alternative<NameRef*>(colon_ref->subject())) {

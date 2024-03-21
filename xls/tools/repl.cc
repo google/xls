@@ -154,7 +154,7 @@ std::optional<Command> ParseCommand(std::string_view str) {
     result.command = CommandName::kType;
     result.arguments.push_back(absl::StripAsciiWhitespace(str));
   } else {
-    XLS_VLOG(1) << "Unknown command prefix: \"" << stripped_str << "\"";
+    VLOG(1) << "Unknown command prefix: \"" << stripped_str << "\"";
     return std::nullopt;
   }
   return result;
@@ -381,8 +381,8 @@ absl::StatusOr<Function*> FindFunction(std::string_view function_name,
 // Function implementing the `:verilog` command, which generates and dumps the
 // compiled Verilog for the module.
 absl::Status CommandVerilog(std::optional<std::string> function_name) {
-  XLS_VLOG(1) << "Running verilog command with function name: "
-              << (function_name ? *function_name : "<none>");
+  VLOG(1) << "Running verilog command with function name: "
+          << (function_name ? *function_name : "<none>");
   XLS_RETURN_IF_ERROR(UpdateIr());
   Package* package = GetSingletonGlobals().ir_package.get();
   dslx::Module* module = GetSingletonGlobals().dslx->module.get();

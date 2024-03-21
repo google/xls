@@ -875,15 +875,14 @@ absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
 
 absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
   if (update->start()->GetType()->GetFlatBitCount() > 130) {
-    XLS_VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
-                << "slice update start index";
+    VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
+            << "slice update start index";
     return IrTranslator::DefaultHandler(update);
   }
   if (update->to_update()->GetType()->GetFlatBitCount() > 1000) {
-    XLS_VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
-                << "slice update to_update value ("
-                << update->to_update()->GetType()->GetFlatBitCount()
-                << " bits)";
+    VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
+            << "slice update to_update value ("
+            << update->to_update()->GetType()->GetFlatBitCount() << " bits)";
     return IrTranslator::DefaultHandler(update);
   }
   ScopedErrorHandler seh(ctx_);
@@ -1293,9 +1292,9 @@ absl::Status IrTranslator::DefaultHandler(Node* node) {
     XLS_ASSIGN_OR_RETURN(Z3_ast fresh,
                          CreateZ3Param(node->GetType(), node->GetName()));
     NoteTranslation(node, fresh);
-    XLS_VLOG(1) << "Unhandled node for conversion from XLS IR to Z3, "
-                   "defaulting to variable: "
-                << node->ToString();
+    VLOG(1) << "Unhandled node for conversion from XLS IR to Z3, "
+               "defaulting to variable: "
+            << node->ToString();
     return absl::OkStatus();
   }
   return absl::UnimplementedError(
@@ -1340,9 +1339,9 @@ Z3_ast IrTranslator::GetBitVec(Node* node) {
 
 void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
   if (translations_.contains(node)) {
-    XLS_VLOG(2) << "Skipping translation of " << node->GetName()
-                << ", as it's already been recorded "
-                << "(expected if we're retranslating).";
+    VLOG(2) << "Skipping translation of " << node->GetName()
+            << ", as it's already been recorded "
+            << "(expected if we're retranslating).";
     return;
   }
   translations_[node] = translated;
@@ -1378,8 +1377,8 @@ static absl::StatusOr<Z3_ast> PredicateToNegatedObjective(
     return absl::OkStatus();
   };
 
-  XLS_VLOG(3) << "predicate: " << p.ToString()
-              << " Z3_ast sort kind: " << t.GetSortName(a);
+  VLOG(3) << "predicate: " << p.ToString()
+          << " Z3_ast sort kind: " << t.GetSortName(a);
   switch (p.kind()) {
     case PredicateKind::kEqualToZero: {
       XLS_RETURN_IF_ERROR(validate_bv_sort());
@@ -1487,7 +1486,7 @@ absl::StatusOr<bool> TryProveCombination(
   CHECK(objective.value() != nullptr);
 
   Z3_context ctx = translator->ctx();
-  XLS_VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective.value());
+  VLOG(1) << "objective:\n" << Z3_ast_to_string(ctx, objective.value());
   Z3_solver solver = solvers::z3::CreateSolver(ctx, /*num_threads=*/1);
   auto cleanup = absl::Cleanup([&] { Z3_solver_dec_ref(ctx, solver); });
 
@@ -1507,7 +1506,7 @@ absl::StatusOr<bool> TryProveCombination(
     return true;
   }
 
-  XLS_VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
+  VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
   return false;
 }
 

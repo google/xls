@@ -27,23 +27,23 @@ namespace xls::dslx {
 
 std::optional<Span> FindDefinition(const Module& m, const Pos& selected) {
   std::vector<const AstNode*> intercepting = m.FindIntercepting(selected);
-  XLS_VLOG(3) << "Found " << intercepting.size()
-              << " nodes intercepting selected position: " << selected;
+  VLOG(3) << "Found " << intercepting.size()
+          << " nodes intercepting selected position: " << selected;
 
   std::vector<const NameDef*> defs;
   for (const AstNode* node : intercepting) {
-    XLS_VLOG(5) << "Intercepting node kind: " << node->kind() << " @ "
-                << node->GetSpan().value();
+    VLOG(5) << "Intercepting node kind: " << node->kind() << " @ "
+            << node->GetSpan().value();
     if (auto* name_ref = dynamic_cast<const NameRef*>(node);
         name_ref != nullptr) {
-      XLS_VLOG(3) << "Intercepting name ref: `" << name_ref->ToString() << "`";
+      VLOG(3) << "Intercepting name ref: `" << name_ref->ToString() << "`";
       std::variant<const NameDef*, BuiltinNameDef*> name_def =
           name_ref->name_def();
       if (std::holds_alternative<const NameDef*>(name_def)) {
         defs.push_back(std::get<const NameDef*>(name_def));
       }
     } else if (auto* type_ref = dynamic_cast<const TypeRef*>(node)) {
-      XLS_VLOG(3) << "Intercepting type ref: `" << type_ref->ToString() << "`";
+      VLOG(3) << "Intercepting type ref: `" << type_ref->ToString() << "`";
       AnyNameDef type_definer =
           TypeDefinitionGetNameDef(type_ref->type_definition());
       if (std::holds_alternative<const NameDef*>(type_definer)) {

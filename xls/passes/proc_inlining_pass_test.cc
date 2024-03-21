@@ -90,7 +90,7 @@ class ProcInliningPassTest : public IrTestBase {
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
                             .Run(p, OptimizationPassOptions(), &results)
                             .status());
-    XLS_VLOG(1) << "After DCE:\n" << p->DumpIr();
+    VLOG(1) << "After DCE:\n" << p->DumpIr();
     return changed;
   }
 
@@ -436,13 +436,13 @@ class ProcInliningPassTest : public IrTestBase {
 
   int64_t TotalProcStateSize(Package* p) {
     int64_t bit_count = 0;
-    XLS_VLOG(1) << absl::StreamFormat("Proc state of package %s:", p->name());
+    VLOG(1) << absl::StreamFormat("Proc state of package %s:", p->name());
     for (const std::unique_ptr<Proc>& proc : p->procs()) {
-      XLS_VLOG(1) << absl::StreamFormat("  State elements for proc %s:",
-                                        proc->name());
+      VLOG(1) << absl::StreamFormat("  State elements for proc %s:",
+                                    proc->name());
       for (Param* param : proc->StateParams()) {
-        XLS_VLOG(1) << absl::StreamFormat("    %s: %d bits", param->GetName(),
-                                          param->GetType()->GetFlatBitCount());
+        VLOG(1) << absl::StreamFormat("    %s: %d bits", param->GetName(),
+                                      param->GetType()->GetFlatBitCount());
         bit_count += param->GetType()->GetFlatBitCount();
       }
     }
@@ -2879,8 +2879,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
     XLS_ASSERT_OK_AND_ASSIGN(Proc * top, b.Build(send_out, {}));
     XLS_ASSERT_OK(p->SetTop(top));
 
-    XLS_VLOG(1) << "Sample " << sample << " (before inlining):\n"
-                << p->DumpIr();
+    VLOG(1) << "Sample " << sample << " (before inlining):\n" << p->DumpIr();
 
     // Run the proc network interpreter on the proc network before inlining
     // using a few prechosen inputs. After inlining, the generated results
@@ -2904,7 +2903,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
 
     EXPECT_EQ(p->procs().size(), 1);
 
-    XLS_VLOG(1) << "Sample " << sample << " (after inlining):\n" << p->DumpIr();
+    VLOG(1) << "Sample " << sample << " (after inlining):\n" << p->DumpIr();
     XLS_EXPECT_OK(EvalAndExpect(p.get(), inputs, expected_outputs).status());
   }
 }

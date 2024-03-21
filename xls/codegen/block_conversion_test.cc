@@ -34,6 +34,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -353,7 +354,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       }
     }
 
-    XLS_VLOG(1) << header;
+    VLOG(1) << header;
 
     for (int64_t i = 0; i < inputs.size(); ++i) {
       std::string row;
@@ -380,7 +381,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
                         absl::StrFormat(" %*d", column_width, signal_value));
       }
 
-      XLS_VLOG(1) << row;
+      VLOG(1) << row;
     }
 
     return absl::OkStatus();
@@ -1594,7 +1595,7 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
     pb.Send(ch_out, buffered_in_val);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({}));
 
-    XLS_VLOG(2) << "Simple streaming proc";
+    VLOG(2) << "Simple streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
     XLS_ASSIGN_OR_RETURN(
@@ -1670,7 +1671,7 @@ TEST_F(SimplePipelinedProcTest, BasicDatapathResetAndInputFlop) {
                            BuildBlockInPackage(/*stage_count=*/4, options));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Simple streaming pipelined block";
+  VLOG(2) << "Simple streaming pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
@@ -1762,7 +1763,7 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
                            BuildBlockInPackage(/*stage_count=*/4, options));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Simple streaming pipelined block";
+  VLOG(2) << "Simple streaming pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
@@ -1979,7 +1980,7 @@ TEST_P(SimplePipelinedProcTestSweepFixture, RandomStalling) {
       BuildBlockInPackage(/*stage_count=*/stage_count, options));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Simple streaming pipelined block";
+  VLOG(2) << "Simple streaming pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   // The input stimulus to this test are
@@ -2147,7 +2148,7 @@ class SimpleRunningCounterProcTestSweepFixture
     pb.Next(/*param=*/state, /*value=*/next_state);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
-    XLS_VLOG(2) << "Simple counting proc";
+    VLOG(2) << "Simple counting proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
@@ -2188,7 +2189,7 @@ TEST_P(SimpleRunningCounterProcTestSweepFixture, RandomStalling) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Simple counting pipelined block";
+  VLOG(2) << "Simple counting pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   // The input stimulus to this test are
@@ -2342,7 +2343,7 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
     pb.Send(ch_out, sum_val);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({}));
 
-    XLS_VLOG(2) << "Multi input streaming proc";
+    VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
     XLS_ASSIGN_OR_RETURN(
@@ -2408,7 +2409,7 @@ TEST_P(MultiInputPipelinedProcTestSweepFixture, RandomStalling) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Multi input counting pipelined block";
+  VLOG(2) << "Multi input counting pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   // The input stimulus to this test are
@@ -2545,7 +2546,7 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Multi input counting pipelined block";
+  VLOG(2) << "Multi input counting pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   // The input stimulus to this test are
@@ -2790,7 +2791,7 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
     pb.Next(/*param=*/accum1, /*value=*/next_accum1);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
-    XLS_VLOG(2) << "Multi input streaming proc";
+    VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
     XLS_ASSIGN_OR_RETURN(
@@ -2857,7 +2858,7 @@ TEST_P(MultiInputWithStatePipelinedProcTestSweepFixture, RandomStalling) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Multi input counting pipelined block";
+  VLOG(2) << "Multi input counting pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   // The input stimulus to this test are
@@ -3075,7 +3076,7 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
     pb.Next(/*param=*/state, /*value=*/next_state);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
-    XLS_VLOG(2) << "Multi io streaming proc";
+    VLOG(2) << "Multi io streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
     XLS_ASSIGN_OR_RETURN(
@@ -3143,7 +3144,7 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Multi io counting pipelined block";
+  VLOG(2) << "Multi io counting pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   // The input stimulus to this test are
@@ -3612,7 +3613,7 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));
-  XLS_VLOG(2) << "Block IR:\n" << unit.top_block->DumpIr();
+  VLOG(2) << "Block IR:\n" << unit.top_block->DumpIr();
 
   std::string reset_name = options.reset()->name();
   uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
@@ -4021,7 +4022,7 @@ class NonblockingReceivesProcTest : public ProcConversionTestFixture {
 
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(tok_fin, {}));
 
-    XLS_VLOG(2) << "Non-blocking proc";
+    VLOG(2) << "Non-blocking proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
     XLS_ASSIGN_OR_RETURN(
@@ -4092,7 +4093,7 @@ TEST_P(NonblockingReceivesProcTestSweepFixture, RandomInput) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
 
-  XLS_VLOG(2) << "Nonblocking receives pipelined block";
+  VLOG(2) << "Nonblocking receives pipelined block";
   XLS_VLOG_LINES(2, block->DumpIr());
 
   // The input stimulus to this test are
@@ -4135,7 +4136,7 @@ TEST_P(NonblockingReceivesProcTestSweepFixture, RandomInput) {
   XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
                                                 0, outputs));
 
-  XLS_VLOG(1) << "Signal Trace";
+  VLOG(1) << "Signal Trace";
   XLS_ASSERT_OK(VLogTestPipelinedIO(
       std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
                               {"rst", SignalType::kInput},
@@ -4693,7 +4694,7 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
   XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
                                                 0, outputs));
 
-  XLS_VLOG(1) << "Signal Trace";
+  VLOG(1) << "Signal Trace";
   XLS_ASSERT_OK(VLogTestPipelinedIO(
       std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
                               {"rst", SignalType::kInput},
@@ -4823,7 +4824,7 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
   XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
                                                 0, outputs));
 
-  XLS_VLOG(1) << "Signal Trace";
+  VLOG(1) << "Signal Trace";
   XLS_ASSERT_OK(VLogTestPipelinedIO(
       std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
                               {"rst", SignalType::kInput},
@@ -5025,7 +5026,7 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
                                                 0, outputs));
 
-  XLS_VLOG(1) << "Signal Trace";
+  VLOG(1) << "Signal Trace";
   XLS_ASSERT_OK(VLogTestPipelinedIO(
       std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
                               {"rst", SignalType::kInput},
@@ -5113,7 +5114,7 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
                                                 0, outputs));
 
-  XLS_VLOG(1) << "Signal Trace";
+  VLOG(1) << "Signal Trace";
   XLS_ASSERT_OK(VLogTestPipelinedIO(
       std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
                               {"rst", SignalType::kInput},

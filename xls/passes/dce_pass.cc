@@ -16,6 +16,7 @@
 
 #include <deque>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -58,12 +59,12 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
         }
       }
     }
-    XLS_VLOG(3) << "DCE removing " << node->ToString();
+    VLOG(3) << "DCE removing " << node->ToString();
     XLS_RETURN_IF_ERROR(f->RemoveNode(node));
     removed_count++;
   }
 
-  XLS_VLOG(2) << "Removed " << removed_count << " dead nodes";
+  VLOG(2) << "Removed " << removed_count << " dead nodes";
   return removed_count > 0;
 }
 

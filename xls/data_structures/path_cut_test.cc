@@ -23,6 +23,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/strong_int.h"
@@ -161,14 +162,14 @@ TEST(PathCutTest, ComplexTest) {
   PG path = CreatePathGraph({17, 16, 18, 93, 55, 75, 51, 63},
                             {23, 34, 61, 22, 76, 54, 77});
   for (int32_t i = 0; i < 300; i += 1) {
-    XLS_VLOG(3) << "i = " << i << "\n";
+    VLOG(3) << "i = " << i << "\n";
     int32_t max_weight(i);
     std::optional<PathCut> smart = path.ComputePathCut(max_weight);
     std::optional<PathCut> brute = BruteForcePathCut(path, max_weight);
     EXPECT_EQ(smart.has_value(), brute.has_value());
     if (smart.has_value()) {
-      XLS_VLOG(3) << "brute = " << PathCutToString(*brute) << "\n";
-      XLS_VLOG(3) << "smart = " << PathCutToString(*smart) << "\n";
+      VLOG(3) << "brute = " << PathCutToString(*brute) << "\n";
+      VLOG(3) << "smart = " << PathCutToString(*smart) << "\n";
       EXPECT_TRUE(PathCutIsValid(path, *brute, max_weight));
       EXPECT_TRUE(PathCutIsValid(path, *smart, max_weight));
       EXPECT_EQ(PathCutCost(path, *smart), PathCutCost(path, *brute));

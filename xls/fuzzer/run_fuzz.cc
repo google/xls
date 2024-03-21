@@ -221,8 +221,8 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
                                std::filesystem::perms::owner_exec,
                                std::filesystem::perm_options::add);
 
-  XLS_VLOG(1) << "Starting to run sample";
-  XLS_VLOG(2) << smp.input_text();
+  VLOG(1) << "Starting to run sample";
+  VLOG(2) << smp.input_text();
   SampleRunner runner(run_dir);
   XLS_RETURN_IF_ERROR(runner.RunFromFiles(sample_file_name, options_file_name,
                                           args_file_name,
@@ -241,7 +241,7 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   }
   timing.set_total_ns(absl::ToInt64Nanoseconds(total_elapsed));
 
-  XLS_VLOG(1) << "Completed running sample, elapsed: " << total_elapsed;
+  VLOG(1) << "Completed running sample, elapsed: " << total_elapsed;
 
   if (summary_file.has_value()) {
     XLS_RETURN_IF_ERROR(WriteIrSummaries(run_dir, timing, *summary_file));

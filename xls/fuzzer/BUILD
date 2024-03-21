@@ -929,6 +929,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
+        "@com_google_absl//absl/log",
     ],
 )
 

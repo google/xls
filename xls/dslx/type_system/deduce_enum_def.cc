@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -49,7 +50,7 @@ extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
 // width of the enum from the values contained inside of its definition.
 static absl::StatusOr<std::unique_ptr<Type>> DeduceEnumSansUnderlyingType(
     const EnumDef* node, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "Deducing enum without underlying type: " << node->ToString();
+  VLOG(5) << "Deducing enum without underlying type: " << node->ToString();
   std::vector<std::pair<const EnumMember*, std::unique_ptr<Type>>> deduced;
   for (const EnumMember& member : node->values()) {
     bool is_boolean = false;
@@ -73,8 +74,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceEnumSansUnderlyingType(
     }
   }
 
-  XLS_VLOG(5) << "Underlying type of EnumDef " << node->identifier() << ": "
-              << target;
+  VLOG(5) << "Underlying type of EnumDef " << node->identifier() << ": "
+          << target;
 
   // Note the deduced type for all the "bare number" members.
   for (const EnumMember& member : node->values()) {

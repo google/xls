@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -112,11 +113,11 @@ const Port& NetworkManager::GetPort(PortId id) const {
 }
 
 void NetworkManager::Dump(int indent_level) const {
-  XLS_VLOG(1) << IndentLevel(indent_level) << "Network Manager:";
+  VLOG(1) << IndentLevel(indent_level) << "Network Manager:";
 
   int64_t i = 0;
   for (const auto& network : networks_) {
-    XLS_VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Network:";
+    VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Network:";
 
     network.Dump(indent_level + 1);
 
@@ -219,19 +220,19 @@ const Port& Network::GetPort(PortId id) const {
 }
 
 void Network::Dump(int indent_level) const {
-  XLS_VLOG(1) << IndentLevel(indent_level)
-              << absl::StreamFormat("Network id %x", id_.AsUInt64());
+  VLOG(1) << IndentLevel(indent_level)
+          << absl::StreamFormat("Network id %x", id_.AsUInt64());
 
   int64_t i = 0;
   for (const auto& component : components_) {
-    XLS_VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Component:";
+    VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Component:";
     component.Dump(indent_level + 1);
     ++i;
   }
 
   i = 0;
   for (auto connection : connections_) {
-    XLS_VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Connection:";
+    VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Connection:";
     connection.Dump(indent_level + 1);
     ++i;
   }
@@ -289,13 +290,13 @@ std::vector<PortId> NetworkComponent::GetInputPortIds() const {
 }
 
 void NetworkComponent::Dump(int indent_level) const {
-  XLS_VLOG(1) << IndentLevel(indent_level)
-              << absl::StreamFormat("NetworkComponent id %x kind %d",
-                                    id_.AsUInt64(), kind_);
+  VLOG(1) << IndentLevel(indent_level)
+          << absl::StreamFormat("NetworkComponent id %x kind %d",
+                                id_.AsUInt64(), kind_);
 
   int64_t i = 0;
   for (auto port : ports_) {
-    XLS_VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Port:";
+    VLOG(1) << IndentLevel(indent_level) << "- #" << i << " Port:";
     port.Dump(indent_level + 1);
     ++i;
   }
@@ -303,10 +304,9 @@ void NetworkComponent::Dump(int indent_level) const {
 
 // - Port
 void Port::Dump(int indent_level) const {
-  XLS_VLOG(1) << IndentLevel(indent_level)
-              << absl::StreamFormat("Port id %x Dir %d Connection %x",
-                                    id_.AsUInt64(), dir_,
-                                    connection_.AsUInt64());
+  VLOG(1) << IndentLevel(indent_level)
+          << absl::StreamFormat("Port id %x Dir %d Connection %x",
+                                id_.AsUInt64(), dir_, connection_.AsUInt64());
 }
 
 // -  Connection
@@ -357,10 +357,10 @@ PortId Connection::Attach(PortId port) {
 }
 
 void Connection::Dump(int indent_level) const {
-  XLS_VLOG(1) << IndentLevel(indent_level)
-              << absl::StreamFormat("Connection id %x src %x sink %x",
-                                    id_.AsUInt64(), src_.AsUInt64(),
-                                    sink_.AsUInt64());
+  VLOG(1) << IndentLevel(indent_level)
+          << absl::StreamFormat("Connection id %x src %x sink %x",
+                                id_.AsUInt64(), src_.AsUInt64(),
+                                sink_.AsUInt64());
 }
 
 }  // namespace noc
