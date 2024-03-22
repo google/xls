@@ -46,7 +46,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/random_util.h"
 #include "xls/common/status/ret_check.h"

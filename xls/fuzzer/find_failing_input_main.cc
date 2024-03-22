@@ -27,7 +27,6 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"

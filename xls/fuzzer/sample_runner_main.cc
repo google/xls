@@ -28,7 +28,6 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/fuzzer/sample_runner.h"
 
 constexpr std::string_view kUsage = R"(Sample runner program.
