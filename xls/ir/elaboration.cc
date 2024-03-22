@@ -309,7 +309,7 @@ std::string Elaboration::ToString() const {
   }
   // Old-style procs.
   return absl::StrJoin(procs(), "\n", [](std::string* s, Proc* p) {
-    return absl::StrAppend(s, p->name());
+    absl::StrAppend(s, p->name());
   });
 }
 
