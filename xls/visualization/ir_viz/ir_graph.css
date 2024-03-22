@@ -38,10 +38,13 @@ body {
   font-size: large;
   width: 100%;
   /* Use font-relative vertical size as the metadata is a fixed number of text
-     lines. */
-  height: 7.5em;
+     lines when no text-wrapping occurs. Give a little extra space so there's
+     room for scrollbars. */
+  height: 8.5em;
   border: 1px solid #dee2e6;
-  white-space: pre-wrap;
+  /* Don't wrap text so that we can always see all the metadata. */
+  white-space-collapse: preserve-breaks;
+  text-wrap: nowrap;
   overflow: auto;
   cursor: text;
 }
