@@ -21,12 +21,14 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -109,6 +111,17 @@ FUZZ_TEST(RangeQueryEngineFuzzTest, MinimizeIntervalsSatisfiesInvariants)
                      },
                      fuzztest::InRange(1, 32)),
                  fuzztest::InRange(1, 20));
+
+MATCHER_P(IntervalsAre, expected,
+          absl::StrFormat("%smatch interval set of %s",
+                          negation ? "doesn't " : "does ",
+                          expected.ToString())) {
+  return testing::ExplainMatchResult(testing::Eq(expected.type()), arg.type(),
+                                     result_listener) &&
+         testing::ExplainMatchResult(
+             testing::ElementsAreArray(expected.elements()), arg.elements(),
+             result_listener);
+}
 
 TEST_F(RangeQueryEngineTest, Add) {
   auto p = CreatePackage();
@@ -348,6 +361,93 @@ TEST_F(RangeQueryEngineTest, ArrayIndex3D) {
   expected.AddInterval(Interval::Precise(UBits(68, 32)));
 
   EXPECT_EQ(expected, engine.GetIntervalSetTree(index.node()).Get({}));
+}
+
+TEST_F(RangeQueryEngineTest, ArraySlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue a = fb.Param("a", p->GetBitsType(10));
+  BValue b = fb.Param("b", p->GetBitsType(10));
+  BValue c = fb.Param("c", p->GetBitsType(10));
+  BValue w = fb.Param("w", p->GetBitsType(10));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue array = fb.Array({a, b, c, w, x, y, z}, p->GetBitsType(10));
+  BValue slice0_3 = fb.ArraySlice(array, fb.Literal(UBits(0, 3)), 3);
+  BValue slice3_4 = fb.ArraySlice(array, fb.Literal(UBits(3, 3)), 4);
+  BValue slice4_8 = fb.ArraySlice(array, fb.Literal(UBits(4, 3)), 8);
+  BValue i = fb.Param("i", p->GetBitsType(2));
+  BValue slice12_2 = fb.ArraySlice(array, i, 2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree a_ist =
+      BitsLTT(a.node(), {Interval(UBits(400, 10), UBits(451, 10))});
+  IntervalSetTree b_ist =
+      BitsLTT(b.node(), {Interval(UBits(500, 10), UBits(551, 10))});
+  IntervalSetTree c_ist =
+      BitsLTT(c.node(), {Interval(UBits(600, 10), UBits(651, 10))});
+  IntervalSetTree w_ist =
+      BitsLTT(w.node(), {Interval(UBits(000, 10), UBits(050, 10))});
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(200, 10), UBits(250, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(z.node(), {Interval(UBits(300, 10), UBits(350, 10))});
+  IntervalSetTree i_ist =
+      BitsLTT(i.node(), {Interval(UBits(1, 2), UBits(2, 2))});
+
+  IntervalSetTree abc_ist =
+      IntervalSetTree(p->GetArrayType(3, p->GetBitsType(10)));
+  abc_ist.Set({0}, a_ist.Get({}));
+  abc_ist.Set({1}, b_ist.Get({}));
+  abc_ist.Set({2}, c_ist.Get({}));
+
+  IntervalSetTree wxyz_ist =
+      IntervalSetTree(p->GetArrayType(4, p->GetBitsType(10)));
+  wxyz_ist.Set({0}, w_ist.Get({}));
+  wxyz_ist.Set({1}, x_ist.Get({}));
+  wxyz_ist.Set({2}, y_ist.Get({}));
+  wxyz_ist.Set({3}, z_ist.Get({}));
+
+  IntervalSetTree xyzzzzzz_ist =
+      IntervalSetTree(p->GetArrayType(8, p->GetBitsType(10)));
+  xyzzzzzz_ist.Set({0}, x_ist.Get({}));
+  xyzzzzzz_ist.Set({1}, y_ist.Get({}));
+  xyzzzzzz_ist.Set({2}, z_ist.Get({}));
+  xyzzzzzz_ist.Set({3}, z_ist.Get({}));
+  xyzzzzzz_ist.Set({4}, z_ist.Get({}));
+  xyzzzzzz_ist.Set({5}, z_ist.Get({}));
+  xyzzzzzz_ist.Set({6}, z_ist.Get({}));
+  xyzzzzzz_ist.Set({7}, z_ist.Get({}));
+
+  IntervalSetTree bc_or_cw_ist =
+      IntervalSetTree(p->GetArrayType(2, p->GetBitsType(10)));
+  bc_or_cw_ist.Set({0}, IntervalSet::Combine(b_ist.Get({}), c_ist.Get({})));
+  bc_or_cw_ist.Set({1}, IntervalSet::Combine(c_ist.Get({}), w_ist.Get({})));
+
+  engine.SetIntervalSetTree(a.node(), a_ist);
+  engine.SetIntervalSetTree(b.node(), b_ist);
+  engine.SetIntervalSetTree(c.node(), c_ist);
+  engine.SetIntervalSetTree(w.node(), w_ist);
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  engine.SetIntervalSetTree(i.node(), i_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_THAT(engine.GetIntervalSetTree(slice0_3.node()),
+              IntervalsAre(abc_ist));
+  EXPECT_THAT(engine.GetIntervalSetTree(slice3_4.node()),
+              IntervalsAre(wxyz_ist));
+  EXPECT_THAT(engine.GetIntervalSetTree(slice4_8.node()),
+              IntervalsAre(xyzzzzzz_ist));
+  EXPECT_THAT(engine.GetIntervalSetTree(slice12_2.node()),
+              IntervalsAre(bc_or_cw_ist));
 }
 
 TEST_F(RangeQueryEngineTest, AndReduce) {

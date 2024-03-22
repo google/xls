@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <sstream>
@@ -31,6 +32,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -1015,7 +1017,45 @@ absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
 
 absl::Status RangeQueryVisitor::HandleArraySlice(ArraySlice* slice) {
   INITIALIZE_OR_SKIP(slice);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSetTree array_interval_set_tree = GetIntervalSetTree(slice->array());
+  IntervalSetTree start_interval_set_tree = GetIntervalSetTree(slice->start());
+  XLS_ASSIGN_OR_RETURN(
+      IntervalSetTree result,
+      LeafTypeTree<IntervalSet>::CreateFromFunction(
+          slice->GetType(),
+          [](Type* leaf_type,
+             absl::Span<const int64_t> index) -> absl::StatusOr<IntervalSet> {
+            return IntervalSet(leaf_type->GetFlatBitCount());
+          }));
+  absl::Status status;
+  start_interval_set_tree.Get({}).ForEachElement([&](const Bits& v) -> bool {
+    // array's can't be bigger than this anyway.
+    int64_t start = v.FitsInUint64() ? v.ToUint64().value()
+                                     : std::numeric_limits<int64_t>::max();
+    if (start < 0) {
+      // Overflows, clamp back to max int.
+      start = std::numeric_limits<int64_t>::max();
+    }
+    auto slice_ltt = leaf_type_tree::SliceArray<IntervalSet>(
+        slice->GetType()->AsArrayOrDie(), array_interval_set_tree.AsView(),
+        start);
+    if (!slice_ltt.ok()) {
+      status.Update(slice_ltt.status());
+      return true;
+    }
+    leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
+        result.AsMutableView(), slice_ltt->AsView(),
+        [](IntervalSet& lhs, const IntervalSet& rhs) {
+          lhs = IntervalSet::Combine(lhs, rhs);
+        });
+    return start >= slice->width();
+  });
+
+  XLS_RETURN_IF_ERROR(status);
+
+  SetIntervalSetTree(slice, result);
+
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleArrayUpdate(ArrayUpdate* update) {
