@@ -21,7 +21,6 @@
 
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/noc/config_ng/coordinate.h"
 #include "xls/noc/config_ng/dimension_bounds.h"
 

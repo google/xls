@@ -15,7 +15,6 @@
 #include "xls/noc/config_ng/network_connection.h"
 
 #include "absl/log/die_if_null.h"
-#include "xls/common/logging/logging.h"
 #include "xls/noc/config_ng/network_component_port.h"
 
 namespace xls::noc {

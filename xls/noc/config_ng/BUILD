@@ -80,7 +80,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -101,7 +100,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -124,7 +122,6 @@ cc_library(
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -146,7 +143,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -167,7 +163,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -190,7 +185,6 @@ cc_library(
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_butterfly_options_proto_builder",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -213,7 +207,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -234,7 +227,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -255,7 +247,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -280,7 +271,6 @@ cc_library(
         ":unidirectional_tree_options_proto_builder",
         "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
     ],
 )
 
@@ -304,7 +294,6 @@ cc_library(
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -326,7 +315,6 @@ cc_library(
     deps = [
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -349,7 +337,6 @@ cc_library(
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -372,7 +359,6 @@ cc_library(
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -395,7 +381,6 @@ cc_library(
         ":node_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -418,7 +403,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -443,7 +427,6 @@ cc_library(
         "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/status",
         "//xls/common:iterator_range",
-        "//xls/common/logging",
         "//xls/ir:unwrapping_iterator",
     ],
 )
@@ -466,7 +449,6 @@ cc_library(
     deps = [
         ":network_component_port",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -523,7 +505,6 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
     ],
 )
@@ -626,7 +607,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common/logging",
         "//xls/ir:bits",
     ],
 )
@@ -699,7 +679,6 @@ cc_library(
         ":dimension_bounds",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log:check",
-        "//xls/common/logging",
     ],
 )
 

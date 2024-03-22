@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "absl/log/die_if_null.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls::noc {
 

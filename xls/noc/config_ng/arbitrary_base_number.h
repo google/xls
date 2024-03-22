@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 
 namespace xls::noc {
