@@ -26,7 +26,6 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_chaining_analysis.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"

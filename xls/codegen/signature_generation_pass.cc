@@ -20,7 +20,6 @@
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/pass_base.h"
 

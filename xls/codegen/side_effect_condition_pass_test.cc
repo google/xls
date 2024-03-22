@@ -34,7 +34,6 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

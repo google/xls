@@ -24,7 +24,6 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/concurrent_stage_groups.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls::verilog {
 

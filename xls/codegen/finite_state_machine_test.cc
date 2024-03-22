@@ -18,7 +18,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/simulation/verilog_test_base.h"
 

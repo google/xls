@@ -34,7 +34,6 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/interpreter/block_evaluator.h"

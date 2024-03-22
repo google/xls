@@ -47,7 +47,6 @@
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"

@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {

@@ -43,7 +43,6 @@
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"

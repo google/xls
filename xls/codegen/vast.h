@@ -38,7 +38,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/source_location.h"
