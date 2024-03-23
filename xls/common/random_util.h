@@ -20,7 +20,6 @@
 
 #include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls {
 

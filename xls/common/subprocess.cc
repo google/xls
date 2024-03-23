@@ -48,7 +48,6 @@
 #include "xls/common/file/file_descriptor.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strerror.h"
 #include "xls/common/thread.h"

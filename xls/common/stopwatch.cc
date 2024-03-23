@@ -19,7 +19,6 @@
 #include "absl/base/no_destructor.h"
 #include "absl/log/log.h"
 #include "absl/time/time.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls {
 namespace {

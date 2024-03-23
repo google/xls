@@ -21,7 +21,6 @@
 #include "absl/flags/usage.h"
 #include "absl/log/check.h"
 #include "absl/log/initialize.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls {
 

@@ -36,7 +36,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random:bit_gen_ref",
-        "//xls/common/logging",
     ],
 )
 
@@ -148,7 +147,6 @@ cc_library(
         "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/strings",
-        "//xls/common/logging",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:initialize",
     ],
@@ -170,7 +168,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
     ],
 )
 
@@ -242,7 +239,6 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/file:file_descriptor",
         "//xls/common/file:get_runfile_path",
-        "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
     ],
@@ -297,7 +293,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
     ],
@@ -562,7 +557,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
     ],
 )
@@ -581,7 +575,6 @@ cc_library(
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/time",
-        "//xls/common/logging",
     ],
 )
 

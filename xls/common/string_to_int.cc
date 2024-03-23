@@ -21,7 +21,6 @@
 #include "absl/numeric/int128.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/strip.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 
