@@ -32,7 +32,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
-    Elaboration elaboration) {
+    ProcElaboration elaboration) {
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ChannelQueueManager> queue_manager,
@@ -68,14 +68,15 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
 CreateInterpreterSerialProcRuntime(Package* package) {
-  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
-                       Elaboration::ElaborateOldStylePackage(package));
+  XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                       ProcElaboration::ElaborateOldStylePackage(package));
   return CreateRuntime(std::move(elaboration));
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
 CreateInterpreterSerialProcRuntime(Proc* top) {
-  XLS_ASSIGN_OR_RETURN(Elaboration elaboration, Elaboration::Elaborate(top));
+  XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                       ProcElaboration::Elaborate(top));
   return CreateRuntime(std::move(elaboration));
 }
 

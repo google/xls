@@ -46,7 +46,7 @@ namespace {
 
 absl::StatusOr<std::unique_ptr<ProcInstance>> CreateNewStyleProcInstance(
     Proc* proc, std::optional<ProcInstantiation*> proc_instantiation,
-    const InstantiationPath& path,
+    const ProcInstantiationPath& path,
     absl::Span<const ChannelBinding> interface_bindings) {
   XLS_RET_CHECK(proc->is_new_style_proc());
 
@@ -76,7 +76,7 @@ absl::StatusOr<std::unique_ptr<ProcInstance>> CreateNewStyleProcInstance(
   std::vector<std::unique_ptr<ProcInstance>> instantiated_procs;
   for (const std::unique_ptr<ProcInstantiation>& instantiation :
        proc->proc_instantiations()) {
-    InstantiationPath instantiation_path = path;
+    ProcInstantiationPath instantiation_path = path;
     instantiation_path.path.push_back(instantiation.get());
 
     // Check for circular dependencies. Walk the original path and see if
@@ -120,7 +120,7 @@ std::string ChannelInstance::ToString() const {
 
 ProcInstance::ProcInstance(
     Proc* proc, std::optional<ProcInstantiation*> proc_instantiation,
-    std::optional<InstantiationPath> path,
+    std::optional<ProcInstantiationPath> path,
     std::vector<std::unique_ptr<ChannelInstance>> channel_instances,
     std::vector<std::unique_ptr<ProcInstance>> instantiated_procs,
     absl::flat_hash_map<ChannelRef, ChannelBinding> channel_bindings)
@@ -198,7 +198,7 @@ std::string ProcInstance::ToString(int64_t indent_amount) const {
   return absl::StrJoin(pieces, "\n");
 }
 
-absl::Status Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
+absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   XLS_RET_CHECK(proc_instance->path().has_value());
 
   proc_instance_ptrs_.push_back(proc_instance);
@@ -232,13 +232,14 @@ absl::Status Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   return absl::OkStatus();
 }
 
-/* static */ absl::StatusOr<Elaboration> Elaboration::Elaborate(Proc* top) {
+/* static */ absl::StatusOr<ProcElaboration> ProcElaboration::Elaborate(
+    Proc* top) {
   if (!top->is_new_style_proc()) {
     return absl::UnimplementedError(
         absl::StrFormat("Cannot elaborate old-style proc `%s`", top->name()));
   }
 
-  Elaboration elaboration;
+  ProcElaboration elaboration;
   elaboration.package_ = top->package();
 
   // Create top-level channels. These are required because there are no
@@ -246,7 +247,7 @@ absl::Status Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   // interface of `top`.
   int64_t channel_id = 0;
   std::vector<ChannelBinding> interface_bindings;
-  InstantiationPath path;
+  ProcInstantiationPath path;
   path.top = top;
   for (ChannelReference* channel_ref : top->interface()) {
     // TODO(https://github.com/google/xls/issues/869): Add options for
@@ -302,7 +303,7 @@ absl::Status Elaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   return elaboration;
 }
 
-std::string Elaboration::ToString() const {
+std::string ProcElaboration::ToString() const {
   if (top_ != nullptr) {
     // New-style procs.
     return top()->ToString();
@@ -313,8 +314,8 @@ std::string Elaboration::ToString() const {
   });
 }
 
-absl::StatusOr<ProcInstance*> Elaboration::GetProcInstance(
-    const InstantiationPath& path) const {
+absl::StatusOr<ProcInstance*> ProcElaboration::GetProcInstance(
+    const ProcInstantiationPath& path) const {
   auto it = proc_instances_by_path_.find(path);
   if (it == proc_instances_by_path_.end()) {
     return absl::NotFoundError(absl::StrFormat(
@@ -324,17 +325,17 @@ absl::StatusOr<ProcInstance*> Elaboration::GetProcInstance(
   return it->second;
 }
 
-absl::StatusOr<ProcInstance*> Elaboration::GetProcInstance(
+absl::StatusOr<ProcInstance*> ProcElaboration::GetProcInstance(
     std::string_view path_str) const {
-  XLS_ASSIGN_OR_RETURN(InstantiationPath path, CreatePath(path_str));
+  XLS_ASSIGN_OR_RETURN(ProcInstantiationPath path, CreatePath(path_str));
   if (path.path.empty()) {
     return top();
   }
   return GetProcInstance(path);
 }
 
-absl::StatusOr<ChannelInstance*> Elaboration::GetChannelInstance(
-    std::string_view channel_name, const InstantiationPath& path) const {
+absl::StatusOr<ChannelInstance*> ProcElaboration::GetChannelInstance(
+    std::string_view channel_name, const ProcInstantiationPath& path) const {
   auto it = channel_instances_by_path_.find({std::string{channel_name}, path});
   if (it == channel_instances_by_path_.end()) {
     return absl::NotFoundError(
@@ -345,9 +346,9 @@ absl::StatusOr<ChannelInstance*> Elaboration::GetChannelInstance(
   return it->second;
 }
 
-absl::StatusOr<ChannelInstance*> Elaboration::GetChannelInstance(
+absl::StatusOr<ChannelInstance*> ProcElaboration::GetChannelInstance(
     std::string_view channel_name, std::string_view path_str) const {
-  XLS_ASSIGN_OR_RETURN(InstantiationPath path, CreatePath(path_str));
+  XLS_ASSIGN_OR_RETURN(ProcInstantiationPath path, CreatePath(path_str));
   XLS_ASSIGN_OR_RETURN(ProcInstance * proc_instance, GetProcInstance(path));
   ChannelReference* channel_reference;
   if (proc_instance->proc()->HasChannelReference(channel_name,
@@ -363,7 +364,7 @@ absl::StatusOr<ChannelInstance*> Elaboration::GetChannelInstance(
   return proc_instance->GetChannelInstance(channel_name);
 }
 
-std::string InstantiationPath::ToString() const {
+std::string ProcInstantiationPath::ToString() const {
   if (path.empty()) {
     return top->name();
   }
@@ -375,11 +376,11 @@ std::string InstantiationPath::ToString() const {
           }));
 }
 
-/* static */ absl::StatusOr<Elaboration> Elaboration::ElaborateOldStylePackage(
-    Package* package) {
+/* static */ absl::StatusOr<ProcElaboration>
+ProcElaboration::ElaborateOldStylePackage(Package* package) {
   // Iterate through every proc and channel and create a single instance for
   // each.
-  Elaboration elaboration;
+  ProcElaboration elaboration;
   elaboration.package_ = package;
 
   // All channels are available in all procs. Create a global map from channel
@@ -418,14 +419,15 @@ std::string InstantiationPath::ToString() const {
   return std::move(elaboration);
 }
 
-absl::Span<ProcInstance* const> Elaboration::GetInstances(Proc* proc) const {
+absl::Span<ProcInstance* const> ProcElaboration::GetInstances(
+    Proc* proc) const {
   if (!instances_of_proc_.contains(proc)) {
     return {};
   }
   return instances_of_proc_.at(proc);
 }
 
-absl::Span<ChannelInstance* const> Elaboration::GetInstances(
+absl::Span<ChannelInstance* const> ProcElaboration::GetInstances(
     Channel* channel) const {
   if (!instances_of_channel_.contains(channel)) {
     return {};
@@ -433,7 +435,8 @@ absl::Span<ChannelInstance* const> Elaboration::GetInstances(
   return instances_of_channel_.at(channel);
 }
 
-absl::Span<ChannelInstance* const> Elaboration::GetInstancesOfChannelReference(
+absl::Span<ChannelInstance* const>
+ProcElaboration::GetInstancesOfChannelReference(
     ChannelReference* channel_reference) const {
   if (!instances_of_channel_reference_.contains(channel_reference)) {
     return {};
@@ -441,7 +444,8 @@ absl::Span<ChannelInstance* const> Elaboration::GetInstancesOfChannelReference(
   return instances_of_channel_reference_.at(channel_reference);
 }
 
-absl::StatusOr<ProcInstance*> Elaboration::GetUniqueInstance(Proc* proc) const {
+absl::StatusOr<ProcInstance*> ProcElaboration::GetUniqueInstance(
+    Proc* proc) const {
   absl::Span<ProcInstance* const> instances = GetInstances(proc);
   if (instances.size() != 1) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -451,7 +455,7 @@ absl::StatusOr<ProcInstance*> Elaboration::GetUniqueInstance(Proc* proc) const {
   return instances.front();
 }
 
-absl::StatusOr<ChannelInstance*> Elaboration::GetUniqueInstance(
+absl::StatusOr<ChannelInstance*> ProcElaboration::GetUniqueInstance(
     Channel* channel) const {
   absl::Span<ChannelInstance* const> instances = GetInstances(channel);
   if (instances.size() != 1) {
@@ -462,7 +466,7 @@ absl::StatusOr<ChannelInstance*> Elaboration::GetUniqueInstance(
   return instances.front();
 }
 
-absl::StatusOr<InstantiationPath> Elaboration::CreatePath(
+absl::StatusOr<ProcInstantiationPath> ProcElaboration::CreatePath(
     std::string_view path_str) const {
   std::vector<std::string_view> pieces = absl::StrSplit(path_str, "::");
   if (pieces.front() != top()->proc()->name()) {
@@ -470,7 +474,7 @@ absl::StatusOr<InstantiationPath> Elaboration::CreatePath(
         absl::StrFormat("Path top `%s` does not match name of top proc `%s`",
                         pieces.front(), top()->proc()->name()));
   }
-  InstantiationPath path;
+  ProcInstantiationPath path;
   path.top = top()->proc();
   Proc* proc = path.top;
   for (std::string_view piece : absl::MakeSpan(pieces).subspan(1)) {

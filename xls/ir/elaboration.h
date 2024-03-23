@@ -83,22 +83,22 @@ namespace xls {
 
 // A path of proc instantiations. An instance of a proc or channel is uniquely
 // identified by its InstantiationPath.
-struct InstantiationPath {
+struct ProcInstantiationPath {
   Proc* top;
   std::vector<ProcInstantiation*> path;
 
   template <typename H>
-  friend H AbslHashValue(H h, const InstantiationPath& p) {
+  friend H AbslHashValue(H h, const ProcInstantiationPath& p) {
     H state = H::combine(std::move(h), p.top->name());
     for (const ProcInstantiation* element : p.path) {
       state = H::combine(std::move(state), element->name());
     }
     return state;
   }
-  bool operator==(const InstantiationPath& other) const {
+  bool operator==(const ProcInstantiationPath& other) const {
     return top == other.top && path == other.path;
   }
-  bool operator!=(const InstantiationPath& other) const {
+  bool operator!=(const ProcInstantiationPath& other) const {
     return !(*this == other);
   }
 
@@ -110,7 +110,7 @@ struct ChannelInstance {
 
   // Instantiation path of the proc instance in which this channel is
   // defined. Is nullopt for old-style channels.
-  std::optional<InstantiationPath> path;
+  std::optional<ProcInstantiationPath> path;
 
   std::string ToString() const;
 };
@@ -138,7 +138,7 @@ class ProcInstance {
  public:
   ProcInstance(
       Proc* proc, std::optional<ProcInstantiation*> proc_instantiation,
-      std::optional<InstantiationPath> path,
+      std::optional<ProcInstantiationPath> path,
       std::vector<std::unique_ptr<ChannelInstance>> channel_instances,
       std::vector<std::unique_ptr<ProcInstance>> instantiated_procs,
       absl::flat_hash_map<ChannelRef, ChannelBinding> channel_bindings);
@@ -154,7 +154,7 @@ class ProcInstance {
 
   // The path to this proc instance through the proc hierarchy. This is nullopt
   // for old-style procs.
-  const std::optional<InstantiationPath>& path() const { return path_; }
+  const std::optional<ProcInstantiationPath>& path() const { return path_; }
 
   // The ChannelInstances corresponding to the channels declared in the proc
   // associated with this proc instance.
@@ -199,7 +199,7 @@ class ProcInstance {
  private:
   Proc* proc_;
   std::optional<ProcInstantiation*> proc_instantiation_;
-  std::optional<InstantiationPath> path_;
+  std::optional<ProcInstantiationPath> path_;
 
   // Channel and proc instances in this proc instance. Unique pointers are used
   // for pointer stability as pointers to these objects are handed out.
@@ -218,9 +218,9 @@ class ProcInstance {
 };
 
 // Data structure representing the elaboration tree.
-class Elaboration {
+class ProcElaboration {
  public:
-  static absl::StatusOr<Elaboration> Elaborate(Proc* top);
+  static absl::StatusOr<ProcElaboration> Elaborate(Proc* top);
 
   // Elaborate the package of old style procs. This generates a single instance
   // for each proc and channel in the package. The instance paths of each object
@@ -228,7 +228,8 @@ class Elaboration {
 
   // TODO(https://github.com/google/xls/issues/869): Remove when all procs are
   // new style.
-  static absl::StatusOr<Elaboration> ElaborateOldStylePackage(Package* package);
+  static absl::StatusOr<ProcElaboration> ElaborateOldStylePackage(
+      Package* package);
 
   ProcInstance* top() const { return top_.get(); }
 
@@ -236,9 +237,9 @@ class Elaboration {
 
   // Returns the proc/channel instance at the given path.
   absl::StatusOr<ProcInstance*> GetProcInstance(
-      const InstantiationPath& path) const;
+      const ProcInstantiationPath& path) const;
   absl::StatusOr<ChannelInstance*> GetChannelInstance(
-      std::string_view channel_name, const InstantiationPath& path) const;
+      std::string_view channel_name, const ProcInstantiationPath& path) const;
 
   // Returns the proc/channel instance at the given path where the path is given
   // as a serialization (e.g., `top_proc::inst->other_proc`).
@@ -283,7 +284,8 @@ class Elaboration {
   // {inst1, inst2}.
   //
   // Returns an error if the path does not exist in the elaboration.
-  absl::StatusOr<InstantiationPath> CreatePath(std::string_view path_str) const;
+  absl::StatusOr<ProcInstantiationPath> CreatePath(
+      std::string_view path_str) const;
 
  private:
   // Walks the hierarchy and builds the data member maps of instances.  Only
@@ -319,11 +321,12 @@ class Elaboration {
   std::vector<std::unique_ptr<ChannelInstance>> interface_channel_instances_;
 
   // All proc instances in the elaboration indexed by instantiation path.
-  absl::flat_hash_map<InstantiationPath, ProcInstance*> proc_instances_by_path_;
+  absl::flat_hash_map<ProcInstantiationPath, ProcInstance*>
+      proc_instances_by_path_;
 
   // All channel instances in the elaboration indexed by channel reference name
   // (new style) or channel name (old style) and instantiation path.
-  absl::flat_hash_map<std::pair<std::string, InstantiationPath>,
+  absl::flat_hash_map<std::pair<std::string, ProcInstantiationPath>,
                       ChannelInstance*>
       channel_instances_by_path_;
 

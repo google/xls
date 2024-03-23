@@ -98,7 +98,8 @@ TEST_F(ProcConversionTest, ProcPipeline) {
 
     XLS_ASSERT_OK(ConvertPackageToNewStyleProcs(p.get()));
 
-    XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(a));
+    XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                             ProcElaboration::Elaborate(a));
     EXPECT_EQ(elab.ToString(), R"(A<in_a, out_a, in_c, out_c>
   chan a_to_b
   chan b_to_a
@@ -116,7 +117,8 @@ TEST_F(ProcConversionTest, ProcPipeline) {
 
     XLS_ASSERT_OK(ConvertPackageToNewStyleProcs(p.get()));
 
-    XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(b));
+    XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                             ProcElaboration::Elaborate(b));
     EXPECT_EQ(elab.ToString(), R"(B<in_a, out_a, in_c, out_c>
   chan a_to_b
   chan b_to_a
@@ -134,7 +136,8 @@ TEST_F(ProcConversionTest, ProcPipeline) {
 
     XLS_ASSERT_OK(ConvertPackageToNewStyleProcs(p.get()));
 
-    XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(c));
+    XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                             ProcElaboration::Elaborate(c));
     EXPECT_EQ(elab.ToString(), R"(C<in_a, out_a, in_c, out_c>
   chan a_to_b
   chan b_to_a

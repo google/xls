@@ -103,7 +103,8 @@ TEST_F(ElaborationTest, SingleProcNoChannels) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, CreateLeafProc("foo", /*input_channel_count=*/0, p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(proc));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(proc));
 
   EXPECT_EQ(elab.top()->proc(), proc);
   EXPECT_TRUE(elab.top()->path().has_value());
@@ -124,7 +125,8 @@ TEST_F(ElaborationTest, SingleProcMultipleChannels) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, CreateLeafProc("foo", /*input_channel_count=*/3, p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(proc));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(proc));
 
   EXPECT_EQ(elab.top()->proc(), proc);
   EXPECT_FALSE(elab.top()->proc_instantiation().has_value());
@@ -162,7 +164,8 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
                                    {the_channel_refs.receive_ref, in_ch}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(top));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
 
   EXPECT_EQ(elab.top()->proc(), top);
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
@@ -213,7 +216,8 @@ TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
   XLS_ASSERT_OK(pb.InstantiateProc("top_inst_1", proc1, {in_ch0, in_ch1}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(top));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
 
   EXPECT_THAT(elab.procs(), UnorderedElementsAre(top, proc0, proc1, leaf_proc));
 
@@ -249,7 +253,8 @@ TEST_F(ElaborationTest, MultipleInstantiations) {
                                /*instantiated_channel_count=*/2,
                                {middle_proc, middle_proc, leaf_proc}, p.get()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(top));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
 
   EXPECT_THAT(elab.procs(), UnorderedElementsAre(top, middle_proc, leaf_proc));
 
@@ -321,7 +326,8 @@ TEST_F(ElaborationTest, ProcInstantiatingProcWithNoChannels) {
   XLS_ASSERT_OK(pb.InstantiateProc("foo_inst", leaf_proc, {}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab, Elaboration::Elaborate(top));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
 
   EXPECT_EQ(elab.top()->proc(), top);
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
@@ -335,7 +341,7 @@ TEST_F(ElaborationTest, ElaborateOldStyleProcWithWrongMethod) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
   EXPECT_THAT(
-      Elaboration::Elaborate(top),
+      ProcElaboration::Elaborate(top),
       StatusIs(absl::StatusCode::kUnimplemented,
                HasSubstr("Cannot elaborate old-style proc `old_style_proc`")));
 }
@@ -345,8 +351,8 @@ TEST_F(ElaborationTest, ElaborateOldStyleProc) {
   TokenlessProcBuilder pb("old_style_proc", "tkn", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab,
-                           Elaboration::ElaborateOldStylePackage(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::ElaborateOldStylePackage(p.get()));
 
   EXPECT_THAT(elab.procs(), UnorderedElementsAre(top));
 
@@ -379,8 +385,8 @@ TEST_F(ElaborationTest, ElaborateOldStyleMultiprocNetwork) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc3,
                            TokenlessProcBuilder("proc3", "tkn", &p).Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elab,
-                           Elaboration::ElaborateOldStylePackage(&p));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::ElaborateOldStylePackage(&p));
 
   EXPECT_THAT(elab.procs(), UnorderedElementsAre(proc1, proc2, proc3));
 

@@ -209,11 +209,11 @@ class JitChannelQueueManager : public ChannelQueueManager {
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
   CreateThreadSafe(Package* package);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadSafe(Elaboration&& elaboration);
+  CreateThreadSafe(ProcElaboration&& elaboration);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
   CreateThreadUnsafe(Package* package);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadUnsafe(Elaboration&& elaboration);
+  CreateThreadUnsafe(ProcElaboration&& elaboration);
 
   JitChannelQueue& GetJitQueue(Channel* channel);
   JitChannelQueue& GetJitQueue(ChannelInstance* channel_instance);
@@ -221,7 +221,7 @@ class JitChannelQueueManager : public ChannelQueueManager {
   JitRuntime& runtime() { return *runtime_; }
 
  protected:
-  JitChannelQueueManager(Elaboration elaboration,
+  JitChannelQueueManager(ProcElaboration elaboration,
                          std::vector<std::unique_ptr<ChannelQueue>>&& queues,
                          std::unique_ptr<JitRuntime> runtime)
       : ChannelQueueManager(std::move(elaboration), std::move(queues)),

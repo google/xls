@@ -123,14 +123,14 @@ std::optional<Value> ChannelQueue::ReadInternal() {
 
 /* static */ absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
 ChannelQueueManager::Create(Package* package) {
-  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
-                       Elaboration::ElaborateOldStylePackage(package));
+  XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                       ProcElaboration::ElaborateOldStylePackage(package));
   return Create(std::move(elaboration));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
 ChannelQueueManager::Create(std::vector<std::unique_ptr<ChannelQueue>>&& queues,
-                            Elaboration elaboration) {
+                            ProcElaboration elaboration) {
   // Verify there is exactly one queue per channel.
   absl::flat_hash_set<ChannelInstance*> channel_instances(
       elaboration.channel_instances().begin(),
@@ -164,7 +164,7 @@ ChannelQueueManager::Create(std::vector<std::unique_ptr<ChannelQueue>>&& queues,
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<ChannelQueueManager>>
-ChannelQueueManager::Create(Elaboration elaboration) {
+ChannelQueueManager::Create(ProcElaboration elaboration) {
   std::vector<std::unique_ptr<ChannelQueue>> queues;
 
   // Create a queue per channel instance in the elaboration.
@@ -182,7 +182,7 @@ ChannelQueueManager::Create(Elaboration elaboration) {
 }
 
 ChannelQueueManager::ChannelQueueManager(
-    Elaboration elaboration,
+    ProcElaboration elaboration,
     std::vector<std::unique_ptr<ChannelQueue>>&& queues)
     : elaboration_(std::move(elaboration)) {
   for (std::unique_ptr<ChannelQueue>& queue : queues) {

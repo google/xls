@@ -45,8 +45,8 @@ TEST_P(ChannelQueueTestBase, FifoChannelQueueTest) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
   auto queue =
       GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 
@@ -79,8 +79,8 @@ TEST_P(ChannelQueueTestBase, SingleValueChannelQueueTest) {
       Channel * channel,
       package.CreateSingleValueChannel("my_channel", ChannelOps::kSendReceive,
                                        package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
   auto queue =
       GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 
@@ -115,8 +115,8 @@ TEST_P(ChannelQueueTestBase, ErrorConditions) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
   auto queue =
       GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 
@@ -134,8 +134,8 @@ TEST_P(ChannelQueueTestBase, IotaGenerator) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kReceiveOnly,
                                      package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
   auto queue =
       GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 
@@ -159,8 +159,8 @@ TEST_P(ChannelQueueTestBase, FixedValueGenerator) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kReceiveOnly,
                                      package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
   auto queue =
       GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 
@@ -180,8 +180,8 @@ TEST_P(ChannelQueueTestBase, EmptyGenerator) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kReceiveOnly,
                                      package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
   auto queue =
       GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
   XLS_ASSERT_OK(queue->AttachGenerator(
@@ -196,8 +196,8 @@ TEST_P(ChannelQueueTestBase, ChannelWithEmptyTuple) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetTupleType({})));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
   auto queue =
       GetParam().CreateQueue(elaboration.GetUniqueInstance(channel).value());
 

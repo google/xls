@@ -77,8 +77,8 @@ TYPED_TEST(JitChannelQueueTest, ChannelWithEmptyTuple) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetTupleType({})));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
 
   TypeParam queue(elaboration.GetUniqueInstance(channel).value(),
                   GetJitRuntime());
@@ -112,8 +112,8 @@ TYPED_TEST(JitChannelQueueTest, BasicAccess) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
 
   TypeParam queue(elaboration.GetUniqueInstance(channel).value(),
                   GetJitRuntime());
@@ -151,8 +151,8 @@ TYPED_TEST(JitChannelQueueTest, IotaGeneratorWithRawApi) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                           Elaboration::ElaborateOldStylePackage(&package));
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elaboration,
+                           ProcElaboration::ElaborateOldStylePackage(&package));
 
   TypeParam queue(elaboration.GetUniqueInstance(channel).value(),
                   GetJitRuntime());

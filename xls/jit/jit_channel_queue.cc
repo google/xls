@@ -128,13 +128,13 @@ std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::CreateThreadSafe(Package* package) {
-  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
-                       Elaboration::ElaborateOldStylePackage(package));
+  XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                       ProcElaboration::ElaborateOldStylePackage(package));
   return CreateThreadSafe(std::move(elaboration));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadSafe(Elaboration&& elaboration) {
+JitChannelQueueManager::CreateThreadSafe(ProcElaboration&& elaboration) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
                        JitRuntime::Create());
   std::vector<std::unique_ptr<ChannelQueue>> queues;
@@ -148,13 +148,13 @@ JitChannelQueueManager::CreateThreadSafe(Elaboration&& elaboration) {
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::CreateThreadUnsafe(Package* package) {
-  XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
-                       Elaboration::ElaborateOldStylePackage(package));
+  XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                       ProcElaboration::ElaborateOldStylePackage(package));
   return CreateThreadUnsafe(std::move(elaboration));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadUnsafe(Elaboration&& elaboration) {
+JitChannelQueueManager::CreateThreadUnsafe(ProcElaboration&& elaboration) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
                        JitRuntime::Create());
   std::vector<std::unique_ptr<ChannelQueue>> queues;

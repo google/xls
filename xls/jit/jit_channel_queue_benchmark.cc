@@ -46,8 +46,8 @@ static void BM_QueueWriteThenRead(benchmark::State& state) {
           .CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                   package.GetBitsType(8 * element_size_bytes))
           .value();
-  Elaboration elaboration =
-      Elaboration::ElaborateOldStylePackage(&package).value();
+  ProcElaboration elaboration =
+      ProcElaboration::ElaborateOldStylePackage(&package).value();
 
   QueueT queue(elaboration.GetUniqueInstance(channel).value(),
                jit_runtime.get());

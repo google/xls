@@ -51,8 +51,8 @@ class ChannelQueueManagerTest : public IrTestBase {
  protected:
   absl::StatusOr<std::unique_ptr<ChannelQueueManager>> MakeChannelQueueManager(
       Package* package, absl::Span<Channel* const> channels) {
-    XLS_ASSIGN_OR_RETURN(Elaboration elaboration,
-                         Elaboration::ElaborateOldStylePackage(package));
+    XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
+                         ProcElaboration::ElaborateOldStylePackage(package));
     std::vector<std::unique_ptr<ChannelQueue>> queues;
     for (Channel* channel : channels) {
       XLS_ASSIGN_OR_RETURN(ChannelInstance * instance,
@@ -146,8 +146,9 @@ TEST_F(ChannelQueueManagerTest, ChannelQueueManagerErrorConditions) {
                                      package.GetBitsType(32)));
 
   {
-    XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                             Elaboration::ElaborateOldStylePackage(&package));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ProcElaboration elaboration,
+        ProcElaboration::ElaborateOldStylePackage(&package));
     std::vector<std::unique_ptr<ChannelQueue>> queues;
     queues.push_back(std::make_unique<ChannelQueue>(
         elaboration.GetUniqueInstance(channel_a).value()));
@@ -166,8 +167,9 @@ TEST_F(ChannelQueueManagerTest, ChannelQueueManagerErrorConditions) {
   }
 
   {
-    XLS_ASSERT_OK_AND_ASSIGN(Elaboration elaboration,
-                             Elaboration::ElaborateOldStylePackage(&package));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ProcElaboration elaboration,
+        ProcElaboration::ElaborateOldStylePackage(&package));
     std::vector<std::unique_ptr<ChannelQueue>> queues;
     queues.push_back(std::make_unique<ChannelQueue>(
         elaboration.GetUniqueInstance(channel_a).value()));

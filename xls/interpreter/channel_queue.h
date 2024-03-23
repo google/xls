@@ -136,10 +136,10 @@ class ChannelQueueManager {
   // Create and returns a queue manager from the given elaboration. Supports old
   // and new style procs.
   static absl::StatusOr<std::unique_ptr<ChannelQueueManager>> Create(
-      Elaboration elaboration);
+      ProcElaboration elaboration);
   static absl::StatusOr<std::unique_ptr<ChannelQueueManager>> Create(
       std::vector<std::unique_ptr<ChannelQueue>>&& queues,
-      Elaboration elaboration);
+      ProcElaboration elaboration);
 
   // Get the channel queue associated with the channel with the given id/name.
   ChannelQueue& GetQueue(ChannelInstance* channel_instance) {
@@ -157,17 +157,17 @@ class ChannelQueueManager {
   absl::StatusOr<ChannelQueue*> GetQueueById(int64_t channel_id);
   absl::StatusOr<ChannelQueue*> GetQueueByName(std::string_view name);
 
-  const Elaboration& elaboration() const { return elaboration_; }
+  const ProcElaboration& elaboration() const { return elaboration_; }
   Package* package() const { return elaboration_.package(); }
 
  protected:
-  ChannelQueueManager(Elaboration elaboration,
+  ChannelQueueManager(ProcElaboration elaboration,
                       std::vector<std::unique_ptr<ChannelQueue>>&& queues);
 
   // TODO(https://github.com/google/xls/issues/869): Consider whether the queue
   // manager should own the elaboration. This might make more sense the be held
   // by the runtime.
-  Elaboration elaboration_;
+  ProcElaboration elaboration_;
 
   // Channel queues indexed by the associated channel instance pointer.
   absl::flat_hash_map<ChannelInstance*, std::unique_ptr<ChannelQueue>> queues_;

@@ -109,7 +109,7 @@ class ProcRuntime {
     }
   }
 
-  const Elaboration& elaboration() const {
+  const ProcElaboration& elaboration() const {
     return queue_manager_->elaboration();
   }
 

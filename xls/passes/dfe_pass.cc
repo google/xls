@@ -95,7 +95,7 @@ struct FunctionBaseLiveness {
 
 absl::StatusOr<FunctionBaseLiveness> LivenessFromTopProc(Proc* top) {
   if (top->is_new_style_proc()) {
-    XLS_ASSIGN_OR_RETURN(Elaboration elab, Elaboration::Elaborate(top));
+    XLS_ASSIGN_OR_RETURN(ProcElaboration elab, ProcElaboration::Elaborate(top));
     return FunctionBaseLiveness{.live_roots = std::vector<FunctionBase*>(
                                     elab.procs().begin(), elab.procs().end()),
                                 .live_global_channels = {}};
