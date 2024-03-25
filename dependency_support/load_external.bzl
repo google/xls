@@ -196,6 +196,76 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
+    # Needed by fuzztest.
+    http_archive(
+        name = "com_google_riegeli",
+        sha256 = "f8386e44e16d044c1d7151c0b553bb7075d79583d4fa9e613a4be452599e0795",
+        strip_prefix = "riegeli-411cda7f6aa81f8b8591b04cf141b1decdcc928c",
+        url = "https://github.com/google/riegeli/archive/411cda7f6aa81f8b8591b04cf141b1decdcc928c.tar.gz",
+    )
+
+    # Needed by fuzztest.
+    http_archive(
+        name = "net_zstd",
+        build_file = "@com_google_riegeli//third_party:net_zstd.BUILD",
+        sha256 = "b6c537b53356a3af3ca3e621457751fa9a6ba96daf3aebb3526ae0f610863532",
+        strip_prefix = "zstd-1.4.5/lib",
+        urls = ["https://github.com/facebook/zstd/archive/v1.4.5.zip"],
+    )
+
+    # Needed by fuzztest.
+    http_archive(
+        name = "snappy",
+        build_file = "@com_google_riegeli//third_party:snappy.BUILD",
+        sha256 = "38b4aabf88eb480131ed45bfb89c19ca3e2a62daeb081bdf001cfb17ec4cd303",
+        strip_prefix = "snappy-1.1.8",
+        urls = ["https://github.com/google/snappy/archive/1.1.8.zip"],
+    )
+
+    # Needed by fuzztest.
+    http_archive(
+        name = "org_brotli",
+        sha256 = "84a9a68ada813a59db94d83ea10c54155f1d34399baf377842ff3ab9b3b3256e",
+        strip_prefix = "brotli-3914999fcc1fda92e750ef9190aa6db9bf7bdb07",
+        urls = ["https://github.com/google/brotli/archive/3914999fcc1fda92e750ef9190aa6db9bf7bdb07.zip"],
+    )
+
+    # Needed by fuzztest.
+    http_archive(
+        name = "highwayhash",
+        build_file = "@com_google_riegeli//third_party:highwayhash.BUILD",
+        sha256 = "cf891e024699c82aabce528a024adbe16e529f2b4e57f954455e0bf53efae585",
+        strip_prefix = "highwayhash-276dd7b4b6d330e4734b756e97ccfb1b69cc2e12",
+        urls = ["https://github.com/google/highwayhash/archive/276dd7b4b6d330e4734b756e97ccfb1b69cc2e12.zip"],
+    )
+
+    # Needed by or-tools.
+    http_archive(
+        name = "glpk",
+        build_file = "@com_google_ortools//bazel:glpk.BUILD.bazel",
+        sha256 = "4a1013eebb50f728fc601bdd833b0b2870333c3b3e5a816eeba921d95bec6f15",
+        url = "http://ftp.gnu.org/gnu/glpk/glpk-5.0.tar.gz",
+    )
+
+    # Needed by or-tools.
+    http_archive(
+        name = "scip",
+        build_file = "@com_google_ortools//bazel:scip.BUILD.bazel",
+        patches = ["@com_google_ortools//bazel:scip.patch"],
+        patch_args = ["-p1"],
+        sha256 = "b6daf54c37d02564b12fb32ec3bb7a105710eb0026adeafc602af4435fa94685",
+        strip_prefix = "scip-810",
+        url = "https://github.com/scipopt/scip/archive/refs/tags/v810.tar.gz",
+    )
+
+    http_archive(
+        name = "bliss",
+        build_file = "@com_google_ortools//bazel:bliss.BUILD.bazel",
+        patches = ["@com_google_ortools//bazel:bliss-0.73.patch"],
+        sha256 = "f57bf32804140cad58b1240b804e0dbd68f7e6bf67eba8e0c0fa3a62fd7f0f84",
+        url = "https://github.com/google/or-tools/releases/download/v9.0/bliss-0.73.zip",
+    )
+
     # Released on 2023-11-28, current as of 2024-02-01.
     # https://github.com/grpc/grpc/releases/tag/v1.60.0
     http_archive(
