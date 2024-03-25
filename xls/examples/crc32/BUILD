@@ -82,6 +82,5 @@ cc_binary(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:span",
         "//xls/common:init_xls",
-        "//xls/common/logging",
     ],
 )

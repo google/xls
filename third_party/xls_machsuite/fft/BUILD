@@ -27,7 +27,6 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
     ],
 )

@@ -23,7 +23,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"

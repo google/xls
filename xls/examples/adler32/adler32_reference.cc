@@ -20,7 +20,6 @@
 #include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 
 ABSL_FLAG(std::string, input, "", "Input data (numeric) to Adler32.");
 

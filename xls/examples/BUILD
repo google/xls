@@ -319,7 +319,6 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:path",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:function_builder",

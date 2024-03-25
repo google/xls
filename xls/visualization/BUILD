@@ -33,7 +33,6 @@ cc_binary(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/delay_model:analyze_critical_path",
         "//xls/delay_model:delay_estimator",

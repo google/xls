@@ -36,7 +36,6 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/codegen:module_signature",
         "//xls/common/file:filesystem",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",

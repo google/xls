@@ -21,7 +21,6 @@
 #include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 
 ABSL_FLAG(std::string, input, "", "Input data to CRC.");
 ABSL_FLAG(uint32_t, polynomial, 0xEDB88320, "CRC polynomial value to use.");
