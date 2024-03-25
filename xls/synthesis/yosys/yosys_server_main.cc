@@ -27,7 +27,6 @@
 #include "grpcpp/server_context.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/synthesis/credentials.h"
 #include "xls/synthesis/yosys/yosys_synthesis_service.h"
 

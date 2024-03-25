@@ -37,7 +37,6 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/fmt/pretty_print.h"

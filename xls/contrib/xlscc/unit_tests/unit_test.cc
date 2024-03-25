@@ -42,7 +42,6 @@
 #include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/get_runfile_path.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"

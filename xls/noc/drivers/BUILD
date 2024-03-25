@@ -29,7 +29,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/noc/config:network_config_cc_proto",
@@ -69,7 +68,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
@@ -100,7 +98,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
     ],
 )

@@ -65,7 +65,6 @@ def delay_model(
             "@com_google_absl//absl/memory",
             "@com_google_absl//absl/status",
             "//xls/common:module_initializer",
-            "//xls/common/logging",
             "@com_google_absl//absl/status:statusor",
             "//xls/delay_model:delay_estimator",
             "//xls/ir",

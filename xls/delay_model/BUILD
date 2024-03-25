@@ -32,7 +32,6 @@ cc_library(
     hdrs = ["delay_estimator.h"],
     deps = [
         "//xls/common:test_macros",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
@@ -161,7 +160,6 @@ cc_library(
     hdrs = ["delay_heap.h"],
     deps = [
         ":delay_estimator",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",

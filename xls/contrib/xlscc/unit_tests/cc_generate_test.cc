@@ -25,7 +25,6 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/contrib/xlscc/unit_tests/cc_generator.h"
 
 const char kUsage[] = R"(

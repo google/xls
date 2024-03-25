@@ -21,7 +21,6 @@
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/frontend/module.h"

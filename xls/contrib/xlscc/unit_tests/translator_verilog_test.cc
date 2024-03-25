@@ -24,7 +24,6 @@
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"

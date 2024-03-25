@@ -23,7 +23,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
-#include "xls/common/logging/logging.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/global_routing_table.h"
 #include "xls/noc/simulation/network_graph.h"
