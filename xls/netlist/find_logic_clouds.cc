@@ -22,7 +22,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "xls/common/logging/logging.h"
 #include "xls/data_structures/union_find.h"
 
 namespace xls {

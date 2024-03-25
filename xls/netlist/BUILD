@@ -31,7 +31,6 @@ cc_library(
     deps = [
         ":cell_library",
         "//xls/common:bits_util",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -54,7 +53,6 @@ cc_library(
         ":netlist_cc_proto",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
     ],
@@ -70,7 +68,6 @@ cc_library(
         ":function_parser",
         ":netlist",
         "//xls/common:thread",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:type",
         "//xls/ir:value",
@@ -112,7 +109,6 @@ cc_library(
     deps = [
         ":netlist",
         "//xls/common:string_to_int",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
@@ -197,7 +193,6 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -219,7 +214,6 @@ cc_library(
     hdrs = ["find_logic_clouds.h"],
     deps = [
         ":netlist",
-        "//xls/common/logging",
         "//xls/data_structures:union_find",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
@@ -248,7 +242,6 @@ cc_library(
     deps = [
         ":netlist",
         "//xls/common:math_util",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
@@ -277,7 +270,6 @@ cc_library(
     hdrs = ["lib_parser.h"],
     visibility = ["//xls:xls_users"],
     deps = [
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -309,7 +301,6 @@ cc_library(
     deps = [
         ":lib_parser",
         ":netlist_cc_proto",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -330,7 +321,6 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/flags:flag",
@@ -358,7 +348,6 @@ cc_library(
     srcs = ["function_parser.cc"],
     hdrs = ["function_parser.h"],
     deps = [
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
