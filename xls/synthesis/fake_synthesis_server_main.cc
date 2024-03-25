@@ -28,7 +28,6 @@
 #include "grpcpp/server_context.h"
 #include "grpcpp/support/status.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/synthesis/credentials.h"
 #include "xls/synthesis/synthesis.pb.h"
 #include "xls/synthesis/synthesis_service.grpc.pb.h"

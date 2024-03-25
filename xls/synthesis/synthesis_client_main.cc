@@ -26,7 +26,6 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/synthesis/synthesis.pb.h"
 #include "xls/synthesis/synthesis_client.h"
 

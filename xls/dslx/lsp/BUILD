@@ -33,7 +33,6 @@ cc_library(
     hdrs = ["find_definition.h"],
     deps = [
         "@com_google_absl//absl/log",
-        "//xls/common/logging",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
@@ -56,7 +55,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "//xls/common:indent",
-        "//xls/common/logging",
         "//xls/dslx:create_import_data",
         "//xls/dslx:extract_module_name",
         "//xls/dslx:import_data",

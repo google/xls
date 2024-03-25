@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 

@@ -33,7 +33,6 @@
 #include "external/verible/common/lsp/lsp-protocol-enums.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/indent.h"
-#include "xls/common/logging/logging.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/extract_module_name.h"
 #include "xls/dslx/fmt/ast_fmt.h"

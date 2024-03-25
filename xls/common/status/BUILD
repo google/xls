@@ -96,7 +96,6 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common:source_location",
         "//xls/common:symbolized_stacktrace",
-        "//xls/common/logging",
     ],
 )
 
@@ -118,7 +117,6 @@ cc_test(
         "//xls/common:source_location",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/logging:scoped_mock_log",
     ],
 )

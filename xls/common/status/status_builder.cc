@@ -33,7 +33,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/common/symbolized_stacktrace.h"
 

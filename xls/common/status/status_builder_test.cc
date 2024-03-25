@@ -32,7 +32,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/logging/scoped_mock_log.h"
 #include "xls/common/source_location.h"
 
