@@ -17,7 +17,6 @@
 #include <cstdint>
 
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_env.h"
