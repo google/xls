@@ -105,7 +105,6 @@ cc_binary(
     testonly = True,
     srcs = ["log_initialization_tester.cc"],
     deps = [
-        ":logging",
         "@com_google_absl//absl/log",
         "//xls/common:init_xls",
     ],

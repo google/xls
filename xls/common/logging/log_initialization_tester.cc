@@ -19,7 +19,6 @@
 
 #include "absl/log/log.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
