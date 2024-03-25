@@ -23,7 +23,6 @@
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
 #include "xls/passes/optimization_pass.h"
 

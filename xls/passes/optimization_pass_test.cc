@@ -31,7 +31,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/utility/utility.h"
 #include "xls/common/casts.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"

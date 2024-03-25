@@ -37,7 +37,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"

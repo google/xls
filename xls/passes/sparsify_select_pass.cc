@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"

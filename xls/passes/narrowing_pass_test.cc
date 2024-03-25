@@ -22,7 +22,6 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"

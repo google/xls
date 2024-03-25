@@ -20,7 +20,6 @@
 #include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/ir_interpreter.h"

@@ -24,7 +24,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"

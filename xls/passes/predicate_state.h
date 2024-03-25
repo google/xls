@@ -23,7 +23,6 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"

@@ -17,7 +17,6 @@
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ternary.h"
