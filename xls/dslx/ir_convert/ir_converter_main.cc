@@ -29,7 +29,6 @@
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/ir_convert/convert_options.h"

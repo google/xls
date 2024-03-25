@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
