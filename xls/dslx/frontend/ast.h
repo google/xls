@@ -35,7 +35,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast_node.h"  // IWYU pragma: export

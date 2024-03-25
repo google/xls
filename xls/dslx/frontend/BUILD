@@ -75,7 +75,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
     ],
 )
@@ -111,7 +110,6 @@ cc_library(
         "//xls/common:casts",
         "//xls/common:strong_int",
         "//xls/common:visitor",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",
@@ -142,7 +140,6 @@ cc_test(
         "//xls/common:casts",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:error_test_utils",
@@ -169,7 +166,6 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:casts",
         "//xls/common:visitor",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
@@ -189,7 +185,6 @@ cc_test(
         "//xls/common:casts",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/dslx:parse_and_typecheck",
     ],
@@ -206,7 +201,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
-        "//xls/common/logging",
     ],
 )
 
@@ -254,7 +248,6 @@ cc_test(
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
     ],
@@ -280,7 +273,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:test_macros",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
     ],
@@ -321,7 +313,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
-        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_googlesource_code_re2//:re2",
     ],
@@ -416,7 +407,6 @@ cc_library(
         "//xls/common:casts",
         "//xls/common:indent",
         "//xls/common:visitor",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
@@ -444,7 +434,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:indent",
-        "//xls/common/logging",
     ],
 )
 
@@ -468,7 +457,6 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:casts",
         "//xls/common:visitor",
-        "//xls/common/logging",
         "//xls/common/status:ret_check",
     ],
 )
@@ -484,7 +472,6 @@ cc_library(
         ":pos",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common/logging",
     ],
 )
 
@@ -525,7 +512,6 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:get_runfile_path",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
         "@com_google_fuzztest//fuzztest",
     ],
