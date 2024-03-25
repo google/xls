@@ -1047,7 +1047,7 @@ absl::Status RangeQueryVisitor::HandleArraySlice(ArraySlice* slice) {
         [](IntervalSet& lhs, const IntervalSet& rhs) {
           lhs = IntervalSet::Combine(lhs, rhs);
         });
-    return start >= slice->width();
+    return start >= slice->array()->GetType()->AsArrayOrDie()->size();
   });
 
   XLS_RETURN_IF_ERROR(status);
