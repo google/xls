@@ -31,7 +31,6 @@
 #include "openssl/bn.h"
 #include "openssl/mem.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 
 namespace xls {

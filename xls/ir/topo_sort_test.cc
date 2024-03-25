@@ -24,7 +24,6 @@
 #include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"

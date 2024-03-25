@@ -20,7 +20,6 @@
 
 #include "fuzztest/fuzztest.h"
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/bits_test_utils.h"

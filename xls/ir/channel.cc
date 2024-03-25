@@ -30,7 +30,6 @@
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/casts.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value_utils.h"

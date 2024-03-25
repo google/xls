@@ -19,7 +19,6 @@
 
 #include "fuzztest/fuzztest.h"
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {

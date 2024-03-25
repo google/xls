@@ -40,7 +40,6 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"

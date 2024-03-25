@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 

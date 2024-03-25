@@ -28,7 +28,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/big_int.h"

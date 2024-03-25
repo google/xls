@@ -35,7 +35,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"

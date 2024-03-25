@@ -20,7 +20,6 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "xls/common/logging/logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"

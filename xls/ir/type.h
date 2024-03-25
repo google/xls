@@ -25,7 +25,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
