@@ -19,7 +19,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/run_routines/run_routines.h"
