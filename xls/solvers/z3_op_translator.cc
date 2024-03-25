@@ -22,7 +22,6 @@
 
 #include "absl/base/macros.h"
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "../z3/src/api/z3.h"  // IWYU pragma: keep
 #include "../z3/src/api/z3_api.h"
 
