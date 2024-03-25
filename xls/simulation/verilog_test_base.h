@@ -39,7 +39,6 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/simulation/module_simulator.h"

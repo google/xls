@@ -32,7 +32,6 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/source_location.h"

@@ -43,7 +43,6 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

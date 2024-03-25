@@ -23,7 +23,6 @@
 
 #include "absl/log/die_if_null.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/bits.h"
 #include "xls/simulation/testbench_metadata.h"

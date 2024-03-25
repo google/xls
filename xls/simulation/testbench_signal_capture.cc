@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/source_location.h"
 #include "xls/ir/bits.h"
 #include "xls/simulation/testbench_stream.h"

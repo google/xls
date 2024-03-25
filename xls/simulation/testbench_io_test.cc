@@ -29,7 +29,6 @@
 #include "absl/strings/str_replace.h"
 #include "xls/common/file/named_pipe.h"
 #include "xls/common/file/temp_directory.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"

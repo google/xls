@@ -21,7 +21,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/types/variant.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder.h"
