@@ -30,7 +30,6 @@
 #include "absl/time/time.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value.h"
 #include "xls/modules/aes/aes_decrypt_cc.h"

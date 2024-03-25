@@ -26,7 +26,6 @@ cc_test(
     deps = [
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
@@ -59,7 +58,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_file",
-        "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:mangle",

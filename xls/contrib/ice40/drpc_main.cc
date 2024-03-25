@@ -31,7 +31,6 @@
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/contrib/ice40/device_rpc_strategy.h"
 #include "xls/contrib/ice40/device_rpc_strategy_factory.h"
 #include "xls/ir/format_preference.h"
