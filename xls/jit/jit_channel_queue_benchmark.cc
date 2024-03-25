@@ -20,7 +20,6 @@
 
 #include "absl/log/check.h"
 #include "include/benchmark/benchmark.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"

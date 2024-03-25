@@ -18,7 +18,6 @@
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
-#include "xls/common/logging/logging.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/proc_evaluator_test_base.h"

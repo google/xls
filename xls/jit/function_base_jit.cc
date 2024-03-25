@@ -46,7 +46,6 @@
 #include "llvm/include/llvm/IR/Value.h"
 #include "llvm/include/llvm/Support/Alignment.h"
 #include "llvm/include/llvm/Support/Casting.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

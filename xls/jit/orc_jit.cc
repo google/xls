@@ -67,7 +67,6 @@
 #include "llvm/include/llvm/TargetParser/X86TargetParser.h"
 #include "llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/observer.h"

@@ -43,7 +43,6 @@
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"

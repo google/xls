@@ -35,7 +35,6 @@
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"

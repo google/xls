@@ -23,7 +23,6 @@
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/Support/Alignment.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls {
