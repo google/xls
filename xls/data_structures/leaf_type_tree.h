@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/type.h"
@@ -639,10 +640,9 @@ absl::StatusOr<LeafTypeTree<T>> SliceArray(ArrayType* result_array_type,
   };
   int64_t source_size = source.type()->AsArrayOrDie()->size();
   for (int64_t i = 0; i < result_array_type->size(); ++i) {
-    // Don't get confused by overflow. It would be better to use std::add_sat
-    // but that's only in c++26
-    if (start < source_size && start + i < source_size && start + i >= start) {
-      add_all(source.AsView({start + i}));
+    int64_t source_off = SaturatingAdd<int64_t>(i, start).result;
+    if (source_off < source_size) {
+      add_all(source.AsView({source_off}));
     } else {
       // Repeat of last element
       add_all(source.AsView({source.type()->AsArrayOrDie()->size() - 1}));

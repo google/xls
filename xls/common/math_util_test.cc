@@ -14,6 +14,7 @@
 
 #include "xls/common/math_util.h"
 
+#include <cstdint>
 #include <limits>
 
 #include "gmock/gmock.h"
@@ -271,6 +272,114 @@ TEST(MathUtil, FactorizePowerOfTwo) {
         FactorizePowerOfTwo(uint64_t{7} * Exp2<uint64_t>(55));
     EXPECT_EQ(odd, 7);
     EXPECT_EQ(exponent, 55);
+  }
+}
+
+TEST(MathUtil, SaturatingAdd) {
+  {
+    auto sa = SaturatingAdd(int8_t{3}, int8_t{4});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 7);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{100}, int8_t{27});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{101}, int8_t{27});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{120}, int8_t{120});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{127}, int8_t{127});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{-127}, int8_t{127});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 0);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{127}, int8_t{-127});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 0);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{0}, int8_t{127});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(int8_t{127}, int8_t{0});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(uint8_t{3}, uint8_t{4});
+    uint8_t u8 = sa.result;
+    EXPECT_EQ(u8, 7);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(uint8_t{255}, uint8_t{4});
+    uint8_t u8 = sa.result;
+    EXPECT_EQ(u8, 255);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(uint8_t{3}, uint8_t{255});
+    uint8_t u8 = sa.result;
+    EXPECT_EQ(u8, 255);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(uint8_t{0}, uint8_t{255});
+    uint8_t u8 = sa.result;
+    EXPECT_EQ(u8, 255);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingAdd(uint8_t{255}, uint8_t{0});
+    uint8_t u8 = sa.result;
+    EXPECT_EQ(u8, 255);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+}
+
+TEST(MathUtil, ExhaustiveSaturatingAdd) {
+  for (int16_t i16 = std::numeric_limits<int8_t>::min();
+       i16 <= std::numeric_limits<int8_t>::max(); ++i16) {
+    int8_t i = static_cast<int8_t>(i16);
+    for (int16_t j16 = 0; j16 <= std::numeric_limits<int8_t>::max(); ++j16) {
+      int8_t j = static_cast<int8_t>(j16);
+      int16_t sum_16 = i16 + j16;
+      bool expect_overflow = sum_16 > std::numeric_limits<int8_t>::max();
+      auto sa = SaturatingAdd(i, j);
+      if (expect_overflow) {
+        EXPECT_EQ(std::numeric_limits<int8_t>::max(),
+                  sa.result);
+        EXPECT_TRUE(sa.did_overflow);
+      } else {
+        EXPECT_EQ(sum_16, sa.result);
+        EXPECT_FALSE(sa.did_overflow);
+      }
+    }
   }
 }
 

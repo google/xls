@@ -15,8 +15,11 @@
 #ifndef XLS_COMMON_MATH_UTIL_H_
 #define XLS_COMMON_MATH_UTIL_H_
 
+#include <bit>
+#include <cstddef>
 #include <functional>
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -180,6 +183,48 @@ T FlushSubnormal(T value) {
 // with `[0, 0, 1, 0]` (note that the convention is little-endian).
 bool MixedRadixIterate(absl::Span<const int64_t> radix,
                        std::function<bool(const std::vector<int64_t>&)> f);
+
+// The result from a Saturating* operation.
+template <typename IntType>
+struct SaturatedResult {
+  // What the result value is.
+  IntType result;
+  // Would the non-saturating operation have overflowed. NB If this is true then
+  // 'result' is saturated.
+  bool did_overflow;
+};
+
+// Perform a saturating addition between l and r. If l + r would overflow
+// std::numeric_limits<IntType>::max() is returned instead and, if passed,
+// overflowed is set to true. Currently only positive saturation is supported so
+// at least one of l & r must be positive. This is required even if the
+// operation would not underflow.
+template <typename IntType>
+constexpr SaturatedResult<IntType> SaturatingAdd(IntType l, IntType r)
+  requires(std::is_integral_v<IntType>)
+{
+  // TODO https://github.com/google/xls/issues/1353: It would be good to have
+  // sub, mul, div and so on here.
+  if (r < IntType{0}) {
+    // NB Adding 2 negative numbers gives the possibility of underflow which we
+    // don't detect.
+    CHECK_GE(l, IntType{0})
+        << "Saturating add of two negative numbers is not supported. At least "
+        << "one of l (" << l << ") and r (" << r << ") must be positive.";
+    return SaturatingAdd(r, l);
+  }
+  using Unsigned = std::make_unsigned_t<IntType>;
+  Unsigned ul = std::bit_cast<Unsigned>(l);
+  Unsigned ur = std::bit_cast<Unsigned>(r);
+  // Signed addition overflow is UB.
+  Unsigned us = ul + ur;
+  IntType is = std::bit_cast<IntType>(us);
+  if (is >= l) {
+    // No overflow.
+    return {.result = std::bit_cast<IntType>(us), .did_overflow = false};
+  }
+  return {.result = std::numeric_limits<IntType>::max(), .did_overflow = true};
+}
 
 }  // namespace xls
 
