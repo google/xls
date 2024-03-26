@@ -25,7 +25,6 @@
 #include "absl/log/check.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls {
 

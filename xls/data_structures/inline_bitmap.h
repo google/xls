@@ -26,7 +26,6 @@
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/endian.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/test_macros.h"
 

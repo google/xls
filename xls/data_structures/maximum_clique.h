@@ -25,7 +25,6 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/logging/logging.h"
 #include "ortools/linear_solver/linear_solver.h"
 
 namespace xls {

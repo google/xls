@@ -25,7 +25,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/strong_int.h"
 
 namespace xls {

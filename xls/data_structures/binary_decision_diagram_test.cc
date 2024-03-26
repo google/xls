@@ -22,7 +22,6 @@
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/log.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"

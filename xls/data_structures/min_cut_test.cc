@@ -29,7 +29,6 @@
 #include "absl/random/uniform_int_distribution.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/random_util.h"
 
 namespace xls {
