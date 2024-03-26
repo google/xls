@@ -16,7 +16,6 @@
 
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <vector>
 
@@ -29,7 +28,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/elaboration.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function.h"  // IWYU pragma: keep
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node_util.h"
@@ -129,7 +128,7 @@ absl::StatusOr<FunctionBaseLiveness> LivenessFromTopProc(Proc* top) {
 
   FunctionBaseLiveness liveness;
 
-  // Add procs to the live set if they are connnected to `top` via channels.
+  // Add procs to the live set if they are connected to `top` via channels.
   for (const std::unique_ptr<Proc>& proc : p->procs()) {
     if (proc.get() == top) {
       liveness.live_roots.push_back(proc.get());
@@ -144,7 +143,7 @@ absl::StatusOr<FunctionBaseLiveness> LivenessFromTopProc(Proc* top) {
     }
   }
 
-  // Add channels to the live set if they are connnected to `top`.
+  // Add channels to the live set if they are connected to `top`.
   if (representative_channels.at(top).has_value()) {
     for (Channel* channel : p->channels()) {
       if (channel_union.Find(channel->name()) ==
