@@ -28,13 +28,6 @@ jobs:
           key: bazel-cache-macos-${{ github.sha }}
           restore-keys: bazel-cache-macos-
 
-      - name: Install bazelisk
-        run: |
-          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-darwin-arm64"
-          mkdir -p "${GITHUB_WORKSPACE}/bin/"
-          mv bazelisk-darwin-arm64 "${GITHUB_WORKSPACE}/bin/bazel"
-          chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
-
       - name: Bazel Build Tools (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main

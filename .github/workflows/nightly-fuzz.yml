@@ -27,12 +27,6 @@ jobs:
           restore-keys: bazel-cache-22_04-
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
-      - name: Install bazelisk
-        run: |
-          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64"
-          mkdir -p "${GITHUB_WORKSPACE}/bin/"
-          mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
-          chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
       - name: Bazel Build Fuzz Driver (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" build -c opt xls/fuzzer:run_fuzz_multiprocess
