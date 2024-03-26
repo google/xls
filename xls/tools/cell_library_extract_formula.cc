@@ -30,7 +30,6 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/netlist/lib_parser.h"
 
 const char kUsage[] = R"(

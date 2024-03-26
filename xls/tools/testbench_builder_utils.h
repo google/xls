@@ -37,7 +37,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "xls/common/logging/logging.h"
 
 namespace xls {
 namespace internal {

@@ -20,7 +20,6 @@
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/tools/codegen.h"
