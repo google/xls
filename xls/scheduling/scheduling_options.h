@@ -25,7 +25,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/ir/node.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
