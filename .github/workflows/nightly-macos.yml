@@ -18,15 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Mount Bazel Cache
-        uses: actions/cache@v3
-        with:
-          path: "~/.cache/bazel"
-          # Create/use a cache called bazel-cache-macos-<commit hash>
-          # and read the latest cache with prefix bazel-cache-macos-
-          # if it doesn't already exist.
-          key: bazel-cache-macos-${{ github.sha }}
-          restore-keys: bazel-cache-macos-
+      # We don't use action/cache nighlty workflows to ensure full reproducibility of the build.
 
       - name: Bazel Build Tools (opt)
         run: |

@@ -16,23 +16,20 @@ jobs:
       labels: ubuntu-22.04-64core
     steps:
       - uses: actions/checkout@v2
-      - name: Mount Bazel Cache
-        uses: actions/cache@v3
-        with:
-          path: "~/.cache/bazel"
-          # Create/use a cache called bazel-cache-22_04-<commit hash>
-          # and read the latest cache with prefix bazel-cache-latest-
-          # if it doesn't already exist.
-          key: bazel-cache-22_04-${{ github.sha }}
-          restore-keys: bazel-cache-22_04-
+
+      # We don't use action/cache nighlty workflows to ensure full reproducibility of the build.
+
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
+
       - name: Bazel Build Fuzz Driver (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" build -c opt xls/fuzzer:run_fuzz_multiprocess
+
       - name: Bazel Run Fuzz (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" run -c opt xls/fuzzer:run_fuzz_multiprocess -- --crash_path "${GITHUB_WORKSPACE}/crashers" --sample_count=2048 --summary_path "${GITHUB_WORKSPACE}/crashers"
+
       - name: Upload Fuzz Crashers
         uses: actions/upload-artifact@v2
         with:

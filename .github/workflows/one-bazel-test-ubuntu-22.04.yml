@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
+
       - name: Mount Bazel Cache
         uses: actions/cache@v3
         with:
@@ -36,6 +37,7 @@ jobs:
           # if it doesn't already exist.
           key: bazel-cache-22_04-${{ github.sha }}
           restore-keys: bazel-cache-22_04-
+
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
 

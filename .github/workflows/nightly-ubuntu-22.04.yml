@@ -16,14 +16,9 @@ jobs:
       labels: ubuntu-22.04-64core
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v3
-        with:
-          path: "~/.cache/bazel"
-          # Create/use a cache called bazel-cache-22_04-<commit hash>
-          # and read the latest cache with prefix bazel-cache-22_04-
-          # if it doesn't already exist.
-          key: bazel-cache-22_04-${{ github.sha }}
-          restore-keys: bazel-cache-22_04-
+
+      # We don't use action/cache nighlty workflows to ensure full reproducibility of the build.
+
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
 
