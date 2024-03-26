@@ -1626,8 +1626,10 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     // Leading zeroes will be 1 if there's no carry or cancellation.
     let leading_zeroes = clz(abs_fraction);
     let cancel = leading_zeroes > uN[WIDE_FRACTION]:1;
-    let cancel_fraction =
-        (abs_fraction << (leading_zeroes - uN[WIDE_FRACTION]:1)) as uN[NORMALIZED_FRACTION];
+
+    // Manually apply https://github.com/google/xls/issues/1274
+    let cancel_fraction = abs_fraction as uN[WIDE_FRACTION + u32:1] << leading_zeroes;
+    let cancel_fraction = (cancel_fraction >> u32:1) as uN[NORMALIZED_FRACTION];
     let shifted_fraction = match (carry_bit, cancel) {
         (true, false) => carry_fraction,
         (false, true) => cancel_fraction,
