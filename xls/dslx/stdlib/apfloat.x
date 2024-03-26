@@ -1696,16 +1696,16 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     let result_exponent = if is_operand_inf { MAX_EXPONENT } else { result_exponent };
     let result_fraction = if is_operand_inf { uN[FRACTION_SZ]:0 } else { result_fraction };
     // Result infinity is negative iff all infinite operands are neg.
-    let has_pos_inf = (is_inf<EXP_SZ, FRACTION_SZ>(x) && (x.sign == u1:0)) |
+    let has_pos_inf = (is_inf<EXP_SZ, FRACTION_SZ>(x) && (x.sign == u1:0)) ||
                       (is_inf<EXP_SZ, FRACTION_SZ>(y) && (y.sign == u1:0));
     let result_sign = if is_operand_inf { !has_pos_inf } else { result_sign };
 
     // Handle NaN; NaN trumps infinities, so we handle it last.
     // -inf + inf = NaN, i.e., if we have both positive and negative inf.
-    let has_neg_inf = (is_inf<EXP_SZ, FRACTION_SZ>(x) & (x.sign == u1:1)) |
-                      (is_inf<EXP_SZ, FRACTION_SZ>(y) & (y.sign == u1:1));
-    let is_result_nan = is_nan<EXP_SZ, FRACTION_SZ>(x) | is_nan<EXP_SZ, FRACTION_SZ>(y) |
-                        (has_pos_inf & has_neg_inf);
+    let has_neg_inf = (is_inf<EXP_SZ, FRACTION_SZ>(x) && (x.sign == u1:1)) ||
+                      (is_inf<EXP_SZ, FRACTION_SZ>(y) && (y.sign == u1:1));
+    let is_result_nan = is_nan<EXP_SZ, FRACTION_SZ>(x) || is_nan<EXP_SZ, FRACTION_SZ>(y) ||
+                        (has_pos_inf && has_neg_inf);
     const FRACTION_HIGH_BIT = uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1);
     let result_exponent = if is_result_nan { MAX_EXPONENT } else { result_exponent };
     let result_fraction = if is_result_nan { FRACTION_HIGH_BIT } else { result_fraction };
