@@ -91,7 +91,6 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
                 "//xls/common/file:filesystem",
                 "//xls/common/file:get_runfile_path",
                 "//xls/common/file:temp_directory",
-                "//xls/common/logging",
                 "//xls/common/status:matchers",
                 "//xls/common/status:status_macros",
                 "//xls/interpreter:ir_interpreter",

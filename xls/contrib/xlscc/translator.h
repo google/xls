@@ -45,7 +45,6 @@
 #include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
-#include "xls/common/logging/logging.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"

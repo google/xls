@@ -33,7 +33,6 @@
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
 #include "xls/contrib/xlscc/cc_parser.h"

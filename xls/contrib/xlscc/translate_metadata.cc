@@ -20,7 +20,6 @@
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceManager.h"
-#include "xls/common/logging/logging.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 

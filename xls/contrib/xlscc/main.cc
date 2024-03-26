@@ -39,7 +39,6 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_flags.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/flags.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
