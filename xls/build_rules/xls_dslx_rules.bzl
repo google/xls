@@ -114,7 +114,8 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
     wsroot = ctx.attr._xls_dslx_interpreter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in all_srcs])
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in all_srcs] +
+                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in all_srcs])
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     dslx_test_args["dslx_path"] = (
@@ -287,7 +288,8 @@ def _xls_dslx_library_impl(ctx):
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
     wsroot = ctx.attr._xls_dslx_interpreter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in my_srcs_list])
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in my_srcs_list] +
+                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in my_srcs_list])
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     ctx.actions.run_shell(

@@ -142,10 +142,9 @@ def _convert_to_ir(ctx, src):
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
     # Get workspaces for the source as well.
-    # TODO(tedhong): 2023-06-07 - Grab the workspace from each dependency as well
-    # to support dslx sources from different workspaces.
     dslx_srcs = [src]
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs])
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs] +
+                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs])
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     ir_conv_args = dict(ctx.attr.ir_conv_args)
@@ -362,10 +361,9 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
     # Get workspaces for the source as well.
-    # TODO(tedhong): 2023-06-07 - Grab the workspace from each dependency as well
-    # to support dslx sources from different workspaces.
     dslx_srcs = [src]
-    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs])
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs] +
+                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs])
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     ir_eval_args = append_default_to_args(
