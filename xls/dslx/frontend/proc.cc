@@ -32,6 +32,15 @@
 
 namespace xls::dslx {
 
+bool HasMemberNamed(const ProcBody& proc_body, std::string_view name) {
+  for (const ProcMember* member : proc_body.members) {
+    if (member->name_def()->identifier() == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
 absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n) {
   if (auto* s = dynamic_cast<Function*>(n)) {
     return s;
@@ -101,12 +110,12 @@ std::string Proc::ToString() const {
               absl::StrAppend(out, parametric_binding->ToString());
             }));
   }
-  std::string members_str = absl::StrJoin(
-      members(), "\n", [](std::string* out, const ProcMember* member) {
-        out->append(absl::StrCat(member->ToString(), ";"));
+  std::string stmts_str =
+      absl::StrJoin(stmts(), "\n", [](std::string* out, const ProcStmt& stmt) {
+        absl::StrAppend(out, ToAstNode(stmt)->ToString());
       });
-  if (!members().empty()) {
-    members_str.append("\n");
+  if (!stmts().empty()) {
+    absl::StrAppend(&stmts_str, "\n");
   }
 
   // Init functions are special, since they shouldn't be printed with
@@ -121,7 +130,7 @@ std::string Proc::ToString() const {
 })";
   return absl::StrFormat(
       kTemplate, pub_str, name_def()->identifier(), parametric_str,
-      Indent(members_str, kRustSpacesPerIndent),
+      Indent(stmts_str, kRustSpacesPerIndent),
       Indent(config().ToUndecoratedString("config"), kRustSpacesPerIndent),
       init_str,
       Indent(next().ToUndecoratedString("next"), kRustSpacesPerIndent));

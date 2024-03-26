@@ -126,13 +126,17 @@ class Bindings {
   // Returns a copy of this bindings object.
   Bindings Clone() const;
 
-  // The "Cronus" method. This adds a child's bindings to this object, i.e., it
-  // "commits" changes made in a child Bindings to this parent object.
-  void ConsumeChild(Bindings* child) {
-    CHECK_EQ(child->parent_, this);
-    for (const auto& [k, v] : child->local_bindings_) {
+  void ConsumeLocalBindingsFrom(const Bindings& other) {
+    for (const auto& [k, v] : other.local_bindings_) {
       local_bindings_[k] = v;
     }
+  }
+
+  // The "Cronus" method. This adds a child's bindings to this object, i.e., it
+  // "commits" changes made in a child Bindings to this parent object.
+  void ConsumeChild(const Bindings* child) {
+    CHECK_EQ(child->parent_, this);
+    ConsumeLocalBindingsFrom(*child);
   }
 
   // Returns whether there are any local bindings (i.e. bindings that are not

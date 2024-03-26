@@ -1143,6 +1143,18 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "proc_with_alias",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "proc_with_alias_from_parametric",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
     name = "send_if_recv_if",
     convert_to_ir = False,
     dslx_entry = "main",

@@ -51,7 +51,7 @@ class ProcMember : public AstNode {
 
   std::string_view GetNodeTypeName() const override { return "ProcMember"; }
   std::string ToString() const override {
-    return absl::StrFormat("%s: %s", name_def_->ToString(),
+    return absl::StrFormat("%s: %s;", name_def_->ToString(),
                            type_annotation_->ToString());
   }
 
@@ -71,9 +71,9 @@ class ProcMember : public AstNode {
   Span span_;
 };
 
-// TODO(leary): 2024-02-09 Extend this to allow for type aliases, constant
-// definitions, constant asserts, etc.
-using ProcStmt = std::variant<Function*, ProcMember*>;
+// TODO(leary): 2024-02-09 Extend this to allow for constant definitions,
+// constant asserts, etc.
+using ProcStmt = std::variant<Function*, ProcMember*, TypeAlias*>;
 
 absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n);
 
@@ -90,7 +90,12 @@ struct ProcBody {
   std::vector<ProcMember*> members;
 };
 
-// Represents a parsed 'process' specification in the DSL.
+// Note: linear time, expected only to be used only under error conditions where
+// we don't mind taking time reporting.
+bool HasMemberNamed(const ProcBody& proc_body, std::string_view name);
+
+// Represents a parsed 'process' (i.e. communicating sequential process)
+// specification in the DSL.
 class Proc : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "proc"; }

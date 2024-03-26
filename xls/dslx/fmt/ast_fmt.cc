@@ -1695,12 +1695,24 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
   signature_pieces.push_back(arena.break1());
   signature_pieces.push_back(arena.ocurl());
 
-  std::vector<DocRef> member_pieces;
-  member_pieces.reserve(n.members().size());
-  for (const ProcMember* member : n.members()) {
-    member_pieces.push_back(Fmt(*member, comments, arena));
-    member_pieces.push_back(arena.semi());
-    member_pieces.push_back(arena.hard_line());
+  std::vector<DocRef> stmt_pieces;
+  for (const ProcStmt& stmt : n.stmts()) {
+    absl::visit(Visitor{
+                    [](const Function*) {
+                      // We will emit these below.
+                    },
+                    [&](const ProcMember* n) {
+                      stmt_pieces.push_back(Fmt(*n, comments, arena));
+                      stmt_pieces.push_back(arena.semi());
+                      stmt_pieces.push_back(arena.hard_line());
+                    },
+                    [&](const TypeAlias* n) {
+                      stmt_pieces.push_back(Fmt(*n, comments, arena));
+                      stmt_pieces.push_back(arena.semi());
+                      stmt_pieces.push_back(arena.hard_line());
+                    },
+                },
+                stmt);
   }
 
   std::vector<DocRef> config_pieces = {
@@ -1740,11 +1752,11 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> proc_pieces = {
       ConcatNGroup(arena, signature_pieces),
       arena.hard_line(),
-      member_pieces.empty()
+      stmt_pieces.empty()
           ? arena.empty()
           : ConcatNGroup(arena,
                          {
-                             arena.MakeNest(ConcatNGroup(arena, member_pieces)),
+                             arena.MakeNest(ConcatNGroup(arena, stmt_pieces)),
                              arena.hard_line(),
                          }),
       arena.MakeNest(ConcatNGroup(arena, config_pieces)),

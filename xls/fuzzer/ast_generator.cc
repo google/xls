@@ -2902,7 +2902,15 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
+
+  std::vector<ProcStmt> proc_stmts;
+  proc_stmts.reserve(proc_properties_.members.size());
+  for (ProcMember* member : proc_properties_.members) {
+    proc_stmts.push_back(member);
+  }
+
   ProcBody body = {
+      .stmts = proc_stmts,
       .config = config_function,
       .next = next_function.function,
       .init = init_fn,

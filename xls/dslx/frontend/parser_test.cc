@@ -412,6 +412,94 @@ TEST_F(ParserTest, ParseSimpleProc) {
   EXPECT_EQ(p->ToString(), text);
 }
 
+TEST_F(ParserTest, ParseNextTooManyArgs) {
+  const char* text = R"(proc confused {
+    config() { () }
+    init { () }
+    next(tok: token, state: (), more: u32) { () }
+})";
+
+  Scanner s{"test.x", std::string{text}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  auto proc_or = parser.ParseProc(/*is_public=*/false, /*bindings=*/bindings);
+  if (!proc_or.ok()) {
+    TryPrintError(proc_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(text);
+                  });
+  }
+  EXPECT_THAT(proc_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr(
+                           "test.x:4:43-4:43 A Proc next function takes two "
+                           "arguments: a token and a recurrent state element; "
+                           "got 3 parameters: [tok, state, more]")));
+}
+
+TEST_F(ParserTest, ParseSimpleProcWithAlias) {
+  const char* text = R"(proc simple {
+    type MyU32 = u32;
+    x: MyU32;
+    config() {
+        ()
+    }
+    init {
+        MyU32:0
+    }
+    next(tok: token, addend: MyU32) {
+        x + addend
+    }
+})";
+
+  Scanner s{"test.x", std::string{text}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  auto proc_or = parser.ParseProc(/*is_public=*/false, /*bindings=*/bindings);
+  if (!proc_or.ok()) {
+    TryPrintError(proc_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(text);
+                  });
+    XLS_ASSERT_OK(proc_or.status());
+  }
+  const Proc* p = proc_or.value();
+  EXPECT_EQ(p->ToString(), text)
+      << "Proc ToString() did not match original text.";
+}
+
+TEST_F(ParserTest, ParseSimpleProcWithDepdenentTypeAlias) {
+  const char* text = R"(proc simple {
+    type MyU32 = u32;
+    type MyOtherU32 = MyU32;
+    x: MyOtherU32;
+    config() {
+        ()
+    }
+    init {
+        MyOtherU32:0
+    }
+    next(tok: token, addend: MyOtherU32) {
+        x + addend
+    }
+})";
+
+  Scanner s{"test.x", std::string{text}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  auto proc_or = parser.ParseProc(/*is_public=*/false, /*bindings=*/bindings);
+  if (!proc_or.ok()) {
+    TryPrintError(proc_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(text);
+                  });
+    XLS_ASSERT_OK(proc_or.status());
+  }
+  const Proc* p = proc_or.value();
+  EXPECT_EQ(p->ToString(), text)
+      << "Proc ToString() did not match original text.";
+}
+
 // Parses the "iota" example.
 TEST_F(ParserTest, ParseProcNetwork) {
   std::string_view kModule = R"(proc producer {
@@ -1681,14 +1769,14 @@ fn my_fun() -> MyEnum {
                                       "a definition for name: \"FOO\""));
 }
 
-TEST_F(ParserTest, ProcConfigCantSeeMembers) {
+TEST_F(ParserTest, ProcConfigCannotSeeMembers) {
   constexpr std::string_view kProgram = R"(
 proc main {
     x12: chan<u8> in;
     config(x27: chan<u8> in) {
         (x12,)
     }
-    next(x0: token) {
+    next(x0: token, s: ()) {
         ()
     }
 })";
@@ -1702,6 +1790,22 @@ proc main {
                "Cannot find a definition for name: \"x12\"; "
                "\"x12\" is a proc member, but those cannot be referenced "
                "from within a proc config function."));
+}
+
+TEST_F(ParserTest, ProcConfigCanSeeTypeAlias) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+    type MyU8RecvChan = chan<u8> in;
+    x12: MyU8RecvChan;
+    config(x27: MyU8RecvChan) {
+        (x27,)
+    }
+    init { () }
+    next(x0: token, s: ()) { () }
+})";
+  Scanner s{"test.x", std::string{kProgram}};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK(parser.ParseModule());
 }
 
 TEST_F(ParserTest, ProcDuplicateConfig) {

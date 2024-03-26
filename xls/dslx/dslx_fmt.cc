@@ -104,6 +104,11 @@ absl::Status RealMain(std::string_view input_path,
     if (std::optional<AutoFmtPostconditionViolation> violation =
             ObeysAutoFmtOpportunisticPostcondition(contents, formatted);
         violation.has_value()) {
+      std::cerr << "== Opportunistic Auto-formatter Postcondition Violation:\n";
+      std::cerr << "original transformed: " << violation->original_transformed
+                << "\n";
+      std::cerr << "autofmt transformed:  " << violation->autofmt_transformed
+                << "\n";
       return absl::InternalError(
           "Autoformatting failed its opportunistic postcondition test; "
           "autoformatted text may be buggy.");

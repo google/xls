@@ -145,7 +145,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
 
     std::string text = module.module->ToString();
     //  Parses/typechecks as well, which is primarily what we're testing here.
-    XLS_ASSERT_OK(ParseAndTypecheck<Proc>(text, module_name));
+    XLS_ASSERT_OK(ParseAndTypecheck<Proc>(text, module_name)) << text;
     EXPECT_THAT(text, ContainsRegex(kWantPattern));
   }
 }

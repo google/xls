@@ -544,12 +544,6 @@ class Parser : public TokenParser {
       std::vector<Expr*> args,
       std::vector<ExprOrType> parametrics = std::vector<ExprOrType>{});
 
-  // Traverses a Proc declaration to collect all the member data elements
-  // present therein - in other words, it collects everything but the "config"
-  // and "next" elements.
-  absl::StatusOr<std::vector<ProcMember*>> CollectProcMembers(
-      Bindings& bindings);
-
   // Parses a proc config function.
   //
   // Args:

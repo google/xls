@@ -1626,6 +1626,21 @@ TEST_F(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcWithTypeAlias) {
+  Run(
+      R"(pub proc p {
+    type MyU32OutChan = chan<u32> out;
+    cg: MyU32OutChan;
+
+    config(c: MyU32OutChan) { (c,) }
+
+    init { () }
+
+    next(tok: token, state: ()) { () }
+}
+)");
+}
+
 // Based on report in https://github.com/google/xls/issues/1216
 TEST_F(ModuleFmtTest, ProcSpawnImported) {
   Run(

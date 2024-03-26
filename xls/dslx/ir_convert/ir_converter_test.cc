@@ -1626,6 +1626,36 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, HandlesProcWithTypeAlias) {
+  const std::string kProgram = R"(
+proc P {
+    type MyU32 = u32;
+
+    s: chan<MyU32> out;
+
+    config(s: chan<MyU32> out) { (s,) }
+
+    init { MyU32:42 }
+
+    next(tok: token, state: MyU32) {
+        send(tok, s, state);
+        let new_state = state + MyU32:1;
+        new_state
+    }
+}
+)";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "P", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, SendIfRecvIf) {
   constexpr std::string_view kProgram = R"(proc producer {
   c: chan<u32> out;
