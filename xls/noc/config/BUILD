@@ -45,7 +45,6 @@ cc_library(
         ":network_config_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -67,7 +66,6 @@ cc_library(
         ":network_config_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -89,7 +87,6 @@ cc_library(
         ":network_config_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -111,7 +108,6 @@ cc_library(
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -134,7 +130,6 @@ cc_library(
         ":network_config_proto_builder_utils",
         "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
     ],
 )
 
@@ -221,7 +216,6 @@ cc_library(
         ":network_config_builder_options_cc_proto",
         ":network_config_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 
@@ -242,7 +236,6 @@ cc_library(
     deps = [
         ":network_config_builder_options_cc_proto",
         "@com_google_absl//absl/log:die_if_null",
-        "//xls/common/logging",
     ],
 )
 

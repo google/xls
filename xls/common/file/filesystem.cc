@@ -37,7 +37,6 @@
 #include "google/protobuf/io/tokenizer.h"
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/text_format.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

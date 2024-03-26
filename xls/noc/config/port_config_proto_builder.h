@@ -18,7 +18,6 @@
 #include <string_view>
 
 #include "absl/log/die_if_null.h"
-#include "xls/common/logging/logging.h"
 #include "xls/noc/config/network_config.pb.h"
 
 namespace xls::noc {

@@ -25,7 +25,6 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/ret_check.h"
 #include "tools/cpp/runfiles/runfiles.h"

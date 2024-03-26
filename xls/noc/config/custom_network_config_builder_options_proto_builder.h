@@ -18,7 +18,6 @@
 #define XLS_NOC_CONFIG_CUSTOM_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_BUILDER_H_
 
 #include "absl/log/die_if_null.h"
-#include "xls/common/logging/logging.h"
 #include "xls/noc/config/network_config_builder_options.pb.h"
 
 namespace xls::noc {
