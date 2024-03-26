@@ -17,6 +17,7 @@
 load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
 load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+load("@com_google_benchmark//:bazel/benchmark_deps.bzl", "benchmark_deps")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
 load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
@@ -49,3 +50,4 @@ def initialize_external_repositories():
     initialize_boost()
     initialize_llvm()
     bazel_compdb_deps()
+    benchmark_deps()

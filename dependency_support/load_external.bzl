@@ -330,6 +330,8 @@ def load_external_repositories():
         strip_prefix = "fuzztest-" + FUZZTEST_COMMIT,
         url = "https://github.com/google/fuzztest/archive/" + FUZZTEST_COMMIT + ".zip",
         sha256 = "a0558ceb617d78ee93d7e6b62930b4aeebc02f1e5817d4d0dae53699f6f6c352",
+        patch_args = ["-p1", "-R"],  # reverse patch until we upgrade bazel to 7.1; see: bazelbuild/bazel#19233.
+        patches = ["@com_google_xls//dependency_support/com_google_fuzztest:e317d5277e34948ae7048cb5e48309e0288e8df3.patch"],
     )
 
     # Released 2024-01-24, current as of 2024-03-14
