@@ -22,4 +22,4 @@ jobs:
 
       - name: Bazel Build Tools (opt)
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
+          bazel build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
