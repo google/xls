@@ -124,9 +124,9 @@ struct ChannelBinding {
   ChannelInstance* instance;
 
   // The channel reference in the parent proc in the elaboration to which the
-  // channel reference is bound. This value is nullopt for top-level channel
-  // interface (and old-style procs) and for channel references which refer to
-  // channel declared in the proc itself.
+  // channel reference is bound. This value is std::nullopt for top-level
+  // channel instances (and old-style procs) and for channel references which
+  // refer to channels declared in the proc itself.
   std::optional<ChannelReference*> parent_reference;
 };
 
@@ -145,14 +145,14 @@ class ProcInstance {
   Proc* proc() const { return proc_; }
 
   // The ProcInstantiation IR construct which instantiates this proc
-  // instance. This is nullopt if the proc corresponding to this ProcInstance
-  // is the top proc.
+  // instance. This is std::nullopt if the proc corresponding to this
+  // ProcInstance is the top proc.
   std::optional<ProcInstantiation*> proc_instantiation() const {
     return proc_instantiation_;
   }
 
-  // The path to this proc instance through the proc hierarchy. This is nullopt
-  // for old-style procs.
+  // The path to this proc instance through the proc hierarchy. This is
+  // std::nullopt for old-style procs.
   const std::optional<ProcInstantiationPath>& path() const { return path_; }
 
   // The ChannelInstances corresponding to the channels declared in the proc
@@ -293,7 +293,7 @@ class ProcElaboration {
 
   Package* package_;
 
-  // For a new style procs this is the top-level instantiation. All other
+  // For a new-style proc, this is the top-level instantiation. All other
   // ProcInstances are contained within this instance.
   std::unique_ptr<ProcInstance> top_;
 
