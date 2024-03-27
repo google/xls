@@ -2332,6 +2332,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       outer_bindings.Add(config->name_def()->identifier(), config->name_def());
 
       XLS_RETURN_IF_ERROR(module_->AddTop(config, MakeModuleTopCollisionError));
+      proc_body.stmts.push_back(config);
     } else if (peek->IsIdentifier("next")) {
       XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_body.next, peek));
 
@@ -2348,6 +2349,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       // character to the outer (e.g. module-level) bindings to avoid
       // collisions.
       outer_bindings.Add(next->name_def()->identifier(), next->name_def());
+      proc_body.stmts.push_back(next);
     } else if (peek->IsIdentifier("init")) {
       XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_body.init, peek));
 
@@ -2362,6 +2364,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       // character to the outer (e.g. module-level) bindings to avoid
       // collisions.
       outer_bindings.Add(init->name_def()->identifier(), init->name_def());
+      proc_body.stmts.push_back(init);
     } else if (peek->kind() == TokenKind::kIdentifier) {
       // Note: to parse a member, we use the memberless bindings (e.g. to
       // capture type aliases and similar) and them collapse the new member

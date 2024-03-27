@@ -418,5 +418,18 @@ proc p {
                              "Want argument 2 to 'send' to have type uN[32]")));
 }
 
+// See also https://github.com/google/xls/issues/1359
+TEST(TypecheckTest, ZeroMacroOnProcLevelTypeAlias) {
+  constexpr std::string_view kProgram = R"(
+proc p {
+  type MyU32 = u32;
+  config() { let _ = zero!<MyU32>(); () }
+  init { zero!<MyU32>() }
+  next(tok: token, state: MyU32) { zero!<MyU32>() }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 }  // namespace
 }  // namespace xls::dslx

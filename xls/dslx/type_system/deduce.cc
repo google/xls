@@ -261,6 +261,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRef(const TypeRef* node,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceTypeAlias(const TypeAlias* node,
                                                       DeduceCtx* ctx) {
+  VLOG(5) << "DeduceTypeAlias; node: `" << node->ToString() << "`";
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                        ctx->Deduce(node->type_annotation()));
   XLS_RET_CHECK(type->IsMeta());
@@ -2143,7 +2144,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                                                   DeduceCtx* ctx) {
   const ParametricEnv caller_parametric_env =
       ctx->fn_stack().back().parametric_env();
-  VLOG(5) << "Deducing type for invocation: `" << node->ToString()
+  VLOG(5) << "Deducing type for spawn: `" << node->ToString()
           << "` caller symbolic bindings: " << caller_parametric_env;
 
   auto resolve_proc = [](const Instantiation* node,

@@ -131,6 +131,18 @@ class Proc : public AstNode {
   Function& init() const { return *body_.init; }
   absl::Span<ProcMember* const> members() const { return body_.members; }
   absl::Span<ProcStmt const> stmts() const { return body_.stmts; }
+  absl::Span<ProcStmt> stmts() { return absl::MakeSpan(body_.stmts); }
+
+  std::vector<const ProcStmt*> GetNonFunctionStmts() const {
+    std::vector<const ProcStmt*> result;
+    for (const ProcStmt& stmt : stmts()) {
+      if (std::holds_alternative<Function*>(stmt)) {
+        continue;
+      }
+      result.push_back(&stmt);
+    }
+    return result;
+  }
 
   // Note: this should be called after type checking has been performed, at
   // which point it should be validated that the last statement, if present, is

@@ -89,12 +89,9 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   for (ParametricBinding* pb : parametric_bindings_) {
     results.push_back(pb);
   }
-  for (ProcMember* p : body_.members) {
-    results.push_back(p);
+  for (const ProcStmt& s : body_.stmts) {
+    results.push_back(ToAstNode(s));
   }
-  results.push_back(body_.config);
-  results.push_back(body_.next);
-  results.push_back(body_.init);
   return results;
 }
 
@@ -110,11 +107,14 @@ std::string Proc::ToString() const {
               absl::StrAppend(out, parametric_binding->ToString());
             }));
   }
-  std::string stmts_str =
-      absl::StrJoin(stmts(), "\n", [](std::string* out, const ProcStmt& stmt) {
-        absl::StrAppend(out, ToAstNode(stmt)->ToString());
+
+  // Note: functions are emitted separately below, so we format the non-function
+  // statements here.
+  std::string stmts_str = absl::StrJoin(
+      GetNonFunctionStmts(), "\n", [](std::string* out, const ProcStmt* stmt) {
+        absl::StrAppend(out, ToAstNode(*stmt)->ToString());
       });
-  if (!stmts().empty()) {
+  if (!stmts_str.empty()) {
     absl::StrAppend(&stmts_str, "\n");
   }
 

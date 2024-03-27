@@ -29,6 +29,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -161,6 +162,19 @@ static bool CanTypecheckProc(Proc* p) {
   return true;
 }
 
+static absl::Status TypecheckProcStmts(Proc* p, DeduceCtx* ctx) {
+  for (ProcStmt& stmt : p->stmts()) {
+    XLS_RETURN_IF_ERROR(absl::visit(
+        Visitor{// These are typechecked elsewhere in the flow.
+                [](Function* n) { return absl::OkStatus(); },
+                [](ProcMember* n) { return absl::OkStatus(); },
+
+                [&](TypeAlias* n) { return ctx->Deduce(n).status(); }},
+        stmt));
+  }
+  return absl::OkStatus();
+}
+
 static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
   Function* quickcheck_f_ptr = qc->f();
   XLS_RET_CHECK(quickcheck_f_ptr != nullptr);
@@ -197,6 +211,8 @@ static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
 
 absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
                                    ImportData* import_data, DeduceCtx* ctx) {
+  VLOG(5) << "TypecheckModuleMember; member: `" << ToAstNode(member)->ToString()
+          << "`";
   if (std::holds_alternative<Import*>(member)) {
     Import* import = std::get<Import*>(member);
     XLS_ASSIGN_OR_RETURN(
@@ -226,6 +242,9 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
       if (!CanTypecheckProc(p)) {
         return absl::OkStatus();
       }
+      VLOG(5) << "Determined function was within proc `" << p->identifier()
+              << "` but proc is able to be typechecked";
+      XLS_RETURN_IF_ERROR(TypecheckProcStmts(p, ctx));
     }
 
     VLOG(2) << "Typechecking function: `" << f.ToString() << "`";
