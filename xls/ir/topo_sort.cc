@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -78,16 +79,21 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
       remaining_users -= 1;
     }
   };
+
+  absl::flat_hash_set<Node*> seen_operands;
   auto add_to_order = [&](Node* r) {
     VLOG(5) << "Adding node to order: " << r;
     DCHECK(all_users_scheduled(r)) << r << " users size: " << r->users().size();
     ordered.push_back(r);
 
+    // We share seen_operands across invocations of add_to_order to reduce
+    // overhead of constructing/allocating a set each time. Clear it before
+    // using it.
+    seen_operands.clear();
+
     // We want to be careful to only bump down our operands once, since we're a
     // single user, even though we may refer to them multiple times in our
     // operands sequence.
-    absl::flat_hash_set<Node*> seen_operands;
-    seen_operands.reserve(r->operand_count());
     for (auto it = r->operands().rbegin(); it != r->operands().rend(); ++it) {
       Node* operand = *it;
       if (auto [_, inserted] = seen_operands.insert(operand); inserted) {
