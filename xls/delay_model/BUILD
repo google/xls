@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
+load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
 
 # pytype binary, test, library
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
-load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
 
 package(

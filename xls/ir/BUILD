@@ -15,13 +15,13 @@
 # Compiler data structures for converting high level algorithms into Hardware
 # Description Language.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+# cc_proto_library is used in this file
 
 # pytype library only
 load("@rules_python//python:defs.bzl", "py_binary")
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
-# cc_proto_library is used in this file
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_applicable_licenses = ["//:license"],

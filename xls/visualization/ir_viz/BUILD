@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 # pytype binary and test
 load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_binary", "closure_js_library")
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 # js_binary used in this file
 # cc_proto_library is used in this file

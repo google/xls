@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
-
 # pytype binary and test
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
+
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_visibility = ["//xls:xls_internal"],

@@ -14,10 +14,10 @@
 
 # Build rules for XLS examples.
 
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
-load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",

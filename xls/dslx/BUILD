@@ -14,10 +14,9 @@
 
 # Domain Specific Language implementation for HW construction that mimics Rust.
 
-load("@xls_pip_deps//:requirements.bzl", "requirement")
-
 # pytype tests are present in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_applicable_licenses = ["//:license"],

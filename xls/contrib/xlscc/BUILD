@@ -17,10 +17,11 @@
 #  depending on the translation library.
 # Email xls-team@ or seanhaskell@ if a dependency is desired.
 
-# pytype binary only
-load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 # cc_proto_library is used in this file
+
+# pytype binary only
+load("@rules_python//python:proto.bzl", "py_proto_library")
 
 package(
     default_applicable_licenses = ["//:license"],
