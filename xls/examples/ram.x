@@ -55,7 +55,7 @@ pub fn ReadWordReq<NUM_PARTITIONS:u32, ADDR_WIDTH:u32>(addr:uN[ADDR_WIDTH]) ->
 }
 
 // Behavior of reads and writes to the same address in the same "tick".
-enum SimultaneousReadWriteBehavior : u2 {
+pub enum SimultaneousReadWriteBehavior : u2 {
   // The read shows the contents at the address before the write.
   READ_BEFORE_WRITE = 0,
   // The read shows the contents at the address after the write.
