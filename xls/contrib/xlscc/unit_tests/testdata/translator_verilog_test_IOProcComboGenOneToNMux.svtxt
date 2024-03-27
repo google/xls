@@ -10,19 +10,19 @@ module foo_proc(
   output wire out2_vld,
   output wire in_rdy
 );
-  wire [31:0] literal_76;
+  wire [31:0] literal_78;
   wire out1_pred;
   wire out2_pred;
-  wire literal_93;
+  wire literal_95;
   wire p0_all_active_outputs_ready;
-  assign literal_76 = 32'h0000_0000;
-  assign out1_pred = dir == literal_76;
-  assign out2_pred = dir != literal_76;
-  assign literal_93 = 1'h1;
+  assign literal_78 = 32'h0000_0000;
+  assign out1_pred = dir == literal_78;
+  assign out2_pred = dir != literal_78;
+  assign literal_95 = 1'h1;
   assign p0_all_active_outputs_ready = (~out1_pred | out1_rdy) & (~out2_pred | out2_rdy);
   assign out1 = in;
   assign out2 = in;
-  assign out1_vld = in_vld & literal_93 & literal_93 & out1_pred;
-  assign out2_vld = in_vld & literal_93 & literal_93 & out2_pred;
+  assign out1_vld = in_vld & literal_95 & literal_95 & out1_pred;
+  assign out2_vld = in_vld & literal_95 & literal_95 & out2_pred;
   assign in_rdy = p0_all_active_outputs_ready;
 endmodule

@@ -1250,15 +1250,6 @@ Translator::GenerateIR_PipelinedLoopContents(
       xls::BValue selected_val =
           pb.Select(use_context_in, context_val, prev_state_val, loc);
       context_values[field_idx] = selected_val;
-
-      if (in_fsm && (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopContext)) {
-        xls::BValue literal_1 = pb.Literal(xls::UBits(1, 1), loc);
-        token = pb.Trace(token, literal_1,
-                         /*args=*/{selected_val},
-                         absl::StrFormat("%s selected_val[%s]: {:u}",
-                                         name_prefix, decl->getNameAsString()),
-                         /*verbosity=*/0, loc);
-      }
     }
     selected_context =
         MakeStructXLS(context_values, *context_cvars_struct_ctype, loc);

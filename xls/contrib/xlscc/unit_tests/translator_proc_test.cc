@@ -1857,6 +1857,79 @@ TEST_P(TranslatorProcTest, ForPipelinedSerial) {
                                      : 0L);
 }
 
+TEST_P(TranslatorProcTest, ForPipelinedSerialPhasedAndNested) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      static int a = -1;
+      static int phase = 0;
+
+      switch (phase) {
+        case 0: {
+          a = in.read();
+          break;
+        }
+        case 1: {
+          #pragma hls_pipeline_init_interval 1
+          for(long i=1;i<=5;++i) {
+            #pragma hls_pipeline_init_interval 1
+            for(long j=1;j<=2;++j) {
+              a += 1;
+            }
+          }
+          break;
+        }
+        case 2: {
+          #pragma hls_pipeline_init_interval 1
+          for(short i=0;i<2;++i) {
+            a += 10;
+          }
+          break;
+        }
+        case 3: {
+          out.write(a);
+          break;
+        }
+      }
+
+      if (phase == 3) {
+        phase = 0;
+      } else {
+        ++phase;
+      }
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32)),
+                  xls::Value(xls::SBits(13, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10 + 20, 32)),
+                      xls::Value(xls::SBits(100 + 10 + 20, 32)),
+                      xls::Value(xls::SBits(13 + 10 + 20, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 10);
+  }
+}
+
 TEST_P(TranslatorProcTest, ForPipelinedSerialIO) {
   const std::string content = R"(
     #pragma hls_top
@@ -3140,6 +3213,67 @@ TEST_P(TranslatorProcTest, ForPipelinedNested) {
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits,
             generate_fsms_for_pipelined_loops_ ? (32 + 1 + 16 + 1 + 64) : 0L);
+}
+
+TEST_P(TranslatorProcTest, ForPipelinedNestedBreak) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& inA,
+             __xls_channel<int>& inB,
+             __xls_channel<int>& out) {
+      int a = inA.read();
+      int b = inB.read();
+
+      #pragma hls_pipeline_init_interval 1
+      for(short i=1;i<=4;++i) {
+        #pragma hls_pipeline_init_interval 1
+        for(long j=1;j<=4;++j) {
+          ++a;
+        }
+        if(i == b) {
+          break;
+        }
+      }
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* chA_in = block_spec.add_channels();
+    chA_in->set_name("inA");
+    chA_in->set_is_input(true);
+    chA_in->set_type(FIFO);
+
+    HLSChannel* chB_in = block_spec.add_channels();
+    chB_in->set_name("inB");
+    chB_in->set_is_input(true);
+    chB_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["inA"] = {xls::Value(xls::SBits(80, 32)),
+                   xls::Value(xls::SBits(100, 32)),
+                   xls::Value(xls::SBits(20, 32))};
+
+  inputs["inB"] = {xls::Value(xls::SBits(4, 32)), xls::Value(xls::SBits(1, 32)),
+                   xls::Value(xls::SBits(2, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 4 * 4, 32)),
+                      xls::Value(xls::SBits(100 + 4 * 1, 32)),
+                      xls::Value(xls::SBits(20 + 4 * 2, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 16);
+  }
 }
 
 // Test that the FSM is generated
