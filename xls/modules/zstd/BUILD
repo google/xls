@@ -661,3 +661,19 @@ place_and_route(
     synthesized_rtl = ":block_dec_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "shift_buffer_dslx",
+    srcs = ["shift_buffer.x"],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "shift_buffer_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":shift_buffer_dslx",
+)
