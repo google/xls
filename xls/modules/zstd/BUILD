@@ -677,3 +677,19 @@ xls_dslx_test(
     },
     library = ":shift_buffer_dslx",
 )
+
+xls_dslx_library(
+    name = "fse_proba_freq_dec_dslx",
+    srcs = ["fse_proba_freq_dec.x"],
+    deps = [
+        ":shift_buffer_dslx",
+        ":common_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "fse_proba_freq_dec_dslx_test",
+    dslx_test_args = {"compare": "none"},
+    library = ":fse_proba_freq_dec_dslx",
+)
