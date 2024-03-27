@@ -68,7 +68,8 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
   NameDef* init_name_def =
       module.Make<NameDef>(Span::Fake(), "init_name", nullptr);
   BuiltinTypeAnnotation* return_type = module.Make<BuiltinTypeAnnotation>(
-      Span::Fake(), BuiltinType::kU32, module.GetOrCreateBuiltinNameDef("u32"));
+      Span::Fake(), BuiltinType::kU32,
+      module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   Number* body =
       module.Make<Number>(Span::Fake(), "7", NumberKind::kOther, nullptr);
   Statement* body_stmt = module.Make<Statement>(body);
@@ -133,7 +134,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   BuiltinTypeAnnotation* return_type =
       import_module->Make<BuiltinTypeAnnotation>(
           Span::Fake(), BuiltinType::kU32,
-          import_module->GetOrCreateBuiltinNameDef("u32"));
+          import_module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   Number* body = import_module->Make<Number>(Span::Fake(), "7",
                                              NumberKind::kOther, nullptr);
   Statement* body_stmt = import_module->Make<Statement>(body);

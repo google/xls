@@ -36,7 +36,8 @@ std::pair<Module, Binop*> MakeCastWithinLtComparison() {
   NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
 
   BuiltinTypeAnnotation* builtin_u32 = m.Make<BuiltinTypeAnnotation>(
-      fake_span, BuiltinType::kU32, m.GetOrCreateBuiltinNameDef("u32"));
+      fake_span, BuiltinType::kU32,
+      m.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
 
   // type t = u32;
   NameDef* t_def = m.Make<NameDef>(fake_span, "t", /*definer=*/nullptr);
@@ -65,7 +66,8 @@ std::pair<Module, Index*> MakeCastWithinIndexExpression() {
   NameRef* i_ref = m.Make<NameRef>(fake_span, "i", i_def);
 
   BuiltinTypeAnnotation* builtin_u32 = m.Make<BuiltinTypeAnnotation>(
-      fake_span, BuiltinType::kU32, m.GetOrCreateBuiltinNameDef("u32"));
+      fake_span, BuiltinType::kU32,
+      m.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   ArrayTypeAnnotation* u32_4 = m.Make<ArrayTypeAnnotation>(
       fake_span, builtin_u32,
       m.Make<Number>(fake_span, "42", NumberKind::kOther, /*type=*/nullptr));
@@ -120,7 +122,8 @@ std::pair<Module, Unop*> MakeCastWithinNegateExpression() {
   NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
 
   BuiltinTypeAnnotation* builtin_u32 = m.Make<BuiltinTypeAnnotation>(
-      fake_span, BuiltinType::kU32, m.GetOrCreateBuiltinNameDef("u32"));
+      fake_span, BuiltinType::kU32,
+      m.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
 
   // x as u32
   Cast* cast = m.Make<Cast>(fake_span, x_ref, builtin_u32);

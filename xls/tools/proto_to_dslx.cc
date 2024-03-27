@@ -501,7 +501,7 @@ absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
   int width = CeilOfLog2(max_value) + 1;
   auto* bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
       span, dslx::BuiltinType::kBits,
-      module->GetOrCreateBuiltinNameDef("bits"));
+      module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kBits));
   auto* bit_count = module->Make<dslx::Number>(
       span, absl::StrCat(width), dslx::NumberKind::kOther, /*type=*/nullptr);
   auto* type =
@@ -552,11 +552,11 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       if (IsFieldSigned(field_type)) {
         bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
             span, dslx::BuiltinType::kSN,
-            module->GetOrCreateBuiltinNameDef("sN"));
+            module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kSN));
       } else {
         bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
             span, dslx::BuiltinType::kUN,
-            module->GetOrCreateBuiltinNameDef("uN"));
+            module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kUN));
       }
       auto* array_size = module->Make<dslx::Number>(
           span, absl::StrCat(GetFieldWidth(field_type)),
@@ -585,7 +585,7 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       std::string name_with_count = absl::StrCat(fd->name(), "_count");
       auto* u32_annot = module->Make<dslx::BuiltinTypeAnnotation>(
           span, dslx::BuiltinType::kU32,
-          module->GetOrCreateBuiltinNameDef("u32"));
+          module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
       elements.push_back(dslx::StructMember{span, name_with_count, u32_annot});
     }
   }
@@ -706,7 +706,8 @@ absl::Status EmitArray(
   elements->push_back(std::make_pair(field_name, array));
 
   auto* u32_type = module->Make<dslx::BuiltinTypeAnnotation>(
-      span, dslx::BuiltinType::kU32, module->GetOrCreateBuiltinNameDef("u32"));
+      span, dslx::BuiltinType::kU32,
+      module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   auto* num_array_members = module->Make<dslx::Number>(
       span, absl::StrCat(num_submsgs), dslx::NumberKind::kOther, u32_type);
   elements->push_back(
@@ -832,10 +833,12 @@ absl::Status EmitIntegralData(
   dslx::BuiltinTypeAnnotation* bits_type;
   if (IsFieldSigned(field_type)) {
     bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
-        span, dslx::BuiltinType::kSN, module->GetOrCreateBuiltinNameDef("sN"));
+        span, dslx::BuiltinType::kSN,
+        module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kSN));
   } else {
     bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
-        span, dslx::BuiltinType::kUN, module->GetOrCreateBuiltinNameDef("uN"));
+        span, dslx::BuiltinType::kUN,
+        module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kUN));
   }
   int bit_width = GetFieldWidth(field_type);
   auto* array_dim = module->Make<dslx::Number>(span, absl::StrCat(bit_width),

@@ -122,6 +122,10 @@ class Module : public AstNode {
     return it->second;
   }
 
+  BuiltinNameDef* GetOrCreateBuiltinNameDef(BuiltinType builtin_type) {
+    return GetOrCreateBuiltinNameDef(BuiltinTypeToString(builtin_type));
+  }
+
   using MakeCollisionError = std::function<absl::Status(
       std::string_view module_name, std::string_view member_name,
       const Span& existing_span, const AstNode* existing_node,

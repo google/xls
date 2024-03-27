@@ -1058,7 +1058,7 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStruct) {
   b.Add(name_def->identifier(), name_def);
   BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
   TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
-    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+      Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
   name_def = mod.Make<NameDef>(
@@ -1066,7 +1066,7 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStruct) {
   b.Add(name_def->identifier(), name_def);
   builtin_type = BuiltinTypeFromString("u32").value();
   elem_type = mod.Make<BuiltinTypeAnnotation>(
-    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+      Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
   name_def = mod.Make<NameDef>(
@@ -1107,7 +1107,7 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStructArray) {
   b.Add(name_def->identifier(), name_def);
   BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
   TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
-    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+      Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
   name_def = mod.Make<NameDef>(
@@ -1115,7 +1115,7 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStructArray) {
   b.Add(name_def->identifier(), name_def);
   builtin_type = BuiltinTypeFromString("u32").value();
   elem_type = mod.Make<BuiltinTypeAnnotation>(
-    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+      Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
   name_def = mod.Make<NameDef>(

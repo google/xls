@@ -82,7 +82,8 @@ extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
 static Invocation* CreateElementInvocation(Module* module, const Span& span,
                                            Expr* callee, Expr* arg_array,
                                            AstNode* parent) {
-  BuiltinNameDef* name = module->GetOrCreateBuiltinNameDef("u32");
+  BuiltinNameDef* name =
+      module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32);
   BuiltinTypeAnnotation* annotation =
       module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32, name);
   Number* index_number =

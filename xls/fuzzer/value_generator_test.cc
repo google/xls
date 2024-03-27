@@ -138,7 +138,7 @@ TEST(ValueGeneratorTest, GenerateDslxConstantBits) {
   std::mt19937_64 rng;
   dslx::BuiltinTypeAnnotation* type = module.Make<dslx::BuiltinTypeAnnotation>(
       dslx::FakeSpan(), dslx::BuiltinType::kU32,
-      module.GetOrCreateBuiltinNameDef("u32"));
+      module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
                            GenerateDslxConstant(rng, &module, type));
   ASSERT_NE(expr, nullptr);
@@ -151,13 +151,13 @@ TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBuiltinLessThan64) {
   dslx::BuiltinTypeAnnotation* dim_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kU32,
-          module.GetOrCreateBuiltinNameDef("u32"));
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   dslx::Number* dim = module.Make<dslx::Number>(
       dslx::FakeSpan(), "32", dslx::NumberKind::kOther, dim_type);
   dslx::BuiltinTypeAnnotation* element_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kSN,
-          module.GetOrCreateBuiltinNameDef("sN"));
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kSN));
   dslx::ArrayTypeAnnotation* type = module.Make<dslx::ArrayTypeAnnotation>(
       dslx::FakeSpan(), element_type, dim);
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
@@ -172,13 +172,13 @@ TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
   dslx::BuiltinTypeAnnotation* dim_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kU32,
-          module.GetOrCreateBuiltinNameDef("u32"));
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   dslx::Number* dim = module.Make<dslx::Number>(
       dslx::FakeSpan(), "65", dslx::NumberKind::kOther, dim_type);
   dslx::BuiltinTypeAnnotation* element_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kSN,
-          module.GetOrCreateBuiltinNameDef("sN"));
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kSN));
   dslx::ArrayTypeAnnotation* type = module.Make<dslx::ArrayTypeAnnotation>(
       dslx::FakeSpan(), element_type, dim);
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
@@ -193,11 +193,11 @@ TEST(ValueGeneratorTest, GenerateDslxConstantTuple) {
   dslx::BuiltinTypeAnnotation* element0 =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kU32,
-          module.GetOrCreateBuiltinNameDef("u32"));
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
   dslx::BuiltinTypeAnnotation* element1 =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kS32,
-          module.GetOrCreateBuiltinNameDef("s32"));
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kS32));
   dslx::TupleTypeAnnotation* type = module.Make<dslx::TupleTypeAnnotation>(
       dslx::FakeSpan(), std::vector<dslx::TypeAnnotation*>{element0, element1});
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,

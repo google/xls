@@ -321,7 +321,7 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
 BuiltinTypeAnnotation* AstGenerator::MakeTokenType() {
   return module_->Make<BuiltinTypeAnnotation>(
       fake_span_, BuiltinType::kToken,
-      module_->GetOrCreateBuiltinNameDef("token"));
+      module_->GetOrCreateBuiltinNameDef(BuiltinType::kToken));
 }
 
 TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
@@ -330,12 +330,12 @@ TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
   if (width > 0 && width <= 64) {
     BuiltinType type = GetBuiltinType(is_signed, width).value();
     return module_->Make<BuiltinTypeAnnotation>(
-        fake_span_, type,
-        module_->GetOrCreateBuiltinNameDef(BuiltinTypeToString(type)));
+        fake_span_, type, module_->GetOrCreateBuiltinNameDef(type));
   }
+  BuiltinType builtin_type = is_signed ? BuiltinType::kSN : BuiltinType::kUN;
   auto* element_type = module_->Make<BuiltinTypeAnnotation>(
-      fake_span_, is_signed ? BuiltinType::kSN : BuiltinType::kUN,
-      module_->GetOrCreateBuiltinNameDef(is_signed ? "sN" : "uN"));
+      fake_span_, builtin_type,
+      module_->GetOrCreateBuiltinNameDef(builtin_type));
   Number* dim = MakeNumber(width);
   return module_->Make<ArrayTypeAnnotation>(fake_span_, element_type, dim);
 }
@@ -1645,8 +1645,7 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType(
       bit_gen_, 0, std::min(kConcreteBuiltinTypeLimit, max_width + 1));
   auto type = static_cast<BuiltinType>(integral);
   return module_->Make<BuiltinTypeAnnotation>(
-      fake_span_, type,
-      module_->GetOrCreateBuiltinNameDef(BuiltinTypeToString(type)));
+      fake_span_, type, module_->GetOrCreateBuiltinNameDef(type));
 }
 
 TypedExpr AstGenerator::GenerateNumberWithType(

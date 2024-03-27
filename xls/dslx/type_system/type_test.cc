@@ -143,16 +143,18 @@ TEST(TypeTest, StructTypeGetTotalBitCount) {
   Module module("test", /*fs_path=*/std::nullopt);
 
   std::vector<StructMember> ast_members;
-  ast_members.emplace_back(
-      StructMember{kFakeSpan, "x",
-                   module.Make<BuiltinTypeAnnotation>(
-                       kFakeSpan, BuiltinType::kU8,
-                       module.GetOrCreateBuiltinNameDef("u8"))});
-  ast_members.emplace_back(
-      StructMember{kFakeSpan, "y",
-                   module.Make<BuiltinTypeAnnotation>(
-                       kFakeSpan, BuiltinType::kU1,
-                       module.GetOrCreateBuiltinNameDef("u1"))});
+  ast_members.emplace_back(StructMember{
+      .name_span = kFakeSpan,
+      .name = "x",
+      .type = module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU8,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))});
+  ast_members.emplace_back(StructMember{
+      .name_span = kFakeSpan,
+      .name = "y",
+      .type = module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU1,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))});
 
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),

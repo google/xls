@@ -64,7 +64,8 @@ TEST(InterpValueHelpersTest, CastBitsToEnumAndCreatZeroValue) {
 
   std::vector<EnumMember> members;
   std::vector<InterpValue> member_values;
-  BuiltinNameDef* builtin_name_def = module.GetOrCreateBuiltinNameDef("u13");
+  BuiltinNameDef* builtin_name_def =
+      module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU13);
   TypeAnnotation* element_type = module.Make<BuiltinTypeAnnotation>(
       Span::Fake(), BuiltinType::kU13, builtin_name_def);
   for (int i = 0; i < kNumMembers; i++) {
@@ -73,7 +74,7 @@ TEST(InterpValueHelpersTest, CastBitsToEnumAndCreatZeroValue) {
     Number* number = module.Make<Number>(Span::Fake(), absl::StrCat(i),
                                          NumberKind::kOther, element_type);
     name_def->set_definer(number);
-    members.push_back(EnumMember{name_def, number});
+    members.push_back(EnumMember{.name_def = name_def, .value = number});
     member_values.push_back(InterpValue::MakeUBits(kBitCount, i));
   }
 
@@ -145,12 +146,13 @@ TEST(InterpValueHelpersTest, CreateZeroStructValue) {
       StructMember{kFakeSpan, "x",
                    module.Make<BuiltinTypeAnnotation>(
                        kFakeSpan, BuiltinType::kU8,
-                       module.GetOrCreateBuiltinNameDef("u8"))});
+                       module.GetOrCreateBuiltinNameDef(BuiltinType::kU8))});
   ast_members.emplace_back(
-      StructMember{kFakeSpan, "y",
-                   module.Make<BuiltinTypeAnnotation>(
+      StructMember{.name_span = kFakeSpan,
+                   .name = "y",
+                   .type = module.Make<BuiltinTypeAnnotation>(
                        kFakeSpan, BuiltinType::kU1,
-                       module.GetOrCreateBuiltinNameDef("u1"))});
+                       module.GetOrCreateBuiltinNameDef(BuiltinType::kU1))});
 
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
