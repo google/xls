@@ -223,7 +223,7 @@ absl::StatusOr<InstantiationPort> FifoInstantiation::GetOutputPort(
 std::string FifoInstantiation::ToString() const {
   std::string channel_str;
   if (channel_name_.has_value()) {
-    channel_str = absl::StrFormat("channel=\"%s\", ", *channel_name_);
+    channel_str = absl::StrFormat("channel=%s, ", *channel_name_);
   }
 
   return absl::StrFormat(
