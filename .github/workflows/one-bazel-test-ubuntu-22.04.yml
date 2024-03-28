@@ -28,15 +28,12 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Mount Bazel Cache
-        uses: actions/cache@v3
+      - name: Restore Nightly Bazel Cache
+        uses: actions/restore@v4
         with:
           path: "~/.cache/bazel"
-          # Create/use a cache called bazel-cache-22_04-<commit hash>
-          # and read the latest cache with prefix bazel-cache-22_04-
-          # if it doesn't already exist.
-          key: bazel-cache-22_04-${{ github.sha }}
-          restore-keys: bazel-cache-22_04-
+          key: bazel-cache-nightly-${{ runner.os }}-${{ github.sha }}
+          restore-keys: bazel-cache-nightly-${{ runner.os }}-
 
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran

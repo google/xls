@@ -17,8 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # We don't use action/cache nighlty workflows to ensure full reproducibility of the build.
-
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
 
@@ -30,3 +28,19 @@ jobs:
       - name: Bazel Test All (opt)
         run: |
           bazel test -c opt -- //xls/...
+
+      - name: Clean Bazel Cache
+        run: |
+          # display bazel download cache size.
+          du -sh $(bazel info repository_cache)
+          # clean up bazel download cache.
+          rm -r $(bazel info repository_cache)
+          # breakdown remaining bazel cache size.
+          du -h -t 200M ~/.cache/bazel/*/
+
+      # used by `continuous-integration` and `one-bazel-test-` workflows.
+      - name: Save Bazel Cache
+        uses: actions/save@v4
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-nightly-${{ runner.os }}-${{ github.sha }}
