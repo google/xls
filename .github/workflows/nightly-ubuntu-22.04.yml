@@ -40,7 +40,7 @@ jobs:
 
       # used by `continuous-integration` and `one-bazel-test-` workflows.
       - name: Save Bazel Cache
-        uses: actions/save@v4
+        uses: actions/cache/save@v4
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-nightly-${{ runner.os }}-${{ github.sha }}
