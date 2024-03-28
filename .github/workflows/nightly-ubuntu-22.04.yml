@@ -36,9 +36,9 @@ jobs:
           # delete bazel download cache.
           rm -r $(bazel info repository_cache)
           # delete asap7 from bazel cache.
-          rm -r ~/.cache/bazel/*/external/org_theopenroadproject_asap7*/
+          rm -r ~/.cache/bazel/_bazel*/*/external/org_theopenroadproject_asap7*/
           # delete jdk from bazel cache.
-          rm -r ~/.cache/bazel/*/external/remotejdk11_linux/
+          rm -r ~/.cache/bazel/_bazel*/*/external/remotejdk11_linux/
           # breakdown remaining bazel cache size.
           du -h -t 200M ~/.cache/bazel/*/ | sort -hr
 
