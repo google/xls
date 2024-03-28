@@ -1,0 +1,24 @@
+name: test
+description: 'DSLX Test'
+inputs:
+  xls_module:
+    description: 'Module in //xls/modules'
+    required: true
+    default: 'xls/modules/dma'
+  rule_test:
+    description: 'Bazel rule to test DSLX'
+    required: true
+    default: 'test_csr'
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/cache
+
+    - name: IR
+      shell: bash
+      env:
+        BAZEL_RESOURCES_OPT: "--local_cpu_resources=HOST_CPUS-1 --local_ram_resources=HOST_RAM*.9"
+        BAZEL_RUN_OPT: ""
+      run: |
+        bazel run ${BAZEL_RESOURCES_OPT} ${BAZEL_RUN_OPT} ${{inputs.xls_module}}/${{inputs.rule_test}}

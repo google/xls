@@ -1,0 +1,149 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# See also: https://github.com/marketplace/actions/bazel-action
+
+name: XLS Modules
+on:
+  # Avoid triggering on pushes to /all/ open PR branches.
+  push:
+    branches:
+      - main
+    paths-ignore:
+      # Do not trigger action when docs are updated.
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build:
+    name: BUILD
+    # runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk
+        id: free-disk
+        uses: ./.github/actions/free-disk
+
+      - name: Build XLS
+        id: build
+        uses: ./.github/actions/build
+
+  config-matrix:
+    needs: build
+    name: Matrix configuration
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    outputs:
+      json_config: ${{ env.json_config }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read json file
+        id: read-json
+        run: |
+          sudo apt install jq
+          echo "json_config=$(jq -c . .github/workflows/xls-modules.json)" | tee -a "$GITHUB_ENV"
+
+      - name: Validate json
+        id: validate-json
+        run: |
+          python .github/scripts/validate_json.py
+
+  implement:
+    needs: config-matrix
+    name: Implementation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson( needs.config-matrix.outputs.json_config ) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk
+        id: free-disk
+        uses: ./.github/actions/free-disk
+
+      - name: Implement CSR
+        id: implementation
+        uses: ./.github/actions/implementation
+        with:
+          xls_module: ${{ matrix.module.xls_module }}
+          rule_ir: ${{ matrix.module.rule_ir }}
+          rule_verilog: ${{ matrix.module.rule_verilog }}
+          rule_synthesis: ${{ matrix.module.rule_synthesis }}
+          rule_pnr: ${{ matrix.module.rule_pnr }}
+
+  test:
+    needs: build
+    name: Test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    strategy:
+      fail-fast: false
+      matrix:
+        dslx_test: ["test_common",
+                    "test_csr",
+                    "test_axi_csr",
+                    "test_address_generator",
+                    "test_frontend_writer",
+                    "test_frontend_reader",
+                    "test_main_controller"
+                    ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk
+        id: free-disk
+        uses: ./.github/actions/free-disk
+
+      - name: Test ${{ matrix.dslx_test }}
+        id: test
+        uses: ./.github/actions/test
+        with:
+          xls_module: "xls/modules/dma"
+          rule_test: ${{ matrix.dslx_test }}
+
+  format:
+    needs: build
+    name: Format
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    strategy:
+      fail-fast: false
+      matrix:
+        dslx_test: [fmt_address_generator,
+                    fmt_axi_csr,
+                    fmt_common,
+                    fmt_config,
+                    fmt_csr,
+                    fmt_fifo,
+                    fmt_frontend_reader,
+                    fmt_frontend_writer,
+                    fmt_gpf,
+                    fmt_main_controller,
+                    fmt_bus_axi_pkg,
+                    fmt_bus_axi_st_pkg]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk
+        id: free-disk
+        uses: ./.github/actions/free-disk
+
+      - name: Format ${{ matrix.dslx_test }}
+        id: test
+        uses: ./.github/actions/test
+        with:
+          xls_module: "xls/modules/dma"
+          rule_test: ${{ matrix.dslx_test }}
