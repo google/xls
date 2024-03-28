@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -463,21 +464,11 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
 
 absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
     const SchedulingOptions& flags) {
-  if (flags.fdo_synthesizer_name() == "yosys") {
-    if (flags.fdo_yosys_path().empty() || flags.fdo_sta_path().empty() ||
-        flags.fdo_synthesis_libraries().empty()) {
-      return absl::InternalError(
-          "yosys_path, sta_path, and synthesis_libraries must not be empty");
-    }
-    synthesis::YosysSynthesizer* yosys_synthesizer =
-        new synthesis::YosysSynthesizer(flags.fdo_yosys_path(),
-                                        flags.fdo_sta_path(),
-                                        flags.fdo_synthesis_libraries());
-    return yosys_synthesizer;
-  }
-
-  return absl::InternalError("Synthesis service is invalid: " +
-                             flags.fdo_synthesizer_name());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<synthesis::Synthesizer> synthesizer,
+      synthesis::GetSynthesizerManagerSingleton().MakeSynthesizer(
+          flags.fdo_synthesizer_name(), flags));
+  return synthesizer.release();
 }
 
 }  // namespace xls

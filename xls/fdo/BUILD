@@ -62,16 +62,47 @@ cc_library(
     srcs = ["synthesizer.cc"],
     hdrs = ["synthesizer.h"],
     deps = [
-        ":extract_nodes",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:thread",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/scheduling:scheduling_options",
+        "//xls/synthesis:synthesis_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "yosys_synthesizer",
+    srcs = ["yosys_synthesizer.cc"],
+    hdrs = ["yosys_synthesizer.h"],
+    deps = [
+        ":extract_nodes",
+        ":synthesizer",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:casts",
+        "//xls/common:module_initializer",
+        "//xls/common:thread",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/scheduling:scheduling_options",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis/yosys:yosys_synthesis_service",
     ],
+    alwayslink = True,  # Always link because it has a module-level initialization that registers the synthesizer.
 )
 
 cc_library(
@@ -166,6 +197,7 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/fdo:yosys_synthesizer",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/scheduling:scheduling_options",

@@ -16,15 +16,20 @@
 #define XLS_FDO_SYNTHESIZER_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/node.h"
-#include "xls/synthesis/yosys/yosys_synthesis_service.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace synthesis {
@@ -61,32 +66,81 @@ class Synthesizer {
   std::string name_;
 };
 
-// A derived Synthesizer class for Yosys-OpenSTA-based synthesis and static
-// timing analysis.
-class YosysSynthesizer : public Synthesizer {
-  static constexpr int64_t kFrequencyHz = 1e9;
-  static constexpr int64_t kClockPeriodPs = 1e12 / kFrequencyHz;
-
+// An abstract class of a synthesis service.
+class SynthesizerParameters {
  public:
-  explicit YosysSynthesizer(std::string_view yosys_path,
-                            std::string_view sta_path,
-                            std::string_view synthesis_libraries)
-      : Synthesizer("yosys"),
-        service_(yosys_path, /*nextpnr_path=*/"", /*synthesis_target=*/"",
-                 sta_path, synthesis_libraries, synthesis_libraries,
-                 /*save_temps=*/false, /*return_netlist=*/false,
-                 /*synthesis_only=*/false) {}
-
-  absl::StatusOr<int64_t> SynthesizeVerilogAndGetDelay(
-      std::string_view verilog_text,
-      std::string_view top_module_name) const override;
-
-  absl::StatusOr<int64_t> SynthesizeNodesAndGetDelay(
-      const absl::flat_hash_set<Node *> &nodes) const override;
+  explicit SynthesizerParameters(std::string name) : name_(std::move(name)) {}
+  SynthesizerParameters() = default;
+  virtual ~SynthesizerParameters() = default;
+  const std::string &name() const { return name_; }
 
  private:
-  YosysSynthesisServiceImpl service_;
+  // Records the name of the concreate synthesizer, e.g., yosys, for
+  // management and debugging purpose.
+  std::string name_;
 };
+
+// An abstract class that can construct synthesizers. Meant to be passed to the
+// manager at application init by synthesizers.
+class SynthesizerFactory {
+ public:
+  explicit SynthesizerFactory(std::string_view name) : name_(name) {}
+  virtual ~SynthesizerFactory() = default;
+
+  // Creates a Synthesizer directly from its
+  virtual absl::StatusOr<std::unique_ptr<Synthesizer>> CreateSynthesizer(
+      const SynthesizerParameters &parameters) = 0;
+
+  // Creates a SynthesizerParameters object from the given scheduling options.
+  virtual absl::StatusOr<std::unique_ptr<Synthesizer>> CreateSynthesizer(
+      const SchedulingOptions &scheduling_options) {
+    return absl::UnimplementedError(
+        absl::StrFormat("Not implemented for %s synthesizer", name_));
+  };
+
+  const std::string &name() const { return name_; }
+
+ private:
+  // Records the name of the concreate synthesizer, e.g., yosys, for management
+  // and debugging purpose.
+  std::string name_;
+};
+
+// An abstraction which holds multiple SynthesizerManager objects organized by
+// name.
+class SynthesizerManager {
+ public:
+  // Returns a Synthesizer object associated with the given name. User must
+  // provide a SynthesizerParameters object that matches the type. For example
+  // "yosys" must be a YosysSynthesizerParameters.
+  absl::StatusOr<std::unique_ptr<Synthesizer>> MakeSynthesizer(
+      std::string_view, SynthesizerParameters &parameters);
+
+  // Make synthesizer using SchedulingOptions proto
+  absl::StatusOr<std::unique_ptr<Synthesizer>> MakeSynthesizer(
+      std::string_view, const SchedulingOptions &scheduling_options);
+
+  // Adds a Synthesizer to the manager and associates it with the given name.
+  absl::Status RegisterSynthesizer(
+      std::unique_ptr<SynthesizerFactory> synthesizer);
+
+  // Returns a list of the names of available models in this manager.
+  absl::Span<const std::string> synthesizer_names() const {
+    return synthesizer_names_;
+  }
+
+ private:
+  absl::StatusOr<SynthesizerFactory *> GetSynthesizerFactory(
+      std::string_view name);
+
+  absl::flat_hash_map<std::string, std::unique_ptr<SynthesizerFactory>>
+      synthesizers_;
+  std::vector<std::string> synthesizer_names_;
+};
+
+// Returns the singleton SynthesizerManager manager where synthesizer are
+// registered.
+SynthesizerManager &GetSynthesizerManagerSingleton();
 
 }  // namespace synthesis
 }  // namespace xls

@@ -16,18 +16,22 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
-#include "xls/fdo/extract_nodes.h"
 #include "xls/ir/node.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/synthesis/synthesis.pb.h"
 
 namespace xls {
@@ -63,31 +67,54 @@ Synthesizer::SynthesizeNodesConcurrentlyAndGetDelays(
   return delay_list;
 }
 
-absl::StatusOr<int64_t> YosysSynthesizer::SynthesizeVerilogAndGetDelay(
-    std::string_view verilog_text, std::string_view top_module_name) const {
-  synthesis::CompileRequest request;
-  request.set_module_text(verilog_text);
-  request.set_top_module_name(top_module_name);
-  request.set_target_frequency_hz(kFrequencyHz);
+absl::StatusOr<SynthesizerFactory *> SynthesizerManager::GetSynthesizerFactory(
+    std::string_view name) {
+  if (!synthesizers_.contains(name)) {
+    if (synthesizer_names_.empty()) {
+      return absl::NotFoundError(
+          absl::StrFormat("No synthesizer found named \"%s\". No "
+                          "synthesizer are registered. Was InitXls called?",
+                          name));
+    }
+    return absl::NotFoundError(absl::StrFormat(
+        "No synthesizer found named \"%s\". Available synthesizers: %s", name,
+        absl::StrJoin(synthesizer_names_, ", ")));
+  }
 
-  synthesis::CompileResponse response;
-  XLS_RETURN_IF_ERROR(service_.RunSynthesis(&request, &response));
-  return response.slack_ps() == 0 ? 0 : kClockPeriodPs - response.slack_ps();
+  return synthesizers_.at(name).get();
 }
 
-absl::StatusOr<int64_t> YosysSynthesizer::SynthesizeNodesAndGetDelay(
-    const absl::flat_hash_set<Node *> &nodes) const {
-  std::string top_name = "tmp_module";
-  XLS_ASSIGN_OR_RETURN(
-      std::optional<std::string> verilog_text,
-      ExtractNodesAndGetVerilog(nodes, top_name, /*flop_inputs_outputs=*/true));
-  if (!verilog_text.has_value()) {
-    return 0;
+absl::StatusOr<std::unique_ptr<Synthesizer>>
+SynthesizerManager::MakeSynthesizer(std::string_view name,
+                                    SynthesizerParameters &parameters) {
+  XLS_ASSIGN_OR_RETURN(SynthesizerFactory * factory,
+                       GetSynthesizerFactory(name));
+  return factory->CreateSynthesizer(parameters);
+};
+
+absl::StatusOr<std::unique_ptr<Synthesizer>>
+SynthesizerManager::MakeSynthesizer(
+    std::string_view name, const SchedulingOptions &scheduling_options) {
+  XLS_ASSIGN_OR_RETURN(SynthesizerFactory * factory,
+                       GetSynthesizerFactory(name));
+  return factory->CreateSynthesizer(scheduling_options);
+};
+
+absl::Status SynthesizerManager::RegisterSynthesizer(
+    std::unique_ptr<SynthesizerFactory> synthesizer_factory) {
+  std::string name = synthesizer_factory->name();
+  if (synthesizers_.contains(name)) {
+    return absl::InternalError(
+        absl::StrFormat("SynthesizerFactory named %s already exists", name));
   }
-  XLS_ASSIGN_OR_RETURN(int64_t nodes_delay,
-                       SynthesizeVerilogAndGetDelay(
-                           verilog_text.value(), top_name));
-  return nodes_delay;
+  synthesizers_[name] = std::move(synthesizer_factory);
+  synthesizer_names_.push_back(name);
+  return absl::OkStatus();
+}
+
+SynthesizerManager &GetSynthesizerManagerSingleton() {
+  static absl::NoDestructor<SynthesizerManager> manager;
+  return *manager;
 }
 
 }  // namespace synthesis
