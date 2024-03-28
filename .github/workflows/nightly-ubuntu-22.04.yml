@@ -33,10 +33,14 @@ jobs:
         run: |
           # display bazel download cache size.
           du -sh $(bazel info repository_cache)
-          # clean up bazel download cache.
+          # delete bazel download cache.
           rm -r $(bazel info repository_cache)
+          # delete asap7 from bazel cache.
+          rm -r ~/.cache/bazel/*/external/org_theopenroadproject_asap7*/
+          # delete jdk from bazel cache.
+          rm -r ~/.cache/bazel/*/external/remotejdk11_linux/
           # breakdown remaining bazel cache size.
-          du -h -t 200M ~/.cache/bazel/*/
+          du -h -t 200M ~/.cache/bazel/*/ | sort -hr
 
       # used by `continuous-integration` and `one-bazel-test-` workflows.
       - name: Save Bazel Cache
