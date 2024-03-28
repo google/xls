@@ -55,7 +55,7 @@ pub fn ReadWordReq<NUM_PARTITIONS:u32, ADDR_WIDTH:u32>(addr:uN[ADDR_WIDTH]) ->
 }
 
 // Behavior of reads and writes to the same address in the same "tick".
-enum SimultaneousReadWriteBehavior : u2 {
+pub enum SimultaneousReadWriteBehavior : u2 {
   // The read shows the contents at the address before the write.
   READ_BEFORE_WRITE = 0,
   // The read shows the contents at the address after the write.
@@ -160,7 +160,7 @@ fn write_word_test() {
 
 // Function to compute num partitions (e.g. mask width) for a data_width-wide
 // word divided into word_partition_size-chunks.
-fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
+pub fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
   match word_partition_size {
     u32:0 => u32:0,
     _ => (word_partition_size + data_width - u32:1) / word_partition_size,
