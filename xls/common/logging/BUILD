@@ -80,14 +80,6 @@ cc_library(
     alwayslink = 1,
 )
 
-# Empty placeholder. To be removed in next change.
-cc_library(
-    name = "logging",
-    hdrs = ["logging.h"],
-    visibility = ["//xls:xls_utility_users"],
-    deps = [],
-)
-
 py_test(
     name = "logging_flags_test",
     srcs = ["logging_flags_test.py"],
