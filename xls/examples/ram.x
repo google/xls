@@ -160,7 +160,7 @@ fn write_word_test() {
 
 // Function to compute num partitions (e.g. mask width) for a data_width-wide
 // word divided into word_partition_size-chunks.
-fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
+pub fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
   match word_partition_size {
     u32:0 => u32:0,
     _ => (word_partition_size + data_width - u32:1) / word_partition_size,
