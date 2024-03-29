@@ -15,6 +15,7 @@
 #include "xls/passes/concat_simplification_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <iterator>
 #include <map>
@@ -23,15 +24,16 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -311,6 +313,60 @@ absl::StatusOr<std::map<int64_t, int64_t>> GetBitRangeUnionOfInputConcats(
   return begin_end_bits_inclusive;
 }
 
+// If `node` is an n-ary logical operation with a literal and a concat, then
+// hoist the operation above the concat. For example, if `x` and `y` are 8-bit:
+//
+//   0xab & {x, y} => {x & 0xa, x & 0xb}
+//
+// Returns true if the transformation succeeded.
+absl::StatusOr<bool> TryHoistBitWiseWithConstant(Node* node) {
+  // TODO(meheff): Handle cases where there are multiple non-literal concat
+  // operands. No need to consider multiple literal operands as canonicalization
+  // merges multiple literal operands of bitwise operations.
+  if (!OpIsBitWise(node->op()) || node->operand_count() != 2) {
+    return false;
+  }
+  // Currently only nary ops are bitwise.
+  XLS_RET_CHECK(node->Is<NaryOp>());
+  Literal* literal;
+  if (node->operand(0)->Is<Literal>()) {
+    literal = node->operand(0)->As<Literal>();
+  } else if (node->operand(1)->Is<Literal>()) {
+    literal = node->operand(1)->As<Literal>();
+  } else {
+    return false;
+  }
+  Concat* concat;
+  if (node->operand(0)->Is<Concat>()) {
+    concat = node->operand(0)->As<Concat>();
+  } else if (node->operand(1)->Is<Concat>()) {
+    concat = node->operand(1)->As<Concat>();
+  } else {
+    return false;
+  }
+  std::vector<Node*> new_operands;
+  int64_t offset = 0;
+  const Bits& literal_bits = literal->value().bits();
+  for (int64_t i = concat->operand_count() - 1; i >= 0; --i) {
+    Node* concat_operand = concat->operand(i);
+    int64_t concat_operand_width = concat_operand->BitCountOrDie();
+    XLS_ASSIGN_OR_RETURN(Literal * sliced_literal,
+                         node->function_base()->MakeNode<Literal>(
+                             node->loc(), Value(literal_bits.Slice(
+                                              offset, concat_operand_width))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_operand,
+        node->function_base()->MakeNode<NaryOp>(
+            node->loc(), std::vector<Node*>({concat_operand, sliced_literal}),
+            node->op()));
+    new_operands.push_back(new_operand);
+    offset += concat_operand_width;
+  }
+  std::reverse(new_operands.begin(), new_operands.end());
+  XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(new_operands).status());
+  return true;
+}
+
 // Tries to hoist the given bitwise operation above it's concat
 // operations. Example:
 //
@@ -327,6 +383,14 @@ absl::StatusOr<std::map<int64_t, int64_t>> GetBitRangeUnionOfInputConcats(
 //   * All operands of the bitwise operation are concats.
 absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   XLS_RET_CHECK(OpIsBitWise(node->op()));
+
+  if (node->Is<NaryOp>()) {
+    XLS_ASSIGN_OR_RETURN(bool changed, TryHoistBitWiseWithConstant(node));
+    if (changed) {
+      return true;
+    }
+  }
+
   if (node->operand_count() == 0 ||
       !std::all_of(node->operands().begin(), node->operands().end(),
                    [](Node* op) { return op->Is<Concat>(); })) {

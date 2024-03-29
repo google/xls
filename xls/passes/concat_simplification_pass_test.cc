@@ -772,5 +772,36 @@ fn __sample__x5(x: bits[32]) -> bits[32] {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
+TEST_F(ConcatSimplificationPassTest, OrOfConcatWithLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(16));
+  BValue c = fb.Param("c", p->GetBitsType(4));
+  BValue concat = fb.Concat({a, b, c});
+  fb.Or(concat, fb.Literal(UBits(0x1234567, 28)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Or(m::Param("a"), m::Literal(0x12)),
+                        m::Or(m::Param("b"), m::Literal(0x3456)),
+                        m::Or(m::Param("c"), m::Literal(0x7))));
+}
+
+TEST_F(ConcatSimplificationPassTest, OrOfConcatWithLiteralAndSomethingElse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(8));
+  BValue b = fb.Param("b", p->GetBitsType(16));
+  BValue c = fb.Param("c", p->GetBitsType(4));
+  BValue d = fb.Param("d", p->GetBitsType(28));
+  BValue concat = fb.Concat({a, b, c});
+  fb.Or({concat, d, fb.Literal(UBits(0x1234567, 28))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls
