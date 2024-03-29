@@ -8,6 +8,8 @@ on:
     - cron:  '0 7 * * *'
   # This lets us trigger manually from the UI.
   workflow_dispatch:
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -44,6 +46,7 @@ jobs:
         if: env.TAG_EXISTS == ''
         with:
           tag_name: ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}  # needed for the release to create the tag.
           files: bazel-bin/dist/xls-*.*
 
       - name: Clean Bazel Cache
