@@ -16,6 +16,8 @@ jobs:
       labels: ubuntu-22.04-64core
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0 # so that git-describe can find previous tags
 
       - name: Install dependencies via apt
         run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
@@ -29,6 +31,21 @@ jobs:
         run: |
           bazel test -c opt -- //xls/...
 
+      - name: Dist
+        run: |
+          VERSION=$(git describe --match=v*)
+          TAG_EXISTS="$(git tag -l $VERSION)"
+          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --//dist:version=$VERSION --//dist:os=${RUNNER_OS@L} --//dist:arch=${RUNNER_ARCH@L} -- //dist:xls_dist_tar
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG_EXISTS=$TAG_EXISTS" >> $GITHUB_ENV
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: env.TAG_EXISTS == ''
+        with:
+          tag_name: ${{ env.VERSION }}
+          files: bazel-bin/dist/xls-*.*
+
       - name: Clean Bazel Cache
         run: |
           # display bazel download cache size.
@@ -39,6 +56,8 @@ jobs:
           rm -r ~/.cache/bazel/_bazel*/*/external/org_theopenroadproject_asap7*/
           # delete jdk from bazel cache.
           rm -r ~/.cache/bazel/_bazel*/*/external/remotejdk11_linux/
+          # delete release artifacts from cache.
+          rm -r ~/.cache/bazel/_bazel*/*/execroot/com_google_xls/bazel-out/*/bin/dist/
           # breakdown remaining bazel cache size.
           du -h -t 200M ~/.cache/bazel/*/ | sort -hr
 

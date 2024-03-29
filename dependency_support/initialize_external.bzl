@@ -14,8 +14,6 @@
 
 """Provides helper that initializes external repositories with third-party code."""
 
-load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
-load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_google_benchmark//:bazel/benchmark_deps.bzl", "benchmark_deps")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
@@ -25,9 +23,12 @@ load("@python39//:defs.bzl", python_interpreter_target = "interpreter")
 load("@rules_7zip//:setup.bzl", "setup_7zip")  # needed by rules_hdl
 load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
 load("@rules_hdl//dependency_support:dependency_support.bzl", rules_hdl_dependency_support = "dependency_support")
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
 load("@rules_python//python:pip.bzl", "pip_parse")
 load("@rules_python//python:repositories.bzl", "py_repositories")
+load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
+load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
 
 def initialize_external_repositories():
     """Calls set-up methods for external repositories that require that."""
@@ -51,3 +52,4 @@ def initialize_external_repositories():
     initialize_llvm()
     bazel_compdb_deps()
     benchmark_deps()
+    rules_pkg_dependencies()

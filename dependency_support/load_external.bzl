@@ -382,3 +382,10 @@ def load_external_repositories():
         urls = ["https://github.com/facebook/zstd/releases/download/v1.4.7/zstd-1.4.7.tar.gz"],
         build_file = "@//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
     )
+
+    # 2024-02-09
+    http_archive(
+        name = "rules_pkg",
+        urls = ["https://github.com/bazelbuild/rules_pkg/releases/download/0.10.1/rules_pkg-0.10.1.tar.gz"],
+        sha256 = "d250924a2ecc5176808fc4c25d5cf5e9e79e6346d79d5ab1c493e289e722d1d0",
+    )
