@@ -173,6 +173,41 @@ TEST(TernaryIterator, SomeValues) {
                                   UBits(9, 256)));
 }
 
+TEST(TernaryIterator, SomeHugeValues) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary,
+                           StringToTernaryVector("0bXXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"));
+  ASSERT_THAT(ternary, testing::SizeIs(256));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  auto offset = [](int64_t b) -> Bits {
+    return bits_ops::Add(
+        bits_ops::ZeroExtend(bits_ops::Concat({UBits(1, 1), UBits(0, 127)}),
+                             256),
+        UBits(b, 256));
+  };
+  xabsl::iterator_range<ternary_ops::RealizedTernaryIterator> sub_range(
+      range.begin() + bits_ops::Concat({UBits(1, 1), UBits(0, 127)}),
+      range.begin() + 10 + bits_ops::Concat({UBits(1, 1), UBits(0, 127)}));
+  EXPECT_THAT(sub_range,
+              IteratorElementsAre(offset(0), offset(1), offset(2), offset(3),
+                                  offset(4), offset(5), offset(6), offset(7),
+                                  offset(8), offset(9)));
+}
+
 TEST(TernaryIterator, HugeValues) {
   XLS_ASSERT_OK_AND_ASSIGN(auto ternary,
                            StringToTernaryVector("0bX000_0000_0000_0000"

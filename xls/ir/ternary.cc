@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 
@@ -275,23 +277,49 @@ TernaryVector BitsToTernary(const Bits& bits) {
   return result;
 }
 
-void RealizedTernaryIterator::Advance(int64_t amnt) {
-  // TODO(allight): We can be a lot cleverer than this.
+namespace {
+std::pair<bool, InlineBitmap> IncrementOnOffsets(
+    InlineBitmap bm, absl::Span<int64_t const> offsets) {
+  bool overflow = true;
+  for (int64_t off : offsets) {
+    if (bm.Get(off) == false) {
+      bm.Set(off, true);
+      overflow = false;
+      break;
+    }
+    bm.Set(off, false);
+  }
+  return {overflow, std::move(bm)};
+}
+}  // namespace
+
+void RealizedTernaryIterator::Advance(const Bits& amnt) {
   InlineBitmap bm = std::move(value_).bitmap();
-  for (int64_t i = 0; i < amnt; ++i) {
-    if (finished_) {
-      return;
+  // Do minimal amount of single increments.
+  // Advancing by (1<<V) only has a visible effect on the V'th and up X bits in
+  // the ternary so we can leave lower bits alone.
+
+  for (int64_t i = 0;
+       i < amnt.bit_count() - amnt.CountLeadingZeros() && !finished_; ++i) {
+    if (amnt.Get(i)) {
+      std::tie(finished_, bm) = IncrementOnOffsets(
+          std::move(bm), absl::MakeConstSpan(unknown_bit_offsets_).subspan(i));
     }
-    bool overflow = true;
-    for (int64_t off : unknown_bit_offsets_) {
-      if (bm.Get(off) == false) {
-        bm.Set(off, true);
-        overflow = false;
-        break;
-      }
-      bm.Set(off, false);
+  }
+  value_ = Bits::FromBitmap(std::move(bm));
+}
+
+void RealizedTernaryIterator::Advance(int64_t amnt) {
+  CHECK_GE(amnt, 0);
+  InlineBitmap bm = std::move(value_).bitmap();
+  // Do minimal amount of single increments.
+  // Advancing by (1<<V) only has a visible effect on the V'th and up X bits in
+  // the ternary so we can leave lower bits alone.
+  for (int64_t i = 0; i < 64 && amnt != 0 && !finished_; ++i, amnt >>= 1) {
+    if (amnt & 0b1) {
+      std::tie(finished_, bm) = IncrementOnOffsets(
+          std::move(bm), absl::MakeConstSpan(unknown_bit_offsets_).subspan(i));
     }
-    finished_ = overflow;
   }
   value_ = Bits::FromBitmap(std::move(bm));
 }

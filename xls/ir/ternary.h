@@ -209,11 +209,23 @@ class RealizedTernaryIterator {
     return *this;
   }
 
+  RealizedTernaryIterator& operator+=(const Bits& amnt) {
+    Advance(amnt);
+    return *this;
+  }
+
+
   // Post increment
   RealizedTernaryIterator operator++(int) {
     RealizedTernaryIterator cpy = *this;
     Advance(1);
     return cpy;
+  }
+
+  RealizedTernaryIterator operator+(const Bits& v) const {
+    RealizedTernaryIterator res = *this;
+    res += v;
+    return res;
   }
 
   RealizedTernaryIterator operator+(int v) const {
@@ -239,6 +251,7 @@ class RealizedTernaryIterator {
             RealizedTernaryIterator::FindUnknownOffsets(span)) {}
 
   void Advance(int64_t amnt);
+  void Advance(const Bits& amnt);
   static std::vector<int64_t> FindUnknownOffsets(TernarySpan span);
 
   bool finished_;
