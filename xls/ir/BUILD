@@ -317,6 +317,8 @@ cc_library(
     hdrs = ["ternary.h"],
     deps = [
         ":bits",
+        "//xls/common:iterator_range",
+        "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log",
@@ -336,9 +338,14 @@ cc_test(
         "ternary_test.cc",
     ],
     deps = [
+        ":bits",
+        ":bits_ops",
         ":ternary",
+        "//xls/common:iterator_range",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

@@ -14,8 +14,16 @@
 
 #include "xls/ir/ternary.h"
 
+#include <optional>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/iterator_range.h"
+#include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls {
 namespace {
@@ -53,6 +61,134 @@ TEST(Ternary, NumberOfKnownBits) {
       8);
   // Empty ternary vector should be handled correctly
   EXPECT_EQ(ternary_ops::NumberOfKnownBits(TernaryVector()), 0);
+}
+
+MATCHER_P(ToVector, m,
+          testing::DescribeMatcher<std::vector<Bits>>(m, negation)) {
+  return testing::ExplainMatchResult(
+      m, std::vector<Bits>(arg.begin(), arg.end()), result_listener);
+}
+template <typename... Args>
+auto IteratorElementsAre(Args... args) {
+  return ToVector(testing::ElementsAre(args...));
+}
+
+MATCHER_P(IterIs, m,
+          absl::StrFormat("element is %s",
+                          testing::DescribeMatcher<Bits>(m, negation))) {
+  return testing::ExplainMatchResult(m, *arg, result_listener);
+}
+
+TEST(TernaryIterator, Iterate) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary, StringToTernaryVector("0bX0X1"));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  auto it = range.begin();
+  EXPECT_THAT(it, IterIs(UBits(0b0001, 4)));
+  EXPECT_THAT(++it, IterIs(UBits(0b0011, 4)));
+  EXPECT_THAT(++it, IterIs(UBits(0b1001, 4)));
+  EXPECT_THAT(++it, IterIs(UBits(0b1011, 4)));
+  EXPECT_THAT(++it, range.end());
+  EXPECT_THAT(++it, range.end());
+  EXPECT_THAT(++it, range.end());
+  EXPECT_THAT(++it, range.end());
+}
+
+TEST(TernaryIterator, IterateZeroLength) {
+  auto range = ternary_ops::AllBitsValues({});
+  auto it = range.begin();
+  EXPECT_THAT(it, range.end());
+}
+
+TEST(TernaryIterator, IteratePost) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary, StringToTernaryVector("0bX0X1"));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  auto it = range.begin();
+  EXPECT_THAT(it, IterIs(UBits(0b0001, 4)));
+  EXPECT_THAT((it++, it), IterIs(UBits(0b0011, 4)));
+  EXPECT_THAT((it++, it), IterIs(UBits(0b1001, 4)));
+  EXPECT_THAT((it++, it), IterIs(UBits(0b1011, 4)));
+  EXPECT_THAT((it++, it), range.end());
+  EXPECT_THAT((it++, it), range.end());
+  EXPECT_THAT((it++, it), range.end());
+  EXPECT_THAT((it++, it), range.end());
+}
+TEST(TernaryIterator, Add) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary, StringToTernaryVector("0bX0X1"));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  auto it = range.begin();
+  EXPECT_THAT(it, IterIs(UBits(0b0001, 4)));
+  EXPECT_THAT(it + 1, IterIs(UBits(0b0011, 4)));
+  EXPECT_THAT(it + 2, IterIs(UBits(0b1001, 4)));
+  EXPECT_THAT(it + 3, IterIs(UBits(0b1011, 4)));
+  EXPECT_THAT(it + 4, range.end());
+  EXPECT_THAT(it + 5, range.end());
+  EXPECT_THAT(it + 6, range.end());
+  EXPECT_THAT(it + 7, range.end());
+}
+
+TEST(TernaryIterator, NoValues) {
+  auto range = ternary_ops::AllBitsValues({});
+  EXPECT_THAT(range, IteratorElementsAre());
+}
+
+TEST(TernaryIterator, SingleValue) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary, StringToTernaryVector("0b1010"));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  EXPECT_THAT(range, IteratorElementsAre(UBits(0b1010, 4)));
+}
+
+TEST(TernaryIterator, MultipleValues) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary, StringToTernaryVector("0bX0X1"));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  EXPECT_THAT(range, IteratorElementsAre(UBits(0b0001, 4), UBits(0b0011, 4),
+                                         UBits(0b1001, 4), UBits(0b1011, 4)));
+}
+
+TEST(TernaryIterator, SomeValues) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary,
+                           StringToTernaryVector("0bXXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"
+                                                 "_XXXX_XXXX_XXXX_XXXX"));
+  ASSERT_THAT(ternary, testing::SizeIs(256));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  xabsl::iterator_range<ternary_ops::RealizedTernaryIterator> sub_range(
+      range.begin(), range.begin() + 10);
+  EXPECT_THAT(sub_range,
+              IteratorElementsAre(UBits(0, 256), UBits(1, 256), UBits(2, 256),
+                                  UBits(3, 256), UBits(4, 256), UBits(5, 256),
+                                  UBits(6, 256), UBits(7, 256), UBits(8, 256),
+                                  UBits(9, 256)));
+}
+
+TEST(TernaryIterator, HugeValues) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto ternary,
+                           StringToTernaryVector("0bX000_0000_0000_0000"
+                                                 "_0000_0000_0000_0000"
+                                                 "_0000_0000_0000_0000"
+                                                 "_0000_0000_0000_0000"
+                                                 "_0000_0000_0000_0000"
+                                                 "_0000_0000_0000_0000"
+                                                 "_0000_0000_0000_0000"
+                                                 "_0000_0000_0000_000X"));
+  ASSERT_THAT(ternary, testing::SizeIs(128));
+  auto range = ternary_ops::AllBitsValues(ternary);
+  EXPECT_THAT(range, IteratorElementsAre(
+                         UBits(0, 128), UBits(1, 128),
+                         bits_ops::Concat({UBits(1, 1), UBits(0, 127)}),
+                         bits_ops::Concat({UBits(1, 1), UBits(1, 127)})));
 }
 
 }  // namespace

@@ -23,6 +23,7 @@
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -226,7 +227,8 @@ class Bits {
   // twos complement signed number.
   static int64_t MinBitCountSigned(int64_t value);
 
-  const InlineBitmap& bitmap() const { return bitmap_; }
+  const InlineBitmap& bitmap() const& { return bitmap_; }
+  InlineBitmap&& bitmap() && { return std::move(bitmap_); }
 
   template <typename H>
   friend H AbslHashValue(H h, const Bits& bits) {

@@ -19,6 +19,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
@@ -27,6 +29,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 
 namespace xls {
@@ -133,8 +136,7 @@ Bits ToKnownBitsValues(TernarySpan ternary_vector) {
   return Bits(bits);
 }
 
-std::optional<TernaryVector> Difference(TernarySpan lhs,
-                                        TernarySpan rhs) {
+std::optional<TernaryVector> Difference(TernarySpan lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
@@ -157,8 +159,7 @@ std::optional<TernaryVector> Difference(TernarySpan lhs,
   return result;
 }
 
-absl::StatusOr<TernaryVector> Union(TernarySpan lhs,
-                                    TernarySpan rhs) {
+absl::StatusOr<TernaryVector> Union(TernarySpan lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
   const int64_t size = lhs.size();
 
@@ -259,6 +260,40 @@ TernaryVector BitsToTernary(const Bits& bits) {
     result[i] = static_cast<TernaryValue>(bits.Get(i));
   }
   return result;
+}
+
+/* static */ std::vector<int64_t> RealizedTernaryIterator::FindUnknownOffsets(
+    TernarySpan span) {
+  std::vector<int64_t> result;
+  result.reserve(span.size());
+  for (int64_t i = 0; i < span.size(); ++i) {
+    if (span[i] == TernaryValue::kUnknown) {
+      result.push_back(i);
+    }
+  }
+  result.shrink_to_fit();
+  return result;
+}
+
+void RealizedTernaryIterator::Advance(int64_t amnt) {
+  // TODO(allight): We can be a lot cleverer than this.
+  InlineBitmap bm = std::move(value_).bitmap();
+  for (int64_t i = 0; i < amnt; ++i) {
+    if (finished_) {
+      return;
+    }
+    bool overflow = true;
+    for (int64_t off : unknown_bit_offsets_) {
+      if (bm.Get(off) == false) {
+        bm.Set(off, true);
+        overflow = false;
+        break;
+      }
+      bm.Set(off, false);
+    }
+    finished_ = overflow;
+  }
+  value_ = Bits::FromBitmap(std::move(bm));
 }
 
 }  // namespace ternary_ops
