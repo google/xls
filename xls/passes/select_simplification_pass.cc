@@ -43,8 +43,10 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -640,31 +642,66 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
-  // Literal zero cases can be removed from OneHotSelects.
-  if (SplitsEnabled(opt_level) && node->Is<OneHotSelect>() &&
-      std::any_of(node->As<OneHotSelect>()->cases().begin(),
-                  node->As<OneHotSelect>()->cases().end(),
-                  [](Node* n) { return IsLiteralZero(n); })) {
-    // Assemble the slices of the selector which correspond to non-zero cases.
-    OneHotSelect* select = node->As<OneHotSelect>();
-    std::vector<int64_t> nonzero_indices =
-        IndicesWhereNot<Node*>(select->cases(), IsLiteralZero);
-    if (nonzero_indices.empty()) {
-      // If all cases were literal zeros, just replace with literal zero (chosen
-      // arbitrarily as the first case).
-      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(select->cases().front()));
-      return true;
+  // Literal zero cases or positions where the selector is zero can be removed
+  // from OneHotSelects and priority selects.
+  if (SplitsEnabled(opt_level) &&
+      (node->Is<OneHotSelect>() || node->Is<PrioritySelect>())) {
+    Node* selector = node->Is<OneHotSelect>()
+                         ? node->As<OneHotSelect>()->selector()
+                         : node->As<PrioritySelect>()->selector();
+    absl::Span<Node* const> cases = node->Is<OneHotSelect>()
+                                        ? node->As<OneHotSelect>()->cases()
+                                        : node->As<PrioritySelect>()->cases();
+    if (query_engine.IsTracked(selector)) {
+      TernaryVector selector_bits = query_engine.GetTernary(selector).Get({});
+      auto is_zero_literal = [](Node* n) {
+        return n->Is<Literal>() && n->As<Literal>()->value().IsAllZeros();
+      };
+      // For one-hot-selects if either the selector bit or the case value is
+      // zero, the case can be removed. For priority selects, the case can be
+      // removed only if the selector bit is zero.
+      auto is_removable_case = [&](int64_t c) {
+        return (node->Is<OneHotSelect>() && is_zero_literal(cases[c])) ||
+               selector_bits[c] == TernaryValue::kKnownZero;
+      };
+      bool has_removable_case = false;
+      std::vector<int64_t> nonzero_indices;
+      for (int64_t i = 0; i < cases.size(); ++i) {
+        if (is_removable_case(i)) {
+          has_removable_case = true;
+        } else {
+          nonzero_indices.push_back(i);
+        }
+      }
+      if (has_removable_case) {
+        // Assemble the slices of the selector which correspond to non-zero
+        // cases.
+        if (nonzero_indices.empty()) {
+          // If all cases were zeros, just replace the op with literal zero.
+          XLS_RETURN_IF_ERROR(
+              node->ReplaceUsesWithNew<Literal>(ZeroOfType(node->GetType()))
+                  .status());
+          return true;
+        }
+        XLS_ASSIGN_OR_RETURN(Node * new_selector,
+                             GatherBits(selector, nonzero_indices));
+        std::vector<Node*> new_cases =
+            GatherFromSequence(cases, nonzero_indices);
+        VLOG(2) << absl::StrFormat(
+            "Literal zero cases removed from one-hot-/priority-select: %s",
+            node->ToString());
+        if (node->Is<OneHotSelect>()) {
+          XLS_RETURN_IF_ERROR(
+              node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
+                  .status());
+        } else {
+          XLS_RETURN_IF_ERROR(
+              node->ReplaceUsesWithNew<PrioritySelect>(new_selector, new_cases)
+                  .status());
+        }
+        return true;
+      }
     }
-    XLS_ASSIGN_OR_RETURN(Node * new_selector,
-                         GatherBits(select->selector(), nonzero_indices));
-    std::vector<Node*> new_cases =
-        GatherFromSequence(select->cases(), nonzero_indices);
-    VLOG(2) << absl::StrFormat(
-        "Literal zero cases removed from one-hot-select: %s", node->ToString());
-    XLS_RETURN_IF_ERROR(
-        node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
-            .status());
-    return true;
   }
 
   // A two-way select with one arm which is literal zero can be replaced with an

@@ -426,6 +426,45 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithLiteralZeroArms) {
                       /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
 }
 
+TEST_F(SelectSimplificationPassTest,
+       OneHotSelectWithLiteralZeroArmAndZeroSelectorBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[5], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       zero0: bits[32] = literal(value=0)
+       zero1: bits[32] = literal(value=0)
+       mask: bits[5] = literal(value=0b10111)
+       masked_p: bits[5] = and(p, mask)
+       ret one_hot_sel.4: bits[32] = one_hot_sel(masked_p, cases=[zero0, x, zero1, y, z])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::OneHotSelect(m::Concat(),
+                              /*cases=*/{m::Param("x"), m::Param("z")}));
+}
+
+TEST_F(SelectSimplificationPassTest,
+       PrioritySelectWithLiteralZeroArmAndZeroSelectorBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[5], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       zero0: bits[32] = literal(value=0)
+       zero1: bits[32] = literal(value=0)
+       mask: bits[5] = literal(value=0b10111)
+       masked_p: bits[5] = and(p, mask)
+       ret result: bits[32] = priority_sel(masked_p, cases=[zero0, x, zero1, y, z])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Concat(),
+                                /*cases=*/{m::Literal(0), m::Param("x"),
+                                           m::Literal(0), m::Param("z")}));
+}
+
 TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyLiteralZeroArms) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -439,6 +478,55 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyLiteralZeroArms) {
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
+}
+
+TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyLiteralZeroArms) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[3]) -> bits[32] {
+       literal.1: bits[32] = literal(value=0)
+       literal.2: bits[32] = literal(value=0)
+       literal.3: bits[32] = literal(value=0)
+       ret result: bits[32] = priority_sel(p, cases=[literal.1, literal.2, literal.3])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(SelectSimplificationPassTest,
+       OneHotSelectWithOnlyLiteralZeroArmsAndZeroSelectorBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[5], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       zero0: bits[32] = literal(value=0)
+       zero1: bits[32] = literal(value=0)
+       mask: bits[5] = literal(value=0b00101)
+       masked_p: bits[5] = and(p, mask)
+       ret one_hot_sel.4: bits[32] = one_hot_sel(masked_p, cases=[zero0, x, zero1, y, z])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
+}
+
+TEST_F(SelectSimplificationPassTest,
+       PrioritySelectWithOnlyLiteralZeroArmsAndZeroSelectorBits) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[5], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       zero0: bits[32] = literal(value=0)
+       zero1: bits[32] = literal(value=0)
+       mask: bits[5] = literal(value=0b00101)
+       masked_p: bits[5] = and(p, mask)
+       ret result: bits[32] = priority_sel(masked_p, cases=[zero0, x, zero1, y, z])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Concat(), {m::Literal(0), m::Literal(0)}));
 }
 
 TEST_F(SelectSimplificationPassTest, SelectWithZero) {
