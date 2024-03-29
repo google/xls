@@ -35,7 +35,7 @@ jobs:
         run: |
           VERSION=$(git describe --match=v*)
           TAG_EXISTS="$(git tag -l $VERSION)"
-          "${GITHUB_WORKSPACE}/bin/bazel" build -c opt --//dist:version=$VERSION --//dist:os=${RUNNER_OS@L} --//dist:arch=${RUNNER_ARCH@L} -- //dist:xls_dist_tar
+          bazel build -c opt --//dist:version=$VERSION --//dist:os=${RUNNER_OS@L} --//dist:arch=${RUNNER_ARCH@L} -- //dist:xls_dist_tar
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "TAG_EXISTS=$TAG_EXISTS" >> $GITHUB_ENV
 
