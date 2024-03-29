@@ -60,7 +60,7 @@ pkg_tar(
     srcs = [
         "THIRD_PARTY_NOTICES.txt",
         ":xls_stdlib_dslx",
-        "//xls:LICENSE",
+        "//:LICENSE",
         "//xls/dslx:interpreter_main",
         "//xls/dslx/ir_convert:ir_converter_main",
         "//xls/tools:codegen_main",
