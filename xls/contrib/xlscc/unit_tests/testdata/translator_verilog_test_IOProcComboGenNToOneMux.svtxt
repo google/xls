@@ -10,15 +10,13 @@ module foo_proc(
   output wire in1_rdy,
   output wire in2_rdy
 );
-  wire [31:0] literal_87;
   wire in1_op0_ret_io_value;
   wire in2_op0_ret_io_value;
   wire [31:0] in2_select;
   wire [31:0] in1_select;
   wire p0_all_active_inputs_valid;
-  assign literal_87 = 32'h0000_0000;
-  assign in1_op0_ret_io_value = dir == literal_87;
-  assign in2_op0_ret_io_value = dir != literal_87;
+  assign in1_op0_ret_io_value = dir == 32'h0000_0000;
+  assign in2_op0_ret_io_value = ~in1_op0_ret_io_value;
   assign in2_select = in2_op0_ret_io_value ? in2 : 32'h0000_0000;
   assign in1_select = in1_op0_ret_io_value ? in1 : 32'h0000_0000;
   assign p0_all_active_inputs_valid = (~in1_op0_ret_io_value | in1_vld) & (~in2_op0_ret_io_value | in2_vld);

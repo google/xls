@@ -39,35 +39,6 @@ namespace xls {
 
 namespace {
 
-// For the given comparison Op, returns the op op_commuted for which the
-// following identity holds:
-//   op(x, y) == op_commuted(y, x)
-Op CompareOpCommuted(Op op) {
-  switch (op) {
-    case Op::kEq:
-    case Op::kNe:
-      return op;
-    case Op::kSGe:
-      return Op::kSLe;
-    case Op::kUGe:
-      return Op::kULe;
-    case Op::kSGt:
-      return Op::kSLt;
-    case Op::kUGt:
-      return Op::kULt;
-    case Op::kSLe:
-      return Op::kSGe;
-    case Op::kULe:
-      return Op::kUGe;
-    case Op::kSLt:
-      return Op::kSGt;
-    case Op::kULt:
-      return Op::kUGt;
-    default:
-      LOG(FATAL) << "Op is not comparison: " << OpToString(op);
-  }
-}
-
 // Returns true if 'm' and 'n' are both literals whose bits values are
 // sequential unsigned values (m + 1 = n).
 bool AreSequentialLiterals(Node* m, Node* n) {
@@ -203,7 +174,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   // Move kLiterals to the right for comparison operators.
   if (OpIsCompare(n->op()) && n->operand(0)->Is<Literal>() &&
       !n->operand(1)->Is<Literal>()) {
-    Op commuted_op = CompareOpCommuted(n->op());
+    XLS_ASSIGN_OR_RETURN(Op commuted_op, ReverseComparisonOp(n->op()));
     VLOG(2) << absl::StreamFormat("Replaced %s(literal, x) with %s(x, literal)",
                                   OpToString(n->op()), OpToString(commuted_op));
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<CompareOp>(

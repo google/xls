@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -257,6 +258,66 @@ TEST_F(ComparisonSimplificationPassTest, UGtMax) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(ComparisonSimplificationPassTest, EqAndNe) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  fb.Tuple({fb.Eq(x, y), fb.Ne(x, y)});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Eq(m::Param("x"), m::Param("y")),
+                       m::Not(m::Eq(m::Param("x"), m::Param("y")))));
+}
+
+TEST_F(ComparisonSimplificationPassTest, LtAndCommutedGe) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  fb.Tuple({fb.ULt(x, y), fb.UGt(y, x)});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::ULt(m::Param("x"), m::Param("y")),
+                       m::ULt(m::Param("x"), m::Param("y"))));
+}
+
+TEST_F(ComparisonSimplificationPassTest, SltAndCommutedSgt) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  fb.Tuple({fb.SLt(x, y), fb.SGt(y, x)});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::SLt(m::Param("x"), m::Param("y")),
+                       m::SLt(m::Param("x"), m::Param("y"))));
+}
+
+TEST_F(ComparisonSimplificationPassTest, UltAndCommutedSle) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  fb.Tuple({fb.ULt(x, y), fb.ULe(y, x)});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::ULt(m::Param("x"), m::Param("y")),
+                       m::Not(m::ULt(m::Param("x"), m::Param("y")))));
 }
 
 }  // namespace

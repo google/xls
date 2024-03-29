@@ -83,6 +83,8 @@ void Node::AddOptionalOperand(std::optional<Node*> operand) {
 
 absl::Status Node::AddNodeToFunctionAndReplace(
     std::unique_ptr<Node> replacement) {
+  VLOG(3) << " Adding node " << replacement->GetName() << " to replace "
+          << GetName();
   Node* replacement_ptr = function_base()->AddNode(std::move(replacement));
   XLS_RETURN_IF_ERROR(VerifyNode(replacement_ptr));
   return ReplaceUsesWith(replacement_ptr);

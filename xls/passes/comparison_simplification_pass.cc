@@ -31,6 +31,7 @@
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
@@ -222,6 +223,97 @@ std::optional<Bits> GetUGtInterval(const IntervalSet& range) {
   return std::nullopt;
 }
 
+// Hashable encapsulation of a comparison operation.
+struct Comparison {
+  Node* lhs;
+  Node* rhs;
+  Op op;
+
+  friend bool operator==(const Comparison&, const Comparison&) = default;
+  template <typename H>
+  friend H AbslHashValue(H h, const Comparison& c) {
+    return H::combine(std::move(h), c.lhs, c.rhs, c.op);
+  }
+};
+
+// Replaces all comparisons which can be trivially derived from other
+// comparisons. For example, assuming `a > b` already exists in the graph, then
+// the following optimizations are possible:
+//
+//  b < a    =>    a > b
+//  a <= b   =>  !(a > b)
+//  b >= a   =>  !(a > b)
+//
+// This transformation saves a comparison at the (possible) cost of a single
+// inverter which is a win. This optimization works across all comparison
+// operations.
+//
+// Returns true if any transformations were performed.
+absl::StatusOr<bool> TransformDerivedComparisons(FunctionBase* f) {
+  bool changed = false;
+  absl::flat_hash_map<Comparison, Node*> comparisons;
+  for (Node* node : TopoSort(f)) {
+    if (!node->Is<CompareOp>()) {
+      continue;
+    }
+    // Try to replace with an op with commuted operands. Eg: a > b to b < a
+    XLS_ASSIGN_OR_RETURN(Op commuted_op, ReverseComparisonOp(node->op()));
+    Comparison commuted_comparison{
+        .lhs = node->operand(1), .rhs = node->operand(0), .op = commuted_op};
+    auto commuted_it = comparisons.find(commuted_comparison);
+    if (commuted_it != comparisons.end()) {
+      Node* equivalent_node = commuted_it->second;
+      VLOG(2) << absl::StreamFormat(
+          "Compare op is equivalent to op %s with commuted operands: %s",
+          equivalent_node->GetName(), node->ToString());
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(equivalent_node));
+      changed = true;
+      continue;
+    }
+
+    // Try to replace with an op with an inverted comparison.
+    // Eg: a > b to !(a <= b)
+    XLS_ASSIGN_OR_RETURN(Op inverted_op, InvertComparisonOp(node->op()));
+    Comparison inverted_comparison{
+        .lhs = node->operand(0), .rhs = node->operand(1), .op = inverted_op};
+    auto inverted_it = comparisons.find(inverted_comparison);
+    if (inverted_it != comparisons.end()) {
+      Node* inverted_node = inverted_it->second;
+      VLOG(2) << absl::StreamFormat("Compare op is inversion of op %s: %s",
+                                    inverted_node->GetName(), node->ToString());
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<UnOp>(inverted_node, Op::kNot).status());
+      changed = true;
+      continue;
+    }
+
+    // Try to replace with an op with an inverted and commuted comparison.
+    // Eg: a > b to !(b >= a)
+    XLS_ASSIGN_OR_RETURN(Op commuted_and_inverted_op,
+                         InvertComparisonOp(commuted_op));
+    Comparison commuted_and_inverted_comparison{.lhs = node->operand(1),
+                                                .rhs = node->operand(0),
+                                                .op = commuted_and_inverted_op};
+    auto commuted_and_inverted_it =
+        comparisons.find(commuted_and_inverted_comparison);
+    if (commuted_and_inverted_it != comparisons.end()) {
+      Node* inverted_node = commuted_and_inverted_it->second;
+      VLOG(2) << absl::StreamFormat(
+          "Compare op is inversion of op %s with commuted operands: %s",
+          inverted_node->GetName(), node->ToString());
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<UnOp>(inverted_node, Op::kNot).status());
+      changed = true;
+      continue;
+    }
+
+    comparisons[Comparison{
+        .lhs = node->operand(0), .rhs = node->operand(1), .op = node->op()}] =
+        node;
+  }
+  return changed;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
@@ -258,29 +350,50 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
       continue;
     }
 
+    auto is_eq_or_not_eq = [](Node* n) {
+      return n->op() == Op::kEq || n->op() == Op::kNe;
+    };
+    // Returns true if `n` is an inverse of a compare op with multiple
+    // users. These should not be replaced in this optimization. This is a guard
+    // against undesired transformations which may increase the number of
+    // comparison operations.  We don't transform instances like !(a == b) to a
+    // != b if a == b has other uses.
+    auto is_inverse_of_multiuse_compare_op = [](Node* n) {
+      return n->op() == Op::kNot && n->operand(0)->Is<CompareOp>() &&
+             !HasSingleUse(n->operand(0));
+    };
+
     const IntervalSet& range = equivalences.at(node).range;
 
-    // First consider cases where the node can be replaced with a constant zero
-    // or one.
+    // First consider cases where the node can be replaced with a constant
+    // zero or one.
     if (range.IsMaximal()) {
-      // The range is maximal so the condition is always true. Replace `node`
-      // with a literal one.
+      // The range is maximal so the condition is always true. Replace
+      // `node` with a literal one.
+      VLOG(2) << absl::StreamFormat(
+          "Compare op has maximal range, replacing with 1: %s",
+          node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1))).status());
       changed = true;
     } else if (range.IsEmpty()) {
-      // The range is empty so the condition is always false. Replace `node`
-      // with a literal zero.
+      // The range is empty so the condition is always false. Replace
+      // `node` with a literal zero.
+      VLOG(2) << absl::StreamFormat(
+          "Compare op has empty range, replacing with 0: %s", node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Literal>(Value(UBits(0, 1))).status());
       changed = true;
     } else if (std::optional<Bits> precise_value = range.GetPreciseValue();
                precise_value.has_value()) {
       // The range is a single value C. Replace `node` with Eq(x, C).
-      if (node->op() == Op::kEq || node->op() == Op::kNe) {
+      if (is_eq_or_not_eq(node) || is_inverse_of_multiuse_compare_op(node)) {
         // Skip if node is already a ne/eq.
         continue;
       }
+      VLOG(2) << absl::StreamFormat(
+          "Compare op has precise range, replacing with eq %s: %s",
+          Value(precise_value.value()).ToString(), node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
           f->MakeNode<Literal>(SourceInfo(), Value(precise_value.value())));
@@ -291,12 +404,15 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     } else if (std::optional<Bits> precise_value =
                    IntervalSet::Complement(range).GetPreciseValue();
                precise_value.has_value()) {
-      // The range is all values except a single value C. Replace `node` with
-      // Ne(x, C).
-      if (node->op() == Op::kEq || node->op() == Op::kNe) {
+      // The range is all values except a single value C. Replace `node`
+      // with Ne(x, C).
+      if (is_eq_or_not_eq(node) || is_inverse_of_multiuse_compare_op(node)) {
         // Skip if node is already a ne/eq.
         continue;
       }
+      VLOG(2) << absl::StreamFormat(
+          "Compare op has complementary range, replacing with ne %s: %s",
+          Value(precise_value.value()).ToString(), node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
           f->MakeNode<Literal>(SourceInfo(), Value(precise_value.value())));
@@ -307,10 +423,14 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     } else if (std::optional<Bits> limit = GetULtInterval(range);
                limit.has_value()) {
       // The range is [0, C]. Replace `node` with ULt(x, C+1).
-      if (node->Is<CompareOp>()) {
-        // Skip if node is already a comparison.
+      if (node->Is<CompareOp>() || is_inverse_of_multiuse_compare_op(node)) {
+        // Skip if node is already a comparison or an inverse of a multi-user
+        // comparison.
         continue;
       }
+      VLOG(2) << absl::StreamFormat("Compare op has range < %s, replacing: %s",
+                                    Value(limit.value()).ToString(),
+                                    node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
           f->MakeNode<Literal>(SourceInfo(), Value(limit.value())));
@@ -325,6 +445,9 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
         // Skip if node is already a comparison.
         continue;
       }
+      VLOG(2) << absl::StreamFormat("Compare op has range > %s, replacing: %s",
+                                    Value(limit.value()).ToString(),
+                                    node->ToString());
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
           f->MakeNode<Literal>(SourceInfo(), Value(limit.value())));
@@ -334,6 +457,9 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
       changed = true;
     }
   }
+
+  XLS_ASSIGN_OR_RETURN(bool common_changed, TransformDerivedComparisons(f));
+  changed = changed || common_changed;
 
   return changed;
 }
