@@ -442,5 +442,75 @@ TEST_F(DataflowSimplificationPassTest, NilIndexUpdate) {
   EXPECT_THAT(f->return_value(), m::Param("v"));
 }
 
+TEST_F(DataflowSimplificationPassTest, ArrayConstructedFromConcats) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue array_ab = fb.Array({a, b}, u32);
+  BValue array_c = fb.Array({c}, u32);
+  fb.ArrayConcat({array_ab, array_c});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::Param("a"), m::Param("b"), m::Param("c")));
+}
+
+TEST_F(DataflowSimplificationPassTest,
+       ArrayConstructedFromConcatsSimplificationNotPossible) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue array_ab = fb.Param("ab", p->GetArrayType(2, u32));
+  BValue c = fb.Param("c", u32);
+  BValue array_c = fb.Array({c}, u32);
+  fb.ArrayConcat({array_ab, array_c});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::ArrayConcat());
+}
+
+TEST_F(DataflowSimplificationPassTest, ArrayConstructedWithArrayUpdates) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue x = fb.Array({zero, zero, zero}, u32);
+  x = fb.ArrayUpdate(x, a, {fb.Literal(UBits(0, 8))});
+  x = fb.ArrayUpdate(x, b, {fb.Literal(UBits(1, 8))});
+  x = fb.ArrayUpdate(x, c, {fb.Literal(UBits(2, 8))});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::Param("a"), m::Param("b"), m::Param("c")));
+}
+
+TEST_F(DataflowSimplificationPassTest,
+       ArrayConstructedWithPartialArrayUpdates) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue zero = fb.Literal(UBits(0, 32));
+  BValue x = fb.Array({zero, zero, zero}, u32);
+  x = fb.ArrayUpdate(x, a, {fb.Literal(UBits(0, 8))});
+  x = fb.ArrayUpdate(x, c, {fb.Literal(UBits(2, 8))});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::Param("a"), m::Literal(0), m::Param("c")));
+}
+
 }  // namespace
 }  // namespace xls

@@ -32,6 +32,7 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -120,6 +121,36 @@ bool IsEmptyType(Type* type) {
   return type->GetFlatBitCount() == 0 && !TypeHasToken(type);
 }
 
+// Try to replace `node` with an Array operation whose elements consist entirely
+// of other node in the graph. Returns true if the transformation is successful.
+absl::StatusOr<bool> MaybeReplaceWithArrayOfExistingNodes(
+    Node* node, LeafTypeTreeView<NodeSource> node_source,
+    const absl::flat_hash_map<LeafTypeTreeView<NodeSource>, Node*>&
+        source_map) {
+  // Skip literals, arrays, and empty types. Replacing these is not beneficial
+  // and may result in inf-loops.
+  if (!node->GetType()->IsArray() || node->Is<Literal>() || node->Is<Array>() ||
+      IsEmptyType(node->GetType())) {
+    return false;
+  }
+
+  // Every element value of the array must exist as a node in the graph.
+  ArrayType* array_type = node->GetType()->AsArrayOrDie();
+  std::vector<Node*> sources;
+  sources.reserve(array_type->size());
+  for (int64_t i = 0; i < array_type->size(); ++i) {
+    auto it = source_map.find(node_source.AsView({i}));
+    if (it == source_map.end()) {
+      return false;
+    }
+    sources.push_back(it->second);
+  }
+  XLS_RETURN_IF_ERROR(
+      node->ReplaceUsesWithNew<Array>(sources, array_type->element_type())
+          .status());
+  return true;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
@@ -149,6 +180,11 @@ absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(it->second));
       changed = true;
       continue;
+    }
+    if (node->GetType()->IsArray()) {
+      XLS_ASSIGN_OR_RETURN(bool replaced, MaybeReplaceWithArrayOfExistingNodes(
+                                              node, source, source_map));
+      changed = changed || replaced;
     }
   }
   return changed;
