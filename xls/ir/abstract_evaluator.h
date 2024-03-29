@@ -53,6 +53,7 @@ class AbstractEvaluator {
   using ThisType = AbstractEvaluator<ElementT, EvaluatorT>;
 
  public:
+  using Evaluator = EvaluatorT;
   using Element = ElementT;
   using Vector = std::vector<Element>;
   using Span = absl::Span<Element const>;

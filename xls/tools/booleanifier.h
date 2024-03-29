@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -52,39 +53,14 @@ class Booleanifier {
   // Driver for doing the actual conversion.
   absl::StatusOr<Function*> Run();
 
-  // "Callback" from the AbstractEvaluator for ops that don't make sense there.
-  // So far, these are ops that involve data layouts: param handling, tuple
-  // construction/access, etc.
-  Vector HandleSpecialOps(Node* node);
-
-  Vector HandleLiteralArrayIndex(const ArrayType* array_type,
-                                 const Vector& array, const Value& index,
-                                 int64_t start_offset);
-
-  Vector HandleArrayIndex(const ArrayType* array_type, const Vector& array,
-                          absl::Span<Node* const> indices,
-                          int64_t start_offset);
-
-  Vector HandleArrayUpdate(const ArrayType* array_type, const Vector& array,
-                           absl::Span<Node* const> indices,
-                           const Vector& update_value, int64_t start_offset);
-
-  // Converts a structured input param into a flat bit array.
-  Vector UnpackParam(Type* type, BValue bv_node);
-
   // The inverse of UnpackParam - overlays structure on top of a flat bit array.
-  // We take a span here, instead of a Vector, so we can easily create subspans.
-  BValue PackReturnValue(absl::Span<const Element> bits, const Type* type);
-
-  // Takes in the given Value (not BValue!) and converts it into an
-  // AbstractEvaluator Vector type.
-  Vector FlattenValue(const Value& value);
+  absl::StatusOr<BValue> PackReturnValue(
+      LeafTypeTreeView<std::vector<Node*>> result);
 
   Function* input_fn_;
   FunctionBuilder builder_;
   std::unique_ptr<BitEvaluator> evaluator_;
   absl::flat_hash_map<std::string, BValue> params_;
-  absl::flat_hash_map<Node*, Vector> node_map_;
 };
 
 }  // namespace xls

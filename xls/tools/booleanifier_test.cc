@@ -20,20 +20,31 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_builder.h"
+#include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_jit.h"
 
 namespace xls {
 namespace {
+
+using VB = ValueBuilder;
 
 // Handles parsing/initialization boilerplate.
 struct FunctionData {
@@ -50,7 +61,8 @@ class BooleanifierTest : public IrTestBase {
     XLS_ASSIGN_OR_RETURN(Function * fancy, package->GetFunction(fn_name));
     XLS_ASSIGN_OR_RETURN(Function * basic, Booleanifier::Booleanify(fancy));
 
-    return FunctionData{std::move(package), fancy, basic};
+    return FunctionData{
+        .package = std::move(package), .source = fancy, .boolified = basic};
   }
 
   absl::StatusOr<FunctionData> GetFunctionDataFromFile(
@@ -98,6 +110,40 @@ TEST_F(BooleanifierTest, Crc32_Jit) {
   }
 }
 
+TEST_F(BooleanifierTest, ShuffleMarshalsTuples) {
+  const std::string kIrText = R"(
+package p
+
+fn main(a: (bits[2], bits[3], bits[4])) -> (bits[4], bits[3], bits[2]) {
+  a_0: bits[2] = tuple_index(a, index=0)
+  a_1: bits[3] = tuple_index(a, index=1)
+  a_2: bits[4] = tuple_index(a, index=2)
+  c: (bits[4], bits[2], bits[3]) = tuple(a_2, a_0, a_1)
+  x_0: bits[3] = tuple_index(c, index=2)
+  x_1: bits[2] = tuple_index(c, index=1)
+  x_2: bits[4] = tuple_index(c, index=0)
+  ret x: (bits[4], bits[3], bits[2]) = tuple(x_2, x_0, x_1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd, GetFunctionData(kIrText, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, FunctionJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, FunctionJit::Create(fd.boolified));
+  // Don't cover all 4B samples in the space; just enough to see _some_ values
+  // in all elements.
+  for (int i = 0; i < 512; i++) {
+    std::vector<Value> inputs(1);
+    Value a_0(UBits(i & 0x3, 2));
+    Value a_1(UBits((i >> 2) & 0x7, 3));
+    Value a_2(UBits((i >> 5) & 0x1F, 4));
+    inputs[0] = Value::Tuple({a_0, a_1, a_2});
+
+    XLS_ASSERT_OK_AND_ASSIGN(Value fancy_value,
+                             DropInterpreterEvents(fancy_jit->Run(inputs)));
+    XLS_ASSERT_OK_AND_ASSIGN(Value basic_value,
+                             DropInterpreterEvents(basic_jit->Run(inputs)));
+    ASSERT_EQ(fancy_value, basic_value) << testing::PrintToString(inputs);
+  }
+}
 // This test verifies that the Boolifier can properly handle extracting from
 // and packing into tuples.
 TEST_F(BooleanifierTest, MarshalsTuples) {
@@ -143,7 +189,7 @@ fn main(a: (bits[2], bits[3], bits[4]), b: (bits[2], bits[3], bits[4])) -> (bits
                                DropInterpreterEvents(fancy_jit->Run(inputs)));
       XLS_ASSERT_OK_AND_ASSIGN(Value basic_value,
                                DropInterpreterEvents(basic_jit->Run(inputs)));
-      ASSERT_EQ(fancy_value, basic_value);
+      ASSERT_EQ(fancy_value, basic_value) << testing::PrintToString(inputs);
     }
   }
 }
@@ -657,6 +703,49 @@ fn main(a: bits[4][4][4], i: bits[2]) -> bits[4][4] {
                              DropInterpreterEvents(basic_jit->Run(inputs)));
     ASSERT_EQ(fancy_value, basic_value);
   }
+}
+
+TEST_F(BooleanifierTest, HandleArraySlice) {
+  static constexpr int64_t kArraySize = 32;
+  static constexpr int64_t kStartBits = 6;
+  static constexpr int64_t kResultWidth = 3;
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.ArraySlice(
+      fb.Param("input", p->GetArrayType(kArraySize, p->GetBitsType(8))),
+      fb.Param("start", p->GetBitsType(kStartBits)), kResultWidth);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * fancy, fb.Build());
+  auto start = absl::Now();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * basic,
+      Booleanifier::Booleanify(fancy, absl::StrCat(TestName(), "_bool")));
+  auto post_boolify = absl::Now();
+  FunctionData fd{.package = std::move(p), .source = fancy, .boolified = basic};
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, FunctionJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, FunctionJit::Create(fd.boolified));
+
+  std::vector<Value> array_elements;
+  array_elements.reserve(kArraySize);
+  for (int64_t i = 0; i < kArraySize; i++) {
+    array_elements.push_back(Value(UBits(i, 8)));
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Value array,
+                           VB::ArrayV(array_elements).Build());
+  for (int64_t i = 0; i < (1 << kStartBits); ++i) {
+    std::array<Value, 2> inputs{array, Value(UBits(i, kStartBits))};
+    XLS_ASSERT_OK_AND_ASSIGN(Value fancy_value,
+                             DropInterpreterEvents(fancy_jit->Run(inputs)));
+    XLS_ASSERT_OK_AND_ASSIGN(Value basic_value,
+                             DropInterpreterEvents(basic_jit->Run(inputs)));
+    ASSERT_EQ(fancy_value, basic_value);
+  }
+  auto finish = absl::Now();
+  RecordProperty("booleanify_time",
+                 testing::PrintToString(post_boolify - start));
+  RecordProperty(
+      "execute_time_avg",
+      testing::PrintToString((finish - post_boolify) / (1 << kStartBits)));
 }
 
 TEST_F(BooleanifierTest, HandlesMultidimArrayLiteralIndex) {

@@ -83,13 +83,14 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
     // TODO(meheff): Handle types other than bits.
     if (node->GetType()->IsBits()) {
       if (!known_bits_.contains(node)) {
-        known_bits_[node] = Bits(values.at(node).size());
-        bits_values_[node] = Bits(values.at(node).size());
+        known_bits_[node] = Bits(values.at(node).Get({}).size());
+        bits_values_[node] = Bits(values.at(node).Get({}).size());
       }
       Bits combined_known_bits = bits_ops::Or(
-          known_bits_[node], ternary_ops::ToKnownBits(values.at(node)));
-      Bits combined_bits_values = bits_ops::Or(
-          bits_values_[node], ternary_ops::ToKnownBitsValues(values.at(node)));
+          known_bits_[node], ternary_ops::ToKnownBits(values.at(node).Get({})));
+      Bits combined_bits_values =
+          bits_ops::Or(bits_values_[node],
+                       ternary_ops::ToKnownBitsValues(values.at(node).Get({})));
       if ((combined_known_bits != known_bits_[node]) ||
           (combined_bits_values != bits_values_[node])) {
         rf = ReachedFixpoint::Changed;

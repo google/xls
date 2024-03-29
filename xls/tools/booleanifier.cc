@@ -19,23 +19,34 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <filesystem>
+#include <limits>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "xls/common/math_util.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
-#include "xls/ir/bits_ops.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/topo_sort.h"
+#include "xls/ir/op.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
@@ -80,329 +91,342 @@ Booleanifier::Booleanifier(Function* f, std::string_view boolean_function_name)
                input_fn_->package()),
       evaluator_(std::make_unique<BitEvaluator>(&builder_)) {}
 
+// A node evaluator providing a bit-based implementation of
+// array-index/update/slice.
+class BooleanifierNodeEvaluator : public AbstractNodeEvaluator<BitEvaluator> {
+ public:
+  BooleanifierNodeEvaluator(
+      BitEvaluator& eval, FunctionBuilder* fb,
+      const absl::flat_hash_map<std::string, BValue>& params)
+      : AbstractNodeEvaluator<BitEvaluator>(eval),
+        builder_(fb),
+        params_(params) {}
+
+  // Select the appropriate elements.
+  absl::Status HandleArrayIndex(ArrayIndex* index) override {
+    XLS_ASSIGN_OR_RETURN(std::vector<BitEvaluator::Span> indexes,
+                         GetValueList(index->indices()));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array,
+                         GetCompoundValue(index->array()));
+    LeafTypeTree<LeafValueT> result(array.type(), array.elements());
+    for (int64_t i = 0; i < indexes.size(); ++i) {
+      if (index->indices().at(i)->Is<Literal>()) {
+        int64_t real_index =
+            RealIndexFromLiteral(index->indices().at(i)->As<Literal>(),
+                                 result.type()->AsArrayOrDie()->size());
+        LeafTypeTreeView<LeafValueT> result_view = result.AsView({real_index});
+        result = LeafTypeTree<LeafValueT>(result_view.type(),
+                                          result_view.elements());
+      } else {
+        XLS_ASSIGN_OR_RETURN(result, ReadOneIndex(result.AsView(), indexes[i]));
+      }
+    }
+    return SetValue(index, std::move(result));
+  }
+
+  // select the appropriate slice.
+  absl::Status HandleArraySlice(ArraySlice* slice) override {
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array,
+                         GetCompoundValue(slice->array()));
+    XLS_ASSIGN_OR_RETURN(ArrayType * array_type, slice->GetType()->AsArray());
+    int64_t input_size = slice->array()->GetType()->AsArrayOrDie()->size();
+    if (slice->start()->Is<Literal>()) {
+      int64_t start_idx =
+          RealIndexFromLiteral(slice->start()->As<Literal>(), input_size);
+      XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> sliced,
+                           leaf_type_tree::SliceArray<BitEvaluator::Vector>(
+                               array_type, array, start_idx));
+      return SetValue(slice, std::move(sliced));
+    }
+    XLS_ASSIGN_OR_RETURN(BitEvaluator::Span index, GetValue(slice->start()));
+    std::vector<LeafTypeTree<LeafValueT>> slices_mem;
+    std::vector<LeafTypeTreeView<LeafValueT>> slices;
+    slices_mem.reserve(slice->array()->GetType()->AsArrayOrDie()->size());
+    slices.reserve(slice->array()->GetType()->AsArrayOrDie()->size());
+    int64_t addressable_values = slice->start()->BitCountOrDie() < 64
+                                     ? 1 << slice->start()->BitCountOrDie()
+                                     : std::numeric_limits<int64_t>::max();
+    for (int64_t i = 0; i < input_size && i < addressable_values; ++i) {
+      XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> one_slice,
+                           leaf_type_tree::SliceArray(array_type, array, i));
+      slices_mem.emplace_back(std::move(one_slice));
+      slices.push_back(slices_mem.back().AsView());
+    }
+    std::vector<BitEvaluator::Span> spans;
+    spans.resize(slices.size());
+    XLS_ASSIGN_OR_RETURN(
+        LeafTypeTree<LeafValueT> result,
+        (leaf_type_tree::ZipIndex<BitEvaluator::Vector, BitEvaluator::Vector>(
+            slices,
+            [&](Type* et,
+                absl::Span<const BitEvaluator::Vector* const> elements,
+                absl::Span<int64_t const> _)
+                -> absl::StatusOr<BitEvaluator::Vector> {
+              XLS_RET_CHECK_EQ(elements.size(), spans.size());
+              absl::c_transform(
+                  elements, spans.begin(),
+                  [](auto* v) -> BitEvaluator::Span { return *v; });
+              return evaluator().Select(
+                  index,
+                  absl::MakeSpan(spans).subspan(
+                      0, std::min<int64_t>(input_size, addressable_values)),
+                  input_size < addressable_values
+                      ? std::make_optional(spans.back())
+                      : std::nullopt);
+            })));
+    return SetValue(slice, std::move(result));
+  }
+
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+    XLS_ASSIGN_OR_RETURN(std::vector<BitEvaluator::Span> indexes,
+                         GetValueList(update->indices()));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array,
+                         GetCompoundValue(update->array_to_update()));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> update_val,
+                         GetCompoundValue(update->update_value()));
+    // Check for out-of-bounds-write
+    XLS_ASSIGN_OR_RETURN(ArrayType * arr, update->GetType()->AsArray());
+    for (int64_t i = 0; i < update->indices().size(); ++i) {
+      Node* idx = update->indices()[i];
+      if (idx->Is<Literal>() &&
+          RealIndexFromLiteral(idx->As<Literal>(),
+                               std::numeric_limits<int64_t>::max()) >=
+              arr->size()) {
+        // Write is known-out-of-bounds, no effect.
+        return SetValue(
+            update, LeafTypeTree<LeafValueT>(array.type(), array.elements()));
+      }
+      if (i + 1 < update->indices().size()) {
+        XLS_ASSIGN_OR_RETURN(arr, arr->element_type()->AsArray());
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(
+        LeafTypeTree<LeafValueT> result,
+        PerformUpdateWith(array, indexes, update->indices(), update_val));
+    return SetValue(update, std::move(result));
+  }
+
+  absl::Status HandleParam(Param* param) override {
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> result,
+                         UnpackParam(params_.at(param->name())));
+    return SetValue(param, std::move(result));
+  }
+
+ private:
+  absl::StatusOr<LeafTypeTree<LeafValueT>> UnpackParam(BValue bv_node) {
+    if (bv_node.GetType()->IsBits()) {
+      BitEvaluator::Vector res;
+      int64_t bit_count = bv_node.GetType()->GetFlatBitCount();
+      res.reserve(bit_count);
+      for (int64_t i = 0; i < bit_count; ++i) {
+        res.push_back(builder_->BitSlice(bv_node, i, 1).node());
+      }
+      return LeafTypeTree<LeafValueT>(bv_node.GetType(), res);
+    }
+    if (bv_node.GetType()->IsArray()) {
+      ArrayType* arr_type = bv_node.GetType()->AsArrayOrDie();
+      std::vector<LeafTypeTree<LeafValueT>> elements_mem;
+      std::vector<LeafTypeTreeView<LeafValueT>> elements;
+      elements_mem.reserve(arr_type->size());
+      elements.reserve(arr_type->size());
+      for (int64_t i = 0; i < arr_type->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> element,
+                             UnpackParam(builder_->ArrayIndex(
+                                 bv_node, {builder_->Literal(UBits(i, 64))})));
+        elements_mem.emplace_back(std::move(element));
+        elements.push_back(elements_mem.back().AsView());
+      }
+      return leaf_type_tree::CreateArray<BitEvaluator::Vector>(arr_type,
+                                                               elements);
+    }
+    if (bv_node.GetType()->IsTuple()) {
+      TupleType* tup_type = bv_node.GetType()->AsTupleOrDie();
+      std::vector<LeafTypeTree<LeafValueT>> elements_mem;
+      std::vector<LeafTypeTreeView<LeafValueT>> elements;
+      elements_mem.reserve(tup_type->size());
+      elements.reserve(tup_type->size());
+      for (int64_t i = 0; i < tup_type->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafValueT> element,
+                             UnpackParam(builder_->TupleIndex(bv_node, i)));
+        elements_mem.emplace_back(std::move(element));
+        elements.push_back(elements_mem.back().AsView());
+      }
+      return leaf_type_tree::CreateTuple<BitEvaluator::Vector>(tup_type,
+                                                               elements);
+    }
+    XLS_RET_CHECK(bv_node.GetType()->IsToken())
+        << bv_node << " type not handled";
+    XLS_RET_CHECK_FAIL() << bv_node << " is a token!";
+  }
+  int64_t RealIndexFromLiteral(Literal* l, int64_t limit) {
+    int64_t start_idx = l->value().bits().FitsInUint64()
+                            ? l->value().bits().ToUint64().value()
+                            : std::numeric_limits<int64_t>::max();
+    if (start_idx < 0 || start_idx >= limit) {
+      return limit - 1;
+    }
+    return start_idx;
+  }
+
+  // Do an array update on 'array' with index given by indexes and
+  // indexes_nodes. Update the value to 'to_update'
+  absl::StatusOr<LeafTypeTree<LeafValueT>> PerformUpdateWith(
+      LeafTypeTreeView<LeafValueT> array,
+      absl::Span<BitEvaluator::Span const> indexes,
+      absl::Span<Node* const> indexes_nodes,
+      LeafTypeTreeView<LeafValueT> to_update) {
+    XLS_RET_CHECK_EQ(indexes.size(), indexes_nodes.size());
+    if (indexes.empty()) {
+      return LeafTypeTree<LeafValueT>(to_update.type(), to_update.elements());
+    }
+    if (indexes_nodes.front()->Is<Literal>()) {
+      int64_t real_index =
+          RealIndexFromLiteral(indexes_nodes.front()->As<Literal>(),
+                               std::numeric_limits<int64_t>::max());
+      XLS_RET_CHECK_LT(real_index, array.type()->AsArrayOrDie()->size());
+      XLS_ASSIGN_OR_RETURN(
+          LeafTypeTree<LeafValueT> updated_segment,
+          PerformUpdateWith(array.AsView({real_index}), indexes.subspan(1),
+                            indexes_nodes.subspan(1), to_update));
+      LeafTypeTree<LeafValueT> final(array.type(), array.elements());
+      // move the updated values.
+      absl::c_move(updated_segment.elements(),
+                   final.AsMutableView({real_index}).elements().begin());
+      return final;
+    }
+    int64_t addressable_values = indexes.front().size() < 64
+                                     ? 1 << indexes.front().size()
+                                     : std::numeric_limits<int64_t>::max();
+    int64_t array_size = array.type()->AsArrayOrDie()->size();
+    std::vector<LeafTypeTreeView<LeafValueT>> cases;
+    std::vector<LeafTypeTree<LeafValueT>> cases_mem;
+    cases.reserve(array_size);
+    cases_mem.reserve(array_size);
+    // For each possible index create the resulting CompoundValue if that slot
+    // is the real one.
+    for (int64_t i = 0; i < array_size && i < addressable_values; ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          LeafTypeTree<LeafValueT> updated_segment,
+          PerformUpdateWith(array.AsView({i}), indexes.subspan(1),
+                            indexes_nodes.subspan(1), to_update));
+      // Start with the current array.
+      LeafTypeTree<LeafValueT> orig(array.type(), array.elements());
+      // std::move in the updated value over the original values.
+      absl::c_move(updated_segment.elements(),
+                   // Use AsMutableView to select the 'i'th element.
+                   orig.AsMutableView({i}).elements().begin());
+      // Make sure the view lives long enough.
+      cases_mem.emplace_back(std::move(orig));
+      cases.push_back(cases_mem.back().AsView());
+    }
+    // Push the 'unchanged' variant at the end in case its needed.
+    cases.push_back(array);
+    std::vector<BitEvaluator::Span> spans;
+    spans.resize(cases.size());
+    return leaf_type_tree::ZipIndex<BitEvaluator::Vector, BitEvaluator::Vector>(
+        cases,
+        [&](Type* et, absl::Span<const BitEvaluator::Vector* const> elements,
+            absl::Span<int64_t const> ltt_location)
+            -> absl::StatusOr<BitEvaluator::Vector> {
+          XLS_RET_CHECK_EQ(elements.size(), spans.size());
+          absl::c_transform(elements, spans.begin(),
+                            [](auto* v) -> BitEvaluator::Span { return *v; });
+          // back is the unchanged element.
+          return evaluator().Select(
+              indexes.front(),
+              // Make sure that we have no more cases than we can address.
+              absl::MakeSpan(spans).subspan(
+                  0, std::min<int64_t>(spans.size(), addressable_values)),
+              // If we have more possible input values than cases we might
+              // overflow so need the 'unchanged' last element as default.
+              addressable_values > array_size ? std::make_optional(spans.back())
+                                              : std::nullopt);
+        });
+  }
+
+  // Perform an ArrayIndex with a single index element.
+  absl::StatusOr<LeafTypeTree<LeafValueT>> ReadOneIndex(
+      LeafTypeTreeView<LeafValueT> source, BitEvaluator::Span index) {
+    int64_t array_size = source.type()->AsArrayOrDie()->size();
+    std::vector<LeafTypeTreeView<LeafValueT>> cases;
+    cases.reserve(array_size);
+    int64_t addressable_values = index.size() < 64
+                                     ? 1 << index.size()
+                                     : std::numeric_limits<int64_t>::max();
+    for (int64_t i = 0; i < array_size && i < addressable_values; ++i) {
+      cases.push_back(source.AsView({i}));
+    }
+    std::vector<BitEvaluator::Span> spans;
+    spans.resize(cases.size());
+    return leaf_type_tree::ZipIndex<BitEvaluator::Vector, BitEvaluator::Vector>(
+        cases,
+        [&](Type* et, absl::Span<const BitEvaluator::Vector* const> elements,
+            absl::Span<int64_t const> _)
+            -> absl::StatusOr<BitEvaluator::Vector> {
+          XLS_RET_CHECK_EQ(elements.size(), spans.size());
+          absl::c_transform(elements, spans.begin(),
+                            [](auto* v) -> BitEvaluator::Span { return *v; });
+          return evaluator().Select(
+              index,
+              absl::MakeSpan(spans).subspan(
+                  0, std::min<int64_t>(spans.size(), addressable_values)),
+              array_size < addressable_values ? std::make_optional(spans.back())
+                                              : std::nullopt);
+        });
+  }
+  FunctionBuilder* builder_;
+  const absl::flat_hash_map<std::string, BValue>& params_;
+};
+
 absl::StatusOr<Function*> Booleanifier::Run() {
   for (const Param* param : input_fn_->params()) {
     params_[param->name()] = builder_.Param(param->name(), param->GetType());
   }
 
-  for (Node* node : TopoSort(input_fn_)) {
-    std::vector<Vector> operands;
-    // Not the most efficient way of doing this, but not an issue yet.
-    for (Node* node : node->operands()) {
-      operands.push_back(node_map_.at(node));
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        Vector result,
-        AbstractEvaluate(node, operands, evaluator_.get(), [this](Node* node) {
-          return HandleSpecialOps(node);
-        }));
-    node_map_[node] = result;
-  }
+  BooleanifierNodeEvaluator bne(*evaluator_, &builder_, params_);
+  XLS_RETURN_IF_ERROR(input_fn_->Accept(&bne));
 
   Node* return_node = input_fn_->return_value();
-  return builder_.BuildWithReturnValue(
-      PackReturnValue(node_map_.at(return_node), return_node->GetType()));
-}
-
-Booleanifier::Vector Booleanifier::FlattenValue(const Value& value) {
-  if (value.IsBits()) {
-    return evaluator_->BitsToVector(value.bits());
-  }
-
-  Vector result;
-  for (const auto& element : value.elements()) {
-    Vector element_result = FlattenValue(element);
-    result.insert(result.end(), element_result.begin(), element_result.end());
-  }
-  return result;
-}
-
-Booleanifier::Vector Booleanifier::HandleLiteralArrayIndex(
-    const ArrayType* array_type, const Vector& array, const Value& index,
-    int64_t start_offset) {
-  const int64_t element_size = array_type->element_type()->GetFlatBitCount();
-
-  CHECK(index.IsBits());
-  int64_t concrete_index =
-      bits_ops::UGreaterThanOrEqual(index.bits(), array_type->size())
-          ? array_type->size() - 1
-          : index.bits().ToUint64().value();
-  start_offset += concrete_index * element_size;
-  return evaluator_->BitSlice(array, start_offset, element_size);
-}
-
-Booleanifier::Vector Booleanifier::HandleArrayIndex(
-    const ArrayType* array_type, const Vector& array,
-    absl::Span<Node* const> indices, int64_t start_offset) {
-  Type* element_type = array_type->element_type();
-  int64_t element_size = element_type->GetFlatBitCount();
-
-  // If the indices array is empty, just return the original array from the
-  // start_offset through the end of the array.
-  if (indices.empty()) {
-    return evaluator_->BitSlice(array, start_offset,
-                                array.size() - start_offset);
-  }
-
-  // Optimization for a common case where an array is indexed via a literal.  In
-  // this case we can emit the code directly without issuing a comparison check
-  // on the index, at that level of the array.
-  // Note that indices.size() == 1 is a check in a potentially recursive
-  // invocation on this method--this would happen if this is the last index in a
-  // sequence that indexes a multi-dimensional array.
-  if (indices.size() == 1 && indices[0]->Is<Literal>()) {
-    return HandleLiteralArrayIndex(
-        array_type, array, indices[0]->As<Literal>()->value(), start_offset);
-  }
-
-  std::vector<Vector> cases;
-  for (int i = 0; i < array_type->size(); i++) {
-    if (element_type->IsArray() && indices.size() > 1) {
-      cases.push_back(HandleArrayIndex(element_type->AsArrayOrDie(), array,
-                                       indices.subspan(1),
-                                       start_offset + i * element_size));
-    } else {
-      cases.push_back(evaluator_->BitSlice(
-          array, start_offset + i * element_size, element_size));
-    }
-  }
-  return evaluator_->Select(node_map_.at(indices[0]),
-                            evaluator_->SpanOfVectorsToVectorOfSpans(cases),
-                            cases.back());
-}
-
-Booleanifier::Vector Booleanifier::HandleArrayUpdate(
-    const ArrayType* array_type, const Vector& array,
-    absl::Span<Node* const> indices, const Vector& update_value,
-    int64_t start_offset) {
-  // If the indices array is empty, then the update value is a new value for the
-  // whole array.
-  if (indices.empty()) {
-    return update_value;
-  }
-
-  Vector result;
-
-  const Type* element_type = array_type->element_type();
-  const int64_t element_size = element_type->GetFlatBitCount();
-
-  // If the outermost index is literal, then we can directly construct the
-  // resulting array without emitting nodes to perform checks against the index,
-  // at least for the part of the array before and after the update index.  If
-  // the outermost index is not literal, then we must emit gates to perform the
-  // checks.  Further, if the array is multidimensional and we have more than
-  // one index in the array of indices, we call this function recurisively on
-  // the subarray corresponding to the element at which we wish to perform the
-  // update.
-  if (indices[0]->Is<Literal>()) {
-    const int64_t concrete_update_index =
-        indices[0]->As<Literal>()->value().bits().ToUint64().value();
-    // Out-of-bounds indices results in the original array being returned.
-    if (concrete_update_index < 0 ||
-        concrete_update_index >= array_type->size()) {
-      return array;
-    }
-    // Splice in the elements before the updated value, if any.
-    if (concrete_update_index > 0) {
-      Vector before = evaluator_->BitSlice(
-          array, start_offset, concrete_update_index * element_size);
-      result.insert(result.end(), before.begin(), before.end());
-    }
-    // Splice in the updated value.
-    if (element_type->IsArray()) {
-      Vector updated_subarray = HandleArrayUpdate(
-          element_type->AsArrayOrDie(), array, indices.subspan(1), update_value,
-          start_offset + concrete_update_index * element_size);
-      result.insert(result.end(), updated_subarray.begin(),
-                    updated_subarray.end());
-    } else {
-      // If it's not a multi-dimensional array, then there must not be any
-      // leftover indices in the array of indices.
-      CHECK_EQ(indices.size(), 1);
-      result.insert(result.end(), update_value.begin(), update_value.end());
-    }
-
-    // Splice in the elements after the updated value, if any
-    if (concrete_update_index < array_type->size() - 1) {
-      start_offset += (concrete_update_index + 1) * element_size;
-      Vector after = evaluator_->BitSlice(array, start_offset,
-                                          array.size() - start_offset);
-      result.insert(result.end(), after.begin(), after.end());
-    }
-  } else {
-    const Vector& update_index = node_map_.at(indices[0]);
-    const int64_t index_width = update_index.size();
-    for (int i = 0; i < array_type->size(); i++) {
-      const Value loop_index(UBits(i, index_width));
-      const Element equals_index =
-          evaluator_->Equals(FlattenValue(loop_index), update_index);
-      Vector old_value =
-          HandleLiteralArrayIndex(array_type, array, loop_index, start_offset);
-      const uint64_t concrete_update_index =
-          loop_index.bits().ToUint64().value();
-      Vector updated_subarray = update_value;
-      if (element_type->IsArray()) {
-        updated_subarray = HandleArrayUpdate(
-            element_type->AsArrayOrDie(), array, indices.subspan(1),
-            update_value, start_offset + concrete_update_index * element_size);
-      } else {
-        // If it's not a milti-dimensional array, then there must not be any
-        // leftover indices in the array of indices.
-        CHECK_EQ(indices.size(), 1);
-      }
-      const Vector new_value = evaluator_->Select(
-          Vector({equals_index}), {old_value, updated_subarray});
-      result.insert(result.end(), new_value.begin(), new_value.end());
-    }
-  }
-
-  return result;
-}
-
-Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
-  switch (node->op()) {
-    case Op::kArray:
-    case Op::kTuple: {
-      // Array and tuples are held as flat bit/Node arrays.
-      Vector result;
-      for (const Node* operand : node->operands()) {
-        Vector& v = node_map_.at(operand);
-        result.insert(result.end(), v.begin(), v.end());
-      }
-      return result;
-    }
-    case Op::kArrayIndex: {
-      ArrayIndex* array_index = node->As<ArrayIndex>();
-      const ArrayType* array_type =
-          array_index->array()->GetType()->AsArrayOrDie();
-      std::vector<Vector> indices;
-      for (const auto& index : array_index->indices()) {
-        indices.push_back(node_map_.at(index));
-      }
-      return HandleArrayIndex(array_type, node_map_.at(array_index->array()),
-                              array_index->indices(), /*start_offset=*/0);
-    }
-    case Op::kArrayUpdate: {
-      // Use the old value for each element, except for the updated element.
-      ArrayUpdate* array_update = node->As<ArrayUpdate>();
-      return HandleArrayUpdate(array_update->GetType()->AsArrayOrDie(),
-                               node_map_.at(array_update->array_to_update()),
-                               array_update->indices(),
-                               node_map_.at(array_update->update_value()),
-                               /*start_offset=*/0);
-    }
-    case Op::kLiteral: {
-      Vector result;
-      Literal* literal = node->As<Literal>();
-      return FlattenValue(literal->value());
-    }
-    case Op::kParam: {
-      // Params are special, as they come in as n-bit objects. They're one of
-      // the interfaces to the outside world that convert N-bit items into N
-      // 1-bit items.
-      Param* param = node->As<Param>();
-      return UnpackParam(param->GetType(), params_.at(param->name()));
-    }
-    case Op::kTupleIndex: {
-      // Tuples are flat vectors, so we just need to extract the right
-      // offset/width.
-      TupleIndex* tuple_index = node->As<TupleIndex>();
-      TupleType* tuple_type = node->operand(0)->GetType()->AsTupleOrDie();
-      int64_t start_bit = 0;
-      for (int i = 0; i < tuple_index->index(); i++) {
-        start_bit += tuple_type->element_type(i)->GetFlatBitCount();
-      }
-      int64_t width =
-          tuple_type->element_type(tuple_index->index())->GetFlatBitCount();
-      return evaluator_->BitSlice(node_map_.at(node->operand(0)), start_bit,
-                                  width);
-    }
-    default:
-      LOG(FATAL) << "Unsupported/unimplemented op: " << node->op();
-  }
-}
-
-Booleanifier::Vector Booleanifier::UnpackParam(Type* type, BValue bv_node) {
-  int64_t bit_count = type->GetFlatBitCount();
-  switch (type->kind()) {
-    case TypeKind::kBits: {
-      Vector result;
-      for (int i = 0; i < bit_count; i++) {
-        BValue y = builder_.BitSlice(bv_node, i, 1);
-        result.push_back(y.node());
-      }
-      return result;
-    }
-    case TypeKind::kArray: {
-      Vector result;
-      ArrayType* array_type = type->AsArrayOrDie();
-      for (int i = 0; i < array_type->size(); i++) {
-        std::vector<BValue> indices = {
-            builder_.Literal(UBits(i, CeilOfLog2(array_type->size())))};
-        BValue array_index = builder_.ArrayIndex(bv_node, indices);
-        Vector element = UnpackParam(array_type->element_type(), array_index);
-        result.insert(result.end(), element.begin(), element.end());
-      }
-      return result;
-    }
-    case TypeKind::kTuple: {
-      Vector result;
-      TupleType* tuple_type = type->AsTupleOrDie();
-      for (int i = 0; i < tuple_type->size(); i++) {
-        BValue tuple_index = builder_.TupleIndex(bv_node, i);
-        Vector element = UnpackParam(tuple_type->element_type(i), tuple_index);
-        result.insert(result.end(), element.begin(), element.end());
-      }
-      return result;
-    }
-    default:
-      LOG(FATAL) << "Unsupported/unimplemened param kind: " << type->kind();
-  }
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTreeView<BooleanifierNodeEvaluator::LeafValueT> return_val,
+      bne.GetCompoundValue(return_node));
+  XLS_ASSIGN_OR_RETURN(BValue result, PackReturnValue(return_val));
+  return builder_.BuildWithReturnValue(result);
 }
 
 // The inverse of UnpackParam - overlays structure on top of a flat bit array.
-// We take a span here, instead of a Vector, so we can easily create subspans.
-BValue Booleanifier::PackReturnValue(absl::Span<const Element> bits,
-                                     const Type* type) {
-  switch (type->kind()) {
-    case TypeKind::kBits: {
-      std::vector<BValue> result;
-      for (const Element& bit : bits) {
-        result.push_back(BValue(bit, &builder_));
-      }
-      // Need to reverse to match IR/Verilog Concat semantics.
-      std::reverse(result.begin(), result.end());
-      return builder_.Concat(result);
+absl::StatusOr<BValue> Booleanifier::PackReturnValue(
+    LeafTypeTreeView<BooleanifierNodeEvaluator::LeafValueT> result) {
+  if (result.type()->IsBits()) {
+    std::vector<BValue> args;
+    args.reserve(result.type()->GetFlatBitCount());
+    for (Node* n : result.Get({})) {
+      args.push_back(BValue(n, &builder_));
     }
-    case TypeKind::kArray: {
-      const ArrayType* array_type = type->AsArrayOrDie();
-      Type* element_type = array_type->element_type();
-      std::vector<BValue> elements;
-      int64_t offset = 0;
-      for (int i = 0; i < array_type->size(); i++) {
-        absl::Span<const Element> element =
-            bits.subspan(offset, element_type->GetFlatBitCount());
-        elements.push_back(PackReturnValue(element, element_type));
-        offset += element_type->GetFlatBitCount();
-      }
-      return builder_.Array(elements, element_type);
-    }
-    case TypeKind::kTuple: {
-      const TupleType* tuple_type = type->AsTupleOrDie();
-      std::vector<BValue> elements;
-      int64_t offset = 0;
-      for (const Type* elem_type : tuple_type->element_types()) {
-        absl::Span<const Element> elem =
-            bits.subspan(offset, elem_type->GetFlatBitCount());
-        elements.push_back(PackReturnValue(elem, elem_type));
-        offset += elem_type->GetFlatBitCount();
-      }
-      return builder_.Tuple(elements);
-    }
-    default:
-      LOG(FATAL) << "Unsupported/unimplemented type kind: " << type->kind();
+    absl::c_reverse(args);
+    return builder_.Concat(args);
   }
+  if (result.type()->IsArray()) {
+    ArrayType* arr_type = result.type()->AsArrayOrDie();
+    std::vector<BValue> args;
+    args.reserve(arr_type->size());
+    for (int64_t i = 0; i < arr_type->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(BValue element, PackReturnValue(result.AsView({i})));
+      args.push_back(element);
+    }
+    return builder_.Array(args, arr_type->element_type());
+  }
+  if (result.type()->IsTuple()) {
+    TupleType* tup_type = result.type()->AsTupleOrDie();
+    std::vector<BValue> args;
+    args.reserve(tup_type->size());
+    for (int64_t i = 0; i < tup_type->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(BValue element, PackReturnValue(result.AsView({i})));
+      args.push_back(element);
+    }
+    return builder_.Tuple(args);
+  }
+  XLS_RET_CHECK_FAIL() << result.type() << " is unimplemented";
 }
 
 }  // namespace xls
