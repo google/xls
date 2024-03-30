@@ -786,14 +786,10 @@ template <typename T, typename U>
 void SimpleUpdateFrom(
     MutableLeafTypeTreeView<T> ltt, LeafTypeTreeView<U> other,
     std::function<void(T& element, const U& other_element)> update) {
-  absl::Status status = UpdateFrom<T, U>(
-      ltt, other,
-      [&](Type* element_type, T& element, const U& other_element,
-          absl::Span<const int64_t> index) {
-        update(element, other_element);
-        return absl::OkStatus();
-      });
-  CHECK_OK(status);
+  CHECK_EQ(ltt.type(), other.type());
+  for (int64_t i = 0; i < ltt.elements().size(); ++i) {
+    update(ltt.elements()[i], other.elements()[i]);
+  }
 }
 
 // Clones the given view into a separate LeafTypeTree object.

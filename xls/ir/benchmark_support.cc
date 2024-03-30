@@ -51,6 +51,16 @@ absl::StatusOr<Function*> GenerateChain(
     const strategy::NullaryNode& leaf_strategy) {
   XLS_RET_CHECK_GE(depth, 1);
   FunctionBuilder fb("ladder_tree", package);
+  XLS_ASSIGN_OR_RETURN(auto result,
+                       GenerateChain(fb, depth, num_children,
+                                     interior_node_strategy, leaf_strategy));
+  return fb.BuildWithReturnValue(result);
+}
+
+absl::StatusOr<BValue> GenerateChain(
+    FunctionBuilder& fb, int64_t depth, int64_t num_children,
+    const strategy::NaryNode& interior_node_strategy,
+    const strategy::NullaryNode& leaf_strategy) {
   XLS_ASSIGN_OR_RETURN(BValue current_root,
                        leaf_strategy.GenerateNullaryNode(fb));
   for (int64_t i = 0; i < depth; ++i) {
@@ -58,7 +68,7 @@ absl::StatusOr<Function*> GenerateChain(
                          ChainReduce(fb, num_children, interior_node_strategy,
                                      leaf_strategy, current_root));
   }
-  return fb.BuildWithReturnValue(current_root);
+  return current_root;
 }
 
 absl::StatusOr<std::vector<BValue>> BalancedTreeReduce(
@@ -83,9 +93,19 @@ absl::StatusOr<Function*> GenerateBalancedTree(
     Package* package, int64_t depth, int64_t fan_out,
     const strategy::NaryNode& interior_node_strategy,
     const strategy::NullaryNode& leaf_strategy) {
+  FunctionBuilder fb("balanced-tree", package);
+  XLS_ASSIGN_OR_RETURN(
+      auto result, GenerateBalancedTree(fb, depth, fan_out,
+                                        interior_node_strategy, leaf_strategy));
+  return fb.BuildWithReturnValue(result);
+}
+
+absl::StatusOr<BValue> GenerateBalancedTree(
+    FunctionBuilder& fb, int64_t depth, int64_t fan_out,
+    const strategy::NaryNode& interior_node_strategy,
+    const strategy::NullaryNode& leaf_strategy) {
   XLS_RET_CHECK_GE(depth, 1);
   XLS_RET_CHECK_GT(fan_out, 1);
-  FunctionBuilder fb("balanced-tree", package);
   std::vector<BValue> base;
   base.reserve(static_cast<size_t>(std::pow(fan_out, depth)));
   for (int64_t i = 0; static_cast<double>(i) < std::pow(fan_out, depth); ++i) {
@@ -97,7 +117,7 @@ absl::StatusOr<Function*> GenerateBalancedTree(
                          BalancedTreeReduce(fb, fan_out, interior_node_strategy,
                                             absl::MakeSpan(base)));
   }
-  return fb.BuildWithReturnValue(base.front());
+  return base.front();
 }
 
 absl::StatusOr<std::vector<BValue>> AddFullyConnectedGraphLayer(
@@ -118,9 +138,20 @@ absl::StatusOr<Function*> GenerateFullyConnectedLayerGraph(
     Package* package, int64_t depth, int64_t width,
     const strategy::NaryNode& interior_node_strategy,
     const strategy::NullaryNode& terminal_node_strategy) {
+  FunctionBuilder fb("lattice", package);
+  XLS_ASSIGN_OR_RETURN(
+      auto result,
+      GenerateFullyConnectedLayerGraph(fb, depth, width, interior_node_strategy,
+                                       terminal_node_strategy));
+  return fb.BuildWithReturnValue(result);
+}
+
+absl::StatusOr<BValue> GenerateFullyConnectedLayerGraph(
+    FunctionBuilder& fb, int64_t depth, int64_t width,
+    const strategy::NaryNode& interior_node_strategy,
+    const strategy::NullaryNode& terminal_node_strategy) {
   XLS_RET_CHECK_GE(depth, 1);
   XLS_RET_CHECK_GT(width, 1);
-  FunctionBuilder fb("lattice", package);
   std::vector<BValue> current_layer;
   current_layer.reserve(width);
   for (int64_t j = 0; j < width; ++j) {
@@ -137,7 +168,7 @@ absl::StatusOr<Function*> GenerateFullyConnectedLayerGraph(
   XLS_ASSIGN_OR_RETURN(BValue return_value,
                        interior_node_strategy.GenerateInteriorPoint(
                            fb, absl::MakeSpan(current_layer)));
-  return fb.BuildWithReturnValue(return_value);
+  return return_value;
 }
 }  // namespace benchmark_support
 }  // namespace xls

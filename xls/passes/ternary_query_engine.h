@@ -20,18 +20,18 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/ternary_evaluator.h"
 
 namespace xls {
 
@@ -42,8 +42,6 @@ namespace xls {
 // function (implications, equality, etc).
 class TernaryQueryEngine : public QueryEngine {
  public:
-  TernaryQueryEngine() = default;
-
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   bool IsTracked(Node* node) const override {
@@ -60,6 +58,7 @@ class TernaryQueryEngine : public QueryEngine {
                  })
           .value();
     }
+    CHECK(IsTracked(node)) << node;
     TernaryVector ternary =
         ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
     LeafTypeTree<TernaryVector> result(node->GetType());

@@ -25,6 +25,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -199,6 +200,10 @@ absl::StatusOr<Function*> GenerateFullyConnectedLayerGraph(
     Package* package, int64_t depth, int64_t width,
     const strategy::NaryNode& interior_node_strategy,
     const strategy::NullaryNode& terminal_node_strategy);
+absl::StatusOr<BValue> GenerateFullyConnectedLayerGraph(
+    FunctionBuilder& fb, int64_t depth, int64_t width,
+    const strategy::NaryNode& interior_node_strategy,
+    const strategy::NullaryNode& terminal_node_strategy);
 
 // Create a layer of a fully-connected graph.
 //
@@ -229,6 +234,10 @@ absl::StatusOr<std::vector<BValue>> AddFullyConnectedGraphLayer(
 //       (+ 1 1 1)))
 absl::StatusOr<Function*> GenerateBalancedTree(
     Package* package, int64_t depth, int64_t fan_out,
+    const strategy::NaryNode& interior_node_strategy,
+    const strategy::NullaryNode& leaf_strategy);
+absl::StatusOr<BValue> GenerateBalancedTree(
+    FunctionBuilder& fb, int64_t depth, int64_t fan_out,
     const strategy::NaryNode& interior_node_strategy,
     const strategy::NullaryNode& leaf_strategy);
 
@@ -271,6 +280,10 @@ absl::StatusOr<std::vector<BValue>> BalancedTreeReduce(
 //   <nullary-node>)
 absl::StatusOr<Function*> GenerateChain(
     Package* package, int64_t depth, int64_t num_children,
+    const strategy::NaryNode& interior_node_strategy,
+    const strategy::NullaryNode& leaf_strategy);
+absl::StatusOr<BValue> GenerateChain(
+    FunctionBuilder& fb, int64_t depth, int64_t num_children,
     const strategy::NaryNode& interior_node_strategy,
     const strategy::NullaryNode& leaf_strategy);
 
