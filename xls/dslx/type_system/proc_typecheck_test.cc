@@ -431,5 +431,107 @@ proc p {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+TEST(TypecheckTest, ProcLevelUselessExpression) {
+  constexpr std::string_view kProgram = R"(
+const N = u32:42;
+proc MyProc {
+  N;
+  config() { () }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Expected either a proc member, type alias, or "
+                      "`const_assert!` at proc scope; got identifier: `N`")));
+}
+
+TEST(TypecheckTest, ProcLevelConstAssertUnparameterized) {
+  constexpr std::string_view kProgram = R"(
+const N = u32:42;
+proc MyProc {
+  const_assert!(N == u32:42);
+  config() { () }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcLevelConstAssertThatFails) {
+  constexpr std::string_view kProgram = R"(
+proc MyProc<X: u32, Y: u32> {
+  const_assert!(X == Y);
+  config() { () }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+
+proc Instantiator {
+  config() {
+      spawn MyProc<u32:42, u32:64>();
+  }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("const_assert! failure: `X == Y` constexpr "
+                             "environment: {X: u32:42, Y: u32:64}")));
+}
+
+TEST(TypecheckTest, ProcLevelConstAssertThatPasses) {
+  constexpr std::string_view kProgram = R"(
+proc MyProc<X: u32, Y: u32> {
+  const_assert!(X == Y);
+  config() { () }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+
+proc Instantiator {
+  config() {
+      spawn MyProc<u32:42, u32:42>();
+  }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcLevelConstAssertThatPassesThenFails) {
+  constexpr std::string_view kProgram = R"(
+proc MyProc<X: u32, Y: u32> {
+  const_assert!(X == Y);
+  config() { () }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+
+proc Instantiator {
+  config() {
+      spawn MyProc<u32:42, u32:42>();
+      spawn MyProc<u32:42, u32:64>();
+  }
+  init { () }
+  next(tok: token, state: ()) { () }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("const_assert! failure: `X == Y` constexpr "
+                             "environment: {X: u32:42, Y: u32:64}")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

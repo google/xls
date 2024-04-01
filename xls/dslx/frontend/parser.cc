@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -63,6 +64,8 @@
 
 namespace xls::dslx {
 namespace {
+
+constexpr std::string_view kConstAssertIdentifier = "const_assert!";
 
 absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
     absl::Span<const ExprOrType> eots) {
@@ -373,7 +376,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
 
-    if (peek->IsIdentifier("const_assert!")) {
+    if (peek->IsIdentifier(kConstAssertIdentifier)) {
       XLS_ASSIGN_OR_RETURN(ConstAssert * const_assert,
                            ParseConstAssert(*bindings));
       // Note: const_assert! doesn't make a binding so we don't need to provide
@@ -474,8 +477,10 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
   // a use for inner vs. outer attributes, but that day will likely come.
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
-  XLS_ASSIGN_OR_RETURN(Token directive_tok,
-                       PopTokenOrError(TokenKind::kIdentifier));
+  XLS_ASSIGN_OR_RETURN(
+      Token directive_tok,
+      PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
+                      "Expected attribute identifier"));
   const std::string& directive_name = directive_tok.GetStringValue();
 
   if (directive_name == "test") {
@@ -614,10 +619,19 @@ absl::StatusOr<Expr*> Parser::ParseConditionalExpression(
   return ParseRangeExpression(bindings, restrictions);
 }
 
-absl::StatusOr<ConstAssert*> Parser::ParseConstAssert(Bindings& bindings) {
-  Pos start = GetPos();
-  XLS_ASSIGN_OR_RETURN(std::string identifier, PopIdentifierOrError());
-  XLS_RET_CHECK_EQ(identifier, "const_assert!");
+absl::StatusOr<ConstAssert*> Parser::ParseConstAssert(
+    Bindings& bindings, absl::Nullable<const Token*> identifier) {
+  Pos start;
+  if (identifier == nullptr) {
+    Span identifier_span;
+    XLS_ASSIGN_OR_RETURN(std::string identifier_value,
+                         PopIdentifierOrError(&identifier_span));
+    start = identifier_span.start();
+    XLS_RET_CHECK_EQ(identifier_value, "const_assert!");
+  } else {
+    start = identifier->span().start();
+  }
+
   XLS_RETURN_IF_ERROR(
       DropTokenOrError(TokenKind::kOParen, /*start=*/nullptr,
                        "Expected a '(' after const_assert! macro"));
@@ -851,8 +865,10 @@ absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings& bindings,
   Pos start = GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleColon));
   while (true) {
-    XLS_ASSIGN_OR_RETURN(Token value_tok,
-                         PopTokenOrError(TokenKind::kIdentifier));
+    XLS_ASSIGN_OR_RETURN(
+        Token value_tok,
+        PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
+                        "Expected colon-reference identifier"));
     Span span(start, GetPos());
     subject = module_->Make<ColonRef>(span, subject, *value_tok.GetValue());
     start = GetPos();
@@ -971,7 +987,9 @@ absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
 }
 
 absl::StatusOr<NameDef*> Parser::ParseNameDef(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
+  XLS_ASSIGN_OR_RETURN(
+      Token tok, PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
+                                 "Expected name (definition)"));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
   bindings.Add(name_def->identifier(), name_def);
   return name_def;
@@ -2366,16 +2384,33 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       outer_bindings.Add(init->name_def()->identifier(), init->name_def());
       proc_body.stmts.push_back(init);
     } else if (peek->kind() == TokenKind::kIdentifier) {
-      // Note: to parse a member, we use the memberless bindings (e.g. to
-      // capture type aliases and similar) and them collapse the new member
-      // binding into the proc-level bindings.
-      XLS_ASSIGN_OR_RETURN(ProcMember * member,
-                           ParseProcMember(member_bindings));
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
-                                           "Expected a ';' after proc member"));
+      XLS_ASSIGN_OR_RETURN(Token identifier_tok, PopToken());
+      XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
+      // If there's a colon after the identifier, we're parsing a proc member.
+      if (peek_is_colon) {
+        // Note: to parse a member, we use the memberless bindings (e.g. to
+        // capture type aliases and similar) and them collapse the new member
+        // binding into the proc-level bindings.
+        XLS_ASSIGN_OR_RETURN(ProcMember * member,
+                             ParseProcMember(member_bindings, identifier_tok));
+        XLS_RETURN_IF_ERROR(
+            DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
+                             "Expected a ';' after proc member"));
 
-      proc_body.members.push_back(member);
-      proc_body.stmts.push_back(member);
+        proc_body.members.push_back(member);
+        proc_body.stmts.push_back(member);
+      } else if (identifier_tok.IsIdentifier(kConstAssertIdentifier)) {
+        XLS_ASSIGN_OR_RETURN(ConstAssert * const_assert,
+                             ParseConstAssert(proc_bindings, &identifier_tok));
+        proc_body.stmts.push_back(const_assert);
+      } else {
+        return ParseErrorStatus(
+            peek->span(),
+            absl::StrFormat(
+                "Expected either a proc member, type alias, or `%s` at proc "
+                "scope; got identifier: `%s`",
+                kConstAssertIdentifier, *peek->GetValue()));
+      }
     } else {
       return ParseErrorStatus(
           peek->span(),
@@ -2513,7 +2548,8 @@ absl::StatusOr<TypeRef*> Parser::ParseModTypeRef(Bindings& bindings,
   }
   XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &start_tok));
   XLS_ASSIGN_OR_RETURN(Token type_name,
-                       PopTokenOrError(TokenKind::kIdentifier));
+                       PopTokenOrError(TokenKind::kIdentifier, &start_tok,
+                                       "module type-reference"));
   const Span span(start_tok.span().start(), type_name.span().limit());
   ColonRef* mod_ref =
       module_->Make<ColonRef>(span, subject, *type_name.GetValue());
@@ -2720,13 +2756,15 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
   return param;
 }
 
-absl::StatusOr<ProcMember*> Parser::ParseProcMember(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
+absl::StatusOr<ProcMember*> Parser::ParseProcMember(
+    Bindings& bindings, const Token& identifier_tok) {
+  XLS_ASSIGN_OR_RETURN(NameDef * name, TokenToNameDef(identifier_tok));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                                        "Expect type annotation on parameters"));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
   auto* member = module_->Make<ProcMember>(name, type);
   name->set_definer(member);
+  bindings.Add(name->identifier(), name);
   return member;
 }
 
@@ -2846,7 +2884,7 @@ absl::StatusOr<Block*> Parser::ParseBlockExpression(Bindings& bindings) {
       XLS_ASSIGN_OR_RETURN(Let * let, ParseLet(block_bindings));
       stmts.push_back(module_->Make<Statement>(let));
       last_expr_had_trailing_semi = true;
-    } else if (peek->IsIdentifier("const_assert!")) {
+    } else if (peek->IsIdentifier(kConstAssertIdentifier)) {
       XLS_ASSIGN_OR_RETURN(ConstAssert * const_assert,
                            ParseConstAssert(block_bindings));
       stmts.push_back(module_->Make<Statement>(const_assert));

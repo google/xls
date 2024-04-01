@@ -1711,6 +1711,11 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
                       stmt_pieces.push_back(arena.semi());
                       stmt_pieces.push_back(arena.hard_line());
                     },
+                    [&](const ConstAssert* n) {
+                      stmt_pieces.push_back(Fmt(*n, comments, arena));
+                      stmt_pieces.push_back(arena.semi());
+                      stmt_pieces.push_back(arena.hard_line());
+                    },
                 },
                 stmt);
   }

@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -104,7 +105,13 @@ class Parser : public TokenParser {
 
   absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings& bindings);
 
-  absl::StatusOr<ConstAssert*> ParseConstAssert(Bindings& bindings);
+  // Args:
+  //  bindings: bindings to be used in parsing the assert expression.
+  //  identifier: [optional] token that contains the `const_assert!` identifier
+  //    -- if this is not given it is assumed that it should be popped from the
+  //    token steam.
+  absl::StatusOr<ConstAssert*> ParseConstAssert(
+      Bindings& bindings, absl::Nullable<const Token*> identifier = nullptr);
 
   Module& module() { return *module_; }
 
@@ -418,7 +425,8 @@ class Parser : public TokenParser {
   absl::StatusOr<Param*> ParseParam(Bindings& bindings);
 
   // Parses a member declaration in the body of a `proc` definition.
-  absl::StatusOr<ProcMember*> ParseProcMember(Bindings& bindings);
+  absl::StatusOr<ProcMember*> ParseProcMember(Bindings& bindings,
+                                              const Token& identifier_tok);
 
   // Parses a sequence of parameters, starting with cursor over '(', returns
   // after ')' is consumed.

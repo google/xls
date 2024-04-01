@@ -162,6 +162,9 @@ static bool CanTypecheckProc(Proc* p) {
   return true;
 }
 
+// Note that this (local) routine will only be applied to unparameterized
+// `proc`s -- parameterized procs get instantiated via `spawn` statements and
+// associated statements will be typechecked at those instantiation points.
 static absl::Status TypecheckProcStmts(Proc* p, DeduceCtx* ctx) {
   for (ProcStmt& stmt : p->stmts()) {
     XLS_RETURN_IF_ERROR(absl::visit(
@@ -169,7 +172,8 @@ static absl::Status TypecheckProcStmts(Proc* p, DeduceCtx* ctx) {
                 [](Function* n) { return absl::OkStatus(); },
                 [](ProcMember* n) { return absl::OkStatus(); },
 
-                [&](TypeAlias* n) { return ctx->Deduce(n).status(); }},
+                [&](TypeAlias* n) { return ctx->Deduce(n).status(); },
+                [&](ConstAssert* n) { return ctx->Deduce(n).status(); }},
         stmt));
   }
   return absl::OkStatus();

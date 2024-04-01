@@ -71,9 +71,8 @@ class ProcMember : public AstNode {
   Span span_;
 };
 
-// TODO(leary): 2024-02-09 Extend this to allow for constant definitions,
-// constant asserts, etc.
-using ProcStmt = std::variant<Function*, ProcMember*, TypeAlias*>;
+// TODO(leary): 2024-02-09 Extend this to allow for constant definitions, etc.
+using ProcStmt = std::variant<Function*, ProcMember*, TypeAlias*, ConstAssert*>;
 
 absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n);
 
@@ -140,6 +139,16 @@ class Proc : public AstNode {
         continue;
       }
       result.push_back(&stmt);
+    }
+    return result;
+  }
+
+  std::vector<const ConstAssert*> GetConstAssertStmts() const {
+    std::vector<const ConstAssert*> result;
+    for (const ProcStmt& stmt : stmts()) {
+      if (std::holds_alternative<ConstAssert*>(stmt)) {
+        result.push_back(std::get<ConstAssert*>(stmt));
+      }
     }
     return result;
   }

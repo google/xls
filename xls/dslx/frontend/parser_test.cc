@@ -2133,4 +2133,33 @@ fn will_fail(x:u32) -> u32 {
       << module_or.status();
 }
 
+TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
+  const char* text = R"(proc MyProc<N: u32> {
+    const_assert!(N == u32:42);
+    config() {
+        ()
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        ()
+    }
+})";
+
+  Scanner s{"test.x", std::string{text}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  auto proc_or = parser.ParseProc(/*is_public=*/false, /*bindings=*/bindings);
+  if (!proc_or.ok()) {
+    TryPrintError(proc_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(text);
+                  });
+    XLS_ASSERT_OK(proc_or.status());
+  }
+  const Proc* p = proc_or.value();
+  EXPECT_EQ(p->ToString(), text);
+}
+
 }  // namespace xls::dslx

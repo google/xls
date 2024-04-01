@@ -51,8 +51,8 @@ enum class WithinProc : uint8_t {
 // An entry on the "stack of functions/procs currently being deduced".
 class FnStackEntry {
  public:
-  // Creates an entry for type inference of function 'f' with the given symbolic
-  // bindings.
+  // Creates an entry for type inference of function 'f' with the given
+  // parametric env.
   static FnStackEntry Make(Function& f, ParametricEnv parametric_env,
                            WithinProc within_proc) {
     return FnStackEntry(f, f.identifier(), f.owner(), std::move(parametric_env),
@@ -270,16 +270,18 @@ class DeduceCtx {
 
   // -- Metadata
 
-  // Keeps track of the function we're currently typechecking and the symbolic
-  // bindings that deduction is running on.
+  // Keeps track of the function we're currently typechecking and the parametric
+  // env that deduction is running on.
   std::vector<FnStackEntry> fn_stack_;
 
   // Keeps track of any type mismatch error that is currently active.
   std::optional<TypeMismatchErrorData> type_mismatch_error_data_;
 };
 
-// Helper that converts the symbolic bindings to a parametric expression
-// environment (for parametric evaluation).
+// Helper that converts the parametric env to a "parametric expression
+// environment" (for parametric evaluation).
+//
+// TODO(leary): 2024-04-01 These should be consolidated in the future.
 ParametricExpression::Env ToParametricEnv(const ParametricEnv& parametric_env);
 
 }  // namespace xls::dslx

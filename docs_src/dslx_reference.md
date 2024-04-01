@@ -1981,3 +1981,109 @@ For determinism, the DSLX interpreter should be run with the `seed` flag:
 `./interpreter_main --seed=1234 <DSLX source file>`
 
 [hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf
+
+## Communicating Sequential Processes (AKA procs)
+
+Functions conceptually exist independent of "time". They describe "feed forward"
+dataflow computation; i.e. they cannot describe carrying a value forward over
+"time steps", and don't have the ability to send messages to other functions
+that are also iterating in time.
+
+XLS has a more powerful construct for exactly this additional set of
+capabilities, called `proc`s, short for "communicating process", in the
+tradition of
+[Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes),
+similar to those seen in Go, Erlang, and various other "actor model" programming
+environments.
+
+This is a simple proc:
+
+```dslx
+proc CountUp {
+    output_channel: chan<u32> out;
+
+    // Initial value for the state.
+    init { u32:0 }
+
+    // Configuration -- we get the output channel when we're configured by an external `spawn`.
+    // The last statement in a `config` should be a tuple that is used to initialize the proc
+    // members; e.g. we give a single value in a tuple that initializes the `output_channel`
+    // declared above.
+    config(output_channel: chan<u32> out) { (output_channel,) }
+
+    // "Iterate in time" -- takes a state, does some work, and produces a new state.
+    next(tok: token, state: u32) {
+        // Send our state to the outside world via the channel.
+        send(tok, output_channel, state);
+
+        // Calculate our new state.
+        state + u32:1
+    }
+}
+```
+
+This proc counts a 32-bit value upwards and sends it out on a channel. To do
+things in time, beyond what functions do, you need some connections that work
+for sending and receiving messages over time (`chan`) and some state that you
+can carry over the course of time (`state`).
+
+### Proc Syntax Template
+
+Procs are shaped as follows, generalizing what we saw in the `CountUp` proc
+above:
+
+```
+proc $NAME [$PARAMETRICS] {
+    [MEMBER | CONST_ASSERT | TYPE_ALIAS]*
+
+    init { $INIT_VALUE }
+
+    // Note: config can contain `spawn`s of other `proc`s.
+    config($CHAN_OR_ARG, ...) {
+        $CONFIG_BODY
+        ($MEMBER, ...)
+    }
+
+    next(tok: token, state: $STATE_TYPE) {
+        $NEXT_BODY
+        $NEW_STATE
+    }
+}
+```
+
+Note that procs can be parameterized, similar to
+[functions](#parametric-functions), and that the proc scope can contain
+`const_assert!`s and type aliases, which can be convenient to define within the
+parameterized scope for all of the `init`/`config`/`next` function definitions.
+
+Note that the `config` function is all evaluated at compile time (i.e. it is all
+"constexpr" evaluated) -- this "configuration time" is a form of elaboration
+where channels are connected and the communicating process hierarchy is created.
+
+A proc can create a sub-proc via the `spawn` keyword, and this "spawning"
+happens at configuration time, whereas `next` reflects the "runtime" execution;
+e.g.
+
+```dslx-snippet
+proc Top {
+    // Channel where we'll receive values from `CountUp`.
+    from_count_up: chan<u32> in;
+
+    init { () }
+    config() {
+        // The "chan" constructor provides send (`out`) and receive (`in`)
+        // port halves.
+        let (s, r) = chan<u32>;
+        // Instantiate the `CountUp` proc which will talk to us using this channel half.
+        spawn CountUp(s);
+        // Initialize our member using the receive half of the channel we created.
+        (r,)
+    }
+    // Receive the values sent from the `CountUp` proc we instantiated in
+    // `config` and trace them out to logging.
+    next(tok: token, state: ()) {
+        let (tok, got) = recv(r);
+        trace_fmt!("CountUp gave: {}", got);
+    }
+}
+```

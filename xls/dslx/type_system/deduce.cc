@@ -2140,6 +2140,16 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceRange(const Range* node,
                                      TypeDim(array_size));
 }
 
+// We need to evaluate/check `const_assert!`s at typechecking time; things like
+// parametrics are only instantiated when a `spawn` is encountered, at which
+// point we can check `const_assert!`s pass.
+static absl::Status TypecheckProcConstAsserts(const Proc& p, DeduceCtx* ctx) {
+  for (const ConstAssert* n : p.GetConstAssertStmts()) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(n).status());
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                                                   DeduceCtx* ctx) {
   const ParametricEnv caller_parametric_env =
@@ -2164,7 +2174,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
     return proc;
   };
 
+  // Resolve the proc AST node that's being instantiated.
+  //
+  // Note that this can be from a different module than the spawn / spawner.
   XLS_ASSIGN_OR_RETURN(Proc * proc, resolve_proc(node, ctx));
+
   auto resolve_config = [proc](const Instantiation* node,
                                DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     return &proc->config();
@@ -2179,10 +2193,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
     return &proc->init();
   };
 
-  XLS_ASSIGN_OR_RETURN(
-      TypeAndParametricEnv init_tab,
+  XLS_RETURN_IF_ERROR(
       DeduceInstantiation(ctx, down_cast<Invocation*>(node->next()->args()[0]),
-                          {}, resolve_init, {}));
+                          /*args=*/{}, /*resolve_fn=*/resolve_init,
+                          /*constexpr_env=*/{})
+          .status());
 
   // Gather up the type of all the (actual) arguments.
   std::vector<InstantiateArg> config_args;
@@ -2226,13 +2241,20 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
       down_cast<Invocation*>(node->next()->args()[0]),
       /*type=*/nullptr));
 
-  XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
-                       DeduceInstantiation(ctx, node->config(), config_args,
-                                           resolve_config, constexpr_env));
+  XLS_RETURN_IF_ERROR(DeduceInstantiation(ctx, node->config(), config_args,
+                                          resolve_config, constexpr_env)
+                          .status());
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * config_ti,
                        ctx->type_info()->GetInvocationTypeInfoOrError(
                            node->config(), caller_parametric_env));
+
+  {
+    std::unique_ptr<DeduceCtx> proc_level_ctx =
+        ctx->MakeCtx(config_ti, proc->owner());
+    proc_level_ctx->fn_stack().push_back(FnStackEntry::MakeTop(proc->owner()));
+    XLS_RETURN_IF_ERROR(TypecheckProcConstAsserts(*proc, proc_level_ctx.get()));
+  }
 
   // Now we need to get the [constexpr] Proc member values so we can set them
   // when typechecking the `next` function. Those values are the elements in the
@@ -2253,6 +2275,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                           proc->identifier(), proc->members().size()));
     }
   } else {
+    // When a config tuple is present (and returned from the `config()`) we
+    // constexpr evaluate all of its elements and place those in the constexpr
+    // env.
     XLS_RET_CHECK_EQ(config_tuple->members().size(), proc->members().size());
     for (int i = 0; i < config_tuple->members().size(); i++) {
       XLS_ASSIGN_OR_RETURN(InterpValue value,
@@ -2264,9 +2289,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
     }
   }
 
+  // With all the proc members placed in the constexpr env, now we can deduce
+  // the instantiation of `next()`, which accesses these members.
   XLS_RETURN_IF_ERROR(DeduceInstantiation(ctx, node->next(), next_args,
                                           resolve_next, constexpr_env)
                           .status());
+
   return Type::MakeUnit();
 }
 
