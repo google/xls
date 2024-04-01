@@ -319,26 +319,22 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&ternary_visitor));
   }
 
-  const auto& values = ternary_visitor.values();
+  absl::flat_hash_map<Node*, LeafTypeTree<TernaryVector>> new_values =
+      std::move(ternary_visitor).values();
   ReachedFixpoint rf = ReachedFixpoint::Unchanged;
   for (Node* node : f->nodes()) {
-    // TODO(meheff): Handle types other than bits.
-    if (node->GetType()->IsBits()) {
-      if (!known_bits_.contains(node)) {
-        known_bits_[node] = Bits(values.at(node).Get({}).size());
-        bits_values_[node] = Bits(values.at(node).Get({}).size());
-      }
-      Bits combined_known_bits = bits_ops::Or(
-          known_bits_[node], ternary_ops::ToKnownBits(values.at(node).Get({})));
-      Bits combined_bits_values =
-          bits_ops::Or(bits_values_[node],
-                       ternary_ops::ToKnownBitsValues(values.at(node).Get({})));
-      if ((combined_known_bits != known_bits_[node]) ||
-          (combined_bits_values != bits_values_[node])) {
-        rf = ReachedFixpoint::Changed;
-      }
-      known_bits_[node] = combined_known_bits;
-      bits_values_[node] = combined_bits_values;
+    CHECK(new_values.contains(node));
+    if (values_.contains(node)) {
+      leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
+          values_[node].AsMutableView(), new_values[node].AsView(),
+          [&rf](TernaryVector& lhs, const TernaryVector& rhs) {
+            if (lhs != rhs) {
+              rf = ReachedFixpoint::Changed;
+            }
+            ternary_ops::UpdateWithIntersection(lhs, rhs);
+          });
+    } else {
+      values_[node] = std::move(new_values[node]);
     }
   }
   return rf;

@@ -551,6 +551,10 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     return values_;
   }
 
+  absl::flat_hash_map<Node*, LeafTypeTree<LeafValueT>>&& values() && {
+    return std::move(values_);
+  }
+
  protected:
   AbstractEvaluatorT& evaluator() { return evaluator_; }
 

@@ -15,6 +15,7 @@
 #include "xls/visualization/ir_viz/ir_to_proto.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -36,10 +37,15 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/ternary_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"
 #include "re2/re2.h"
@@ -203,7 +209,11 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
                  << critical_path.status();
   }
 
-  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.emplace_back(
+      std::make_unique<BddQueryEngine>(BddFunction::kDefaultPathLimit));
+  engines.emplace_back(std::make_unique<TernaryQueryEngine>());
+  UnionQueryEngine query_engine(std::move(engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
   for (Node* node : function->nodes()) {

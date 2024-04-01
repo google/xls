@@ -220,9 +220,13 @@ bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
 }
 
 std::string QueryEngine::ToString(Node* node) const {
-  CHECK(node->GetType()->IsBits());
   CHECK(IsTracked(node));
-  return xls::ToString(GetTernary(node).Get({}));
+  if (node->GetType()->IsBits()) {
+    return xls::ToString(GetTernary(node).Get({}));
+  }
+  return GetTernary(node).ToString([](const TernaryVector& v) -> std::string {
+    return xls::ToString(v);
+  });
 }
 
 // A forwarder for query engine.

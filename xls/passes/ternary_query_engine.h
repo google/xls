@@ -16,9 +16,11 @@
 #define XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -44,26 +46,15 @@ class TernaryQueryEngine : public QueryEngine {
  public:
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
-  bool IsTracked(Node* node) const override {
-    return known_bits_.contains(node);
-  }
+  bool IsTracked(Node* node) const override { return values_.contains(node); }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
-    if (!node->GetType()->IsBits()) {
-      return LeafTypeTree<TernaryVector>::CreateFromFunction(
-                 node->GetType(),
-                 [](Type* leaf_type, absl::Span<const int64_t> index) {
-                   return TernaryVector(leaf_type->GetFlatBitCount(),
-                                        TernaryValue::kUnknown);
-                 })
-          .value();
-    }
-    CHECK(IsTracked(node)) << node;
-    TernaryVector ternary =
-        ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
-    LeafTypeTree<TernaryVector> result(node->GetType());
-    result.Set({}, ternary);
-    return result;
+    return LeafTypeTree<TernaryVector>(node->GetType(),
+                                       GetTernaryView(node).elements());
+  }
+  LeafTypeTreeView<TernaryVector> GetTernaryView(Node* node) const {
+    CHECK(IsTracked(node));
+    return values_.at(node).AsView();
   }
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
@@ -86,17 +77,18 @@ class TernaryQueryEngine : public QueryEngine {
   }
 
   bool IsFullyKnown(Node* n) const {
-    return IsTracked(n) && known_bits_.at(n).IsAllOnes();
+    if (!IsTracked(n)) {
+      return false;
+    }
+    return absl::c_all_of(values_.at(n).AsView().elements(),
+                          [](const TernaryVector& tv) -> bool {
+                            return ternary_ops::IsFullyKnown(tv);
+                          });
   }
 
  private:
-  // Holds which bits values are known for nodes in the function. A one in a bit
-  // position indications the respective bit value in the respective node is
-  // statically known.
-  absl::flat_hash_map<Node*, Bits> known_bits_;
-
-  // Holds the values of statically known bits of nodes in the function.
-  absl::flat_hash_map<Node*, Bits> bits_values_;
+  // Holds which bits values are known for nodes in the function.
+  absl::flat_hash_map<Node*, LeafTypeTree<TernaryEvaluator::Vector>> values_;
 };
 
 }  // namespace xls
