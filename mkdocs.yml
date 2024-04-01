@@ -8,6 +8,7 @@ theme:
   name: "material"
 nav:
   - Overview: 'README.md'
+  - Talks: 'talks.md'
   - Tutorials:
     - Overview: 'tutorials/index.md'
     - DSLX:
