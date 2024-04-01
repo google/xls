@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
@@ -386,6 +387,11 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
       // next[i] == param[i]) with a literal of the initial value.
       XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(invariant));
       Value init_value = p->GetInitValueElement(index);
+      absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
+          p->next_values(invariant);
+      for (Next* next : next_values) {
+        XLS_RETURN_IF_ERROR(p->RemoveNode(next));
+      }
       XLS_RETURN_IF_ERROR(
           invariant->ReplaceUsesWithNew<Literal>(init_value).status());
       dead_state_params.insert(invariant);
@@ -701,6 +707,29 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   return SimplificationResult::kDidNotChange;
 }
 
+// Replace all uses of 'target' with a literal 'v' except for the 'param'
+// argument of next nodes (which need to stay as params).
+template <typename NodeT, typename... Args>
+absl::StatusOr<Node*> SafeReplaceUsesWithNew(Node* target, Args... v) {
+  auto is_param_of_next = [&](Node* n) {
+    return n->Is<Next>() && n->As<Next>()->param() == target;
+  };
+  if (!target->Is<Param>() ||
+      !absl::c_any_of(target->users(), is_param_of_next)) {
+    return target->ReplaceUsesWithNew<NodeT>(std::forward<Args>(v)...);
+  }
+  std::vector<Node*> param_users;
+  absl::c_copy_if(target->users(), std::back_inserter(param_users),
+                  is_param_of_next);
+  XLS_ASSIGN_OR_RETURN(
+      auto result, target->ReplaceUsesWithNew<NodeT>(std::forward<Args>(v)...));
+  for (Node* n : param_users) {
+    XLS_RETURN_IF_ERROR(
+        n->As<Next>()->ReplaceOperandNumber(Next::kParamOperand, target));
+  }
+  return result;
+}
+
 // Runs a randomly selected optimization pass and returns whether the graph
 // changed.
 absl::StatusOr<SimplificationResult> RunRandomPass(
@@ -883,7 +912,8 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   // (Rarely) replace non-literal node with an all ones.
   if (!n->Is<Literal>() && absl::Bernoulli(rng, 0.1)) {
     XLS_RETURN_IF_ERROR(
-        n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
+        SafeReplaceUsesWithNew<Literal>(n, AllOnesOfType(n->GetType()))
+            .status());
     *which_transform = "random replace with all-ones: " + n->GetName();
     return SimplificationResult::kDidChange;
   }
@@ -916,7 +946,7 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
     return SimplificationResult::kDidNotChange;
   }
   XLS_RETURN_IF_ERROR(
-      n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
+      SafeReplaceUsesWithNew<Literal>(n, ZeroOfType(n->GetType())).status());
   *which_transform = "random replace with zero: " + n->GetName();
   return SimplificationResult::kDidChange;
 }
@@ -1115,7 +1145,8 @@ absl::StatusOr<SimplifiedIr> Simplify(FunctionBase* f,
     Param* param = f->params()[param_no];
     if (!param->GetType()->IsToken()) {
       XLS_RETURN_IF_ERROR(
-          param->ReplaceUsesWithNew<Literal>(inputs->at(param_no)).status());
+          SafeReplaceUsesWithNew<Literal>(param, inputs->at(param_no))
+              .status());
       *which_transform = absl::StrFormat(
           "random replace parameter %d (%s) with literal of input value: %s",
           param_no, param->GetName(), inputs->at(param_no).ToString());
