@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <iterator>
+#include <type_traits>
 #include <utility>
 
 namespace xls {
@@ -68,6 +69,10 @@ class UnwrappingIterator {
   using reference = value_type&;
 
   explicit UnwrappingIterator(NestedIter iter) : iter_(std::move(iter)) {}
+
+  UnwrappingIterator()
+    requires(std::is_default_constructible_v<NestedIter>)
+      : iter_() {}
 
   auto operator*() const -> value_type { return iter_->get(); }
   auto operator->() const -> value_type { return iter_->get(); }
