@@ -43,6 +43,11 @@ class SourceLocation {
                            colno_.value());
   }
 
+  bool operator<(const SourceLocation& other) const {
+    return fileno_ < other.fileno_ || lineno_ < other.lineno_ ||
+           colno_ < other.colno_;
+  }
+
  private:
   Fileno fileno_;
   Lineno lineno_;

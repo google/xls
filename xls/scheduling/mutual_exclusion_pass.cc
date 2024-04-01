@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -431,39 +432,46 @@ absl::StatusOr<std::vector<Node*>> ComputeTokenInputs(
 absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
                                 absl::Span<Node* const> to_merge) {
   std::string_view channel_name = to_merge.front()->As<Send>()->channel_name();
+  absl::btree_set<SourceLocation> source_locations_set;
   for (Node* send : to_merge) {
     CHECK_EQ(channel_name, send->As<Send>()->channel_name());
+    absl::c_copy(
+        send->loc().locations,
+        std::inserter(source_locations_set, source_locations_set.end()));
   }
+  SourceInfo merged_source_info(std::vector<SourceLocation>(
+      source_locations_set.begin(), source_locations_set.end()));
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
                        ComputeTokenInputs(f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * token,
-                       f->MakeNode<AfterAll>(SourceInfo(), token_inputs));
+                       f->MakeNode<AfterAll>(merged_source_info, token_inputs));
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
                        PredicateVectorFromNodes(p, f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * selector,
-                       f->MakeNode<Concat>(SourceInfo(), predicates));
+                       f->MakeNode<Concat>(merged_source_info, predicates));
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * predicate,
-      f->MakeNode<BitwiseReductionOp>(SourceInfo(), selector, Op::kOrReduce));
+  XLS_ASSIGN_OR_RETURN(Node * predicate,
+                       f->MakeNode<BitwiseReductionOp>(
+                           merged_source_info, selector, Op::kOrReduce));
 
   std::vector<Node*> args;
   args.reserve(to_merge.size());
   for (Node* node : to_merge) {
     args.push_back(node->As<Send>()->data());
   }
-  // OneHotSelect takes the cases in reverse order, confusingly
+  // OneHotSelect takes the cases in reverse order (LSB-to-MSB).
   std::reverse(args.begin(), args.end());
 
-  XLS_ASSIGN_OR_RETURN(Node * data,
-                       f->MakeNode<OneHotSelect>(SourceInfo(), selector, args));
+  XLS_ASSIGN_OR_RETURN(Node * data, f->MakeNode<OneHotSelect>(
+                                        merged_source_info, selector, args));
 
-  XLS_ASSIGN_OR_RETURN(Node * send, f->MakeNode<Send>(SourceInfo(), token, data,
-                                                      predicate, channel_name));
+  XLS_ASSIGN_OR_RETURN(
+      Node * send, f->MakeNode<Send>(merged_source_info, token, data, predicate,
+                                     channel_name));
 
   for (Node* node : to_merge) {
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(send));
@@ -479,26 +487,33 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
       to_merge.front()->As<Receive>()->channel_name();
   bool is_blocking = to_merge.front()->As<Receive>()->is_blocking();
 
-  for (Node* send : to_merge) {
-    CHECK_EQ(channel_name, send->As<Receive>()->channel_name());
-    CHECK_EQ(is_blocking, send->As<Receive>()->is_blocking());
+  absl::btree_set<SourceLocation> source_locations_set;
+  for (Node* receive : to_merge) {
+    CHECK_EQ(channel_name, receive->As<Receive>()->channel_name());
+    CHECK_EQ(is_blocking, receive->As<Receive>()->is_blocking());
+    absl::c_copy(
+        receive->loc().locations,
+        std::inserter(source_locations_set, source_locations_set.end()));
   }
+  SourceInfo merged_source_info(std::vector<SourceLocation>(
+      source_locations_set.begin(), source_locations_set.end()));
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
                        ComputeTokenInputs(f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * token,
-                       f->MakeNode<AfterAll>(SourceInfo(), token_inputs));
+                       f->MakeNode<AfterAll>(merged_source_info, token_inputs));
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
                        PredicateVectorFromNodes(p, f, to_merge));
 
-  XLS_ASSIGN_OR_RETURN(Node * predicate,
-                       f->MakeNode<NaryOp>(SourceInfo(), predicates, Op::kOr));
+  XLS_ASSIGN_OR_RETURN(
+      Node * predicate,
+      f->MakeNode<NaryOp>(merged_source_info, predicates, Op::kOr));
 
-  XLS_ASSIGN_OR_RETURN(Node * receive,
-                       f->MakeNode<Receive>(SourceInfo(), token, predicate,
-                                            channel_name, is_blocking));
+  XLS_ASSIGN_OR_RETURN(
+      Node * receive, f->MakeNode<Receive>(merged_source_info, token, predicate,
+                                           channel_name, is_blocking));
 
   XLS_ASSIGN_OR_RETURN(Node * token_output,
                        f->MakeNode<TupleIndex>(SourceInfo(), receive, 0));

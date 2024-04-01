@@ -1744,6 +1744,7 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
                             send->ToString(), "\n\n");
             continue;
           }
+          absl::StrAppend(&error_message, "Send node:\n\n");
           for (const SourceLocation& loc : send->loc().locations) {
             absl::StrAppend(
                 &error_message,
