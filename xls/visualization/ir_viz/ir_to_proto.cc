@@ -217,8 +217,21 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
         NodeAttributes(node, node_to_critical_path_entry, query_engine,
                        schedule, delay_estimator));
   }
+  viz::Node* implicit_sink = nullptr;
+  auto get_implicit_sink = [&]() {
+    if (implicit_sink == nullptr) {
+      implicit_sink = proto.add_nodes();
+      implicit_sink->set_name(absl::StrCat(function->name(), "_sink"));
+      implicit_sink->set_id(
+          absl::StrCat("f", function_ids.at(function), "_sink"));
+      implicit_sink->set_opcode("ret");
+      implicit_sink->mutable_attributes()->set_on_critical_path(false);
+    }
+    return implicit_sink;
+  };
 
   for (Node* node : function->nodes()) {
+    bool node_on_critical_path = node_to_critical_path_entry.contains(node);
     for (int64_t i = 0; i < node->operand_count(); ++i) {
       Node* operand = node->operand(i);
       viz::Edge* graph_edge = proto.add_edges();
@@ -227,6 +240,22 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
       graph_edge->set_target_id(GetNodeUniqueId(node, function_ids));
       graph_edge->set_type(operand->GetType()->ToString());
       graph_edge->set_bit_width(operand->GetType()->GetFlatBitCount());
+      graph_edge->set_on_critical_path(
+          node_on_critical_path &&
+          node_to_critical_path_entry.contains(operand));
+    }
+    if (function->HasImplicitUse(node)) {
+      viz::Node* sink = get_implicit_sink();
+      if (node_on_critical_path) {
+        sink->mutable_attributes()->set_on_critical_path(true);
+      }
+
+      viz::Edge* sink_edge = proto.add_edges();
+      sink_edge->set_id(absl::StrFormat(
+          "%s_to_%s", GetNodeUniqueId(node, function_ids), sink->id()));
+      sink_edge->set_source_id(GetNodeUniqueId(node, function_ids));
+      sink_edge->set_target_id(sink->id());
+      sink_edge->set_on_critical_path(node_on_critical_path);
     }
   }
   return std::move(proto);

@@ -200,6 +200,36 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "ir_to_csvs_main",
+    srcs = ["ir_to_csvs_main.cc"],
+    deps = [
+        ":ir_to_proto",
+        ":visualization_cc_proto",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_riegeli//riegeli/bytes:fd_writer",
+        "@com_google_riegeli//riegeli/csv:csv_record",
+        "@com_google_riegeli//riegeli/csv:csv_writer",
+    ],
+)
+
 closure_js_library(
     name = "externs",
     srcs = ["externs.js"],

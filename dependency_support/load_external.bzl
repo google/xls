@@ -196,7 +196,7 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
-    # Needed by fuzztest.
+    # Commit from 2023-11-02
     http_archive(
         name = "com_google_riegeli",
         sha256 = "f8386e44e16d044c1d7151c0b553bb7075d79583d4fa9e613a4be452599e0795",

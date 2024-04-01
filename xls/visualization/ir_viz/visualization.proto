@@ -33,6 +33,9 @@ message Edge {
 
   // The xls::Type::ToString of the type of the source node
   optional string type = 5;
+
+  // Whether the edge is on the critical path.
+  optional bool on_critical_path = 6;
 }
 
 message NodeAttributes {
