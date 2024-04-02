@@ -61,6 +61,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_enum_def.h"
 #include "xls/dslx/type_system/deduce_expr.h"
@@ -2211,9 +2212,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
       node, node->callee(), node->next()->args(), ctx, &next_args));
 
   // For each [constexpr] arg, mark the associated Param as constexpr.
-  absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                      InterpValue>
-      constexpr_env;
+  AstEnv constexpr_env;
   size_t argc = node->config()->args().size();
   size_t paramc = proc->config().params().size();
   if (argc != paramc) {
@@ -2228,7 +2227,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                              ctx->import_data(), ctx->type_info(),
                              ctx->warnings(), ctx->GetCurrentParametricEnv(),
                              node->config()->args()[i], nullptr));
-    constexpr_env.insert({proc->config().params()[i], value});
+    constexpr_env.Add(proc->config().params()[i], value);
   }
 
   // TODO(rspringer): 2022-05-26: We can't currently lazily evaluate `next` args
@@ -2264,7 +2263,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
 
   // 2. Extract the value of each element and associate with the corresponding
   // Proc member (in decl. order).
-  constexpr_env.clear();
+  constexpr_env.Clear();
 
   if (config_tuple == nullptr) {
     if (!proc->members().empty()) {
@@ -2285,7 +2284,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                                ctx->import_data(), config_ti, ctx->warnings(),
                                ctx->GetCurrentParametricEnv(),
                                config_tuple->members()[i], nullptr));
-      constexpr_env.insert({proc->members()[i], value});
+      constexpr_env.Add(proc->members()[i], value);
     }
   }
 

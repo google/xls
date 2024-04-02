@@ -25,6 +25,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
@@ -33,9 +34,7 @@
 namespace xls::dslx {
 
 absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
-    DeduceCtx* ctx, const Invocation* invocation,
-    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                              InterpValue>& constexpr_env);
+    DeduceCtx* ctx, const Invocation* invocation, const AstEnv& constexpr_env);
 
 // Typechecks the function's parametrics' and parameters' types.
 //

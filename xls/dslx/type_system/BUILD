@@ -73,6 +73,7 @@ cc_library(
     srcs = ["deduce_ctx.cc"],
     hdrs = ["deduce_ctx.h"],
     deps = [
+        ":ast_env",
         ":parametric_env",
         ":parametric_expression",
         ":type",
@@ -109,6 +110,7 @@ cc_library(
     ],
     hdrs = ["deduce.h"],
     deps = [
+        ":ast_env",
         ":deduce_ctx",
         ":deduce_utils",
         ":parametric_constraint",
@@ -294,6 +296,7 @@ cc_library(
     srcs = ["typecheck_invocation.cc"],
     hdrs = ["typecheck_invocation.h"],
     deps = [
+        ":ast_env",
         ":deduce",
         ":deduce_ctx",
         ":deduce_utils",
@@ -483,6 +486,21 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/dslx:interp_value",
+    ],
+)
+
+cc_library(
+    name = "ast_env",
+    srcs = ["ast_env.cc"],
+    hdrs = ["ast_env.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:proc",
     ],
 )
 

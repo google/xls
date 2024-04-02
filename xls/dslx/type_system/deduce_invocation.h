@@ -26,6 +26,7 @@
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/type.h"
@@ -49,8 +50,7 @@ absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     const std::vector<InstantiateArg>& args,
     const std::function<absl::StatusOr<Function*>(const Instantiation*,
                                                   DeduceCtx*)>& resolve_fn,
-    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                              InterpValue>& constexpr_env);
+    const AstEnv& constexpr_env);
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
                                                         DeduceCtx* ctx);

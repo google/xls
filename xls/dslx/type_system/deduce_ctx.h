@@ -33,6 +33,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
@@ -127,9 +128,7 @@ using TypecheckFunctionFn = std::function<absl::Status(Function&, DeduceCtx*)>;
 // Similar to TypecheckFunctionFn, but for a [parametric] invocation.
 using TypecheckInvocationFn =
     std::function<absl::StatusOr<TypeAndParametricEnv>(
-        DeduceCtx* ctx, const Invocation*,
-        const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                                  InterpValue>&)>;
+        DeduceCtx* ctx, const Invocation*, const AstEnv&)>;
 
 // A single object that contains all the state/callbacks used in the
 // typechecking process.

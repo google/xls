@@ -47,6 +47,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -324,9 +325,7 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
 }
 
 absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
-    DeduceCtx* ctx, const Invocation* invocation,
-    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                              InterpValue>& constexpr_env) {
+    DeduceCtx* ctx, const Invocation* invocation, const AstEnv& constexpr_env) {
   VLOG(5) << "Typechecking invocation: `" << invocation->ToString() << "` @ "
           << invocation->span();
   XLS_VLOG_LINES(5, ctx->GetFnStackDebugString());
@@ -454,19 +453,11 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     }
   }
 
-  auto get_name_def =
-      [](std::variant<const Param*, const ProcMember*> v) -> NameDef* {
-    return absl::visit(
-        Visitor{[](const Param* n) { return n->name_def(); },
-                [](const ProcMember* n) { return n->name_def(); }},
-        v);
-  };
-
   // Mark params (for proc config fns) or proc members (for proc next fns) as
   // constexpr.
   for (const auto& [k, v] : constexpr_env) {
     ctx->type_info()->NoteConstExpr(ToAstNode(k), v);
-    ctx->type_info()->NoteConstExpr(get_name_def(k), v);
+    ctx->type_info()->NoteConstExpr(AstEnv::GetNameDefForKey(k), v);
   }
 
   // Add the new parametric bindings to the constexpr set.

@@ -36,6 +36,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
@@ -165,8 +166,7 @@ absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     const std::vector<InstantiateArg>& args,
     const std::function<absl::StatusOr<Function*>(const Instantiation*,
                                                   DeduceCtx*)>& resolve_fn,
-    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
-                              InterpValue>& constexpr_env) {
+    const AstEnv& constexpr_env) {
   bool is_parametric_fn = false;
   // We can't resolve builtins as AST Functions, hence this check.
   if (!IsBuiltinFn(invocation->callee())) {
