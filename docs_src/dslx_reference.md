@@ -1208,12 +1208,10 @@ The following expressions have type signature `(xN[N], xN[N]) -> xN[N]`.
 
 *   bit-wise or (`|`)
 *   bit-wise and (`&`)
+*   bit-wise xor (`^`)
 *   add (`+`)
 *   subtract (`-`)
-*   xor (`^`)
 *   multiply (`*`)
-*   logical or (`||`)
-*   logical and (`&&`)
 
 Things like
 [`std::smul`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+smul%22) are
@@ -1224,6 +1222,14 @@ to widen the inputs (e.g.
 ). The optimizer will narrow the operands and produce efficient hardware,
 especially with trivial zero-/sign-extended operands like `std::smul` and
 `std::uadd_with_overflow`.
+
+#### Logical Expressions
+
+*   logical or (`||`)
+*   logical and (`&&`)
+
+These are binary operations that are of the type `(bool, bool) -> bool`. (Note
+that `bool` is equivalent to `u1`.)
 
 #### Shift Expressions
 

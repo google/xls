@@ -564,6 +564,18 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBinop(const Binop* node,
     return BitsType::MakeU1();
   }
 
+  if (GetBinopLogicalKinds().contains(node->binop_kind())) {
+    auto u1 = BitsType::MakeU1();
+    if (*lhs != *u1) {
+      return ctx->TypeMismatchError(
+          node->span(), node->lhs(), *lhs, nullptr, *u1,
+          absl::StrFormat("Logical operation `%s` can only be applied to "
+                          "`bool`/`u1` operands",
+                          BinopKindFormat(node->binop_kind())));
+    }
+    return u1;
+  }
+
   if (!IsBitsLike(*lhs)) {
     return TypeInferenceErrorStatus(
         node->span(), lhs.get(),

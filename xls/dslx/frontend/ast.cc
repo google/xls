@@ -506,6 +506,14 @@ const absl::btree_set<BinopKind>& GetBinopComparisonKinds() {
   return *singleton;
 }
 
+const absl::btree_set<BinopKind>& GetBinopLogicalKinds() {
+  static const absl::NoDestructor<absl::btree_set<BinopKind>> singleton({
+      BinopKind::kLogicalOr,
+      BinopKind::kLogicalAnd,
+  });
+  return *singleton;
+}
+
 const absl::btree_set<BinopKind>& GetBinopShifts() {
   static const absl::NoDestructor<absl::btree_set<BinopKind>> singleton({
       BinopKind::kShl,

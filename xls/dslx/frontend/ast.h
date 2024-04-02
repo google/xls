@@ -1419,6 +1419,9 @@ const absl::btree_set<BinopKind>& GetBinopSameTypeKinds();
 // Binary operators that have signature `(T, T) -> bool`.
 const absl::btree_set<BinopKind>& GetBinopComparisonKinds();
 
+// Binary operators that have the signature `(u1, u1) -> u1`.
+const absl::btree_set<BinopKind>& GetBinopLogicalKinds();
+
 // Binary operators that are shift operations.
 const absl::btree_set<BinopKind>& GetBinopShifts();
 

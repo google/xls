@@ -331,6 +331,46 @@ fn f() -> u32 {
                HasSubstr("Annotated type did not match inferred type")));
 }
 
+// -- logical ops
+
+class LogicalOpTypecheckTest : public testing::TestWithParam<std::string_view> {
+ public:
+  absl::Status TypecheckOp(std::string_view tmpl) {
+    std::string program = absl::StrReplaceAll(tmpl, {{"$OP", GetParam()}});
+    return Typecheck(program).status();
+  }
+};
+
+TEST_P(LogicalOpTypecheckTest, LogicalAndOnVariousOkTypes) {
+  XLS_EXPECT_OK(TypecheckOp("fn f(a: u1, b: u1) -> u1 { a $OP b }"));
+  XLS_EXPECT_OK(TypecheckOp("fn f(a: bool, b: bool) -> bool { a $OP b }"));
+  XLS_EXPECT_OK(TypecheckOp("fn f(a: uN[1], b: uN[1]) -> uN[1] { a $OP b }"));
+  XLS_EXPECT_OK(
+      TypecheckOp("fn f(a: bits[1], b: bits[1]) -> bits[1] { a $OP b }"));
+  XLS_EXPECT_OK(TypecheckOp(
+      "fn f(a: xN[false][1], b: xN[false][1]) -> xN[false][1] { a $OP b }"));
+}
+
+TEST_P(LogicalOpTypecheckTest, LogicalAndOnVariousInvalidTypes) {
+  EXPECT_THAT(TypecheckOp("fn f(a: u2, b: u2) -> bool { a $OP b }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("uN[2] vs uN[1]")));
+  EXPECT_THAT(TypecheckOp("fn f(a: u32, b: u32) -> bool { a $OP b }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("uN[32] vs uN[1]")));
+  EXPECT_THAT(TypecheckOp("fn f(a: s1, b: s1) -> bool { a $OP b }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("sN[1] vs uN[1]")));
+  EXPECT_THAT(TypecheckOp("fn f(a: s32, b: s32) -> bool { a $OP b }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("sN[32] vs uN[1]")));
+}
+
+INSTANTIATE_TEST_SUITE_P(LogicalOpTypecheckTestInstance, LogicalOpTypecheckTest,
+                         ::testing::Values("&&", "||"));
+
+// --
+
 TEST(TypecheckTest, LogicalAndOfComparisons) {
   XLS_EXPECT_OK(Typecheck("fn f(a: u8, b: u8) -> bool { a == b }"));
   XLS_EXPECT_OK(Typecheck(
