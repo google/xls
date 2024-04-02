@@ -720,7 +720,7 @@ bool InstantiationMatcher::MatchAndExplain(
     const ::xls::Instantiation* instantiation,
     ::testing::MatchResultListener* listener) const {
   if (name_.has_value() &&
-      !name_->MatchAndExplain(instantiation->name(), listener)) {
+      !name_->MatchAndExplain(std::string{instantiation->name()}, listener)) {
     return false;
   }
 

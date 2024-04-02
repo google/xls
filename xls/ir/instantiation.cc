@@ -55,9 +55,11 @@ absl::StatusOr<InstantiationKind> StringToInstantiationKind(
     std::string_view str) {
   if (str == "block") {
     return InstantiationKind::kBlock;
-  } else if (str == "fifo") {
+  }
+  if (str == "fifo") {
     return InstantiationKind::kFifo;
-  } else if (str == "extern") {
+  }
+  if (str == "extern") {
     return InstantiationKind::kExtern;
   }
   return absl::InvalidArgumentError(
@@ -88,8 +90,8 @@ absl::StatusOr<InstantiationPort> BlockInstantiation::GetOutputPort(
     std::string_view name) {
   for (OutputPort* output_port : instantiated_block()->GetOutputPorts()) {
     if (output_port->GetName() == name) {
-      return InstantiationPort{std::string{name},
-                               output_port->operand(0)->GetType()};
+      return InstantiationPort{.name = std::string{name},
+                               .type = output_port->operand(0)->GetType()};
     }
   }
   return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));

@@ -67,7 +67,7 @@ class Instantiation {
       : name_(name), kind_(kind) {}
   virtual ~Instantiation() = default;
 
-  const std::string& name() const { return name_; }
+  std::string_view name() const { return name_; }
 
   InstantiationKind kind() const { return kind_; }
 
