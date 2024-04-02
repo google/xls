@@ -22,7 +22,6 @@ load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 # cc_proto_library is used in this file
 
 package(
-    default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
