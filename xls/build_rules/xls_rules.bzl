@@ -82,6 +82,7 @@ def _xls_dslx_opt_ir_impl(ctx):
     ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
         ctx,
         ir_conv_info.conv_ir_file,
+        ir_conv_info.original_input_files,
     )
     return [
         dslx_info,
@@ -292,6 +293,7 @@ def _xls_dslx_verilog_impl(ctx):
     codegen_info, verilog_built_files, verilog_runfiles = xls_ir_verilog_impl(
         ctx,
         ir_opt_info.opt_ir_file,
+        ir_opt_info.original_input_files,
     )
     return [
         dslx_info,

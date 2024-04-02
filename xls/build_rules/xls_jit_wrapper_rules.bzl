@@ -20,6 +20,7 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "get_runfiles_for_xls",
+    "get_src_ir_for_xls",
     "split_filename",
 )
 load(
@@ -106,7 +107,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
             fail("Unrecognized argument: %s." % flag_name)
 
     # source file
-    src = ctx.file.src
+    src = get_src_ir_for_xls(ctx)
     jit_wrapper_flags.add("--ir_path", src.path)
 
     # Retrieve basename and extension from filename

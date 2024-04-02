@@ -19,8 +19,10 @@ load(
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
+    "get_original_input_files_for_xls",
     "get_output_filename_value",
     "get_runfiles_for_xls",
+    "get_src_ir_for_xls",
     "get_transitive_built_files_for_xls",
     "is_args_valid",
 )
@@ -187,7 +189,7 @@ def _convert_to_ir(ctx, src):
     )
     return runfiles, ir_file
 
-def _optimize_ir(ctx, src):
+def _optimize_ir(ctx, src, original_input_files):
     """Returns the runfiles and a File referencing the optimized IR file.
 
     Creates an action in the context to optimize an IR file.
@@ -195,6 +197,7 @@ def _optimize_ir(ctx, src):
     Args:
       ctx: The current rule's context object.
       src: The source file.
+      original_input_files: All original source files that produced this IR file (used for errors).
     Returns:
       A tuple with the following elements in the order presented:
         1. The runfiles to optimize the IR file.
@@ -255,7 +258,7 @@ def _optimize_ir(ctx, src):
     log_file = ctx.actions.declare_file(opt_log_filename)
     args.add("--alsologto", log_file)
 
-    runfiles = get_runfiles_for_xls(ctx, [], [src] + ram_rewrite_files + debug_src_files)
+    runfiles = get_runfiles_for_xls(ctx, [], [src] + ram_rewrite_files + debug_src_files + original_input_files)
     ctx.actions.run(
         outputs = [opt_ir_file, log_file],
         executable = ctx.executable._xls_opt_ir_tool,
@@ -551,7 +554,7 @@ xls_ir_common_attrs = {
         doc = "The IR source file for the rule. A single source file must be " +
               "provided. The file must have a '.ir' extension.",
         mandatory = True,
-        allow_single_file = [_IR_FILE_EXTENSION],
+        allow_files = [_IR_FILE_EXTENSION],
     ),
 }
 
@@ -604,7 +607,7 @@ def xls_dslx_ir_impl(ctx):
     dslx_info = get_DslxInfo_from_dslx_library_as_input(ctx)
     return [
         dslx_info,
-        ConvIRInfo(conv_ir_file = ir_file),
+        ConvIRInfo(original_input_files = srcs, conv_ir_file = ir_file),
         [ir_file],
         runfiles,
     ]
@@ -663,7 +666,7 @@ An IR conversion with a top entity defined.
     ),
 )
 
-def xls_ir_opt_ir_impl(ctx, src):
+def xls_ir_opt_ir_impl(ctx, src, original_input_files):
     """The implementation of the 'xls_ir_opt_ir' rule.
 
     Optimizes an IR file.
@@ -671,6 +674,7 @@ def xls_ir_opt_ir_impl(ctx, src):
     Args:
       ctx: The current rule's context object.
       src: The source file.
+      original_input_files: All original source files that produced this IR file (used for errors).
 
     Returns:
       A tuple with the following elements in the order presented:
@@ -678,9 +682,10 @@ def xls_ir_opt_ir_impl(ctx, src):
         1. The list of built files.
         1. The runfiles.
     """
-    runfiles, opt_ir_file = _optimize_ir(ctx, src)
+    runfiles, opt_ir_file = _optimize_ir(ctx, src, original_input_files)
     return [
         OptIRInfo(
+            original_input_files = original_input_files,
             input_ir_file = src,
             opt_ir_file = opt_ir_file,
             opt_ir_args = ctx.attr.opt_ir_args,
@@ -728,7 +733,8 @@ def _xls_ir_opt_ir_impl_wrapper(ctx):
     """
     ir_opt_info, built_files_list, runfiles = xls_ir_opt_ir_impl(
         ctx,
-        ctx.file.src,
+        get_src_ir_for_xls(ctx),
+        get_original_input_files_for_xls(ctx),
     )
 
     return [
@@ -898,7 +904,7 @@ def _xls_eval_ir_test_impl(ctx):
     if ctx.attr.input_validator and ctx.attr.input_validator_expr:
         fail(msg = "Only one of \"input_validator\" or \"input_validator_expr\" " +
                    "may be specified for a single \"xls_eval_ir_test\" rule.")
-    src = ctx.file.src
+    src = get_src_ir_for_xls(ctx)
 
     runfiles, cmd = get_eval_ir_test_cmd(ctx, src)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
@@ -996,7 +1002,7 @@ def _xls_benchmark_ir_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    src = ctx.file.src
+    src = get_src_ir_for_xls(ctx)
 
     runfiles, cmd = get_benchmark_ir_cmd(ctx, src)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
@@ -1089,7 +1095,7 @@ def _xls_ir_cc_library_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    src = ctx.file.src
+    src = get_src_ir_for_xls(ctx)
 
     # Source files (.h and .cc) files are first generated unformatted, then
     # formatted with clangformat.

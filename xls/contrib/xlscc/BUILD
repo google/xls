@@ -171,6 +171,8 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
         "//xls/common:thread",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:path",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:source_location",

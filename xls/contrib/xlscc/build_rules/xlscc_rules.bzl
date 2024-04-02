@@ -94,6 +94,15 @@ def _get_xls_cc_ir_generated_files(args):
     """
     return [args.get("ir_file")]
 
+def _get_xls_cc_ir_source_files(ctx):
+    files = ([ctx.file.src] +
+             ctx.files._default_cc_header_files +
+             ctx.files._default_synthesis_header_files +
+             ctx.files.src_deps)
+    if ctx.file.block:
+        files.append(ctx.file.block)
+    return files
+
 def _get_runfiles_for_xls_cc_ir(ctx):
     """Returns the runfiles from a 'xls_cc_ir' ctx.
 
@@ -105,12 +114,7 @@ def _get_runfiles_for_xls_cc_ir(ctx):
     """
     transitive_runfiles = []
 
-    files = ([ctx.file.src] +
-             ctx.files._default_cc_header_files +
-             ctx.files._default_synthesis_header_files +
-             ctx.files.src_deps)
-    if ctx.file.block:
-        files.append(ctx.file.block)
+    files = _get_xls_cc_ir_source_files(ctx)
     runfiles = ctx.runfiles(files = files)
     transitive_runfiles.append(ctx.attr
         ._xlscc_tool[DefaultInfo].default_runfiles)
@@ -296,7 +300,12 @@ def _xls_cc_ir_impl(ctx):
         mnemonic = "ConvertXLSCC",
         progress_message = "Converting XLSCC file: %s" % (ctx.file.src.path),
     )
-    return [ConvIRInfo(conv_ir_file = ir_file), outputs, runfiles, XlsccInfo(cc_headers = cc_headers)]
+    return [
+        ConvIRInfo(original_input_files = _get_xls_cc_ir_source_files(ctx), conv_ir_file = ir_file),
+        outputs,
+        runfiles,
+        XlsccInfo(cc_headers = cc_headers),
+    ]
 
 _xls_cc_ir_attrs = {
     "src": attr.label(
@@ -545,10 +554,12 @@ def _xls_cc_verilog_impl(ctx):
     ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
         ctx,
         ir_conv_info.conv_ir_file,
+        ir_conv_info.original_input_files,
     )
     codegen_info, verilog_built_files, verilog_runfiles = xls_ir_verilog_impl(
         ctx,
         ir_opt_info.opt_ir_file,
+        ir_opt_info.original_input_files,
     )
     runfiles = ir_conv_runfiles.merge_all([opt_ir_runfiles, verilog_runfiles])
     return [

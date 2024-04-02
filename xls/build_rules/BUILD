@@ -84,6 +84,7 @@ bzl_library(
 bzl_library(
     name = "xls_common_rules_bzl",
     srcs = ["xls_common_rules.bzl"],
+    deps = [":xls_providers_bzl"],
 )
 
 bzl_library(

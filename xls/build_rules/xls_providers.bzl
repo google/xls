@@ -42,6 +42,7 @@ ConvIRInfo = provider(
     doc = "A provider containing IR conversion file information for the " +
           "target. It is created and returned by the xls_dslx_ir rule.",
     fields = {
+        "original_input_files": "List[File]: The original source files.",
         "conv_ir_file": "File: The IR file converted from a source file.",
     },
 )
@@ -50,6 +51,7 @@ OptIRInfo = provider(
     doc = "A provider containing IR optimization file information for the " +
           "target. It is created and returned by the xls_ir_opt_ir rule.",
     fields = {
+        "original_input_files": "List[File]: The original source files.",
         "input_ir_file": "File: The IR file input file.",
         "opt_ir_args": "Dictionary: The arguments for the IR optimizer.",
         "opt_ir_file": "File: The IR optimized file.",

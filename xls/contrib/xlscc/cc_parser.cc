@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <map>
 #include <memory>
@@ -56,6 +57,8 @@
 #include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/path.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
@@ -221,13 +224,19 @@ xls::SourceInfo CCParser::GetLoc(const clang::PresumedLoc& loc) {
     return xls::SourceInfo();
   }
 
-  auto found = file_numbers_.find(loc.getFilename());
+  std::filesystem::path path = loc.getFilename();
+  absl::StatusOr<std::filesystem::path> current_path =
+      xls::GetCurrentDirectory();
+  if (current_path.ok()) {
+    path = path.lexically_proximate(*current_path);
+  }
+  auto found = file_numbers_.find(path.string());
 
   int id = 0;
 
   if (found == file_numbers_.end()) {
     id = next_file_number_++;
-    file_numbers_[loc.getFilename()] = id;
+    file_numbers_[path.string()] = id;
   } else {
     id = found->second;
   }

@@ -21,15 +21,23 @@ load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
     "args_to_string",
+    "get_original_input_files_for_xls",
     "get_output_filename_value",
     "get_runfiles_for_xls",
+    "get_src_ir_for_xls",
     "get_transitive_built_files_for_xls",
     "is_args_valid",
     "split_filename",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-load("//xls/build_rules:xls_providers.bzl", "CODEGEN_FIELDS", "CodegenInfo", "OptIRInfo", "SCHEDULING_FIELDS")
+load(
+    "//xls/build_rules:xls_providers.bzl",
+    "CODEGEN_FIELDS",
+    "CodegenInfo",
+    "OptIRInfo",
+    "SCHEDULING_FIELDS",
+)
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "xls_toolchain_attrs",
@@ -241,7 +249,7 @@ def validate_verilog_filename(verilog_filename, use_system_verilog):
         fail("Verilog filename must contain the '%s' extension." %
              _VERILOG_FILE_EXTENSION)
 
-def xls_ir_verilog_impl(ctx, src):
+def xls_ir_verilog_impl(ctx, src, original_input_files):
     """The core implementation of the 'xls_ir_verilog' rule.
 
     Generates a Verilog file, module signature file, block file, Verilog line
@@ -250,6 +258,7 @@ def xls_ir_verilog_impl(ctx, src):
     Args:
       ctx: The current rule's context object.
       src: The source file.
+      original_input_files: All original source files that produced this IR file (used for errors).
 
     Returns:
       A tuple with the following elements in the order presented:
@@ -347,7 +356,7 @@ def xls_ir_verilog_impl(ctx, src):
     # Get runfiles
     codegen_tool_runfiles = ctx.attr._xls_codegen_tool[DefaultInfo].default_runfiles
 
-    runfiles_list = [src]
+    runfiles_list = [src] + original_input_files
     if ctx.file.codegen_options_proto:
         final_args += " --codegen_options_proto={}".format(ctx.file.codegen_options_proto.path)
         runfiles_list.append(ctx.file.codegen_options_proto)
@@ -435,7 +444,8 @@ def _xls_ir_verilog_impl_wrapper(ctx):
     """
     codegen_info, built_files_list, runfiles = xls_ir_verilog_impl(
         ctx,
-        ctx.file.src,
+        get_src_ir_for_xls(ctx),
+        get_original_input_files_for_xls(ctx),
     )
 
     return [
