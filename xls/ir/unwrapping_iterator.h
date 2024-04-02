@@ -59,7 +59,8 @@ namespace xls {
 //
 // For simplicity, UnwrappingIterator is currently unconditionally an
 // input_iterator -- it doesn't inherit any superpowers NestedIterator may have.
-template <std::input_iterator NestedIter>
+template <typename NestedIter>
+  requires(std::input_iterator<NestedIter>)
 class UnwrappingIterator {
  public:
   using iterator_category = std::input_iterator_tag;
