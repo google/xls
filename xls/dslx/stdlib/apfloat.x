@@ -1569,7 +1569,9 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     const SIGN_BIT = u32:1;
     const HIDDEN_BIT = u32:1;
     const GUARD_ROUND_STICKY_BITS = u32:3;
-    const WIDE_FRACTION: u32 = SIGN_BIT + HIDDEN_BIT + FRACTION_SZ + GUARD_ROUND_STICKY_BITS;
+    const FRACTION = HIDDEN_BIT + FRACTION_SZ;
+    const SIGNED_FRACTION = SIGN_BIT + FRACTION;
+    const WIDE_FRACTION: u32 = SIGNED_FRACTION + GUARD_ROUND_STICKY_BITS;
     // CARRY_FRACTION: WIDE_FRACTION plus one bit to capture a possible carry bit.
     const CARRY_FRACTION: u32 = u32:1 + WIDE_FRACTION;
 
@@ -1581,13 +1583,17 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     let (a_is_smaller, shift) = sign_magnitude_difference(a.bexp, b.bexp);
     let (x, y) = if a_is_smaller { (b, a) } else { (a, b) };
 
-    // Step 1: add hidden bit and provide space for guard, round and sticky
-    let wide_x = (u1:1 ++ x.fraction) as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
-    let wide_y = (u1:1 ++ y.fraction) as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
+    // Step 1: add hidden bit.
+    let fraction_x = (u1:1 ++ x.fraction) as uN[FRACTION];
+    let fraction_y = (u1:1 ++ y.fraction) as uN[FRACTION];
 
     // Flush denormals to 0.
-    let wide_x = if x.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { wide_x };
-    let wide_y = if y.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { wide_y };
+    let fraction_x = if x.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_x };
+    let fraction_y = if y.bexp == uN[EXP_SZ]:0 { uN[FRACTION]:0 } else { fraction_y };
+
+    // Provide space for guard, round and sticky
+    let wide_x = fraction_x as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
+    let wide_y = fraction_y as uN[WIDE_FRACTION] << GUARD_ROUND_STICKY_BITS;
 
     // Shift the smaller fraction to align with the largest exponent.
     // x is already the larger, so no alignment needed which is done for y.
