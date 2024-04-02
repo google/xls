@@ -33,5 +33,7 @@ def repo():
             # that the rest of XLS uses.
             "@com_google_xls//dependency_support/boost:add_python.patch",
             "@com_google_xls//dependency_support/boost:backtrace_from_rule.patch",
+            # See: https://github.com/nelhage/rules_boost/issues/555
+            "@com_google_xls//dependency_support/boost:downgrade_lzma.patch",
         ],
     )
