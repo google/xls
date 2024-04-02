@@ -40,7 +40,7 @@ py_test(
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
-    visibility = ["//xls:xls_internal"],
+    visibility = ["//visibility:private"],
 )
 
 dslx_strip_comments(
