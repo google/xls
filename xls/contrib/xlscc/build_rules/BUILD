@@ -36,7 +36,7 @@ exports_files(
 bzl_library(
     name = "xlscc_rules_bzl",
     srcs = ["xlscc_rules.bzl"],
-    visibility = ["//xls/contrib/xlscc/build_rules/__subpackages__"],
+    visibility = ["//visibility:private"],
     deps = [
         "@bazel_skylib//lib:dicts",
         "//xls/build_rules:xls_codegen_rules_bzl",
@@ -53,7 +53,7 @@ bzl_library(
 bzl_library(
     name = "xlscc_rules_build_defs_bzl",
     srcs = ["xlscc_rules_build_defs.bzl"],
-    visibility = ["//xls/contrib/xlscc/build_rules/__subpackages__"],
+    visibility = ["//visibility:private"],
     deps = [
         ":xlscc_rules_bzl",
     ],
@@ -71,7 +71,7 @@ bzl_library(
 bzl_library(
     name = "xlscc_providers_bzl",
     srcs = ["xlscc_providers.bzl"],
-    visibility = ["//xls/contrib/xlscc/build_rules/__subpackages__"],
+    visibility = ["//visibility:private"],
 )
 
 bzl_library(
