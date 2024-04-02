@@ -14,11 +14,13 @@
 
 #include "xls/common/math_util.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
 
 namespace xls {
 namespace {
@@ -362,6 +364,59 @@ TEST(MathUtil, SaturatingAdd) {
   }
 }
 
+TEST(MathUtil, SaturatingSub) {
+  {
+    auto sa = SaturatingSub(int8_t{3}, int8_t{4});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, -1);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingSub(int8_t{0}, int8_t{-127});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingSub(uint8_t{100}, uint8_t{101});
+    int8_t u8 = sa.result;
+    EXPECT_EQ(u8, 0);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingSub(int8_t{100}, int8_t{-101});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+}
+
+TEST(MathUtil, SaturatingMul) {
+  {
+    auto sa = SaturatingMul(int8_t{3}, int8_t{4});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 12);
+    EXPECT_FALSE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingMul(int8_t{2}, int8_t{-88});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, -128);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingMul(uint8_t{100}, uint8_t{101});
+    uint8_t u8 = sa.result;
+    EXPECT_EQ(u8, 255);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+  {
+    auto sa = SaturatingMul(int8_t{-100}, int8_t{-101});
+    int8_t i8 = sa.result;
+    EXPECT_EQ(i8, 127);
+    EXPECT_TRUE(sa.did_overflow);
+  }
+}
 TEST(MathUtil, ExhaustiveSaturatingAdd) {
   for (int16_t i16 = std::numeric_limits<int8_t>::min();
        i16 <= std::numeric_limits<int8_t>::max(); ++i16) {
@@ -372,8 +427,7 @@ TEST(MathUtil, ExhaustiveSaturatingAdd) {
       bool expect_overflow = sum_16 > std::numeric_limits<int8_t>::max();
       auto sa = SaturatingAdd(i, j);
       if (expect_overflow) {
-        EXPECT_EQ(std::numeric_limits<int8_t>::max(),
-                  sa.result);
+        EXPECT_EQ(std::numeric_limits<int8_t>::max(), sa.result);
         EXPECT_TRUE(sa.did_overflow);
       } else {
         EXPECT_EQ(sum_16, sa.result);
@@ -382,6 +436,46 @@ TEST(MathUtil, ExhaustiveSaturatingAdd) {
     }
   }
 }
+
+void SaturatingAddFuzz(int16_t l, int16_t r) {
+  auto res = SaturatingAdd(l, r);
+  int32_t raw = static_cast<int32_t>(l) + static_cast<int32_t>(r);
+  int32_t clamped =
+      std::clamp<int32_t>(raw, std::numeric_limits<int16_t>::min(),
+                          std::numeric_limits<int16_t>::max());
+  EXPECT_EQ(static_cast<int32_t>(res.result), clamped);
+  if (raw != clamped) {
+    // Might have just hit the i16 max/min
+    EXPECT_TRUE(res.did_overflow);
+  }
+}
+void SaturatingSubFuzz(int16_t l, int16_t r) {
+  auto res = SaturatingSub(l, r);
+  int32_t raw = static_cast<int32_t>(l) - static_cast<int32_t>(r);
+  int32_t clamped =
+      std::clamp<int32_t>(raw, std::numeric_limits<int16_t>::min(),
+                          std::numeric_limits<int16_t>::max());
+  EXPECT_EQ(static_cast<int32_t>(res.result), clamped);
+  if (raw != clamped) {
+    // Might have just hit the i16 max/min
+    EXPECT_TRUE(res.did_overflow);
+  }
+}
+void SaturatingMulFuzz(int8_t l, int8_t r) {
+  auto res = SaturatingMul(l, r);
+  int32_t raw = static_cast<int32_t>(l) * static_cast<int32_t>(r);
+  int32_t clamped = std::clamp<int32_t>(raw, std::numeric_limits<int8_t>::min(),
+                                        std::numeric_limits<int8_t>::max());
+  EXPECT_EQ(static_cast<int32_t>(res.result), clamped);
+  if (raw != clamped) {
+    // Might have just hit the i16 max/min
+    EXPECT_TRUE(res.did_overflow);
+  }
+}
+
+FUZZ_TEST(MathUtil, SaturatingAddFuzz);
+FUZZ_TEST(MathUtil, SaturatingSubFuzz);
+FUZZ_TEST(MathUtil, SaturatingMulFuzz);
 
 }  // namespace
 }  // namespace xls

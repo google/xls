@@ -178,6 +178,7 @@ cc_test(
         ":math_util",
         ":xls_gunit_main",
         "//xls/common:xls_gunit",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 

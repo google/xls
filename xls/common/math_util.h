@@ -16,11 +16,12 @@
 #define XLS_COMMON_MATH_UTIL_H_
 
 #include <bit>
-#include <cstddef>
+#include <cmath>
+#include <cstdint>
 #include <functional>
 #include <limits>
+#include <tuple>
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -189,41 +190,65 @@ template <typename IntType>
 struct SaturatedResult {
   // What the result value is.
   IntType result;
-  // Would the non-saturating operation have overflowed. NB If this is true then
-  // 'result' is saturated.
+  // Would the non-saturating operation have overflowed/underflowed. NB If this
+  // is true then 'result' is saturated.
   bool did_overflow;
 };
 
+// Perform a saturating subtraction between l and r. If l - r would underflow
+// std::numeric_limits<IntType>::min() is returned instead and did_overflow is
+// set to true.  If l - r would overflow then
+// std::numeric_limits<IntType>::max() is returned and did_overflow is set to
+// true.
+template <typename IntType>
+constexpr SaturatedResult<IntType> SaturatingSub(IntType l, IntType r)
+  requires(std::is_integral_v<IntType>)
+{
+  static_assert(__has_builtin(__builtin_sub_overflow));
+  SaturatedResult<IntType> res;
+  res.did_overflow = __builtin_sub_overflow(l, r, &res.result);
+  if (res.did_overflow) {
+    res.result = r < IntType{0} ? std::numeric_limits<IntType>::max()
+                                : std::numeric_limits<IntType>::min();
+  }
+  return res;
+}
+
 // Perform a saturating addition between l and r. If l + r would overflow
-// std::numeric_limits<IntType>::max() is returned instead and, if passed,
-// overflowed is set to true. Currently only positive saturation is supported so
-// at least one of l & r must be positive. This is required even if the
-// operation would not underflow.
+// std::numeric_limits<IntType>::max() is returned instead and did_overflow is
+// set to true.
 template <typename IntType>
 constexpr SaturatedResult<IntType> SaturatingAdd(IntType l, IntType r)
   requires(std::is_integral_v<IntType>)
 {
-  // TODO https://github.com/google/xls/issues/1353: It would be good to have
-  // sub, mul, div and so on here.
-  if (r < IntType{0}) {
-    // NB Adding 2 negative numbers gives the possibility of underflow which we
-    // don't detect.
-    CHECK_GE(l, IntType{0})
-        << "Saturating add of two negative numbers is not supported. At least "
-        << "one of l (" << l << ") and r (" << r << ") must be positive.";
-    return SaturatingAdd(r, l);
+  static_assert(__has_builtin(__builtin_add_overflow));
+  SaturatedResult<IntType> res;
+  res.did_overflow = __builtin_add_overflow(l, r, &res.result);
+  if (res.did_overflow) {
+    res.result = r < IntType{0} ? std::numeric_limits<IntType>::min()
+                                : std::numeric_limits<IntType>::max();
   }
-  using Unsigned = std::make_unsigned_t<IntType>;
-  Unsigned ul = std::bit_cast<Unsigned>(l);
-  Unsigned ur = std::bit_cast<Unsigned>(r);
-  // Signed addition overflow is UB.
-  Unsigned us = ul + ur;
-  IntType is = std::bit_cast<IntType>(us);
-  if (is >= l) {
-    // No overflow.
-    return {.result = std::bit_cast<IntType>(us), .did_overflow = false};
+  return res;
+}
+
+// Perform a saturating multiplication between l and r. If l * r would overflow
+// std::numeric_limits<IntType>::max() is returned instead and did_overflow is
+// set to true. If l * r would underflow std;:numeric_limits<IntType>::min9) is
+// returned instead and did_overflow is set to true.
+template <typename IntType>
+constexpr SaturatedResult<IntType> SaturatingMul(IntType l, IntType r)
+  requires(std::is_integral_v<IntType>)
+{
+  static_assert(__has_builtin(__builtin_mul_overflow));
+  SaturatedResult<IntType> res;
+  res.did_overflow = __builtin_mul_overflow(l, r, &res.result);
+  if (res.did_overflow) {
+    bool l_neg = l < IntType{0};
+    bool r_neg = r < IntType{0};
+    res.result = l_neg != r_neg ? std::numeric_limits<IntType>::min()
+                                : std::numeric_limits<IntType>::max();
   }
-  return {.result = std::numeric_limits<IntType>::max(), .did_overflow = true};
+  return res;
 }
 
 }  // namespace xls
