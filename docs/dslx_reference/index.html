@@ -1527,6 +1527,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#logical-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logical Expressions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#shift-expressions" class="md-nav__link">
     <span class="md-ellipsis">
       Shift Expressions
@@ -1763,6 +1772,30 @@
   <a href="#quickcheck" class="md-nav__link">
     <span class="md-ellipsis">
       QuickCheck
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#communicating-sequential-processes-aka-procs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Communicating Sequential Processes (AKA procs)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Communicating Sequential Processes (AKA procs)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#proc-syntax-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proc Syntax Template
     </span>
   </a>
   
@@ -3107,6 +3140,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#logical-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logical Expressions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#shift-expressions" class="md-nav__link">
     <span class="md-ellipsis">
       Shift Expressions
@@ -3343,6 +3385,30 @@
   <a href="#quickcheck" class="md-nav__link">
     <span class="md-ellipsis">
       QuickCheck
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#communicating-sequential-processes-aka-procs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Communicating Sequential Processes (AKA procs)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Communicating Sequential Processes (AKA procs)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#proc-syntax-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proc Syntax Template
     </span>
   </a>
   
@@ -4307,12 +4373,10 @@ operands can be of arbitrary bit types (i.e. shift expressions).</p>
 <ul>
 <li>bit-wise or (<code>|</code>)</li>
 <li>bit-wise and (<code>&amp;</code>)</li>
+<li>bit-wise xor (<code>^</code>)</li>
 <li>add (<code>+</code>)</li>
 <li>subtract (<code>-</code>)</li>
-<li>xor (<code>^</code>)</li>
 <li>multiply (<code>*</code>)</li>
-<li>logical or (<code>||</code>)</li>
-<li>logical and (<code>&amp;&amp;</code>)</li>
 </ul>
 <p>Things like
 <a href="https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+smul%22"><code>std::smul</code></a> are
@@ -4323,6 +4387,13 @@ to widen the inputs (e.g.
 ). The optimizer will narrow the operands and produce efficient hardware,
 especially with trivial zero-/sign-extended operands like <code>std::smul</code> and
 <code>std::uadd_with_overflow</code>.</p>
+<h4 id="logical-expressions">Logical Expressions</h4>
+<ul>
+<li>logical or (<code>||</code>)</li>
+<li>logical and (<code>&amp;&amp;</code>)</li>
+</ul>
+<p>These are binary operations that are of the type <code>(bool, bool) -&gt; bool</code>. (Note
+that <code>bool</code> is equivalent to <code>u1</code>.)</p>
 <h4 id="shift-expressions">Shift Expressions</h4>
 <p>Shift expressions include:</p>
 <ul>
@@ -4943,6 +5014,96 @@ random inputs, as opposed to letting the framework pick one. The seed chosen for
 production can be found in the execution log.</p>
 <p>For determinism, the DSLX interpreter should be run with the <code>seed</code> flag:
 <code>./interpreter_main --seed=1234 &lt;DSLX source file&gt;</code></p>
+<h2 id="communicating-sequential-processes-aka-procs">Communicating Sequential Processes (AKA procs)</h2>
+<p>Functions conceptually exist independent of "time". They describe "feed forward"
+dataflow computation; i.e. they cannot describe carrying a value forward over
+"time steps", and don't have the ability to send messages to other functions
+that are also iterating in time.</p>
+<p>XLS has a more powerful construct for exactly this additional set of
+capabilities, called <code>proc</code>s, short for "communicating process", in the
+tradition of
+<a href="https://en.wikipedia.org/wiki/Communicating_sequential_processes">Communicating Sequential Processes</a>,
+similar to those seen in Go, Erlang, and various other "actor model" programming
+environments.</p>
+<p>This is a simple proc:</p>
+<div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">CountUp</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">output_channel</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+
+<span class="w">    </span><span class="c1">// Initial value for the state.</span>
+<span class="w">    </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// Configuration -- we get the output channel when we&#39;re configured by an external `spawn`.</span>
+<span class="w">    </span><span class="c1">// The last statement in a `config` should be a tuple that is used to initialize the proc</span>
+<span class="w">    </span><span class="c1">// members; e.g. we give a single value in a tuple that initializes the `output_channel`</span>
+<span class="w">    </span><span class="c1">// declared above.</span>
+<span class="w">    </span><span class="n">config</span><span class="p">(</span><span class="n">output_channel</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">(</span><span class="n">output_channel</span><span class="p">,)</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">    </span><span class="c1">// &quot;Iterate in time&quot; -- takes a state, does some work, and produces a new state.</span>
+<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// Send our state to the outside world via the channel.</span>
+<span class="w">        </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">output_channel</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
+
+<span class="w">        </span><span class="c1">// Calculate our new state.</span>
+<span class="w">        </span><span class="n">state</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>This proc counts a 32-bit value upwards and sends it out on a channel. To do
+things in time, beyond what functions do, you need some connections that work
+for sending and receiving messages over time (<code>chan</code>) and some state that you
+can carry over the course of time (<code>state</code>).</p>
+<h3 id="proc-syntax-template">Proc Syntax Template</h3>
+<p>Procs are shaped as follows, generalizing what we saw in the <code>CountUp</code> proc
+above:</p>
+<div class="highlight"><pre><span></span><code>proc $NAME [$PARAMETRICS] {
+    [MEMBER | CONST_ASSERT | TYPE_ALIAS]*
+
+    init { $INIT_VALUE }
+
+    // Note: config can contain `spawn`s of other `proc`s.
+    config($CHAN_OR_ARG, ...) {
+        $CONFIG_BODY
+        ($MEMBER, ...)
+    }
+
+    next(tok: token, state: $STATE_TYPE) {
+        $NEXT_BODY
+        $NEW_STATE
+    }
+}
+</code></pre></div>
+<p>Note that procs can be parameterized, similar to
+<a href="#parametric-functions">functions</a>, and that the proc scope can contain
+<code>const_assert!</code>s and type aliases, which can be convenient to define within the
+parameterized scope for all of the <code>init</code>/<code>config</code>/<code>next</code> function definitions.</p>
+<p>Note that the <code>config</code> function is all evaluated at compile time (i.e. it is all
+"constexpr" evaluated) -- this "configuration time" is a form of elaboration
+where channels are connected and the communicating process hierarchy is created.</p>
+<p>A proc can create a sub-proc via the <code>spawn</code> keyword, and this "spawning"
+happens at configuration time, whereas <code>next</code> reflects the "runtime" execution;
+e.g.</p>
+<div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Top</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Channel where we&#39;ll receive values from `CountUp`.</span>
+<span class="w">    </span><span class="n">from_count_up</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="n">config</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// The &quot;chan&quot; constructor provides send (`out`) and receive (`in`)</span>
+<span class="w">        </span><span class="c1">// port halves.</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">;</span>
+<span class="w">        </span><span class="c1">// Instantiate the `CountUp` proc which will talk to us using this channel half.</span>
+<span class="w">        </span><span class="n">spawn</span><span class="w"> </span><span class="n">CountUp</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// Initialize our member using the receive half of the channel we created.</span>
+<span class="w">        </span><span class="p">(</span><span class="n">r</span><span class="p">,)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// Receive the values sent from the `CountUp` proc we instantiated in</span>
+<span class="w">    </span><span class="c1">// `config` and trace them out to logging.</span>
+<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+<span class="w">        </span><span class="n">trace_fmt</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;CountUp gave: {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
 <div class="footnote">
 <hr />
 <ol>
