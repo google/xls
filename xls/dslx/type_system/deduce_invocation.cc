@@ -199,14 +199,14 @@ absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
                               {}};
 }
 
-absl::Status InstantiateParametricArgs(
+absl::Status AppendArgsForInstantiation(
     const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
     DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          DeduceAndResolve(arg, ctx));
     VLOG(5) << absl::StreamFormat(
-        "InstantiateParametricArgs; arg: `%s` deduced: `%s` @ %s",
+        "AppendArgsForInstantiation; arg: `%s` deduced: `%s` @ %s",
         arg->ToString(), type->ToString(), arg->span().ToString());
     XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
                                    << " type: " << type->ToString();
@@ -240,8 +240,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
 
   // Gather up the type of all the (actual) arguments.
   std::vector<InstantiateArg> args;
-  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(node, node->callee(),
-                                                node->args(), ctx, &args));
+  XLS_RETURN_IF_ERROR(AppendArgsForInstantiation(node, node->callee(),
+                                                 node->args(), ctx, &args));
 
   // Find the callee as a DSLX Function from the expression.
   auto resolve_fn = [](const Instantiation* node,

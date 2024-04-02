@@ -2202,13 +2202,13 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
 
   // Gather up the type of all the (actual) arguments.
   std::vector<InstantiateArg> config_args;
-  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
+  XLS_RETURN_IF_ERROR(AppendArgsForInstantiation(
       node, node->callee(), node->config()->args(), ctx, &config_args));
 
   std::vector<InstantiateArg> next_args;
   next_args.push_back(
       InstantiateArg{std::make_unique<TokenType>(), node->span()});
-  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
+  XLS_RETURN_IF_ERROR(AppendArgsForInstantiation(
       node, node->callee(), node->next()->args(), ctx, &next_args));
 
   // For each [constexpr] arg, mark the associated Param as constexpr.

@@ -17,15 +17,12 @@
 
 #include <functional>
 #include <memory>
-#include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
@@ -37,9 +34,10 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
                                                        DeduceCtx* ctx);
 
-// Helper that deduces the concrete types of the arguments to a parametric
-// function or proc and returns them to the caller.
-absl::Status InstantiateParametricArgs(
+// Helper that deduces the concrete types of the arguments and appends them to
+// "instantiate_args" -- getting them in this form is often a pre-step in
+// instantiating a parametric function or proc.
+absl::Status AppendArgsForInstantiation(
     const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
     DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args);
 
