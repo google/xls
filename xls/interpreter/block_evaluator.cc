@@ -249,7 +249,7 @@ absl::Status ChannelSource::SetBlockInputs(
     absl::BitGenRef random_engine, std::optional<verilog::ResetProto> reset) {
   // Don't send inputs when reset is asserted, if we don't care about the
   // behavior of the block when inputs are sent during reset.
-  if (reset_behavior_ == kAttendReady ||
+  if (reset_behavior_ == BehaviorDuringReset::kAttendReady ||
       !IsResetAsserted(inputs, std::move(reset))) {
     if (is_valid_) {
       // Continue to output valid and data, while waiting for the ready signal.
@@ -317,7 +317,7 @@ absl::Status ChannelSink::SetBlockInputs(
   inputs[ready_name_] =
       signalled_ready ? Value(UBits(1, 1)) : Value(UBits(0, 1));
 
-  if (reset_behavior_ == kAttendValid ||
+  if (reset_behavior_ == BehaviorDuringReset::kAttendValid ||
       !IsResetAsserted(inputs, std::move(reset))) {
     is_ready_ = signalled_ready;
   } else {

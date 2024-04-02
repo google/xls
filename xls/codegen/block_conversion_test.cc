@@ -3468,8 +3468,9 @@ proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
 
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
-      ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.top_block,
-                  /*reset_behavior=*/ChannelSink::kAttendValid),
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 1.0, unit.top_block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kAttendValid),
   };
 
   std::string reset_name = options.reset()->name();
@@ -3538,11 +3539,12 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   };
   XLS_ASSERT_OK(sources.front().SetDataSequence({10, 20, 30}));
   std::vector<ChannelSink> sinks{
-      ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.top_block,
-                  /*reset_behavior=*/ChannelSink::kIgnoreValid),
-      ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0,
-                  unit.top_block,
-                  /*reset_behavior=*/ChannelSink::kIgnoreValid),
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 1.0, unit.top_block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
+      ChannelSink(
+          "in_out_data", "in_out_valid", "in_out_ready", 1.0, unit.top_block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
   };
 
   std::string reset_name = options.reset()->name();
@@ -3631,12 +3633,13 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
     };
     XLS_ASSERT_OK(sources.front().SetDataSequence({10, 20, 30}));
     std::vector<ChannelSink> sinks{
-        ChannelSink("out_data", "out_valid", "out_ready", /*lambda=*/0.5,
-                    unit.top_block,
-                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
-        ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0,
-                    unit.top_block,
-                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+        ChannelSink(
+            "out_data", "out_valid", "out_ready", /*lambda=*/0.5,
+            unit.top_block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
+        ChannelSink(
+            "in_out_data", "in_out_valid", "in_out_ready", 1.0, unit.top_block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
     };
 
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -4665,8 +4668,9 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
 
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
-      ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.top_block,
-                  /*reset_behavior=*/ChannelSink::kAttendValid),
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 1.0, unit.top_block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kAttendValid),
   };
 
   std::string reset_name = options.reset()->name();
@@ -4998,7 +5002,8 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
       ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.top_block,
-                  /*reset_behavior=*/ChannelSink::kAttendValid),
+                  /*reset_behavior=*/
+                  ChannelSink::BehaviorDuringReset::kAttendValid),
   };
 
   std::string reset_name = options.reset()->name();
@@ -5085,8 +5090,9 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
 
   std::vector<ChannelSource> sources{};
   std::vector<ChannelSink> sinks{
-      ChannelSink("out_data", "out_valid", "out_ready", 1.0, unit.top_block,
-                  /*reset_behavior=*/ChannelSink::kAttendValid),
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 1.0, unit.top_block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kAttendValid),
   };
 
   std::string reset_name = options.reset()->name();

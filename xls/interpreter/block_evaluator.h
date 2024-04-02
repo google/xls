@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -46,7 +45,7 @@ struct BlockRunResult {
 // For each successive input, new data is driven after a randomized delay.
 class ChannelSource {
  public:
-  enum BehaviorDuringReset {
+  enum class BehaviorDuringReset : uint8_t {
     kIgnoreReady,  // Ignore ready signal during reset
     kAttendReady,  // Send on ready regardless of reset
   };
@@ -59,9 +58,10 @@ class ChannelSource {
   // asserted (if the channel is not otherwise occupied by a in-progress
   // transaction).  Once valid is asserted, it will remain asserted until
   // the transaction completes via ready being asserted.
-  ChannelSource(std::string_view data_name, std::string_view valid_name,
-                std::string_view ready_name, double lambda, Block* block,
-                BehaviorDuringReset reset_behavior = kIgnoreReady)
+  ChannelSource(
+      std::string_view data_name, std::string_view valid_name,
+      std::string_view ready_name, double lambda, Block* block,
+      BehaviorDuringReset reset_behavior = BehaviorDuringReset::kIgnoreReady)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),
@@ -125,7 +125,7 @@ class ChannelSource {
 // Each successive output is received with a fixed probability.
 class ChannelSink {
  public:
-  enum BehaviorDuringReset {
+  enum class BehaviorDuringReset : uint8_t {
     kIgnoreValid,  // Ignore valid signal during reset
     kAttendValid,  // Receive on valid regardless of reset
   };
@@ -135,9 +135,10 @@ class ChannelSink {
   //
   // lambda is the probability that for a given cycle, the sink will assert
   // ready.
-  ChannelSink(std::string_view data_name, std::string_view valid_name,
-              std::string_view ready_name, double lambda, Block* block,
-              BehaviorDuringReset reset_behavior = kAttendValid)
+  ChannelSink(
+      std::string_view data_name, std::string_view valid_name,
+      std::string_view ready_name, double lambda, Block* block,
+      BehaviorDuringReset reset_behavior = BehaviorDuringReset::kAttendValid)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),

@@ -462,15 +462,16 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandling) {
   // Provide an input sequence and simulate, sending input & receiving output
   // during reset.
   {
-    std::vector<ChannelSource> sources{
-        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
-                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    std::vector<ChannelSource> sources{ChannelSource(
+        "x", "x_vld", "x_rdy", 1.0, block,
+        /*reset_behavior=*/ChannelSource::BehaviorDuringReset::kAttendReady)};
     XLS_ASSERT_OK(sources.at(0).SetDataSequence(
         std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
 
     std::vector<ChannelSink> sinks{
-        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
-                    /*reset_behavior=*/ChannelSink::kAttendValid),
+        ChannelSink(
+            "out", "out_vld", "out_rdy", 1.0, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kAttendValid),
     };
 
     BlockIOResultsAsUint64 block_io;
@@ -494,15 +495,16 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandling) {
   // Provide an input sequence and simulate, sending input but receiving no
   // output during reset.
   {
-    std::vector<ChannelSource> sources{
-        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
-                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    std::vector<ChannelSource> sources{ChannelSource(
+        "x", "x_vld", "x_rdy", 1.0, block,
+        /*reset_behavior=*/ChannelSource::BehaviorDuringReset::kAttendReady)};
     XLS_ASSERT_OK(sources.at(0).SetDataSequence(
         std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
 
     std::vector<ChannelSink> sinks{
-        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
-                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+        ChannelSink(
+            "out", "out_vld", "out_rdy", 1.0, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
     };
 
     BlockIOResultsAsUint64 block_io;
@@ -523,15 +525,16 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandling) {
   // Provide an input sequence and simulate, sending no input & ignoring output
   // during reset.
   {
-    std::vector<ChannelSource> sources{
-        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
-                      /*reset_behavior=*/ChannelSource::kIgnoreReady)};
+    std::vector<ChannelSource> sources{ChannelSource(
+        "x", "x_vld", "x_rdy", 1.0, block,
+        /*reset_behavior=*/ChannelSource::BehaviorDuringReset::kIgnoreReady)};
     XLS_ASSERT_OK(sources.at(0).SetDataSequence(
         std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
 
     std::vector<ChannelSink> sinks{
-        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
-                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+        ChannelSink(
+            "out", "out_vld", "out_rdy", 1.0, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
     };
 
     BlockIOResultsAsUint64 block_io;
@@ -597,15 +600,16 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandlingActiveLow) {
   // Provide an input sequence and simulate, sending input & receiving output
   // during reset.
   {
-    std::vector<ChannelSource> sources{
-        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
-                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    std::vector<ChannelSource> sources{ChannelSource(
+        "x", "x_vld", "x_rdy", 1.0, block,
+        /*reset_behavior=*/ChannelSource::BehaviorDuringReset::kAttendReady)};
     XLS_ASSERT_OK(sources.at(0).SetDataSequence(
         std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
 
     std::vector<ChannelSink> sinks{
-        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
-                    /*reset_behavior=*/ChannelSink::kAttendValid),
+        ChannelSink(
+            "out", "out_vld", "out_rdy", 1.0, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kAttendValid),
     };
 
     BlockIOResultsAsUint64 block_io;
@@ -629,15 +633,16 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandlingActiveLow) {
   // Provide an input sequence and simulate, sending input but receiving no
   // output during reset.
   {
-    std::vector<ChannelSource> sources{
-        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
-                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    std::vector<ChannelSource> sources{ChannelSource(
+        "x", "x_vld", "x_rdy", 1.0, block,
+        /*reset_behavior=*/ChannelSource::BehaviorDuringReset::kAttendReady)};
     XLS_ASSERT_OK(sources.at(0).SetDataSequence(
         std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
 
     std::vector<ChannelSink> sinks{
-        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
-                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+        ChannelSink(
+            "out", "out_vld", "out_rdy", 1.0, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
     };
 
     BlockIOResultsAsUint64 block_io;
@@ -658,15 +663,16 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandlingActiveLow) {
   // Provide an input sequence and simulate, sending no input & ignoring output
   // during reset.
   {
-    std::vector<ChannelSource> sources{
-        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
-                      /*reset_behavior=*/ChannelSource::kIgnoreReady)};
+    std::vector<ChannelSource> sources{ChannelSource(
+        "x", "x_vld", "x_rdy", 1.0, block,
+        /*reset_behavior=*/ChannelSource::BehaviorDuringReset::kIgnoreReady)};
     XLS_ASSERT_OK(sources.at(0).SetDataSequence(
         std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
 
     std::vector<ChannelSink> sinks{
-        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
-                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+        ChannelSink(
+            "out", "out_vld", "out_rdy", 1.0, block,
+            /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kIgnoreValid),
     };
 
     BlockIOResultsAsUint64 block_io;
