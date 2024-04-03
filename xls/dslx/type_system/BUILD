@@ -105,6 +105,8 @@ cc_library(
         "deduce_expr.h",
         "deduce_invocation.cc",
         "deduce_invocation.h",
+        "deduce_spawn.cc",
+        "deduce_spawn.h",
         "deduce_struct_def.cc",
         "deduce_struct_def.h",
     ],
