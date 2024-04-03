@@ -51,6 +51,7 @@
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
@@ -62,10 +63,8 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
-#include "xls/ir/register.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -643,20 +642,15 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
       "JIT run time (%s): %d Kcalls/s\n", description,
       static_cast<int64_t>(kInputCount * jit_run_rate));
 
-  absl::flat_hash_map<std::string, Value> interpreter_regs;
-  interpreter_regs.reserve(block->GetRegisters().size());
-  for (Register* r : block->GetRegisters()) {
-    interpreter_regs[r->name()] = ZeroOfType(r->type());
-  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockContinuation> continuation,
+                       kInterpreterBlockEvaluator.NewContinuation(block));
   XLS_ASSIGN_OR_RETURN(
       float interpreter_run_rate,
       CountRate(
           [&]() -> absl::Status {
             for (const absl::flat_hash_map<std::string, Value>& ports :
                  port_set) {
-              CHECK_OK(kInterpreterBlockEvaluator
-                           .EvaluateBlock(ports, interpreter_regs, block)
-                           .status());
+              CHECK_OK(continuation->RunOneCycle(ports));
             }
             return absl::OkStatus();
           },
