@@ -142,7 +142,7 @@ cc_library(
         "build_embed.h",
         "init_xls.h",
     ],
-    linkstamp = ["build_embed.cc"],
+    linkstamp = "build_embed.cc",
     visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
