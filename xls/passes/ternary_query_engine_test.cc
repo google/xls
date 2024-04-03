@@ -1628,6 +1628,26 @@ TEST_F(TernaryQueryEngineTest, TupleIndexIndex) {
   EXPECT_THAT(query_engine.ToString(tup2.node()), "0b0X00");
 }
 
+TEST_F(TernaryQueryEngineTest, Repopulate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Literal(UBits(1, 1));
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue result = fb.Xor(lhs, x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  TernaryQueryEngine query_engine;
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+  ASSERT_THAT(query_engine.ToString(result.node()), "0bX");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * rhs, x.node()->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1))));
+  ASSERT_EQ(result.node()->operand(1), rhs);
+
+  XLS_EXPECT_OK(query_engine.Populate(f).status());
+  EXPECT_THAT(query_engine.ToString(result.node()), "0b0");
+}
+
 namespace {
 
 class ArrayCreation : public benchmark_support::strategy::NaryNode {

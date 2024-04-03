@@ -331,7 +331,7 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
             if (lhs != rhs) {
               rf = ReachedFixpoint::Changed;
             }
-            ternary_ops::UpdateWithIntersection(lhs, rhs);
+            CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
           });
     } else {
       values_[node] = std::move(new_values[node]);
