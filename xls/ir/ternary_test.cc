@@ -93,10 +93,11 @@ TEST(TernaryIterator, Iterate) {
   EXPECT_THAT(++it, range.end());
 }
 
+// Instructions treat a 0-bit value as a thing that exists so ternary should as
+// well.
 TEST(TernaryIterator, IterateZeroLength) {
   auto range = ternary_ops::AllBitsValues({});
-  auto it = range.begin();
-  EXPECT_THAT(it, range.end());
+  EXPECT_THAT(range, IteratorElementsAre(UBits(0, 0)));
 }
 
 TEST(TernaryIterator, IteratePost) {
@@ -124,11 +125,6 @@ TEST(TernaryIterator, Add) {
   EXPECT_THAT(it + 5, range.end());
   EXPECT_THAT(it + 6, range.end());
   EXPECT_THAT(it + 7, range.end());
-}
-
-TEST(TernaryIterator, NoValues) {
-  auto range = ternary_ops::AllBitsValues({});
-  EXPECT_THAT(range, IteratorElementsAre());
 }
 
 TEST(TernaryIterator, SingleValue) {

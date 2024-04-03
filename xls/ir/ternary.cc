@@ -294,6 +294,12 @@ std::pair<bool, InlineBitmap> IncrementOnOffsets(
 }  // namespace
 
 void RealizedTernaryIterator::Advance(const Bits& amnt) {
+  if (value_.bit_count() == 0 && !amnt.IsZero()) {
+    // To match the somewhat strange bits behavior a zero-length ternary is
+    // considered to have a single value.
+    finished_ = true;
+    return;
+  }
   InlineBitmap bm = std::move(value_).bitmap();
   // Do minimal amount of single increments.
   // Advancing by (1<<V) only has a visible effect on the V'th and up X bits in
@@ -311,6 +317,12 @@ void RealizedTernaryIterator::Advance(const Bits& amnt) {
 
 void RealizedTernaryIterator::Advance(int64_t amnt) {
   CHECK_GE(amnt, 0);
+  if (value_.bit_count() == 0 && amnt != 0) {
+    // To match the somewhat strange bits behavior a zero-length ternary is
+    // considered to have a single value.
+    finished_ = true;
+    return;
+  }
   InlineBitmap bm = std::move(value_).bitmap();
   // Do minimal amount of single increments.
   // Advancing by (1<<V) only has a visible effect on the V'th and up X bits in

@@ -1040,6 +1040,26 @@ TEST_F(TernaryQueryEngineTest, ArrayIndexExact) {
   EXPECT_THAT(query_engine.ToString(result.node()), "0b00X");
 }
 
+TEST_F(TernaryQueryEngineTest, ArrayIndexZeroBitValue) {
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  BValue arr_value_idx = fb.Literal(UBits(0, 0));
+  XLS_ASSERT_OK_AND_ASSIGN(BValue array, MakeValueWithKnownBits("array",
+                                                                TValue::ArrayS({
+                                                                    "0b00X",
+                                                                    "0b1X1",
+                                                                    "0bX11",
+                                                                    "0b1XX",
+                                                                }),
+                                                                &fb));
+  BValue result = fb.ArrayIndex(array, {arr_value_idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  VLOG(3) << f->DumpIr();
+  TernaryQueryEngine query_engine;
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+  EXPECT_THAT(query_engine.ToString(result.node()), "0b00X");
+}
+
 TEST_F(TernaryQueryEngineTest, ArrayOperationResult) {
   auto package = CreatePackage();
   FunctionBuilder fb(TestName(), package.get());
@@ -1396,6 +1416,44 @@ TEST_F(TernaryQueryEngineTest, ArrayUpdate) {
   EXPECT_THAT(query_engine.ToString(reads[9].node()), "0b0XX");
   EXPECT_THAT(query_engine.ToString(reads[10].node()), "0b000");
   EXPECT_THAT(query_engine.ToString(reads[11].node()), "0b0XX");
+  EXPECT_THAT(query_engine.ToString(reads[12].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[13].node()), "0b000");
+}
+
+TEST_F(TernaryQueryEngineTest, ArrayUpdateZeroLengthIndex) {
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  // bits[12][3]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value array_val,
+      ValueBuilder::UBitsArray({0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 3)
+          .Build());
+  BValue array = fb.Literal(array_val);
+  // A zero-bit value is considered equivalent to zero.
+  BValue idx = fb.Literal(UBits(0, 0));
+  BValue update = MakeValueWithKnownBits("update", "0b01X", &fb);
+  BValue result = fb.ArrayUpdate(array, update, {idx});
+  std::vector<BValue> reads;
+  for (int64_t i = 0; i < array_val.size(); ++i) {
+    reads.push_back(fb.ArrayIndex(result, {fb.Literal(UBits(i, 8))}));
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RecordProperty("ir", f->DumpIr());
+  TernaryQueryEngine query_engine;
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+  ASSERT_THAT(reads, testing::SizeIs(14));
+  EXPECT_THAT(query_engine.ToString(reads[0].node()), "0b01X");
+  EXPECT_THAT(query_engine.ToString(reads[1].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[2].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[3].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[4].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[5].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[6].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[7].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[8].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[9].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[10].node()), "0b000");
+  EXPECT_THAT(query_engine.ToString(reads[11].node()), "0b000");
   EXPECT_THAT(query_engine.ToString(reads[12].node()), "0b000");
   EXPECT_THAT(query_engine.ToString(reads[13].node()), "0b000");
 }

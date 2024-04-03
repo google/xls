@@ -15,6 +15,7 @@
 #ifndef XLS_IR_TERNARY_H_
 #define XLS_IR_TERNARY_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -214,7 +215,6 @@ class RealizedTernaryIterator {
     return *this;
   }
 
-
   // Post increment
   RealizedTernaryIterator operator++(int) {
     RealizedTernaryIterator cpy = *this;
@@ -245,7 +245,7 @@ class RealizedTernaryIterator {
 
  private:
   explicit RealizedTernaryIterator(TernarySpan span)
-      : finished_(span.empty()),
+      : finished_(false),
         value_(ToKnownBitsValues(span)),
         unknown_bit_offsets_(
             RealizedTernaryIterator::FindUnknownOffsets(span)) {}
@@ -264,6 +264,9 @@ class RealizedTernaryIterator {
 
 // Make an iterator range that enumerates all possible values which match the
 // given ternary. The values are produced in order from smallest to largest.
+//
+// NB To match with bits convention an empty span is considered to have one
+// (0-bit) value associated with it.
 inline xabsl::iterator_range<RealizedTernaryIterator> AllBitsValues(
     TernarySpan span) {
   static_assert(std::forward_iterator<RealizedTernaryIterator>);
