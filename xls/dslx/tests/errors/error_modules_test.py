@@ -1042,6 +1042,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('pattern should be replaced with `assert!', stderr)
 
+  def test_gh1772(self):
+    stderr = self._run('xls/dslx/tests/errors/gh1772.x')
+    self.assertIn('XlsTypeError:', stderr)
+    self.assertIn(
+        'uN[5] vs uN[17]: Mismatch between member and argument types',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
