@@ -138,7 +138,11 @@ cc_library(
 cc_library(
     name = "init_xls",
     srcs = ["init_xls.cc"],
-    hdrs = ["init_xls.h"],
+    hdrs = [
+        "build_embed.h",
+        "init_xls.h",
+    ],
+    linkstamp = ["build_embed.cc"],
     visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
@@ -147,6 +151,7 @@ cc_library(
         "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/flags:config",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/log:initialize",
     ],

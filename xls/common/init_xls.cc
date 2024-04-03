@@ -14,23 +14,35 @@
 
 #include "xls/common/init_xls.h"
 
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
+#include "absl/flags/usage_config.h"
 #include "absl/log/check.h"
 #include "absl/log/initialize.h"
+#include "xls/common/build_embed.h"
 
 namespace xls {
 
 std::vector<std::string_view> InitXls(std::string_view usage, int argc,
                                       char* argv[]) {
-  // Comply with xls/common/init_xls.h:32
+  // Comply with xls/common/init_xls.h:33
   absl::SetProgramUsageMessage(usage);
+  std::string embed_label = GetBuildEmbedLabel();
+  if (!embed_label.empty()) {
+    absl::FlagsUsageConfig usage_config;
+    usage_config.version_string = [embed_label]() {
+      return embed_label + "\n";
+    };
+    absl::SetFlagsUsageConfig(usage_config);
+  };
   // Copy the argv array to ensure this method doesn't clobber argv.
   std::vector<char*> arguments(argv, argv + argc);
-  std::vector<char*> remaining = absl::ParseCommandLine(argc, argv);
+  std::vector<char*> remaining = absl::ParseCommandLine(
+      static_cast<int>(arguments.size()), arguments.data());
   CHECK_GE(argc, 1);
 
   internal::InitXlsPostAbslFlagParse();

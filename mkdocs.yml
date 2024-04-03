@@ -64,6 +64,7 @@ nav:
     - Design Docs:
       - Legalize Multiple Channel Ops Per Channel: 'design_docs/legalize_multiple_channel_ops_per_channel.md'
       - Proc-scoped channels: 'design_docs/proc_scoped_channels.md'
+    - Releasing: 'releasing.md'
   - NoC:
     - Overview: 'noc/xls_noc_readme.md'
     - Topologies:
