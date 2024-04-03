@@ -32,6 +32,7 @@
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/logical_effort.h"
@@ -101,6 +102,14 @@ namespace {
 // TODO(leary): 2019-08-19 Read all of the curve-fit values from a
 // characterization file for easier reference / recomputing if necessary.
 /* static */ absl::StatusOr<int64_t> GetLogicalEffortDelayInTau(Node* node) {
+  auto get_logical_effort_for_n_operands =
+      [](int64_t operand_count, netlist::CellKind kind,
+         bool invert) -> absl::StatusOr<int64_t> {
+    XLS_ASSIGN_OR_RETURN(
+        double base_effort,
+        netlist::logical_effort::GetLogicalEffort(kind, operand_count));
+    return std::ceil(invert ? base_effort + 1LL : base_effort);
+  };
   auto get_logical_effort = [node](netlist::CellKind kind,
                                    bool invert) -> absl::StatusOr<int64_t> {
     XLS_ASSIGN_OR_RETURN(double base_effort,
@@ -158,6 +167,47 @@ namespace {
           netlist::logical_effort::GetLogicalEffort(netlist::CellKind::kNor,
                                                     (operand_width + 1) / 2));
       return std::ceil(nor_delay + 1);
+    }
+    case Op::kOneHotSel: {
+      // This should synthesize to something quite similar to a two-level NAND
+      // tree (equivalent to an AND/OR tree, with the first level for masking,
+      // and the second to collect the results).
+      //
+      // NOTE: We currently use our full curve fitting for this in most models,
+      // but there are some scenarios where this will kick in.
+      OneHotSelect* ohs = node->As<OneHotSelect>();
+      if (ohs->cases().empty()) {
+        return 0;
+      }
+
+      if (ohs->selector()->Is<Literal>()) {
+        // This should synthesize down to an OR of the selected inputs.
+        int64_t selected_inputs =
+            ohs->selector()->As<Literal>()->value().bits().PopCount();
+        if (selected_inputs <= 1) {
+          return 0;
+        }
+        return get_logical_effort_for_n_operands(
+            /*operand_count=*/selected_inputs, netlist::CellKind::kNor,
+            /*invert=*/true);
+      }
+
+      if (ohs->cases().size() == 1) {
+        // This should just be an AND with the selector.
+        return get_logical_effort_for_n_operands(
+            /*operand_count=*/2, netlist::CellKind::kNand,
+            /*invert=*/true);
+      }
+
+      XLS_ASSIGN_OR_RETURN(int64_t mask_delay,
+                           get_logical_effort_for_n_operands(
+                               /*operand_count=*/2, netlist::CellKind::kNand,
+                               /*invert=*/false));
+      XLS_ASSIGN_OR_RETURN(int64_t union_delay,
+                           get_logical_effort_for_n_operands(
+                               ohs->cases().size(), netlist::CellKind::kNand,
+                               /*invert=*/false));
+      return mask_delay + union_delay;
     }
     default:
       break;

@@ -187,6 +187,81 @@ TEST_F(DelayEstimatorTest, LogicalEffortForXors) {
   }
 }
 
+TEST_F(DelayEstimatorTest, LogicalEffortForOneHotSelects) {
+  {
+    // 3-input OneHotSelect.
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue s = fb.Param("s", p->GetBitsType(3));
+    BValue a = fb.Param("a", p->GetBitsType(10));
+    BValue b = fb.Param("b", p->GetBitsType(10));
+    BValue c = fb.Param("c", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Function * f, fb.BuildWithReturnValue(fb.OneHotSelect(s, {a, b, c})));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(40));
+  }
+
+  {
+    // 3-input OneHotSelect with literal selector (selecting 2 inputs)
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue s = fb.Literal(UBits(0b101, 3));
+    BValue a = fb.Param("a", p->GetBitsType(10));
+    BValue b = fb.Param("b", p->GetBitsType(10));
+    BValue c = fb.Param("c", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Function * f, fb.BuildWithReturnValue(fb.OneHotSelect(s, {a, b, c})));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(30));
+  }
+
+  {
+    // 3-input OneHotSelect with literal selector (selecting 1 input)
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue s = fb.Literal(UBits(0b010, 3));
+    BValue a = fb.Param("a", p->GetBitsType(10));
+    BValue b = fb.Param("b", p->GetBitsType(10));
+    BValue c = fb.Param("c", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Function * f, fb.BuildWithReturnValue(fb.OneHotSelect(s, {a, b, c})));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(0));
+  }
+
+  {
+    // 3-input OneHotSelect with literal selector (selecting no inputs)
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue s = fb.Literal(UBits(0b000, 3));
+    BValue a = fb.Param("a", p->GetBitsType(10));
+    BValue b = fb.Param("b", p->GetBitsType(10));
+    BValue c = fb.Param("c", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Function * f, fb.BuildWithReturnValue(fb.OneHotSelect(s, {a, b, c})));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(0));
+  }
+
+  {
+    // 1-input OneHotSelect
+    auto p = CreatePackage();
+    FunctionBuilder fb(TestName(), p.get());
+    BValue s = fb.Param("s", p->GetBitsType(1));
+    BValue a = fb.Param("a", p->GetBitsType(10));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.OneHotSelect(s, {a})));
+    EXPECT_THAT(
+        DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
+        IsOkAndHolds(30));
+  }
+}
+
 TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
