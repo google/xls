@@ -140,7 +140,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
         parent_ctx->import_data(), parent_ctx->type_info(),
         parent_ctx->warnings(),
-        /*bindings=*/parent_ctx->fn_stack().back().parametric_env(),
+        /*bindings=*/parent_ctx->GetCurrentParametricEnv(),
         /*expr=*/parametric_expr,
         /*type=*/parametric_expr_type.get()));
 

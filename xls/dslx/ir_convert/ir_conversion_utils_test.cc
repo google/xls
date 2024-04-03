@@ -21,12 +21,14 @@
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls::dslx {
 

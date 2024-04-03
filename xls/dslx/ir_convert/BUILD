@@ -48,14 +48,16 @@ cc_test(
     deps = [
         ":ir_conversion_utils",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:parametric_expression",
         "//xls/dslx/type_system:type",
         "//xls/ir",
+        "//xls/ir:type",
     ],
 )
 

@@ -129,7 +129,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
                        BytecodeEmitter::EmitExpression(
                            ctx->import_data(), ctx->type_info(), expr, env,
-                           ctx->fn_stack().back().parametric_env()));
+                           ctx->GetCurrentParametricEnv()));
 
   return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
                                         /*args=*/{});
@@ -1046,7 +1046,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
   XLS_ASSIGN_OR_RETURN(
       env,
       MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
-                       node, ctx->fn_stack().back().parametric_env()));
+                       node, ctx->GetCurrentParametricEnv()));
 
   std::unique_ptr<BitsType> s32 = BitsType::MakeS32();
   auto* slice = std::get<Slice*>(node->rhs());
@@ -1091,8 +1091,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
       std::optional<int64_t> limit,
       TryResolveBound(slice, slice->limit(), "limit", s32.get(), env, ctx));
 
-  const ParametricEnv& fn_parametric_env =
-      ctx->fn_stack().back().parametric_env();
+  const ParametricEnv& fn_parametric_env = ctx->GetCurrentParametricEnv();
   XLS_ASSIGN_OR_RETURN(TypeDim lhs_bit_count_ctd, lhs_type->GetTotalBitCount());
   int64_t bit_count;
   if (std::holds_alternative<TypeDim::OwnedParametric>(

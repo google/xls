@@ -80,6 +80,8 @@ cc_library(
         ":type_and_parametric_env",
         ":type_info",
         ":type_mismatch_error_data",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

@@ -35,7 +35,6 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
@@ -238,7 +237,7 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     XLS_ASSIGN_OR_RETURN(
         (absl::flat_hash_map<std::string, InterpValue> env),
         MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
-                         arg, ctx->fn_stack().back().parametric_env()));
+                         arg, ctx->GetCurrentParametricEnv()));
 
     VLOG(5) << "TypecheckParametricBuiltinInvocation.constexpr_eval; argno: "
             << argno << " expr: `" << arg->ToString() << "`"
@@ -275,8 +274,7 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
   FunctionType* fn_type = dynamic_cast<FunctionType*>(tab.type.get());
   XLS_RET_CHECK(fn_type != nullptr) << tab.type->ToString();
 
-  const ParametricEnv& fn_parametric_env =
-      ctx->fn_stack().back().parametric_env();
+  const ParametricEnv& fn_parametric_env = ctx->GetCurrentParametricEnv();
 
   VLOG(5) << "TypeInfo::AddInvocationCallBindings; type_info: "
           << ctx->type_info() << "; node: `" << invocation->ToString()
@@ -372,7 +370,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   }
 
   // Make a copy; the fn stack can get re-allocated, etc.
-  ParametricEnv caller_parametric_env = ctx->fn_stack().back().parametric_env();
+  ParametricEnv caller_parametric_env = ctx->GetCurrentParametricEnv();
   absl::flat_hash_map<std::string, InterpValue> caller_parametric_env_map =
       caller_parametric_env.ToMap();
 

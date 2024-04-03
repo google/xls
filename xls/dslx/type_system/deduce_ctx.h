@@ -22,17 +22,15 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
+#include "absl/base/no_destructor.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
@@ -174,9 +172,9 @@ class DeduceCtx {
     return fn_stack().back().within_proc() == WithinProc::kYes;
   }
 
-  ParametricEnv GetCurrentParametricEnv() const {
-    return fn_stack().empty() ? ParametricEnv()
-                              : fn_stack().back().parametric_env();
+  const ParametricEnv& GetCurrentParametricEnv() const {
+    static const absl::NoDestructor<ParametricEnv> empty_env;
+    return fn_stack().empty() ? *empty_env : fn_stack().back().parametric_env();
   }
 
   std::vector<FnStackEntry>& fn_stack() { return fn_stack_; }
