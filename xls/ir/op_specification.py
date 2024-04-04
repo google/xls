@@ -165,25 +165,25 @@ class Attribute(object):
 class BoolAttribute(Attribute):
 
   def __init__(self, name):
-    super(BoolAttribute, self).__init__(name, cpp_type='bool')
+    super().__init__(name, cpp_type='bool')
 
 
 class Int64Attribute(Attribute):
 
   def __init__(self, name):
-    super(Int64Attribute, self).__init__(name, cpp_type='int64_t')
+    super().__init__(name, cpp_type='int64_t')
 
 
 class TypeAttribute(Attribute):
 
   def __init__(self, name):
-    super(TypeAttribute, self).__init__(name, cpp_type='Type*')
+    super().__init__(name, cpp_type='Type*')
 
 
 class FunctionAttribute(Attribute):
 
   def __init__(self, name):
-    super(FunctionAttribute, self).__init__(
+    super().__init__(
         name,
         cpp_type='Function*',
         equals_tmpl='{lhs}->IsDefinitelyEqualTo({rhs})',
@@ -193,15 +193,13 @@ class FunctionAttribute(Attribute):
 class ValueAttribute(Attribute):
 
   def __init__(self, name):
-    super(ValueAttribute, self).__init__(
-        name, cpp_type='Value', return_cpp_type='const Value&'
-    )
+    super().__init__(name, cpp_type='Value', return_cpp_type='const Value&')
 
 
 class StringAttribute(Attribute):
 
   def __init__(self, name):
-    super(StringAttribute, self).__init__(
+    super().__init__(
         name,
         cpp_type='std::string',
         return_cpp_type='const std::string&',
@@ -212,7 +210,7 @@ class StringAttribute(Attribute):
 class OptionalStringAttribute(Attribute):
 
   def __init__(self, name):
-    super(OptionalStringAttribute, self).__init__(
+    super().__init__(
         name,
         cpp_type='std::optional<std::string>',
         return_cpp_type='std::optional<std::string>',
@@ -223,7 +221,7 @@ class OptionalStringAttribute(Attribute):
 class LsbOrMsbAttribute(Attribute):
 
   def __init__(self, name):
-    super(LsbOrMsbAttribute, self).__init__(
+    super().__init__(
         name,
         cpp_type='LsbOrMsb',
         return_cpp_type='LsbOrMsb',
@@ -234,7 +232,7 @@ class LsbOrMsbAttribute(Attribute):
 class TypeVectorAttribute(Attribute):
 
   def __init__(self, name):
-    super(TypeVectorAttribute, self).__init__(
+    super().__init__(
         name,
         cpp_type='std::vector<Type*>',
         return_cpp_type='absl::Span<Type* const>',
@@ -246,7 +244,7 @@ class TypeVectorAttribute(Attribute):
 class FormatStepsAttribute(Attribute):
 
   def __init__(self, name):
-    super(FormatStepsAttribute, self).__init__(
+    super().__init__(
         name,
         cpp_type='std::vector<FormatStep>',
         return_cpp_type='absl::Span<FormatStep const>',
@@ -258,9 +256,7 @@ class FormatStepsAttribute(Attribute):
 class InstantiationAttribute(Attribute):
 
   def __init__(self, name):
-    super(InstantiationAttribute, self).__init__(
-        name, cpp_type='Instantiation*'
-    )
+    super().__init__(name, cpp_type='Instantiation*')
 
 
 class Property(enum.Enum):
@@ -289,7 +285,7 @@ class Operand(object):
 class OperandSpan(Operand):
 
   def __init__(self, name: str):
-    super(OperandSpan, self).__init__(name)
+    super().__init__(name)
     self.name = name
     self.add_method = 'AddOperands'
 
@@ -314,7 +310,7 @@ class OptionalOperand(Operand):
         This should only be set to True if the operand follows an operand-span
         and the node has a custom implementation.
     """
-    super(OptionalOperand, self).__init__(name)
+    super().__init__(name)
     self.name = name
     self.add_method = 'AddOptionalOperand'
     self.manual_optional_implementation = manual_optional_implementation
