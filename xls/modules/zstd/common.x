@@ -153,3 +153,5 @@ pub struct FseTableCreatorCtrl {
     accuracy_log: FseAccuracyLog,
     negative_proba_count: FseSymbolCount
 }
+
+pub fn highest_set_bit<N: u32>(num: uN[N]) -> u16 { std::flog2<N>(num) }

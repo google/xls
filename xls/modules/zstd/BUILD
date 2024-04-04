@@ -1606,3 +1606,83 @@ place_and_route(
     synthesized_rtl = ":ram_demux_naive_synth_asap7",
     target_die_utilization_percentage = "5",
 )
+
+xls_dslx_library(
+    name = "fse_table_creator_dslx",
+    srcs = ["fse_table_creator.x"],
+    deps = [
+        ":common_dslx",
+        ":fse_table_iterator_dslx",
+        ":ram_wr_handler_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "fse_table_creator_dslx_test",
+    library = ":fse_table_creator_dslx",
+)
+
+xls_dslx_verilog(
+    name = "fse_table_creator_verilog",
+    codegen_args = {
+        "module_name": "FseTableCreator",
+        "delay_model": "asap7",
+        "pipeline_stages": "4",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "FseTableCreatorInst",
+    library = ":fse_table_creator_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__fse_table_creator__FseTableCreatorInst__FseTableCreator_0__8_16_1_256_16_8_48_3_256_16_8_16_1_256_16_next",
+    },
+    verilog_file = "fse_table_creator.v",
+)
+
+xls_benchmark_ir(
+    name = "fse_table_creator_opt_ir_benchmark",
+    src = ":fse_table_creator_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "fse_table_creator_verilog_benchmark",
+    verilog_target = "fse_table_creator_verilog",
+)
+
+verilog_library(
+    name = "fse_table_creator_lib",
+    srcs = [
+        ":fse_table_creator.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "fse_table_creator_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "FseTableCreator",
+    deps = [
+        ":fse_table_creator_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "fse_table_creator_benchmark_synth",
+    synth_target = ":fse_table_creator_asap7",
+)
+
+place_and_route(
+    name = "fse_table_creator_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":fse_table_creator_asap7",
+    target_die_utilization_percentage = "10",
+)
