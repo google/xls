@@ -1305,3 +1305,71 @@ place_and_route(
     synthesized_rtl = ":fse_proba_freq_dec_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "fse_table_iterator_dslx",
+    srcs = ["fse_table_iterator.x"],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "fse_table_iterator_dslx_test",
+    library = ":fse_table_iterator_dslx",
+)
+
+xls_dslx_verilog(
+    name = "fse_table_iterator_verilog",
+    codegen_args = {
+        "module_name": "FseTableIterator",
+        "delay_model": "asap7",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "FseTableIterator",
+    library = ":fse_table_iterator_dslx",
+    verilog_file = "fse_table_iterator.v",
+)
+
+xls_benchmark_ir(
+    name = "fse_table_iterator_opt_ir_benchmark",
+    src = ":fse_table_iterator_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+    },
+)
+
+verilog_library(
+    name = "fse_table_iterator_verilog_lib",
+    srcs = [
+        ":fse_table_iterator.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "fse_table_iterator_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "FseTableIterator",
+    deps = [
+        ":fse_table_iterator_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "fse_table_iterator_benchmark_synth",
+    synth_target = ":fse_table_iterator_synth_asap7",
+)
+
+place_and_route(
+    name = "fse_table_iterator_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":fse_table_iterator_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
