@@ -292,6 +292,8 @@ class StreamingJitBlockEvaluator : public JitBlockEvaluator {
       const std::optional<verilog::ResetProto>& reset,
       int64_t seed) const override;
 
+  // Expose the overload without `initial_registers`.
+  using BlockEvaluator::NewContinuation;
   absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
       Block* block,
       const absl::flat_hash_map<std::string, Value>& initial_registers)
