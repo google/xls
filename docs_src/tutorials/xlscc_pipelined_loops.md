@@ -1,4 +1,4 @@
-# Tutorial: XLS[cc] pipelined loops.
+# [xls/contrib] Tutorial: XLS[cc] pipelined loops.
 
 [TOC]
 

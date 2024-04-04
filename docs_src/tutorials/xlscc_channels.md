@@ -1,4 +1,4 @@
-# Tutorial: XLS[cc] channels.
+# [xls/contrib] Tutorial: XLS[cc] channels.
 
 [TOC]
 

@@ -1,4 +1,4 @@
-# Tutorial: XLS[cc] memories.
+# [xls/contrib] Tutorial: XLS[cc] memories.
 
 [TOC]
 

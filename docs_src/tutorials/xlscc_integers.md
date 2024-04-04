@@ -1,4 +1,4 @@
-# Tutorial: XLS[cc] arbitrary width integers.
+# [xls/contrib] Tutorial: XLS[cc] arbitrary width integers.
 
 [TOC]
 

@@ -1,4 +1,4 @@
-# Tutorial: XLS[cc] state.
+# [xls/contrib] Tutorial: XLS[cc] state.
 
 [TOC]
 

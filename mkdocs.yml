@@ -18,7 +18,7 @@ nav:
       - For expressions: 'tutorials/crc32.md'
       - Enumerate and match: 'tutorials/prefix_scan.md'
       - Intro to Procs: 'tutorials/intro_to_procs.md'
-    - XLS[cc]:
+    - \[contrib\] XLS[cc]:
       - Overview: 'tutorials/xlscc_overview.md'
       - Integers: 'tutorials/xlscc_integers.md'
       - Channels: 'tutorials/xlscc_channels.md'
