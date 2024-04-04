@@ -279,7 +279,7 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Next>(
       loc(), new_operands[0], new_operands[1],
-      new_operands.size() > 2 ? std::optional<Node*>(new_operands[1])
+      new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
                               : absl::nullopt,
       name_);
 }
