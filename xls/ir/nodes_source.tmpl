@@ -176,10 +176,10 @@ absl::StatusOr<Node*> Select::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  absl::optional<Node*> new_default_value =
+  std::optional<Node*> new_default_value =
     default_value().has_value()
-    ? absl::optional<Node*>(new_operands.back())
-    : absl::nullopt;
+    ? std::optional<Node*>(new_operands.back())
+    : std::nullopt;
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Select>(loc(), new_operands[0],
                                         new_operands.subspan(1, cases_size_),
@@ -258,7 +258,7 @@ absl::StatusOr<Node*> Receive::CloneInNewFunction(
   return new_function->MakeNodeWithName<Receive>(
       loc(), new_operands[0],
       new_operands.size() > 1 ? std::optional<Node*>(new_operands[1])
-                              : absl::nullopt,
+                              : std::nullopt,
       channel_name(), is_blocking(), name_);
 }
 
@@ -269,7 +269,7 @@ absl::StatusOr<Node*> Send::CloneInNewFunction(
   return new_function->MakeNodeWithName<Send>(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
-                              : absl::nullopt,
+                              : std::nullopt,
       channel_name(), name_);
 }
 
@@ -280,7 +280,7 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
   return new_function->MakeNodeWithName<Next>(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
-                              : absl::nullopt,
+                              : std::nullopt,
       name_);
 }
 

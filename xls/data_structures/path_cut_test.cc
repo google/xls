@@ -149,8 +149,8 @@ TEST(PathCutTest, SimpleTest) {
   // (50) >-- 10 --> (10) >-- 10 --> (20) >-- 10 --> (50)
   PG path = CreatePathGraph({50, 10, 20, 50}, {10, 10, 10});
   EXPECT_EQ(path.ComputePathCut(70),
-            absl::make_optional<PathCut>({{PathNodeId(0), PathNodeId(1)},
-                                          {PathNodeId(2), PathNodeId(3)}}));
+            std::make_optional<PathCut>({{PathNodeId(0), PathNodeId(1)},
+                                         {PathNodeId(2), PathNodeId(3)}}));
   for (int32_t i = 0; i < 100; i += 5) {
     EXPECT_EQ(path.ComputePathCut(i), BruteForcePathCut(path, i));
   }
@@ -242,8 +242,8 @@ TEST(PathCutTest, NonIntNodeWeightsTest) {
           ColoredNodeWeightTotalOrder(), LessThanTotalOrder<int32_t>());
 
   EXPECT_EQ(path.ComputePathCut({std::nullopt, 70}),
-            absl::make_optional<PathCut>({{PathNodeId(0), PathNodeId(1)},
-                                          {PathNodeId(2), PathNodeId(3)}}));
+            std::make_optional<PathCut>({{PathNodeId(0), PathNodeId(1)},
+                                         {PathNodeId(2), PathNodeId(3)}}));
 }
 
 }  // namespace

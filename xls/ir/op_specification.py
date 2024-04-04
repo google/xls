@@ -214,9 +214,9 @@ class OptionalStringAttribute(Attribute):
   def __init__(self, name):
     super(OptionalStringAttribute, self).__init__(
         name,
-        cpp_type='absl::optional<std::string>',
-        return_cpp_type='absl::optional<std::string>',
-        arg_cpp_type='absl::optional<std::string>',
+        cpp_type='std::optional<std::string>',
+        return_cpp_type='std::optional<std::string>',
+        arg_cpp_type='std::optional<std::string>',
     )
 
 
@@ -385,7 +385,7 @@ class OpClass(object):
       if isinstance(o, OperandSpan):
         args.append(ConstructorArgument(o.name, 'absl::Span<Node* const>'))
       elif isinstance(o, OptionalOperand):
-        args.append(ConstructorArgument(o.name, 'absl::optional<Node*>'))
+        args.append(ConstructorArgument(o.name, 'std::optional<Node*>'))
       else:
         args.append(ConstructorArgument(o.name, 'Node*'))
     args.extend(a.constructor_argument for a in self.attributes)
@@ -714,8 +714,8 @@ OpClass.kinds['RECEIVE'] = OpClass(
                           return_cpp_type='Node*',
                           expression='operand(0)'),
                    Method(name='predicate',
-                          return_cpp_type='absl::optional<Node*>',
-                          expression='predicate_operand_number().ok() ? absl::optional<Node*>(operand(*predicate_operand_number())) : absl::nullopt'),
+                          return_cpp_type='std::optional<Node*>',
+                          expression='predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt'),
                    Method(name='GetPayloadType',
                           return_cpp_type='Type*',
                           expression=None),
@@ -742,8 +742,8 @@ OpClass.kinds['SEND'] = OpClass(
                           return_cpp_type='Node*',
                           expression='operand(1)'),
                    Method(name='predicate',
-                          return_cpp_type='absl::optional<Node*>',
-                          expression='predicate_operand_number().ok() ? absl::optional<Node*>(operand(*predicate_operand_number())) : absl::nullopt'),
+                          return_cpp_type='std::optional<Node*>',
+                          expression='predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt'),
                    Method(name='ReplaceChannel',
                           return_cpp_type='void',
                           expression=None,
@@ -979,8 +979,8 @@ OpClass.kinds['NEXT'] = OpClass(
                           return_cpp_type='Node*',
                           expression='operand(1)'),
                    Method(name='predicate',
-                          return_cpp_type='absl::optional<Node*>',
-                          expression='predicate_operand_number().ok() ? absl::optional<Node*>(operand(*predicate_operand_number())) : absl::nullopt'),
+                          return_cpp_type='std::optional<Node*>',
+                          expression='predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt'),
                    ],
     custom_clone_method=True
 )
@@ -1011,10 +1011,10 @@ OpClass.kinds['SELECT'] = OpClass(
                           expression='cases().at(case_no)',
                           params='int64_t case_no'),
                    Method(name='default_value',
-                          return_cpp_type='absl::optional<Node*>',
+                          return_cpp_type='std::optional<Node*>',
                           expression='has_default_value_ '
-                          '? absl::optional<Node*>(operands().back()) '
-                          ': absl::nullopt'),
+                          '? std::optional<Node*>(operands().back()) '
+                          ': std::nullopt'),
                    Method(name='AllCases',
                           return_cpp_type='bool',
                           expression='',
@@ -1138,11 +1138,11 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                           return_cpp_type='Node*',
                           expression='operand(0)'),
                    Method(name='load_enable',
-                          return_cpp_type='absl::optional<Node*>',
-                          expression='load_enable_operand_number().ok() ? absl::optional<Node*>(operand(*load_enable_operand_number())) : std::nullopt'),
+                          return_cpp_type='std::optional<Node*>',
+                          expression='load_enable_operand_number().ok() ? std::optional<Node*>(operand(*load_enable_operand_number())) : std::nullopt'),
                    Method(name='reset',
-                          return_cpp_type='absl::optional<Node*>',
-                          expression='reset_operand_number().ok() ? absl::optional<Node*>(operand(*reset_operand_number())) : std::nullopt'),
+                          return_cpp_type='std::optional<Node*>',
+                          expression='reset_operand_number().ok() ? std::optional<Node*>(operand(*reset_operand_number())) : std::nullopt'),
                    Method(name='GetRegister',
                           return_cpp_type='Register*',
                           expression='reg_'),
