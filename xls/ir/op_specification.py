@@ -469,7 +469,7 @@ class OpClass(object):
 
   def fixed_operands(self) -> Iterable[OperandInfo]:
     """Get all the operands with compile-time known offsets.
-    
+
     Note that any operand after the first optional or variable-length (think
     span) operand does not have a fixed offset.
 
@@ -519,7 +519,6 @@ class Op(object):
     self.properties = properties
 
 
-# pyformat: disable
 OpClass.kinds['AFTER_ALL'] = OpClass(
     name='AfterAll',
     op='Op::kAfterAll',
@@ -539,25 +538,33 @@ OpClass.kinds['ARRAY'] = OpClass(
     name='Array',
     op='Op::kArray',
     operands=[OperandSpan('elements')],
-    xls_type_expression='function->package()->GetArrayType(elements.size(), element_type)',
+    xls_type_expression=(
+        'function->package()->GetArrayType(elements.size(), element_type)'
+    ),
     attributes=[TypeAttribute('element_type')],
-    extra_methods=[Method(name='size',
-                          return_cpp_type='int64_t',
-                          expression='operand_count()')],
-    custom_clone_method=True
+    extra_methods=[
+        Method(
+            name='size', return_cpp_type='int64_t', expression='operand_count()'
+        )
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['ARRAY_INDEX'] = OpClass(
     name='ArrayIndex',
     op='Op::kArrayIndex',
     operands=[Operand('arg'), OperandSpan('indices')],
-    xls_type_expression='GetIndexedElementType(arg->GetType(), indices.size()).value()',
-    extra_methods=[Method(name='array',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='indices',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(1)')],
+    xls_type_expression=(
+        'GetIndexedElementType(arg->GetType(), indices.size()).value()'
+    ),
+    extra_methods=[
+        Method(name='array', return_cpp_type='Node*', expression='operand(0)'),
+        Method(
+            name='indices',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(1)',
+        ),
+    ],
     custom_clone_method=True,
 )
 
@@ -566,13 +573,11 @@ OpClass.kinds['ARRAY_SLICE'] = OpClass(
     op='Op::kArraySlice',
     operands=[Operand('array'), Operand('start')],
     attributes=[Int64Attribute('width')],
-    xls_type_expression='function->package()->GetArrayType(width, array->GetType()->AsArrayOrDie()->element_type())',
-    extra_methods=[Method(name='array',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='start',
-                          return_cpp_type='Node*',
-                          expression='operand(1)')],
+    xls_type_expression="""function->package()->GetArrayType(width, array->GetType()->AsArrayOrDie()->element_type())""",
+    extra_methods=[
+        Method(name='array', return_cpp_type='Node*', expression='operand(0)'),
+        Method(name='start', return_cpp_type='Node*', expression='operand(1)'),
+    ],
 )
 
 OpClass.kinds['ARRAY_UPDATE'] = OpClass(
@@ -580,15 +585,23 @@ OpClass.kinds['ARRAY_UPDATE'] = OpClass(
     op='Op::kArrayUpdate',
     operands=[Operand('arg'), Operand('update_value'), OperandSpan('indices')],
     xls_type_expression='arg->GetType()',
-    extra_methods=[Method(name='array_to_update',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='indices',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(2)'),
-                   Method(name='update_value',
-                          return_cpp_type='Node*',
-                          expression='operand(1)')],
+    extra_methods=[
+        Method(
+            name='array_to_update',
+            return_cpp_type='Node*',
+            expression='operand(0)',
+        ),
+        Method(
+            name='indices',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(2)',
+        ),
+        Method(
+            name='update_value',
+            return_cpp_type='Node*',
+            expression='operand(1)',
+        ),
+    ],
     custom_clone_method=True,
 )
 
@@ -604,9 +617,9 @@ OpClass.kinds['BIN_OP'] = OpClass(
     op='op',
     operands=[Operand('lhs'), Operand('rhs')],
     xls_type_expression='lhs->GetType()',
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')]
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
 )
 
 OpClass.kinds['ARITH_OP'] = OpClass(
@@ -614,21 +627,21 @@ OpClass.kinds['ARITH_OP'] = OpClass(
     op='op',
     operands=[Operand('lhs'), Operand('rhs')],
     xls_type_expression='function->package()->GetBitsType(width)',
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')],
-    attributes=[Int64Attribute('width')]
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
+    attributes=[Int64Attribute('width')],
 )
 
 OpClass.kinds['PARTIAL_PRODUCT_OP'] = OpClass(
     name='PartialProductOp',
     op='op',
     operands=[Operand('lhs'), Operand('rhs')],
-    xls_type_expression='function->package()->GetTupleType({function->package()->GetBitsType(width), function->package()->GetBitsType(width)})',
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')],
-    attributes=[Int64Attribute('width')]
+    xls_type_expression="""function->package()->GetTupleType({function->package()->GetBitsType(width), function->package()->GetBitsType(width)})""",
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
+    attributes=[Int64Attribute('width')],
 )
 
 OpClass.kinds['ASSERT'] = OpClass(
@@ -636,22 +649,25 @@ OpClass.kinds['ASSERT'] = OpClass(
     op='Op::kAssert',
     operands=[Operand('token'), Operand('condition')],
     xls_type_expression='function->package()->GetTokenType()',
-    extra_methods=[Method(name='token',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='condition',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='set_label',
-                          return_cpp_type='void',
-                          expression_is_body=True,
-                          params='std::string new_label',
-                          expression='label_ = std::move(new_label);',
-                          is_const=False),
-                   ],
-    attributes=[StringAttribute('message'),
-                OptionalStringAttribute('label'),
-                OptionalStringAttribute('original_label')]
+    extra_methods=[
+        Method(name='token', return_cpp_type='Node*', expression='operand(0)'),
+        Method(
+            name='condition', return_cpp_type='Node*', expression='operand(1)'
+        ),
+        Method(
+            name='set_label',
+            return_cpp_type='void',
+            expression_is_body=True,
+            params='std::string new_label',
+            expression='label_ = std::move(new_label);',
+            is_const=False,
+        ),
+    ],
+    attributes=[
+        StringAttribute('message'),
+        OptionalStringAttribute('label'),
+        OptionalStringAttribute('original_label'),
+    ],
 )
 
 OpClass.kinds['TRACE'] = OpClass(
@@ -659,17 +675,18 @@ OpClass.kinds['TRACE'] = OpClass(
     op='Op::kTrace',
     operands=[Operand('token'), Operand('condition'), OperandSpan('args')],
     xls_type_expression='function->package()->GetTokenType()',
-    extra_methods=[Method(name='token',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='condition',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='args',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(2)')],
-    attributes=[FormatStepsAttribute('format'),
-                Int64Attribute('verbosity')],
+    extra_methods=[
+        Method(name='token', return_cpp_type='Node*', expression='operand(0)'),
+        Method(
+            name='condition', return_cpp_type='Node*', expression='operand(1)'
+        ),
+        Method(
+            name='args',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(2)',
+        ),
+    ],
+    attributes=[FormatStepsAttribute('format'), Int64Attribute('verbosity')],
     custom_clone_method=True,
 )
 
@@ -678,21 +695,24 @@ OpClass.kinds['COVER'] = OpClass(
     op='Op::kCover',
     operands=[Operand('token'), Operand('condition')],
     xls_type_expression='function->package()->GetTokenType()',
-    extra_methods=[Method(name='token',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='condition',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='set_label',
-                          expression_is_body=True,
-                          return_cpp_type='void',
-                          params='std::string new_label',
-                          expression='label_ = std::move(new_label);',
-                          is_const=False),
-                   ],
-    attributes=[StringAttribute('label'),
-                OptionalStringAttribute('original_label')]
+    extra_methods=[
+        Method(name='token', return_cpp_type='Node*', expression='operand(0)'),
+        Method(
+            name='condition', return_cpp_type='Node*', expression='operand(1)'
+        ),
+        Method(
+            name='set_label',
+            expression_is_body=True,
+            return_cpp_type='void',
+            params='std::string new_label',
+            expression='label_ = std::move(new_label);',
+            is_const=False,
+        ),
+    ],
+    attributes=[
+        StringAttribute('label'),
+        OptionalStringAttribute('original_label'),
+    ],
 )
 
 OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
@@ -700,9 +720,9 @@ OpClass.kinds['BITWISE_REDUCTION_OP'] = OpClass(
     op='op',
     operands=[Operand('operand')],
     xls_type_expression='function->package()->GetBitsType(1)',
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')]
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
 )
 
 OpClass.kinds['RECEIVE'] = OpClass(
@@ -710,23 +730,24 @@ OpClass.kinds['RECEIVE'] = OpClass(
     op='Op::kReceive',
     operands=[Operand('token'), OptionalOperand('predicate')],
     xls_type_expression='GetReceiveType(function, channel_name, is_blocking)',
-    extra_methods=[Method(name='token',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='predicate',
-                          return_cpp_type='std::optional<Node*>',
-                          expression='predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt'),
-                   Method(name='GetPayloadType',
-                          return_cpp_type='Type*',
-                          expression=None),
-                   Method(name='ReplaceChannel',
-                          return_cpp_type='void',
-                          expression=None,
-                          params='std::string_view new_channel_name',
-                          is_const=False),
-                   ],
+    extra_methods=[
+        Method(name='token', return_cpp_type='Node*', expression='operand(0)'),
+        Method(
+            name='predicate',
+            return_cpp_type='std::optional<Node*>',
+            expression="""predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt""",
+        ),
+        Method(name='GetPayloadType', return_cpp_type='Type*', expression=None),
+        Method(
+            name='ReplaceChannel',
+            return_cpp_type='void',
+            expression=None,
+            params='std::string_view new_channel_name',
+            is_const=False,
+        ),
+    ],
     attributes=[StringAttribute('channel_name'), BoolAttribute('is_blocking')],
-    custom_clone_method=True
+    custom_clone_method=True,
 )
 
 OpClass.kinds['SEND'] = OpClass(
@@ -735,22 +756,23 @@ OpClass.kinds['SEND'] = OpClass(
     operands=[Operand('token'), Operand('data'), OptionalOperand('predicate')],
     xls_type_expression='function->package()->GetTokenType()',
     attributes=[StringAttribute('channel_name')],
-    extra_methods=[Method(name='token',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='data',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='predicate',
-                          return_cpp_type='std::optional<Node*>',
-                          expression='predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt'),
-                   Method(name='ReplaceChannel',
-                          return_cpp_type='void',
-                          expression=None,
-                          params='std::string_view new_channel_name',
-                          is_const=False),
-                   ],
-    custom_clone_method=True
+    extra_methods=[
+        Method(name='token', return_cpp_type='Node*', expression='operand(0)'),
+        Method(name='data', return_cpp_type='Node*', expression='operand(1)'),
+        Method(
+            name='predicate',
+            return_cpp_type='std::optional<Node*>',
+            expression="""predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt""",
+        ),
+        Method(
+            name='ReplaceChannel',
+            return_cpp_type='void',
+            expression=None,
+            params='std::string_view new_channel_name',
+            is_const=False,
+        ),
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['NARY_OP'] = OpClass(
@@ -758,9 +780,9 @@ OpClass.kinds['NARY_OP'] = OpClass(
     op='op',
     operands=[OperandSpan('args')],
     xls_type_expression='args[0]->GetType()',
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')]
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
 )
 
 OpClass.kinds['BIT_SLICE'] = OpClass(
@@ -768,8 +790,7 @@ OpClass.kinds['BIT_SLICE'] = OpClass(
     op='Op::kBitSlice',
     operands=[Operand('arg')],
     xls_type_expression='function->package()->GetBitsType(width)',
-    attributes=[Int64Attribute('start'),
-                Int64Attribute('width')],
+    attributes=[Int64Attribute('start'), Int64Attribute('width')],
 )
 
 OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
@@ -778,13 +799,12 @@ OpClass.kinds['DYNAMIC_BIT_SLICE'] = OpClass(
     operands=[Operand('arg'), Operand('start')],
     xls_type_expression='function->package()->GetBitsType(width)',
     attributes=[Int64Attribute('width')],
-    extra_methods=[Method(name='to_slice',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='start',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   ],
+    extra_methods=[
+        Method(
+            name='to_slice', return_cpp_type='Node*', expression='operand(0)'
+        ),
+        Method(name='start', return_cpp_type='Node*', expression='operand(1)'),
+    ],
 )
 
 OpClass.kinds['BIT_SLICE_UPDATE'] = OpClass(
@@ -792,15 +812,17 @@ OpClass.kinds['BIT_SLICE_UPDATE'] = OpClass(
     op='Op::kBitSliceUpdate',
     operands=[Operand('arg'), Operand('start'), Operand('value')],
     xls_type_expression='arg->GetType()',
-    extra_methods=[Method(name='to_update',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='start',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='update_value',
-                          return_cpp_type='Node*',
-                          expression='operand(2)'),]
+    extra_methods=[
+        Method(
+            name='to_update', return_cpp_type='Node*', expression='operand(0)'
+        ),
+        Method(name='start', return_cpp_type='Node*', expression='operand(1)'),
+        Method(
+            name='update_value',
+            return_cpp_type='Node*',
+            expression='operand(2)',
+        ),
+    ],
 )
 
 OpClass.kinds['COMPARE_OP'] = OpClass(
@@ -808,9 +830,9 @@ OpClass.kinds['COMPARE_OP'] = OpClass(
     op='op',
     operands=[Operand('lhs'), Operand('rhs')],
     xls_type_expression='function->package()->GetBitsType(1)',
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')]
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
 )
 
 OpClass.kinds['CONCAT'] = OpClass(
@@ -819,51 +841,68 @@ OpClass.kinds['CONCAT'] = OpClass(
     operands=[OperandSpan('args')],
     xls_type_expression='GetConcatType(function->package(), args)',
     extra_methods=[
-        Method(name='GetOperandSliceData', return_cpp_type='SliceData',
-               expression=None, params='int64_t operandno'),
+        Method(
+            name='GetOperandSliceData',
+            return_cpp_type='SliceData',
+            expression=None,
+            params='int64_t operandno',
+        ),
     ],
 )
 
 OpClass.kinds['COUNTED_FOR'] = OpClass(
     name='CountedFor',
     op='Op::kCountedFor',
-    operands=[Operand('initial_value'),
-              OperandSpan('invariant_args')],
+    operands=[Operand('initial_value'), OperandSpan('invariant_args')],
     xls_type_expression='initial_value->GetType()',
-    attributes=[Int64Attribute('trip_count'),
-                Int64Attribute('stride'),
-                FunctionAttribute('body')],
-    extra_methods=[Method(name='initial_value',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='invariant_args',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(1)')],
-    custom_clone_method=True
+    attributes=[
+        Int64Attribute('trip_count'),
+        Int64Attribute('stride'),
+        FunctionAttribute('body'),
+    ],
+    extra_methods=[
+        Method(
+            name='initial_value',
+            return_cpp_type='Node*',
+            expression='operand(0)',
+        ),
+        Method(
+            name='invariant_args',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(1)',
+        ),
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['DYNAMIC_COUNTED_FOR'] = OpClass(
     name='DynamicCountedFor',
     op='Op::kDynamicCountedFor',
-    operands=[Operand('initial_value'),
-              Operand('trip_count'),
-              Operand('stride'),
-              OperandSpan('invariant_args')],
+    operands=[
+        Operand('initial_value'),
+        Operand('trip_count'),
+        Operand('stride'),
+        OperandSpan('invariant_args'),
+    ],
     xls_type_expression='initial_value->GetType()',
     attributes=[FunctionAttribute('body')],
-    extra_methods=[Method(name='initial_value',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='trip_count',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='stride',
-                          return_cpp_type='Node*',
-                          expression='operand(2)'),
-                   Method(name='invariant_args',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(3)')],
-    custom_clone_method=True
+    extra_methods=[
+        Method(
+            name='initial_value',
+            return_cpp_type='Node*',
+            expression='operand(0)',
+        ),
+        Method(
+            name='trip_count', return_cpp_type='Node*', expression='operand(1)'
+        ),
+        Method(name='stride', return_cpp_type='Node*', expression='operand(2)'),
+        Method(
+            name='invariant_args',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(3)',
+        ),
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['EXTEND_OP'] = OpClass(
@@ -872,9 +911,9 @@ OpClass.kinds['EXTEND_OP'] = OpClass(
     operands=[Operand('arg')],
     xls_type_expression='function->package()->GetBitsType(new_bit_count)',
     attributes=[Int64Attribute('new_bit_count')],
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')]
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
 )
 
 OpClass.kinds['INVOKE'] = OpClass(
@@ -891,8 +930,9 @@ OpClass.kinds['LITERAL'] = OpClass(
     operands=[],
     xls_type_expression='function->package()->GetTypeForValue(value)',
     attributes=[ValueAttribute('value')],
-    extra_methods=[Method('IsZero', 'bool',
-                          'value().IsBits() && value().bits().IsZero()')],
+    extra_methods=[
+        Method('IsZero', 'bool', 'value().IsBits() && value().bits().IsZero()')
+    ],
 )
 
 OpClass.kinds['MAP'] = OpClass(
@@ -908,46 +948,57 @@ OpClass.kinds['ONE_HOT'] = OpClass(
     op='Op::kOneHot',
     attributes=[LsbOrMsbAttribute('priority')],
     operands=[Operand('input')],
-    xls_type_expression='function->package()->GetBitsType('
-    'input->BitCountOrDie() + 1)'
+    xls_type_expression=(
+        'function->package()->GetBitsType(input->BitCountOrDie() + 1)'
+    ),
 )
 
 OpClass.kinds['ONE_HOT_SELECT'] = OpClass(
     name='OneHotSelect',
     op='Op::kOneHotSel',
-    operands=[Operand('selector'),
-              OperandSpan('cases')],
+    operands=[Operand('selector'), OperandSpan('cases')],
     xls_type_expression='cases[0]->GetType()',
-    extra_methods=[Method(name='selector',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='cases',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(1)'),
-                   Method(name='get_case',
-                          return_cpp_type='Node*',
-                          expression='cases().at(case_no)',
-                          params='int64_t case_no')],
-    custom_clone_method=True
+    extra_methods=[
+        Method(
+            name='selector', return_cpp_type='Node*', expression='operand(0)'
+        ),
+        Method(
+            name='cases',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(1)',
+        ),
+        Method(
+            name='get_case',
+            return_cpp_type='Node*',
+            expression='cases().at(case_no)',
+            params='int64_t case_no',
+        ),
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['PRIORITY_SELECT'] = OpClass(
     name='PrioritySelect',
     op='Op::kPrioritySel',
-    operands=[Operand('selector'),
-              OperandSpan('cases')],
+    operands=[Operand('selector'), OperandSpan('cases')],
     xls_type_expression='cases[0]->GetType()',
-    extra_methods=[Method(name='selector',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='cases',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(1)'),
-                   Method(name='get_case',
-                          return_cpp_type='Node*',
-                          expression='cases().at(case_no)',
-                          params='int64_t case_no')],
-    custom_clone_method=True
+    extra_methods=[
+        Method(
+            name='selector', return_cpp_type='Node*', expression='operand(0)'
+        ),
+        Method(
+            name='cases',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(1)',
+        ),
+        Method(
+            name='get_case',
+            return_cpp_type='Node*',
+            expression='cases().at(case_no)',
+            params='int64_t case_no',
+        ),
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['PARAM'] = OpClass(
@@ -955,16 +1006,20 @@ OpClass.kinds['PARAM'] = OpClass(
     op='Op::kParam',
     operands=[],
     xls_type_expression='type',
-    extra_constructor_args=[ConstructorArgument(name='type',
-                                                cpp_type='Type*',
-                                                clone_expression='GetType()'),
-                            ConstructorArgument(name='name',
-                                                cpp_type='std::string_view',
-                                                clone_expression='name()')],
-    extra_methods=[Method(name='name',
-                          return_cpp_type='std::string_view',
-                          expression='name_')],
-    custom_clone_method=True
+    extra_constructor_args=[
+        ConstructorArgument(
+            name='type', cpp_type='Type*', clone_expression='GetType()'
+        ),
+        ConstructorArgument(
+            name='name', cpp_type='std::string_view', clone_expression='name()'
+        ),
+    ],
+    extra_methods=[
+        Method(
+            name='name', return_cpp_type='std::string_view', expression='name_'
+        )
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['NEXT'] = OpClass(
@@ -972,57 +1027,68 @@ OpClass.kinds['NEXT'] = OpClass(
     op='Op::kNext',
     operands=[Operand('param'), Operand('value'), OptionalOperand('predicate')],
     xls_type_expression='function->package()->GetTupleType({})',
-    extra_methods=[Method(name='param',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='value',
-                          return_cpp_type='Node*',
-                          expression='operand(1)'),
-                   Method(name='predicate',
-                          return_cpp_type='std::optional<Node*>',
-                          expression='predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt'),
-                   ],
-    custom_clone_method=True
+    extra_methods=[
+        Method(name='param', return_cpp_type='Node*', expression='operand(0)'),
+        Method(name='value', return_cpp_type='Node*', expression='operand(1)'),
+        Method(
+            name='predicate',
+            return_cpp_type='std::optional<Node*>',
+            expression="""predicate_operand_number().ok() ? std::optional<Node*>(operand(*predicate_operand_number())) : std::nullopt""",
+        ),
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['SELECT'] = OpClass(
     name='Select',
     op='Op::kSel',
-    operands=[Operand('selector'),
-              OperandSpan('cases'),
-              OptionalOperand('default_value',
-                              manual_optional_implementation=True)],
+    operands=[
+        Operand('selector'),
+        OperandSpan('cases'),
+        OptionalOperand('default_value', manual_optional_implementation=True),
+    ],
     xls_type_expression='cases[0]->GetType()',
     extra_data_members=[
-        DataMember(name='cases_size_',
-                   cpp_type='int64_t',
-                   init='cases.size()'),
-        DataMember(name='has_default_value_',
-                   cpp_type='bool',
-                   init='default_value.has_value()')],
-    extra_methods=[Method(name='selector',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='cases',
-                          return_cpp_type='absl::Span<Node* const>',
-                          expression='operands().subspan(1, cases_size_)'),
-                   Method(name='get_case',
-                          return_cpp_type='Node*',
-                          expression='cases().at(case_no)',
-                          params='int64_t case_no'),
-                   Method(name='default_value',
-                          return_cpp_type='std::optional<Node*>',
-                          expression='has_default_value_ '
-                          '? std::optional<Node*>(operands().back()) '
-                          ': std::nullopt'),
-                   Method(name='AllCases',
-                          return_cpp_type='bool',
-                          expression='',
-                          params='std::function<bool(Node*)> p'),
-                   Method(name='any_case',
-                          return_cpp_type='Node*',
-                          expression='!cases().empty() ? cases().front() : default_value().has_value() ? default_value().value() : nullptr')],
-    custom_clone_method=True
+        DataMember(name='cases_size_', cpp_type='int64_t', init='cases.size()'),
+        DataMember(
+            name='has_default_value_',
+            cpp_type='bool',
+            init='default_value.has_value()',
+        ),
+    ],
+    extra_methods=[
+        Method(
+            name='selector', return_cpp_type='Node*', expression='operand(0)'
+        ),
+        Method(
+            name='cases',
+            return_cpp_type='absl::Span<Node* const>',
+            expression='operands().subspan(1, cases_size_)',
+        ),
+        Method(
+            name='get_case',
+            return_cpp_type='Node*',
+            expression='cases().at(case_no)',
+            params='int64_t case_no',
+        ),
+        Method(
+            name='default_value',
+            return_cpp_type='std::optional<Node*>',
+            expression="""has_default_value_ ? std::optional<Node*>(operands().back()) : std::nullopt""",
+        ),
+        Method(
+            name='AllCases',
+            return_cpp_type='bool',
+            expression='',
+            params='std::function<bool(Node*)> p',
+        ),
+        Method(
+            name='any_case',
+            return_cpp_type='Node*',
+            expression="""!cases().empty() ? cases().front() : default_value().has_value() ? default_value().value() : nullptr""",
+        ),
+    ],
+    custom_clone_method=True,
 )
 
 OpClass.kinds['TUPLE'] = OpClass(
@@ -1030,9 +1096,11 @@ OpClass.kinds['TUPLE'] = OpClass(
     op='Op::kTuple',
     operands=[OperandSpan('elements')],
     xls_type_expression='GetTupleType(function->package(), elements)',
-    extra_methods=[Method(name='size',
-                          return_cpp_type='int64_t',
-                          expression='operand_count()')],
+    extra_methods=[
+        Method(
+            name='size', return_cpp_type='int64_t', expression='operand_count()'
+        )
+    ],
 )
 
 OpClass.kinds['TUPLE_INDEX'] = OpClass(
@@ -1048,9 +1116,9 @@ OpClass.kinds['UN_OP'] = OpClass(
     op='op',
     operands=[Operand('arg')],
     xls_type_expression='arg->GetType()',
-    extra_constructor_args=[ConstructorArgument(name='op',
-                                                cpp_type='Op',
-                                                clone_expression='op()')]
+    extra_constructor_args=[
+        ConstructorArgument(name='op', cpp_type='Op', clone_expression='op()')
+    ],
 )
 
 OpClass.kinds['DECODE'] = OpClass(
@@ -1065,7 +1133,9 @@ OpClass.kinds['ENCODE'] = OpClass(
     name='Encode',
     op='Op::kEncode',
     operands=[Operand('arg')],
-    xls_type_expression='function->package()->GetBitsType(CeilOfLog2(arg->BitCountOrDie()))',
+    xls_type_expression=(
+        'function->package()->GetBitsType(CeilOfLog2(arg->BitCountOrDie()))'
+    ),
 )
 
 OpClass.kinds['INPUT_PORT'] = OpClass(
@@ -1073,15 +1143,19 @@ OpClass.kinds['INPUT_PORT'] = OpClass(
     op='Op::kInputPort',
     operands=[],
     xls_type_expression='type',
-    extra_constructor_args=[ConstructorArgument(name='name',
-                                                cpp_type='std::string_view',
-                                                clone_expression='name()'),
-                            ConstructorArgument(name='type',
-                                                cpp_type='Type*',
-                                                clone_expression='GetType()')],
-    extra_methods=[Method(name='name',
-                          return_cpp_type='std::string_view',
-                          expression='name_')],
+    extra_constructor_args=[
+        ConstructorArgument(
+            name='name', cpp_type='std::string_view', clone_expression='name()'
+        ),
+        ConstructorArgument(
+            name='type', cpp_type='Type*', clone_expression='GetType()'
+        ),
+    ],
+    extra_methods=[
+        Method(
+            name='name', return_cpp_type='std::string_view', expression='name_'
+        )
+    ],
 )
 
 OpClass.kinds['OUTPUT_PORT'] = OpClass(
@@ -1089,12 +1163,16 @@ OpClass.kinds['OUTPUT_PORT'] = OpClass(
     op='Op::kOutputPort',
     operands=[Operand('operand')],
     xls_type_expression='function->package()->GetTupleType({})',
-    extra_constructor_args=[ConstructorArgument(name='name',
-                                                cpp_type='std::string_view',
-                                                clone_expression='name()')],
-    extra_methods=[Method(name='name',
-                          return_cpp_type='std::string_view',
-                          expression='name_')],
+    extra_constructor_args=[
+        ConstructorArgument(
+            name='name', cpp_type='std::string_view', clone_expression='name()'
+        )
+    ],
+    extra_methods=[
+        Method(
+            name='name', return_cpp_type='std::string_view', expression='name_'
+        )
+    ],
 )
 
 OpClass.kinds['REGISTER_READ'] = OpClass(
@@ -1105,60 +1183,70 @@ OpClass.kinds['REGISTER_READ'] = OpClass(
     # `register` is a C++ keyword so an attribute of name register can't be
     # defined. Use `reg` for the data member and constructor arg, and
     # GetRegister for the accessor method.
-    extra_constructor_args=[ConstructorArgument(name='reg',
-                                                cpp_type='Register*',
-                                                clone_expression='GetRegister()')],
+    extra_constructor_args=[
+        ConstructorArgument(
+            name='reg', cpp_type='Register*', clone_expression='GetRegister()'
+        )
+    ],
     extra_data_members=[
-        DataMember(name='reg_',
-                   cpp_type='Register*',
-                   init='reg')],
-    extra_methods=[Method(name='GetRegister',
-                          return_cpp_type='Register*',
-                          expression='reg_')],
+        DataMember(name='reg_', cpp_type='Register*', init='reg')
+    ],
+    extra_methods=[
+        Method(
+            name='GetRegister', return_cpp_type='Register*', expression='reg_'
+        )
+    ],
 )
 
 OpClass.kinds['REGISTER_WRITE'] = OpClass(
     name='RegisterWrite',
     op='Op::kRegisterWrite',
-    operands=[Operand('data'),
-              OptionalOperand('load_enable'),
-              OptionalOperand('reset')],
+    operands=[
+        Operand('data'),
+        OptionalOperand('load_enable'),
+        OptionalOperand('reset'),
+    ],
     xls_type_expression='function->package()->GetTupleType({})',
     # `register` is a C++ keyword so an attribute of name register can't be
     # defined. Use `reg` for the data member and constructor arg, and
     # GetRegister for the accessor method.
-    extra_constructor_args=[ConstructorArgument(name='reg',
-                                                cpp_type='Register*',
-                                                clone_expression='GetRegister()')],
+    extra_constructor_args=[
+        ConstructorArgument(
+            name='reg', cpp_type='Register*', clone_expression='GetRegister()'
+        )
+    ],
     extra_data_members=[
-        DataMember(name='reg_',
-                   cpp_type='Register*',
-                   init='reg')],
-    extra_methods=[Method(name='data',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='load_enable',
-                          return_cpp_type='std::optional<Node*>',
-                          expression='load_enable_operand_number().ok() ? std::optional<Node*>(operand(*load_enable_operand_number())) : std::nullopt'),
-                   Method(name='reset',
-                          return_cpp_type='std::optional<Node*>',
-                          expression='reset_operand_number().ok() ? std::optional<Node*>(operand(*reset_operand_number())) : std::nullopt'),
-                   Method(name='GetRegister',
-                          return_cpp_type='Register*',
-                          expression='reg_'),
-                   Method(name='ReplaceExistingLoadEnable',
-                          is_const=False,
-                          return_cpp_type='absl::Status',
-                          params='Node* new_operand',
-                          expression='has_load_enable_ ? ReplaceOperandNumber(*load_enable_operand_number(), new_operand) : '
-                          + 'absl::InternalError("Unable to replace load enable on RegisterWrite -- '
-                          + 'register does not have an existing load enable operand.")'),
-                   Method(name='AddOrReplaceReset',
-                          is_const=False,
-                          return_cpp_type='absl::Status',
-                          params='Node* new_reset_node, Reset new_reset_info',
-                          expression_is_body=True,
-                          expression='''
+        DataMember(name='reg_', cpp_type='Register*', init='reg')
+    ],
+    extra_methods=[
+        Method(name='data', return_cpp_type='Node*', expression='operand(0)'),
+        Method(
+            name='load_enable',
+            return_cpp_type='std::optional<Node*>',
+            expression="""load_enable_operand_number().ok() ? std::optional<Node*>(operand(*load_enable_operand_number())) : std::nullopt""",
+        ),
+        Method(
+            name='reset',
+            return_cpp_type='std::optional<Node*>',
+            expression="""reset_operand_number().ok() ?  std::optional<Node*>(operand(*reset_operand_number())) : std::nullopt""",
+        ),
+        Method(
+            name='GetRegister', return_cpp_type='Register*', expression='reg_'
+        ),
+        Method(
+            name='ReplaceExistingLoadEnable',
+            is_const=False,
+            return_cpp_type='absl::Status',
+            params='Node* new_operand',
+            expression="""has_load_enable_ ? ReplaceOperandNumber(*load_enable_operand_number(), new_operand) : absl::InternalError("Unable to replace load enable on RegisterWrite -- register does not have an existing load enable operand.")""",
+        ),
+        Method(
+            name='AddOrReplaceReset',
+            is_const=False,
+            return_cpp_type='absl::Status',
+            params='Node* new_reset_node, Reset new_reset_info',
+            expression_is_body=True,
+            expression="""
                             reg_->UpdateReset(new_reset_info);
                             if(!has_reset_) {
                               AddOperand(new_reset_node);
@@ -1166,15 +1254,19 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                               return absl::OkStatus();
                             }
                             return ReplaceOperandNumber(*reset_operand_number(), new_reset_node);
-                          ''')],
+                          """,
+        ),
+    ],
 )
 
 OpClass.kinds['INSTANTIATION_OUTPUT'] = OpClass(
     name='InstantiationOutput',
     op='Op::kInstantiationOutput',
     operands=[],
-    attributes=[InstantiationAttribute('instantiation'),
-                StringAttribute('port_name')],
+    attributes=[
+        InstantiationAttribute('instantiation'),
+        StringAttribute('port_name'),
+    ],
     xls_type_expression='instantiation->GetOutputPort(port_name).value().type',
 )
 
@@ -1182,11 +1274,13 @@ OpClass.kinds['INSTANTIATION_INPUT'] = OpClass(
     name='InstantiationInput',
     op='Op::kInstantiationInput',
     operands=[Operand('data')],
-    extra_methods=[Method(name='data',
-                          return_cpp_type='Node*',
-                          expression='operand(0)')],
-    attributes=[InstantiationAttribute('instantiation'),
-                StringAttribute('port_name')],
+    extra_methods=[
+        Method(name='data', return_cpp_type='Node*', expression='operand(0)')
+    ],
+    attributes=[
+        InstantiationAttribute('instantiation'),
+        StringAttribute('port_name'),
+    ],
     xls_type_expression='function->package()->GetTupleType({})',
 )
 
@@ -1195,12 +1289,12 @@ OpClass.kinds['GATE'] = OpClass(
     op='Op::kGate',
     operands=[Operand('condition'), Operand('data')],
     xls_type_expression='data->GetType()',
-    extra_methods=[Method(name='condition',
-                          return_cpp_type='Node*',
-                          expression='operand(0)'),
-                   Method(name='data',
-                          return_cpp_type='Node*',
-                          expression='operand(1)')]
+    extra_methods=[
+        Method(
+            name='condition', return_cpp_type='Node*', expression='operand(0)'
+        ),
+        Method(name='data', return_cpp_type='Node*', expression='operand(1)'),
+    ],
 )
 
 OPS = [
@@ -1208,16 +1302,17 @@ OPS = [
         enum_name='kAdd',
         name='add',
         op_class=OpClass.kinds['BIN_OP'],
-        properties=[Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[Property.ASSOCIATIVE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kAnd',
         name='and',
         op_class=OpClass.kinds['NARY_OP'],
-        properties=[Property.BITWISE,
-                    Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[
+            Property.BITWISE,
+            Property.ASSOCIATIVE,
+            Property.COMMUTATIVE,
+        ],
     ),
     Op(
         enum_name='kAndReduce',
@@ -1254,23 +1349,20 @@ OPS = [
         name='nand',
         op_class=OpClass.kinds['NARY_OP'],
         # Note: not associative, because of the inversion.
-        properties=[Property.BITWISE,
-                    Property.COMMUTATIVE],
+        properties=[Property.BITWISE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kNor',
         name='nor',
         op_class=OpClass.kinds['NARY_OP'],
         # Note: not associative, because of the inversion.
-        properties=[Property.BITWISE,
-                    Property.COMMUTATIVE],
+        properties=[Property.BITWISE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kAfterAll',
         name='after_all',
         op_class=OpClass.kinds['AFTER_ALL'],
-        properties=[Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[Property.ASSOCIATIVE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kArray',
@@ -1354,8 +1446,7 @@ OPS = [
         enum_name='kEq',
         name='eq',
         op_class=OpClass.kinds['COMPARE_OP'],
-        properties=[Property.COMPARISON,
-                    Property.COMMUTATIVE],
+        properties=[Property.COMPARISON, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kIdentity',
@@ -1391,8 +1482,7 @@ OPS = [
         enum_name='kNe',
         name='ne',
         op_class=OpClass.kinds['COMPARE_OP'],
-        properties=[Property.COMPARISON,
-                    Property.COMMUTATIVE],
+        properties=[Property.COMPARISON, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kNeg',
@@ -1428,9 +1518,11 @@ OPS = [
         enum_name='kOr',
         name='or',
         op_class=OpClass.kinds['NARY_OP'],
-        properties=[Property.BITWISE,
-                    Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[
+            Property.BITWISE,
+            Property.ASSOCIATIVE,
+            Property.COMMUTATIVE,
+        ],
     ),
     Op(
         enum_name='kOrReduce',
@@ -1556,15 +1648,13 @@ OPS = [
         enum_name='kSMul',
         name='smul',
         op_class=OpClass.kinds['ARITH_OP'],
-        properties=[Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[Property.ASSOCIATIVE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kSMulp',
         name='smulp',
         op_class=OpClass.kinds['PARTIAL_PRODUCT_OP'],
-        properties=[Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[Property.ASSOCIATIVE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kSub',
@@ -1624,23 +1714,23 @@ OPS = [
         enum_name='kUMul',
         name='umul',
         op_class=OpClass.kinds['ARITH_OP'],
-        properties=[Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[Property.ASSOCIATIVE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kUMulp',
         name='umulp',
         op_class=OpClass.kinds['PARTIAL_PRODUCT_OP'],
-        properties=[Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[Property.ASSOCIATIVE, Property.COMMUTATIVE],
     ),
     Op(
         enum_name='kXor',
         name='xor',
         op_class=OpClass.kinds['NARY_OP'],
-        properties=[Property.BITWISE,
-                    Property.ASSOCIATIVE,
-                    Property.COMMUTATIVE],
+        properties=[
+            Property.BITWISE,
+            Property.ASSOCIATIVE,
+            Property.COMMUTATIVE,
+        ],
     ),
     Op(
         enum_name='kXorReduce',
@@ -1672,6 +1762,4 @@ OPS = [
         op_class=OpClass.kinds['MIN_DELAY'],
         properties=[],
     ),
-
 ]
-# pyformat: enable
