@@ -100,10 +100,12 @@ pub const FSE_MAX_SYMBOLS = u32:256;
 pub const FSE_ACCURACY_LOG_WIDTH = std::clog2(FSE_MAX_ACCURACY_LOG + u32:1);
 pub const FSE_SYMBOL_COUNT_WIDTH = std::clog2(FSE_MAX_SYMBOLS + u32:1);
 pub const FSE_REMAINING_PROBA_WIDTH = std::clog2((u32:1 << FSE_MAX_ACCURACY_LOG) + u32:1);
+pub const FSE_TABLE_INDEX_WIDTH = std::clog2(u32:1 << FSE_MAX_ACCURACY_LOG);
 
 pub type FseRemainingProba = uN[FSE_REMAINING_PROBA_WIDTH];
 pub type FseAccuracyLog = uN[FSE_ACCURACY_LOG_WIDTH];
 pub type FseSymbolCount = uN[FSE_SYMBOL_COUNT_WIDTH];
+pub type FseTableIndex = uN[FSE_TABLE_INDEX_WIDTH];
 
 // defined in https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.3.2.2.1
 pub const FSE_LITERAL_LENGTH_DEFAULT_DIST = s16[36]:[
@@ -141,3 +143,8 @@ pub enum FSETableType : u2 {
 
 pub struct FseRemainder { value: u1, valid: bool }
 pub struct FseProbaFreqDecoderCtrl { remainder: FseRemainder, finished: bool }
+
+pub struct FseTableCreatorCtrl {
+    accuracy_log: FseAccuracyLog,
+    negative_proba_count: FseSymbolCount
+}
