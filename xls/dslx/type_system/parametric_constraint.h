@@ -17,8 +17,10 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
+#include "absl/base/nullability.h"
 #include "absl/log/check.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -62,25 +64,18 @@ class ParametricConstraint {
   ParametricConstraint(const ParametricBinding& binding,
                        std::unique_ptr<Type> type);
 
-  // Decorates the given "binding" with the type information as above, but
-  // exposes the (replacement) expression "expr".
-  ParametricConstraint(const ParametricBinding& binding,
-                       std::unique_ptr<Type> type, Expr* expr);
-
-  const std::string& identifier() const { return binding_->identifier(); }
+  std::string_view identifier() const { return binding_.identifier(); }
   const Type& type() const { return *type_; }
-  Expr* expr() const { return expr_; }
+
+  // Expr on the parametric binding -- note that this can be null when the
+  // parametric has no default expression.
+  absl::Nullable<Expr*> expr() const { return binding_.expr(); }
 
   std::string ToString() const;
 
  private:
-  const ParametricBinding* binding_;
+  const ParametricBinding& binding_;
   std::unique_ptr<Type> type_;
-
-  // Expression that the parametric value should take on (e.g. when there are
-  // "derived parametrics" that are computed from other parametric values). Note
-  // that this may be null.
-  Expr* expr_;
 };
 
 }  // namespace xls::dslx

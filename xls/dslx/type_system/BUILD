@@ -171,6 +171,7 @@ cc_library(
     hdrs = ["parametric_constraint.h"],
     deps = [
         ":type",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "//xls/dslx/frontend:ast",

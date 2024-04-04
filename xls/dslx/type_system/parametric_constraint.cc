@@ -26,15 +26,10 @@ namespace xls::dslx {
 
 ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
                                            std::unique_ptr<Type> type)
-    : ParametricConstraint(binding, std::move(type), binding.expr()) {}
-
-ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
-                                           std::unique_ptr<Type> type,
-                                           Expr* expr)
-    : binding_(&binding), type_(std::move(type)), expr_(expr) {}
+    : binding_(binding), type_(std::move(type)) {}
 
 std::string ParametricConstraint::ToString() const {
-  if (expr_ == nullptr) {
+  if (expr() == nullptr) {
     return absl::StrFormat("%s: %s", identifier(), type().ToString());
   }
   return absl::StrFormat("%s: %s = %s", identifier(), type().ToString(),

@@ -240,10 +240,10 @@ ParametricInstantiator::ParametricInstantiator(
           << absl::StrJoin(ordered, ", ") << "]";
 
   for (const ParametricConstraint& constraint : parametric_constraints) {
-    const std::string& identifier = constraint.identifier();
+    std::string_view identifier = constraint.identifier();
     if (!ordered.contains(identifier)) {
-      constraint_order_.push_back(identifier);
-      ordered.insert(identifier);
+      constraint_order_.push_back(std::string{identifier});
+      ordered.insert(std::string{identifier});
     }
 
     std::unique_ptr<Type> parametric_expr_type =
