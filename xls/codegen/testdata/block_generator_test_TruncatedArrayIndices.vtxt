@@ -1,0 +1,54 @@
+module pipelined_proc(
+  input wire clk,
+  input wire rst,
+  input wire out_ready,
+  output wire [6:0] out_data,
+  output wire out_valid
+);
+  wire [6:0] lookup_table[0:0][0:3];
+  assign lookup_table[0][0] = 7'h00;
+  assign lookup_table[0][1] = 7'h00;
+  assign lookup_table[0][2] = 7'h00;
+  assign lookup_table[0][3] = 7'h00;
+  reg __x;
+  reg __z;
+  reg [6:0] __out_data_reg;
+  reg __out_data_valid_reg;
+  wire p0_all_active_inputs_valid;
+  wire p0_all_active_states_valid;
+  wire out_data_valid_inv;
+  wire __out_valid_buf;
+  wire out_data_valid_load_en;
+  wire out_data_load_en;
+  wire p0_stage_done;
+  wire [32:0] sel_22;
+  wire [3:0] sel_23;
+  wire pipeline_enable;
+  wire [6:0] entry;
+  assign p0_all_active_inputs_valid = 1'h1;
+  assign p0_all_active_states_valid = 1'h1;
+  assign out_data_valid_inv = ~__out_data_valid_reg;
+  assign __out_valid_buf = p0_all_active_inputs_valid & p0_all_active_states_valid & 1'h1;
+  assign out_data_valid_load_en = out_ready | out_data_valid_inv;
+  assign out_data_load_en = __out_valid_buf & out_data_valid_load_en;
+  assign p0_stage_done = p0_all_active_states_valid & p0_all_active_inputs_valid & out_data_load_en;
+  assign sel_22 = __x ? 33'h0_0000_0002 : 33'h0_0000_0001;
+  assign sel_23 = __z ? 4'h5 : 4'h4;
+  assign pipeline_enable = p0_stage_done & p0_stage_done;
+  assign entry = lookup_table[sel_22 > 33'h0_0000_0000 ? 1'h0 : sel_22[0:0]][sel_23 > 4'h3 ? 2'h3 : sel_23[1:0]];
+  always @ (posedge clk) begin
+    if (rst) begin
+      __x <= 1'h0;
+      __z <= 1'h0;
+      __out_data_reg <= 7'h00;
+      __out_data_valid_reg <= 1'h0;
+    end else begin
+      __x <= pipeline_enable ? __x : __x;
+      __z <= pipeline_enable ? __z : __z;
+      __out_data_reg <= out_data_load_en ? entry : __out_data_reg;
+      __out_data_valid_reg <= out_data_valid_load_en ? __out_valid_buf : __out_data_valid_reg;
+    end
+  end
+  assign out_data = __out_data_reg;
+  assign out_valid = __out_data_valid_reg;
+endmodule

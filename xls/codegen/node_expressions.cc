@@ -77,42 +77,28 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
       if (operand_is_indexable()) {
         return false;
       }
-      switch (operand_no) {
-        case 0:
-          // The array needs to be indexable.
-          return true;
-        case 1: {
-          // The indices need to be indexable if and only if we might need to
-          // truncate one to ensure we don't use too many bits for the array's
-          // indexing operation.
-          CHECK_EQ(operand_no, 1);
-          Node* operand = node->operand(operand_no);
-          Type* array_type = node->As<ArrayIndex>()->array()->GetType();
-          auto index_could_be_out_of_range = [&](Node* index) {
-            if (index->Is<::xls::Literal>()) {
-              return bits_ops::UGreaterThanOrEqual(
-                  index->As<::xls::Literal>()->value().bits(),
-                  array_type->AsArrayOrDie()->size());
-            }
-            return index->BitCountOrDie() >=
-                   Bits::MinBitCountUnsigned(
-                       array_type->AsArrayOrDie()->size());
-          };
-          if (!operand->Is<Tuple>()) {
-            return index_could_be_out_of_range(operand);
-          }
-          Tuple* indices = operand->As<Tuple>();
-          for (int64_t i = 0; i < indices->size(); ++i) {
-            if (index_could_be_out_of_range(indices->operand(i))) {
-              return true;
-            }
-            array_type = array_type->AsArrayOrDie()->element_type();
-          }
-          return false;
-        }
-        default:
-          return false;
+      if (operand_no == ArrayIndex::kArgOperand) {
+        // The array needs to be indexable.
+        return true;
       }
+      // Each index must be indexable if and only if we might need to truncate
+      // it to ensure we don't use too many bits for the array's indexing
+      // operation.
+      Type* array_type = node->As<ArrayIndex>()->array()->GetType();
+      // Indices start at operand_no 1, with the array at operand_no 0.
+      for (int64_t i = 1; i < operand_no; ++i) {
+        array_type = array_type->AsArrayOrDie()->element_type();
+      }
+      CHECK(array_type->IsArray());
+
+      Node* operand = node->operand(operand_no);
+      if (operand->Is<::xls::Literal>()) {
+        return bits_ops::UGreaterThanOrEqual(
+            operand->As<::xls::Literal>()->value().bits(),
+            array_type->AsArrayOrDie()->size());
+      }
+      return operand->BitCountOrDie() >=
+             Bits::MinBitCountUnsigned(array_type->AsArrayOrDie()->size());
     }
     case Op::kArrayUpdate:
       return operand_no == 0 && !operand_is_indexable();

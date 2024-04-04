@@ -1428,6 +1428,62 @@ proc bad_alternator(tkn: token, counter: bits[32], odd_iteration: bits[1], init=
                                  verilog);
 }
 
+TEST_P(BlockGeneratorTest, TruncatedArrayIndices) {
+  const std::string ir_text = R"(package test
+chan out(bits[7], id=10, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc lookup_proc(tkn: token, x: bits[1], z: bits[1], init={0, 0}) {
+  literal.1: bits[33] = literal(value=1, id=1)
+  literal.2: bits[33] = literal(value=2, id=2)
+  sel.3: bits[33] = sel(x, cases=[literal.1], default=literal.2, id=3)
+  literal.4: bits[4] = literal(value=4, id=4)
+  literal.5: bits[4] = literal(value=5, id=5)
+  sel.6: bits[4] = sel(z, cases=[literal.4], default=literal.5, id=6)
+  lookup_table: bits[7][4][1] = literal(value=[[0, 0, 0, 0]], id=7)
+  entry: bits[7] = array_index(lookup_table, indices=[sel.3, sel.6], id=8)
+  send.9: token = send(tkn, entry, channel=out, id=9)
+  next_value.10: () = next_value(param=x, value=x, id=10)
+  next_value.11: () = next_value(param=z, value=z, id=11)
+  next (send.9)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("lookup_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.top_block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.top_block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<BlockGeneratorTest>);
