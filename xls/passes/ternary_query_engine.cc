@@ -324,7 +324,8 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
   ReachedFixpoint rf = ReachedFixpoint::Unchanged;
   for (Node* node : f->nodes()) {
     CHECK(new_values.contains(node));
-    if (values_.contains(node)) {
+    if (values_.contains(node) &&
+        values_[node].type() == new_values[node].type()) {
       leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
           values_[node].AsMutableView(), new_values[node].AsView(),
           [&rf](TernaryVector& lhs, const TernaryVector& rhs) {

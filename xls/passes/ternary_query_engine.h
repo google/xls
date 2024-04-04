@@ -15,8 +15,6 @@
 #ifndef XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 #define XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 
-#include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 
@@ -25,13 +23,11 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/type.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_evaluator.h"
 
@@ -46,7 +42,9 @@ class TernaryQueryEngine : public QueryEngine {
  public:
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
-  bool IsTracked(Node* node) const override { return values_.contains(node); }
+  bool IsTracked(Node* node) const override {
+    return values_.contains(node) && values_.at(node).type() == node->GetType();
+  }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
     return LeafTypeTree<TernaryVector>(node->GetType(),
