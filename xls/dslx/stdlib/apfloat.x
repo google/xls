@@ -1545,6 +1545,11 @@ fn sign_magnitude_difference_test() {
     assert_eq(sign_magnitude_difference(u8:5, u8:255), (true, u8:250));
 }
 
+// Manually apply optimization https://github.com/google/xls/issues/1217
+fn or_last_bit<WIDTH: u32>(value: bits[WIDTH], lsb: u1) -> bits[WIDTH] {
+    bit_slice_update(value, u1:0, (value[0:1] | lsb))
+}
+
 // Floating point addition based on a generalization of IEEE 754 single-precision floating-point
 // addition, with the following exceptions:
 //  - Both input and output denormals are treated as/flushed to 0.
@@ -1604,8 +1609,8 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     // The smaller (y) needs to be shifted.
     // Calculate the sticky bit - set to 1 if any set bits have to be shifted
     // shifted out of the fraction.
-    let sticky = std::or_reduce_lsb(wide_y, shift) as sN[WIDE_FRACTION];
-    let addend_y = (wide_y >> shift) as sN[WIDE_FRACTION] | sticky;
+    let sticky = std::or_reduce_lsb(wide_y, shift);
+    let addend_y = or_last_bit(wide_y >> shift, sticky) as sN[WIDE_FRACTION];
 
     // Step 2: Do some addition!
     // Add one bit to capture potential carry: s28 -> s29.
@@ -1626,7 +1631,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
     // precision) - but don't drop the sticky bit!
     let carry_bit = abs_fraction[-1:];
     let carry_fraction = (abs_fraction >> u32:1) as uN[NORMALIZED_FRACTION];
-    let carry_fraction = carry_fraction | (abs_fraction[0:1] as uN[NORMALIZED_FRACTION]);
+    let carry_fraction = or_last_bit(carry_fraction, abs_fraction[0:1]);
 
     // If we cancelled higher bits, then we'll need to shift left.
     // Leading zeroes will be 1 if there's no carry or cancellation.
