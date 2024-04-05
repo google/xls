@@ -31,8 +31,8 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 
 namespace xls {

@@ -23,9 +23,9 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 
 namespace xls {

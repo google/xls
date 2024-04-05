@@ -1,0 +1,293 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "xls/ir/block_elaboration.h"
+
+#include <optional>
+#include <string_view>
+
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/block.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
+#include "xls/ir/ir_matcher.h"
+#include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
+
+namespace xls {
+namespace {
+
+using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using ::testing::AllOf;
+using ::testing::Each;
+using ::testing::Eq;
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
+
+namespace m = xls::op_matchers;
+
+using ElaborationTest = IrTestBase;
+
+MATCHER_P(BlockInstanceFor, value, "") { return arg->block() == value; }
+MATCHER_P(BlockInstanceName, value, "") {
+  return arg->block().value()->name() == value;
+}
+MATCHER_P(InstantiationName, value, "") {
+  if (!arg->instantiation().has_value()) {
+    return false;
+  }
+  return arg->instantiation().value()->name() == value;
+}
+MATCHER_P2(NodeAndInst, node_matcher, inst_matcher, "") {
+  return ExplainMatchResult(node_matcher, arg.node, result_listener) &&
+         ExplainMatchResult(inst_matcher, arg.instance->ToString(),
+                            result_listener);
+}
+
+absl::StatusOr<Block*> AddBlock(Package& p) {
+  Type* u32 = p.GetBitsType(32);
+
+  BlockBuilder bb("adder", &p);
+  BValue a = bb.InputPort("a", u32);
+  BValue b = bb.InputPort("b", u32);
+  bb.OutputPort("c", bb.Add(a, b));
+  return bb.Build();
+}
+
+TEST_F(ElaborationTest, ElaborateSingleBlock) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, AddBlock(*p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(block));
+
+  EXPECT_EQ(elab.package(), p.get());
+  EXPECT_THAT(elab.top(), BlockInstanceFor(block));
+  EXPECT_EQ(elab.top()->instantiation(),
+            std::nullopt);  // top is not an instantiation
+  EXPECT_EQ(elab.top()->path().top, elab.top()->block());
+  EXPECT_THAT(elab.top()->path().path, IsEmpty());
+  EXPECT_THAT(elab.top()->child_instances(), IsEmpty());
+  EXPECT_THAT(elab.top()->child_to_parent_ports(), IsEmpty());
+  EXPECT_THAT(elab.top()->parent_to_child_ports(), IsEmpty());
+  EXPECT_THAT(elab.blocks(), UnorderedElementsAre(block));
+  EXPECT_THAT(elab.instances(), UnorderedElementsAre(BlockInstanceFor(block)));
+  EXPECT_THAT(elab.GetInstance("adder"), IsOkAndHolds(BlockInstanceFor(block)));
+  EXPECT_THAT(
+      elab.GetInstance("subtraction"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Path top `subtraction` does not match name of top proc")));
+  EXPECT_THAT(elab.GetInstance("adder::subtraction"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid component of path `subtraction`.")));
+  EXPECT_THAT(
+      elab.GetInstance("adder::subtraction->sub"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("does not have an instantiation named `subtraction`")));
+
+  EXPECT_THAT(elab.GetInstances(block),
+              UnorderedElementsAre(BlockInstanceFor(block)));
+}
+
+absl::StatusOr<Block*> MultipleAddInstantiations(Package& p) {
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSIGN_OR_RETURN(Block * adder, AddBlock(p));
+
+  BlockBuilder bb("multi_adder", &p);
+  BValue a = bb.InputPort("a", u32);
+  BValue b = bb.InputPort("b", u32);
+  BValue c = bb.InputPort("c", u32);
+  BValue d = bb.InputPort("d", u32);
+
+  XLS_ASSIGN_OR_RETURN(BlockInstantiation * adder0_inst,
+                       bb.block()->AddBlockInstantiation("adder0_inst", adder));
+  XLS_ASSIGN_OR_RETURN(BlockInstantiation * adder1_inst,
+                       bb.block()->AddBlockInstantiation("adder1_inst", adder));
+  XLS_ASSIGN_OR_RETURN(BlockInstantiation * adder2_inst,
+                       bb.block()->AddBlockInstantiation("adder2_inst", adder));
+
+  bb.InstantiationInput(adder0_inst, "a", a);
+  bb.InstantiationInput(adder0_inst, "b", b);
+  bb.InstantiationInput(adder1_inst, "a", c);
+  bb.InstantiationInput(adder1_inst, "b", d);
+  BValue partial0 = bb.InstantiationOutput(adder0_inst, "c");
+  BValue partial1 = bb.InstantiationOutput(adder1_inst, "c");
+  bb.InstantiationInput(adder2_inst, "a", partial0);
+  bb.InstantiationInput(adder2_inst, "b", partial1);
+  bb.OutputPort("out", bb.InstantiationOutput(adder2_inst, "c"));
+  return bb.Build();
+}
+
+TEST_F(ElaborationTest, ElaborateMultipleBlockInstantiations) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, MultipleAddInstantiations(*p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(block));
+
+  EXPECT_EQ(elab.package(), p.get());
+
+  ASSERT_THAT(elab.top(), BlockInstanceFor(block));
+  EXPECT_EQ(elab.top()->block().value()->name(), "multi_adder");
+  EXPECT_EQ(elab.top()->instantiation(),
+            std::nullopt);  // top is not an instantiation
+  EXPECT_EQ(elab.top()->path().top, elab.top()->block());
+  EXPECT_THAT(elab.top()->path().path, IsEmpty());
+  ASSERT_EQ(elab.top()->child_instances().size(), 3);
+  EXPECT_THAT(elab.top()->child_instances(), Each(BlockInstanceName("adder")));
+  EXPECT_THAT(elab.top()->child_to_parent_ports(), IsEmpty());
+
+  EXPECT_THAT(
+      elab.top()->parent_to_child_ports(),
+      UnorderedElementsAre(
+          // adder0_inst mapping
+          Pair(m::InstantiationInput(m::InputPort("a"), "a"),
+               NodeAndInst(m::InputPort("a"), HasSubstr("adder0_inst"))),
+          Pair(m::InstantiationInput(m::InputPort("b"), "b"),
+               NodeAndInst(m::InputPort("b"), HasSubstr("adder0_inst"))),
+          Pair(m::InstantiationOutput("c"),
+               NodeAndInst(m::OutputPort("c"), HasSubstr("adder0_inst"))),
+          // adder1_inst mapping
+          Pair(m::InstantiationInput(m::InputPort("c"), "a"),
+               NodeAndInst(m::InputPort("a"), HasSubstr("adder1_inst"))),
+          Pair(m::InstantiationInput(m::InputPort("d"), "b"),
+               NodeAndInst(m::InputPort("b"), HasSubstr("adder1_inst"))),
+          Pair(m::InstantiationOutput("c"),
+               NodeAndInst(m::OutputPort("c"), HasSubstr("adder1_inst"))),
+          // adder2_inst mapping
+          Pair(m::InstantiationInput(m::InstantiationOutput("c"), "a"),
+               NodeAndInst(m::InputPort("a"), HasSubstr("adder2_inst"))),
+          Pair(m::InstantiationInput(m::InstantiationOutput("c"), "b"),
+               NodeAndInst(m::InputPort("b"), HasSubstr("adder2_inst"))),
+          Pair(m::InstantiationOutput("c"),
+               NodeAndInst(m::OutputPort("c"), HasSubstr("adder2_inst")))));
+
+  Block* child_block = *elab.top()->child_instances().front()->block();
+
+  EXPECT_THAT(elab.blocks(), UnorderedElementsAre(block, child_block));
+  EXPECT_THAT(elab.instances(),
+              UnorderedElementsAre(BlockInstanceFor(block),
+                                   AllOf(BlockInstanceFor(child_block),
+                                         InstantiationName("adder0_inst")),
+                                   AllOf(BlockInstanceFor(child_block),
+                                         InstantiationName("adder1_inst")),
+                                   AllOf(BlockInstanceFor(child_block),
+                                         InstantiationName("adder2_inst"))));
+
+  EXPECT_THAT(elab.GetInstance("multi_adder"),
+              IsOkAndHolds(BlockInstanceFor(block)));
+  EXPECT_THAT(elab.GetInstance("multi_adder::adder0_inst->adder"),
+              IsOkAndHolds(AllOf(BlockInstanceFor(child_block),
+                                 InstantiationName("adder0_inst"))));
+  EXPECT_THAT(elab.GetInstance("multi_adder::adder1_inst->adder"),
+              IsOkAndHolds(AllOf(BlockInstanceFor(child_block),
+                                 InstantiationName("adder1_inst"))));
+  EXPECT_THAT(elab.GetInstance("multi_adder::adder2_inst->adder"),
+              IsOkAndHolds(AllOf(BlockInstanceFor(child_block),
+                                 InstantiationName("adder2_inst"))));
+  EXPECT_THAT(
+      elab.GetInstance("multi_adder::adder3_inst->adder"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("does not have an instantiation named `adder3_inst`")));
+
+  EXPECT_THAT(elab.GetInstances(block),
+              UnorderedElementsAre(BlockInstanceFor(block)));
+  EXPECT_THAT(elab.GetInstances(child_block),
+              UnorderedElementsAre(InstantiationName("adder0_inst"),
+                                   InstantiationName("adder1_inst"),
+                                   InstantiationName("adder2_inst")));
+
+  EXPECT_THAT(elab.GetUniqueInstance(block),
+              IsOkAndHolds(BlockInstanceFor(block)));
+  EXPECT_THAT(elab.GetUniqueInstance(child_block),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       Eq("There is not exactly 1 instance of `adder`, "
+                          "instance count: 3")));
+}
+
+absl::StatusOr<Block*> BlockWithFifoInstantiation(Package& p) {
+  Type* u32 = p.GetBitsType(32);
+  BlockBuilder bb("adder_with_fifo", &p);
+  BValue a = bb.InputPort("a", u32);
+  BValue b = bb.InputPort("b", u32);
+
+  XLS_ASSIGN_OR_RETURN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation(
+          "fifo_inst", FifoConfig{.depth = 1, .bypass = true}, u32));
+
+  BValue lit1 = bb.Literal(UBits(1, 1));
+  bb.InstantiationInput(fifo_inst, "push_data", a);
+  bb.InstantiationInput(fifo_inst, "push_valid", lit1);
+  bb.InstantiationInput(fifo_inst, "pop_ready", lit1);
+  BValue pop_data = bb.InstantiationOutput(fifo_inst, "pop_data");
+  bb.OutputPort("out", bb.Add(pop_data, b));
+  return bb.Build();
+}
+
+TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, BlockWithFifoInstantiation(*p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(block));
+
+  EXPECT_EQ(elab.package(), p.get());
+  EXPECT_THAT(elab.top(), BlockInstanceFor(block));
+  EXPECT_EQ(elab.top()->instantiation(),
+            std::nullopt);  // top is not an instantiation
+  EXPECT_EQ(elab.top()->path().top, elab.top()->block());
+  EXPECT_THAT(elab.top()->path().path, IsEmpty());
+  EXPECT_THAT(elab.top()->child_instances(),
+              UnorderedElementsAre(InstantiationName("fifo_inst")));
+  EXPECT_THAT(elab.top()->child_to_parent_ports(), IsEmpty());
+  EXPECT_THAT(elab.top()->parent_to_child_ports(), IsEmpty());
+  EXPECT_THAT(elab.blocks(), UnorderedElementsAre(block));
+  EXPECT_THAT(elab.instances(),
+              UnorderedElementsAre(BlockInstanceFor(block),
+                                   InstantiationName("fifo_inst")));
+  EXPECT_THAT(elab.GetInstance("adder_with_fifo"),
+              IsOkAndHolds(BlockInstanceFor(block)));
+  ASSERT_THAT(elab.GetInstance("adder_with_fifo::fifo_inst->fifo"),
+              IsOkAndHolds(InstantiationName("fifo_inst")));
+  EXPECT_EQ(
+      elab.GetInstance("adder_with_fifo::fifo_inst->fifo").value()->block(),
+      std::nullopt);
+  EXPECT_THAT(
+      elab.GetInstance(
+          "adder_with_fifo::fifo_inst->fifo::some_inst->some_block"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("is not a block and has no instantiation `some_inst`")));
+}
+
+}  // namespace
+}  // namespace xls

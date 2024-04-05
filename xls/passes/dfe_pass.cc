@@ -27,7 +27,6 @@
 #include "xls/data_structures/union_find.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/function.h"  // IWYU pragma: keep
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
@@ -35,6 +34,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"

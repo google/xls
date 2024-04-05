@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/elaboration.h"
+#include "xls/ir/proc_elaboration.h"
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -42,7 +43,9 @@ using status_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
 
-class ElaborationTest : public IrTestBase {};
+using ElaborationTest = IrTestBase;
+
+MATCHER_P(ProcInstanceFor, value, "") { return arg->proc() == value; }
 
 absl::StatusOr<Proc*> CreateLeafProc(std::string_view name,
                                      int64_t input_channel_count,
@@ -106,12 +109,12 @@ TEST_F(ElaborationTest, SingleProcNoChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(proc));
 
-  EXPECT_EQ(elab.top()->proc(), proc);
+  EXPECT_THAT(elab.top(), ProcInstanceFor(proc));
   EXPECT_TRUE(elab.top()->path().has_value());
   EXPECT_EQ(elab.top()->path()->ToString(), "foo");
 
   ASSERT_EQ(elab.proc_instances().size(), 1);
-  EXPECT_EQ(elab.proc_instances().front()->proc(), proc);
+  EXPECT_THAT(elab.proc_instances().front(), ProcInstanceFor(proc));
 
   EXPECT_TRUE(elab.channel_instances().empty());
 
@@ -128,13 +131,13 @@ TEST_F(ElaborationTest, SingleProcMultipleChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(proc));
 
-  EXPECT_EQ(elab.top()->proc(), proc);
+  EXPECT_THAT(elab.top(), ProcInstanceFor(proc));
   EXPECT_FALSE(elab.top()->proc_instantiation().has_value());
   EXPECT_TRUE(elab.top()->path().has_value());
   EXPECT_EQ(elab.top()->path()->ToString(), "foo");
 
   ASSERT_EQ(elab.proc_instances().size(), 1);
-  EXPECT_EQ(elab.proc_instances().front()->proc(), proc);
+  EXPECT_THAT(elab.proc_instances().front(), ProcInstanceFor(proc));
 
   EXPECT_EQ(elab.channel_instances().size(), 3);
   EXPECT_EQ(elab.channel_instances()[0]->channel->name(), "leaf_ch0");
@@ -167,7 +170,7 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  EXPECT_EQ(elab.top()->proc(), top);
+  EXPECT_THAT(elab.top(), ProcInstanceFor(top));
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
   EXPECT_EQ(elab.top()->instantiated_procs().size(), 1);
   EXPECT_EQ(elab.top()->channels().size(), 1);
@@ -225,9 +228,9 @@ TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
       ProcInstance * leaf_inst,
       elab.GetProcInstance("top_proc::top_inst_1->proc1::proc1_inst_proc0->"
                            "proc0::proc0_inst_foo->foo"));
-  EXPECT_EQ(leaf_inst->proc(), leaf_proc);
+  EXPECT_THAT(leaf_inst, ProcInstanceFor(leaf_proc));
 
-  EXPECT_EQ(elab.top()->proc(), top);
+  EXPECT_THAT(elab.top(), ProcInstanceFor(top));
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
   EXPECT_EQ(elab.ToString(), R"(top_proc<in_ch0, in_ch1>
   proc1<pass_ch0=in_ch0, pass_ch1=in_ch1> [top_inst_1]
@@ -297,7 +300,7 @@ TEST_F(ElaborationTest, MultipleInstantiations) {
                 ->path->ToString(),
             "top_proc");
 
-  EXPECT_EQ(elab.top()->proc(), top);
+  EXPECT_THAT(elab.top(), ProcInstanceFor(top));
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
   EXPECT_EQ(elab.ToString(), R"(top_proc<input0, input1>
   chan ch0
@@ -329,7 +332,7 @@ TEST_F(ElaborationTest, ProcInstantiatingProcWithNoChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  EXPECT_EQ(elab.top()->proc(), top);
+  EXPECT_THAT(elab.top(), ProcInstanceFor(top));
   EXPECT_EQ(elab.top()->path()->ToString(), "top_proc");
   EXPECT_EQ(elab.ToString(), R"(top_proc<>
   foo<> [foo_inst])");

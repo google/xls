@@ -250,7 +250,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
-        "//xls/ir:elaboration",
+        "//xls/ir:proc_elaboration",
         "//xls/ir:value",
         "//xls/ir:value_utils",
     ],
@@ -324,8 +324,8 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/ir",
-        "//xls/ir:elaboration",
         "//xls/ir:events",
+        "//xls/ir:proc_elaboration",
         "//xls/ir:value",
     ],
 )

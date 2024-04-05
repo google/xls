@@ -32,8 +32,8 @@
 #include "absl/synchronization/mutex.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 

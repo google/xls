@@ -464,9 +464,9 @@ cc_library(
         "//xls/data_structures:union_find",
         "//xls/ir",
         "//xls/ir:channel",
-        "//xls/ir:elaboration",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:proc_elaboration",
     ],
 )
 
