@@ -19,6 +19,8 @@
 #include <deque>
 #include <iterator>
 #include <map>
+#include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -37,55 +39,60 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 namespace {
 
-// Returns true if the given concat as consecutive literal operands.
-bool HasConsecutiveLiteralOperands(Concat* concat) {
+// Returns true if the given concat has consecutive constant operands.
+bool HasConsecutiveConstantOperands(Concat* concat,
+                                    const QueryEngine& query_engine) {
   for (int64_t i = 1; i < concat->operand_count(); ++i) {
-    if (concat->operand(i - 1)->Is<Literal>() &&
-        concat->operand(i)->Is<Literal>()) {
+    if (query_engine.IsFullyKnown(concat->operand(i - 1)) &&
+        query_engine.IsFullyKnown(concat->operand(i))) {
       return true;
     }
   }
   return false;
 }
 
-// Replaces any consecutive literal operands with a single merged literal
+// Replaces any consecutive constant operands with a single merged literal
 // operand. Returns the newly created concat which never aliases the given
 // concat.
-absl::StatusOr<Concat*> ReplaceConsecutiveLiteralOperands(Concat* concat) {
+absl::StatusOr<Concat*> ReplaceConsecutiveConstantOperands(
+    Concat* concat, const QueryEngine& query_engine) {
   std::vector<Node*> new_operands;
-  std::vector<Literal*> consecutive_literals;
+  std::vector<Bits> consecutive_constants;
 
-  auto add_consecutive_literals_to_operands = [&]() -> absl::Status {
-    if (consecutive_literals.size() > 1) {
-      std::vector<Bits> literal_bits(consecutive_literals.size());
-      std::transform(consecutive_literals.begin(), consecutive_literals.end(),
-                     literal_bits.begin(),
-                     [](Literal* l) { return l->value().bits(); });
+  Node* last_constant = nullptr;
+  auto add_consecutive_constants_to_operands = [&]() -> absl::Status {
+    if (consecutive_constants.size() > 1) {
       XLS_ASSIGN_OR_RETURN(
           Node * new_literal,
           concat->function_base()->MakeNode<Literal>(
-              concat->loc(), Value(bits_ops::Concat(literal_bits))));
+              concat->loc(), Value(bits_ops::Concat(consecutive_constants))));
       new_operands.push_back(new_literal);
-    } else if (consecutive_literals.size() == 1) {
-      new_operands.push_back(consecutive_literals.front());
+    } else if (consecutive_constants.size() == 1) {
+      new_operands.push_back(last_constant);
     }
-    consecutive_literals.clear();
+    last_constant = nullptr;
+    consecutive_constants.clear();
     return absl::OkStatus();
   };
 
   for (Node* operand : concat->operands()) {
-    if (operand->Is<Literal>()) {
-      consecutive_literals.push_back(operand->As<Literal>());
+    if (std::optional<Bits> known_value =
+            query_engine.KnownValueAsBits(operand);
+        known_value.has_value()) {
+      last_constant = operand;
+      consecutive_constants.push_back(*std::move(known_value));
     } else {
-      XLS_RETURN_IF_ERROR(add_consecutive_literals_to_operands());
+      XLS_RETURN_IF_ERROR(add_consecutive_constants_to_operands());
       new_operands.push_back(operand);
     }
   }
-  XLS_RETURN_IF_ERROR(add_consecutive_literals_to_operands());
+  XLS_RETURN_IF_ERROR(add_consecutive_constants_to_operands());
   return concat->ReplaceUsesWithNew<Concat>(new_operands);
 }
 
@@ -135,9 +142,11 @@ absl::StatusOr<bool> SimplifyConcat(Concat* concat, int64_t opt_level,
 
   // Consecutive literal operands of a concat can be merged into a single
   // literal.
-  if (HasConsecutiveLiteralOperands(concat)) {
-    XLS_ASSIGN_OR_RETURN(Concat * new_concat,
-                         ReplaceConsecutiveLiteralOperands(concat));
+  StatelessQueryEngine query_engine;
+  if (HasConsecutiveConstantOperands(concat, query_engine)) {
+    XLS_ASSIGN_OR_RETURN(
+        Concat * new_concat,
+        ReplaceConsecutiveConstantOperands(concat, query_engine));
     worklist->push_back(new_concat);
     return true;
   }

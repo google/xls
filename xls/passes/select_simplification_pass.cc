@@ -19,6 +19,7 @@
 #include <deque>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -51,7 +52,9 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
@@ -307,9 +310,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                   int64_t opt_level) {
   // Select with a constant selector can be replaced with the respective
   // case.
-  if (node->Is<Select>() && node->As<Select>()->selector()->Is<Literal>()) {
+  if (node->Is<Select>() &&
+      query_engine.IsFullyKnown(node->As<Select>()->selector())) {
     Select* sel = node->As<Select>();
-    const Bits& selector = sel->selector()->As<Literal>()->value().bits();
+    const Bits selector = *query_engine.KnownValueAsBits(sel->selector());
     VLOG(2) << absl::StrFormat("Simplifying select with constant selector: %s",
                                node->ToString());
     if (bits_ops::UGreaterThan(
@@ -326,10 +330,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // One-hot-select with a constant selector can be replaced with OR of the
   // activated cases.
   if (node->Is<OneHotSelect>() &&
-      node->As<OneHotSelect>()->selector()->Is<Literal>() &&
+      query_engine.IsFullyKnown(node->As<OneHotSelect>()->selector()) &&
       node->GetType()->IsBits()) {
     OneHotSelect* sel = node->As<OneHotSelect>();
-    const Bits& selector = sel->selector()->As<Literal>()->value().bits();
+    const Bits selector = *query_engine.KnownValueAsBits(sel->selector());
     Node* replacement = nullptr;
     for (int64_t i = 0; i < selector.bit_count(); ++i) {
       if (selector.Get(i)) {
@@ -513,7 +517,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // optimization opportunities. Since this creates more ops in the general
   // case, we look for certain sub-cases:
   //
-  // * At least one of the selected values is a literal.
+  // * At least one of the selected values is a constant.
   // * One of the selected values is also the selector.
   //
   // TODO(meheff): Handle one-hot select here as well.
@@ -522,7 +526,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
            node->BitCountOrDie() == 1 && node->operand(0)->BitCountOrDie() == 1;
   };
   if (NarrowingEnabled(opt_level) && is_one_bit_mux() &&
-      (node->operand(1)->Is<Literal>() || node->operand(2)->Is<Literal>() ||
+      (query_engine.IsFullyKnown(node->operand(1)) ||
+       query_engine.IsFullyKnown(node->operand(2)) ||
        (node->operand(0) == node->operand(1) ||
         node->operand(0) == node->operand(2)))) {
     FunctionBase* f = node->function_base();
@@ -751,8 +756,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // Sel(...) => Concat(Known, Sel(...), Known)
   if (SplitsEnabled(opt_level)) {
     auto is_squeezable_mux = [&](Bits* msb, Bits* lsb) {
-      if (!node->Is<Select>() || !node->GetType()->IsBits() ||
-          !query_engine.IsTracked(node)) {
+      if (!node->Is<Select>() || !node->GetType()->IsBits()) {
         return false;
       }
       int64_t leading_known = bits_ops::CountLeadingOnes(
@@ -1023,8 +1027,13 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results) const {
-  TernaryQueryEngine query_engine;
+  std::vector<std::unique_ptr<QueryEngine>> query_engines;
+  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+
+  UnionQueryEngine query_engine(std::move(query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
+
   bool changed = false;
   for (Node* node : TopoSort(func)) {
     XLS_ASSIGN_OR_RETURN(bool node_changed,
@@ -1046,8 +1055,7 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
       OneHotSelect* ohs = worklist.front();
       worklist.pop_front();
       // Note that query_engine may be stale at this point but that is
-      // ok. TernaryQueryEngine::IsTracked will return false for new nodes which
-      // have not been analyzed.
+      // ok; we'll fall back on the stateless query engine.
       XLS_ASSIGN_OR_RETURN(std::vector<OneHotSelect*> new_ohses,
                            MaybeSplitOneHotSelect(ohs, query_engine));
       if (!new_ohses.empty()) {

@@ -41,6 +41,8 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 
@@ -78,18 +80,19 @@ absl::Status RemoveNextValue(Proc* proc, Next* next,
   return proc->RemoveNode(next);
 }
 
-absl::StatusOr<std::optional<std::vector<Next*>>> RemoveLiteralPredicate(
-    Proc* proc, Next* next, absl::flat_hash_map<Next*, int64_t>& split_depth) {
+absl::StatusOr<std::optional<std::vector<Next*>>> RemoveConstantPredicate(
+    Proc* proc, Next* next, absl::flat_hash_map<Next*, int64_t>& split_depth,
+    const QueryEngine& query_engine) {
   if (!next->predicate().has_value()) {
     return std::nullopt;
   }
-  Node* predicate = *next->predicate();
-  if (!predicate->Is<Literal>()) {
+  std::optional<Bits> constant_predicate =
+      query_engine.KnownValueAsBits(*next->predicate());
+  if (!constant_predicate.has_value()) {
     return std::nullopt;
   }
 
-  Literal* literal_predicate = predicate->As<Literal>();
-  if (literal_predicate->value().IsAllZeros()) {
+  if (constant_predicate->IsZero()) {
     VLOG(2) << "Identified node as dead due to zero predicate; removing: "
             << *next;
     XLS_RETURN_IF_ERROR(RemoveNextValue(proc, next, split_depth));
@@ -287,12 +290,13 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
 }
 
 absl::StatusOr<std::optional<std::vector<Next*>>> SplitSafeOneHotSelect(
-    Proc* proc, Next* next, absl::flat_hash_map<Next*, int64_t>& split_depth) {
+    Proc* proc, Next* next, absl::flat_hash_map<Next*, int64_t>& split_depth,
+    const QueryEngine& query_engine) {
   if (!next->value()->Is<OneHotSelect>()) {
     return std::nullopt;
   }
   OneHotSelect* selected_value = next->value()->As<OneHotSelect>();
-  if (!selected_value->selector()->Is<OneHot>()) {
+  if (!query_engine.ExactlyOneBitTrue(selected_value->selector())) {
     // Not safe to use for `next_value`; actual value could be the OR of
     // multiple cases.
     return std::nullopt;
@@ -347,6 +351,8 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
     changed = changed || modernize_changed;
   }
 
+  StatelessQueryEngine query_engine;
+
   std::deque<Next*> worklist(proc->next_values().begin(),
                              proc->next_values().end());
   absl::flat_hash_map<Next*, int64_t> split_depth;
@@ -356,7 +362,7 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
 
     XLS_ASSIGN_OR_RETURN(
         std::optional<std::vector<Next*>> literal_predicate_next_values,
-        RemoveLiteralPredicate(proc, next, split_depth));
+        RemoveConstantPredicate(proc, next, split_depth, query_engine));
     if (literal_predicate_next_values.has_value()) {
       changed = true;
       worklist.insert(worklist.end(), literal_predicate_next_values->begin(),
@@ -390,7 +396,7 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
 
       XLS_ASSIGN_OR_RETURN(
           std::optional<std::vector<Next*>> split_one_hot_select_next_values,
-          SplitSafeOneHotSelect(proc, next, split_depth));
+          SplitSafeOneHotSelect(proc, next, split_depth, query_engine));
       if (split_one_hot_select_next_values.has_value()) {
         changed = true;
         worklist.insert(worklist.end(),

@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
@@ -34,6 +36,8 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/predicate_state.h"
 
 namespace xls {
@@ -79,12 +83,69 @@ bool QueryEngine::AtLeastOneBitTrue(Node* node) const {
   return AtLeastOneTrue(ToTreeBitLocations(node));
 }
 
+bool QueryEngine::ExactlyOneBitTrue(Node* node) const {
+  return AtLeastOneBitTrue(node) && AtMostOneBitTrue(node);
+}
+
 bool QueryEngine::IsKnown(const TreeBitLocation& bit) const {
   if (!IsTracked(bit.node())) {
     return false;
   }
   return GetTernary(bit.node()).Get(bit.tree_index())[bit.bit_index()] !=
          TernaryValue::kUnknown;
+}
+
+std::optional<bool> QueryEngine::KnownValue(const TreeBitLocation& bit) const {
+  if (!IsTracked(bit.node())) {
+    return std::nullopt;
+  }
+
+  switch (GetTernary(bit.node()).Get(bit.tree_index())[bit.bit_index()]) {
+    case TernaryValue::kUnknown:
+      return std::nullopt;
+    case TernaryValue::kKnownZero:
+      return false;
+    case TernaryValue::kKnownOne:
+      return true;
+  }
+
+  ABSL_UNREACHABLE();
+  return std::nullopt;
+}
+
+std::optional<Value> QueryEngine::KnownValue(Node* node) const {
+  if (!IsTracked(node)) {
+    return std::nullopt;
+  }
+
+  bool fully_known = true;
+  LeafTypeTree<TernaryVector> ternary = GetTernary(node);
+  LeafTypeTree<Value> value = leaf_type_tree::Map<Value, TernaryVector>(
+      ternary.AsView(), [&fully_known](const TernaryVector& v) {
+        if (!ternary_ops::IsFullyKnown(v)) {
+          fully_known = false;
+        }
+        return Value(ternary_ops::ToKnownBitsValues(v));
+      });
+  if (!fully_known) {
+    return std::nullopt;
+  }
+  absl::StatusOr<Value> result = LeafTypeTreeToValue(value.AsView());
+  CHECK_OK(result.status());
+  return *result;
+}
+
+std::optional<Bits> QueryEngine::KnownValueAsBits(Node* node) const {
+  CHECK(node->GetType()->IsBits());
+  if (!IsTracked(node)) {
+    return std::nullopt;
+  }
+
+  TernaryVector ternary = GetTernary(node).Get({});
+  if (!ternary_ops::IsFullyKnown(ternary)) {
+    return std::nullopt;
+  }
+  return ternary_ops::ToKnownBitsValues(ternary);
 }
 
 bool QueryEngine::IsMsbKnown(Node* node) const {
@@ -97,19 +158,19 @@ bool QueryEngine::IsMsbKnown(Node* node) const {
 }
 
 bool QueryEngine::IsOne(const TreeBitLocation& bit) const {
-  if (!IsKnown(bit)) {
+  std::optional<bool> known_value = KnownValue(bit);
+  if (!known_value.has_value()) {
     return false;
   }
-  TernaryVector ternary = GetTernary(bit.node()).Get(bit.tree_index());
-  return ternary_ops::ToKnownBitsValues(ternary).Get(bit.bit_index());
+  return *known_value;
 }
 
 bool QueryEngine::IsZero(const TreeBitLocation& bit) const {
-  if (!IsKnown(bit)) {
+  std::optional<bool> known_value = KnownValue(bit);
+  if (!known_value.has_value()) {
     return false;
   }
-  TernaryVector ternary = GetTernary(bit.node()).Get(bit.tree_index());
-  return !ternary_ops::ToKnownBitsValues(ternary).Get(bit.bit_index());
+  return !*known_value;
 }
 
 bool QueryEngine::GetKnownMsb(Node* node) const {
@@ -147,18 +208,15 @@ bool QueryEngine::IsAllOnes(Node* node) const {
   return true;
 }
 
-bool QueryEngine::AllBitsKnown(Node* node) const {
-  CHECK(node->GetType()->IsBits());
+bool QueryEngine::IsFullyKnown(Node* node) const {
   if (!IsTracked(node)) {
     return false;
   }
-  TernaryVector ternary = GetTernary(node).Get({});
-  for (TernaryValue t : ternary) {
-    if (t == TernaryValue::kUnknown) {
-      return false;
-    }
-  }
-  return true;
+
+  LeafTypeTree<TernaryVector> ternary = GetTernary(node);
+  return absl::c_all_of(ternary.elements(), [](const TernaryVector& v) {
+    return ternary_ops::IsFullyKnown(v);
+  });
 }
 
 Bits QueryEngine::MaxUnsignedValue(Node* node) const {

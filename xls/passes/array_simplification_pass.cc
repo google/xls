@@ -17,7 +17,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -40,7 +42,9 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
@@ -49,9 +53,6 @@ namespace {
 // given array type.
 bool IndexIsDefinitelyOutOfBounds(Node* index, ArrayType* array_type,
                                   const QueryEngine& query_engine) {
-  if (!query_engine.IsTracked(index)) {
-    return false;
-  }
   return bits_ops::UGreaterThanOrEqual(query_engine.MinUnsignedValue(index),
                                        array_type->size());
 }
@@ -60,9 +61,6 @@ bool IndexIsDefinitelyOutOfBounds(Node* index, ArrayType* array_type,
 // type.
 bool IndexIsDefinitelyInBounds(Node* index, ArrayType* array_type,
                                const QueryEngine& query_engine) {
-  if (!query_engine.IsTracked(index)) {
-    return false;
-  }
   return bits_ops::ULessThan(query_engine.MaxUnsignedValue(index),
                              array_type->size());
 }
@@ -92,8 +90,7 @@ bool IndicesAreDefinitelyEqual(absl::Span<Node* const> a,
     return false;
   }
   for (int64_t i = 0; i < a.size(); ++i) {
-    if (!query_engine.IsTracked(a[i]) || !query_engine.IsTracked(b[i]) ||
-        !query_engine.NodesKnownUnsignedEquals(a[i], b[i])) {
+    if (!query_engine.NodesKnownUnsignedEquals(a[i], b[i])) {
       return false;
     }
   }
@@ -106,8 +103,7 @@ bool IndicesDefinitelyNotEqual(absl::Span<Node* const> a,
                                absl::Span<Node* const> b,
                                const QueryEngine& query_engine) {
   for (int64_t i = 0; i < std::min(a.size(), b.size()); ++i) {
-    if (!query_engine.IsTracked(a[i]) || !query_engine.IsTracked(b[i]) ||
-        query_engine.NodesKnownUnsignedNotEquals(a[i], b[i])) {
+    if (query_engine.NodesKnownUnsignedNotEquals(a[i], b[i])) {
       return true;
     }
   }
@@ -130,12 +126,8 @@ bool IndicesAreDefinitelyPrefixOf(absl::Span<Node* const> prefix,
 // replaced with a literal value equal to the maximum in-bounds index value
 // (size of array minus one). Only known-OOB are clamped. Maybe OOB indices
 // cannot be replaced because the index might be a different in-bounds value.
-absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func) {
-  // This transformation may add nodes to the graph which invalidates the query
-  // engine for later use, so create a private engine for exclusive use of this
-  // transformation.
-  TernaryQueryEngine query_engine;
-  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
+absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func,
+                                            const QueryEngine& query_engine) {
   bool changed = false;
   for (Node* node : TopoSort(func)) {
     if (node->Is<ArrayIndex>()) {
@@ -199,14 +191,14 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   }
 
   // An array index which indexes into a kArray operation and whose first
-  // index element is a literal can be simplified by bypassing the kArray
+  // index element is a constant can be simplified by bypassing the kArray
   // operation:
   //
   //   array_index(array(a, b, c, d), {2, i, j, k, ...}
   //     => array_index(c, {i, j, k, ...})
   //
   if (array_index->array()->Is<Array>() && !array_index->indices().empty() &&
-      array_index->indices().front()->Is<Literal>()) {
+      query_engine.IsFullyKnown(array_index->indices().front())) {
     Array* array = array_index->array()->As<Array>();
     Node* first_index = array_index->indices().front();
     if (IndexIsDefinitelyInBounds(first_index, array->GetType()->AsArrayOrDie(),
@@ -214,9 +206,9 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       // Indices are always interpreted as unsigned numbers.
       XLS_ASSIGN_OR_RETURN(
           uint64_t operand_no,
-          first_index->As<Literal>()->value().bits().ToUint64());
+          query_engine.KnownValueAsBits(first_index)->ToUint64());
       VLOG(2) << absl::StrFormat(
-          "Array-index of array operation with literal index: %s",
+          "Array-index of array operation with constant index: %s",
           array_index->ToString());
       XLS_ASSIGN_OR_RETURN(
           ArrayIndex * new_array_index,
@@ -227,7 +219,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   }
 
   // An array index which indexes into a kArrayConcat operation and whose first
-  // index element is a literal can be simplified by bypassing the kArrayConcat
+  // index element is a constant can be simplified by bypassing the kArrayConcat
   // operation:
   //
   //   array_index(array_concat(A, B, C), {20, i, j, k, ...}
@@ -236,14 +228,15 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   // This assumes array A has a size 10, and B has a size of greater than 10.
   if (array_index->array()->Is<ArrayConcat>() &&
       !array_index->indices().empty() &&
-      array_index->indices().front()->Is<Literal>()) {
+      query_engine.IsFullyKnown(array_index->indices().front())) {
     Node* first_index = array_index->indices().front();
     if (IndexIsDefinitelyInBounds(
             first_index, array_index->array()->GetType()->AsArrayOrDie(),
             query_engine)) {
-      const Value& orig_first_index_value = first_index->As<Literal>()->value();
-      XLS_ASSIGN_OR_RETURN(int64_t index,
-                           orig_first_index_value.bits().ToUint64());
+      XLS_ASSIGN_OR_RETURN(
+          int64_t index,
+          query_engine.KnownValueAsBits(array_index->indices().front())
+              ->ToUint64());
       Node* indexed_operand = nullptr;
       for (Node* operand : array_index->array()->operands()) {
         XLS_RET_CHECK(operand->GetType()->IsArray());
@@ -256,7 +249,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       }
       XLS_RET_CHECK(indexed_operand != nullptr);
       VLOG(2) << absl::StrFormat(
-          "Array-index of array concat with literal index: %s",
+          "Array-index of array concat with constant index: %s",
           array_index->ToString());
 
       std::vector<Node*> new_indices(array_index->indices().begin(),
@@ -265,7 +258,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
           new_indices[0],
           array_index->function_base()->MakeNode<Literal>(
               array_index->loc(),
-              Value(UBits(index, orig_first_index_value.bits().bit_count()))));
+              Value(UBits(index,
+                          array_index->indices().front()->BitCountOrDie()))));
 
       XLS_ASSIGN_OR_RETURN(ArrayIndex * new_array_index,
                            array_index->ReplaceUsesWithNew<ArrayIndex>(
@@ -460,7 +454,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
   //      Array
   //        |
   //
-  // Assuming the index 'idx' a literal corresponding to element 'c'. The
+  // Assuming the index 'idx' is a constant corresponding to element 'c'. The
   // advantage is the array update is operating on a smaller array, and if the
   // index is empty after this operation the array update can be removed.
   //
@@ -470,7 +464,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
   if (array_update->array_to_update()->Is<Array>() &&
       HasSingleUse(array_update->array_to_update()) &&
       !array_update->indices().empty() &&
-      array_update->indices().front()->Is<Literal>()) {
+      query_engine.IsFullyKnown(array_update->indices().front())) {
     Node* idx = array_update->indices().front();
     if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
@@ -479,7 +473,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
 
       // Indices are always interpreted as unsigned numbers.
       XLS_ASSIGN_OR_RETURN(uint64_t operand_no,
-                           idx->As<Literal>()->value().bits().ToUint64());
+                           query_engine.KnownValueAsBits(idx)->ToUint64());
       Array* array = array_update->array_to_update()->As<Array>();
 
       Node* replacement_array_operand;
@@ -565,7 +559,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
     }
   }
 
-  // If the array to update is a literal and the first index is a literal, the
+  // If the array to update is a constant and the first index is a constant, the
   // array update can be replaced with a kArray operation which assembles the
   // updated value with element literals. Example:
   //
@@ -589,29 +583,30 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
   // The advantage is that a smaller array is updated. This can result in
   // elimination of the array update entirely as well if the index is empty
   // after the transformation.
-  if (array_update->array_to_update()->Is<Literal>() &&
+  if (query_engine.IsFullyKnown(array_update->array_to_update()) &&
       !array_update->indices().empty() &&
-      array_update->indices().front()->Is<Literal>()) {
+      query_engine.IsFullyKnown(array_update->indices().front())) {
     Node* idx = array_update->indices().front();
     if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
       VLOG(2) << absl::StrFormat(
-          "Array-update of literal with literal index: %s",
+          "Array-update of constant with constant index: %s",
           array_update->ToString());
 
       // Indices are always interpreted as unsigned numbers.
       XLS_ASSIGN_OR_RETURN(uint64_t operand_no,
-                           idx->As<Literal>()->value().bits().ToUint64());
-      const Value& array_literal =
-          array_update->array_to_update()->As<Literal>()->value();
-      XLS_RET_CHECK_LT(operand_no, array_literal.size());
+                           query_engine.KnownValueAsBits(idx)->ToUint64());
+      Value array_constant =
+          *query_engine.KnownValue(array_update->array_to_update());
+      XLS_RET_CHECK_LT(operand_no, array_constant.size());
 
       std::vector<Node*> array_operands;
       ArrayUpdate* new_array_update = nullptr;
-      for (int64_t i = 0; i < array_literal.size(); ++i) {
-        XLS_ASSIGN_OR_RETURN(Literal * array_element,
-                             func->MakeNode<Literal>(array_update->loc(),
-                                                     array_literal.element(i)));
+      for (int64_t i = 0; i < array_constant.size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(
+            Literal * array_element,
+            func->MakeNode<Literal>(array_update->loc(),
+                                    array_constant.element(i)));
         if (i == operand_no) {
           XLS_ASSIGN_OR_RETURN(
               new_array_update,
@@ -639,7 +634,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
 // of the optimized away update operations or nullopt is no optimization was
 // performed.
 absl::StatusOr<std::optional<std::vector<ArrayUpdate*>>>
-FlattenArrayUpdateChain(ArrayUpdate* array_update) {
+FlattenArrayUpdateChain(ArrayUpdate* array_update,
+                        const QueryEngine& query_engine) {
   // Identify cases where an array is constructed via a sequence of array update
   // operations and replace with a flat kArray operation gathering all the array
   // values.
@@ -661,12 +657,11 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update) {
   std::optional<absl::Span<Node* const>> common_index_prefix;
   std::vector<ArrayUpdate*> update_chain;
   while (true) {
-    if (!current->indices().back()->Is<Literal>()) {
+    if (!query_engine.IsFullyKnown(current->indices().back())) {
       break;
     }
 
-    const Bits& index_bits =
-        current->indices().back()->As<Literal>()->value().bits();
+    Bits index_bits = *query_engine.KnownValueAsBits(current->indices().back());
     if (bits_ops::UGreaterThanOrEqual(index_bits, subarray_size)) {
       // Index is out of bound
       break;
@@ -748,7 +743,8 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update) {
 
 // Walk the function and replace chains of sequential array updates with kArray
 // operations with gather the update values.
-absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
+absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
+                                              const QueryEngine& query_engine) {
   absl::flat_hash_set<ArrayUpdate*> flattened_updates;
   bool changed = false;
   // Perform this optimization in reverse topo sort order because we are looking
@@ -763,7 +759,7 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
       continue;
     }
     XLS_ASSIGN_OR_RETURN(std::optional<std::vector<ArrayUpdate*>> flattened_vec,
-                         FlattenArrayUpdateChain(array_update));
+                         FlattenArrayUpdateChain(array_update, query_engine));
     if (flattened_vec.has_value()) {
       changed = true;
       flattened_updates.insert(flattened_vec->begin(), flattened_vec->end());
@@ -801,11 +797,10 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
 
     // Extract the last element of the index as a uint64_t.
     Node* last_index_node = array_index->indices().back();
-    if (!last_index_node->Is<Literal>()) {
+    if (!query_engine.IsFullyKnown(last_index_node)) {
       return SimplifyResult::Unchanged();
     }
-    const Bits& last_index_bits =
-        last_index_node->As<Literal>()->value().bits();
+    Bits last_index_bits = *query_engine.KnownValueAsBits(last_index_node);
     if (!last_index_bits.FitsInUint64()) {
       return SimplifyResult::Unchanged();
     }
@@ -1016,19 +1011,29 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results) const {
   bool changed = false;
 
+  std::vector<std::unique_ptr<QueryEngine>> query_engines;
+  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+
+  UnionQueryEngine query_engine(std::move(query_engines));
+  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
+
   // Replace known OOB indicates with clamped value. This helps later
   // optimizations.
-  XLS_ASSIGN_OR_RETURN(bool clamp_changed, ClampArrayIndexIndices(func));
+  XLS_ASSIGN_OR_RETURN(bool clamp_changed,
+                       ClampArrayIndexIndices(func, query_engine));
   changed = changed || clamp_changed;
+
+  // Clamping the array indices results in new nodes that we *do* want to be
+  // able to fully optimize, so we re-populate the query engine.
+  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   // Before the worklist-driven optimization look and replace "macro" patterns
   // such as constructing an entire array with array update operations,
   // transforming selects of array to array of selects, etc.
-  XLS_ASSIGN_OR_RETURN(bool flatten_changed, FlattenSequentialUpdates(func));
+  XLS_ASSIGN_OR_RETURN(bool flatten_changed,
+                       FlattenSequentialUpdates(func, query_engine));
   changed = changed || flatten_changed;
-
-  TernaryQueryEngine query_engine;
-  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   std::deque<Node*> worklist;
   absl::flat_hash_set<Node*> worklist_set;

@@ -345,6 +345,7 @@ cc_library(
         ":pass_base",
         ":query_engine",
         ":range_query_engine",
+        ":stateless_query_engine",
         ":ternary_query_engine",
         ":union_query_engine",
         "@com_google_absl//absl/algorithm:container",
@@ -376,10 +377,11 @@ cc_library(
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
+        ":query_engine",
+        ":stateless_query_engine",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -711,7 +713,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -723,6 +724,28 @@ cc_library(
         "//xls/ir:ternary",
         "//xls/ir:type",
         "//xls/ir:value",
+    ],
+)
+
+cc_library(
+    name = "stateless_query_engine",
+    srcs = ["stateless_query_engine.cc"],
+    hdrs = ["stateless_query_engine.h"],
+    deps = [
+        ":query_engine",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -757,7 +780,9 @@ cc_library(
         ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
+        ":stateless_query_engine",
         ":ternary_query_engine",
+        ":union_query_engine",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -953,6 +978,8 @@ cc_library(
     hdrs = ["query_engine.h"],
     deps = [
         ":predicate_state",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log:check",
@@ -967,6 +994,8 @@ cc_library(
         "//xls/ir:interval",
         "//xls/ir:interval_set",
         "//xls/ir:ternary",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
     ],
 )
 
@@ -1302,7 +1331,9 @@ cc_library(
         ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
+        ":stateless_query_engine",
         ":ternary_query_engine",
+        ":union_query_engine",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -1962,6 +1993,22 @@ cc_test(
         "//xls/ir:ternary",
         "//xls/ir:value",
         "//xls/ir:value_builder",
+    ],
+)
+
+cc_test(
+    name = "stateless_query_engine_test",
+    srcs = ["stateless_query_engine_test.cc"],
+    deps = [
+        ":stateless_query_engine",
+        "@com_google_absl//absl/log",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
     ],
 )
 
@@ -2717,6 +2764,8 @@ cc_library(
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
+        ":query_engine",
+        ":stateless_query_engine",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log",

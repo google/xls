@@ -50,6 +50,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
@@ -59,6 +60,7 @@ namespace {
 static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     FunctionBase* f, int64_t opt_level) {
   std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<StatelessQueryEngine>());
   engines.push_back(std::make_unique<TernaryQueryEngine>());
   if (opt_level >= 3) {
     engines.push_back(std::make_unique<RangeQueryEngine>());
@@ -99,17 +101,20 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
     return unscaled_index;
   }
 
-  // We only need to handle actual multiplication by a literal; all other cases
+  // We only need to handle actual multiplication by a constant; all other cases
   // (shift, concat) should be handled by the power-of-two case above.
   if (scaled_index->op() != Op::kUMul) {
     return std::nullopt;
   }
-  if (!scaled_index->operand(1)->Is<Literal>()) {
+
+  std::optional<Bits> scalar_bits =
+      query_engine->KnownValueAsBits(scaled_index->operand(1));
+  if (!scalar_bits.has_value()) {
+    // We don't know the scalar, so there's nothing we can do.
     return std::nullopt;
   }
 
-  Bits scalar_bits = scaled_index->operand(1)->As<Literal>()->value().bits();
-  XLS_ASSIGN_OR_RETURN(uint64_t potential_scalar, scalar_bits.ToUint64(),
+  XLS_ASSIGN_OR_RETURN(uint64_t potential_scalar, scalar_bits->ToUint64(),
                        std::nullopt);
   if (potential_scalar >
       static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
@@ -130,7 +135,7 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
   // If the multiplication can overflow, there's nothing we can do; the
   // wraparound can cause all sorts of chaos.
   Bits max_scaled_bits = Bits::AllOnes(scaled_index->BitCountOrDie());
-  Bits max_unscaled_bits = bits_ops::UDiv(max_scaled_bits, scalar_bits);
+  Bits max_unscaled_bits = bits_ops::UDiv(max_scaled_bits, *scalar_bits);
   std::optional<Bits> upper_bound_bits =
       query_engine->GetIntervals(unscaled_index).Get({}).UpperBound();
   if (!upper_bound_bits.has_value() ||
@@ -501,19 +506,21 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
 
 // Replace bit_slice_update operations where the start index is constant with
 // bit slices and concats.
-absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update) {
-  if (!update->start()->Is<Literal>()) {
+absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update,
+                                                   QueryEngine* query_engine) {
+  const std::optional<Bits> start =
+      query_engine->KnownValueAsBits(update->start());
+  if (!start.has_value()) {
     return false;
   }
 
-  const Bits start = update->start()->As<Literal>()->value().bits();
-  if (bits_ops::UGreaterThanOrEqual(start, update->BitCountOrDie())) {
+  if (bits_ops::UGreaterThanOrEqual(*start, update->BitCountOrDie())) {
     // Bit slice update is entirely out of bounds. This is a noop. Replace
     // the update operation with the operand which is being updated.
     XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(update->to_update()));
     return true;
   }
-  int64_t start_int64 = start.ToUint64().value();
+  int64_t start_int64 = start->ToUint64().value();
   int64_t orig_width = update->BitCountOrDie();
   int64_t update_width = update->update_value()->BitCountOrDie();
 
@@ -588,22 +595,23 @@ absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update) {
 }
 
 // Replace dynamic bit slices with literal indices with a static bit slice.
-absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(
-    DynamicBitSlice* bit_slice) {
-  if (!bit_slice->start()->Is<Literal>()) {
+absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(DynamicBitSlice* bit_slice,
+                                                    QueryEngine* query_engine) {
+  const std::optional<Bits> start_bits =
+      query_engine->KnownValueAsBits(bit_slice->start());
+  if (!start_bits.has_value()) {
     return false;
   }
 
   int64_t result_width = bit_slice->width();
   int64_t operand_width = bit_slice->to_slice()->BitCountOrDie();
-  const Bits& start_bits = bit_slice->start()->As<Literal>()->value().bits();
 
   // TODO(meheff): Handle OOB case.
-  if (bits_ops::UGreaterThan(start_bits, operand_width - result_width)) {
+  if (bits_ops::UGreaterThan(*start_bits, operand_width - result_width)) {
     return false;
   }
 
-  XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits->ToUint64());
   VLOG(3) << absl::StreamFormat(
       "Replacing dynamic bitslice %s with static bitslice",
       bit_slice->GetName());
@@ -685,7 +693,7 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice,
 absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice,
                                              QueryEngine* query_engine) {
   XLS_ASSIGN_OR_RETURN(bool literal_bit_slice_changed,
-                       SimplifyLiteralDynamicBitSlice(bit_slice));
+                       SimplifyLiteralDynamicBitSlice(bit_slice, query_engine));
   if (literal_bit_slice_changed) {
     return true;
   }
@@ -788,7 +796,7 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update,
 absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update,
                                             QueryEngine* query_engine) {
   XLS_ASSIGN_OR_RETURN(bool literal_update_changed,
-                       SimplifyLiteralBitSliceUpdate(update));
+                       SimplifyLiteralBitSliceUpdate(update, query_engine));
   if (literal_update_changed) {
     return true;
   }

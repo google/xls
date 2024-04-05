@@ -22,7 +22,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/macros.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -32,6 +34,7 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
 #include "xls/passes/predicate_state.h"
 
 namespace xls {
@@ -163,20 +166,34 @@ class QueryEngine {
   bool AtMostOneNodeTrue(absl::Span<Node* const> preds) const;
   bool AtLeastOneNodeTrue(absl::Span<Node* const> preds) const;
 
-  // Returns true if at most/least one of the bits in 'node' is true. 'node'
-  // must be bits-typed.
-  bool AtMostOneBitTrue(Node* node) const;
-  bool AtLeastOneBitTrue(Node* node) const;
+  // Returns true if at most/at least/exactly one of the bits in 'node' is true.
+  // 'node' must be bits-typed.
+  virtual bool AtMostOneBitTrue(Node* node) const;
+  virtual bool AtLeastOneBitTrue(Node* node) const;
+  virtual bool ExactlyOneBitTrue(Node* node) const;
 
   // Returns whether the value of the output bit of the given node at the given
   // index is known (definitely zero or one).
   bool IsKnown(const TreeBitLocation& bit) const;
 
+  // Returns the value of the output bit of the given node at the given index,
+  // if known; otherwise returns std::nullopt.
+  std::optional<bool> KnownValue(const TreeBitLocation& bit) const;
+
+  // Returns the output of the given node at the given index, if completely
+  // known; otherwise returns std::nullopt.
+  std::optional<Value> KnownValue(Node* node) const;
+
+  // Returns the output of the given node at the given index, if completely
+  // known; otherwise returns std::nullopt. Precondition: 'node' must be
+  // bits-typed.
+  std::optional<Bits> KnownValueAsBits(Node* node) const;
+
   // Returns if the most-significant bit is known of 'node'.
   bool IsMsbKnown(Node* node) const;
 
   // Returns the value of the most-significant bit of 'node'. Precondition: the
-  // most-significan bit must be known (IsMsbKnown returns true),
+  // most-significant bit must be known (IsMsbKnown returns true),
   bool GetKnownMsb(Node* node) const;
 
   // Returns whether the value of the output bit of the given node at the given
@@ -189,8 +206,17 @@ class QueryEngine {
   bool IsAllZeros(Node* node) const;
   bool IsAllOnes(Node* node) const;
 
-  // Returns whether *all* the bits are known for "node".
-  bool AllBitsKnown(Node* node) const;
+  // Returns true if every output bit of the given node is known (definitely
+  // zero or one).
+  virtual bool IsFullyKnown(Node* n) const;
+
+  // Returns whether *all* the bits are known for 'node' (which must be
+  // bits-type).
+  ABSL_DEPRECATE_AND_INLINE()
+  bool AllBitsKnown(Node* node) const {
+    CHECK(node->GetType()->IsBits());
+    return IsFullyKnown(node);
+  }
 
   // Returns the maximum unsigned value that the node can be.
   Bits MaxUnsignedValue(Node* node) const;

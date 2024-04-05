@@ -390,6 +390,16 @@ class LeafTypeTree {
     return ltt;
   }
 
+  // Factory for efficiently constructing a LeafTypeTree with a single element.
+  static LeafTypeTree<T> CreateSingleElementTree(Type* type, T element) {
+    CHECK_EQ(type->leaf_count(), 1);
+    LeafTypeTree<T> ltt;
+    ltt.type_ = type;
+    ltt.elements_ = {element};
+    ltt.leaf_types_ = leaf_type_tree_internal::GetLeafTypes(type);
+    return ltt;
+  }
+
   // Creates a leaf type tree in which each data member is initialized to the
   // value returned by the given function `f`. `f` takes the type of the leaf
   // element and index of the element as an argument.

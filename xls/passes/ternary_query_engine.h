@@ -74,7 +74,7 @@ class TernaryQueryEngine : public QueryEngine {
     return std::nullopt;
   }
 
-  bool IsFullyKnown(Node* n) const {
+  bool IsFullyKnown(Node* n) const override {
     if (!IsTracked(n)) {
       return false;
     }
