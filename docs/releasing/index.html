@@ -8,13 +8,13 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/xls_style/">
+        <link rel="canonical" href="https://google.github.io/xls/releasing/">
       
       
-        <link rel="prev" href="../contributing/">
+        <link rel="prev" href="../design_docs/proc_scoped_channels/">
       
       
-        <link rel="next" href="../adding_ir_operation/">
+        <link rel="next" href="../noc/xls_noc_readme/">
       
       
       <link rel="icon" href="../assets/images/favicon.png">
@@ -22,7 +22,7 @@
     
     
       
-        <title>Style Guide - XLS: Accelerated HW Synthesis</title>
+        <title>Releasing - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xls-style-guide" class="md-skip">
+        <a href="#releasing" class="md-skip">
           Skip to content
         </a>
       
@@ -100,7 +100,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Style Guide
+              Releasing
             
           </span>
         </div>
@@ -1470,30 +1470,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Style Guide
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../xls_style/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1502,116 +1482,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#c" class="md-nav__link">
-    <span class="md-ellipsis">
-      C++
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="C++">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    <span class="md-ellipsis">
-      Functions
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ir-nodes" class="md-nav__link">
-    <span class="md-ellipsis">
-      IR nodes
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="IR nodes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#class-hierarchy-and-oop-design" class="md-nav__link">
-    <span class="md-ellipsis">
-      Class Hierarchy and OOP Design
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#passing-node-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      Passing Node Types
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#protocol-buffers" class="md-nav__link">
-    <span class="md-ellipsis">
-      Protocol buffers
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#faq" class="md-nav__link">
-    <span class="md-ellipsis">
-      FAQ
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="FAQ">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#how-heavyweight-is-statusor" class="md-nav__link">
-    <span class="md-ellipsis">
-      How heavyweight is StatusOr?
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1769,10 +1639,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../releasing/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Releasing
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -1781,6 +1671,53 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      Versioning
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#packaging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Packaging
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automation
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2073,92 +2010,29 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#c" class="md-nav__link">
+  <a href="#versioning" class="md-nav__link">
     <span class="md-ellipsis">
-      C++
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="C++">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    <span class="md-ellipsis">
-      Functions
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ir-nodes" class="md-nav__link">
-    <span class="md-ellipsis">
-      IR nodes
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="IR nodes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#class-hierarchy-and-oop-design" class="md-nav__link">
-    <span class="md-ellipsis">
-      Class Hierarchy and OOP Design
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#passing-node-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      Passing Node Types
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#protocol-buffers" class="md-nav__link">
-    <span class="md-ellipsis">
-      Protocol buffers
+      Versioning
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#faq" class="md-nav__link">
+  <a href="#packaging" class="md-nav__link">
     <span class="md-ellipsis">
-      FAQ
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="FAQ">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#how-heavyweight-is-statusor" class="md-nav__link">
-    <span class="md-ellipsis">
-      How heavyweight is StatusOr?
+      Packaging
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#automation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automation
+    </span>
+  </a>
   
 </li>
       
@@ -2180,269 +2054,58 @@
   
 
 
-<h1 id="xls-style-guide">XLS Style Guide</h1>
-<p>The Google style guides recommend enforcing local consistency where stylistic
-choices are not predefined. This file notes some of the choices we make locally
-in the XLS project, with the relevant Google style guides
-(<a href="https://google.github.io/styleguide/cppguide.html">C++</a>,
-<a href="https://google.github.io/styleguide/pyguide.html">Python</a>) as their bases.</p>
-<h2 id="c">C++</h2>
-<ul>
-<li>Align the pointer or reference modifier token with the type; e.g. <code>Foo&amp;
-    foo = ...</code> instead of <code>Foo &amp;foo = ...</code>, and <code>Foo* foo = ...</code> instead of <code>Foo
-    *foo= ...</code>.</li>
-</ul>
-<ul>
-<li>Use <code>/*parameter_name=*/value</code> style comments if you choose to annotate
-    arguments in a function invocation. <code>clang-tidy</code> recognizes this form, and
-    provides a Tricorder notification if <code>parameter_name</code> is mismatched against
-    the parameter name of the callee.</li>
-</ul>
-<ul>
-<li>Prefer <code>int64_t</code> over <code>int</code> to avoid any possibility of overflow.</li>
-</ul>
-<ul>
-<li>Always use <code>Status</code> or <code>StatusOr</code> for any error that a user could encounter.</li>
-</ul>
-<ul>
-<li>Other than user-facing errors, use <code>Status</code> only in exceptional situations.
-    For example, <code>Status</code> is good to signal that a required file does not exist
-    but not for signaling that constant folding did not constant fold an
-    expression.<p>See <a href="#how-heavyweight-is-statusor">how heavyweight is StatusOr</a> for more
-  details on thinking about the costs involved.</p>
-</li>
-</ul>
-<ul>
-<li>Internal errors for conditions that should never be false can use <code>CHECK</code>,
-    but may also use <code>Status</code> or <code>StatusOr</code>.</li>
-</ul>
-<ul>
-<li>Prefer to brace single-statement blocks. Because the <code>XLS_ASSIGN_OR_RETURN</code>
-    macro expands into multiple statements, this can cause problems when using
-    unbraced single-statement blocks. Instead of XLS developers needing to think
-    about individual cases of single statement blocks, we brace all single
-    statement blocks.</li>
-</ul>
-<ul>
-<li>Prefer using <code>XLS_ASSIGN_OR_RETURN</code> / <code>XLS_RETURN_IF_ERROR</code> when
-    appropriate, but when binding a <code>StatusOr</code> wrapped value prefer to name it
-    <code>thing_or</code> so that it can be referenced without the wrapper as <code>thing</code>; e.g.<div class="highlight"><pre><span></span><code>absl::StatusOr&lt;Thing&gt; thing_or = f();
-if (!thing_or.ok()) {
-  // ... handling of the status via thing_or.status() and returning ...
-}
-const Thing&amp; thing = thing_or.value();
+<h1 id="releasing">Releasing</h1>
+<h2 id="versioning">Versioning</h2>
+<p>The project use the following versioning scheme:
+<div class="highlight"><pre><span></span><code>v${SEM_VER}-${COMMITS_COUNT_SINCE_LAST_ANNOTATED_TAG}-g${GIT_HASH)
+</code></pre></div></p>
+<blockquote>
+<p>The <a href="https://github.com/google/xls/tree/v0.0.0">v0.0.0</a> annotated tag points to the initial commit to bootstrap the versioning scheme using <a href="https://git-scm.com/docs/git-describe">git-describe</a>.</p>
+</blockquote>
+<p>Released binaries are stamped with the <code>{version}</code> using <a href="https://bazel.build/reference/command-line-reference#:~:text=%2D%2Dembed_label%3D%3Ca%20one,label%20in%20binary"><code>--embed_label</code></a> during <code>bazel build</code> invocations.</p>
+<p>Soft-tags (non-annotated) are used to mark released versions.</p>
+<h2 id="packaging">Packaging</h2>
+<p>The <code>//dist:xls_dist_tar</code> target uses <a href="https://github.com/bazelbuild/rules_pkg/">@rules_pkg</a>/pkg_tar to create an archive named <code>xls-{version}-{os}-{arch}.tar.gz</code> with the following layout:</p>
+<div class="highlight"><pre><span></span><code>xls-{version}-{os}-{arch}/codegen_main
+xls-{version}-{os}-{arch}/interpreter_main
+xls-{version}-{os}-{arch}/ir_converter_main
+xls-{version}-{os}-{arch}/opt_main
+xls-{version}-{os}-{arch}/proto_to_dslx_main
+...
+xls-{version}-{os}-{arch}/LICENSE
+xls-{version}-{os}-{arch}/THIRD_PARTY_NOTICES.txt
 </code></pre></div>
-</li>
-</ul>
-<ul>
-<li>Prefer <code>CHECK</code> to <code>DCHECK</code>, except that <code>DCHECK</code> can be used to verify
-    conditions that it would be too expensive to verify in production, but that
-    are fast enough to include outside of production.</li>
-</ul>
-<ul>
-<li>Use <code>QCHECK</code> and <code>LOG(QFATAL)</code> during program startup when verifying startup
-    parameters (i.e., flags); prefer <code>CHECK</code> and <code>LOG(FATAL)</code> in all other
-    circumstances, as the <code>Q</code> variants suppress <code>atexit</code> handling (including
-    <code>--cpu_profile</code>).</li>
-</ul>
-<ul>
-<li>Follow the C++ style guide for capitalization guidelines; however, in the
-    somewhat ambiguous case of I/O (short for Input/Output, which we use often),
-    the slash counts as internal spacing and therefore the capitalization we use
-    is <code>IO</code>, as in <code>WrapIO</code> or <code>StreamingIOReader</code>.</li>
-</ul>
-<ul>
-<li>Prefer to use the <code>XLS_FRIEND_TEST</code> macro vs friending manually-mangled test
-    names.<p>At times it can be useful to test unit test a private/protected member of a
-  class, and the <code>XLS_FRIEND_TEST</code> macro makes this possible. Note that the
-  test case must live outside an unnamed namespace in the test file for the
-  "friending" to work properly.</p>
-</li>
-</ul>
-<ul>
-<li>For simple const accessors, for the sake of consistency in the code base,
-    and a weak preference towards the benefits of information hiding, prefer to
-    return view types over the apparent type of the member; e.g.<div class="highlight"><pre><span></span><code>class MyClass {
- public:
-  // This return type is preferrable to `const std::vector&lt;uint64_t&gt;&amp;`.
-  absl::Span&lt;const uint64_t&gt; values() const { return values_; }
-
- private:
-  std::vector&lt;uint64_t&gt; values_;
-};
-</code></pre></div>
-</li>
-</ul>
-<ul>
-<li>Follow the
-    <a href="https://google.github.io/styleguide/cppguide.html#Run-Time_Type_Information__RTTI_">style guide's</a>
-    decision to avoid RTTI. In practice, this means <code>down_cast&lt;&gt;</code> should be used
-    instead of <code>dynamic_cast&lt;&gt;</code>. However, the style guide says to avoid
-    hand-implementing RTTI-like workarounds. The DSLX and XLScc frontends are
-    places where avoiding RTTI would require implementing workarounds that end
-    up looking a lot like RTTI, so <code>dynamic_cast&lt;&gt;</code> is common and accepted for
-    those parts of the codebase. Elsewhere, especially with IR <code>Node</code> types,
-    <code>down_cast&lt;&gt;</code> should be used instead.</li>
-</ul>
-<ul>
-<li>Prefer <code>std::string_view</code> to <code>absl::string_view</code>. <code>absl::string_view</code> mainly
-    differs from <code>std::string_view</code> in construction from nullptr, which our
-    usage/callers do not depend upon. This decision lets us switch over to the
-    more consistent end-state sooner. Although the style guide recommends we
-    prefer <code>absl::string_view</code> for now, the rationale for why does not really
-    apply to us and their target end state is clear.</li>
-</ul>
-<ul>
-<li>XLS code is often written in a functional (i.e. separating functions from
-    the [ideally immutable] structs they operate on) and layered style, which
-    leads to <code>_utils.h</code> style translation units that layer on and compose
-    functionality. Prefer the suffix <code>_utils.h</code> for these, vs <code>_helpers.h</code> or
-    other alternatives.</li>
-</ul>
-<ul>
-<li>Static member functions should be used sparingly, generally only for
-    factories that call a private constructor. We prefer to document
-    implementations with a <code>/* static */</code> comment as a reminder to readers (and
-    writers that there is no <code>this</code> available). Comments are not an ideal way to
-    mark this kind of information, but there should be a small number of these
-    functions and as factories it is unlikely the static qualifier will be
-    dropped in the future to put the comments out of sync.</li>
-</ul>
-<ul>
-<li>We prefer <code>absl::visit</code> over <code>std::visit</code> as it is reportedly higher
-    performance.</li>
-</ul>
-<h3 id="functions">Functions</h3>
-<ul>
-<li>Short or easily-explained argument lists (as defined by the developer) can
-    be explained inline with the rest of the function comment. For more complex
-    argument lists, the following pattern should be used:<div class="highlight"><pre><span></span><code>// &lt;Function description&gt;
-// Args:
-//   arg1: &lt;arg1 description&gt;
-//   arg2: &lt;arg2 description&gt;
-//   ...
-</code></pre></div>
-</li>
-</ul>
-<h3 id="ir-nodes">IR nodes</h3>
-<h4 id="class-hierarchy-and-oop-design">Class Hierarchy and OOP Design</h4>
-<p>A frequently asked question about XLS's design is how the IR class hierarchy
-gels with Google style guide recommendations. This section is intended to
-provide a rationale for "tagging" leaf node types and for using
-<code>node-&gt;Is&lt;NodeType&gt;()</code> and <code>switch (node-&gt;op())</code> to form categories of node
-types instead of a class inheritance taxonomy.</p>
-<p>The base type <code>Node</code> encapsulates an element that takes input operands and
-produces an output, along with some metadata like type, name, and references to
-source locations. Each IR node (e.g. <code>add</code>, <code>send</code>, <code>concat</code>, etc.) extends
-directly from <code>Node</code>.</p>
-<p>Each <code>Node</code> defines <code>op()</code> and <code>Is&lt;NodeType&gt;()</code> methods which are more
-performant alternatives to C++'s RTTI. For example,</p>
-<div class="highlight"><pre><span></span><code>if (node-&gt;Is&lt;Send&gt;()) {
-  return node-&gt;As&lt;Send&gt;()-&gt;channel_id();  // As&lt;Send&gt;() is down_cast&lt;Send*&gt;()
-}
-</code></pre></div>
-<p>or</p>
-<div class="highlight"><pre><span></span><code>switch (node-&gt;op()) {
-  case Op::kSend:
-    return down_cast&lt;Send*&gt;(node)-&gt;channel_id();
-  // case Op:: ...
-}
-</code></pre></div>
-<p>are common patterns on IR nodes.</p>
-<p>In many contexts, this code would be a cry for better abstractions- some
-reasonable ideas include:</p>
-<ol>
-<li>A <code>virtual std::optional&lt;int64_t&gt; Node::channel_id()</code> (or
-    <code>absl::StatusOr&lt;int64_t&gt;</code>) implementation.</li>
-<li>A subclass or mixin trait like <code>ChannelNode</code> that extends <code>Node</code> for <code>Send</code>
-    to derive.</li>
-<li>A visitor that implements similar functionality outside of the class
-    hierarchy.</li>
-</ol>
-<p>These ideas are generally not a good fit for IR nodes. The first idea's main
-problem is that there are a lot of node types and the base class will become
-huge if it needs to contain every property of each type of node. Furthermore,
-the base class will be difficult to reason about without more structure- e.g.
-does a node with a <code>channel_id</code> sometimes, always, or never also have a
-<code>predicate</code>?</p>
-<p>The second idea seems to address the problems of the first, but it is not clear
-how to design a useful type hierarchy for IR nodes. The subset of nodes we care
-about is very context dependent. The examples above invite a <code>ChannelNode</code>
-abstraction, but other places in the code might care about unary vs. n-ary ops,
-or ops that produce bare values vs. tuples, or some other way to group nodes. We
-can find ourselves facing the first idea's complexity explosion if we make a
-mixin trait for each pass, and there aren't good ways to inject mixin traits for
-each compilation unit.</p>
-<p>The third idea of using a visitor (or, similarly, a typeclass) is used in the
-XLS codebase at times, but mostly where there's some well-defined behavior for
-most kinds of nodes. If you want to pluck out an ad-hoc subset of nodes, you
-need to make a new kind of visitor for that subset and it ends up being similar
-to the code above. In the limit, you might need all arbitrary combinations which
-will lead to too many visitor types to maintain centrally.</p>
-<p>Using <code>node-&gt;Is&lt;NodeType&gt;()</code> or <code>switch (node-&gt;op())</code> are concise and readable
-ways for the common task of operating on a new category of nodes. The typical
-OOP tools we'd often use instead don't map well to the needs of an IR, so we
-discourage adding to the base type or type hierarchy of IR nodes. We encourage
-gathering categories that are reused in
-<a href="https://github.com/google/xls/tree/main/xls/ir/node_util.h">node_util.h</a>.</p>
-<p>It's also worth noting that <code>node-&gt;op()</code>, <code>node-&gt;Is&lt;NodeType&gt;()</code>,
-<code>node-&gt;As&lt;NodeType&gt;()</code>, and <code>down_cast&lt;NodeType*&gt;(node)</code> are more performant
-than C++ RTTI and <code>dynamic_cast&lt;&gt;</code>. C++ RTTI is not designed to be cheap and if
-we used <code>dynamic_cast&lt;&gt;</code> instead of our own tags + <code>down_cast&lt;&gt;</code>, we expect that
-would perform significantly worse. Performance is not the primary rationale for
-the design decision discussed above, but the knock-on performance effects
-further support the decision.</p>
-<h4 id="passing-node-types">Passing Node Types</h4>
-<ul>
-<li>Unlike most data, IR elements should be passed as non-const pointers, even
-    when expected to be const (which would usually indicate passing them as
-    const references). Experience has shown that IR elements often develop
-    non-const usages over time. Consider the case of IR analysis passes - those
-    passes themselves rarely need to mutate their input data, but they build up
-    data structures whose users often need to mutate their contents. In
-    addition, treating elements as pointers makes equality comparisons more
-    straightforward (avoid taking an address of a reference) and helps avoid
-    accidental copies (assigning a reference to local, etc.). Non-const pointer
-    usage propagates outwards such that the few cases where a const reference
-    could <em>actually</em> be appropriate become odd outliers, so our guidance is that
-    IR elements should uniformly be passed as non-const pointers.</li>
-</ul>
-<ul>
-<li>A corollary to the above is that <code>nullptr</code> is generally not a valid input to
-    functions taking IR elements. When an IR element is optional, we recommend
-    explicitly using <code>std::optional&lt;T*&gt;</code>. We deviate from the style guide here
-    because for IR elements <code>T*</code> sometimes means <code>const T&amp;</code>, <code>T&amp;</code>, or just <code>T</code>
-    in addition to <code>T*</code>, but which is not apparent from the signature. However,
-    using <code>nullptr</code> for IR element types is OK when the usage is fully
-    encapsulated.</li>
-</ul>
-<h2 id="protocol-buffers">Protocol buffers</h2>
-<ul>
-<li>Prefer to use
-    <a href="https://developers.google.com/protocol-buffers/docs/proto3#simple">proto3</a>
-    specifications in all new protocol buffer files.</li>
-</ul>
-<h2 id="faq">FAQ</h2>
-<h3 id="how-heavyweight-is-statusor">How heavyweight is <code>StatusOr</code>?</h3>
-<p>What follows is the <strong>general guidance on how absl::StatusOr is used</strong> -- it is
-used extensively throughout the XLS code base as an error-style indicator object
-wrapper, so it is important to understand the mental model used for its cost.</p>
-<p>Consider cost wise that: a) creating an <strong>ok</strong> <code>StatusOr</code> is cheap, b) creating
-a <strong>non-ok</strong> <code>StatusOr</code> is expensive (that is, imagine the non-ok <code>Status</code>
-within a <code>StatusOr</code> is the expensive part).</p>
-<p>The implication being: if there's an API where "not found" is a reasonable
-outcome, prefer <code>std::optional&lt;&gt;</code> as a return value to indicate that / go with
-the grain of cost.</p>
-<p>Something like a filesystem API would be a classic example -- where you
-shouldn't be rooting around looking for files that aren't there -- so a
-not-found <code>absl::StatusOr</code> result would be fine to use.</p>
-<p>A good potential mental model is to imagine the program may run with logging of
-a traceback for every non-ok status that is created. (This is related to a
-debugging capability in Google internally called
-<code>--util_status_save_stack_trace</code> that captures backtraces when error <code>Status</code>es
-are created.) Ideally, with such a logging flag turned on, the screen wouldn't
-fill up with "non error tracebacks", only tracebacks from events where something
-really went wrong.</p>
+<p><code>{version}</code>, <code>{os}</code> and <code>{arch}</code> placeholders get replaced by <a href="https://bazel.build/extending/config#user-defined-build-settings">user-defined build settings</a> passed during <code>bazel build</code> invocations.</p>
+<h2 id="automation">Automation</h2>
+<p>The <a href="https://github.com/google/xls/actions/workflows/nightly-ubuntu-22.04.yml">Nightly Ubuntu 22.04</a> workflow automates the release process.</p>
+<p>The <code>Dist</code> step builds the <code>//dist:xls_dist_tar</code> target w/ the following flags:</p>
+<table>
+<thead>
+<tr>
+<th>flag</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--embed_label</code></td>
+<td><code>$VERSION</code></td>
+</tr>
+<tr>
+<td><code>--//dist:version</code></td>
+<td><code>$VERSION</code></td>
+</tr>
+<tr>
+<td><code>--//dist:os</code></td>
+<td><code>downcased($RUNNER_OS)</code></td>
+</tr>
+<tr>
+<td><code>--//dist:arch</code></td>
+<td><code>downcased($RUNNER_ARCH)</code></td>
+</tr>
+</tbody>
+</table>
+<p>The <code>Release</code> step uploads the release artefacts to https://github.com/google/xls/releases using <a href="https://github.com/marketplace/actions/gh-release">softprops/action-gh-release@v1</a> and creates new soft-tag corresponding to <code>{version}</code>.</p>
 
 
 

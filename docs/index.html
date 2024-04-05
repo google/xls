@@ -16,7 +16,7 @@
       
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.16">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.17">
     
     
       
@@ -279,9 +279,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-using-conda" class="md-nav__link">
+  <a href="#install-latest-release" class="md-nav__link">
     <span class="md-ellipsis">
-      Install Using Conda
+      Install Latest Release
     </span>
   </a>
   
@@ -612,7 +612,7 @@
             
   
   <span class="md-ellipsis">
-    XLS[cc]
+    \[contrib\] XLS[cc]
   </span>
   
 
@@ -622,7 +622,7 @@
         <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
-            XLS[cc]
+            \[contrib\] XLS[cc]
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
@@ -1749,6 +1749,27 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="releasing/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Releasing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2054,9 +2075,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-using-conda" class="md-nav__link">
+  <a href="#install-latest-release" class="md-nav__link">
     <span class="md-ellipsis">
-      Install Using Conda
+      Install Latest Release
     </span>
   </a>
   
@@ -2176,15 +2197,24 @@ out, running through <a href="https://google.github.io/xls/tutorials/">some tuto
     * If you are building a corpus of hardware with XLS, please be thoughtful
       about your process for bringing in new versions of the compiler.</li>
 </ul>
-<h2 id="install-using-conda">Install Using Conda</h2>
-<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-O<span class="w"> </span>https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash<span class="w"> </span>Miniconda3-latest-Linux-x86_64.sh<span class="w"> </span>-p<span class="w"> </span>conda-env/<span class="w"> </span>-b
-<span class="nb">source</span><span class="w"> </span>conda-env/bin/activate
-conda<span class="w"> </span>install<span class="w"> </span>--yes<span class="w"> </span>-c<span class="w"> </span>litex-hub<span class="w"> </span>xls
-interpreter_main<span class="w"> </span>--version
-ir_converter_main<span class="w"> </span>--version
-opt_main<span class="w"> </span>--version
-codegen_main<span class="w"> </span>--version
+<h2 id="install-latest-release">Install Latest Release</h2>
+<p>The following downloads the latest github repo release binaries for an x64 Linux machine:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Determine the url of the latest release tarball.</span>
+<span class="nv">LATEST_XLS_RELEASE_TARBALL_URL</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-L<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Accept: application/vnd.github+json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;X-GitHub-Api-Version: 2022-11-28&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>https://api.github.com/repos/google/xls/releases<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;import json; import sys; print(json.load(sys.stdin)[0][&quot;assets&quot;][0][&quot;browser_download_url&quot;])&#39;</span><span class="k">)</span>
+
+<span class="c1"># Download the tarball and unpack it, observe the version numbers for each of the included tools.</span>
+curl<span class="w"> </span>-O<span class="w"> </span>-L<span class="w"> </span><span class="si">${</span><span class="nv">LATEST_XLS_RELEASE_TARBALL_URL</span><span class="si">}</span>
+tar<span class="w"> </span>-xzvvf<span class="w"> </span>xls-*.tar.gz
+<span class="nb">cd</span><span class="w"> </span>xls-*/
+./interpreter_main<span class="w"> </span>--version
+./ir_converter_main<span class="w"> </span>--version
+./opt_main<span class="w"> </span>--version
+./codegen_main<span class="w"> </span>--version
+./proto_to_dslx_main<span class="w"> </span>--version
 </code></pre></div>
 <h2 id="building-from-source">Building From Source</h2>
 <p>Currently, XLS must be built from source using the Bazel build system.</p>
@@ -2473,7 +2503,7 @@ discussions</a>!</p>
     <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.bd41221c.min.js"></script>
+      <script src="assets/javascripts/bundle.1e8ae164.min.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
