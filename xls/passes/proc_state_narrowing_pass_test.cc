@@ -41,12 +41,14 @@ using testing::UnorderedElementsAre;
 class ProcStateNarrowingPassTest : public IrTestBase {
  public:
   absl::StatusOr<bool> RunPass(Proc* p) {
+    ScopedRecordIr sri(p->package());
     ProcStateNarrowingPass pass;
     PassResults r;
     return pass.Run(p->package(), {}, &r);
   }
 
   absl::StatusOr<bool> RunProcStateCleanup(Proc* p) {
+    ScopedRecordIr sri(p->package(), "cleanup", /*with_initial=*/false);
     ProcStateOptimizationPass psop;
     PassResults r;
     return psop.Run(p->package(), {}, &r);

@@ -454,6 +454,7 @@ TEST_F(ProcTest, TransformStateElement) {
     }
   };
   TestTransformer tt;
+  ScopedRecordIr sri(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Param * new_st, proc->TransformStateElement(st.node()->As<Param>(),
                                                   Value(UBits(0b0101, 4)), tt));

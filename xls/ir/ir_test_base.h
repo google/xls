@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/source_location.h"
 #include "xls/delay_model/delay_estimator.h"
@@ -176,6 +177,29 @@ class TestDelayEstimator : public DelayEstimator {
 
  private:
   int64_t base_delay_;
+};
+
+// Helper to record IR before and after some test event which changes it.
+struct ScopedRecordIr {
+ public:
+  explicit ScopedRecordIr(Package* p, std::string_view name = "",
+                          bool with_initial = true)
+      : p_(p), name_(name) {
+    if (with_initial) {
+      testing::Test::RecordProperty(
+          absl::StrFormat("initial%s%s", name_.empty() ? "" : "_", name_),
+          p_->DumpIr());
+    }
+  }
+  ~ScopedRecordIr() {
+    testing::Test::RecordProperty(
+        absl::StrFormat("final%s%s", name_.empty() ? "" : "_", name_),
+        p_->DumpIr());
+  }
+
+ private:
+  Package* p_;
+  std::string_view name_;
 };
 
 }  // namespace xls
