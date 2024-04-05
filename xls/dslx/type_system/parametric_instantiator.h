@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -51,7 +52,9 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     Span span, Function& callee_fn, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
-    const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings);
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings,
+    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+        parametric_bindings);
 
 // Instantiates a struct using the bindings derived from args' types.
 //
@@ -60,7 +63,9 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
-    absl::Span<const ParametricWithType> typed_parametrics);
+    absl::Span<const ParametricWithType> typed_parametrics,
+    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+        parametric_bindings);
 
 }  // namespace xls::dslx
 

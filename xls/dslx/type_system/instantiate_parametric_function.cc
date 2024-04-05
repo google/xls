@@ -183,7 +183,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
 
   return InstantiateFunction(invocation->span(), callee_fn, fn_type,
                              instantiate_args, ctx, typed_parametrics,
-                             callee_parametric_env);
+                             callee_parametric_env, parametric_bindings);
 }
 
 }  // namespace xls::dslx

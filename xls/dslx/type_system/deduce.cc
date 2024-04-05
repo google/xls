@@ -1548,7 +1548,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
-                        validated.member_types, ctx, typed_parametrics));
+                        validated.member_types, ctx, typed_parametrics,
+                        struct_def->parametric_bindings()));
 
   return std::move(tab.type);
 }
@@ -1640,7 +1641,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
-                        validated.member_types, ctx, typed_parametrics));
+                        validated.member_types, ctx, typed_parametrics,
+                        struct_def->parametric_bindings()));
 
   return std::move(tab.type);
 }

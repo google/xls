@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
@@ -84,16 +85,19 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     Span span, Function& callee_fn, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
-    const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings) {
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings,
+    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+        parametric_bindings) {
   VLOG(5) << "Function instantiation @ " << span
           << " type: " << function_type.ToString();
   VLOG(5) << " typed-parametrics: " << ToString(typed_parametrics);
   VLOG(5) << " arg types:              " << ToTypesString(args);
   VLOG(5) << " explicit bindings:   " << ToString(explicit_bindings);
-  XLS_ASSIGN_OR_RETURN(auto instantiator,
-                       internal::FunctionInstantiator::Make(
-                           std::move(span), callee_fn, function_type, args, ctx,
-                           typed_parametrics, explicit_bindings));
+  XLS_ASSIGN_OR_RETURN(
+      auto instantiator,
+      internal::FunctionInstantiator::Make(
+          std::move(span), callee_fn, function_type, args, ctx,
+          typed_parametrics, explicit_bindings, parametric_bindings));
   return instantiator->Instantiate();
 }
 
@@ -101,16 +105,18 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
-    absl::Span<const ParametricWithType> typed_parametrics) {
+    absl::Span<const ParametricWithType> typed_parametrics,
+    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+        parametric_bindings) {
   VLOG(5) << "Struct instantiation @ " << span
           << " type: " << struct_type.ToString();
   VLOG(5) << " arg types:           " << ToTypesString(args);
   VLOG(5) << " member types:        " << ToString(member_types);
   VLOG(5) << " typed-parametrics: " << ToString(typed_parametrics);
-  XLS_ASSIGN_OR_RETURN(
-      auto instantiator,
-      internal::StructInstantiator::Make(std::move(span), struct_type, args,
-                                         member_types, ctx, typed_parametrics));
+  XLS_ASSIGN_OR_RETURN(auto instantiator,
+                       internal::StructInstantiator::Make(
+                           std::move(span), struct_type, args, member_types,
+                           ctx, typed_parametrics, parametric_bindings));
   return instantiator->Instantiate();
 }
 

@@ -1050,6 +1050,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_two_explicit_parametric_errors(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/two_explicit_parametric_errors.x'
+    )
+    self.assertIn('XlsTypeError:', stderr)
+    self.assertIn(
+        'uN[2] vs uN[3]: Explicit parametric type mismatch.',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

@@ -1036,11 +1036,6 @@ PopulateSignatureToLambdaMap() {
     mapped_fn_args.push_back(
         InstantiateArg{t.CloneToUnique(), data.arg_spans[0]});
 
-    absl::Span<const ParametricWithType> mapped_parametric_bindings;
-    if (data.parametric_bindings.has_value()) {
-      mapped_parametric_bindings = data.parametric_bindings.value();
-    }
-
     Expr* fn_expr = data.args.at(1);
     NameRef* fn_name = dynamic_cast<NameRef*>(fn_expr);
     XLS_RET_CHECK(fn_name != nullptr);
@@ -1054,8 +1049,9 @@ PopulateSignatureToLambdaMap() {
     XLS_ASSIGN_OR_RETURN(
         TypeAndParametricEnv tab,
         InstantiateFunction(data.span, *fn, *f_type, mapped_fn_args, ctx,
-                            /*typed_parametrics=*/mapped_parametric_bindings,
-                            /*explicit_bindings=*/{}));
+                            /*typed_parametrics=*/{},
+                            /*explicit_bindings=*/{},
+                            /*parametric_bindings=*/fn->parametric_bindings()));
     auto return_type =
         std::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndParametricEnv{

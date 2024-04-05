@@ -264,12 +264,17 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
-      fsignature(SignatureData{arg_type_ptrs, arg_spans,
-                               invocation->explicit_parametrics(),
-                               callee_nameref->identifier(), invocation->span(),
-                               /*parametric_bindings=*/{}, constexpr_eval,
-                               invocation->args()},
-                 ctx));
+      fsignature(
+          SignatureData{
+              .arg_types = arg_type_ptrs,
+              .arg_spans = arg_spans,
+              .arg_explicit_parametrics = invocation->explicit_parametrics(),
+              .name = callee_nameref->identifier(),
+              .span = invocation->span(),
+              .constexpr_eval = constexpr_eval,
+              .args = invocation->args(),
+          },
+          ctx));
 
   FunctionType* fn_type = dynamic_cast<FunctionType*>(tab.type.get());
   XLS_RET_CHECK(fn_type != nullptr) << tab.type->ToString();

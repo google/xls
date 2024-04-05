@@ -19,19 +19,15 @@
 
 #include <cstdint>
 #include <functional>
-#include <optional>
-#include <string>
 #include <string_view>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 
@@ -48,9 +44,7 @@ struct SignatureData {
   std::string_view name;
   // Span that we're invoking the builtin from (span for the entire invocation).
   const Span& span;
-  // Any "higher order" parametric bindings e.g. for the callee in the case of
-  // map.
-  std::optional<std::vector<ParametricWithType>> parametric_bindings;
+
   // Callback that can be used to perform constexpr evaluation on one of the
   // function arguments; which is requested is given by argno.
   const std::function<absl::StatusOr<InterpValue>(int64_t argno)>&

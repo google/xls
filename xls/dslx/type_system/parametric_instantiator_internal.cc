@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system/parametric_instantiator_internal.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -23,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -214,11 +216,14 @@ absl::Status EagerlyPopulateParametricEnvMap(
 ParametricInstantiator::ParametricInstantiator(
     Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
-    const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics)
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
+    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+        parametric_bindings)
     : span_(std::move(span)),
       args_(args),
       ctx_(ABSL_DIE_IF_NULL(ctx)),
-      parametric_env_map_(explicit_parametrics) {
+      parametric_env_map_(explicit_parametrics),
+      parametric_bindings_(parametric_bindings) {
   // We add derived type information so we can resolve types based on
   // parametrics; e.g. in
   //
@@ -231,7 +236,20 @@ ParametricInstantiator::ParametricInstantiator(
   // Explicit parametric expressions are conceptually evaluated before other
   // parametric expressions.
   absl::flat_hash_set<std::string> ordered;
-  for (const auto& [identifier, value] : explicit_parametrics) {
+
+  // Note: the first N explicit parametrics (given by the map) must be the first
+  // N parametrics for the thing we're instantiating; i.e. we can only
+  // explicitly instantiate from the "left hand side" of the parametric
+  // bindings, not arbitrarily set bindings in the middle.
+  //
+  // We iterate the parametric_bindings as they are well ordered (as opposed to
+  // iterating over hashed elements).
+  //
+  // TODO(leary): 2024-04-05 For the above reason, explicit_parametrics should
+  // prefer to be a contiguous type like a vector instead of a map.
+  for (size_t i = 0; i < explicit_parametrics.size(); ++i) {
+    const std::string& identifier = parametric_bindings[i]->identifier();
+    CHECK(explicit_parametrics.contains(identifier));
     parametric_order_.push_back(identifier);
     ordered.insert(identifier);
   }
@@ -294,7 +312,9 @@ FunctionInstantiator::Make(
     Span span, Function& callee_fn, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
-    const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics) {
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
+    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+        parametric_bindings) {
   VLOG(5) << "Making FunctionInstantiator for " << function_type.ToString()
           << " with " << typed_parametrics.size() << " typed-parametrics and "
           << explicit_parametrics.size() << " explicit parametrics";
@@ -304,9 +324,9 @@ FunctionInstantiator::Make(
         "argument(s)",
         span.ToString(), function_type.params().size(), args.size()));
   }
-  return absl::WrapUnique(
-      new FunctionInstantiator(std::move(span), callee_fn, function_type, args,
-                               ctx, typed_parametrics, explicit_parametrics));
+  return absl::WrapUnique(new FunctionInstantiator(
+      std::move(span), callee_fn, function_type, args, ctx, typed_parametrics,
+      explicit_parametrics, parametric_bindings));
 }
 
 absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
@@ -371,11 +391,13 @@ StructInstantiator::Make(
     Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
-    absl::Span<const ParametricWithType> parametric_bindings) {
+    absl::Span<const ParametricWithType> typed_parametrics,
+    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+        parametric_bindings) {
   XLS_RET_CHECK_EQ(args.size(), member_types.size());
-  return absl::WrapUnique(new StructInstantiator(std::move(span), struct_type,
-                                                 args, member_types, ctx,
-                                                 parametric_bindings));
+  return absl::WrapUnique(
+      new StructInstantiator(std::move(span), struct_type, args, member_types,
+                             ctx, typed_parametrics, parametric_bindings));
 }
 
 absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {

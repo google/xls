@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -62,11 +63,12 @@ class ParametricInstantiator {
   // See `InstantiateFunction` for details on
   // typed_parametrics/explicit_parametrics and member comments for other
   // arguments.
-  ParametricInstantiator(Span span, absl::Span<const InstantiateArg> args,
-                         DeduceCtx* ctx,
-                         absl::Span<const ParametricWithType> typed_parametrics,
-                         const absl::flat_hash_map<std::string, InterpValue>&
-                             explicit_parametrics);
+  ParametricInstantiator(
+      Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
+      absl::Span<const ParametricWithType> typed_parametrics,
+      const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
+      absl::Span<absl::Nonnull<const ParametricBinding*> const>
+          parametric_bindings);
 
   // Non-movable as the destructor performs meaningful work -- the class
   // lifetime is used as a scope for parametric type information (used in
@@ -138,6 +140,9 @@ class ParametricInstantiator {
   absl::flat_hash_map<std::string, std::unique_ptr<Type>>
       parametric_binding_types_;
   absl::flat_hash_map<std::string, InterpValue> parametric_env_map_;
+
+  absl::Span<absl::Nonnull<const ParametricBinding*> const>
+      parametric_bindings_;
 };
 
 // Instantiates a parametric function invocation.
@@ -147,8 +152,9 @@ class FunctionInstantiator : public ParametricInstantiator {
       Span span, Function& callee_fn, const FunctionType& function_type,
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       absl::Span<const ParametricWithType> typed_parametrics,
-      const absl::flat_hash_map<std::string, InterpValue>&
-          explicit_parametrics);
+      const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
+      absl::Span<absl::Nonnull<const ParametricBinding*> const>
+          parametric_bindings);
 
   // Updates symbolic bindings for the parameter types according to args_'s
   // types.
@@ -164,9 +170,11 @@ class FunctionInstantiator : public ParametricInstantiator {
       Span span, Function& callee_fn, const FunctionType& function_type,
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       absl::Span<const ParametricWithType> typed_parametrics,
-      const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics)
+      const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
+      absl::Span<absl::Nonnull<const ParametricBinding*> const>
+          parametric_bindings)
       : ParametricInstantiator(std::move(span), args, ctx, typed_parametrics,
-                               explicit_parametrics),
+                               explicit_parametrics, parametric_bindings),
         callee_fn_(callee_fn),
         function_type_(CloneToUnique(function_type)),
         param_types_(function_type_->params()) {}
@@ -183,7 +191,9 @@ class StructInstantiator : public ParametricInstantiator {
       Span span, const StructType& struct_type,
       absl::Span<const InstantiateArg> args,
       absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
-      absl::Span<const ParametricWithType> parametric_bindings);
+      absl::Span<const ParametricWithType> typed_parametrics,
+      absl::Span<absl::Nonnull<const ParametricBinding*> const>
+          parametric_bindings);
 
   absl::StatusOr<TypeAndParametricEnv> Instantiate() override;
 
@@ -194,10 +204,13 @@ class StructInstantiator : public ParametricInstantiator {
                      absl::Span<const InstantiateArg> args,
                      absl::Span<std::unique_ptr<Type> const> member_types,
                      DeduceCtx* ctx,
-                     absl::Span<const ParametricWithType> parametric_bindings)
+                     absl::Span<const ParametricWithType> typed_parametrics,
+                     absl::Span<absl::Nonnull<const ParametricBinding*> const>
+                         parametric_bindings)
       : ParametricInstantiator(std::move(span), args, ctx,
-                               /*typed_parametrics=*/parametric_bindings,
-                               /*explicit_parametrics=*/{}),
+                               /*typed_parametrics=*/typed_parametrics,
+                               /*explicit_parametrics=*/{},
+                               parametric_bindings),
         struct_type_(CloneToUnique(struct_type)),
         member_types_(member_types) {}
 
