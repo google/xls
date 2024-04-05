@@ -60,7 +60,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
 //
 // This is used externally in things like parametric instantiation of DSLX
 // builtins like the higher order function "map".
-absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToConstraints(
+absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
     absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx);
 
 }  // namespace xls::dslx

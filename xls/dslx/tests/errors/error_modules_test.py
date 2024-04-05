@@ -887,7 +887,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/user_defined_parametric_given_type.x'
     )
     self.assertIn(
-        'Parametric function invocation `p<uN[32]>()` cannot take type `uN[32]`'
+        'Parametric function invocation cannot take type `uN[32]`'
         ' -- parametric must be an expression',
         stderr,
     )

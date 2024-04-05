@@ -15,8 +15,10 @@
 #include "xls/dslx/type_system/deduce_utils.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 
 #include "absl/log/check.h"
@@ -37,6 +39,7 @@
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -390,6 +393,19 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
       type_info->GetImported(*import);
   return imported_info.value()->module->GetMemberOrError<Proc>(
       colon_ref->attr());
+}
+
+absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
+    const ParametricBinding& binding, DeduceCtx* ctx) {
+  Module* binding_module = binding.owner();
+  ImportData* import_data = ctx->import_data();
+  XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
+                       import_data->GetRootTypeInfo(binding_module));
+  auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> metatype,
+                       binding_ctx->Deduce(binding.type_annotation()));
+  return UnwrapMetaType(std::move(metatype), binding.type_annotation()->span(),
+                        "parametric binding type");
 }
 
 }  // namespace xls::dslx

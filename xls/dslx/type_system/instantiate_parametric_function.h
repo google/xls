@@ -15,7 +15,6 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_INSTANTIATE_PARAMETRIC_FUNCTION_H_
 #define XLS_DSLX_TYPE_SYSTEM_INSTANTIATE_PARAMETRIC_FUNCTION_H_
 
-#include <memory>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -26,10 +25,6 @@
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
-
-// Deduces the type for a ParametricBinding (via its type annotation).
-absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
-    ParametricBinding* binding, DeduceCtx* ctx);
 
 // Sets up parametric args (based on actual args) and explicit bindings (based
 // on explicitly given parametric args) and runs the parametric instantiator.

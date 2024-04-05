@@ -32,29 +32,93 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/import_data.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/unwrap_meta_type.h"
 
 namespace xls::dslx {
 
-absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
-    ParametricBinding* binding, DeduceCtx* ctx) {
-  Module* binding_module = binding->owner();
-  ImportData* import_data = ctx->import_data();
-  XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
-                       import_data->GetRootTypeInfo(binding_module));
-  auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> metatype,
-                       binding_ctx->Deduce(binding->type_annotation()));
-  return UnwrapMetaType(std::move(metatype), binding->type_annotation()->span(),
-                        "parametric binding type");
+// Walks through all of the explicit parametric values that the
+// invocation provided; e.g.
+//
+//    foo<A, B, C>(...)
+//       ^~~~~~~~^------- these!
+static absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
+EvaluateExplicitParametrics(
+    DeduceCtx* ctx, DeduceCtx* parent_ctx,
+    absl::Span<ExprOrType const> explicit_parametrics,
+    absl::Span<const ParametricBinding* const> parametric_bindings,
+    const Span& callee_span) {
+  absl::flat_hash_map<std::string, InterpValue> callee_parametric_env;
+
+  for (int64_t i = 0; i < explicit_parametrics.size(); ++i) {
+    const ParametricBinding* binding = parametric_bindings[i];
+    ExprOrType eot = explicit_parametrics[i];
+
+    // We cannot currently provide types to user-defined parametric functions.
+    if (!std::holds_alternative<Expr*>(eot)) {
+      auto* type_annotation = std::get<TypeAnnotation*>(eot);
+      return TypeInferenceErrorStatus(
+          type_annotation->span(), nullptr,
+          absl::StrFormat("Parametric function invocation cannot take "
+                          "type `%s` -- parametric must be an expression",
+                          type_annotation->ToString()));
+    }
+
+    auto* parametric_expr = std::get<Expr*>(eot);
+
+    VLOG(5) << "Populating callee parametric `" << binding->ToString()
+            << "` via invocation expression: " << parametric_expr->ToString();
+
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
+                         ParametricBindingToType(*binding, ctx));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_expr_type,
+                         parent_ctx->Deduce(parametric_expr));
+
+    if (*binding_type != *parametric_expr_type) {
+      return ctx->TypeMismatchError(callee_span, nullptr, *binding_type,
+                                    parametric_expr, *parametric_expr_type,
+                                    "Explicit parametric type mismatch.");
+    }
+
+    // We have to be at least one fn deep to be instantiating a parametric, so
+    // referencing fn_stack::back is safe.
+    XLS_RET_CHECK(!parent_ctx->fn_stack().empty());
+
+    // Evaluate the explicit parametric expression -- note that we have to do
+    // this in the /caller's/ parametric env, since that's where the expression
+    // is.
+    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+        parent_ctx->import_data(), parent_ctx->type_info(),
+        parent_ctx->warnings(),
+        /*bindings=*/parent_ctx->GetCurrentParametricEnv(),
+        /*expr=*/parametric_expr,
+        /*type=*/parametric_expr_type.get()));
+
+    // The value we're instantiating the function with must be constexpr -- we
+    // can't instantiate with values determined at runtime, of course.
+    if (!parent_ctx->type_info()->IsKnownConstExpr(parametric_expr)) {
+      return TypeInferenceErrorStatus(
+          parametric_expr->span(), parametric_expr_type.get(),
+          absl::StrFormat("Parametric expression `%s` was not constexpr -- "
+                          "parametric values must be compile-time constants",
+                          parametric_expr->ToString()));
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue const_expr,
+        parent_ctx->type_info()->GetConstExpr(parametric_expr));
+    callee_parametric_env.insert(
+        {binding->identifier(), std::move(const_expr)});
+  }
+
+  return callee_parametric_env;
 }
 
 absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
@@ -93,73 +157,11 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
             invocation->explicit_parametrics().size()));
   }
 
-  absl::flat_hash_map<std::string, InterpValue> callee_parametric_env;
-
-  // First we walk through all of the explicit parametric values that the
-  // invocation provided; e.g.
-  //
-  //    foo<A, B, C>(...)
-  //       ^~~~~~~~^------- these!
-  for (int64_t i = 0; i < invocation->explicit_parametrics().size(); ++i) {
-    ParametricBinding* binding = parametric_bindings[i];
-    ExprOrType eot = invocation->explicit_parametrics()[i];
-
-    // We cannot currently provide types to user-defined parametric functions.
-    if (!std::holds_alternative<Expr*>(eot)) {
-      auto* type_annotation = std::get<TypeAnnotation*>(eot);
-      return TypeInferenceErrorStatus(
-          type_annotation->span(), nullptr,
-          absl::StrFormat("Parametric function invocation `%s` cannot take "
-                          "type `%s` -- parametric must be an expression",
-                          invocation->ToString(), type_annotation->ToString()));
-    }
-
-    auto* parametric_expr = std::get<Expr*>(eot);
-
-    VLOG(5) << "Populating callee parametric `" << binding->ToString()
-            << "` via invocation expression: " << parametric_expr->ToString();
-
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
-                         ParametricBindingToType(binding, ctx));
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_expr_type,
-                         parent_ctx->Deduce(parametric_expr));
-
-    if (*binding_type != *parametric_expr_type) {
-      return ctx->TypeMismatchError(
-          invocation->callee()->span(), nullptr, *binding_type, parametric_expr,
-          *parametric_expr_type, "Explicit parametric type mismatch.");
-    }
-
-    // We have to be at least one fn deep to be instantiating a parametric, so
-    // referencing fn_stack::back is safe.
-    XLS_RET_CHECK(!parent_ctx->fn_stack().empty());
-
-    // Evaluate the explicit parametric expression -- note that we have to do
-    // this in the /caller's/ parametric env, since that's where the expression
-    // is.
-    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        parent_ctx->import_data(), parent_ctx->type_info(),
-        parent_ctx->warnings(),
-        /*bindings=*/parent_ctx->GetCurrentParametricEnv(),
-        /*expr=*/parametric_expr,
-        /*type=*/parametric_expr_type.get()));
-
-    // The value we're instantiating the function with must be constexpr -- we
-    // can't instantiate with values determined at runtime, of course.
-    if (!parent_ctx->type_info()->IsKnownConstExpr(parametric_expr)) {
-      return TypeInferenceErrorStatus(
-          parametric_expr->span(), parametric_expr_type.get(),
-          absl::StrFormat("Parametric expression `%s` was not constexpr -- "
-                          "parametric values must be compile-time constants",
-                          parametric_expr->ToString()));
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue const_expr,
-        parent_ctx->type_info()->GetConstExpr(parametric_expr));
-    callee_parametric_env.insert(
-        {binding->identifier(), std::move(const_expr)});
-  }
+  using ParametricEnvMap = absl::flat_hash_map<std::string, InterpValue>;
+  XLS_ASSIGN_OR_RETURN(ParametricEnvMap callee_parametric_env,
+                       EvaluateExplicitParametrics(
+                           ctx, parent_ctx, invocation->explicit_parametrics(),
+                           parametric_bindings, invocation->callee()->span()));
 
   // The bindings that were not explicitly filled by the caller are taken from
   // the callee directly; e.g. if caller invokes as `parametric()` it supplies
@@ -174,7 +176,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
   std::vector<ParametricWithType> typed_parametrics;
   for (ParametricBinding* remaining_binding : non_explicit) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
-                         ParametricBindingToType(remaining_binding, ctx));
+                         ParametricBindingToType(*remaining_binding, ctx));
     typed_parametrics.push_back(
         ParametricWithType(*remaining_binding, std::move(binding_type)));
   }

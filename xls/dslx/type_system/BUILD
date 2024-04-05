@@ -274,6 +274,7 @@ cc_library(
     hdrs = ["instantiate_parametric_function.h"],
     deps = [
         ":deduce_ctx",
+        ":deduce_utils",
         ":parametric_instantiator",
         ":parametric_with_type",
         ":type",
@@ -293,6 +294,7 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -755,6 +757,7 @@ cc_library(
         ":deduce_ctx",
         ":type",
         ":type_info",
+        ":unwrap_meta_type",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

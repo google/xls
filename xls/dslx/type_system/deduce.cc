@@ -1496,23 +1496,6 @@ static absl::StatusOr<StructDef*> DerefToStruct(
                        type_info);
 }
 
-// Deduces the type for a ParametricBinding (via its type annotation).
-//
-// Note that this returns the type of the expression (i.e. parameter reference)
-// not the metatype (i.e. not the type of the type-annotation).
-static absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
-    ParametricBinding* binding, DeduceCtx* ctx) {
-  Module* binding_module = binding->owner();
-  ImportData* import_data = ctx->import_data();
-  XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
-                       import_data->GetRootTypeInfo(binding_module));
-  auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                       binding_ctx->Deduce(binding->type_annotation()));
-  return UnwrapMetaType(std::move(type), binding->type_annotation()->span(),
-                        "parametric binding type");
-}
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
     const StructInstance* node, DeduceCtx* ctx) {
   VLOG(5) << "Deducing type for struct instance: " << node->ToString();
@@ -1561,7 +1544,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<ParametricWithType> typed_parametrics,
-      ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
+      ParametricBindingsToTyped(struct_def->parametric_bindings(), ctx));
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
@@ -1653,7 +1636,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<ParametricWithType> typed_parametrics,
-      ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
+      ParametricBindingsToTyped(struct_def->parametric_bindings(), ctx));
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
@@ -2331,15 +2314,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
   return Resolve(*deduced, ctx);
 }
 
-// Converts a sequence of ParametricBinding AST nodes into a sequence of
-// ParametricWithTypes (which decorate the ParametricBinding nodes with their
-// deduced Types).
-absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToConstraints(
+absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
     absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx) {
   std::vector<ParametricWithType> typed_parametrics;
   for (ParametricBinding* binding : bindings) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
-                         ParametricBindingToType(binding, ctx));
+                         ParametricBindingToType(*binding, ctx));
     typed_parametrics.push_back(
         ParametricWithType(*binding, std::move(binding_type)));
   }

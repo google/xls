@@ -52,6 +52,55 @@ fn f(tok: token, output_r: chan<u8> in, expected: u8) -> token {
                        HasSubstr("Cannot recv() outside of a proc")));
 }
 
+TEST(TypecheckTest, ParametricWhoseTypeIsDeterminedByArgBinding) {
+  std::string_view text = R"(
+fn p<A: u32, B: u32, C: bits[B] = {bits[B]:0}>(x: bits[B]) -> bits[B] { x }
+fn main() -> u2 { p<u32:1>(u2:0) }
+)";
+  XLS_EXPECT_OK(Typecheck(text));
+}
+
+// The type of the default expression is wrong for the parametric binding of X.
+//
+// It's /always/ wrong, but it's also not used, so this test is pointing out "do
+// we care / flag that?"
+//
+// Right now:
+// * we do not ignore that the default expression is improperly typed, but we
+//   probably should, because we've been presented with an explicit parametric
+//   argument that does work
+// * we should flag as an error that the default expression is impossible to
+//   reach because `X` is always bound via a parameter binding.
+TEST(TypecheckTest, ParametricWithDefaultExpressionThatHasWrongType) {
+  std::string_view text = R"(
+fn p<X: u32 = {u1:0}>(x: bits[X]) -> bits[X] { x }
+fn main() -> u2 { p<u32:1>(u1:0) }
+)";
+  EXPECT_THAT(
+      Typecheck(text),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("uN[32] vs uN[1]: Annotated type of derived "
+                         "parametric value did not match inferred type")));
+}
+
+// This should not be the case in general, but it is currently the case, that
+// this is flagged as an error.
+//
+// Right now the bits[X] is a symbolic type and it is not allowed to accept the
+// `u1`. Once we drive all typechecking from instantiations this will work with
+// the concrete type presented (via the invocation in `main()`).
+TEST(TypecheckTest, ParametricThatWorksForTheOneBindingPresented) {
+  std::string_view text = R"(
+fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }
+fn main() -> u2 { p(u1:0) }
+)";
+  EXPECT_THAT(
+      Typecheck(text),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("uN[X] vs uN[1]: Annotated type of derived parametric "
+                         "value did not match inferred type")));
+}
+
 TEST(TypecheckErrorTest, ParametricWrongArgCount) {
   std::string_view text = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }

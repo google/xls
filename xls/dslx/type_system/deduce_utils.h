@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_
 #define XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_
 
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <variant>
@@ -121,6 +122,10 @@ inline absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
   XLS_RET_CHECK(result != nullptr);
   return result;
 }
+
+// Deduces the type for a ParametricBinding (via its type annotation).
+absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
+    const ParametricBinding& binding, DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 
