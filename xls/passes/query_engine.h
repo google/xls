@@ -212,7 +212,6 @@ class QueryEngine {
 
   // Returns whether *all* the bits are known for 'node' (which must be
   // bits-type).
-  ABSL_DEPRECATE_AND_INLINE()
   bool AllBitsKnown(Node* node) const {
     CHECK(node->GetType()->IsBits());
     return IsFullyKnown(node);
