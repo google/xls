@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -32,10 +33,13 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/function.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
@@ -110,6 +114,45 @@ absl::StatusOr<std::unique_ptr<ProcInstance>> CreateNewStyleProcInstance(
 }
 
 }  // namespace
+
+template <>
+/* static */ std::string_view ProcInstantiationPath::InstantiatedName(
+    const ProcInstantiation& inst) {
+  return inst.proc()->name();
+}
+
+template <>
+/* static */ std::optional<Proc*> ProcInstantiationPath::Instantiated(
+    const ProcInstantiation& inst) {
+  return inst.proc();
+}
+
+template <>
+/* static */ std::string_view BlockInstantiationPath::InstantiatedName(
+    const Instantiation& inst) {
+  switch (inst.kind()) {
+    case InstantiationKind::kBlock:
+      return down_cast<const BlockInstantiation&>(inst)
+          .instantiated_block()
+          ->name();
+    case InstantiationKind::kFifo:
+      return "fifo";
+    case InstantiationKind::kExtern:
+      return down_cast<const ExternInstantiation&>(inst).function()->name();
+  }
+  ABSL_UNREACHABLE();
+}
+
+template <>
+/* static */ std::optional<Block*> BlockInstantiationPath::Instantiated(
+    const Instantiation& inst) {
+  switch (inst.kind()) {
+    case InstantiationKind::kBlock:
+      return down_cast<const BlockInstantiation&>(inst).instantiated_block();
+    default:
+      return std::nullopt;
+  }
+}
 
 std::string ChannelInstance::ToString() const {
   if (path.has_value()) {
@@ -362,18 +405,6 @@ absl::StatusOr<ChannelInstance*> ProcElaboration::GetChannelInstance(
                              channel_name, Direction::kSend));
   }
   return proc_instance->GetChannelInstance(channel_name);
-}
-
-std::string ProcInstantiationPath::ToString() const {
-  if (path.empty()) {
-    return top->name();
-  }
-  return absl::StrFormat(
-      "%s::%s", top->name(),
-      absl::StrJoin(
-          path, "::", [](std::string* s, const ProcInstantiation* pi) {
-            absl::StrAppendFormat(s, "%s->%s", pi->name(), pi->proc()->name());
-          }));
 }
 
 /* static */ absl::StatusOr<ProcElaboration>

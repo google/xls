@@ -28,20 +28,25 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
 
 namespace xls {
 
-// Library for elaborating a proc hierarchy. A proc hierarchy is a directed
-// acyclic graph of procs connected via proc instantiation. An elaboration
-// flattens the proc hierarchy into a tree by walking all paths in the hierarchy
-// starting at a `top` proc where a path is a chain of proc instantiations. For
-// each IR construct (proc or channel), The elaboration creates a separate
-// "instance" object for each path through the hierarchy from the top proc to
-// the IR construct.
+// Library for elaborating a proc or block hierarchy.
+//
+// A hierarchy is a directed acyclic graph of proc/blocks connected via
+// instantiation. An elaboration flattens the hierarchy into a tree by walking
+// all paths in the hierarchy starting at a `top` proc/block where a path is a
+// chain of instantiations.
+//
+// The elaboration creates an "instance" object for each path through the
+// hierarchy from the top proc/block to each IR construct (channel or
+// instantiation).
 //
 // Example proc hierarchy:
 //
@@ -80,29 +85,58 @@ namespace xls {
 // There are five instances of `leaf_proc` as there are five paths from
 // `top_proc` to `leaf_proc` in the proc hierarchy.
 
-// A path of proc instantiations. An instance of a proc or channel is uniquely
+// A path of instantiations. An instance of a proc/channel/block is uniquely
 // identified by its InstantiationPath.
-struct ProcInstantiationPath {
-  Proc* top;
-  std::vector<ProcInstantiation*> path;
+// This struct should be specialized for each type that is elaborated.
+template <typename FunctionBaseType, typename InstType>
+  requires(std::is_base_of_v<FunctionBase, FunctionBaseType>)
+struct InstantiationPath {
+  FunctionBaseType* top;
+  std::vector<InstType*> path;
 
   template <typename H>
-  friend H AbslHashValue(H h, const ProcInstantiationPath& p) {
+  friend H AbslHashValue(H h, const InstantiationPath& p) {
     H state = H::combine(std::move(h), p.top->name());
-    for (const ProcInstantiation* element : p.path) {
+    for (const InstType* element : p.path) {
       state = H::combine(std::move(state), element->name());
     }
     return state;
   }
-  bool operator==(const ProcInstantiationPath& other) const {
+  bool operator==(const InstantiationPath& other) const {
     return top == other.top && path == other.path;
   }
-  bool operator!=(const ProcInstantiationPath& other) const {
+  bool operator!=(const InstantiationPath& other) const {
     return !(*this == other);
   }
 
-  std::string ToString() const;
+  std::string ToString() const {
+    if (path.empty()) {
+      return top->name();
+    }
+    return absl::StrFormat(
+        "%s::%s", top->name(),
+        absl::StrJoin(path, "::", [](std::string* s, const InstType* i) {
+          absl::StrAppendFormat(s, "%s->%s", i->name(), InstantiatedName(*i));
+        }));
+  }
+
+ private:
+  // Returns the name of the entity instantiated by `inst`.
+  // Note that this is not necessarily a `FunctionBase`, e.g. in the case of
+  // fifo instantiations there is no underlying block with a name.
+  static std::string_view InstantiatedName(const InstType& inst);
+  // Returns the `FunctionBaseType` instantiated by `inst` if it exists.
+  // Note that there may not be an underlying `FunctionBaseType` as in the case
+  // of fifo instantiations.
+  static std::optional<FunctionBaseType*> Instantiated(const InstType& inst);
 };
+
+using ProcInstantiationPath = InstantiationPath<Proc, ProcInstantiation>;
+
+// Note: this is a path of instantiations within `Block`s, which may be other
+// kinds of instantiations besides `BlockInstantiation` (e.g. fifo or extern).
+// This is in contrast to `ProcInstantiationPath`.
+using BlockInstantiationPath = InstantiationPath<Block, Instantiation>;
 
 struct ChannelInstance {
   Channel* channel;
