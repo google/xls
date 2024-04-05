@@ -25,7 +25,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 
@@ -41,19 +41,16 @@ namespace xls::dslx {
 //    instantiated.
 //  args: Arguments driving the instantiation of the function signature.
 //  ctx: Type deduction context, e.g. used in constexpr evaluation.
-//  parametric_constraints: Contains expressions being given as parametrics that
-//    must be evaluated. They are called "constraints" because they may be
-//    in conflict as a result of deductive inference; e.g. for
-//    `f<N: u32, R: u32 = N+N>(x: bits[N]) -> bits[R] { x }` we'll find the
-//    "constraint" on R of being `N+N` is incorrect/infeasible (when N != 0).
+//  typed_parametrics: Contains expressions being given as parametrics that
+//    must be evaluated along with their inferred types.
 //  explicit_bindings: Environment to use for evaluating the
-//    parametric_constraints expressions; e.g. for the example above if the
+//    typed_parametrics expressions; e.g. for the example above if the
 //    caller invoked `const M: u32 = 42; f<M>(x)`, this environment would
 //    be `{N: u32:42}` (since M is passed as the N value for the callee).
 absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     Span span, Function& callee_fn, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    absl::Span<const ParametricConstraint> parametric_constraints,
+    absl::Span<const ParametricWithType> typed_parametrics,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings);
 
 // Instantiates a struct using the bindings derived from args' types.
@@ -63,7 +60,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
-    absl::Span<const ParametricConstraint> parametric_constraints);
+    absl::Span<const ParametricWithType> typed_parametrics);
 
 }  // namespace xls::dslx
 

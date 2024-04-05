@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system/parametric_constraint.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 
 #include <memory>
 #include <string>
@@ -24,11 +24,11 @@
 
 namespace xls::dslx {
 
-ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,
-                                           std::unique_ptr<Type> type)
+ParametricWithType::ParametricWithType(const ParametricBinding& binding,
+                                       std::unique_ptr<Type> type)
     : binding_(binding), type_(std::move(type)) {}
 
-std::string ParametricConstraint::ToString() const {
+std::string ParametricWithType::ToString() const {
   if (expr() == nullptr) {
     return absl::StrFormat("%s: %s", identifier(), type().ToString());
   }

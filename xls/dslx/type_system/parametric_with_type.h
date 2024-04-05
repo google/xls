@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_CONSTRAINT_H_
-#define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_CONSTRAINT_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_WITH_TYPE_H_
+#define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_WITH_TYPE_H_
 
 #include <memory>
 #include <string>
@@ -58,11 +58,11 @@ class InstantiateArg {
 //
 // These are provided as inputs to parametric instantiation functions in
 // `xls/dslx/type_system/parametric_instantiator.h`.
-class ParametricConstraint {
+class ParametricWithType {
  public:
   // Decorates the given "binding" with the provided type information.
-  ParametricConstraint(const ParametricBinding& binding,
-                       std::unique_ptr<Type> type);
+  ParametricWithType(const ParametricBinding& binding,
+                     std::unique_ptr<Type> type);
 
   std::string_view identifier() const { return binding_.identifier(); }
   const Type& type() const { return *type_; }
@@ -80,4 +80,4 @@ class ParametricConstraint {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_CONSTRAINT_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_WITH_TYPE_H_

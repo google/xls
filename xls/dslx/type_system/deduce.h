@@ -23,7 +23,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
@@ -60,9 +60,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
 //
 // This is used externally in things like parametric instantiation of DSLX
 // builtins like the higher order function "map".
-absl::StatusOr<std::vector<ParametricConstraint>>
-ParametricBindingsToConstraints(absl::Span<ParametricBinding* const> bindings,
-                                DeduceCtx* ctx);
+absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToConstraints(
+    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 

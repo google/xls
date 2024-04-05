@@ -21,7 +21,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 

@@ -35,8 +35,8 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -171,16 +171,16 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
   absl::Span<ParametricBinding* const> non_explicit =
       absl::MakeSpan(parametric_bindings)
           .subspan(invocation->explicit_parametrics().size());
-  std::vector<ParametricConstraint> parametric_constraints;
+  std::vector<ParametricWithType> typed_parametrics;
   for (ParametricBinding* remaining_binding : non_explicit) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
                          ParametricBindingToType(remaining_binding, ctx));
-    parametric_constraints.push_back(
-        ParametricConstraint(*remaining_binding, std::move(binding_type)));
+    typed_parametrics.push_back(
+        ParametricWithType(*remaining_binding, std::move(binding_type)));
   }
 
   return InstantiateFunction(invocation->span(), callee_fn, fn_type,
-                             instantiate_args, ctx, parametric_constraints,
+                             instantiate_args, ctx, typed_parametrics,
                              callee_parametric_env);
 }
 

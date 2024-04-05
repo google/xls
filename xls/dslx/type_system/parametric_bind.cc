@@ -146,7 +146,8 @@ absl::Status ParametricBindTypeDim(const Type& param_type,
   if (auto it = ctx.parametric_default_exprs.find(pdim_name);
       it != ctx.parametric_default_exprs.end() && it->second != nullptr) {
     const Expr* expr = it->second;
-    // Error is violated constraint.
+    // Error is violated "constraint"; i.e. we see a binding that contradicts a
+    // previous binding for the same key.
     std::string message = absl::StrFormat(
         "Parametric constraint violated, saw %s = %d; then %s = %s = %d",
         pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim_i64);

@@ -117,10 +117,10 @@ cc_library(
         ":ast_env",
         ":deduce_ctx",
         ":deduce_utils",
-        ":parametric_constraint",
         ":parametric_env",
         ":parametric_expression",
         ":parametric_instantiator",
+        ":parametric_with_type",
         ":type",
         ":type_and_parametric_env",
         ":type_info",
@@ -166,9 +166,9 @@ cc_library(
 )
 
 cc_library(
-    name = "parametric_constraint",
-    srcs = ["parametric_constraint.cc"],
-    hdrs = ["parametric_constraint.h"],
+    name = "parametric_with_type",
+    srcs = ["parametric_with_type.cc"],
+    hdrs = ["parametric_with_type.h"],
     deps = [
         ":type",
         "@com_google_absl//absl/base:nullability",
@@ -186,9 +186,9 @@ cc_library(
     deps = [
         ":deduce_ctx",
         ":parametric_bind",
-        ":parametric_constraint",
         ":parametric_env",
         ":parametric_expression",
+        ":parametric_with_type",
         ":scoped_fn_stack_entry",
         ":type",
         ":type_and_parametric_env",
@@ -225,8 +225,8 @@ cc_library(
     hdrs = ["parametric_instantiator.h"],
     deps = [
         ":deduce_ctx",
-        ":parametric_constraint",
         ":parametric_instantiator_internal",
+        ":parametric_with_type",
         ":type",
         ":type_and_parametric_env",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -274,8 +274,8 @@ cc_library(
     hdrs = ["instantiate_parametric_function.h"],
     deps = [
         ":deduce_ctx",
-        ":parametric_constraint",
         ":parametric_instantiator",
+        ":parametric_with_type",
         ":type",
         ":type_and_parametric_env",
         ":type_info",
@@ -306,8 +306,8 @@ cc_library(
         ":deduce_ctx",
         ":deduce_utils",
         ":instantiate_parametric_function",
-        ":parametric_constraint",
         ":parametric_env",
+        ":parametric_with_type",
         ":scoped_fn_stack_entry",
         ":type",
         ":type_and_parametric_env",

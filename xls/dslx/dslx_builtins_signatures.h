@@ -31,7 +31,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 
@@ -50,7 +50,7 @@ struct SignatureData {
   const Span& span;
   // Any "higher order" parametric bindings e.g. for the callee in the case of
   // map.
-  std::optional<std::vector<ParametricConstraint>> parametric_bindings;
+  std::optional<std::vector<ParametricWithType>> parametric_bindings;
   // Callback that can be used to perform constexpr evaluation on one of the
   // function arguments; which is requested is given by argno.
   const std::function<absl::StatusOr<InterpValue>(int64_t argno)>&

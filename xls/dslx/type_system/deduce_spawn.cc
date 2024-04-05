@@ -36,8 +36,8 @@
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_invocation.h"
 #include "xls/dslx/type_system/deduce_utils.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 

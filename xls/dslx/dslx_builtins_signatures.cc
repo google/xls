@@ -30,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
@@ -37,10 +38,12 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -1033,7 +1036,7 @@ PopulateSignatureToLambdaMap() {
     mapped_fn_args.push_back(
         InstantiateArg{t.CloneToUnique(), data.arg_spans[0]});
 
-    absl::Span<const ParametricConstraint> mapped_parametric_bindings;
+    absl::Span<const ParametricWithType> mapped_parametric_bindings;
     if (data.parametric_bindings.has_value()) {
       mapped_parametric_bindings = data.parametric_bindings.value();
     }
@@ -1050,16 +1053,15 @@ PopulateSignatureToLambdaMap() {
     // invoked with).
     XLS_ASSIGN_OR_RETURN(
         TypeAndParametricEnv tab,
-        InstantiateFunction(
-            data.span, *fn, *f_type, mapped_fn_args, ctx,
-            /*parametric_constraints=*/mapped_parametric_bindings,
-            /*explicit_bindings=*/{}));
+        InstantiateFunction(data.span, *fn, *f_type, mapped_fn_args, ctx,
+                            /*typed_parametrics=*/mapped_parametric_bindings,
+                            /*explicit_bindings=*/{}));
     auto return_type =
         std::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndParametricEnv{
-        std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
-                                       std::move(return_type)),
-        tab.parametric_env};
+        .type = std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
+                                               std::move(return_type)),
+        .parametric_env = tab.parametric_env};
   };
   map["(u8[N], u1) -> ()"] =
       [](const SignatureData& data,

@@ -69,10 +69,10 @@
 #include "xls/dslx/type_system/deduce_spawn.h"
 #include "xls/dslx/type_system/deduce_struct_def.h"
 #include "xls/dslx/type_system/deduce_utils.h"
-#include "xls/dslx/type_system/parametric_constraint.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -1560,12 +1560,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
                                      struct_ref, ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
-      std::vector<ParametricConstraint> parametric_constraints,
+      std::vector<ParametricWithType> typed_parametrics,
       ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
-                        validated.member_types, ctx, parametric_constraints));
+                        validated.member_types, ctx, typed_parametrics));
 
   return std::move(tab.type);
 }
@@ -1652,12 +1652,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
                                      struct_ref, ctx->type_info()));
 
   XLS_ASSIGN_OR_RETURN(
-      std::vector<ParametricConstraint> parametric_constraints,
+      std::vector<ParametricWithType> typed_parametrics,
       ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
-                        validated.member_types, ctx, parametric_constraints));
+                        validated.member_types, ctx, typed_parametrics));
 
   return std::move(tab.type);
 }
@@ -2332,19 +2332,18 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
 }
 
 // Converts a sequence of ParametricBinding AST nodes into a sequence of
-// ParametricConstraints (which decorate the ParametricBinding nodes with their
+// ParametricWithTypes (which decorate the ParametricBinding nodes with their
 // deduced Types).
-absl::StatusOr<std::vector<ParametricConstraint>>
-ParametricBindingsToConstraints(absl::Span<ParametricBinding* const> bindings,
-                                DeduceCtx* ctx) {
-  std::vector<ParametricConstraint> parametric_constraints;
+absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToConstraints(
+    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx) {
+  std::vector<ParametricWithType> typed_parametrics;
   for (ParametricBinding* binding : bindings) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
                          ParametricBindingToType(binding, ctx));
-    parametric_constraints.push_back(
-        ParametricConstraint(*binding, std::move(binding_type)));
+    typed_parametrics.push_back(
+        ParametricWithType(*binding, std::move(binding_type)));
   }
-  return parametric_constraints;
+  return typed_parametrics;
 }
 
 }  // namespace xls::dslx
