@@ -94,10 +94,30 @@ class Node {
   absl::Status ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
                                     bool type_must_match = true);
 
-  // Replace all uses of this node with 'replacement'. If this node is the
-  // return value of the function, then 'replacement' is made the return
-  // value. This node is not deleted and remains in the graph.
-  absl::Status ReplaceUsesWith(Node* replacement);
+  // Replace all uses of this node with 'replacement', except within those users
+  // where 'filter' returns false. If replace_implicit_uses is false implicit
+  // uses (such as return-values/next line uses) will not be replaced.
+  //
+  // TODO(allight): The remove_implicit_uses should be removed once next-node is
+  // complete since its only there because in functions using next-node there is
+  // an implicit 'param' on the next value line internally which if it is
+  // removed it messes up the verifier.
+  absl::Status ReplaceUsesWith(Node* replacement,
+                               const std::function<bool(Node*)>& filter,
+                               bool replace_implicit_uses = true);
+  // Replace all uses of this node with 'replacement'. If replace_implicit_uses
+  // is false implicit uses (such as return-values/next line uses) will not be
+  // replaced.
+  //
+  // TODO(allight): The remove_implicit_uses should be removed once next-node is
+  // complete since its only there because in functions using next-node there is
+  // an implicit 'param' on the next value line internally which if it is
+  // removed it messes up the verifier.
+  absl::Status ReplaceUsesWith(Node* replacement,
+                               bool replace_implicit_uses = true) {
+    return ReplaceUsesWith(
+        replacement, [](Node*) { return true; }, replace_implicit_uses);
+  }
 
   // Constructs a new node and replaces all uses of 'this' with the newly
   // constructed node. NodeT is the node subclass (e.g., 'Param') and the
@@ -163,6 +183,10 @@ class Node {
   // Sets the name of this node. After this method is called. HasAssignedName
   // will return true.
   void SetName(std::string_view name);
+
+  // Sets the name of this node. Makes no attempt to unique-ify the name so care
+  // must be taken that there are no collisions.
+  void SetNameDirectly(std::string_view name);
 
   // Clears the name of this node. The node will have a generate name based on
   // the opcode and ID. After this method is called. HasAssignedName will return

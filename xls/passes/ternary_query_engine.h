@@ -51,7 +51,7 @@ class TernaryQueryEngine : public QueryEngine {
                                        GetTernaryView(node).elements());
   }
   LeafTypeTreeView<TernaryVector> GetTernaryView(Node* node) const {
-    CHECK(IsTracked(node));
+    CHECK(IsTracked(node)) << node;
     return values_.at(node).AsView();
   }
 

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -421,6 +422,8 @@ void Node::SetName(std::string_view name) {
   name_ = function_base()->UniquifyNodeName(name);
 }
 
+void Node::SetNameDirectly(std::string_view name) { name_ = std::string(name); }
+
 void Node::ClearName() {
   CHECK(!Is<Param>());
   name_ = "";
@@ -762,25 +765,40 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
   return absl::OkStatus();
 }
 
-absl::Status Node::ReplaceUsesWith(Node* replacement) {
+absl::Status Node::ReplaceUsesWith(Node* replacement,
+                                   const std::function<bool(Node*)>& filter,
+                                  bool replace_implicit_uses) {
   XLS_RET_CHECK(replacement != nullptr);
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()
       << " replacement: " << replacement->GetType()->ToString();
   ++package()->transform_metrics().nodes_replaced;
+  bool all_replaced = true;
   std::vector<Node*> orig_users(users().begin(), users().end());
   for (Node* user : orig_users) {
-    XLS_RET_CHECK(user->ReplaceOperand(this, replacement));
+    if (filter(user)) {
+      XLS_RET_CHECK(user->ReplaceOperand(this, replacement));
+    } else {
+      all_replaced = false;
+    }
   }
 
-  // Handle replacement of nodes which have special positions within the
-  // enclosed FunctionBase (function return value, proc next state, etc).
-  XLS_RETURN_IF_ERROR(ReplaceImplicitUsesWith(replacement).status());
+  if (replace_implicit_uses) {
+    // Handle replacement of nodes which have special positions within the
+    // enclosed FunctionBase (function return value, proc next state, etc).
+    XLS_RETURN_IF_ERROR(ReplaceImplicitUsesWith(replacement).status());
+  } else if (function_base()->HasImplicitUse(this)) {
+    all_replaced = false;
+  }
 
   // If the replacement does not have an assigned name but this node does, move
   // the name over to preserve the name. If this is a parameter node then don't
   // move the name because we cannot clear the name of a parameter node.
-  if (!Is<Param>() && HasAssignedName() && !replacement->HasAssignedName()) {
+  //
+  // We also don't replace the name if some use was filtered out and not
+  // updated.
+  if (all_replaced && !Is<Param>() && HasAssignedName() &&
+      !replacement->HasAssignedName()) {
     // Do not use SetName because we do not want the name to be uniqued which
     // would add a suffix because (clearly) the name already exists.
     replacement->name_ = name_;

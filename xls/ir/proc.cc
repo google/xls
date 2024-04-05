@@ -39,12 +39,14 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/name_uniquer.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
@@ -121,6 +123,11 @@ absl::btree_set<int64_t> Proc::GetNextStateIndices(Node* node) const {
     return absl::btree_set<int64_t>();
   }
   return it->second;
+}
+
+absl::StatusOr<Value> Proc::GetInitValue(Param* p) {
+  XLS_ASSIGN_OR_RETURN(int64_t off, GetStateParamIndex(p));
+  return GetInitValueElement(off);
 }
 
 absl::Status Proc::SetNextToken(Node* next) {
@@ -740,6 +747,68 @@ absl::Status Proc::ConvertToNewStyle() {
   }
   is_new_style_proc_ = true;
   return absl::OkStatus();
+}
+
+absl::StatusOr<Param*> Proc::TransformStateElement(
+    Param* old_param, const Value& init_value,
+    Proc::StateElementTransformer& transform) {
+  std::string orig_name(old_param->name());
+  XLS_ASSIGN_OR_RETURN(
+      Param * new_param,
+      AppendStateElement(absl::StrFormat("TEMP_NAME__%s__", orig_name),
+                         init_value));
+
+  XLS_ASSIGN_OR_RETURN(Node * new_param_read, transform.TransformParamRead(
+                                                  this, new_param, old_param));
+  std::vector<std::pair<Node*, Node*>> to_replace{{old_param, new_param_read}};
+  struct NextTransformation {
+    Next* old_next;
+    Node* new_value;
+    std::optional<Node*> new_predicate;
+  };
+  std::vector<NextTransformation> transforms;
+  for (Next* nxt : next_values(old_param)) {
+    NextTransformation& new_next = transforms.emplace_back();
+    new_next.old_next = nxt;
+    XLS_ASSIGN_OR_RETURN(new_next.new_value,
+                         transform.TransformNextValue(this, new_param, nxt));
+    XLS_RET_CHECK(new_next.new_value->GetType() == new_param->GetType())
+        << "New value is not compatible type. Expected: "
+        << new_param->GetType() << " got " << new_next.new_value;
+    XLS_ASSIGN_OR_RETURN(
+        new_next.new_predicate,
+        transform.TransformNextPredicate(this, new_param, nxt));
+  }
+
+  // We've transformed all the graph elements. Start replacing them.
+
+  // Take over old_params name.
+  old_param->SetName(absl::StrFormat("TO_REMOVE_TRANSFORMED_PARAM_OF__%s__",
+                                     old_param->name()));
+  new_param->SetNameDirectly(orig_name);
+  new_param->SetLoc(old_param->loc());
+
+  // Identity-ify the old next nodes and create new ones.
+  for (const NextTransformation& nt : transforms) {
+    // Make the next
+    XLS_ASSIGN_OR_RETURN(
+        Next * nxt,
+        MakeNodeWithName<Next>(nt.old_next->loc(), new_param, nt.new_value,
+                               nt.new_predicate, nt.old_next->GetName()));
+    to_replace.push_back({nt.old_next, nxt});
+    // Identity-ify the old next.
+    XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
+        Next::kValueOperand, nt.old_next->param()));
+  }
+  for (const auto& [old_n, new_n] : to_replace) {
+    XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(new_n, [&](Node* n) {
+      if (n->Is<Next>() && n->As<Next>()->param() == old_n) {
+        return false;
+      }
+      return true;
+    }, /*replace_implicit_uses=*/false));
+  }
+  return new_param;
 }
 
 }  // namespace xls

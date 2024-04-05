@@ -14,18 +14,23 @@
 
 #include "xls/ir/proc.h"
 
+#include <array>
+#include <optional>
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -41,6 +46,7 @@ using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
 
 class ProcTest : public IrTestBase {};
 
@@ -408,6 +414,73 @@ TEST_F(ProcTest, JoinNextTokenWith) {
   EXPECT_EQ(proc->node_count(), 5);
   EXPECT_THAT(proc->NextToken(), m::AfterAll(m::Param(), m::Name("a"),
                                              m::Name("b"), m::Name("c")));
+}
+
+TEST_F(ProcTest, TransformStateElement) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  auto st = pb.StateElement("st", UBits(0b1010, 4));
+  auto cond = pb.StateElement("cond", UBits(0, 1));
+  auto user = pb.Tuple({st});
+  auto add_st = pb.Next(st, pb.Add(st, pb.Literal(UBits(1, 4))), cond);
+  auto sub_st =
+      pb.Next(st, pb.Subtract(st, pb.Literal(UBits(1, 4))), pb.Not(cond));
+  pb.Next(cond, pb.Not(cond));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  // Test transformer that inverts the param.
+  struct TestTransformer : public Proc::StateElementTransformer {
+   public:
+    absl::StatusOr<Node*> TransformParamRead(Proc* proc, Param* new_param,
+                                             Param* old_param) override {
+      return proc->MakeNode<UnOp>(new_param->loc(), new_param, Op::kNeg);
+    }
+    absl::StatusOr<Node*> TransformNextValue(Proc* proc, Param* new_param,
+                                             Next* old_next) override {
+      return proc->MakeNode<UnOp>(old_next->value()->loc(), old_next->value(),
+                                  Op::kNeg);
+    }
+    absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
+        Proc* proc, Param* new_param, Next* old_next) override {
+      XLS_ASSIGN_OR_RETURN(
+          Node * true_const,
+          proc->MakeNode<Literal>(old_next->loc(), Value::Bool(true)));
+      if (old_next->predicate()) {
+        return proc->MakeNode<NaryOp>(
+            old_next->predicate().value()->loc(),
+            std::array<Node*, 2>{true_const, *old_next->predicate()}, Op::kAnd);
+      }
+      return true_const;
+    }
+  };
+  TestTransformer tt;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Param * new_st, proc->TransformStateElement(st.node()->As<Param>(),
+                                                  Value(UBits(0b0101, 4)), tt));
+
+  // Make sure the st nexts has been identity-ified
+  EXPECT_THAT(st.node(), m::Param(testing::Not("st")));
+  EXPECT_THAT(st.node()->users(),
+              UnorderedElementsAre(add_st.node(), sub_st.node()));
+  EXPECT_THAT(add_st.node(), m::Next(st.node(), st.node(), cond.node()));
+  EXPECT_THAT(sub_st.node(),
+              m::Next(st.node(), st.node(), m::Not(cond.node())));
+
+  // Make sure that 'new_param' takes over the name and everything.
+  EXPECT_THAT(new_st, m::Param("st"));
+  EXPECT_THAT(
+      new_st->users(),
+      UnorderedElementsAre(
+          m::Neg(new_st),
+          m::Next(new_st,
+                  m::Neg(m::Add(m::Neg(new_st), m::Literal(UBits(1, 4)))),
+                  m::And(m::Literal(UBits(1, 1)), cond.node())),
+          m::Next(new_st,
+                  m::Neg(m::Sub(m::Neg(new_st), m::Literal(UBits(1, 4)))),
+                  m::And(m::Literal(UBits(1, 1)), m::Not(cond.node())))));
+
+  // Make sure that user is updated.
+  EXPECT_THAT(user.node(), m::Tuple(m::Neg(new_st)));
 }
 
 }  // namespace

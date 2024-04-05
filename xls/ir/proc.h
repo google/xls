@@ -16,6 +16,7 @@
 #define XLS_IR_PROC_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -73,6 +75,7 @@ class Proc : public FunctionBase {
 
   // Returns the initial values of the state variables.
   absl::Span<const Value> InitValues() const { return init_values_; }
+  absl::StatusOr<Value> GetInitValue(Param* p);
   const Value& GetInitValueElement(int64_t index) const {
     return init_values_.at(index);
   }
@@ -152,6 +155,54 @@ class Proc : public FunctionBase {
   absl::StatusOr<Param*> ReplaceStateElement(
       int64_t index, std::string_view state_param_name, const Value& init_value,
       std::optional<Node*> next_state = std::nullopt);
+
+  // A set of callbacks to help one replace a state element with one of a
+  // different type.
+  class StateElementTransformer {
+   public:
+    virtual ~StateElementTransformer() = default;
+    // Caled with the new_param node and the old param_node. Must return a node
+    // which adapts the new_param's type to the old_params type.
+    virtual absl::StatusOr<Node*> TransformParamRead(Proc* proc,
+                                                     Param* new_param,
+                                                     Param* old_param) {
+      XLS_RET_CHECK(new_param->GetType() == old_param->GetType());
+      return new_param;
+    }
+    // Caled with the new_param node and the next-node (Without any updates
+    // applied to it). Must return a node which adapts the old_next's value()
+    // node to the value of the corresponding next on new_param.
+    virtual absl::StatusOr<Node*> TransformNextValue(Proc* proc,
+                                                     Param* new_param,
+                                                     Next* old_next) {
+      XLS_RET_CHECK(old_next->value()->GetType() == new_param->GetType());
+      return old_next->value();
+    }
+    // Caled with the new_param node and the next-node (Without any updates
+    // applied to it). Must return a node which will be the new 'predicate' for
+    // the corresponding 'next' on the new_param.
+    virtual absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
+        Proc* proc, Param* new_param, Next* old_next) {
+      return old_next->predicate();
+    }
+  };
+
+  // Transform the given state element using the 'transformer'. The new state
+  // element will have the same name (though a different index) as the old one
+  // and the type of 'init_value'. The callbacks in 'transform' will be called
+  // to adapt everything to the new type.
+  //
+  // Once the transformer has fixed up the types ReplaceUsesWith will be used to
+  // switch users of the old param to the new one.
+  //
+  // The old state element will continue to exist with a new name and all
+  // identity next nodes. It should be cleaned up using the
+  // NextValueOptimizationPass.
+  //
+  // The proc must only use 'next' nodes to call this function.
+  absl::StatusOr<Param*> TransformStateElement(
+      Param* old_param, const Value& init_value,
+      StateElementTransformer& transform);
 
   // Remove the state element at the given index. All state elements higher than
   // `index` are shifted down one to fill the hole. The state parameter at the

@@ -52,6 +52,7 @@ cc_library(
         ":pass_base",
         ":proc_inlining_pass",
         ":proc_state_flattening_pass",
+        ":proc_state_narrowing_pass",
         ":proc_state_optimization_pass",
         ":ram_rewrite_pass",
         ":reassociation_pass",
@@ -1503,6 +1504,50 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+    ],
+)
+
+cc_library(
+    name = "proc_state_narrowing_pass",
+    srcs = ["proc_state_narrowing_pass.cc"],
+    hdrs = ["proc_state_narrowing_pass.h"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_registry",
+        ":pass_base",
+        ":ternary_query_engine",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ternary",
+        "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "proc_state_narrowing_pass_test",
+    srcs = ["proc_state_narrowing_pass_test.cc"],
+    deps = [
+        ":pass_base",
+        ":proc_state_narrowing_pass",
+        ":proc_state_optimization_pass",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
     ],
 )
 
