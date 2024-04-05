@@ -14,30 +14,11 @@
 
 #include "xls/ir/elaboration.h"
 
-#include <algorithm>
-#include <cstdint>
-#include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
-#include <utility>
-#include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
-#include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
-#include "xls/ir/channel.h"
-#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
@@ -45,7 +26,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
-#include "xls/ir/value.h"
 
 namespace xls {
 template <>
