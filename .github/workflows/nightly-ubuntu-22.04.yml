@@ -74,7 +74,7 @@ jobs:
         with:
           tag_name: ${{ env.VERSION }}
           target_commitish: ${{ github.sha }}  # needed for the release to create the tag.
-          files: bazel-bin/dist/xls-${{ env.VERSION}}-${RUNNER_OS@L}-${RUNNER_ARCH@L}.tar.gz
+          files: bazel-bin/dist/xls-${{ env.VERSION }}-*.tar.gz
 
       - name: Clean Bazel Cache
         run: |
