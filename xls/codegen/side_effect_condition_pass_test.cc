@@ -49,9 +49,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
-#include "xls/ir/register.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -139,22 +137,18 @@ class SideEffectConditionPassTest
   static absl::StatusOr<std::vector<std::string>> RunInterpreterWithEvents(
       Block* block,
       absl::Span<absl::flat_hash_map<std::string, Value> const> inputs) {
+    InterpreterBlockEvaluator evaluator;
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockContinuation> continuation,
+                         evaluator.NewContinuation(block));
     std::vector<std::string> traces;
-    // Initial register state is zero for all registers.
-    absl::flat_hash_map<std::string, Value> reg_state;
-    for (Register* reg : block->GetRegisters()) {
-      reg_state[reg->name()] = ZeroOfType(reg->type());
-    }
 
     std::vector<absl::flat_hash_map<std::string, Value>> outputs;
     for (const absl::flat_hash_map<std::string, Value>& input_set : inputs) {
-      XLS_ASSIGN_OR_RETURN(BlockRunResult result,
-                           BlockRun(input_set, reg_state, block));
-      XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(result.interpreter_events));
-      for (TraceMessage& trace : result.interpreter_events.trace_msgs) {
-        traces.push_back(std::move(trace.message));
+      XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_set));
+      XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(continuation->events()));
+      for (const TraceMessage& trace : continuation->events().trace_msgs) {
+        traces.push_back(trace.message);
       }
-      reg_state = std::move(result.reg_state);
     }
     return traces;
   }
