@@ -37,9 +37,36 @@ jobs:
         run: |
           VERSION=$(git describe --match=v*)
           TAG_EXISTS="$(git tag -l $VERSION)"
-          bazel build -c opt --embed_label=$VERSION --//dist:version=$VERSION --//dist:os=${RUNNER_OS@L} --//dist:arch=${RUNNER_ARCH@L} -- //dist:xls_dist_tar
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "TAG_EXISTS=$TAG_EXISTS" >> $GITHUB_ENV
+          bazel build -c opt --embed_label=${VERSION} --//dist:version=${VERSION} --//dist:os=${RUNNER_OS@L} --//dist:arch=${RUNNER_ARCH@L} -- //dist:xls_dist_tar
+          echo "VERSION=${VERSION}" >> ${GITHUB_ENV}
+          echo "TAG_EXISTS=${TAG_EXISTS}" >> ${GITHUB_ENV}
+
+      - name: Test release archive
+        run: |
+          tar -xzvvf bazel-bin/dist/xls-${VERSION}-${RUNNER_OS@L}-${RUNNER_ARCH@L}.tar.gz
+          cd xls-${VERSION}-${RUNNER_OS@L}-${RUNNER_ARCH@L}/
+          [[ -f LICENSE ]]
+          [[ -f THIRD_PARTY_NOTICES.txt ]]
+
+      - name: Test tools version
+        run: |
+          cd xls-${VERSION}-${RUNNER_OS@L}-${RUNNER_ARCH@L}/
+          INTERPRETER_MAIN_VERSION=$(./interpreter_main --version)
+          [[ ${INTERPRETER_MAIN_VERSION} = ${VERSION} ]]
+          IR_CONVERTER_MAIN_VERSION=$(./ir_converter_main --version)
+          [[ ${IR_CONVERTER_MAIN_VERSION} = ${VERSION} ]]
+          OPT_MAIN_VERSION=$(./opt_main --version)
+          [[ ${OPT_MAIN_VERSION} = ${VERSION} ]]
+          CODEGEN_MAIN_VERSION=$(./codegen_main --version)
+          [[ ${CODEGEN_MAIN_VERSION} = ${VERSION} ]]
+          PROTO_TO_DSLX_MAIN_VERSION=$(./proto_to_dslx_main --version)
+          [[ ${PROTO_TO_DSLX_MAIN_VERSION} = ${VERSION} ]]
+
+      - name: Test stdlib import
+        run: |
+          cd xls-${VERSION}-${RUNNER_OS@L}-${RUNNER_ARCH@L}/
+          ./interpreter_main ${GITHUB_WORKSPACE}/xls/examples/sha256.x
+          ./ir_converter_main ${GITHUB_WORKSPACE}/xls/examples/sha256.x
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -47,7 +74,7 @@ jobs:
         with:
           tag_name: ${{ env.VERSION }}
           target_commitish: ${{ github.sha }}  # needed for the release to create the tag.
-          files: bazel-bin/dist/xls-*.*
+          files: bazel-bin/dist/xls-${{ env.VERSION}}-${RUNNER_OS@L}-${RUNNER_ARCH@L}.tar.gz
 
       - name: Clean Bazel Cache
         run: |
