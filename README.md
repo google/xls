@@ -55,17 +55,27 @@ We are early stage and this has some practical effects:
     * If you are building a corpus of hardware with XLS, please be thoughtful
       about your process for bringing in new versions of the compiler.
 
-## Install Using Conda
+## Install Latest Release
+
+The following downloads the latest github repo release binaries for an x64 Linux machine:
 
 ```bash
-curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh -p conda-env/ -b
-source conda-env/bin/activate
-conda install --yes -c litex-hub xls
-interpreter_main --version
-ir_converter_main --version
-opt_main --version
-codegen_main --version
+# Determine the url of the latest release tarball.
+LATEST_XLS_RELEASE_TARBALL_URL=$(curl -L \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  https://api.github.com/repos/google/xls/releases | \
+  python3 -c 'import json; import sys; print(json.load(sys.stdin)[0]["assets"][0]["browser_download_url"])')
+
+# Download the tarball and unpack it, observe the version numbers for each of the included tools.
+curl -O -L ${LATEST_XLS_RELEASE_TARBALL_URL}
+tar -xzvvf xls-*.tar.gz
+cd xls-*/
+./interpreter_main --version
+./ir_converter_main --version
+./opt_main --version
+./codegen_main --version
+./proto_to_dslx_main --version
 ```
 
 ## Building From Source
