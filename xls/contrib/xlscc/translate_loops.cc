@@ -427,7 +427,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       }
     }
 
-    lvalue_conditions_tuple = context().fb->Tuple(lvalue_conditions, loc);
+    lvalue_conditions_tuple = context().fb->Tuple(lvalue_conditions, loc,
+                                                  /*name=*/"lvalue_conditions");
     std::vector<std::shared_ptr<CType>> lvalue_conds_tuple_fields;
     lvalue_conds_tuple_fields.resize(lvalue_conditions.size(),
                                      std::make_shared<CBoolType>());
@@ -547,7 +548,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     // Must match if(uses_on_reset) below
     context_tuple_out = CValue(
         context().fb->Tuple({outer_on_reset_value, context_struct_out.rvalue(),
-                             lvalue_conditions_tuple}),
+                             lvalue_conditions_tuple},
+                            loc, /*name=*/"context_out_tuple_inner"),
         context_tuple_type);
   }
 
@@ -649,8 +651,13 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     context_tuple_out = CValue(
         context().fb->Tuple(
             {on_reset_cval.rvalue(),
-             context().fb->TupleIndex(context_tuple_out.rvalue(), 1, loc),
-             context().fb->TupleIndex(context_tuple_out.rvalue(), 2, loc)}),
+             context().fb->TupleIndex(context_tuple_out.rvalue(), 1, loc,
+                                      /*name=*/"context_out_outer_struct"),
+             context().fb->TupleIndex(
+                 context_tuple_out.rvalue(), 2, loc,
+                 /*name=*/"context_out_outer_lvalue_conditions")},
+            loc,
+            /*name=*/"context_out_tuple_outer"),
         context_tuple_out.type());
   }
 
@@ -661,7 +668,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     op.op = OpType::kSend;
     std::vector<xls::BValue> sp = {context_tuple_out.rvalue(),
                                    context().full_condition_bval(loc)};
-    op.ret_value = context().fb->Tuple(sp, loc);
+    op.ret_value =
+        context().fb->Tuple(sp, loc, /*name=*/"context_out_send_tup");
     XLS_ASSIGN_OR_RETURN(ctx_out_op_ptr,
                          AddOpToChannel(op, context_out_channel, loc));
   }
@@ -1055,9 +1063,14 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
 
   xls::BValue receive =
       pb.ReceiveIf(context_out_channel->generated.value(), token,
-                   /*pred=*/placeholder_cond, loc);
-  token = pb.TupleIndex(receive, 0);
-  xls::BValue received_context_tuple = pb.TupleIndex(receive, 1);
+                   /*pred=*/placeholder_cond, loc,
+                   /*name=*/absl::StrFormat("%s_receive_context", name_prefix));
+  token = pb.TupleIndex(
+      receive, 0, loc,
+      /*name=*/absl::StrFormat("%s_receive_context_token", name_prefix));
+  xls::BValue received_context_tuple = pb.TupleIndex(
+      receive, 1, loc,
+      /*name=*/absl::StrFormat("%s_receive_context_tup", name_prefix));
 
   XLS_ASSIGN_OR_RETURN(
       PipelinedLoopContentsReturn contents_ret,
@@ -1183,11 +1196,16 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   xls::BValue token = token_in;
 
-  xls::BValue received_on_reset = pb.TupleIndex(received_context_tuple, 0, loc);
-  xls::BValue received_context = pb.TupleIndex(received_context_tuple, 1, loc);
+  xls::BValue received_on_reset = pb.TupleIndex(
+      received_context_tuple, 0, loc,
+      /*name=*/absl::StrFormat("%s_receive_on_reset", name_prefix));
+  xls::BValue received_context = pb.TupleIndex(
+      received_context_tuple, 1, loc,
+      /*name=*/absl::StrFormat("%s_receive_context_data", name_prefix));
 
-  xls::BValue received_lvalue_conds =
-      pb.TupleIndex(received_context_tuple, 2, loc);
+  xls::BValue received_lvalue_conds = pb.TupleIndex(
+      received_context_tuple, 2, loc,
+      /*name=*/absl::StrFormat("%s_receive_context_lvalues", name_prefix));
 
   xls::BValue use_context_in = last_iter_broke_in;
 
@@ -1401,7 +1419,10 @@ Translator::GenerateIR_PipelinedLoopContents(
 
     xls::BValue ret_next =
         pb.TupleIndex(fsm_ret.return_value,
-                      prepared.return_index_for_static.at(namedecl), loc);
+                      prepared.return_index_for_static.at(namedecl), loc,
+                      /*name=*/
+                      absl::StrFormat("%s_fsm_ret_static_%s", name_prefix,
+                                      namedecl->getNameAsString()));
 
     xls::BValue state_elem_bval(
         prepared.state_element_for_variable.at(namedecl), &pb);

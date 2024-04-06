@@ -44,6 +44,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/APValue.h"
@@ -5202,6 +5203,14 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
     return absl::StrFormat("%s(%i)", Debug_NodeToInfix(tup, n_printed),
                            ti->index());
   }
+  if (node->Is<xls::Tuple>()) {
+    const xls::Tuple* tp = node->As<xls::Tuple>();
+    std::vector<std::string> operand_strings;
+    for (const xls::Node* op : tp->operands()) {
+      operand_strings.push_back(Debug_NodeToInfix(op, n_printed));
+    }
+    return std::string("(") + absl::StrJoin(operand_strings, ", ") + ")";
+  }
   if (node->Is<xls::UnOp>()) {
     const xls::UnOp* op = node->As<xls::UnOp>();
     if (op->op() == xls::Op::kNot) {
@@ -5259,6 +5268,37 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                          typeid(*node).name());
 }
 
+std::string Debug_OpName(const IOOp& op) {
+  if (op.op == OpType::kTrace) {
+    return "trace";
+  }
+  if (op.channel != nullptr) {
+    std::string op_type_name;
+    switch (op.op) {
+      case OpType::kSend:
+        op_type_name = "send";
+        break;
+      case OpType::kRecv:
+        op_type_name = "recv";
+        break;
+      case OpType::kRead:
+        op_type_name = "read";
+        break;
+      case OpType::kWrite:
+        op_type_name = "write";
+        break;
+      default:
+        CHECK_EQ("Op type doesn't make sense here", nullptr);
+    }
+    return absl::StrFormat("%s_%s", op.channel->unique_name, op_type_name);
+  }
+  if (!op.final_param_name.empty()) {
+    return op.final_param_name;
+  }
+  CHECK_EQ("Unable to form name for op", nullptr);
+  return "TODO_OpName";
+}
+
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
                                           const TranslationContext& after) {
   std::ostringstream ostr;
@@ -5282,6 +5322,24 @@ std::string Debug_VariablesChangedBetween(const TranslationContext& before,
   }
 
   return ostr.str();
+}
+
+std::optional<std::list<const xls::Node*>> Debug_DeeplyCheckOperandsFromPrev(
+    const xls::Node* node,
+    const absl::flat_hash_set<const xls::Node*>& prev_state_io_nodes) {
+  for (const xls::Node* op : node->operands()) {
+    if (prev_state_io_nodes.contains(op)) {
+      return std::list<const xls::Node*>({op});
+    }
+    std::optional<std::list<const xls::Node*>> opt_path =
+        Debug_DeeplyCheckOperandsFromPrev(op, prev_state_io_nodes);
+    if (opt_path.has_value()) {
+      std::list<const xls::Node*> path = opt_path.value();
+      path.push_front(op);
+      return path;
+    }
+  }
+  return std::nullopt;
 }
 
 absl::StatusOr<Z3_lbool> Translator::CheckAssumptions(

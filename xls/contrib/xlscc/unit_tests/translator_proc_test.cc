@@ -8405,6 +8405,48 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticSharedInBody) {
                                      : 0);
 }
 
+TEST_F(TranslatorProcTestWithoutFSMParam, MergedStatesIOFeedThrough) {
+  const std::string content = R"(
+  class Block {
+     public:
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        int b = 100;
+        #pragma hls_pipeline_init_interval 1
+        for(long i=1;i<=3;++i) {
+          out.write(a);
+          b = a;
+        }
+        out.write(b);
+      }
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+  merge_states_ = true;
+  split_states_on_channel_ops_ = true;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(11, 32)),
+                  xls::Value(xls::SBits(33, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(11, 32)), xls::Value(xls::SBits(11, 32)),
+        xls::Value(xls::SBits(11, 32)), xls::Value(xls::SBits(11, 32)),
+        xls::Value(xls::SBits(33, 32)), xls::Value(xls::SBits(33, 32)),
+        xls::Value(xls::SBits(33, 32)), xls::Value(xls::SBits(33, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+}
+
 }  // namespace
 
 }  // namespace xlscc

@@ -49,6 +49,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -588,11 +589,17 @@ absl::Status Translator::GenerateDefaultIOOp(
 
   if (!is_send) {
     XLSCC_CHECK(channel->CanReceive(), loc);
-    xls::BValue tup = pb.ReceiveIf(channel, pb.GetTokenParam(), pred_0, loc);
-    token = pb.TupleIndex(tup, 0);
+    xls::BValue tup = pb.ReceiveIf(
+        channel, pb.GetTokenParam(), pred_0, loc,
+        /*name=*/absl::StrFormat("%s_default_op", channel->name()));
+    token = pb.TupleIndex(
+        tup, 0, loc,
+        /*name=*/absl::StrFormat("%s_default_op_token", channel->name()));
   } else if (is_send) {
     XLSCC_CHECK(channel->CanSend(), loc);
-    token = pb.SendIf(channel, pb.GetTokenParam(), pred_0, data_0, loc);
+    token =
+        pb.SendIf(channel, pb.GetTokenParam(), pred_0, data_0, loc,
+                  /*name=*/absl::StrFormat("%s_default_op", channel->name()));
   } else {
     return absl::UnimplementedError(ErrorMessage(
         loc, "Don't know how to create default IO op for channel %s",
@@ -622,31 +629,9 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
   return absl::OkStatus();
 }
 
-absl::StatusOr<Translator::GenerateFSMInvocationReturn>
-Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
-                                  int nesting_level,
-                                  const xls::SourceInfo& body_loc) {
-  // Create a deterministic ordering for the last state elements
-  // (These store the received inputs for IO operations)
-  std::vector<int64_t> arg_indices_ordered_by_state_elems;
-  std::vector<const IOOp*> io_ops_with_args_ordered;
-
-  for (const IOOp& op : prepared.xls_func->io_ops) {
-    // Don't copy direct-ins, statics, etc into FSM state
-    if (!prepared.arg_index_for_op.contains(&op)) {
-      continue;
-    }
-    // Don't copy context in/out for pipelined loops into the FSM state
-    if (prepared.xls_func->pipeline_loops_by_internal_channel.contains(
-            op.channel)) {
-      continue;
-    }
-    arg_indices_ordered_by_state_elems.push_back(
-        prepared.arg_index_for_op.at(&op));
-    io_ops_with_args_ordered.push_back(&op);
-  }
-
-  // Lay out the states for this FSM
+absl::StatusOr<Translator::LayoutFSMStatesReturn> Translator::LayoutFSMStates(
+    PreparedBlock& prepared, xls::ProcBuilder& pb,
+    const xls::SourceInfo& body_loc) {
   absl::flat_hash_map<const IOOp*, const State*> state_by_io_op;
   std::vector<std::unique_ptr<State>> states;
 
@@ -763,12 +748,52 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
                                    state->sub_proc);
       for (const InvokeToGenerate& invoke : state->invokes_to_generate) {
         LOG(INFO) << absl::StrFormat(
-            "---- invoke ch %s\n", invoke.op.channel
-                                       ? invoke.op.channel->unique_name.c_str()
-                                       : "(null)");
+            "---- invoke ch %s at %s\n",
+            invoke.op.channel ? invoke.op.channel->unique_name.c_str()
+                              : "(null)",
+            LocString(invoke.op.op_location).c_str());
       }
     }
   }
+
+  return LayoutFSMStatesReturn{.state_by_io_op = std::move(state_by_io_op),
+                               .states = std::move(states),
+                               .has_pipelined_loop = has_pipelined_loop};
+}
+
+absl::StatusOr<Translator::GenerateFSMInvocationReturn>
+Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
+                                  int nesting_level,
+                                  const xls::SourceInfo& body_loc) {
+  // Create a deterministic ordering for the last state elements
+  // (These store the received inputs for IO operations)
+  std::vector<int64_t> arg_indices_ordered_by_state_elems;
+  std::vector<const IOOp*> io_ops_with_args_ordered;
+
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    // Don't copy direct-ins, statics, etc into FSM state
+    if (!prepared.arg_index_for_op.contains(&op)) {
+      continue;
+    }
+    // Don't copy context in/out for pipelined loops into the FSM state
+    if (prepared.xls_func->pipeline_loops_by_internal_channel.contains(
+            op.channel)) {
+      continue;
+    }
+    arg_indices_ordered_by_state_elems.push_back(
+        prepared.arg_index_for_op.at(&op));
+    io_ops_with_args_ordered.push_back(&op);
+  }
+
+  // Lay out the states for this FSM
+  XLS_ASSIGN_OR_RETURN(LayoutFSMStatesReturn layout_states_return,
+                       LayoutFSMStates(prepared, pb, body_loc));
+
+  absl::flat_hash_map<const IOOp*, const State*> state_by_io_op =
+      std::move(layout_states_return.state_by_io_op);
+  std::vector<std::unique_ptr<State>> states =
+      std::move(layout_states_return.states);
+  bool has_pipelined_loop = layout_states_return.has_pipelined_loop;
 
   const std::string fsm_prefix =
       absl::StrFormat("__fsm_%s", prepared.xls_func->xls_func->name());
@@ -819,7 +844,9 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
         pb.TupleIndex(state_param, /*idx=*/0, body_loc,
                       /*name=*/absl::StrFormat("%s_state_index", fsm_prefix));
 
-    args_from_last_state = pb.TupleIndex(state_param, /*idx=*/1, body_loc);
+    args_from_last_state =
+        pb.TupleIndex(state_param, /*idx=*/1, body_loc,
+                      /*name=*/absl::StrFormat("%s_state_args", fsm_prefix));
   }
 
   xls::BValue origin_token = prepared.token;
@@ -860,7 +887,10 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
       }
       const int64_t arg_idx = prepared.arg_index_for_op.at(op_ptr);
       prepared.args[arg_idx] = apply_to_state_elem(
-          pb, pb.TupleIndex(args_from_last_state, /*idx=*/state_elem_idx, loc),
+          pb,
+          pb.TupleIndex(
+              args_from_last_state, /*idx=*/state_elem_idx, loc, /*name=*/
+              absl::StrFormat("arg_from_last_state_%s", Debug_OpName(*op_ptr))),
           op_ptr, loc);
     }
     return absl::OkStatus();
@@ -869,10 +899,25 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
   absl::btree_multimap<const xls::Param*, NextStateValue>
       sub_fsm_next_state_values;
 
+  absl::flat_hash_set<const xls::Node*> prev_state_io_nodes;
+
   absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
 
+  // Generate IR for the individual states
   for (std::unique_ptr<State>& state : states) {
     XLSCC_CHECK_GE(state->index, 0, body_loc);
+
+    auto last_node_iter = pb.proc()->nodes().begin();
+
+    if (debug_ir_trace_flags_ & DebugIrTraceFlags_PrevStateIOReferences) {
+      // How to do this better? -- not supported
+      for (auto it = last_node_iter;; ++last_node_iter) {
+        ++it;
+        if (it == pb.proc()->nodes().end()) {
+          break;
+        }
+      }
+    }
 
     // Set all op tokens from previous states to the input of this state
     absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens_prev = op_tokens;
@@ -970,14 +1015,30 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
         XLSCC_CHECK(changed_state_last_activation.valid(), body_loc);
         XLSCC_CHECK(changed_state_last_activation.node()->Is<xls::Param>(),
                     body_loc);
+
+        // This and is not strictly, logically necessary, however:
+        // - It gives the compiler the information to remove unnecessary
+        //   data dependencies.
+        // - It should ensure that the logic remains inactive when its state
+        //   is not active, which may save power.
+        xls::BValue before_loop_args_selector = pb.And(
+            changed_state_last_activation, state->in_this_state, body_loc,
+            /*name=*/
+            absl::StrFormat("%s_state_%i_before_loop_args_selector", fsm_prefix,
+                            state->index));
+
         auto select_elem =
-            [this, changed_state_last_activation, prepared](
+            [this, before_loop_args_selector, prepared, fsm_prefix, &state](
                 xls::ProcBuilder& pb, const xls::BValue& state_elem,
                 const IOOp* op_ptr, const xls::SourceInfo& loc) -> xls::BValue {
           const int64_t arg_idx = prepared.arg_index_for_op.at(op_ptr);
-          xls::BValue ret = pb.Select(changed_state_last_activation,
-                                      /*on_true=*/prepared.args.at(arg_idx),
-                                      /*on_false=*/state_elem, loc);
+          xls::BValue ret = pb.Select(
+              before_loop_args_selector,
+              /*on_true=*/prepared.args.at(arg_idx),
+              /*on_false=*/state_elem, loc,
+              /*name=*/
+              absl::StrFormat("%s_state_%i_select_%s_before_loop", fsm_prefix,
+                              state->index, Debug_OpName(*op_ptr)));
           XLSCC_CHECK(ret.valid(), loc);
           return ret;
         };
@@ -1116,6 +1177,37 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
           pb.Tuple(next_args_by_state_elems, body_loc);
     }
 
+    // Check for references to data from IO ops in previous states
+    if (debug_ir_trace_flags_ & DebugIrTraceFlags_PrevStateIOReferences) {
+      // Save, since prev_state_io_nodes is used in the loop
+      auto next_prev_state_io_nodes = prev_state_io_nodes;
+
+      for (; last_node_iter != pb.proc()->nodes().end(); ++last_node_iter) {
+        const xls::Node* node = *last_node_iter;
+
+        auto opt_path =
+            Debug_DeeplyCheckOperandsFromPrev(node, prev_state_io_nodes);
+        if (opt_path.has_value()) {
+          LOG(WARNING) << absl::StrFormat(
+              "This node in state %i references previous state's IO node\n",
+              state->index);
+          auto full_path = opt_path.value();
+          full_path.push_front(node);
+          for (const xls::Node* path_node : full_path) {
+            LOG(WARNING) << absl::StrFormat("---- %s: %s\n",
+                                            path_node->GetName(),
+                                            xls::OpToString(path_node->op()));
+          }
+        }
+
+        if (node->Is<xls::Receive>()) {
+          next_prev_state_io_nodes.insert(node);
+        }
+      }
+
+      prev_state_io_nodes = next_prev_state_io_nodes;
+    }
+
     // Set args to state elements for later states to use
     // (With only 1 state, FSM state elements will not exist)
     if (states.size() > 1) {
@@ -1232,8 +1324,6 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     fsm_next_state_values.insert({state_elem, bval});
   }
 
-  XLSCC_CHECK(last_ret_val.valid(), body_loc);
-
   if (generate_fsms_for_pipelined_loops_ &&
       (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
     xls::BValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
@@ -1258,6 +1348,8 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
     XLSCC_CHECK(prepared.token.valid(), body_loc);
   }
+
+  XLSCC_CHECK(last_ret_val.valid(), body_loc);
 
   return GenerateFSMInvocationReturn{
       .return_value = last_ret_val,
@@ -1341,9 +1433,12 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
       GetFlexTupleField(first_ret_val, context_out_ret_idx,
                         outer_prepared.xls_func->return_value_count, body_loc);
 
-  xls::BValue context_out = pb.TupleIndex(ret_io_value, /*idx=*/0, body_loc);
-  xls::BValue enter_condition =
-      pb.TupleIndex(ret_io_value, /*idx=*/1, body_loc);
+  xls::BValue context_out = pb.TupleIndex(
+      ret_io_value, /*idx=*/0, body_loc, /*name=*/
+      absl::StrFormat("%s_context_out", sub_proc_invoked->name_prefix));
+  xls::BValue enter_condition = pb.TupleIndex(
+      ret_io_value, /*idx=*/1, body_loc, /*name=*/
+      absl::StrFormat("%s_enter_condition", sub_proc_invoked->name_prefix));
   CHECK_EQ(enter_condition.GetType()->GetFlatBitCount(), 1);
 
   if (generate_fsms_for_pipelined_loops_ &&
@@ -1461,18 +1556,29 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
     xls::BValue receive;
     if (op.is_blocking) {
-      receive = pb.ReceiveIf(xls_channel, before_token, condition, op_loc);
+      receive = pb.ReceiveIf(xls_channel, before_token, condition, op_loc,
+                             /*name=*/Debug_OpName(op));
     } else {
-      receive =
-          pb.ReceiveIfNonBlocking(xls_channel, before_token, condition, op_loc);
+      receive = pb.ReceiveIfNonBlocking(xls_channel, before_token, condition,
+                                        op_loc, /*name=*/Debug_OpName(op));
     }
-    new_token = pb.TupleIndex(receive, 0);
+    new_token =
+        pb.TupleIndex(receive, 0, op_loc,
+                      /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
 
     xls::BValue in_val;
     if (op.is_blocking) {
-      in_val = pb.TupleIndex(receive, 1);
+      in_val =
+          pb.TupleIndex(receive, 1, op_loc,
+                        /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
     } else {
-      in_val = pb.Tuple({pb.TupleIndex(receive, 1), pb.TupleIndex(receive, 2)});
+      in_val = pb.Tuple(
+          {pb.TupleIndex(
+               receive, 1, op_loc,
+               /*name=*/absl::StrFormat("%s_value", Debug_OpName(op))),
+           pb.TupleIndex(
+               receive, 2, op_loc,
+               /*name=*/absl::StrFormat("%s_valid", Debug_OpName(op)))});
     }
     arg_io_val = in_val;
   } else if (op.op == OpType::kSend) {
@@ -1481,14 +1587,16 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/true});
 
     CHECK_NE(xls_channel, nullptr);
-    xls::BValue val = pb.TupleIndex(ret_io_value, 0, op_loc);
-    xls::BValue condition =
-        pb.TupleIndex(ret_io_value, 1, op_loc,
-                      absl::StrFormat("%s_pred", xls_channel->name()));
+    xls::BValue val =
+        pb.TupleIndex(ret_io_value, 0, op_loc,
+                      /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
+    xls::BValue condition = pb.TupleIndex(
+        ret_io_value, 1, op_loc, absl::StrFormat("%s_pred", Debug_OpName(op)));
     CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
-    new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc);
+    new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc,
+                          /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
   } else if (op.op == OpType::kRead) {
     CHECK_EQ(bundle_ptr->regular, nullptr);
     CHECK_NE(bundle_ptr->read_request, nullptr);
@@ -1499,8 +1607,12 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     unused_xls_channel_ops_.remove(
         {bundle_ptr->read_response, /*is_send=*/false});
 
-    xls::BValue addr = pb.TupleIndex(ret_io_value, 0, op_loc);
-    xls::BValue condition = pb.TupleIndex(ret_io_value, 1, op_loc);
+    xls::BValue addr =
+        pb.TupleIndex(ret_io_value, 0, op_loc,
+                      /*name=*/absl::StrFormat("%s_addr", Debug_OpName(op)));
+    xls::BValue condition =
+        pb.TupleIndex(ret_io_value, 1, op_loc,
+                      /*name=*/absl::StrFormat("%s_cond", Debug_OpName(op)));
     CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
@@ -1508,14 +1620,22 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
     xls::BValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
     new_token = pb.SendIf(bundle_ptr->read_request, before_token, condition,
-                          send_tuple_with_mask, op_loc);
+                          send_tuple_with_mask, op_loc,
+                          /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
 
     xls::BValue receive =
-        pb.ReceiveIf(bundle_ptr->read_response, new_token, condition, op_loc);
+        pb.ReceiveIf(bundle_ptr->read_response, new_token, condition, op_loc,
+                     /*name=*/Debug_OpName(op));
 
-    new_token = pb.TupleIndex(receive, 0);
-    xls::BValue response_tup = pb.TupleIndex(receive, 1, op_loc);
-    xls::BValue response = pb.TupleIndex(response_tup, 0, op_loc);
+    new_token =
+        pb.TupleIndex(receive, 0, op_loc,
+                      /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
+    xls::BValue response_tup = pb.TupleIndex(
+        receive, 1, op_loc,
+        /*name=*/absl::StrFormat("%s_response_tup", Debug_OpName(op)));
+    xls::BValue response = pb.TupleIndex(
+        response_tup, 0, op_loc,
+        /*name=*/absl::StrFormat("%s_response", Debug_OpName(op)));
 
     arg_io_val = response;
   } else if (op.op == OpType::kWrite) {
@@ -1529,25 +1649,34 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
         {bundle_ptr->write_response, /*is_send=*/false});
 
     // This has (addr, value)
-    xls::BValue send_tuple = pb.TupleIndex(ret_io_value, 0, op_loc);
+    xls::BValue send_tuple = pb.TupleIndex(
+        ret_io_value, 0, op_loc,
+        /*name=*/absl::StrFormat("%s_send_tup", Debug_OpName(op)));
     xls::BValue condition = pb.TupleIndex(
-        ret_io_value, 1, op_loc,
-        absl::StrFormat("%s_pred", bundle_ptr->write_request->name()));
+        ret_io_value, 1, op_loc, absl::StrFormat("%s_pred", Debug_OpName(op)));
     CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
     // This has (addr, value, mask)
-    xls::BValue addr = pb.TupleIndex(send_tuple, 0, op_loc);
-    xls::BValue value = pb.TupleIndex(send_tuple, 1, op_loc);
+    xls::BValue addr =
+        pb.TupleIndex(send_tuple, 0, op_loc,
+                      /*name=*/absl::StrFormat("%s_addr", Debug_OpName(op)));
+    xls::BValue value =
+        pb.TupleIndex(send_tuple, 1, op_loc,
+                      /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
     // TODO(google/xls#861): supported masked memory operations.
     xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
     xls::BValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
     new_token = pb.SendIf(bundle_ptr->write_request, before_token, condition,
-                          send_tuple_with_mask, op_loc);
+                          send_tuple_with_mask, op_loc,
+                          /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
 
     xls::BValue receive =
-        pb.ReceiveIf(bundle_ptr->write_response, new_token, condition, op_loc);
-    new_token = pb.TupleIndex(receive, 0);
+        pb.ReceiveIf(bundle_ptr->write_response, new_token, condition, op_loc,
+                     /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
+    new_token =
+        pb.TupleIndex(receive, 0, op_loc,
+                      /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
     // Ignore received value, should be an empty tuple
   } else if (op.op == OpType::kTrace) {
     XLS_ASSIGN_OR_RETURN(
@@ -1565,7 +1694,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
   // The function is invoked again with the value received from the channel
   //  for each read() Op. The final invocation will produce all complete
   //  outputs.
-  last_ret_val = pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
+  last_ret_val =
+      pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc,
+                /*name=*/absl::StrFormat("invoke_%s", Debug_OpName(invoke.op)));
   XLSCC_CHECK(last_ret_val.valid(), op_loc);
   return new_token;
 }
@@ -1630,13 +1761,16 @@ absl::StatusOr<xls::BValue> Translator::GenerateTrace(
       const uint64_t tuple_count =
           trace_out_value.GetType()->AsTupleOrDie()->size();
       CHECK_GE(tuple_count, 1);
-      xls::BValue condition = pb.TupleIndex(trace_out_value, 0, op.op_location);
+      xls::BValue condition =
+          pb.TupleIndex(trace_out_value, 0, op.op_location,
+                        /*name=*/absl::StrFormat("%s_cond", Debug_OpName(op)));
       CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       condition = ConditionWithExtra(pb, condition, invoke, op.op_location);
       std::vector<xls::BValue> args;
       for (int tuple_idx = 1; tuple_idx < tuple_count; ++tuple_idx) {
-        xls::BValue arg =
-            pb.TupleIndex(trace_out_value, tuple_idx, op.op_location);
+        xls::BValue arg = pb.TupleIndex(
+            trace_out_value, tuple_idx, op.op_location,
+            /*name=*/absl::StrFormat("%s_arg_%i", Debug_OpName(op), tuple_idx));
         args.push_back(arg);
       }
 
@@ -1847,8 +1981,12 @@ Translator::GenerateIRBlockPrepare(
     unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/false});
 
     xls::BValue receive = pb.Receive(xls_channel, prepared.token);
-    prepared.token = pb.TupleIndex(receive, 0);
-    xls::BValue direct_in_value = pb.TupleIndex(receive, 1);
+    prepared.token = pb.TupleIndex(
+        receive, 0, body_loc,
+        /*name=*/absl::StrFormat("%s_token", xls_channel->name()));
+    xls::BValue direct_in_value = pb.TupleIndex(
+        receive, 1, body_loc,
+        /*name=*/absl::StrFormat("%s_value", xls_channel->name()));
 
     prepared.args.push_back(direct_in_value);
 
