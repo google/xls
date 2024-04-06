@@ -22,7 +22,6 @@ load(
 
 package(
     default_applicable_licenses = ["//:license"],
-    default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],
 )
 
@@ -43,5 +42,5 @@ xls_dslx_test(
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
-    visibility = ["//xls:xls_internal"],
+    visibility = ["//visibility:private"],
 )
