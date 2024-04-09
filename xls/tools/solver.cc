@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -57,7 +58,9 @@ Prove that node and.1234 is equivalent to and.2345:
 namespace xls {
 namespace {
 
-using solvers::z3::Predicate;
+using ::xls::solvers::z3::Predicate;
+using ::xls::solvers::z3::ProvenTrue;
+using ::xls::solvers::z3::ProverResult;
 
 absl::Status RealMain(std::string_view ir_path,
                       std::string_view subject_node_name,
@@ -81,11 +84,13 @@ absl::Status RealMain(std::string_view ir_path,
   }
 
   XLS_ASSIGN_OR_RETURN(
-      bool proved,
+      ProverResult proved,
       solvers::z3::TryProve(f, subject, predicate.value(), timeout));
   std::cout << "Proved " << subject_node_name << " " << predicate->ToString()
             << " holds for all input?"
-            << ": " << (proved ? "true" : "false") << '\n';
+            << ": "
+            << (std::holds_alternative<ProvenTrue>(proved) ? "true" : "false")
+            << '\n';
   return absl::OkStatus();
 }
 

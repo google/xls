@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "absl/container/btree_set.h"
@@ -24,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
@@ -124,11 +126,13 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
       });
     }
 
-    absl::StatusOr<bool> no_default_needed = solvers::z3::TryProveDisjunction(
-        proc, z3_predicates,
-        /*rlimit=*/*default_next_value_z3_rlimit,
-        /*allow_unsupported=*/true);
-    if (no_default_needed.value_or(false)) {
+    absl::StatusOr<solvers::z3::ProverResult> no_default_needed =
+        solvers::z3::TryProveDisjunction(
+            proc, z3_predicates,
+            /*rlimit=*/*default_next_value_z3_rlimit,
+            /*allow_unsupported=*/true);
+    if (no_default_needed.ok() &&
+        std::holds_alternative<solvers::z3::ProvenTrue>(*no_default_needed)) {
       return false;
     }
   }

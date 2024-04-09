@@ -46,10 +46,16 @@ namespace {
 using solvers::z3::IrTranslator;
 using solvers::z3::Predicate;
 using solvers::z3::PredicateOfNode;
+using solvers::z3::ProvenFalse;
+using solvers::z3::ProvenTrue;
+using solvers::z3::ProverResult;
 using solvers::z3::TryProve;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+
+using testing::_;
 using testing::HasSubstr;
+using testing::VariantWith;
 
 class Z3IrTranslatorTest : public IrTestBase {};
 
@@ -75,10 +81,10 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZero) {
   FunctionBuilder b("f", p.get());
   auto x = b.Literal(UBits(0, /*bit_count=*/1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven,
+  XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
@@ -92,8 +98,9 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
       PredicateOfNode{y.node(), Predicate::NotEqualToZero()},
   };
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProveConjunction(f, terms, absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProveConjunction(f, terms, absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ParamsEqualToSelfButUnequalToEachOther) {
@@ -110,8 +117,9 @@ TEST_F(Z3IrTranslatorTest, ParamsEqualToSelfButUnequalToEachOther) {
       PredicateOfNode{x.node(), Predicate::IsEqualTo(y.node())},
   };
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProveConjunction(f, terms, absl::InfiniteDuration()));
-  EXPECT_FALSE(proven);
+      ProverResult proven,
+      TryProveConjunction(f, terms, absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenFalse>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ParamAddOneIsGeParam) {
@@ -127,10 +135,11 @@ TEST_F(Z3IrTranslatorTest, ParamAddOneIsGeParam) {
                                       UBits(1, /*bit_count=*/32))},
   };
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProveConjunction(f, terms, absl::InfiniteDuration()));
+      ProverResult proven,
+      TryProveConjunction(f, terms, absl::InfiniteDuration()));
   // The all-ones value will cause rollover such that the assertion `xp1 >= 1`
   // is false.
-  EXPECT_FALSE(proven);
+  EXPECT_THAT(proven, VariantWith<ProvenFalse>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
@@ -138,10 +147,10 @@ TEST_F(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
   FunctionBuilder b("f", p.get());
   auto x = b.Literal(UBits(0, /*bit_count=*/2));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven,
+  XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZero) {
@@ -149,10 +158,10 @@ TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZero) {
   FunctionBuilder b("f", p.get());
   auto x = b.Literal(UBits(1, /*bit_count=*/1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven,
+  XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_FALSE(proven);
+  EXPECT_THAT(proven, VariantWith<ProvenFalse>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZeroPredicate) {
@@ -160,10 +169,10 @@ TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZeroPredicate) {
   FunctionBuilder b("f", p.get());
   auto x = b.Literal(UBits(1, /*bit_count=*/1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven,
+  XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::NotEqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ParamMinusSelfIsZero) {
@@ -173,10 +182,10 @@ TEST_F(Z3IrTranslatorTest, ParamMinusSelfIsZero) {
   auto x = b.Param("x", u32);
   auto res = b.Subtract(x, x);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven,
+  XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, res.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, XPlusYMinusYIsX) {
@@ -189,11 +198,11 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven,
+      ProverResult proven,
       TryProve(f, f->return_value(),
                Predicate::IsEqualTo(f->GetParamByName("x").value()),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, TupleIndexMinusSelf) {
@@ -206,9 +215,10 @@ fn f(p: (bits[1], bits[32])) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ConcatThenSliceIsSelf) {
@@ -222,9 +232,10 @@ fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, InBoundsDynamicSlice) {
@@ -239,9 +250,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, PartialOutOfBoundsDynamicSlice) {
@@ -257,9 +269,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, CompletelyOutOfBoundsDynamicSlice) {
@@ -274,9 +287,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, BitSliceUpdate) {
@@ -293,9 +307,10 @@ fn f(x: bits[8], v: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, BitSliceUpdateOutOfBounds) {
@@ -309,9 +324,10 @@ fn f(x: bits[8], v: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, BitSliceUpdateZeroStart) {
@@ -326,9 +342,10 @@ fn f(x: bits[8], v: bits[16]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ValueUgtSelf) {
@@ -340,9 +357,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ValueUltSelf) {
@@ -354,9 +372,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroExtBitAlwaysZero) {
@@ -369,9 +388,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroMinusParamHighBit) {
@@ -390,10 +410,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 // Since the value can wrap around, we should not be able to prove that adding
@@ -409,15 +429,16 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_FALSE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenFalse>(_));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_FALSE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenFalse>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, MaskAndReverse) {
@@ -432,9 +453,10 @@ fn f(p: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ReverseSlicesEq) {
@@ -449,10 +471,10 @@ fn f(p: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ShiftRightLogicalFillsZero) {
@@ -466,9 +488,10 @@ fn f(p: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ShiftLeftLogicalFillsZero) {
@@ -482,9 +505,10 @@ fn f(p: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, ShiftLeftLogicalDifferentSize) {
@@ -498,9 +522,10 @@ fn f(p: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, XAndNotXIsZero) {
@@ -513,9 +538,10 @@ fn f(p: bits[1]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, XNandNotXIsZero) {
@@ -528,10 +554,10 @@ fn f(p: bits[1]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, XOrNotXIsNotZero) {
@@ -544,10 +570,10 @@ fn f(p: bits[1]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -568,10 +594,10 @@ fn f(p: bits[$0]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -595,10 +621,10 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
   fb.Eq(narrow_sub, full_sub);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -622,10 +648,10 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
   fb.Eq(narrow_sub, full_sub);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -646,10 +672,10 @@ fn f(p: bits[1]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -669,10 +695,10 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
   fb.Eq(neg_big, extn_small);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -692,10 +718,10 @@ fn f(p: bits[$0]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, XorReduceIsEqualToXorOfBits) {
@@ -715,10 +741,10 @@ fn f(p: bits[3]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, SignExtendBitsAreEqual) {
@@ -733,10 +759,10 @@ fn f(p: bits[1]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, XPlusNegX) {
@@ -749,9 +775,10 @@ fn f(p: bits[4]) -> bits[4] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, XNeX) {
@@ -763,9 +790,10 @@ fn f(p: bits[4]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, OneHot) {
@@ -777,10 +805,10 @@ fn f(p: bits[1]) -> bits[2] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, DecodeZeroIsNotZero) {
@@ -792,10 +820,11 @@ fn f(x: bits[2]) -> bits[1] {
 )";
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_ez, TryProve(f, f->return_value(),
-                                                    Predicate::NotEqualToZero(),
-                                                    absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, DecodeWithOverflowedIndexIsZero) {
@@ -809,9 +838,10 @@ fn f(x: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+      ProverResult proven_nez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, EncodeZeroIsZero) {
@@ -824,9 +854,10 @@ fn f(x: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, EncodeWithIndex1SetIsNotZero) {
@@ -840,10 +871,10 @@ fn f(x: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, SelWithDefault) {
@@ -857,14 +888,15 @@ fn f(x: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_FALSE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenFalse>(_));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_FALSE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenFalse>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, SgeVsSlt) {
@@ -878,9 +910,10 @@ fn f(x: bits[2], y: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_ez, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                               absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_ez);
+      ProverResult proven_ez,
+      TryProve(f, f->return_value(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
 }
 
 // TODO(b/153195241): Re-enable these.
@@ -896,10 +929,10 @@ fn f(x: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, SltVsMaxPositive) {
@@ -915,10 +948,10 @@ fn f(x: bits[3]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 #endif
 
@@ -936,10 +969,10 @@ fn f(x: bits[2]) -> bits[1] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 // This test verifies that selects with tuple values can be translated.
@@ -964,10 +997,11 @@ fn f() -> bits[1] {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
-                                                    Predicate::NotEqualToZero(),
-                                                    absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven_eq,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, TupleSelectsMore) {
@@ -995,10 +1029,10 @@ fn f() -> bits[4] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* to_compare = FindNode("literal.3", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(to_compare),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, BasicAfterAllTokenTest) {
@@ -1027,10 +1061,10 @@ fn f() -> bits[32] {
   {
     Node* eq_node = FindNode("literal.5", p.get());
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 
   std::vector<Node*> token_nodes;
@@ -1045,10 +1079,11 @@ fn f() -> bits[32] {
     for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {
       // All tokens are equal to each other.
       XLS_ASSERT_OK_AND_ASSIGN(
-          bool proven_eq, TryProve(f, token_nodes.at(l_idx),
-                                   Predicate::IsEqualTo(token_nodes.at(r_idx)),
-                                   absl::InfiniteDuration()));
-      EXPECT_TRUE(proven_eq);
+          ProverResult proven_eq,
+          TryProve(f, token_nodes.at(l_idx),
+                   Predicate::IsEqualTo(token_nodes.at(r_idx)),
+                   absl::InfiniteDuration()));
+      EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
     }
     // Can't prove a token is 0 or non-zero because it is a non-bit type.
     EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
@@ -1088,10 +1123,10 @@ fn f() -> bits[32] {
   {
     Node* eq_node = FindNode("literal.5", p.get());
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 
   std::vector<Node*> token_nodes;
@@ -1106,10 +1141,11 @@ fn f() -> bits[32] {
     for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {
       // All tokens are equal to each other.
       XLS_ASSERT_OK_AND_ASSIGN(
-          bool proven_eq, TryProve(f, token_nodes.at(l_idx),
-                                   Predicate::IsEqualTo(token_nodes.at(r_idx)),
-                                   absl::InfiniteDuration()));
-      EXPECT_TRUE(proven_eq);
+          ProverResult proven_eq,
+          TryProve(f, token_nodes.at(l_idx),
+                   Predicate::IsEqualTo(token_nodes.at(r_idx)),
+                   absl::InfiniteDuration()));
+      EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
     }
     // Can't prove a token is 0 or non-zero because it is a non-bit type.
     EXPECT_THAT(
@@ -1184,7 +1220,7 @@ fn f(arr1: token, arr2: token, arr3: token) -> token {
       ASSERT_THAT(TryProve(f, token_nodes.at(l_idx),
                            Predicate::IsEqualTo(token_nodes.at(r_idx)),
                            absl::InfiniteDuration()),
-                  IsOkAndHolds(true));
+                  IsOkAndHolds(VariantWith<ProvenTrue>(_)));
     }
     // Can't prove a token is 0 or non-zero because it is a non-bit type.
     EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
@@ -1218,10 +1254,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.5", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, IndexBitsType) {
@@ -1238,10 +1274,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("eight", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 // Array test 2: Can we properly handle arrays...OF ARRAYS?
@@ -1269,10 +1305,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.4", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, IndexArrayOfArraysWithSequentialIndexOps) {
@@ -1300,10 +1336,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.4", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 // Array test 3! Arrays...OF TUPLES
@@ -1332,10 +1368,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.5", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, IndexArrayOfTuplesOfArrays) {
@@ -1369,10 +1405,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.2", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, OverflowingArrayIndex) {
@@ -1394,10 +1430,10 @@ fn f() -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
   Node* eq_node = FindNode("literal.5", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_eq,
+      ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_eq);
+  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
 }
 
 // UpdateArray test 1: Array of bits
@@ -1424,11 +1460,11 @@ fn f() -> bits[32] {
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 }
 
@@ -1455,11 +1491,11 @@ fn f() -> bits[32] {
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 }
 
@@ -1480,7 +1516,7 @@ fn f() -> bits[32] {
   EXPECT_THAT(TryProve(f, FindNode("result", p.get()),
                        Predicate::IsEqualTo(FindNode("forty_two", p.get())),
                        absl::InfiniteDuration()),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 // UpdateArray test 2: Array of Arrays
@@ -1514,11 +1550,11 @@ fn f() -> bits[32] {
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 }
 
@@ -1551,11 +1587,11 @@ fn f() -> bits[32] {
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 }
 
@@ -1590,11 +1626,11 @@ fn f() -> bits[32] {
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 }
 
@@ -1641,11 +1677,11 @@ fn f() -> bits[32] {
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 }
 
@@ -1673,11 +1709,11 @@ fn f() -> bits[32] {
 
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_TRUE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
   }
 }
 
@@ -1709,11 +1745,11 @@ fn f(index: bits[32]) -> bits[32] {
   // value at an index is 0 or 1.
   for (int idx = 0; idx < in_str.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        bool proven_eq,
+        ProverResult proven_eq,
         TryProve(f, FindNode(in_str[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(out_str[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_FALSE(proven_eq);
+    EXPECT_THAT(proven_eq, VariantWith<ProvenFalse>(_));
   }
 }
 
@@ -1741,10 +1777,9 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[4] {
 
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::EqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+  EXPECT_THAT(TryProve(f, f->return_value(), Predicate::EqualToZero(),
+                       absl::InfiniteDuration()),
+              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 // Array Concat #0b - Test bits after concat are traced back to input (part b)
@@ -1775,10 +1810,9 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[1] {
 
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven, TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
-                            absl::InfiniteDuration()));
-  EXPECT_TRUE(proven);
+  EXPECT_THAT(TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+                       absl::InfiniteDuration()),
+              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 TEST_F(Z3IrTranslatorTest, ParamReuse) {
@@ -1873,10 +1907,10 @@ fn f(idx: bits[1]) -> bits[4] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool proven_nez,
+      ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_TRUE(proven_nez);
+  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
 }
 
 TEST_F(Z3IrTranslatorTest, HandlesUMul) {

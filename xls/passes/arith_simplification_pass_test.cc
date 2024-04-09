@@ -40,6 +40,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -54,6 +55,7 @@ using ::xls::solvers::z3::TryProveEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
+using ::testing::VariantWith;
 
 class ArithSimplificationPassTest : public IrTestBase {
  protected:
@@ -108,7 +110,7 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegated) {
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Param("y")));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedConstant) {
@@ -131,7 +133,7 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegatedConstant) {
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(253)));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithOneUsedElsewhere) {
@@ -158,7 +160,7 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithOneUsedElsewhere) {
                                            m::Neg(m::Param("x"))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithBothUsedElsewhere) {
@@ -221,7 +223,7 @@ TEST_F(ArithSimplificationPassTest, CompareNeNegated) {
   EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Param("y")));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareNeNegatedConstant) {
@@ -244,7 +246,7 @@ TEST_F(ArithSimplificationPassTest, CompareNeNegatedConstant) {
   EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Literal(253)));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithOneUsedElsewhere) {
@@ -271,7 +273,7 @@ TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithOneUsedElsewhere) {
                                            m::Neg(m::Param("x"))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithBothUsedElsewhere) {
@@ -336,7 +338,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLtNegated) {
                                         m::Ne(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedLtNegatedConstant) {
@@ -360,7 +362,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLtNegatedConstant) {
                                         m::Eq(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest,
@@ -391,7 +393,7 @@ TEST_F(ArithSimplificationPassTest,
                         m::Neg(m::Param("x"))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest,
@@ -458,7 +460,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGtNegated) {
                                         m::Ne(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedGtNegatedConstant) {
@@ -482,7 +484,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGtNegatedConstant) {
                                         m::Eq(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedLeNegated) {
@@ -507,7 +509,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLeNegated) {
                                         m::Ne(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedLeNegatedConstant) {
@@ -531,7 +533,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLeNegatedConstant) {
                                         m::Eq(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedGeNegated) {
@@ -556,7 +558,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGeNegated) {
                                         m::Ne(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedGeNegatedConstant) {
@@ -580,7 +582,7 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGeNegatedConstant) {
                                         m::Eq(m::Param(), m::Literal(128))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy42) {
@@ -1436,7 +1438,7 @@ TEST_F(ArithSimplificationPassTest, OneBitDecode) {
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(0)));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, DecodeOfOneBit) {
@@ -1458,7 +1460,7 @@ TEST_F(ArithSimplificationPassTest, DecodeOfOneBit) {
               m::Concat(m::Param("x"), m::Not(m::Param("x"))));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, SignExtTwice) {

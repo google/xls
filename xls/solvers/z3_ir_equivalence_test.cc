@@ -32,6 +32,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {
 namespace {
@@ -39,7 +40,9 @@ namespace {
 using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 
+using ::testing::_;
 using ::testing::Not;
+using ::testing::VariantWith;
 
 class EquivalenceTest : public IrTestBase {};
 
@@ -52,7 +55,7 @@ TEST_F(EquivalenceTest, NoOpIsEquivalent) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(
       TryProveEquivalence(f, [](auto p, auto f) { return absl::OkStatus(); }),
-      IsOkAndHolds(true));
+      IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 TEST_F(EquivalenceTest, ScopedNoOpIsEquivalent) {
@@ -87,7 +90,7 @@ TEST_F(EquivalenceTest, EquivalentTransformIsEquivalent) {
                             }
                             return absl::OkStatus();
                           }),
-      IsOkAndHolds(true));
+      IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 TEST_F(EquivalenceTest, ScopedEquivalentTransformIsEquivalent) {
@@ -129,7 +132,7 @@ TEST_F(EquivalenceTest, EquivalentArrayTransformIsEquivalent) {
                             }
                             return absl::OkStatus();
                           }),
-      IsOkAndHolds(true));
+      IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 TEST_F(EquivalenceTest, ScopedEquivalentArrayTransformIsEquivalent) {
@@ -172,7 +175,7 @@ TEST_F(EquivalenceTest, EquivalentBitsTransformIsEquivalent) {
                             }
                             return absl::OkStatus();
                           }),
-      IsOkAndHolds(true));
+      IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 TEST_F(EquivalenceTest, ScopedEquivalentBitsTransformIsEquivalent) {
@@ -215,7 +218,7 @@ TEST_F(EquivalenceTest, DetectsNonEquivalentTransform) {
                             }
                             return absl::OkStatus();
                           }),
-      IsOkAndHolds(false));
+      IsOkAndHolds(VariantWith<ProvenFalse>(_)));
 }
 
 constexpr int64_t kScopedNonEquivalentTransformCheckLine = __LINE__ + 2;
@@ -326,7 +329,8 @@ TEST_F(EquivalenceTest, MultiFunctionDetectsSame) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
 
-  EXPECT_THAT(TryProveEquivalence(f1, f2), IsOkAndHolds(true));
+  EXPECT_THAT(TryProveEquivalence(f1, f2),
+              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 TEST_F(EquivalenceTest, MultiFunctionDetectsDifference) {
@@ -344,7 +348,8 @@ TEST_F(EquivalenceTest, MultiFunctionDetectsDifference) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f1, fb1.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Function * f2, fb2.Build());
 
-  EXPECT_THAT(TryProveEquivalence(f1, f2), IsOkAndHolds(false));
+  EXPECT_THAT(TryProveEquivalence(f1, f2),
+              IsOkAndHolds(VariantWith<ProvenFalse>(_)));
 }
 
 }  // namespace

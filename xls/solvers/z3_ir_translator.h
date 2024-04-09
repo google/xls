@@ -24,6 +24,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -367,14 +369,22 @@ struct PredicateOfNode {
   Predicate p;
 };
 
+using ProvenTrue = std::true_type;
+struct ProvenFalse {
+  // Typically contains the encoded Z3 solver result (which usually includes the
+  // counterexample).
+  std::string message;
+};
+using ProverResult = std::variant<ProvenTrue, ProvenFalse>;
+
 // Attempts to prove the conjunction of "terms". "terms" refers to predicates on
 // nodes within function "f". Returns true iff "terms" can be proven true in
 // conjunction (over all possible inputs) within the given "timeout" or
 // "rlimit".
-absl::StatusOr<bool> TryProveConjunction(
+absl::StatusOr<ProverResult> TryProveConjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
     absl::Duration timeout, bool allow_unsupported = false);
-absl::StatusOr<bool> TryProveConjunction(
+absl::StatusOr<ProverResult> TryProveConjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
     bool allow_unsupported = false);
 
@@ -382,10 +392,10 @@ absl::StatusOr<bool> TryProveConjunction(
 // nodes within function "f". Returns true iff "terms" can be proven true in
 // disjunction (over all possible inputs) within the given "timeout" or
 // "rlimit".
-absl::StatusOr<bool> TryProveDisjunction(
+absl::StatusOr<ProverResult> TryProveDisjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
     absl::Duration timeout, bool allow_unsupported = false);
-absl::StatusOr<bool> TryProveDisjunction(
+absl::StatusOr<ProverResult> TryProveDisjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
     bool allow_unsupported = false);
 
@@ -395,11 +405,12 @@ absl::StatusOr<bool> TryProveDisjunction(
 //
 // This offers a simpler subset of the functionality of TryProveConjunction
 // above.
-absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
-                              absl::Duration timeout,
-                              bool allow_unsupported = false);
-absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
-                              int64_t rlimit, bool allow_unsupported = false);
+absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
+                                      Predicate p, absl::Duration timeout,
+                                      bool allow_unsupported = false);
+absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
+                                      Predicate p, int64_t rlimit,
+                                      bool allow_unsupported = false);
 
 }  // namespace z3
 }  // namespace solvers

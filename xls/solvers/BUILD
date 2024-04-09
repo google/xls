@@ -74,6 +74,7 @@ cc_test(
     deps = [
         ":z3_ir_equivalence",
         ":z3_ir_equivalence_testutils",
+        ":z3_ir_translator",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
@@ -94,6 +95,7 @@ cc_library(
     hdrs = ["z3_ir_equivalence_testutils.h"],
     deps = [
         ":z3_ir_equivalence",
+        ":z3_ir_translator",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -120,6 +122,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",

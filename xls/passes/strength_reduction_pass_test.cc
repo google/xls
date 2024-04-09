@@ -31,6 +31,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -38,6 +39,8 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using ::testing::_;
+using ::testing::VariantWith;
 
 class StrengthReductionPassTest : public IrTestBase {
  protected:
@@ -70,7 +73,7 @@ class StrengthReductionPassSemanticsTest : public StrengthReductionPassTest {
                     [&](auto package, auto function) {
                       return StrengthReductionPassTest::Run(function).status();
                     }),
-                IsOkAndHolds(true))
+                IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)))
         << "Pass changed meaning of the function";
   }
 };

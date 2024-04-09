@@ -29,10 +29,14 @@
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {
 
 using status_testing::IsOkAndHolds;
+
+using ::testing::_;
+using ::testing::VariantWith;
 
 ScopedVerifyEquivalence::ScopedVerifyEquivalence(Function* f,
                                                  absl::Duration timeout,
@@ -53,7 +57,7 @@ ScopedVerifyEquivalence::~ScopedVerifyEquivalence() {
           "ScopedVerifyEquivalence failed to prove equivalence of function ",
           f_->name(), " before & after changes"));
   EXPECT_THAT(TryProveEquivalence(original_f_, f_, timeout_),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
 }
 
 }  // namespace xls::solvers::z3

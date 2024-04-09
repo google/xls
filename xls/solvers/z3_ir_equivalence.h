@@ -22,6 +22,7 @@
 #include "absl/time/time.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {
 
@@ -34,7 +35,7 @@ namespace xls::solvers::z3 {
 // This call does not alter the input function at all.
 //
 // Returns 'true' if the pass does not cause the result to change.
-absl::StatusOr<bool> TryProveEquivalence(
+absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* original,
     const std::function<absl::Status(Package*, Function*)>& run_pass,
     absl::Duration timeout = absl::InfiniteDuration());
@@ -45,7 +46,7 @@ absl::StatusOr<bool> TryProveEquivalence(
 // This call does not alter either function.
 //
 // Returns 'true' if the pass does not cause the result to change.
-absl::StatusOr<bool> TryProveEquivalence(
+absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* a, Function* b,
     absl::Duration timeout = absl::InfiniteDuration());
 

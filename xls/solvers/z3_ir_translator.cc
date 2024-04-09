@@ -29,6 +29,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -1448,7 +1449,7 @@ namespace {
 
 enum class PredicateCombination : std::uint8_t { kDisjunction, kConjunction };
 
-absl::StatusOr<bool> TryProveCombination(
+absl::StatusOr<ProverResult> TryProveCombination(
     std::unique_ptr<IrTranslator> translator,
     absl::Span<const PredicateOfNode> terms,
     PredicateCombination predicate_combination) {
@@ -1492,26 +1493,26 @@ absl::StatusOr<bool> TryProveCombination(
   Z3_solver_assert(ctx, solver, objective.value());
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
 
-  // Implementation note: satisfiable can be one of:
-  // * Z3_L_FALSE: unsat -- could not find a value that contradicts the
-  //    claim
-  // * Z3_L_TRUE: sat -- found a value that contradicts the claim
-  // * Z3_L_UNDEF: timeout
-
-  if (satisfiable == Z3_L_FALSE) {
-    // We posit the inverse of the predicate we want to check -- when that is
-    // unsatisfiable, the predicate has been proven (there was no way found that
-    // we could not satisfy its inverse).
-    return true;
+  VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
+  switch (satisfiable) {
+    case Z3_L_FALSE:
+      // Unsatisfiable; no value contradicts the claim, so the result is true.
+      return ProvenTrue();
+    case Z3_L_TRUE:
+      // Satisfiable; found a value that contradicts the claim.
+      return ProvenFalse{.message = solvers::z3::SolverResultToString(
+                             ctx, solver, satisfiable)};
+    case Z3_L_UNDEF:
+      // No result; timeout.
+      return absl::DeadlineExceededError("Z3 solver timed out");
   }
 
-  VLOG(1) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
-  return false;
+  return absl::InternalError(absl::StrCat("Invalid Z3 result: ", satisfiable));
 }
 
 }  // namespace
 
-absl::StatusOr<bool> TryProveConjunction(
+absl::StatusOr<ProverResult> TryProveConjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
     absl::Duration timeout, bool allow_unsupported) {
   XLS_RET_CHECK(!terms.empty());
@@ -1522,7 +1523,7 @@ absl::StatusOr<bool> TryProveConjunction(
                              PredicateCombination::kConjunction);
 }
 
-absl::StatusOr<bool> TryProveConjunction(
+absl::StatusOr<ProverResult> TryProveConjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
     bool allow_unsupported) {
   XLS_RET_CHECK(!terms.empty());
@@ -1533,7 +1534,7 @@ absl::StatusOr<bool> TryProveConjunction(
                              PredicateCombination::kConjunction);
 }
 
-absl::StatusOr<bool> TryProveDisjunction(
+absl::StatusOr<ProverResult> TryProveDisjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms,
     absl::Duration timeout, bool allow_unsupported) {
   XLS_RET_CHECK(!terms.empty());
@@ -1544,7 +1545,7 @@ absl::StatusOr<bool> TryProveDisjunction(
                              PredicateCombination::kDisjunction);
 }
 
-absl::StatusOr<bool> TryProveDisjunction(
+absl::StatusOr<ProverResult> TryProveDisjunction(
     FunctionBase* f, absl::Span<const PredicateOfNode> terms, int64_t rlimit,
     bool allow_unsupported) {
   XLS_RET_CHECK(!terms.empty());
@@ -1555,16 +1556,18 @@ absl::StatusOr<bool> TryProveDisjunction(
                              PredicateCombination::kDisjunction);
 }
 
-absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
-                              absl::Duration timeout, bool allow_unsupported) {
-  PredicateOfNode term{subject, std::move(p)};
+absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
+                                      Predicate p, absl::Duration timeout,
+                                      bool allow_unsupported) {
+  PredicateOfNode term = {.subject = subject, .p = std::move(p)};
   return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), timeout,
                              allow_unsupported);
 }
 
-absl::StatusOr<bool> TryProve(FunctionBase* f, Node* subject, Predicate p,
-                              int64_t rlimit, bool allow_unsupported) {
-  PredicateOfNode term{subject, std::move(p)};
+absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
+                                      Predicate p, int64_t rlimit,
+                                      bool allow_unsupported) {
+  PredicateOfNode term = {.subject = subject, .p = std::move(p)};
   return TryProveConjunction(f, absl::MakeConstSpan(&term, 1), rlimit,
                              allow_unsupported);
 }

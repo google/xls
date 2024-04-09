@@ -450,14 +450,17 @@ absl::StatusOr<TestResultData> ParseAndProve(
   VLOG(1) << "Found IR function: " << ir_function->name();
 
   XLS_ASSIGN_OR_RETURN(
-      bool proven,
+      solvers::z3::ProverResult proven,
       solvers::z3::TryProve(ir_function, ir_function->return_value(),
                             solvers::z3::Predicate::NotEqualToZero(),
                             absl::InfiniteDuration()));
 
-  VLOG(1) << "Proven? " << (proven ? "true" : "false");
+  VLOG(1) << "Proven? "
+          << (std::holds_alternative<solvers::z3::ProvenTrue>(proven)
+                  ? "true"
+                  : "false");
 
-  if (proven) {
+  if (std::holds_alternative<solvers::z3::ProvenTrue>(proven)) {
     result.Finish(TestResult::kAllPassed, absl::Now() - start);
     return result;
   }

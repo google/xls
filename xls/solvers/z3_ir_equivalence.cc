@@ -91,8 +91,8 @@ absl::StatusOr<Node*> FlattenToBits(Function* function, Node* original) {
 }
 }  // namespace
 
-absl::StatusOr<bool> TryProveEquivalence(Function* a, Function* b,
-                                         absl::Duration timeout) {
+absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
+                                                 absl::Duration timeout) {
   std::unique_ptr<Package> to_test = std::make_unique<Package>(
       absl::StrFormat("%s_tester", a->package()->name()));
   XLS_ASSIGN_OR_RETURN(
@@ -143,7 +143,7 @@ absl::StatusOr<bool> TryProveEquivalence(Function* a, Function* b,
   return TryProve(to_test_func, new_ret, Predicate::NotEqualToZero(), timeout);
 }
 
-absl::StatusOr<bool> TryProveEquivalence(
+absl::StatusOr<ProverResult> TryProveEquivalence(
     Function* original,
     const std::function<absl::Status(Package*, Function*)>& run_pass,
     absl::Duration timeout) {

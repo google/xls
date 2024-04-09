@@ -35,6 +35,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -46,7 +47,9 @@ constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 using status_testing::IsOkAndHolds;
 using ::xls::solvers::z3::TryProveEquivalence;
 
+using ::testing::_;
 using ::testing::AllOf;
+using ::testing::VariantWith;
 
 class BitSliceSimplificationPassTest : public IrTestBase {
  protected:
@@ -376,7 +379,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftMultipleSliceUsers) {
                         sliced_shift));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftStartNonzero) {
@@ -438,7 +441,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightMultipleSliceUsers) {
                         sliced_shift));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedDecode) {
@@ -458,7 +461,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedDecode) {
               AllOf(m::Decode(m::Param("amt")), m::Type("bits[10]")));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleUsers) {
@@ -496,7 +499,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleSliceUsers) {
                 m::BitSlice(narrowed_decode, /*start=*/1, /*width=*/9)));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedDecodeStartNonzero) {
@@ -568,7 +571,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedOhsWithMultipleSliceUsers) {
                         sliced_ohs));
 
   EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(true));
+              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedSelect) {
