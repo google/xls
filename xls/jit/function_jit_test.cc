@@ -100,6 +100,7 @@ absl::StatusOr<Value> RunJitNoEvents(FunctionJit* jit,
 
   if (!result.events.trace_msgs.empty()) {
     std::vector<std::string_view> trace_msgs;
+    trace_msgs.reserve(result.events.trace_msgs.size());
     for (const TraceMessage& trace : result.events.trace_msgs) {
       trace_msgs.push_back(trace.message);
     }
