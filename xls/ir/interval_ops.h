@@ -15,6 +15,7 @@
 #ifndef XLS_IR_INTERVAL_OPS_H_
 #define XLS_IR_INTERVAL_OPS_H_
 
+#include <cstdint>
 #include <optional>
 
 #include "xls/ir/bits.h"
@@ -23,6 +24,21 @@
 #include "xls/ir/ternary.h"
 
 namespace xls::interval_ops {
+
+// Convert a ternary into the corresponding (normalized) interval-set.
+//
+// To prevent creating a huge number of intervals in the set the
+// max_interval_bits controls how many unknown, non-trailing bits we consider.
+// The resulting interval set will have up to 1 << max_interval_bits intervals.
+// A perfect interval set can be obtained by setting this to ternary.size() - 1
+// but this can cost significant memory.
+//
+// By default up to 16 intervals (meaning 4 non-trailing unknown bits) will be
+// created.
+//
+// Intervals will be expanded until the interval-set will remain under the
+// requested size.
+IntervalSet FromTernary(TernarySpan ternary, int64_t max_interval_bits = 4);
 
 // Extract the ternary vector embedded in the interval-sets.
 // TODO(allight): Currently this only searches for the longest common MSB

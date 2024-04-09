@@ -14,12 +14,14 @@
 
 #include "xls/ir/interval_ops.h"
 
-#include <vector>
+#include <cstdint>
+#include <string_view>
+#include <utility>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/types/span.h"
+#include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
@@ -84,6 +86,96 @@ TEST(IntervalOpsTest, MiddleOutTernary) {
       TernaryValue::kKnownZero, TernaryValue::kKnownZero,
   };
   EXPECT_EQ(known, expected);
+}
+
+IntervalSet FromRanges(absl::Span<std::pair<int64_t, int64_t> const> ranges,
+                       int64_t bits) {
+  IntervalSet res(bits);
+  for (const auto& [l, h] : ranges) {
+    res.AddInterval(Interval::Closed(UBits(l, bits), UBits(h, bits)));
+  }
+  res.Normalize();
+  return res;
+}
+
+IntervalSet FromTernaryString(std::string_view sv,
+                              int64_t max_unknown_bits = 4) {
+  auto tern_status = StringToTernaryVector(sv);
+  if (!tern_status.ok()) {
+    ADD_FAILURE() << "Unable to parse ternary string " << sv << "\n"
+                  << tern_status.status();
+    return IntervalSet(1);
+  }
+  return interval_ops::FromTernary(tern_status.value(), max_unknown_bits);
+}
+
+TEST(IntervalOpsTest, FromTernaryExact) {
+  EXPECT_EQ(FromTernaryString("0b111000"),
+            IntervalSet::Precise(UBits(0b111000, 6)));
+}
+
+TEST(IntervalOpsTest, FromTernaryAllUnknown) {
+  EXPECT_EQ(FromTernaryString("0bXXXXXX"), IntervalSet::Maximal(6));
+}
+
+TEST(IntervalOpsTest, FromTernaryUnknownTrailing) {
+  EXPECT_EQ(FromTernaryString("0b1010XXX"),
+            FromRanges({{0b1010000, 0b1010111}}, 7));
+}
+
+TEST(IntervalOpsTest, FromTernarySegments) {
+  EXPECT_EQ(FromTernaryString("0bXX1010XXX"),
+            FromRanges({{0b001010000, 0b001010111},
+                        {0b011010000, 0b011010111},
+                        {0b101010000, 0b101010111},
+                        {0b111010000, 0b111010111}},
+                       9));
+  EXPECT_EQ(
+      FromTernaryString("0b0X1010XXX"),
+      FromRanges({{0b001010000, 0b001010111}, {0b011010000, 0b011010111}}, 9));
+  EXPECT_EQ(FromTernaryString("0b1X0X1010XXX"),
+            FromRanges({{0b10001010000, 0b10001010111},
+                        {0b10011010000, 0b10011010111},
+                        {0b11001010000, 0b11001010111},
+                        {0b11011010000, 0b11011010111}},
+                       11));
+}
+TEST(IntervalOpsTest, FromTernaryPreciseSegments) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto tern, StringToTernaryVector("0b1X0X1X0X1"));
+  IntervalSet expected(tern.size());
+  for (const Bits& v : ternary_ops::AllBitsValues(tern)) {
+    expected.AddInterval(Interval::Precise(v));
+  }
+  expected.Normalize();
+  EXPECT_EQ(interval_ops::FromTernary(tern, /*max_interval_bits=*/4), expected);
+}
+TEST(IntervalOpsTest, FromTernaryPreciseSegmentsBig) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto tern,
+                           StringToTernaryVector("0b1X0X1XXXXXXXXX0X1"));
+  IntervalSet expected(tern.size());
+  for (const Bits& v : ternary_ops::AllBitsValues(tern)) {
+    expected.AddInterval(Interval::Precise(v));
+  }
+  expected.Normalize();
+  EXPECT_EQ(interval_ops::FromTernary(tern, /*max_interval_bits=*/12),
+            expected);
+}
+
+TEST(IntervalOpsTest, FromTernarySegmentsExtended) {
+  // Only allow 4 segments so first 5 bits are all considered unknown
+  EXPECT_EQ(FromTernaryString("0bXX_1X_0X0X", /*max_unknown_bits=*/2),
+            FromRanges({{0b00100000, 0b00111111},
+                        {0b01100000, 0b01111111},
+                        {0b10100000, 0b10111111},
+                        {0b11100000, 0b11111111}},
+                       8));
+  // Only allow 2 segments
+  EXPECT_EQ(
+      FromTernaryString("0b1X1_X1X0X", /*max_unknown_bits=*/1),
+      FromRanges({{0b10100000, 0b10111111}, {0b11100000, 0b11111111}}, 8));
+  // Only allow 1 segment
+  EXPECT_EQ(FromTernaryString("0b1X1_X1X0X", /*max_unknown_bits=*/0),
+            FromRanges({{0b10000000, 0b11111111}}, 8));
 }
 
 }  // namespace

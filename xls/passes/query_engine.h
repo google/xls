@@ -109,32 +109,7 @@ class QueryEngine {
 
   // Returns a `LeafTypeTree<IntervalSet>` indicating which interval sets the
   // various parts of the value for a given node can exist in.
-  virtual LeafTypeTree<IntervalSet> GetIntervals(Node* node) const {
-    LeafTypeTree<TernaryVector> ternary = GetTernary(node);
-    LeafTypeTree<IntervalSet> result(node->GetType());
-    for (int64_t i = 0; i < ternary.elements().size(); ++i) {
-      const TernaryVector& vector = ternary.elements()[i];
-      InlineBitmap min(vector.size());
-      InlineBitmap max(vector.size());
-      for (int64_t j = 0; j < vector.size(); ++j) {
-        if (vector[j] == TernaryValue::kKnownZero) {
-          // Leave both min[j] and max[j] false.
-        } else if (vector[j] == TernaryValue::kKnownOne) {
-          min.Set(j, true);
-          max.Set(j, true);
-        } else {
-          // Leave min[j] false, but set max[j] true.
-          max.Set(j, true);
-        }
-      }
-      IntervalSet interval_set(vector.size());
-      interval_set.AddInterval(Interval(Bits::FromBitmap(std::move(min)),
-                                        Bits::FromBitmap(std::move(max))));
-      interval_set.Normalize();
-      result.elements()[i] = interval_set;
-    }
-    return result;
-  }
+  virtual LeafTypeTree<IntervalSet> GetIntervals(Node* node) const;
 
   // Returns true if at most one of the given bits can be true.
   virtual bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const = 0;

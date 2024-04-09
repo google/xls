@@ -227,6 +227,7 @@ cc_library(
         ":interval_set",
         ":ir",
         ":ternary",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log:check",
     ],
 )
@@ -245,6 +246,7 @@ cc_test(
         ":ternary",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/types:span",
     ],

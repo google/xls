@@ -33,6 +33,7 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
@@ -66,6 +67,20 @@ std::vector<TreeBitLocation> ToTreeBitLocations(absl::Span<Node* const> preds) {
 }
 
 }  // namespace
+
+LeafTypeTree<IntervalSet> QueryEngine::GetIntervals(Node* node) const {
+  // How many non-trailing bits we want to consider when creating intervals from
+  // a ternary. Each interval set will be made up of up to
+  // `1 << kMaxTernaryIntervalBits` separate intervals.
+  // "4" is arbitrary, but keeps the number of intervals from blowing up.
+  constexpr int64_t kMaxTernaryIntervalBits = 4;
+  LeafTypeTree<TernaryVector> tern = GetTernary(node);
+  return leaf_type_tree::Map<IntervalSet, TernaryVector>(
+      tern.AsView(), [](TernarySpan tv) -> IntervalSet {
+        return interval_ops::FromTernary(
+            tv, /*max_interval_bits=*/kMaxTernaryIntervalBits);
+      });
+}
 
 bool QueryEngine::AtMostOneNodeTrue(absl::Span<Node* const> preds) const {
   return AtMostOneTrue(ToTreeBitLocations(preds));
@@ -282,9 +297,8 @@ std::string QueryEngine::ToString(Node* node) const {
   if (node->GetType()->IsBits()) {
     return xls::ToString(GetTernary(node).Get({}));
   }
-  return GetTernary(node).ToString([](const TernaryVector& v) -> std::string {
-    return xls::ToString(v);
-  });
+  return GetTernary(node).ToString(
+      [](const TernaryVector& v) -> std::string { return xls::ToString(v); });
 }
 
 // A forwarder for query engine.
