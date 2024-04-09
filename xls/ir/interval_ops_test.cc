@@ -63,7 +63,7 @@ TEST(IntervalOpsTest, MiddleOut) {
   IntervalSet is = SetOf({Interval(UBits(0, 8), UBits(0x4, 8)),
                           Interval(UBits(0x10, 8), UBits(0x14, 8))});
   auto known = ExtractKnownBits(is);
-  EXPECT_EQ(known.known_bits, UBits(0xe0, 8));
+  EXPECT_EQ(known.known_bits, UBits(0xe8, 8));
   EXPECT_EQ(known.known_bit_values, Bits(8));
 }
 
@@ -71,7 +71,7 @@ TEST(IntervalOpsTest, MiddleOutHigh) {
   IntervalSet is = SetOf({Interval(UBits(0xe0, 8), UBits(0xe4, 8)),
                           Interval(UBits(0xf0, 8), UBits(0xf4, 8))});
   auto known = ExtractKnownBits(is);
-  EXPECT_EQ(known.known_bits, UBits(0xe0, 8));
+  EXPECT_EQ(known.known_bits, UBits(0xe8, 8));
   EXPECT_EQ(known.known_bit_values, UBits(0xe0, 8));
 }
 
@@ -81,7 +81,7 @@ TEST(IntervalOpsTest, MiddleOutTernary) {
   auto known = ExtractTernaryVector(is);
   TernaryVector expected{
       TernaryValue::kUnknown,   TernaryValue::kUnknown,
-      TernaryValue::kUnknown,   TernaryValue::kUnknown,
+      TernaryValue::kUnknown,   TernaryValue::kKnownZero,
       TernaryValue::kUnknown,   TernaryValue::kKnownZero,
       TernaryValue::kKnownZero, TernaryValue::kKnownZero,
   };

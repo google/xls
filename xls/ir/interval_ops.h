@@ -41,9 +41,9 @@ namespace xls::interval_ops {
 IntervalSet FromTernary(TernarySpan ternary, int64_t max_interval_bits = 4);
 
 // Extract the ternary vector embedded in the interval-sets.
-// TODO(allight): Currently this only searches for the longest common MSB
-// prefix. More complex analysis is possible though of questionable usefulness
-// given they can be extracted by other analyses.
+//
+// Note this is linear in the number of intervals that make up the interval-set.
+// If performance is an issue using the convex-hull might be worth considering.
 TernaryVector ExtractTernaryVector(const IntervalSet& intervals,
                                    std::optional<Node*> source = std::nullopt);
 
@@ -52,6 +52,10 @@ struct KnownBits {
   Bits known_bit_values;
 };
 
+// Extract the known-bits embedded in the interval-sets.
+//
+// Note this is linear in the number of intervals that make up the interval-set.
+// If performance is an issue using the convex-hull might be worth considering.
 KnownBits ExtractKnownBits(const IntervalSet& intervals,
                            std::optional<Node*> source = std::nullopt);
 

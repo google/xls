@@ -21,6 +21,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
@@ -30,28 +31,38 @@
 
 namespace xls::interval_ops {
 
+namespace {
+TernaryVector ExtractTernaryInterval(const Interval& interval) {
+  Bits lcp = bits_ops::LongestCommonPrefixMSB(
+      {interval.LowerBound(), interval.UpperBound()});
+  int64_t size = interval.BitCount();
+  TernaryVector result(size, TernaryValue::kUnknown);
+  for (int64_t i = size - lcp.bit_count(), j = 0; i < size; ++i, ++j) {
+    result[i] = lcp.Get(j) ? TernaryValue::kKnownOne : TernaryValue::kKnownZero;
+  }
+  return result;
+}
+}  // namespace
+
 TernaryVector ExtractTernaryVector(const IntervalSet& intervals,
                                    std::optional<Node*> source) {
-  KnownBits bits = ExtractKnownBits(intervals, source);
-  return ternary_ops::FromKnownBits(bits.known_bits, bits.known_bit_values);
-}
-
-KnownBits ExtractKnownBits(const IntervalSet& intervals,
-                           std::optional<Node*> source) {
   CHECK(intervals.IsNormalized())
       << (source.has_value() ? source.value()->ToString() : "");
   CHECK(!intervals.Intervals().empty())
       << (source.has_value() ? source.value()->ToString() : "");
-  Bits lcp = bits_ops::LongestCommonPrefixMSB(
-      {intervals.Intervals().front().LowerBound(),
-       intervals.Intervals().back().UpperBound()});
-  int64_t size = intervals.BitCount();
-  Bits remainder = Bits(size - lcp.bit_count());
-  return KnownBits{
-      .known_bits =
-          bits_ops::Concat({Bits::AllOnes(lcp.bit_count()), remainder}),
-      .known_bit_values = bits_ops::Concat({lcp, remainder}),
-  };
+  TernaryVector result = ExtractTernaryInterval(intervals.Intervals().front());
+  for (const Interval& i : intervals.Intervals().subspan(1)) {
+    TernaryVector t = ExtractTernaryInterval(i);
+    ternary_ops::UpdateWithIntersection(result, t);
+  }
+  return result;
+}
+
+KnownBits ExtractKnownBits(const IntervalSet& intervals,
+                           std::optional<Node*> source) {
+  TernaryVector result = ExtractTernaryVector(intervals, source);
+  return KnownBits{.known_bits = ternary_ops::ToKnownBits(result),
+                   .known_bit_values = ternary_ops::ToKnownBitsValues(result)};
 }
 
 IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
