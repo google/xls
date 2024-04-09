@@ -163,9 +163,8 @@ bool TruthTable::MatchesSymmetrical(
     }
     if (xyz_negated_.GetFromMsb(i)) {
       return IsNotOf(original, operands[i]);
-    } else {
-      return original == operands[i];
     }
+    return original == operands[i];
   }
   LOG(FATAL) << "Unreachable.";
 }

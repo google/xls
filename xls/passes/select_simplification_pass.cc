@@ -110,7 +110,8 @@ BitSource GetBitSource(Node* node, int64_t bit_index,
     return GetBitSource(node->operand(0),
                         bit_index + node->As<BitSlice>()->start(),
                         query_engine);
-  } else if (node->Is<Concat>()) {
+  }
+  if (node->Is<Concat>()) {
     int64_t offset = 0;
     for (int64_t i = node->operand_count() - 1; i >= 0; --i) {
       Node* operand = node->operand(i);

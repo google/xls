@@ -289,7 +289,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   // If we know the MSb of the operand is zero, strength reduce from signext to
   // zeroext.
   if (node->op() == Op::kSignExt && query_engine.IsMsbKnown(node->operand(0)) &&
-      query_engine.GetKnownMsb(node->operand(0)) == 0) {
+      static_cast<int>(query_engine.GetKnownMsb(node->operand(0))) == 0) {
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<ExtendOp>(node->operand(0),
                                            node->BitCountOrDie(), Op::kZeroExt)

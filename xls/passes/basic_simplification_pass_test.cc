@@ -44,10 +44,6 @@ constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using status_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
-using ::xls::solvers::z3::TryProveEquivalence;
-
-using ::testing::_;
-using ::testing::AllOf;
 
 class BasicSimplificationPassTest : public IrTestBase {
  protected:

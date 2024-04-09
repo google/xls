@@ -63,7 +63,8 @@ static std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
         node->operand(1),
         node->operand(0)->As<Literal>()->value().bits().ToUint64().value(),
         node->op()};
-  } else if (is_uint64_literal(node->operand(1))) {
+  }
+  if (is_uint64_literal(node->operand(1))) {
     // Literal is the rhs.
     return Uint64Comparison{
         node->operand(0),
