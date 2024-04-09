@@ -15,6 +15,7 @@
 #ifndef XLS_IR_INTERVAL_H_
 #define XLS_IR_INTERVAL_H_
 
+#include <compare>
 #include <cstdint>
 #include <functional>
 #include <iosfwd>
@@ -117,7 +118,7 @@ class Interval {
   // intersection, if one exists. Otherwise, returns `std::nullopt`.
   // Does not accept improper intervals.
   static std::optional<Interval> Intersect(const Interval& lhs,
-                                            const Interval& rhs);
+                                           const Interval& rhs);
 
   // Given two `Interval`s, return a set of `Interval`s representing their
   // set difference.
@@ -197,25 +198,22 @@ class Interval {
   std::string ToString() const;
 
   // Lexicographic ordering of intervals.
-  friend bool operator<(const Interval& lhs, const Interval& rhs) {
-    const int64_t lower_bound_cmp =
-        bits_ops::UCmp(lhs.lower_bound_, rhs.lower_bound_);
-    if (lower_bound_cmp < 0) {
-      return true;
+  friend std::strong_ordering operator<=>(const Interval& lhs,
+                                          const Interval& rhs) {
+    auto cmp_bits = [](const Bits& l, const Bits& r) {
+      return bits_ops::UCmp(l, r) <=> 0;
+    };
+    std::strong_ordering lower_cmp =
+        cmp_bits(lhs.LowerBound(), rhs.LowerBound());
+    if (lower_cmp == std::strong_ordering::equal) {
+      return cmp_bits(lhs.UpperBound(), rhs.UpperBound());
     }
-    if (lower_bound_cmp > 0) {
-      return false;
-    }
-    return bits_ops::ULessThan(lhs.upper_bound_, rhs.upper_bound_);
+    return lower_cmp;
   }
 
   // Equality of intervals.
   friend bool operator==(const Interval& lhs, const Interval& rhs) {
-    if (bits_ops::UEqual(lhs.lower_bound_, rhs.lower_bound_) &&
-        bits_ops::UEqual(lhs.upper_bound_, rhs.upper_bound_)) {
-      return true;
-    }
-    return false;
+    return (lhs <=> rhs) == std::strong_ordering::equal;
   }
 
   template <typename H>
