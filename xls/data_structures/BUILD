@@ -140,6 +140,7 @@ cc_library(
     name = "inline_bitmap",
     hdrs = ["inline_bitmap.h"],
     deps = [
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log:check",
@@ -281,6 +282,7 @@ cc_test(
     srcs = ["inline_bitmap_test.cc"],
     deps = [
         ":inline_bitmap",
+        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
     ],

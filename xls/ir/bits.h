@@ -215,7 +215,8 @@ class Bits {
   // the slice. 'start' is zero-indexed with zero being the LSb (same indexing
   // as Get/Set). 'width' is the number of bits to slice out and is the
   // bit_count of the result.
-  Bits Slice(int64_t start, int64_t width) const;
+  Bits Slice(int64_t start, int64_t width) const&;
+  Bits Slice(int64_t start, int64_t width) &&;
 
   // Returns the minimum number of bits required to store the given value as an
   // unsigned number.

@@ -14,12 +14,14 @@
 
 #include "xls/data_structures/inline_bitmap.h"
 
+#include <cstdint>
 #include <ios>
 #include <limits>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
 
 namespace xls {
 namespace {
@@ -497,6 +499,56 @@ TEST(InlineBitmapTest, Intersect) {
     EXPECT_EQ(b1.GetByte(7), 0);
     EXPECT_EQ(b1.GetByte(8), 0);
     EXPECT_EQ(b1.GetByte(9), 0x84 & 0x31);
+  }
+}
+
+TEST(InlineBitmapTest, WithSize) {
+  {
+    InlineBitmap b1(80);
+    b1.SetByte(0, 0xab);
+    b1.SetByte(1, 0xcd);
+    b1.SetByte(2, 0xa5);
+    b1.SetByte(9, 0x84);
+
+    InlineBitmap b2 = b1.WithSize(90, /*new_data=*/true);
+    EXPECT_EQ(b1.GetByte(0), 0xab);
+    EXPECT_EQ(b1.GetByte(1), 0xcd);
+    EXPECT_EQ(b1.GetByte(2), 0xa5);
+    EXPECT_EQ(b1.GetByte(3), 0);
+    EXPECT_EQ(b1.GetByte(4), 0);
+    EXPECT_EQ(b1.GetByte(5), 0);
+    EXPECT_EQ(b1.GetByte(6), 0);
+    EXPECT_EQ(b1.GetByte(7), 0);
+    EXPECT_EQ(b1.GetByte(8), 0);
+    EXPECT_EQ(b1.GetByte(9), 0x84);
+    for (int64_t i = 0; i < 80; ++i) {
+      EXPECT_EQ(b1.Get(i), b2.Get(i));
+    }
+    for (int64_t i = 80; i < 90; ++i) {
+      EXPECT_EQ(b2.Get(i), true);
+    }
+  }
+  {
+    InlineBitmap b1(80);
+    b1.SetByte(0, 0xab);
+    b1.SetByte(1, 0xcd);
+    b1.SetByte(2, 0xa5);
+    b1.SetByte(9, 0x84);
+
+    InlineBitmap b2 = b1.WithSize(40);
+    EXPECT_EQ(b1.GetByte(0), 0xab);
+    EXPECT_EQ(b1.GetByte(1), 0xcd);
+    EXPECT_EQ(b1.GetByte(2), 0xa5);
+    EXPECT_EQ(b1.GetByte(3), 0);
+    EXPECT_EQ(b1.GetByte(4), 0);
+    EXPECT_EQ(b1.GetByte(5), 0);
+    EXPECT_EQ(b1.GetByte(6), 0);
+    EXPECT_EQ(b1.GetByte(7), 0);
+    EXPECT_EQ(b1.GetByte(8), 0);
+    EXPECT_EQ(b1.GetByte(9), 0x84);
+    for (int64_t i = 0; i < 40; ++i) {
+      EXPECT_EQ(b1.Get(i), b2.Get(i));
+    }
   }
 }
 

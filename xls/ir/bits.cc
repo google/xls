@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
@@ -245,10 +246,35 @@ absl::StatusOr<int64_t> Bits::ToInt64() const {
   return absl::bit_cast<int64_t>(word);
 }
 
-Bits Bits::Slice(int64_t start, int64_t width) const {
+Bits Bits::Slice(int64_t start, int64_t width) && {
   CHECK_GE(width, 0);
   CHECK_LE(start + width, bit_count())
       << "start: " << start << " width: " << width;
+  if (start == 0) {
+    // Do the fast truncate.
+    //
+    // This is the most common slice so make it fast.
+    return Bits::FromBitmap(std::move(bitmap_).WithSize(width));
+  }
+  Bits result(width);
+  for (int64_t i = 0; i < width; ++i) {
+    if (Get(start + i)) {
+      result.bitmap_.Set(i, true);
+    }
+  }
+  return result;
+}
+
+Bits Bits::Slice(int64_t start, int64_t width) const& {
+  CHECK_GE(width, 0);
+  CHECK_LE(start + width, bit_count())
+      << "start: " << start << " width: " << width;
+  if (start == 0) {
+    // Do the fast truncate.
+    //
+    // This is the most common slice so make it fast.
+    return Bits::FromBitmap(bitmap_.WithSize(width));
+  }
   Bits result(width);
   for (int64_t i = 0; i < width; ++i) {
     if (Get(start + i)) {

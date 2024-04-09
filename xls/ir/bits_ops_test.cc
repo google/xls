@@ -1130,5 +1130,62 @@ void BM_SubCachedOne(benchmark::State& state) {
 }
 BENCHMARK(BM_SubCachedOne)->Range(64, 1 << 20);
 
+void BM_Truncate(benchmark::State& state) {
+  for (auto _ : state) {
+    Bits f(256);
+    auto v = bits_ops::Truncate(f, state.range(0));
+    benchmark::DoNotOptimize(v);
+    benchmark::DoNotOptimize(f);
+  }
+}
+BENCHMARK(BM_Truncate)->Range(0, 255);
+
+void BM_SignExtend(benchmark::State& state) {
+  for (auto _ : state) {
+    Bits f = state.range(0) ? Bits(32) : Bits::AllOnes(32);
+    auto v = bits_ops::SignExtend(f, state.range(1));
+    benchmark::DoNotOptimize(v);
+    benchmark::DoNotOptimize(f);
+  }
+}
+BENCHMARK(BM_SignExtend)->RangePair(0, 1, 33, 1 << 20);
+
+void BM_ZeroExtend(benchmark::State& state) {
+  for (auto _ : state) {
+    Bits f(32);
+    auto v = bits_ops::ZeroExtend(f, state.range(0));
+    benchmark::DoNotOptimize(v);
+    benchmark::DoNotOptimize(f);
+  }
+}
+BENCHMARK(BM_ZeroExtend)->Range(33, 1 << 20);
+
+void BM_TruncateMove(benchmark::State& state) {
+  for (auto _ : state) {
+    Bits f(256);
+    auto v = bits_ops::Truncate(std::move(f), state.range(0));
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_TruncateMove)->Range(0, 255);
+
+void BM_SignExtendMove(benchmark::State& state) {
+  for (auto _ : state) {
+    Bits f = state.range(0) ? Bits(32) : Bits::AllOnes(32);
+    auto v = bits_ops::SignExtend(std::move(f), state.range(1));
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_SignExtendMove)->RangePair(0, 1, 33, 1 << 20);
+
+void BM_ZeroExtendMove(benchmark::State& state) {
+  for (auto _ : state) {
+    Bits f(32);
+    auto v = bits_ops::ZeroExtend(std::move(f), state.range(0));
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_ZeroExtendMove)->Range(33, 1 << 20);
+
 }  // namespace
 }  // namespace xls

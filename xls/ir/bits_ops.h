@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <utility>
 
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
@@ -114,8 +115,8 @@ bool SLessThan(const Bits& lhs, int64_t rhs);
 // Zero/sign extend 'bits' to the new bit count and return the result.
 //
 // Check-fails if new_bit_count is not >= bits.bit_count().
-Bits ZeroExtend(const Bits& bits, int64_t new_bit_count);
-Bits SignExtend(const Bits& bits, int64_t new_bit_count);
+Bits ZeroExtend(Bits bits, int64_t new_bit_count);
+Bits SignExtend(Bits bits, int64_t new_bit_count);
 
 // Shift Left/Right Logical or Arithmetic (shift right only). The width of the
 // returned Bits object is the same as the input.
@@ -155,6 +156,8 @@ Bits Reverse(const Bits& bits);
 // bits[8]:0b00001010 would become bits[4]:1010.
 // Returns a zero-bit/empty Bits for a zero-valued input.
 Bits DropLeadingZeroes(const Bits& bits);
+
+Bits Truncate(Bits bits, int64_t size);
 
 // Returns a Bits object with the sequence of bits starting at index 'start'
 // replaced with update_value. Any out-of-bounds updated bits are ignored.

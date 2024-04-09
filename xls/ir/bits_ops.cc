@@ -41,14 +41,14 @@ namespace {
 
 // Converts the given bits value to signed value of the given bit count. Uses
 // truncation or sign-extension to narrow/widen the value.
-Bits TruncateOrSignExtend(const Bits& bits, int64_t bit_count) {
+Bits TruncateOrSignExtend(Bits bits, int64_t bit_count) {
   if (bits.bit_count() == bit_count) {
     return bits;
   }
   if (bits.bit_count() < bit_count) {
-    return SignExtend(bits, bit_count);
+    return SignExtend(std::move(bits), bit_count);
   }
-  return bits.Slice(0, bit_count);
+  return Truncate(std::move(bits), bit_count);
 }
 
 }  // namespace
@@ -207,7 +207,7 @@ Bits Add(const Bits& lhs, const Bits& rhs) {
 
   Bits sum = BigInt::Add(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs))
                  .ToSignedBits();
-  return TruncateOrSignExtend(sum, lhs.bit_count());
+  return TruncateOrSignExtend(std::move(sum), lhs.bit_count());
 }
 
 Bits Sub(const Bits& lhs, const Bits& rhs) {
@@ -220,7 +220,7 @@ Bits Sub(const Bits& lhs, const Bits& rhs) {
   }
   Bits diff = BigInt::Sub(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs))
                   .ToSignedBits();
-  return TruncateOrSignExtend(diff, lhs.bit_count());
+  return TruncateOrSignExtend(std::move(diff), lhs.bit_count());
 }
 
 Bits Increment(const Bits& x) {
@@ -418,18 +418,18 @@ bool SLessThan(const Bits& lhs, int64_t rhs) {
   return SLessThan(lhs, SBits(rhs, 64));
 }
 
-Bits ZeroExtend(const Bits& bits, int64_t new_bit_count) {
+Bits ZeroExtend(Bits bits, int64_t new_bit_count) {
   CHECK_GE(new_bit_count, 0);
   CHECK_GE(new_bit_count, bits.bit_count());
-  return Concat({UBits(0, new_bit_count - bits.bit_count()), bits});
+  return Bits::FromBitmap(std::move(bits).bitmap().WithSize(new_bit_count));
 }
 
-Bits SignExtend(const Bits& bits, int64_t new_bit_count) {
+Bits SignExtend(Bits bits, int64_t new_bit_count) {
   CHECK_GE(new_bit_count, 0);
   CHECK_GE(new_bit_count, bits.bit_count());
-  const int64_t ext_width = new_bit_count - bits.bit_count();
-  return Concat(
-      {bits.msb() ? Bits::AllOnes(ext_width) : Bits(ext_width), bits});
+  bool sign_bit = bits.bit_count() > 0 && bits.GetFromMsb(0);
+  return Bits::FromBitmap(
+      std::move(bits).bitmap().WithSize(new_bit_count, /*new_data=*/sign_bit));
 }
 
 Bits Concat(absl::Span<const Bits> inputs) {
@@ -452,7 +452,7 @@ Bits Negate(const Bits& bits) {
                  bits.bit_count());
   }
   Bits negated = BigInt::Negate(BigInt::MakeSigned(bits)).ToSignedBits();
-  return TruncateOrSignExtend(negated, bits.bit_count());
+  return TruncateOrSignExtend(std::move(negated), bits.bit_count());
 }
 
 Bits Abs(const Bits& bits) {
@@ -518,6 +518,11 @@ Bits DropLeadingZeroes(const Bits& bits) {
   }
 
   return bits.Slice(0, first_one + 1);
+}
+
+Bits Truncate(Bits bits, int64_t size) {
+  CHECK_GE(bits.bit_count(), size);
+  return std::move(bits).Slice(0, size);
 }
 
 Bits BitSliceUpdate(const Bits& to_update, int64_t start,

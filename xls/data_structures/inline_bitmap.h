@@ -103,6 +103,41 @@ class InlineBitmap {
     }
   }
 
+  // Create a new InlineBitmap with the same content but 'new_size' bits. Bits
+  // beyond what this bitmap holds are 'new_data'.
+  InlineBitmap&& WithSize(int64_t new_size, bool new_data = false) && {
+    int64_t new_word_size = CeilOfRatio(new_size, kWordBits);
+    if (new_size > bit_count_) {
+      int64_t old_wordcount = word_count();
+      int64_t last_wordno = old_wordcount - 1;
+      uint64_t mask = MaskForWord(last_wordno);
+      if (new_word_size > old_wordcount) {
+        data_.resize(new_word_size, new_data ? ~uint64_t{0} : uint64_t{0});
+      }
+      if (bit_count_ != 0) {
+        if (new_data) {
+          data_[last_wordno] |= ~mask;
+        } else {
+          data_[last_wordno] &= mask;
+        }
+      }
+      bit_count_ = new_size;
+    } else {
+      data_.resize(new_word_size);
+      bit_count_ = new_size;
+    }
+    MaskLastWord();
+    return std::move(*this);
+  }
+  // Create a new InlineBitmap with the same content but 'new_size' bits. Bits
+  // beyond what this bitmap holds are 'new_data'.
+  InlineBitmap WithSize(int64_t new_size, bool new_data = false) const& {
+    // TODO(allight): We should be able to do this without copying the whole
+    // *this in some cases.
+    InlineBitmap bm = *this;
+    return std::move(bm).WithSize(new_size, new_data);
+  }
+
   bool operator==(const InlineBitmap& other) const {
     if (bit_count_ != other.bit_count_) {
       return false;
@@ -253,7 +288,6 @@ class InlineBitmap {
     }
     return 0;
   }
-
 
   // Sets this bitmap to the union (bitwise 'or') of this bitmap and `other`.
   void Union(const InlineBitmap& other) {
