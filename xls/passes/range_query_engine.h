@@ -21,33 +21,26 @@
 #include <string>
 #include <utility>
 
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
-#include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
-#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
 
 using IntervalSetTree = LeafTypeTree<IntervalSet>;
+using IntervalSetTreeView = LeafTypeTreeView<IntervalSet>;
 
 class RangeQueryVisitor;
 
@@ -55,8 +48,20 @@ class RangeQueryVisitor;
 struct RangeData {
   // TODO(google/xls#1090): TernaryVector is a std::vector<u8> basically and is
   // not very efficient. We should change this.
+  // TODO(allight): We should maybe remove this or make it also a LTT
   std::optional<TernaryVector> ternary;
   IntervalSetTree interval_set;
+
+  bool operator==(const RangeData& o) const {
+    return ternary == o.ternary && interval_set == o.interval_set;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const RangeData& g) {
+    absl::Format(&sink, "[tern: %s, ist: %s]",
+                 g.ternary ? ToString(*g.ternary) : "<nullopt>",
+                 g.interval_set.ToString());
+  }
 };
 
 // A helper for memoizing/restricting a range query run.
@@ -120,6 +125,11 @@ class RangeQueryEngine : public QueryEngine {
     return known_bits_.contains(node);
   }
 
+  // Check if there are explicit intervals associated with the node.
+  bool HasExplicitIntervals(Node* node) const {
+    return interval_sets_.contains(node);
+  }
+
   // Check if the node has known intervals associated with it (either directly
   // or implicitly through known ternary bits).
   //
@@ -134,7 +144,7 @@ class RangeQueryEngine : public QueryEngine {
   // TODO(allight): 2023-09-05, We should possibly rewrite these or at least
   // change the names.
   bool HasKnownIntervals(Node* node) const {
-    return IsTracked(node) || interval_sets_.contains(node);
+    return IsTracked(node) || HasExplicitIntervals(node);
   }
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
@@ -201,6 +211,15 @@ class RangeQueryEngine : public QueryEngine {
   // Get the intervals associated with each leaf node in the type tree
   // associated with this node.
   IntervalSetTree GetIntervalSetTree(Node* node) const;
+
+  // Get the intervals associated with each leaf node in the type tree
+  // associated with this node as a view. Returns an error if
+  // HasExplicitIntervals(node) is false.
+  absl::StatusOr<IntervalSetTreeView> GetIntervalSetTreeView(Node* node) const {
+    XLS_RET_CHECK(HasExplicitIntervals(node))
+        << node << " does not have an existing interval-set tree";
+    return interval_sets_.at(node).AsView();
+  }
 
   // Set the intervals associated with the given node.
   //

@@ -655,6 +655,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "//xls/common:math_util",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
@@ -670,10 +671,39 @@ cc_library(
 )
 
 cc_library(
+    name = "back_propagate_range_analysis",
+    srcs = ["back_propagate_range_analysis.cc"],
+    hdrs = ["back_propagate_range_analysis.h"],
+    deps = [
+        ":range_query_engine",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:interval",
+        "//xls/ir:interval_ops",
+        "//xls/ir:interval_set",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "//xls/ir:type",
+    ],
+)
+
+cc_library(
     name = "context_sensitive_range_query_engine",
     srcs = ["context_sensitive_range_query_engine.cc"],
     hdrs = ["context_sensitive_range_query_engine.h"],
     deps = [
+        ":back_propagate_range_analysis",
         ":node_dependency_analysis",
         ":predicate_state",
         ":query_engine",
@@ -2374,6 +2404,27 @@ cc_test(
         "//xls/ir:ternary",
         "//xls/ir:type",
         "@com_google_fuzztest//fuzztest",
+    ],
+)
+
+cc_test(
+    name = "back_propagate_range_analysis_test",
+    srcs = ["back_propagate_range_analysis_test.cc"],
+    deps = [
+        ":back_propagate_range_analysis",
+        ":range_query_engine",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:ternary",
     ],
 )
 
