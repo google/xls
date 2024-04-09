@@ -62,7 +62,7 @@ void TestCeilOfRatio(const IntegralType test_data[][kNumTestArguments],
 
 template <typename UnsignedIntegralType>
 void TestCeilOfRatioUnsigned() {
-  typedef std::numeric_limits<UnsignedIntegralType> Limits;
+  using Limits = std::numeric_limits<UnsignedIntegralType>;
   EXPECT_TRUE(Limits::is_integer);
   EXPECT_FALSE(Limits::is_signed);
   const UnsignedIntegralType kMax = Limits::max();
@@ -93,7 +93,7 @@ void TestCeilOfRatioUnsigned() {
 
 template <typename SignedInteger>
 void TestCeilOfRatioSigned() {
-  typedef std::numeric_limits<SignedInteger> Limits;
+  using Limits = std::numeric_limits<SignedInteger>;
   EXPECT_TRUE(Limits::is_integer);
   EXPECT_TRUE(Limits::is_signed);
   const SignedInteger kMin = Limits::min();
