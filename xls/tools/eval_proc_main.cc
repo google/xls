@@ -17,11 +17,12 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <numeric>
 #include <optional>
-#include <queue>
 #include <random>
 #include <sstream>
 #include <string>
@@ -58,6 +59,7 @@
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
@@ -315,6 +317,24 @@ static absl::Status EvaluateProcs(
           }
         }
         if (all_outputs_produced) {
+          absl::btree_map<std::string, std::vector<Value>> unconsumed_inputs;
+          for (const auto& [channel_name, _] : inputs_for_channels) {
+            XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
+                                 queue_manager.GetQueueByName(channel_name));
+            // Ignore single value channels in this check
+            if (in_queue->channel()->kind() == ChannelKind::kSingleValue) {
+              continue;
+            }
+            while (!in_queue->IsEmpty()) {
+              unconsumed_inputs[channel_name].push_back(*in_queue->Read());
+            }
+          }
+          if (!unconsumed_inputs.empty()) {
+            LOG(WARNING)
+                << "Warning: Not all inputs were consumed by the time all "
+                   "expected outputs were produced. Remaining inputs:\n"
+                << ChannelValuesToString(unconsumed_inputs);
+          }
           break;
         }
       }
@@ -668,19 +688,17 @@ static absl::Status RunBlock(
           idle_channel_name));
 
   // Prepare values in queue format
-  absl::flat_hash_map<std::string, std::queue<Value>> channel_value_queues;
+  absl::flat_hash_map<std::string, std::deque<Value>> channel_value_queues;
   for (const auto& [name, values] : inputs_for_channels) {
     CHECK(!channel_value_queues.contains(name));
-    channel_value_queues[name] = std::queue<Value>();
     for (const Value& value : values) {
-      channel_value_queues[name].push(value);
+      channel_value_queues[name].push_back(value);
     }
   }
   for (const auto& [name, values] : expected_outputs_for_channels) {
     CHECK(!channel_value_queues.contains(name));
-    channel_value_queues[name] = std::queue<Value>();
     for (const Value& value : values) {
-      channel_value_queues[name].push(value);
+      channel_value_queues[name].push_back(value);
     }
   }
 
@@ -730,7 +748,7 @@ static absl::Status RunBlock(
 
     for (const auto& [name, _] : inputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
-      const std::queue<Value>& queue = channel_value_queues.at(name);
+      const std::deque<Value>& queue = channel_value_queues.at(name);
       if (info.ready_valid != 0) {
         // Don't bring valid low without a transaction
         const bool asserted_valid = asserted_valids.contains(name);
@@ -790,14 +808,13 @@ static absl::Status RunBlock(
       const bool vld_value = input_set.at(info.channel_valid).bits().Get(0);
       const bool rdy_value = outputs.at(info.channel_ready).bits().Get(0);
 
-      std::queue<Value>& queue = channel_value_queues.at(name);
-
+      std::deque<Value>& queue = channel_value_queues.at(name);
       if (vld_value && rdy_value) {
         if (show_trace) {
           LOG(INFO) << "Channel Model: Consuming input for " << name << ": "
                     << queue.front().ToString();
         }
-        queue.pop();
+        queue.pop_front();
         asserted_valids.erase(name);
       }
     }
@@ -809,7 +826,7 @@ static absl::Status RunBlock(
       const bool vld_value = outputs.at(info.channel_valid).bits().Get(0);
       const bool rdy_value = input_set.at(info.channel_ready).bits().Get(0);
 
-      std::queue<Value>& queue = channel_value_queues.at(name);
+      std::deque<Value>& queue = channel_value_queues.at(name);
 
       if (rdy_value && vld_value) {
         if (queue.empty()) {
@@ -833,7 +850,7 @@ static absl::Status RunBlock(
           continue;
         }
         ++matched_outputs;
-        queue.pop();
+        queue.pop_front();
         last_output_cycle = cycle;
       }
     }
@@ -888,7 +905,7 @@ static absl::Status RunBlock(
         continue;
       }
 
-      const auto& queue = channel_value_queues.at(name);
+      const std::deque<Value>& queue = channel_value_queues.at(name);
       if (!queue.empty()) {
         all_output_queues_empty = false;
       }
@@ -906,6 +923,25 @@ static absl::Status RunBlock(
     for (const auto& [_, model] : model_memories) {
       XLS_RETURN_IF_ERROR(model->Tick());
     }
+  }
+
+  absl::btree_map<std::string, std::vector<Value>> unconsumed_inputs;
+  for (const auto& [channel_name, _] : inputs_for_channels) {
+    // Ignore single value channels in this check
+    const ChannelInfo& info = channel_info.at(channel_name);
+    if (info.ready_valid == 0) {
+      continue;
+    }
+
+    std::deque<Value>& queue = channel_value_queues.at(channel_name);
+    if (!queue.empty()) {
+      absl::c_copy(queue, std::back_inserter(unconsumed_inputs[channel_name]));
+    }
+  }
+  if (!unconsumed_inputs.empty()) {
+    LOG(WARNING) << "Warning: Not all inputs were consumed by the time all "
+                    "expected outputs were produced. Remaining inputs:\n"
+                 << ChannelValuesToString(unconsumed_inputs);
   }
 
   if (!output_stats_path.empty()) {

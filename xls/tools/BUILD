@@ -638,6 +638,7 @@ cc_binary(
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:channel",
         "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
