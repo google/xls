@@ -19,6 +19,7 @@
 #include <optional>
 
 #include "xls/ir/bits.h"
+#include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
@@ -58,6 +59,18 @@ struct KnownBits {
 // If performance is an issue using the convex-hull might be worth considering.
 KnownBits ExtractKnownBits(const IntervalSet& intervals,
                            std::optional<Node*> source = std::nullopt);
+
+// Minimize interval set to 'size' by merging some intervals together. Intervals
+// are chosen with a greedy algorithm that minimizes the number of additional
+// values the overall interval set contains. That is first it will add the
+// smallest components posible. In cases where multiple gaps are the same size
+// it will prioritize earlier gaps over later ones.
+// TODO(allight): Prioritizing smaller gaps seems correct but it should be
+// relatively straightforward to make the tie-breaker more intelligent than just
+// earlier first. Making it prioritize smaller total area in the intervals as a
+// secondary objective by merging smaller intervals when their is a tie in how
+// much distance is between 2 intervals might provide better results.
+IntervalSet MinimizeIntervals(IntervalSet interval_set, int64_t size);
 
 }  // namespace xls::interval_ops
 

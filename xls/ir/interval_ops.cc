@@ -15,9 +15,13 @@
 #include "xls/ir/interval_ops.h"
 
 #include <algorithm>
+#include <compare>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <optional>
+#include <utility>
+#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
@@ -111,6 +115,117 @@ IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
   }
   is.Normalize();
   return is;
+}
+
+namespace {
+// An intrusive list node of an interval list
+struct MergeInterval {
+  Interval final_interval;
+  Bits gap_with_previous;
+  // Intrusive list links. Next & previous lexicographic interval.
+  MergeInterval* prev = nullptr;
+  MergeInterval* next = nullptr;
+
+  friend std::strong_ordering operator<=>(const MergeInterval& l,
+                                          const MergeInterval& r) {
+    auto cmp_bits = [](const Bits& l, const Bits& r) {
+      return bits_ops::UCmp(l, r) <=> 0;
+    };
+    std::strong_ordering gap_order =
+        cmp_bits(l.gap_with_previous, r.gap_with_previous);
+    if (gap_order != std::strong_ordering::equal) {
+      return gap_order;
+    }
+    return cmp_bits(l.final_interval.LowerBound(),
+                    r.final_interval.LowerBound());
+  }
+};
+}  // namespace
+
+// Minimize interval set to 'size' by merging some intervals together. Intervals
+// are chosen with a greedy algorithm that minimizes the number of additional
+// values the overall interval set contains. That is first it will add the
+// smallest components posible. In cases where multiple gaps are the same size
+// it will prioritize earlier gaps over later ones.
+IntervalSet MinimizeIntervals(IntervalSet interval_set, int64_t size) {
+  interval_set.Normalize();
+
+  // Check for easy cases (already small enough and convex hull)
+  if (interval_set.NumberOfIntervals() <= size) {
+    return interval_set;
+  }
+  if (size == 1) {
+    IntervalSet res(interval_set.BitCount());
+    res.AddInterval(*interval_set.ConvexHull());
+    res.Normalize();
+    return res;
+  }
+
+  std::vector<std::unique_ptr<MergeInterval>> merge_list;
+  merge_list.reserve(interval_set.NumberOfIntervals() - 1);
+  // The first one will never get merged with the previous since that wouldn't
+  // actually remove an interval segment so we don't include it on the merge
+  // list. Things can get merged into it however.
+  DCHECK(absl::c_is_sorted(interval_set.Intervals()));
+  MergeInterval first{.final_interval = interval_set.Intervals().front()};
+  for (auto it = interval_set.Intervals().begin() + 1;
+       it != interval_set.Intervals().end(); ++it) {
+    MergeInterval* prev = merge_list.empty() ? &first : merge_list.back().get();
+    Bits distance = bits_ops::Sub(it->LowerBound(), (it - 1)->UpperBound());
+    // Generate a list with an intrusive list containing the original
+    // ordering.
+    merge_list.push_back(std::make_unique<MergeInterval>(
+        MergeInterval{.final_interval = *it,
+                      .gap_with_previous = std::move(distance),
+                      .prev = prev}));
+    prev->next = merge_list.back().get();
+  }
+
+  // We want a min-heap so cmp is greater-than.
+  auto heap_cmp = [](const std::unique_ptr<MergeInterval>& l,
+                     const std::unique_ptr<MergeInterval>& r) {
+    return *l > *r;
+  };
+  // make the merge_list a heap.
+  absl::c_make_heap(merge_list, heap_cmp);
+
+  // Remove the minimum element from the merge_list heap.
+  auto pop_min_element = [&]() -> std::unique_ptr<MergeInterval> {
+    absl::c_pop_heap(merge_list, heap_cmp);
+    std::unique_ptr<MergeInterval> minimum = std::move(merge_list.back());
+    merge_list.pop_back();
+    return minimum;
+  };
+  // Merge elements until we are the appropriate size.
+  // NB Since the first interval isn't in the heap (since it can't get merged
+  // from) we need to continue until the heap is one element shorter than
+  // requested.
+  while (merge_list.size() > size - 1) {
+    // Pull the item with the smallest distance
+    std::unique_ptr<MergeInterval> min_interval = pop_min_element();
+    // Merge with the prior element.
+
+    // extend the previous interval.
+    min_interval->prev->final_interval =
+        Interval(min_interval->prev->final_interval.LowerBound(),
+                 min_interval->final_interval.UpperBound());
+    // Update the intrusive list of active merges.
+    min_interval->prev->next = min_interval->next;
+    if (min_interval->next != nullptr) {
+      min_interval->next->prev = min_interval->prev;
+    }
+  }
+
+  // Now 'first, ...merge_list' is `size` elements.
+  IntervalSet result;
+  std::vector<Interval> final_intervals{std::move(first.final_interval)};
+  final_intervals.reserve(size);
+  for (std::unique_ptr<MergeInterval>& mi : merge_list) {
+    final_intervals.push_back(std::move(mi->final_interval));
+  }
+  result.SetIntervals(final_intervals);
+  result.Normalize();
+  return result;
 }
 
 }  // namespace xls::interval_ops

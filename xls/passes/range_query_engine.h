@@ -240,14 +240,6 @@ class RangeQueryEngine : public QueryEngine {
   absl::flat_hash_map<Node*, IntervalSetTree> interval_sets_;
 };
 
-// Reduce the size of the given `IntervalSet` to the given size.
-// This is used to prevent the analysis from using too much memory and CPU.
-//
-// This works by choosing pairs of neighboring intervals that have small gaps
-// and merging them by taking their convex hull, until only `size` intervals
-// remain.
-IntervalSet MinimizeIntervals(IntervalSet intervals, int64_t size = 16);
-
 std::string IntervalSetTreeToString(const IntervalSetTree& tree);
 std::ostream& operator<<(std::ostream& os, const IntervalSetTree& tree);
 

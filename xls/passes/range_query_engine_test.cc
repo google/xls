@@ -89,28 +89,6 @@ LeafTypeTree<IntervalSet> BitsLTT(Node* node,
   return result;
 }
 
-void MinimizeIntervalsSatisfiesInvariants(const IntervalSet& interval_set,
-                                          int64_t size) {
-  IntervalSet minimized = MinimizeIntervals(interval_set, size);
-  EXPECT_EQ(interval_set.BitCount(), minimized.BitCount());
-  EXPECT_LE(minimized.NumberOfIntervals(), size)
-      << "interval_set = " << interval_set.ToString() << "\n"
-      << "minimized    = " << minimized.ToString() << "\n";
-
-  IntervalSet normalized = interval_set;
-  normalized.Normalize();
-  EXPECT_LE(minimized.NumberOfIntervals(), normalized.NumberOfIntervals())
-      << "normalized interval_set = " << normalized.ToString() << "\n"
-      << "              minimized = " << minimized.ToString() << "\n";
-}
-FUZZ_TEST(RangeQueryEngineFuzzTest, MinimizeIntervalsSatisfiesInvariants)
-    .WithDomains(fuzztest::FlatMap(
-                     [](int64_t bit_count) {
-                       return ArbitraryIntervalSet(bit_count);
-                     },
-                     fuzztest::InRange(1, 32)),
-                 fuzztest::InRange(1, 20));
-
 MATCHER_P(IntervalsAre, expected,
           absl::StrFormat("%smatch interval set of %s",
                           negation ? "doesn't " : "does ",

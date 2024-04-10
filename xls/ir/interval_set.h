@@ -56,7 +56,12 @@ class IntervalSet {
 
   // Get all the intervals contained within this interval set.
   // The set must be normalized prior to calling this.
-  absl::Span<const Interval> Intervals() const {
+  absl::Span<const Interval> Intervals() const& {
+    CHECK(is_normalized_);
+    return intervals_;
+  }
+
+  std::vector<Interval> Intervals() && {
     CHECK(is_normalized_);
     return intervals_;
   }

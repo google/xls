@@ -93,6 +93,9 @@ class BackPropagate : public DfsVisitorWithDefault {
   absl::Status HandleNaryAnd(NaryOp* and_op) final {
     return MaybeUnifyAnd(and_op);
   }
+  // absl::Status HandleNaryOr(NaryOp* or_op) final {
+  //   return MaybeUnifyOr(or_op);
+  // }
 
   const absl::flat_hash_map<Node*, RangeData>& ranges() const& {
     return result_;

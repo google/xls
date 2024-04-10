@@ -250,6 +250,7 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//fuzztest",
     ],
 )
 

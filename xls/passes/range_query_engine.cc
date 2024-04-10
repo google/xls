@@ -24,7 +24,6 @@
 #include <ostream>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -83,6 +82,9 @@ class RangeQueryVisitor : public DfsVisitor {
   // size, `MinimizeIntervals` will be called to reduce its size at the cost of
   // precision of the analysis.
   static constexpr int64_t kMaxResIntervalSetSize = 64;
+
+  // What size we should minimize interval sets to by default.
+  static constexpr int64_t kDefaultIntervalSize = 16;
 
   // The maximum number of points covered by an interval set that can be
   // iterated over in an analysis.
@@ -303,109 +305,6 @@ class RangeQueryVisitor : public DfsVisitor {
   ReachedFixpoint rf_;
 };
 
-struct MergeInterval {
-  int64_t start;
-  int64_t end;
-
-  friend bool operator<(const MergeInterval& lhs, const MergeInterval& rhs) {
-    std::pair<int64_t, int64_t> lhs_pair{lhs.start, lhs.end};
-    std::pair<int64_t, int64_t> rhs_pair{rhs.start, rhs.end};
-    return lhs_pair < rhs_pair;
-  }
-};
-
-struct BitsWithIndex {
-  Bits bits;
-  int64_t index;
-
-  friend bool operator<(const BitsWithIndex& lhs, const BitsWithIndex& rhs) {
-    if (bits_ops::ULessThan(lhs.bits, rhs.bits)) {
-      return true;
-    }
-    if (bits_ops::UEqual(lhs.bits, rhs.bits)) {
-      return lhs.index < rhs.index;
-    }
-    return false;
-  }
-};
-
-// Given a set of `Bits` (all the same bit-width) and a desired size for that
-// set, reduce the number of elements in the set to the desired size by
-// computing a way to merge together small elements of the set. Returns a list
-// of ranges in the input vector that should be merged (i.e.: each range should
-// be compacted down to a single point by whatever processes the output of
-// this function).
-static std::vector<MergeInterval> ReduceByMerging(
-    absl::Span<Bits const> elements, int64_t desired_size) {
-  if (elements.size() <= desired_size) {
-    return {};
-  }
-
-  std::vector<BitsWithIndex> elements_with_index;
-
-  {
-    int64_t i = 0;
-    for (const Bits& element : elements) {
-      elements_with_index.push_back(BitsWithIndex{element, i});
-      ++i;
-    }
-  }
-
-  std::sort(elements_with_index.begin(), elements_with_index.end());
-
-  std::vector<int64_t> indexes_to_merge;
-  indexes_to_merge.reserve(elements.size() - desired_size);
-  for (int64_t i = 0; i < elements.size() - desired_size; ++i) {
-    indexes_to_merge.push_back(elements_with_index[i].index);
-  }
-  std::sort(indexes_to_merge.begin(), indexes_to_merge.end());
-
-  // Merge contiguous runs of indices into intervals
-  std::vector<MergeInterval> result;
-  for (int64_t i = 0; i < indexes_to_merge.size(); ++i) {
-    int64_t range_start = indexes_to_merge[i];
-    while (((i + 1) < indexes_to_merge.size()) &&
-           ((indexes_to_merge[i] + 1) == indexes_to_merge[i + 1])) {
-      ++i;
-    }
-    int64_t range_end = indexes_to_merge[i];
-    result.push_back({range_start, range_end});
-  }
-
-  return result;
-}
-
-IntervalSet MinimizeIntervals(IntervalSet intervals, int64_t size) {
-  intervals.Normalize();
-
-  if (intervals.NumberOfIntervals() <= 1) {
-    return intervals;
-  }
-
-  std::vector<Bits> gap_vector;
-  for (int64_t i = 0; i < intervals.NumberOfIntervals() - 1; ++i) {
-    const Bits& x = intervals.Intervals()[i].UpperBound();
-    const Bits& y = intervals.Intervals()[i + 1].LowerBound();
-    gap_vector.push_back(bits_ops::Sub(y, x));
-  }
-
-  std::vector<MergeInterval> merges = ReduceByMerging(gap_vector, size - 1);
-
-  IntervalSet result = intervals;
-
-  for (const auto& m : merges) {
-    Interval merged = intervals.Intervals()[m.start];
-    for (int64_t i = m.start; i <= m.end + 1; ++i) {
-      merged = Interval::ConvexHull(merged, intervals.Intervals()[i]);
-    }
-    result.AddInterval(merged);
-  }
-
-  result.Normalize();
-
-  return result;
-}
-
 absl::StatusOr<ReachedFixpoint> RangeQueryEngine::PopulateWithGivens(
     RangeDataProvider& givens) {
   RangeQueryVisitor visitor(this, givens);
@@ -479,7 +378,8 @@ absl::Status RangeQueryVisitor::HandleVariadicOp(
       // that have the smallest difference between convex hull size and size.
 
       // Limit exponential growth after 12 parameters. 5^12 = 244 million
-      interval_set = MinimizeIntervals(interval_set, (i < 12) ? 5 : 1);
+      interval_set =
+          interval_ops::MinimizeIntervals(interval_set, (i < 12) ? 5 : 1);
       operands.push_back(interval_set);
       ++i;
     }
@@ -544,7 +444,8 @@ absl::Status RangeQueryVisitor::HandleVariadicOp(
     return early_status;
   }
 
-  result_intervals = MinimizeIntervals(result_intervals);
+  result_intervals =
+      interval_ops::MinimizeIntervals(result_intervals, kDefaultIntervalSize);
 
   LeafTypeTree<IntervalSet> result(op->GetType());
   result.Set({}, result_intervals);
@@ -912,18 +813,18 @@ absl::Status RangeQueryVisitor::HandleLiteral(Literal* literal) {
   XLS_ASSIGN_OR_RETURN(
       LeafTypeTree<Value> v_ltt,
       ValueToLeafTypeTree(literal->value(), literal->GetType()));
-  SetIntervalSetTree(
-      literal, leaf_type_tree::Map<IntervalSet, Value>(
-                   v_ltt.AsView(), [](const Value& value) {
-                     IntervalSet interval_set(value.GetFlatBitCount());
-                     if (value.IsBits()) {
-                       return IntervalSet::Precise(value.bits());
-                     }
-                     if (value.IsToken()) {
-                       return IntervalSet::Precise(Bits(0));
-                     }
-                     LOG(FATAL) << "Invalid value kind in HandleLiteral";
-                   }));
+  SetIntervalSetTree(literal,
+                     leaf_type_tree::Map<IntervalSet, Value>(
+                         v_ltt.AsView(), [](const Value& value) {
+                           IntervalSet interval_set(value.GetFlatBitCount());
+                           if (value.IsBits()) {
+                             return IntervalSet::Precise(value.bits());
+                           }
+                           if (value.IsToken()) {
+                             return IntervalSet::Precise(Bits(0));
+                           }
+                           LOG(FATAL) << "Invalid value kind in HandleLiteral";
+                         }));
   return absl::OkStatus();
 }
 
@@ -1169,7 +1070,8 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
     }
   }
   for (IntervalSet& intervals : result.elements()) {
-    intervals = MinimizeIntervals(intervals);
+    intervals =
+        interval_ops::MinimizeIntervals(intervals, kDefaultIntervalSize);
   }
   SetIntervalSetTree(sel, result);
   return absl::OkStatus();
@@ -1331,7 +1233,8 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
         });
   }
   for (IntervalSet& intervals : result.elements()) {
-    intervals = MinimizeIntervals(intervals);
+    intervals =
+        interval_ops::MinimizeIntervals(intervals, kDefaultIntervalSize);
   }
   SetIntervalSetTree(sel, result);
   return absl::OkStatus();

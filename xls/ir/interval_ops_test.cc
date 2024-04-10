@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "gtest/gtest.h"
+#include "fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
@@ -177,6 +178,260 @@ TEST(IntervalOpsTest, FromTernarySegmentsExtended) {
   EXPECT_EQ(FromTernaryString("0b1X1_X1X0X", /*max_unknown_bits=*/0),
             FromRanges({{0b10000000, 0b11111111}}, 8));
 }
+
+TEST(MinimizeIntervalsTest, PrefersEarlyIntervals) {
+  // All 32 6-bit [0, 63] even numbers.
+  IntervalSet even_numbers =
+      FromTernaryString("0bXXXXX0", /*max_unknown_bits=*/5);
+
+  EXPECT_EQ(MinimizeIntervals(even_numbers, 1), FromRanges({{0, 62}}, 6));
+
+  EXPECT_EQ(MinimizeIntervals(even_numbers, 2),
+            FromRanges(
+                {
+                    // earlier entries are prefered.
+                    {62, 62},
+                    {0, 60},
+                },
+                6));
+
+  EXPECT_EQ(MinimizeIntervals(even_numbers, 4),
+            FromRanges(
+                {
+                    // earlier entries are prefered.
+                    {62, 62},
+                    {60, 60},
+                    {58, 58},
+                    {0, 56},
+                },
+                6));
+
+  // More than number of intervals
+  EXPECT_EQ(MinimizeIntervals(even_numbers, 40), even_numbers);
+
+  // exactly the number of intervals
+  EXPECT_EQ(MinimizeIntervals(even_numbers, 32), even_numbers);
+}
+
+TEST(MinimizeIntervalsTest, PrefersSmallerGaps) {
+  IntervalSet source_intervals =
+      // 0 - 255 range. 8 segments
+      FromRanges(
+          {
+              // 2 to the end.
+              {253, 253},
+              // 103 gap
+              {150, 150},
+              // 20 gap
+              {130, 130},
+              // 10 gap
+              {120, 120},
+              // 5 gap
+              {115, 115},
+              // 10 gap
+              {105, 105},
+              // 20 gap
+              {85, 85},
+              // 82 gap
+              {2, 2},
+              // 2 gap to 0
+          },
+          8);
+
+  ASSERT_EQ(source_intervals.NumberOfIntervals(), 8);
+
+  EXPECT_EQ(MinimizeIntervals(source_intervals, 7),
+            FromRanges(
+                {
+                    // 2 to the end.
+                    {253, 253},
+                    // 103 gap
+                    {150, 150},
+                    // 20 gap
+                    {130, 130},
+                    // 10 gap
+                    {115, 120},
+                    // 5 gap
+                    // {115, 115}, -- merged with above.
+                    // 10 gap
+                    {105, 105},
+                    // 20 gap
+                    {85, 85},
+                    // 82 gap
+                    {2, 2},
+                    // 2 gap to 0
+                },
+                8));
+
+  EXPECT_EQ(MinimizeIntervals(source_intervals, 6),
+            FromRanges(
+                {
+                    // 2 to the end.
+                    {253, 253},
+                    // 103 gap
+                    {150, 150},
+                    // 20 gap
+                    {130, 130},
+                    // 10 gap
+                    {105, 120},
+                    // 5 gap
+                    // {115, 115}, -- merged with above.
+                    // 10 gap
+                    // {105, 105}, -- merged with above.
+                    // 20 gap
+                    {85, 85},
+                    // 82 gap
+                    {2, 2},
+                    // 2 gap to 0
+                },
+                8));
+
+  EXPECT_EQ(MinimizeIntervals(source_intervals, 5),
+            FromRanges(
+                {
+                    // 2 to the end.
+                    {253, 253},
+                    // 103 gap
+                    {150, 150},
+                    // 20 gap
+                    {105, 130},
+                    // 10 gap
+                    // {120, 120}, -- merged with above
+                    // 5 gap
+                    // {115, 115}, -- merged with above.
+                    // 10 gap
+                    // {105, 105}, -- merged with above.
+                    // 20 gap
+                    {85, 85},
+                    // 82 gap
+                    {2, 2},
+                    // 2 gap to 0
+                },
+                8));
+}
+
+TEST(MinimizeIntervalsTest, MergeMultipleGroups) {
+  IntervalSet source_intervals = FromRanges(
+      {
+          {130, 138},
+          // 1 gap
+          {120, 128},
+          // 21 gap
+          {90, 98},
+          // 1 gap
+          {80, 88},
+          // 21 gap
+          {50, 58},
+          // 1 gap
+          {40, 48},
+          // 21 gap
+          {20, 28},
+          // 1 gap
+          {10, 18},
+      },
+      8);
+
+  ASSERT_EQ(source_intervals.NumberOfIntervals(), 8);
+
+  EXPECT_EQ(MinimizeIntervals(source_intervals, 7),
+            FromRanges(
+                {
+                    {130, 138},
+                    // 1 gap
+                    {120, 128},
+                    // 21 gap
+                    {90, 98},
+                    // 1 gap
+                    {80, 88},
+                    // 21 gap
+                    {50, 58},
+                    // 1 gap
+                    {40, 48},
+                    // 21 gap
+                    {10, 28},
+                    // 1 gap
+                    // {10, 18}, -- merge with above.
+                },
+                8));
+
+  EXPECT_EQ(MinimizeIntervals(source_intervals, 6),
+            FromRanges(
+                {
+                    {130, 138},
+                    // 1 gap
+                    {120, 128},
+                    // 21 gap
+                    {90, 98},
+                    // 1 gap
+                    {80, 88},
+                    // 21 gap
+                    {40, 58},
+                    // 1 gap
+                    // {40, 48}, -- merge with above.
+                    // 21 gap
+                    {10, 28},
+                    // 1 gap
+                    // {10, 18}, -- merge with above.
+                },
+                8));
+
+  EXPECT_EQ(MinimizeIntervals(source_intervals, 5),
+            FromRanges(
+                {
+                    {130, 138},
+                    // 1 gap
+                    {120, 128},
+                    // 21 gap
+                    {80, 98},
+                    // 1 gap
+                    // {80, 88}, -- merge with above.
+                    // 21 gap
+                    {40, 58},
+                    // 1 gap
+                    // {40, 48}, -- merge with above.
+                    // 21 gap
+                    {10, 28},
+                    // 1 gap
+                    // {10, 18}, -- merge with above.
+                },
+                8));
+
+  EXPECT_EQ(MinimizeIntervals(source_intervals, 4),
+            FromRanges(
+                {
+                    {120, 138},
+                    // 1 gap
+                    // {120, 128}, -- merge with above
+                    // 21 gap
+                    {80, 98},
+                    // 1 gap
+                    // {80, 88}, -- merge with above.
+                    // 21 gap
+                    {40, 58},
+                    // 1 gap
+                    // {40, 48}, -- merge with above.
+                    // 21 gap
+                    {10, 28},
+                    // 1 gap
+                    // {10, 18}, -- merge with above.
+                },
+                8));
+}
+
+void MinimizeIntervalsGeneratesSuperset(
+    const std::vector<std::pair<int64_t, int64_t>>& ranges,
+    int64_t requested_size) {
+  IntervalSet source = FromRanges(ranges, 64);
+  IntervalSet minimized = MinimizeIntervals(source, requested_size);
+
+  ASSERT_LE(minimized.NumberOfIntervals(), requested_size);
+  ASSERT_EQ(IntervalSet::Intersect(source, minimized), source);
+}
+FUZZ_TEST(MinimizeIntervalsTest, MinimizeIntervalsGeneratesSuperset)
+    .WithDomains(fuzztest::VectorOf<>(
+                     fuzztest::PairOf(fuzztest::NonNegative<int64_t>(),
+                                      fuzztest::NonNegative<int64_t>())),
+                 fuzztest::InRange<int64_t>(1, 256));
 
 }  // namespace
 }  // namespace xls::interval_ops
