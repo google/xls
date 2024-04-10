@@ -2834,6 +2834,9 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
   auto* struct_def =
       module_->Make<StructDef>(span, name_def, std::move(parametric_bindings),
                                std::move(members), is_public);
+
+  name_def->set_definer(struct_def);
+
   bindings.Add(name_def->identifier(), struct_def);
   return struct_def;
 }

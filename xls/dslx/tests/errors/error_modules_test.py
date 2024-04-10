@@ -1060,6 +1060,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_gh1373(self):
+    stderr = self._run('xls/dslx/tests/errors/gh1373.x')
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertIn(
+        'Cannot resolve `::` subject `X` -- subject must be a module or enum'
+        ' definition; subject is a struct',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

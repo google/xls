@@ -25,6 +25,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
@@ -250,9 +251,35 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
 
   const NameDef* name_def = std::get<const NameDef*>(any_name_def);
   AstNode* definer = name_def->definer();
+
+  auto make_subject_error = [&] {
+    // We don't know how to colon-reference into this subject, so we return an
+    // error.
+    std::string type_str;
+    if (definer != nullptr) {
+      type_str =
+          absl::StrFormat("; subject is a %s",
+                          absl::AsciiStrToLower(definer->GetNodeTypeName()));
+    }
+    return TypeInferenceErrorStatus(
+        name_ref->span(), nullptr,
+        absl::StrFormat("Cannot resolve `::` subject `%s` -- subject must be a "
+                        "module or enum definition%s",
+                        name_ref->ToString(), type_str));
+  };
+
+  if (definer == nullptr) {
+    return make_subject_error();
+  }
+
   VLOG(5) << " ResolveColonRefNameRefSubject definer: `" << definer->ToString()
           << "` type: " << definer->GetNodeTypeName();
 
+  // Now we have the AST node that defines the colon-ref subject -- we have to
+  // turn that appropriately into the `ColonRefSubjectT`.
+
+  // If the name is defined by an import statement we return the module that it
+  // imports as the subject.
   if (Import* import = dynamic_cast<Import*>(definer); import != nullptr) {
     std::optional<const ImportedInfo*> imported =
         type_info->GetImported(import);
@@ -263,7 +290,7 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
     return imported.value()->module;
   }
 
-  // If the LHS isn't an Import, then it has to be an EnumDef (possibly via a
+  // If the LHS isn't an Import, then it should be an EnumDef (possibly via a
   // TypeAlias).
   if (EnumDef* enum_def = dynamic_cast<EnumDef*>(definer);
       enum_def != nullptr) {
@@ -271,7 +298,10 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
   }
 
   TypeAlias* type_alias = dynamic_cast<TypeAlias*>(definer);
-  XLS_RET_CHECK(type_alias != nullptr);
+
+  if (type_alias == nullptr) {
+    return make_subject_error();
+  }
 
   if (type_alias->owner() != type_info->module()) {
     // We need to get the right type info for the enum's containing module. We

@@ -871,7 +871,7 @@ static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
   start = std::min(std::max(start, int64_t{0}), limit);
   XLS_RET_CHECK_GE(start, 0);
   XLS_RET_CHECK_GE(limit, start);
-  return StartAndWidth{start, limit - start};
+  return StartAndWidth{.start = start, .width = limit - start};
 }
 
 static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
