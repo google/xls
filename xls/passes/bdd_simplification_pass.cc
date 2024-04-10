@@ -16,8 +16,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
@@ -42,6 +44,8 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 
@@ -337,7 +341,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit, IsCheapForBdds);
+  std::vector<std::unique_ptr<QueryEngine>> query_engines;
+  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  query_engines.push_back(std::make_unique<BddQueryEngine>(
+      BddFunction::kDefaultPathLimit, IsCheapForBdds));
+
+  UnionQueryEngine query_engine(std::move(query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;

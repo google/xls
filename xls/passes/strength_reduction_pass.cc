@@ -18,6 +18,7 @@
 #include <array>
 #include <cstdint>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -46,7 +47,9 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
@@ -78,7 +81,7 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
 }
 
 absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
-    Node* node, const TernaryQueryEngine& query_engine, Select* select_val) {
+    Node* node, const QueryEngine& query_engine, Select* select_val) {
   if (OpIsSideEffecting(node->op())) {
     // Side-effecting operations are not always safe to duplicate so don't
     // bother.
@@ -141,7 +144,7 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
 // with an OR.
 absl::StatusOr<bool> StrengthReduceNode(
     Node* node, const absl::flat_hash_set<Node*>& reducible_adds,
-    const TernaryQueryEngine& query_engine, int64_t opt_level) {
+    const QueryEngine& query_engine, int64_t opt_level) {
   if (!std::all_of(node->operands().begin(), node->operands().end(),
                    [](Node* n) { return n->GetType()->IsBits(); }) ||
       !node->GetType()->IsBits()) {
@@ -149,13 +152,12 @@ absl::StatusOr<bool> StrengthReduceNode(
   }
 
   if (NarrowingEnabled(opt_level) && !node->Is<Literal>() &&
-      node->GetType()->IsBits() && query_engine.AllBitsKnown(node)) {
-    VLOG(2) << "Replacing node with its (entirely known) bits: " << node
-            << " as " << ToString(query_engine.GetTernary(node).Get({}));
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Literal>(
-                                Value(ternary_ops::ToKnownBitsValues(
-                                    query_engine.GetTernary(node).Get({}))))
-                            .status());
+      query_engine.IsFullyKnown(node)) {
+    VLOG(2) << "Replacing node with its (entirely known) value: " << node
+            << " as " << query_engine.KnownValue(node)->ToString();
+    XLS_RETURN_IF_ERROR(
+        node->ReplaceUsesWithNew<Literal>(*query_engine.KnownValue(node))
+            .status());
     return true;
   }
 
@@ -179,15 +181,10 @@ absl::StatusOr<bool> StrengthReduceNode(
     if (node->op() != Op::kAnd || node->operand_count() != 2) {
       return false;
     }
-    if (IsLiteralWithRunOfSetBits(node->operand(1), leading_zeros,
-                                  selected_bits, trailing_zeros)) {
-      return true;
-    }
-    if (query_engine.AllBitsKnown(node->operand(1)) &&
-        ternary_ops::ToKnownBitsValues(
-            query_engine.GetTernary(node->operand(1)).Get({}))
-            .HasSingleRunOfSetBits(leading_zeros, selected_bits,
-                                   trailing_zeros)) {
+    if (std::optional<Bits> mask =
+            query_engine.KnownValueAsBits(node->operand(1));
+        mask.has_value() && mask->HasSingleRunOfSetBits(
+                                leading_zeros, selected_bits, trailing_zeros)) {
       return true;
     }
     return false;
@@ -289,7 +286,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   // If we know the MSb of the operand is zero, strength reduce from signext to
   // zeroext.
   if (node->op() == Op::kSignExt && query_engine.IsMsbKnown(node->operand(0)) &&
-      static_cast<int>(query_engine.GetKnownMsb(node->operand(0))) == 0) {
+      query_engine.GetKnownMsb(node->operand(0)) == false) {
     XLS_RETURN_IF_ERROR(
         node->ReplaceUsesWithNew<ExtendOp>(node->operand(0),
                                            node->BitCountOrDie(), Op::kZeroExt)
@@ -523,7 +520,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   // If we have an operation where all operands except for one select are
   // known-constant and the select has a constant value in each of its cases we
   // can move the operation into the select in order to allow other
-  // narrowing/constant propogation passes to calculate the resulting value.
+  // narrowing/constant propagation passes to calculate the resulting value.
   //
   // v1 := Select(<variable>, [<const1>, <const2>])
   // v2 := Op(v1, <const3>)
@@ -533,7 +530,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   // v1_c1 := Op(<const1>, <const3>)
   // v1_c2 := Op(<const2>, <const3>)
   // v2 := Select(<variable>, [v1_c1, v1_c2])
-  if (query_engine.IsTracked(node) && !query_engine.IsFullyKnown(node)) {
+  if (!query_engine.IsFullyKnown(node)) {
     auto operands = node->operands();
     // Find a non-fully-known select
     auto is_select_with_known_branches_unknown_selector = [&](Node* n) {
@@ -562,13 +559,18 @@ absl::StatusOr<bool> StrengthReduceNode(
 absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  TernaryQueryEngine query_engine;
+  std::vector<std::unique_ptr<QueryEngine>> query_engines;
+  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+
+  UnionQueryEngine query_engine(std::move(query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
+
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,
                        FindReducibleAdds(f, query_engine));
   // Note: because we introduce new nodes into the graph that were not present
-  // for the original QueryEngine analysis, we must be careful to guard our
-  // bit value tests with "IsKnown" sorts of calls.
+  // for the original QueryEngine analysis, we may get less effective
+  // optimizations for these new nodes due to a lack of data.
   //
   // TODO(leary): 2019-09-05: We can eventually implement incremental
   // recomputation of the bit tracking data for newly introduced nodes so the

@@ -56,7 +56,9 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/token_provenance_analysis.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
@@ -971,7 +973,7 @@ class ProcThread {
   // proc thread. Received data must be saved to the proc state if the
   // side-effecting uses of the data may not necessarily be activated in the
   // same tick of the container proc state.
-  absl::Status MaybeSaveReceivedData(const BddQueryEngine& query_engine) {
+  absl::Status MaybeSaveReceivedData(const QueryEngine& query_engine) {
     // Determine which receive nodes (including virtual receive nodes) must save
     // their result as state. A receive must save its result as state if any
     // side-effecting users of the receive might not be activated in the same
@@ -1825,8 +1827,12 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
             node->Is<ExtendOp>() || node->Is<Concat>() ||
             node->Is<BitwiseReductionOp>() || node->Is<Literal>());
   };
-  BddQueryEngine query_engine(static_cast<int64_t>(16 * 1024),
-                              should_compute_with_bdds);
+  std::vector<std::unique_ptr<QueryEngine>> query_engines;
+  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  query_engines.push_back(std::make_unique<BddQueryEngine>(
+      static_cast<int64_t>(16 * 1024), should_compute_with_bdds));
+  UnionQueryEngine query_engine(std::move(query_engines));
+
   XLS_RETURN_IF_ERROR(query_engine.Populate(container_proc).status());
 
   for (ProcThread& proc_thread : proc_threads) {

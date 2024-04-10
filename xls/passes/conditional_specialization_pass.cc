@@ -49,6 +49,8 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
@@ -277,11 +279,10 @@ class ConditionMap {
 };
 
 // Returns the value for node logically implied by the given conditions if a
-// value can be implied. Returns abls::nullopt otherwise. `query_engine` can be
-// null in which case BDD's are not used in the implication analysis.
+// value can be implied. Returns std::nullopt otherwise.
 std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
                                      Node* node,
-                                     const QueryEngine* query_engine) {
+                                     const QueryEngine& query_engine) {
   for (const Condition& condition : condition_set.conditions()) {
     if (condition.node == node) {
       VLOG(4) << absl::StreamFormat("%s trivially implies %s==%d",
@@ -290,14 +291,11 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
       return UBits(condition.value, node->BitCountOrDie());
     }
   }
-  if (query_engine == nullptr) {
-    return std::nullopt;
-  }
 
   std::vector<std::pair<TreeBitLocation, bool>> predicates =
       condition_set.GetPredicates();
   std::optional<Bits> implied_value =
-      query_engine->ImpliedNodeValue(predicates, node);
+      query_engine.ImpliedNodeValue(predicates, node);
 
   if (implied_value.has_value()) {
     VLOG(4) << absl::StreamFormat("%s implies %s==%v", condition_set.ToString(),
@@ -322,12 +320,15 @@ Node* GetSelectedCase(Select* select, const Bits& selector_value) {
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  std::unique_ptr<BddQueryEngine> query_engine;
+  std::vector<std::unique_ptr<QueryEngine>> query_engines;
+  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
   if (use_bdd_) {
-    query_engine = std::make_unique<BddQueryEngine>(
-        BddFunction::kDefaultPathLimit, IsCheapForBdds);
-    XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
+    query_engines.push_back(std::make_unique<BddQueryEngine>(
+        BddFunction::kDefaultPathLimit, IsCheapForBdds));
   }
+
+  UnionQueryEngine query_engine(std::move(query_engines));
+  XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   ConditionMap condition_map(f);
 
@@ -395,15 +396,15 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     // computation of X that Y and Z are zero. Similar assumptions can be made
     // for other logical operations (NOR, NAD, NAND).
     //
-    // This can only be used when a query engine is *not* used because as soon
-    // as the graph is transformed the (BDD) query engine becomes stale. This is
+    // This can only be used when a (BDD) query engine is *not* used because as
+    // soon as the graph is transformed the query engine becomes stale. This is
     // not the case with the select-based transformations because of the mutual
     // exclusion of the assumed conditions.
     //
     // TODO(b/323003986): Incrementally update the BDD.
     if ((node->op() == Op::kOr || node->op() == Op::kNor ||
          node->op() == Op::kAnd || node->op() == Op::kNand) &&
-        node->BitCountOrDie() == 1 && query_engine == nullptr) {
+        node->BitCountOrDie() == 1 && !use_bdd_) {
       // The value you can assume other operands have in the computation of this
       // operand.
       int64_t assumed_operand_value =
@@ -488,7 +489,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       // First check to see if the condition set directly implies a value for
       // the operand. If so replace with the implied value.
       if (std::optional<Bits> implied_value =
-              ImpliedNodeValue(edge_set, operand, query_engine.get());
+              ImpliedNodeValue(edge_set, operand, query_engine);
           implied_value.has_value()) {
         VLOG(3) << absl::StreamFormat("Replacing operand %d of %s with %v",
                                       operand_no, node->GetName(),
@@ -528,8 +529,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           if (select->selector()->Is<Literal>()) {
             break;
           }
-          std::optional<Bits> implied_selector = ImpliedNodeValue(
-              edge_set, select->selector(), query_engine.get());
+          std::optional<Bits> implied_selector =
+              ImpliedNodeValue(edge_set, select->selector(), query_engine);
           if (!implied_selector.has_value()) {
             break;
           }

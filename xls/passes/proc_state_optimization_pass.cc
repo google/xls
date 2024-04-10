@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -53,7 +54,9 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
+#include "xls/passes/union_query_engine.h"
 
 namespace xls {
 namespace {
@@ -88,24 +91,6 @@ absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
   return true;
 }
 
-absl::StatusOr<std::optional<Value>> GetKnownValue(Node* node,
-                                                   QueryEngine& query_engine) {
-  LeafTypeTree<TernaryVector> value_tree = query_engine.GetTernary(node);
-  if (!absl::c_all_of(value_tree.elements(),
-                      [](const TernaryVector& ternary_vector) {
-                        return ternary_ops::IsFullyKnown(ternary_vector);
-                      })) {
-    // Value not fully known.
-    return std::nullopt;
-  }
-  LeafTypeTree<Value> value_ltt = leaf_type_tree::Map<Value, TernaryVector>(
-      value_tree.AsView(), [](const TernaryVector& ternary_vector) -> Value {
-        return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
-      });
-  XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_ltt.AsView()));
-  return value;
-}
-
 absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
                                                  QueryEngine& query_engine) {
   std::vector<int64_t> to_remove;
@@ -122,8 +107,8 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
         continue;
       }
 
-      XLS_ASSIGN_OR_RETURN(std::optional<Value> next_state_value,
-                           GetKnownValue(next_state, query_engine));
+      std::optional<Value> next_state_value =
+          query_engine.KnownValue(next_state);
       if (next_state_value.has_value() && *next_state_value == initial_value) {
         // We know the state never changes.
         to_remove.push_back(i);
@@ -136,8 +121,7 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
       if (next->value() == state_param) {
         continue;
       }
-      XLS_ASSIGN_OR_RETURN(std::optional<Value> next_value,
-                           GetKnownValue(next->value(), query_engine));
+      std::optional<Value> next_value = query_engine.KnownValue(next->value());
       if (!next_value.has_value() || *next_value != initial_value) {
         never_changes = false;
         break;
@@ -559,17 +543,23 @@ absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
                        RemoveZeroWidthStateElements(proc));
   changed = changed || zero_width_changed;
 
+  std::vector<std::unique_ptr<QueryEngine>> query_engines;
+  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+  UnionQueryEngine query_engine(std::move(query_engines));
+  XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
+
   // Run constant state-element removal to fixed point; should usually take just
   // one additional pass to verify, except for chains like next_s1 := s1,
   // next_s2 := f(s1), next_s3 := g(s1, s2), ..., etc., where the results all
   // match the state elements' initial values.
   bool constant_changed = false;
   do {
-    TernaryQueryEngine query_engine;
-    XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
-
     XLS_ASSIGN_OR_RETURN(constant_changed,
                          RemoveConstantStateElements(proc, query_engine));
+    if (constant_changed) {
+      XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
+    }
     changed = changed || constant_changed;
   } while (constant_changed);
 

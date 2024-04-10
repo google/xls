@@ -66,6 +66,7 @@
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
@@ -1727,6 +1728,7 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     }
 
     std::vector<std::unique_ptr<QueryEngine>> engines;
+    engines.push_back(std::make_unique<StatelessQueryEngine>());
     engines.push_back(std::move(ternary_query_engine));
     engines.push_back(std::move(range_query_engine));
     query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
@@ -1739,11 +1741,15 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     }
 
     std::vector<std::unique_ptr<QueryEngine>> engines;
+    engines.push_back(std::make_unique<StatelessQueryEngine>());
     engines.push_back(std::move(ternary_query_engine));
     engines.push_back(std::move(range_query_engine));
     query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
   } else {
-    query_engine = std::make_unique<TernaryQueryEngine>();
+    std::vector<std::unique_ptr<QueryEngine>> engines;
+    engines.push_back(std::make_unique<StatelessQueryEngine>());
+    engines.push_back(std::make_unique<TernaryQueryEngine>());
+    query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
   }
   XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
   return std::move(query_engine);
