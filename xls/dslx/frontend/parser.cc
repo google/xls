@@ -1615,7 +1615,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       default:
         LOG(FATAL) << "Inconsistent unary operation token kind.";
     }
-    Span span(start_pos, GetPos());
+    Span span(tok.span().start(), arg->span().limit());
     lhs = module_->Make<Unop>(span, unop_kind, arg);
   } else if (peek->IsTypeKeyword() ||
              (peek->kind() == TokenKind::kIdentifier &&

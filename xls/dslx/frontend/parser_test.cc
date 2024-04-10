@@ -969,7 +969,10 @@ TEST_F(ParserTest, LocalConstBinding) {
   EXPECT_EQ(definer, const_let);
 }
 
-TEST_F(ParserTest, ParenthesizedUnop) { RoundTripExpr("(!x)", {"x"}); }
+TEST_F(ParserTest, ParenthesizedUnop) {
+  Expr* e = RoundTripExpr("(!x)", {"x"});
+  EXPECT_EQ(e->span().ToString(), "test.x:1:2-1:4");
+}
 
 TEST_F(ParserTest, BitSliceOfCall) { RoundTripExpr("id(x)[0:8]", {"id", "x"}); }
 

@@ -1181,6 +1181,14 @@ struct Foo {
 )");
 }
 
+TEST_F(ModuleFmtTest, UnaryWithCommentGithub1372) {
+  Run(
+      R"(fn main(x: bool) -> bool {
+    !x  // Gotta negate it!
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, StructDefTwoParametrics) {
   const std::string_view kProgram =
       "pub struct Point<M: u32, N: u32> { x: bits[M], y: bits[N] }\n";
