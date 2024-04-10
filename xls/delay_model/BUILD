@@ -128,6 +128,7 @@ cc_library(
     deps = [
         ":delay_estimator",
         "//xls/common/status:status_macros",
+        "//xls/fdo:synthesizer",
         "//xls/ir",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",

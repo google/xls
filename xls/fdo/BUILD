@@ -58,6 +58,45 @@ cc_test(
 )
 
 cc_library(
+    name = "synthesized_delay_diff_utils",
+    srcs = ["synthesized_delay_diff_utils.cc"],
+    hdrs = ["synthesized_delay_diff_utils.h"],
+    deps = [
+        ":synthesizer",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:analyze_critical_path",
+        "//xls/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/scheduling:extract_stage",
+        "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
+cc_test(
+    name = "synthesized_delay_diff_utils_test",
+    srcs = ["synthesized_delay_diff_utils_test.cc"],
+    deps = [
+        ":synthesized_delay_diff_utils",
+        ":synthesizer",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/delay_model:analyze_critical_path",
+        "//xls/ir",
+        "//xls/ir:ir_test_base",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
+    ],
+)
+
+cc_library(
     name = "synthesizer",
     srcs = ["synthesizer.cc"],
     hdrs = ["synthesizer.h"],
