@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
@@ -200,9 +201,8 @@ static absl::Status LogInterpreterEvents(std::string_view entity_name,
 
 static absl::Status EvaluateProcs(
     Package* package, bool use_jit, const std::vector<int64_t>& ticks,
-    const absl::flat_hash_map<std::string, std::vector<Value>>&
-        inputs_for_channels,
-    absl::flat_hash_map<std::string, std::vector<Value>>&
+    const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
+    absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels) {
   std::unique_ptr<SerialProcRuntime> runtime;
   if (use_jit) {
@@ -322,6 +322,7 @@ static absl::Status EvaluateProcs(
   }
 
   bool checked_any_output = false;
+  std::vector<std::string> errors;
   for (const auto& [channel_name, values] : expected_outputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
                          queue_manager.GetQueueByName(channel_name));
@@ -329,24 +330,29 @@ static absl::Status EvaluateProcs(
     for (const Value& value : values) {
       std::optional<Value> out_val = out_queue->Read();
       if (!out_val.has_value()) {
-        return absl::UnknownError(absl::StrFormat(
+        errors.push_back(absl::StrFormat(
             "Channel %s didn't consume %d expected values (processed %d)",
             channel_name, values.size() - processed_count, processed_count));
+        break;
       }
       if (value != *out_val) {
-        XLS_RET_CHECK_EQ(value, *out_val) << absl::StreamFormat(
+        errors.push_back(absl::StrFormat(
             "Mismatched (channel=%s) after %d outputs (%s != %s)", channel_name,
-            processed_count, value.ToString(), out_val->ToString());
-      } else {
-        if (absl::GetFlag(FLAGS_show_trace)) {
-          LOG(INFO) << absl::StreamFormat(
-              "Matched (channel=%s) after %d outputs", channel_name,
-              processed_count);
-        }
+            processed_count, value.ToString(), out_val->ToString()));
+        break;
+      }
+      if (absl::GetFlag(FLAGS_show_trace)) {
+        LOG(INFO) << absl::StreamFormat("Matched (channel=%s) after %d outputs",
+                                        channel_name, processed_count);
       }
       checked_any_output = true;
       ++processed_count;
     }
+  }
+  if (!errors.empty()) {
+    return absl::UnknownError(
+        absl::StrFormat("Outputs did not match expectations:\n\n%s",
+                        absl::StrJoin(errors, "\n")));
   }
 
   if (!checked_any_output && !expected_outputs_for_channels.empty()) {
@@ -390,9 +396,8 @@ struct ChannelInfo {
 static absl::StatusOr<absl::flat_hash_map<std::string, ChannelInfo>>
 InterpretBlockSignature(
     Block* block, const verilog::ModuleSignatureProto& signature,
-    const absl::flat_hash_map<std::string, std::vector<Value>>&
-        inputs_for_channels,
-    const absl::flat_hash_map<std::string, std::vector<Value>>&
+    const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
+    const absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels,
     const absl::flat_hash_map<std::string, std::pair<int64_t, Value>>&
         model_memories,
@@ -621,8 +626,8 @@ static absl::Status RunBlock(
     const std::vector<int64_t>& ticks,
     const verilog::ModuleSignatureProto& signature,
     const int64_t max_cycles_no_output,
-    absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
-    absl::flat_hash_map<std::string, std::vector<Value>>
+    const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
+    absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels,
     const absl::flat_hash_map<std::string, std::pair<int64_t, Value>>&
         model_memories_param,
@@ -797,6 +802,7 @@ static absl::Status RunBlock(
       }
     }
 
+    std::vector<std::string> errors;
     for (const auto& [name, _] : expected_outputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
 
@@ -807,10 +813,11 @@ static absl::Status RunBlock(
 
       if (rdy_value && vld_value) {
         if (queue.empty()) {
-          return absl::OutOfRangeError(
+          errors.push_back(
               absl::StrFormat("Block wrote past the end of the expected values "
-                              "list for channel %s",
-                              name));
+                              "list for channel %s: %s",
+                              name, outputs.at(info.channel_data).ToString()));
+          continue;
         }
         const Value& data_value = outputs.at(info.channel_data);
         const Value& match_value = queue.front();
@@ -819,15 +826,21 @@ static absl::Status RunBlock(
                     << data_value << ", remaining " << queue.size();
         }
         if (match_value != data_value) {
-          return absl::UnknownError(absl::StrFormat(
+          errors.push_back(absl::StrFormat(
               "Output mismatched for channel %s: expected %s, block outputted "
               "%s",
               name, match_value.ToString(), data_value.ToString()));
+          continue;
         }
         ++matched_outputs;
         queue.pop();
         last_output_cycle = cycle;
       }
+    }
+    if (!errors.empty()) {
+      return absl::UnknownError(absl::StrFormat(
+          "Outputs did not match expectations after cycle %d:\n\n%s", cycle,
+          absl::StrJoin(errors, "\n")));
     }
 
     // Memory model outputs
@@ -867,21 +880,20 @@ static absl::Status RunBlock(
       }
     }
 
-    bool all_queues_empty = true;
-
-    for (const auto& [name, queue] : channel_value_queues) {
+    bool all_output_queues_empty = true;
+    for (const auto& [name, _] : expected_outputs_for_channels) {
       // Ignore single value channels in this check
       const ChannelInfo& info = channel_info.at(name);
       if (info.ready_valid == 0) {
         continue;
       }
 
+      const auto& queue = channel_value_queues.at(name);
       if (!queue.empty()) {
-        all_queues_empty = false;
+        all_output_queues_empty = false;
       }
     }
-
-    if (all_queues_empty) {
+    if (all_output_queues_empty) {
       break;
     }
 
@@ -947,14 +959,14 @@ absl::StatusOr<absl::flat_hash_map<
   return ret;
 }
 
-static absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+static absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 GetValuesForEachChannels(
     absl::Span<const std::string> filenames_for_each_channel,
     const int64_t total_ticks) {
   absl::flat_hash_map<std::string, std::string> channel_filenames;
   XLS_ASSIGN_OR_RETURN(channel_filenames,
                        ParseChannelFilenames(filenames_for_each_channel));
-  absl::flat_hash_map<std::string, std::vector<Value>> values_for_channels;
+  absl::btree_map<std::string, std::vector<Value>> values_for_channels;
 
   for (const auto& [channel_name, filename] : channel_filenames) {
     XLS_ASSIGN_OR_RETURN(std::vector<Value> values,
@@ -992,7 +1004,7 @@ static absl::Status RealMain(
   const int64_t total_ticks =
       std::accumulate(ticks.begin(), ticks.end(), static_cast<int64_t>(0));
 
-  absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels;
+  absl::btree_map<std::string, std::vector<Value>> inputs_for_channels;
   if (!inputs_for_channels_text.empty()) {
     XLS_ASSIGN_OR_RETURN(
         inputs_for_channels,
@@ -1007,7 +1019,7 @@ static absl::Status RealMain(
                              proto_inputs_for_all_channels, total_ticks));
   }
 
-  absl::flat_hash_map<std::string, std::vector<Value>>
+  absl::btree_map<std::string, std::vector<Value>>
       expected_outputs_for_channels;
   if (!expected_outputs_for_channels_text.empty()) {
     XLS_ASSIGN_OR_RETURN(expected_outputs_for_channels,
@@ -1102,7 +1114,7 @@ int main(int argc, char* argv[]) {
   std::vector<int64_t> ticks;
   for (const std::string& run_str : absl::GetFlag(FLAGS_ticks)) {
     int ticks_int;
-    if (!absl::SimpleAtoi(run_str.c_str(), &ticks_int)) {
+    if (!absl::SimpleAtoi(run_str, &ticks_int)) {
       LOG(QFATAL) << "Couldn't parse run description in --ticks: " << run_str;
     }
     ticks.push_back(ticks_int);

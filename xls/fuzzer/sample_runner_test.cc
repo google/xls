@@ -25,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -823,7 +824,8 @@ TEST_F(SampleRunnerTest, MiscompareNumberOfChannels) {
            [](const std::vector<std::string>&, const std::filesystem::path&,
               const SampleOptions&) -> absl::StatusOr<std::string> {
         return ChannelValuesToString(
-            {{"sample__result", {}}, {"extra_channel_name", {}}});
+            absl::flat_hash_map<std::string, std::vector<Value>>(
+                {{"sample__result", {}}, {"extra_channel_name", {}}}));
       }});
   SampleOptions options;
   options.set_ir_converter_args({"--top=main"});
@@ -851,7 +853,9 @@ TEST_F(SampleRunnerTest, MiscompareChannelNames) {
       {.eval_proc_main =
            [](const std::vector<std::string>&, const std::filesystem::path&,
               const SampleOptions&) -> absl::StatusOr<std::string> {
-        return ChannelValuesToString({{"sample__enable_counter", {}}});
+        return ChannelValuesToString(
+            absl::flat_hash_map<std::string, std::vector<Value>>(
+                {{"sample__enable_counter", {}}}));
       }});
   SampleOptions options;
   options.set_ir_converter_args({"--top=main"});
@@ -881,7 +885,8 @@ TEST_F(SampleRunnerTest, MiscompareMissingChannel) {
       {.eval_proc_main =
            [](const std::vector<std::string>&, const std::filesystem::path&,
               const SampleOptions&) -> absl::StatusOr<std::string> {
-        return ChannelValuesToString({});
+        return ChannelValuesToString(
+            absl::flat_hash_map<std::string, std::vector<Value>>({}));
       }});
   SampleOptions options;
   options.set_ir_converter_args({"--top=main"});
@@ -918,7 +923,9 @@ TEST_F(SampleRunnerTest, MiscompareNumberOfChannelValues) {
            [value](const std::vector<std::string>&,
                    const std::filesystem::path&,
                    const SampleOptions&) -> absl::StatusOr<std::string> {
-        return ChannelValuesToString({{"sample__result", {value}}});
+        return ChannelValuesToString(
+            absl::flat_hash_map<std::string, std::vector<Value>>(
+                {{"sample__result", {value}}}));
       }});
   SampleOptions options;
   options.set_ir_converter_args({"--top=main"});
@@ -957,7 +964,8 @@ TEST_F(SampleRunnerTest, MiscompareChannelValues) {
                const std::vector<std::string>&, const std::filesystem::path&,
                const SampleOptions&) -> absl::StatusOr<std::string> {
         return ChannelValuesToString(
-            {{"sample__result", {correct_value, incorrect_value}}});
+            absl::flat_hash_map<std::string, std::vector<Value>>(
+                {{"sample__result", {correct_value, incorrect_value}}}));
       }});
   SampleOptions options;
   options.set_ir_converter_args({"--top=main"});

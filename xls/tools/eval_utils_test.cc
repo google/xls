@@ -20,7 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/btree_map.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"
@@ -125,7 +125,7 @@ TEST(EvalHelpersTest, ChannelValuesToProto) {
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto, &expected));
   // NB 0x41 is 'A'.
   // NB Little endian so low bytes appear first.
-  absl::flat_hash_map<std::string, std::vector<Value>> input{
+  absl::btree_map<std::string, std::vector<Value>> input{
       {"foo",
        {Value(UBits(0x434241, 24)), Value(UBits(0x4847464544434241, 64)),
         Value::Tuple(

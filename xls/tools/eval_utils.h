@@ -15,13 +15,17 @@
 #ifndef XLS_TOOLS_EVAL_UTILS_H_
 #define XLS_TOOLS_EVAL_UTILS_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/btree_map.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
+#include "xls/common/indent.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/value.h"
 #include "xls/tools/proc_channel_values.pb.h"
 
@@ -54,9 +58,18 @@ absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
 // .
 // The function translate the channels-to-values map to a human readable string.
 // It is the reverse translation of the xls::ParseChannelValues function.
-std::string ChannelValuesToString(
-    const absl::flat_hash_map<std::string, std::vector<Value>>&
-        channel_to_values);
+template <typename T>
+std::string ChannelValuesToString(const T& channel_to_values) {
+  std::vector<std::string> lines;
+  for (const auto& [channel_name, values] : channel_to_values) {
+    lines.push_back(absl::StrCat(channel_name, " : {"));
+    for (const Value& value : values) {
+      lines.push_back(Indent(value.ToString(FormatPreference::kHex)));
+    }
+    lines.push_back("}");
+  }
+  return absl::StrJoin(lines, "\n");
+}
 
 // Returns a channels-to-values map derived from the input string. For example,
 // given the string:
@@ -80,7 +93,7 @@ std::string ChannelValuesToString(
 // The max_values_count denotes the maximum number of values for a channel.
 // The function translate the human readable string to a channels-to-values map.
 // It is the reverse translation of the xls::ChannelValuesToString function.
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValues(
     std::string_view all_channel_values,
     std::optional<const int64_t> max_values_count = std::nullopt);
@@ -89,7 +102,7 @@ ParseChannelValues(
 // of the file. The max_values_count denotes the maximum number of values for a
 // channel. The function invokes xls::ParseChannelValues, see
 // xls::ParseChannelValues for more detail.
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromFile(
     std::string_view filename_with_all_channel,
     std::optional<const int64_t> max_values_count = std::nullopt);
@@ -98,7 +111,7 @@ ParseChannelValuesFromFile(
 // of the proto. The max_values_count denotes the maximum number of values for a
 // channel. If more values then 'max_values_count' are included the extra are
 // ignored.
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromProto(
     const ProcChannelValuesProto& values,
     std::optional<const int64_t> max_values_count = std::nullopt);
@@ -107,7 +120,7 @@ ParseChannelValuesFromProto(
 // of the proto. The max_values_count denotes the maximum number of values for a
 // channel. If more values then 'max_values_count' are included the extra are
 // ignored.
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromProtoFile(
     std::string_view filename_with_all_channel,
     std::optional<const int64_t> max_values_count = std::nullopt);
@@ -115,7 +128,7 @@ ParseChannelValuesFromProtoFile(
 // Convert a map of channel-name -> channel values into a ProcChannelValuesProto
 // proto. This is the inverse of ParseChannelValuesFromProto.
 absl::StatusOr<ProcChannelValuesProto> ChannelValuesToProto(
-    const absl::flat_hash_map<std::string, std::vector<Value>>& channel_map);
+    const absl::btree_map<std::string, std::vector<Value>>& channel_map);
 
 }  // namespace xls
 

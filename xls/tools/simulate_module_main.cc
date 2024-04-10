@@ -14,12 +14,15 @@
 
 #include <filesystem>  // NOLINT
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
@@ -235,7 +238,7 @@ int main(int argc, char** argv) {
     absl::StatusOr<std::string> channel_values_file_contents =
         xls::GetFileContents(absl::GetFlag(FLAGS_channel_values_file));
     QCHECK_OK(channel_values_file_contents.status());
-    absl::StatusOr<absl::flat_hash_map<std::string, std::vector<xls::Value>>>
+    absl::StatusOr<absl::btree_map<std::string, std::vector<xls::Value>>>
         channel_values_or =
             xls::ParseChannelValues(channel_values_file_contents.value());
     QCHECK_OK(channel_values_or.status());
@@ -253,7 +256,12 @@ int main(int argc, char** argv) {
           output_channel_count, split[1]);
       output_channel_counts[split[0]] = count;
     }
-    input = xls::ProcInput{channel_values_or.value(), output_channel_counts};
+    absl::flat_hash_map<std::string, std::vector<xls::Value>> channel_values;
+    channel_values.reserve(channel_values_or->size());
+    absl::c_move(*std::move(channel_values_or),
+                 std::inserter(channel_values, channel_values.end()));
+    input = xls::ProcInput{.channel_inputs = channel_values,
+                           .output_channel_counts = output_channel_counts};
   }
 
   QCHECK(!absl::GetFlag(FLAGS_signature_file).empty())

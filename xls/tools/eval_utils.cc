@@ -23,19 +23,15 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/btree_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_value.pb.h"
@@ -68,28 +64,14 @@ absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
   return ret;
 }
 
-std::string ChannelValuesToString(
-    const absl::flat_hash_map<std::string, std::vector<Value>>&
-        channel_to_values) {
-  std::vector<std::string> lines;
-  for (const auto& [channel_name, values] : channel_to_values) {
-    lines.push_back(absl::StrCat(channel_name, " : {"));
-    for (const Value& value : values) {
-      lines.push_back(Indent(value.ToString(FormatPreference::kHex)));
-    }
-    lines.push_back("}");
-  }
-  return absl::StrJoin(lines, "\n");
-}
-
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValues(std::string_view all_channel_values,
                    std::optional<const int64_t> max_values_count) {
   enum ParseState {
     kExpectStartOfChannel = 0,
     kParsingChannel,
   };
-  absl::flat_hash_map<std::string, std::vector<Value>> channel_to_values;
+  absl::btree_map<std::string, std::vector<Value>> channel_to_values;
   ParseState state = kExpectStartOfChannel;
   std::string channel_name;
   std::vector<Value> channel_values;
@@ -143,7 +125,7 @@ ParseChannelValues(std::string_view all_channel_values,
   return channel_to_values;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromFile(std::string_view filename_with_all_channel,
                            std::optional<const int64_t> max_values_count) {
   XLS_ASSIGN_OR_RETURN(std::string content,
@@ -151,11 +133,10 @@ ParseChannelValuesFromFile(std::string_view filename_with_all_channel,
   return ParseChannelValues(content, max_values_count);
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromProto(const ProcChannelValuesProto& values,
                             std::optional<const int64_t> max_values_count) {
-  absl::flat_hash_map<std::string, std::vector<Value>> results;
-  results.reserve(values.channels_size());
+  absl::btree_map<std::string, std::vector<Value>> results;
   for (const ProcChannelValuesProto::Channel& c : values.channels()) {
     std::vector<Value>& channel_vec = results[c.name()];
     channel_vec.reserve(c.entry_size());
@@ -171,7 +152,7 @@ ParseChannelValuesFromProto(const ProcChannelValuesProto& values,
   return results;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromProtoFile(std::string_view filename_with_all_channel,
                                 std::optional<const int64_t> max_values_count) {
   ProcChannelValuesProto pcv;
@@ -182,9 +163,9 @@ ParseChannelValuesFromProtoFile(std::string_view filename_with_all_channel,
 }
 
 absl::StatusOr<ProcChannelValuesProto> ChannelValuesToProto(
-    const absl::flat_hash_map<std::string, std::vector<Value>>& channel_map) {
+    const absl::btree_map<std::string, std::vector<Value>>& channel_map) {
   ProcChannelValuesProto pcv;
-  using ChannelMap = absl::flat_hash_map<std::string, std::vector<Value>>;
+  using ChannelMap = absl::btree_map<std::string, std::vector<Value>>;
   std::vector<ChannelMap::const_pointer> sorted;
   sorted.reserve(channel_map.size());
   absl::c_transform(channel_map, std::back_inserter(sorted),

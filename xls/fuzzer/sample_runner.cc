@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
@@ -704,10 +705,16 @@ EvaluateIrProc(const std::filesystem::path& ir_path, int64_t tick_count,
                        RunCommand(desc, *command, args, run_dir, options));
   XLS_RETURN_IF_ERROR(SetFileContents(
       absl::StrCat(ir_path.string(), ".results"), results_text));
-  absl::flat_hash_map<std::string, std::vector<Value>> ir_channel_values;
+  absl::btree_map<std::string, std::vector<Value>> ir_channel_values;
   XLS_ASSIGN_OR_RETURN(ir_channel_values,
                        ParseChannelValues(results_text, tick_count));
-  return ir_channel_values;
+  absl::flat_hash_map<std::string, std::vector<xls::Value>>
+      unordered_ir_channel_values;
+  unordered_ir_channel_values.reserve(ir_channel_values.size());
+  absl::c_move(std::move(ir_channel_values),
+               std::inserter(unordered_ir_channel_values,
+                             unordered_ir_channel_values.end()));
+  return unordered_ir_channel_values;
 }
 
 // Returns a output-channel-count map from an output-channel-values map.
@@ -776,7 +783,15 @@ SimulateProc(const std::filesystem::path& verilog_path,
   XLS_RETURN_IF_ERROR(SetFileContents(
       absl::StrCat(verilog_path.string(), ".results"), results_text));
 
-  return ParseChannelValues(results_text);
+  absl::btree_map<std::string, std::vector<Value>> channel_values;
+  XLS_ASSIGN_OR_RETURN(channel_values, ParseChannelValues(results_text));
+  absl::flat_hash_map<std::string, std::vector<xls::Value>>
+      unordered_channel_values;
+  unordered_channel_values.reserve(channel_values.size());
+  absl::c_move(
+      std::move(channel_values),
+      std::inserter(unordered_channel_values, unordered_channel_values.end()));
+  return unordered_channel_values;
 }
 
 }  // namespace
