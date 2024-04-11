@@ -56,13 +56,6 @@ absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type, DeduceCtx* ctx);
 absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
                                                        DeduceCtx* ctx);
 
-// Decorates parametric binding AST nodes with their deduced types.
-//
-// This is used externally in things like parametric instantiation of DSLX
-// builtins like the higher order function "map".
-absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
-    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx);
-
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_H_

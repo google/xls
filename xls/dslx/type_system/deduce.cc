@@ -27,8 +27,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
-#include "absl/base/nullability.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -61,20 +59,17 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/ast_env.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_enum_def.h"
 #include "xls/dslx/type_system/deduce_expr.h"
 #include "xls/dslx/type_system/deduce_invocation.h"
 #include "xls/dslx/type_system/deduce_spawn.h"
 #include "xls/dslx/type_system/deduce_struct_def.h"
+#include "xls/dslx/type_system/deduce_struct_instance.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
-#include "xls/dslx/type_system/parametric_instantiator.h"
-#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
-#include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/warning_kind.h"
@@ -1339,314 +1334,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
   return std::move(arm_types[0]);
 }
 
-struct ValidatedStructMembers {
-  // Names seen in the struct instance; e.g. for a SplatStructInstance can be a
-  // subset of the struct member names.
-  //
-  // Note: we use a btree set so we can do set differencing via c_set_difference
-  // (which works on ordered sets).
-  absl::btree_set<std::string> seen_names;
-
-  std::vector<InstantiateArg> args;
-  std::vector<std::unique_ptr<Type>> member_types;
-};
-
-// Validates a struct instantiation is a subset of 'members' with no dups.
-//
-// Args:
-//  members: Sequence of members used in instantiation. Note this may be a
-//    subset; e.g. in the case of splat instantiation.
-//  struct_type: The deduced type for the struct (instantiation).
-//  struct_text: Display name to use for the struct in case of an error.
-//  ctx: Wrapper containing node to type mapping context.
-//
-// Returns:
-//  A tuple containing:
-//  * The set of struct member names that were instantiated
-//  * The Types of the provided arguments
-//  * The Types of the corresponding struct member definition.
-static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
-    absl::Span<const std::pair<std::string, Expr*>> members,
-    const StructType& struct_type, std::string_view struct_text,
-    DeduceCtx* ctx) {
-  ValidatedStructMembers result;
-  for (auto& [name, expr] : members) {
-    if (!result.seen_names.insert(name).second) {
-      return TypeInferenceErrorStatus(
-          expr->span(), nullptr,
-          absl::StrFormat(
-              "Duplicate value seen for '%s' in this '%s' struct instance.",
-              name, struct_text));
-    }
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> expr_type,
-                         DeduceAndResolve(expr, ctx));
-    XLS_RET_CHECK(!expr_type->IsMeta())
-        << "name: " << name << " expr: " << expr->ToString()
-        << " type: " << expr_type->ToString();
-
-    result.args.push_back(InstantiateArg{std::move(expr_type), expr->span()});
-    std::optional<const Type*> maybe_type =
-        struct_type.GetMemberTypeByName(name);
-
-    if (maybe_type.has_value()) {
-      XLS_RET_CHECK(!maybe_type.value()->IsMeta())
-          << maybe_type.value()->ToString();
-      result.member_types.push_back(maybe_type.value()->CloneToUnique());
-    } else {
-      return TypeInferenceErrorStatus(
-          expr->span(), nullptr,
-          absl::StrFormat("Struct '%s' has no member '%s', but it was provided "
-                          "by this instance.",
-                          struct_text, name));
-    }
-  }
-
-  return result;
-}
-
-// Dereferences the "original" struct reference to a struct definition or
-// returns an error.
-//
-// Args:
-//  span: The span of the original construct trying to dereference the struct
-//    (e.g. a StructInstance).
-//  original: The original struct reference value (used in error reporting).
-//  current: The current type definition being dereferenced towards a struct
-//    definition (note there can be multiple levels of typedefs and such).
-//  type_info: The type information that the "current" TypeDefinition resolves
-//    against.
-static absl::StatusOr<StructDef*> DerefToStruct(
-    const Span& span, std::string_view original_ref_text,
-    TypeDefinition current, TypeInfo* type_info) {
-  while (true) {
-    if (std::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
-      return std::get<StructDef*>(current);
-    }
-    if (std::holds_alternative<TypeAlias*>(current)) {
-      auto* type_alias = std::get<TypeAlias*>(current);
-      TypeAnnotation* annotation = type_alias->type_annotation();
-      TypeRefTypeAnnotation* type_ref =
-          dynamic_cast<TypeRefTypeAnnotation*>(annotation);
-      if (type_ref == nullptr) {
-        return TypeInferenceErrorStatus(
-            span, nullptr,
-            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
-                            original_ref_text, annotation->ToString(),
-                            annotation->span().ToString()));
-      }
-      current = type_ref->type_ref()->type_definition();
-      continue;
-    }
-    if (std::holds_alternative<ColonRef*>(current)) {
-      auto* colon_ref = std::get<ColonRef*>(current);
-      // Colon ref has to be dereferenced, may be a module reference.
-      ColonRef::Subject subject = colon_ref->subject();
-      // TODO(leary): 2020-12-12 Original logic was this way, but we should be
-      // able to violate this assertion.
-      XLS_RET_CHECK(std::holds_alternative<NameRef*>(subject));
-      auto* name_ref = std::get<NameRef*>(subject);
-      AnyNameDef any_name_def = name_ref->name_def();
-      XLS_RET_CHECK(std::holds_alternative<const NameDef*>(any_name_def));
-      const NameDef* name_def = std::get<const NameDef*>(any_name_def);
-      AstNode* definer = name_def->definer();
-      auto* import = dynamic_cast<Import*>(definer);
-      if (import == nullptr) {
-        return TypeInferenceErrorStatus(
-            span, nullptr,
-            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
-                            original_ref_text, name_ref->ToString(),
-                            name_ref->span().ToString()));
-      }
-      std::optional<const ImportedInfo*> imported =
-          type_info->GetImported(import);
-      XLS_RET_CHECK(imported.has_value());
-      Module* module = imported.value()->module;
-      XLS_ASSIGN_OR_RETURN(current,
-                           module->GetTypeDefinition(colon_ref->attr()));
-      return DerefToStruct(span, original_ref_text, current,
-                           imported.value()->type_info);
-    }
-    XLS_RET_CHECK(std::holds_alternative<EnumDef*>(current));
-    auto* enum_def = std::get<EnumDef*>(current);
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat("Expected struct reference, but found enum: %s",
-                        enum_def->identifier()));
-  }
-}
-
-// Wrapper around the DerefToStruct above (that works on TypeDefinitions) that
-// takes a `TypeAnnotation` instead.
-static absl::StatusOr<StructDef*> DerefToStruct(
-    const Span& span, std::string_view original_ref_text,
-    TypeAnnotation* type_annotation, TypeInfo* type_info) {
-  auto* type_ref_type_annotation =
-      dynamic_cast<TypeRefTypeAnnotation*>(type_annotation);
-  if (type_ref_type_annotation == nullptr) {
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat("Could not resolve struct from %s (%s) @ %s",
-                        type_annotation->ToString(),
-                        type_annotation->GetNodeTypeName(),
-                        type_annotation->span().ToString()));
-  }
-
-  return DerefToStruct(span, original_ref_text,
-                       type_ref_type_annotation->type_ref()->type_definition(),
-                       type_info);
-}
-
-absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
-    const StructInstance* node, DeduceCtx* ctx) {
-  VLOG(5) << "Deducing type for struct instance: " << node->ToString();
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                       ctx->Deduce(ToAstNode(node->struct_ref())));
-  XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(std::move(type), node->span(),
-                                            "struct instance type"));
-
-  auto* struct_type = dynamic_cast<const StructType*>(type.get());
-  if (struct_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), struct_type,
-        "Expected a struct definition to instantiate");
-  }
-
-  // Note what names we expect to be present.
-  XLS_ASSIGN_OR_RETURN(std::vector<std::string> names,
-                       struct_type->GetMemberNames());
-  absl::btree_set<std::string> expected_names(names.begin(), names.end());
-
-  XLS_ASSIGN_OR_RETURN(
-      ValidatedStructMembers validated,
-      ValidateStructMembersSubset(node->GetUnorderedMembers(), *struct_type,
-                                  node->struct_ref()->ToString(), ctx));
-  if (validated.seen_names != expected_names) {
-    absl::btree_set<std::string> missing_set;
-    absl::c_set_difference(expected_names, validated.seen_names,
-                           std::inserter(missing_set, missing_set.begin()));
-    std::vector<std::string> missing(missing_set.begin(), missing_set.end());
-    std::sort(missing.begin(), missing.end());
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrFormat(
-            "Struct instance is missing member(s): %s",
-            absl::StrJoin(missing, ", ",
-                          [](std::string* out, const std::string& piece) {
-                            absl::StrAppendFormat(out, "'%s'", piece);
-                          })));
-  }
-
-  TypeAnnotation* struct_ref = node->struct_ref();
-  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
-                       DerefToStruct(node->span(), struct_ref->ToString(),
-                                     struct_ref, ctx->type_info()));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<ParametricWithType> typed_parametrics,
-      ParametricBindingsToTyped(struct_def->parametric_bindings(), ctx));
-  XLS_ASSIGN_OR_RETURN(
-      TypeAndParametricEnv tab,
-      InstantiateStruct(node->span(), *struct_type, validated.args,
-                        validated.member_types, ctx, typed_parametrics,
-                        struct_def->parametric_bindings()));
-
-  return std::move(tab.type);
-}
-
-absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
-    const SplatStructInstance* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> struct_type_ct,
-                       ctx->Deduce(ToAstNode(node->struct_ref())));
-  XLS_ASSIGN_OR_RETURN(struct_type_ct,
-                       UnwrapMetaType(std::move(struct_type_ct), node->span(),
-                                      "splatted struct instance type"));
-
-  // The type of the splatted value; e.g. in `MyStruct{..s}` the type of `s`.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> splatted_type_ct,
-                       ctx->Deduce(node->splatted()));
-
-  // The splatted type should be (nominally) equivalent to the struct type,
-  // because that's where we're filling in the default values from (those values
-  // that were not directly provided by the user).
-  auto* struct_type = dynamic_cast<StructType*>(struct_type_ct.get());
-  if (struct_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->struct_ref()->span(), struct_type_ct.get(),
-        absl::StrFormat("Type given to struct instantiation was not a struct"));
-  }
-
-  auto* splatted_type = dynamic_cast<StructType*>(splatted_type_ct.get());
-  if (splatted_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->splatted()->span(), splatted_type_ct.get(),
-        absl::StrFormat(
-            "Type given to 'splatted' struct instantiation was not a struct"));
-  }
-
-  if (&struct_type->nominal_type() != &splatted_type->nominal_type()) {
-    return ctx->TypeMismatchError(
-        node->span(), nullptr, *struct_type, nullptr, *splatted_type,
-        absl::StrFormat("Attempting to fill values in '%s' instantiation from "
-                        "a value of type '%s'",
-                        struct_type->nominal_type().identifier(),
-                        splatted_type->nominal_type().identifier()));
-  }
-
-  XLS_ASSIGN_OR_RETURN(
-      ValidatedStructMembers validated,
-      ValidateStructMembersSubset(node->members(), *struct_type,
-                                  node->struct_ref()->ToString(), ctx));
-
-  XLS_ASSIGN_OR_RETURN(std::vector<std::string> all_names,
-                       struct_type->GetMemberNames());
-  VLOG(5) << "SplatStructInstance @ " << node->span() << " seen names: ["
-          << absl::StrJoin(validated.seen_names, ", ") << "] "
-          << " all names: [" << absl::StrJoin(all_names, ", ") << "]";
-
-  if (validated.seen_names.size() == all_names.size()) {
-    ctx->warnings()->Add(
-        node->splatted()->span(), WarningKind::kUselessStructSplat,
-        absl::StrFormat("'Splatted' struct instance has all members of struct "
-                        "defined, consider removing the `..%s`",
-                        node->splatted()->ToString()));
-  }
-
-  for (const std::string& name : all_names) {
-    // If we didn't see the name, it comes from the "splatted" argument.
-    if (!validated.seen_names.contains(name)) {
-      const Type& splatted_member_type =
-          *splatted_type->GetMemberTypeByName(name).value();
-      const Type& struct_member_type =
-          *struct_type->GetMemberTypeByName(name).value();
-
-      validated.args.push_back(InstantiateArg{
-          splatted_member_type.CloneToUnique(), node->splatted()->span()});
-      validated.member_types.push_back(struct_member_type.CloneToUnique());
-    }
-  }
-
-  // At this point, we should have the same number of args compared to the
-  // number of members defined in the struct.
-  XLS_RET_CHECK_EQ(validated.args.size(), validated.member_types.size());
-
-  TypeAnnotation* struct_ref = node->struct_ref();
-  XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
-                       DerefToStruct(node->span(), struct_ref->ToString(),
-                                     struct_ref, ctx->type_info()));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<ParametricWithType> typed_parametrics,
-      ParametricBindingsToTyped(struct_def->parametric_bindings(), ctx));
-  XLS_ASSIGN_OR_RETURN(
-      TypeAndParametricEnv tab,
-      InstantiateStruct(node->span(), *struct_type, validated.args,
-                        validated.member_types, ctx, typed_parametrics,
-                        struct_def->parametric_bindings()));
-
-  return std::move(tab.type);
-}
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceBuiltinTypeAnnotation(
     const BuiltinTypeAnnotation* node, DeduceCtx* ctx) {
   std::unique_ptr<Type> t;
@@ -2314,18 +2001,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
                                                        DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> deduced, ctx->Deduce(node));
   return Resolve(*deduced, ctx);
-}
-
-absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
-    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx) {
-  std::vector<ParametricWithType> typed_parametrics;
-  for (ParametricBinding* binding : bindings) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
-                         ParametricBindingToType(*binding, ctx));
-    typed_parametrics.push_back(
-        ParametricWithType(*binding, std::move(binding_type)));
-  }
-  return typed_parametrics;
 }
 
 }  // namespace xls::dslx

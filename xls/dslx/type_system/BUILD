@@ -111,6 +111,8 @@ cc_library(
         "deduce_spawn.h",
         "deduce_struct_def.cc",
         "deduce_struct_def.h",
+        "deduce_struct_instance.cc",
+        "deduce_struct_instance.h",
     ],
     hdrs = ["deduce.h"],
     deps = [
@@ -757,6 +759,7 @@ cc_library(
     hdrs = ["deduce_utils.h"],
     deps = [
         ":deduce_ctx",
+        ":parametric_with_type",
         ":type",
         ":type_info",
         ":unwrap_meta_type",
@@ -766,6 +769,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",

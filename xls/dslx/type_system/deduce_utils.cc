@@ -18,8 +18,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -28,6 +30,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -35,9 +38,11 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -436,6 +441,99 @@ absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
                        binding_ctx->Deduce(binding.type_annotation()));
   return UnwrapMetaType(std::move(metatype), binding.type_annotation()->span(),
                         "parametric binding type");
+}
+
+absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
+    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx) {
+  std::vector<ParametricWithType> typed_parametrics;
+  for (ParametricBinding* binding : bindings) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> binding_type,
+                         ParametricBindingToType(*binding, ctx));
+    typed_parametrics.push_back(
+        ParametricWithType(*binding, std::move(binding_type)));
+  }
+  return typed_parametrics;
+}
+
+absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
+                                         std::string_view original_ref_text,
+                                         TypeDefinition current,
+                                         TypeInfo* type_info) {
+  while (true) {
+    if (std::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
+      return std::get<StructDef*>(current);
+    }
+    if (std::holds_alternative<TypeAlias*>(current)) {
+      auto* type_alias = std::get<TypeAlias*>(current);
+      TypeAnnotation* annotation = type_alias->type_annotation();
+      TypeRefTypeAnnotation* type_ref =
+          dynamic_cast<TypeRefTypeAnnotation*>(annotation);
+      if (type_ref == nullptr) {
+        return TypeInferenceErrorStatus(
+            span, nullptr,
+            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
+                            original_ref_text, annotation->ToString(),
+                            annotation->span().ToString()));
+      }
+      current = type_ref->type_ref()->type_definition();
+      continue;
+    }
+    if (std::holds_alternative<ColonRef*>(current)) {
+      auto* colon_ref = std::get<ColonRef*>(current);
+      // Colon ref has to be dereferenced, may be a module reference.
+      ColonRef::Subject subject = colon_ref->subject();
+      // TODO(leary): 2020-12-12 Original logic was this way, but we should be
+      // able to violate this assertion.
+      XLS_RET_CHECK(std::holds_alternative<NameRef*>(subject));
+      auto* name_ref = std::get<NameRef*>(subject);
+      AnyNameDef any_name_def = name_ref->name_def();
+      XLS_RET_CHECK(std::holds_alternative<const NameDef*>(any_name_def));
+      const NameDef* name_def = std::get<const NameDef*>(any_name_def);
+      AstNode* definer = name_def->definer();
+      auto* import = dynamic_cast<Import*>(definer);
+      if (import == nullptr) {
+        return TypeInferenceErrorStatus(
+            span, nullptr,
+            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
+                            original_ref_text, name_ref->ToString(),
+                            name_ref->span().ToString()));
+      }
+      std::optional<const ImportedInfo*> imported =
+          type_info->GetImported(import);
+      XLS_RET_CHECK(imported.has_value());
+      Module* module = imported.value()->module;
+      XLS_ASSIGN_OR_RETURN(current,
+                           module->GetTypeDefinition(colon_ref->attr()));
+      return DerefToStruct(span, original_ref_text, current,
+                           imported.value()->type_info);
+    }
+    XLS_RET_CHECK(std::holds_alternative<EnumDef*>(current));
+    auto* enum_def = std::get<EnumDef*>(current);
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Expected struct reference, but found enum: %s",
+                        enum_def->identifier()));
+  }
+}
+
+absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
+                                         std::string_view original_ref_text,
+                                         const TypeAnnotation& type_annotation,
+                                         TypeInfo* type_info) {
+  auto* type_ref_type_annotation =
+      dynamic_cast<const TypeRefTypeAnnotation*>(&type_annotation);
+  if (type_ref_type_annotation == nullptr) {
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Could not resolve struct from %s (%s) @ %s",
+                        type_annotation.ToString(),
+                        type_annotation.GetNodeTypeName(),
+                        type_annotation.span().ToString()));
+  }
+
+  return DerefToStruct(span, original_ref_text,
+                       type_ref_type_annotation->type_ref()->type_definition(),
+                       type_info);
 }
 
 }  // namespace xls::dslx

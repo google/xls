@@ -19,16 +19,19 @@
 #include <optional>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -126,6 +129,36 @@ inline absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
 // Deduces the type for a ParametricBinding (via its type annotation).
 absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
     const ParametricBinding& binding, DeduceCtx* ctx);
+
+// Decorates parametric binding AST nodes with their deduced types.
+//
+// This is used externally in things like parametric instantiation of DSLX
+// builtins like the higher order function "map".
+absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
+    absl::Span<ParametricBinding* const> bindings, DeduceCtx* ctx);
+
+// Dereferences the "original" struct reference to a struct definition or
+// returns an error.
+//
+// Args:
+//  span: The span of the original construct trying to dereference the struct
+//    (e.g. a StructInstance).
+//  original: The original struct reference value (used in error reporting).
+//  current: The current type definition being dereferenced towards a struct
+//    definition (note there can be multiple levels of typedefs and such).
+//  type_info: The type information that the "current" TypeDefinition resolves
+//    against.
+absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
+                                         std::string_view original_ref_text,
+                                         TypeDefinition current,
+                                         TypeInfo* type_info);
+
+// Wrapper around the DerefToStruct above (that works on TypeDefinitions) that
+// takes a `TypeAnnotation` instead.
+absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
+                                         std::string_view original_ref_text,
+                                         const TypeAnnotation& type_annotation,
+                                         TypeInfo* type_info);
 
 }  // namespace xls::dslx
 
