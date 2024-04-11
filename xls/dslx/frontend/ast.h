@@ -1031,7 +1031,7 @@ class TypeAlias : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "type alias"; }
 
-  TypeAlias(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
+  TypeAlias(Module* owner, Span span, NameDef& name_def, TypeAnnotation& type,
             bool is_public);
 
   ~TypeAlias() override;
@@ -1042,27 +1042,27 @@ class TypeAlias : public AstNode {
     return v->HandleTypeAlias(this);
   }
   std::string_view GetNodeTypeName() const override { return "TypeAlias"; }
-  const std::string& identifier() const { return name_def_->identifier(); }
+  const std::string& identifier() const { return name_def_.identifier(); }
 
   std::string ToString() const override {
     return absl::StrFormat("%stype %s = %s;", is_public_ ? "pub " : "",
-                           identifier(), type_annotation_->ToString());
+                           identifier(), type_annotation_.ToString());
   }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {name_def_, type_annotation_};
+    return {&name_def_, &type_annotation_};
   }
 
-  NameDef* name_def() const { return name_def_; }
-  TypeAnnotation* type_annotation() const { return type_annotation_; }
+  NameDef& name_def() const { return name_def_; }
+  TypeAnnotation& type_annotation() const { return type_annotation_; }
   bool is_public() const { return is_public_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
-  NameDef* name_def_;
-  TypeAnnotation* type_annotation_;
+  NameDef& name_def_;
+  TypeAnnotation& type_annotation_;
   bool is_public_;
 };
 

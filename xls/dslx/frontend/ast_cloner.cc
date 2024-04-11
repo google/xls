@@ -667,9 +667,12 @@ class AstCloner : public AstNodeVisitor {
           down_cast<TypeAnnotation*>(old_to_new_.at(member.type))});
     }
 
-    old_to_new_[n] = module_->Make<StructDef>(
-        n->span(), down_cast<NameDef*>(old_to_new_.at(n->name_def())),
-        new_parametric_bindings, new_members, n->is_public());
+    auto* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    auto* new_struct_def = module_->Make<StructDef>(
+        n->span(), new_name_def, new_parametric_bindings, new_members,
+        n->is_public());
+    old_to_new_[n] = new_struct_def;
+    new_name_def->set_definer(new_struct_def);
     return absl::OkStatus();
   }
 
@@ -755,10 +758,10 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTypeAlias(const TypeAlias* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
     TypeAlias* new_td = module_->Make<TypeAlias>(
-        n->span(), new_name_def,
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
+        n->span(), *new_name_def,
+        *down_cast<TypeAnnotation*>(old_to_new_.at(&n->type_annotation())),
         n->is_public());
     new_name_def->set_definer(new_td);
     old_to_new_[n] = new_td;

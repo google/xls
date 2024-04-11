@@ -40,7 +40,6 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
@@ -73,23 +72,23 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
   while (std::holds_alternative<TypeAlias*>(td)) {
     TypeAlias* next_type_alias = std::get<TypeAlias*>(td);
     VLOG(5) << "TypeAlias: `" << next_type_alias->ToString() << "`";
-    TypeAnnotation* type = next_type_alias->type_annotation();
-    VLOG(5) << "TypeAnnotation: `" << type->ToString() << "`";
+    TypeAnnotation& type = next_type_alias->type_annotation();
+    VLOG(5) << "TypeAnnotation: `" << type.ToString() << "`";
 
-    if (auto* bti = dynamic_cast<BuiltinTypeAnnotation*>(type);
+    if (auto* bti = dynamic_cast<BuiltinTypeAnnotation*>(&type);
         bti != nullptr) {
       return bti->builtin_name_def();
     }
-    if (auto* ata = dynamic_cast<ArrayTypeAnnotation*>(type); ata != nullptr) {
+    if (auto* ata = dynamic_cast<ArrayTypeAnnotation*>(&type); ata != nullptr) {
       return ata;
     }
 
     TypeRefTypeAnnotation* type_ref_type =
-        dynamic_cast<TypeRefTypeAnnotation*>(type);
+        dynamic_cast<TypeRefTypeAnnotation*>(&type);
     // TODO(rspringer): We'll need to collect parametrics from type_ref_type to
     // support parametric TypeDefs.
     XLS_RET_CHECK(type_ref_type != nullptr)
-        << type->ToString() << " :: " << type->GetNodeTypeName();
+        << type.ToString() << " :: " << type.GetNodeTypeName();
     VLOG(5) << "TypeRefTypeAnnotation: `" << type_ref_type->ToString() << "`";
 
     td = type_ref_type->type_ref()->type_definition();
@@ -471,17 +470,16 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
               return absl::OkStatus();
             },
             [&](TypeAlias* type_alias) -> absl::Status {
-              TypeAnnotation* annotation = type_alias->type_annotation();
-              XLS_RET_CHECK(annotation != nullptr);
+              TypeAnnotation& annotation = type_alias->type_annotation();
               TypeRefTypeAnnotation* type_ref =
-                  dynamic_cast<TypeRefTypeAnnotation*>(annotation);
+                  dynamic_cast<TypeRefTypeAnnotation*>(&annotation);
               if (type_ref == nullptr) {
                 return TypeInferenceErrorStatus(
                     span, nullptr,
                     absl::StrFormat(
                         "Could not resolve struct from %s; found: %s @ %s",
-                        original_ref_text, annotation->ToString(),
-                        annotation->span().ToString()));
+                        original_ref_text, annotation.ToString(),
+                        annotation.span().ToString()));
               }
               current = type_ref->type_ref()->type_definition();
               return absl::OkStatus();

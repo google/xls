@@ -248,9 +248,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeAlias(const TypeAlias* node,
                                                       DeduceCtx* ctx) {
   VLOG(5) << "DeduceTypeAlias; node: `" << node->ToString() << "`";
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                       ctx->Deduce(node->type_annotation()));
+                       ctx->Deduce(&node->type_annotation()));
   XLS_RET_CHECK(type->IsMeta());
-  ctx->type_info()->SetItem(node->name_def(), *type);
+  ctx->type_info()->SetItem(&node->name_def(), *type);
   return type;
 }
 

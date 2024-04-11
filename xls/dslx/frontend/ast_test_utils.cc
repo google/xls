@@ -42,7 +42,7 @@ std::pair<Module, Binop*> MakeCastWithinLtComparison() {
   // type t = u32;
   NameDef* t_def = m.Make<NameDef>(fake_span, "t", /*definer=*/nullptr);
   TypeAlias* type_alias =
-      m.Make<TypeAlias>(fake_span, t_def, builtin_u32, /*is_public=*/false);
+      m.Make<TypeAlias>(fake_span, *t_def, *builtin_u32, /*is_public=*/false);
   t_def->set_definer(type_alias);
 
   TypeRef* type_ref = m.Make<TypeRef>(fake_span, type_alias);

@@ -3218,14 +3218,14 @@ absl::StatusOr<FunctionConverter::DerefVariant>
 FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
   while (std::holds_alternative<TypeAlias*>(node)) {
     auto* type_alias = std::get<TypeAlias*>(node);
-    TypeAnnotation* annotation = type_alias->type_annotation();
+    TypeAnnotation& annotation = type_alias->type_annotation();
     if (auto* type_ref_annotation =
-            dynamic_cast<TypeRefTypeAnnotation*>(annotation)) {
+            dynamic_cast<TypeRefTypeAnnotation*>(&annotation)) {
       node = type_ref_annotation->type_ref()->type_definition();
     } else {
       return absl::UnimplementedError(
           "Unhandled typedef for resolving to struct-or-enum: " +
-          annotation->ToString());
+          annotation.ToString());
     }
   }
 

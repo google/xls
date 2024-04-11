@@ -145,9 +145,9 @@ type MyS2 = MyS1;
   std::optional<ModuleMember*> maybe_my_s = module->FindMemberWithName("MyS2");
   ASSERT_TRUE(maybe_my_s.has_value());
   auto* type_alias = std::get<TypeAlias*>(*maybe_my_s.value());
-  auto* aliased = type_alias->type_annotation();
+  TypeAnnotation& aliased = type_alias->type_annotation();
   auto* type_ref_type_annotation =
-      dynamic_cast<TypeRefTypeAnnotation*>(aliased);
+      dynamic_cast<TypeRefTypeAnnotation*>(&aliased);
   ASSERT_NE(type_ref_type_annotation, nullptr);
   TypeDefinition td = type_ref_type_annotation->type_ref()->type_definition();
 

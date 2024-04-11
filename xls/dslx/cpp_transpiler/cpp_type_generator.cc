@@ -274,7 +274,7 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
       ImportData* import_data) {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<CppEmitter> emitter,
-        CppEmitter::Create(type_alias->type_annotation(),
+        CppEmitter::Create(&type_alias->type_annotation(),
                            type_alias->identifier(), type_info, import_data));
     return std::make_unique<TypeAliasCppTypeGenerator>(
         DslxTypeNameToCpp(type_alias->identifier()), type_alias->identifier(),

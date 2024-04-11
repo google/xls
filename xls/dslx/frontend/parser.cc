@@ -656,7 +656,8 @@ absl::StatusOr<TypeAlias*> Parser::ParseTypeAlias(bool is_public,
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   Span span(start_pos, GetPos());
-  auto* type_alias = module_->Make<TypeAlias>(span, name_def, type, is_public);
+  auto* type_alias =
+      module_->Make<TypeAlias>(span, *name_def, *type, is_public);
   name_def->set_definer(type_alias);
   bindings.Add(name_def->identifier(), type_alias);
   return type_alias;

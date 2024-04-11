@@ -319,7 +319,7 @@ DocRef Fmt(const TypeAlias& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.space());
   pieces.push_back(arena.equals());
   pieces.push_back(arena.break1());
-  pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
+  pieces.push_back(Fmt(n.type_annotation(), comments, arena));
   return ConcatNGroup(arena, pieces);
 }
 

@@ -250,7 +250,7 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
       Visitor{
           [&](dslx::TypeAlias* type_alias) -> absl::StatusOr<Expr*> {
             return GenerateDslxConstant(bit_gen, module,
-                                        type_alias->type_annotation());
+                                        &type_alias->type_annotation());
           },
           [&](dslx::StructDef* struct_def) -> absl::StatusOr<Expr*> {
             std::vector<std::pair<std::string, Expr*>> members;

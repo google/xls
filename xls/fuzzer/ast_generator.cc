@@ -672,7 +672,7 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleTypeAlias(const TypeAlias* type_alias) override {
-    return type_alias->type_annotation()->Accept(this);
+    return type_alias->type_annotation().Accept(this);
   }
 
   absl::Status HandleStructDef(const StructDef* struct_def) override {
@@ -819,7 +819,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
     const TypeDefinition& type_def = type_ref->type_definition();
     CHECK(std::holds_alternative<TypeAlias*>(type_def));
     TypeAlias* alias = std::get<TypeAlias*>(type_def);
-    return GenerateExprOfType(ctx, alias->type_annotation());
+    return GenerateExprOfType(ctx, &alias->type_annotation());
   }
   CHECK(IsBits(type));
   std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, type);
@@ -871,7 +871,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     const TypeDefinition& type_definition = type_ref->type_definition();
     CHECK(std::holds_alternative<TypeAlias*>(type_definition));
     TypeAlias* alias = std::get<TypeAlias*>(type_definition);
-    return GenerateMatchArmPattern(ctx, alias->type_annotation());
+    return GenerateMatchArmPattern(ctx, &alias->type_annotation());
   }
 
   CHECK(IsBits(type));
@@ -1244,13 +1244,13 @@ int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
   }
   if (auto* tuple = dynamic_cast<const TupleTypeAnnotation*>(type)) {
     int64_t total = 0;
-    for (TypeAnnotation* type : tuple->members()) {
-      total += GetTypeBitCount(type);
+    for (TypeAnnotation* member_type : tuple->members()) {
+      total += GetTypeBitCount(member_type);
     }
     return total;
   }
   if (auto* type_alias = dynamic_cast<const TypeAlias*>(type)) {
-    return GetTypeBitCount(type_alias->type_annotation());
+    return GetTypeBitCount(&type_alias->type_annotation());
   }
 
   return type_bit_counts_.at(type_str);

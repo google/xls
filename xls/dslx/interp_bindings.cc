@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
 
@@ -129,7 +130,7 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
     return std::get<EnumDef*>(entry.value())->type_annotation();
   }
   if (std::holds_alternative<TypeAlias*>(entry.value())) {
-    return std::get<TypeAlias*>(entry.value())->type_annotation();
+    return &std::get<TypeAlias*>(entry.value())->type_annotation();
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Attempted to resolve a type but identifier \"%s\" was bound to a %s",
@@ -145,7 +146,7 @@ InterpBindings::ResolveTypeDefinition(std::string_view identifier) const {
         identifier));
   }
   if (std::holds_alternative<TypeAlias*>(entry.value())) {
-    return std::get<TypeAlias*>(entry.value())->type_annotation();
+    return &std::get<TypeAlias*>(entry.value())->type_annotation();
   }
   if (std::holds_alternative<EnumDef*>(entry.value())) {
     return std::get<EnumDef*>(entry.value());

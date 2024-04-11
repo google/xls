@@ -130,7 +130,7 @@ absl::StatusOr<StructDef*> ResolveLocalStructDef(TypeDefinition td) {
   return absl::visit(
       Visitor{
           [&](TypeAlias* n) -> absl::StatusOr<StructDef*> {
-            return ResolveLocalStructDef(n->type_annotation(), td);
+            return ResolveLocalStructDef(&n->type_annotation(), td);
           },
           [&](StructDef* n) -> absl::StatusOr<StructDef*> { return n; },
           [&](EnumDef* n) -> absl::StatusOr<StructDef*> { return error(n); },
@@ -305,8 +305,8 @@ std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
     if (std::holds_alternative<TypeAlias*>(
             type_ref->type_ref()->type_definition())) {
       is_alias = true;
-      type = std::get<TypeAlias*>(type_ref->type_ref()->type_definition())
-                 ->type_annotation();
+      type = &std::get<TypeAlias*>(type_ref->type_ref()->type_definition())
+                  ->type_annotation();
     } else if (std::holds_alternative<EnumDef*>(
                    type_ref->type_ref()->type_definition())) {
       is_enum = true;

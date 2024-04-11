@@ -29,6 +29,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
@@ -554,9 +555,10 @@ class AstGenerator {
   // As part of this process, a TypeAlias is created and added to the
   // currently-active set.
   TypeRefTypeAnnotation* MakeTypeRefTypeAnnotation(TypeAnnotation* type) {
+    CHECK(type != nullptr);
     std::string type_name = GenSym();
     NameDef* name_def = MakeNameDef(type_name);
-    auto* type_alias = module_->Make<TypeAlias>(fake_span_, name_def, type,
+    auto* type_alias = module_->Make<TypeAlias>(fake_span_, *name_def, *type,
                                                 /*is_public=*/false);
     auto* type_ref = module_->Make<TypeRef>(fake_span_, type_alias);
     type_aliases_.push_back(type_alias);

@@ -84,7 +84,7 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
     return std::get<EnumDef*>(bn)->name_def();
   }
   if (std::holds_alternative<TypeAlias*>(bn)) {
-    return std::get<TypeAlias*>(bn)->name_def();
+    return &std::get<TypeAlias*>(bn)->name_def();
   }
   if (std::holds_alternative<ConstantDef*>(bn)) {
     return std::get<ConstantDef*>(bn)->name_def();

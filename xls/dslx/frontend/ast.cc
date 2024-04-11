@@ -301,7 +301,7 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
 AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
   return absl::visit(
       Visitor{
-          [](TypeAlias* n) -> AnyNameDef { return n->name_def(); },
+          [](TypeAlias* n) -> AnyNameDef { return &n->name_def(); },
           [](StructDef* n) -> AnyNameDef { return n->name_def(); },
           [](EnumDef* n) -> AnyNameDef { return n->name_def(); },
           [](ColonRef* n) -> AnyNameDef {
@@ -2098,8 +2098,8 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
       "Invalid NumberKind: %d", static_cast<int64_t>(number_kind_)));
 }
 
-TypeAlias::TypeAlias(Module* owner, Span span, NameDef* name_def,
-                     TypeAnnotation* type, bool is_public)
+TypeAlias::TypeAlias(Module* owner, Span span, NameDef& name_def,
+                     TypeAnnotation& type, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
