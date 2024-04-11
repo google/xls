@@ -990,9 +990,18 @@ DSLX modules can import other modules via the `import` keyword. Circular imports
 are not permitted (the dependencies among DSLX modules must form a DAG, as in
 languages like Go).
 
-The import statement takes the following form (note the lack of semicolon):
+The import statement takes the following form:
 
+```dslx
+import std;
 ```
+
+The standard library modules (such as `std`) live in a special location known
+the DSL as built-in paths to look for modules -- imports of "normal"
+(user-written) modules take full paths relative to the root of execution and
+DSLX path.
+
+```dslx-snippet
 import path.to.my.imported_module;
 ```
 
