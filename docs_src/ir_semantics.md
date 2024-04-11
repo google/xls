@@ -838,6 +838,17 @@ If no bits of the input are set the result is zero.
 Produces a bits value with exactly one bit set. The index of the set bit depends
 upon the input value.
 
+This operation can be thought of like a command: "canonicalize/normalize this
+input value to be one-hot", where `lsb_prio` indicates which side of the
+bitvector wins in the case that there are multiple input bits set. Contrast this
+with the [`decode`](#decode) operation which instead converts a binary-encoded
+operand value into a one-hot value.
+
+(Note: once this operation has been applied to a value, the optimizer knows that
+the output has the one-hot property [i.e. exactly one bit is set], which helps
+the optimizer know that one-hot-select operations that use the output value as a
+selector are selecting between distinct values.)
+
 **Syntax**
 
 ```
