@@ -61,6 +61,7 @@ pkg_tar(
         "THIRD_PARTY_NOTICES.txt",
         ":xls_stdlib_dslx",
         "//:LICENSE",
+        "//xls/dslx:dslx_fmt",
         "//xls/dslx:interpreter_main",
         "//xls/dslx:prove_quickcheck_main",
         "//xls/dslx/ir_convert:ir_converter_main",
