@@ -19,8 +19,8 @@
 #include <memory>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -30,6 +30,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -100,7 +101,8 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
       a->Clone(absl::StrFormat("%s_test", a->name()), to_test.get()));
 
   XLS_RET_CHECK(
-      a->return_value()->GetType()->IsEqualTo(b->return_value()->GetType()));
+      a->return_value()->GetType()->IsEqualTo(b->return_value()->GetType()))
+      << a->return_value()->GetType() << " vs " << b->return_value()->GetType();
   XLS_RET_CHECK_EQ(a->params().size(), b->params().size());
   for (int64_t i = 0; i < a->params().size(); ++i) {
     XLS_RET_CHECK(
@@ -157,5 +159,6 @@ absl::StatusOr<ProverResult> TryProveEquivalence(
 
   return TryProveEquivalence(original, to_transform_func, timeout);
 }
+
 
 }  // namespace xls::solvers::z3

@@ -31,6 +31,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -105,6 +106,8 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(3, 32)),
           /*pred=*/pb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -120,6 +123,9 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
                      pb.Literal(UBits(2, 3))});
   pb.Next(/*param=*/x, /*value=*/priority_select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/true);
+
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
@@ -171,6 +177,9 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
                              pb.Literal(UBits(2, 3)), pb.Literal(UBits(3, 3))});
   pb.Next(/*param=*/x, /*value=*/one_hot_select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/true);
+
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -194,6 +203,9 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   pb.Next(/*param=*/x, /*value=*/select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/true);
+
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(
@@ -217,6 +229,8 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
                 /*default_value=*/pb.Literal(UBits(3, 2)));
   pb.Next(/*param=*/x, /*value=*/select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/true);
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(
@@ -256,6 +270,8 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   BValue select_a = pb.Select(a, std::vector{select_b_1, select_b_2});
   pb.Next(/*param=*/x, /*value=*/select_a);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  // TODO: https://github.com/google/xls/issues/1374 - State elements a & b
+  // removed so can't use z3 proving.
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
@@ -288,6 +304,7 @@ TEST_F(NextValueOptimizationPassTest,
   BValue select_a = pb.Select(a, std::vector{select_b_1, select_b_2});
   pb.Next(/*param=*/x, /*value=*/select_a);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  // State elements a & b removed so can't use z3 proving.
 
   EXPECT_THAT(
       Run(p.get(), /*split_next_value_selects=*/2, /*split_depth_limit=*/1),

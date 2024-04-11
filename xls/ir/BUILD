@@ -1903,3 +1903,52 @@ cc_test(
         "//xls/common:xls_gunit_main",
     ],
 )
+
+cc_library(
+    name = "proc_testutils",
+    testonly = True,
+    srcs = ["proc_testutils.cc"],
+    hdrs = ["proc_testutils.h"],
+    deps = [
+        ":bits",
+        ":function_builder",
+        ":ir",
+        ":source_location",
+        ":value",
+        ":value_utils",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/passes:dce_pass",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "proc_testutils_test",
+    srcs = ["proc_testutils_test.cc"],
+    deps = [
+        ":bits",
+        ":channel",
+        ":channel_ops",
+        ":function_builder",
+        ":ir",
+        ":ir_test_base",
+        ":proc_testutils",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/solvers:z3_ir_equivalence",
+        "//xls/solvers:z3_ir_equivalence_testutils",
+        "//xls/solvers:z3_ir_translator_matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
