@@ -68,6 +68,30 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "z3_ir_translator_matchers",
+    testonly = True,
+    hdrs = ["z3_ir_translator_matchers.h"],
+    deps = [
+        ":z3_ir_translator",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "z3_ir_translator_matchers_test",
+    srcs = ["z3_ir_translator_matchers_test.cc"],
+    deps = [
+        ":z3_ir_translator",
+        ":z3_ir_translator_matchers",
+        "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+    ],
+)
+
 cc_test(
     name = "z3_ir_equivalence_test",
     srcs = ["z3_ir_equivalence_test.cc"],
@@ -75,6 +99,7 @@ cc_test(
         ":z3_ir_equivalence",
         ":z3_ir_equivalence_testutils",
         ":z3_ir_translator",
+        ":z3_ir_translator_matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
@@ -142,10 +167,12 @@ cc_test(
     srcs = ["z3_ir_translator_test.cc"],
     deps = [
         ":z3_ir_translator",
+        ":z3_ir_translator_matchers",
         ":z3_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -36,6 +37,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/solvers/z3_ir_translator_matchers.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3.h"  // IWYU pragma: keep
 #include "../z3/src/api/z3_api.h"
@@ -46,16 +48,14 @@ namespace {
 using solvers::z3::IrTranslator;
 using solvers::z3::Predicate;
 using solvers::z3::PredicateOfNode;
-using solvers::z3::ProvenFalse;
-using solvers::z3::ProvenTrue;
 using solvers::z3::ProverResult;
 using solvers::z3::TryProve;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 
-using testing::_;
+using solvers::z3::IsProvenFalse;
+using solvers::z3::IsProvenTrue;
 using testing::HasSubstr;
-using testing::VariantWith;
 
 class Z3IrTranslatorTest : public IrTestBase {};
 
@@ -84,7 +84,7 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZero) {
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
@@ -100,7 +100,7 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProveConjunction(f, terms, absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ParamsEqualToSelfButUnequalToEachOther) {
@@ -119,7 +119,7 @@ TEST_F(Z3IrTranslatorTest, ParamsEqualToSelfButUnequalToEachOther) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProveConjunction(f, terms, absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenFalse>(_));
+  EXPECT_THAT(proven, IsProvenFalse());
 }
 
 TEST_F(Z3IrTranslatorTest, ParamAddOneIsGeParam) {
@@ -139,7 +139,7 @@ TEST_F(Z3IrTranslatorTest, ParamAddOneIsGeParam) {
       TryProveConjunction(f, terms, absl::InfiniteDuration()));
   // The all-ones value will cause rollover such that the assertion `xp1 >= 1`
   // is false.
-  EXPECT_THAT(proven, VariantWith<ProvenFalse>(_));
+  EXPECT_THAT(proven, IsProvenFalse());
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
@@ -150,7 +150,7 @@ TEST_F(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZero) {
@@ -161,7 +161,7 @@ TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZero) {
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenFalse>(_));
+  EXPECT_THAT(proven, IsProvenFalse());
 }
 
 TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZeroPredicate) {
@@ -172,7 +172,7 @@ TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZeroPredicate) {
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, x.node(), Predicate::NotEqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ParamMinusSelfIsZero) {
@@ -185,7 +185,7 @@ TEST_F(Z3IrTranslatorTest, ParamMinusSelfIsZero) {
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
                            TryProve(f, res.node(), Predicate::EqualToZero(),
                                     absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, XPlusYMinusYIsX) {
@@ -202,7 +202,7 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
       TryProve(f, f->return_value(),
                Predicate::IsEqualTo(f->GetParamByName("x").value()),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, TupleIndexMinusSelf) {
@@ -218,7 +218,7 @@ fn f(p: (bits[1], bits[32])) -> bits[32] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ConcatThenSliceIsSelf) {
@@ -235,7 +235,7 @@ fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, InBoundsDynamicSlice) {
@@ -253,7 +253,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, PartialOutOfBoundsDynamicSlice) {
@@ -272,7 +272,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, CompletelyOutOfBoundsDynamicSlice) {
@@ -290,7 +290,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, BitSliceUpdate) {
@@ -310,7 +310,7 @@ fn f(x: bits[8], v: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, BitSliceUpdateOutOfBounds) {
@@ -327,7 +327,7 @@ fn f(x: bits[8], v: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, BitSliceUpdateZeroStart) {
@@ -345,7 +345,7 @@ fn f(x: bits[8], v: bits[16]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ValueUgtSelf) {
@@ -360,7 +360,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ValueUltSelf) {
@@ -375,7 +375,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroExtBitAlwaysZero) {
@@ -391,7 +391,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroMinusParamHighBit) {
@@ -413,7 +413,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 // Since the value can wrap around, we should not be able to prove that adding
@@ -432,13 +432,13 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenFalse>(_));
+  EXPECT_THAT(proven_ez, IsProvenFalse());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenFalse>(_));
+  EXPECT_THAT(proven_nez, IsProvenFalse());
 }
 
 TEST_F(Z3IrTranslatorTest, MaskAndReverse) {
@@ -456,7 +456,7 @@ fn f(p: bits[2]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ReverseSlicesEq) {
@@ -474,7 +474,7 @@ fn f(p: bits[2]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ShiftRightLogicalFillsZero) {
@@ -491,7 +491,7 @@ fn f(p: bits[2]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ShiftLeftLogicalFillsZero) {
@@ -508,7 +508,7 @@ fn f(p: bits[2]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, ShiftLeftLogicalDifferentSize) {
@@ -525,7 +525,7 @@ fn f(p: bits[2]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, XAndNotXIsZero) {
@@ -541,7 +541,7 @@ fn f(p: bits[1]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, XNandNotXIsZero) {
@@ -557,7 +557,7 @@ fn f(p: bits[1]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, XOrNotXIsNotZero) {
@@ -573,7 +573,7 @@ fn f(p: bits[1]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -597,7 +597,7 @@ fn f(p: bits[$0]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -624,7 +624,7 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -651,7 +651,7 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -675,7 +675,7 @@ fn f(p: bits[1]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -698,7 +698,7 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
@@ -721,7 +721,7 @@ fn f(p: bits[$0]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, XorReduceIsEqualToXorOfBits) {
@@ -744,7 +744,7 @@ fn f(p: bits[3]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, SignExtendBitsAreEqual) {
@@ -762,7 +762,7 @@ fn f(p: bits[1]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, XPlusNegX) {
@@ -778,7 +778,7 @@ fn f(p: bits[4]) -> bits[4] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, XNeX) {
@@ -793,7 +793,7 @@ fn f(p: bits[4]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, OneHot) {
@@ -808,7 +808,7 @@ fn f(p: bits[1]) -> bits[2] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, DecodeZeroIsNotZero) {
@@ -824,7 +824,7 @@ fn f(x: bits[2]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, DecodeWithOverflowedIndexIsZero) {
@@ -841,7 +841,7 @@ fn f(x: bits[2]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, EncodeZeroIsZero) {
@@ -857,7 +857,7 @@ fn f(x: bits[2]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, EncodeWithIndex1SetIsNotZero) {
@@ -874,7 +874,7 @@ fn f(x: bits[2]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, SelWithDefault) {
@@ -891,12 +891,12 @@ fn f(x: bits[2]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenFalse>(_));
+  EXPECT_THAT(proven_nez, IsProvenFalse());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenFalse>(_));
+  EXPECT_THAT(proven_ez, IsProvenFalse());
 }
 
 TEST_F(Z3IrTranslatorTest, SgeVsSlt) {
@@ -913,7 +913,7 @@ fn f(x: bits[2], y: bits[2]) -> bits[1] {
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_ez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_ez, IsProvenTrue());
 }
 
 // TODO(b/153195241): Re-enable these.
@@ -932,7 +932,7 @@ fn f(x: bits[2]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, SltVsMaxPositive) {
@@ -951,7 +951,7 @@ fn f(x: bits[3]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 #endif
 
@@ -972,7 +972,7 @@ fn f(x: bits[2]) -> bits[1] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 // This test verifies that selects with tuple values can be translated.
@@ -1001,7 +1001,7 @@ fn f() -> bits[1] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, TupleSelectsMore) {
@@ -1032,7 +1032,7 @@ fn f() -> bits[4] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(to_compare),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, BasicAfterAllTokenTest) {
@@ -1064,7 +1064,7 @@ fn f() -> bits[32] {
         ProverResult proven_eq,
         TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 
   std::vector<Node*> token_nodes;
@@ -1083,7 +1083,7 @@ fn f() -> bits[32] {
           TryProve(f, token_nodes.at(l_idx),
                    Predicate::IsEqualTo(token_nodes.at(r_idx)),
                    absl::InfiniteDuration()));
-      EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+      EXPECT_THAT(proven_eq, IsProvenTrue());
     }
     // Can't prove a token is 0 or non-zero because it is a non-bit type.
     EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
@@ -1126,7 +1126,7 @@ fn f() -> bits[32] {
         ProverResult proven_eq,
         TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 
   std::vector<Node*> token_nodes;
@@ -1145,7 +1145,7 @@ fn f() -> bits[32] {
           TryProve(f, token_nodes.at(l_idx),
                    Predicate::IsEqualTo(token_nodes.at(r_idx)),
                    absl::InfiniteDuration()));
-      EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+      EXPECT_THAT(proven_eq, IsProvenTrue());
     }
     // Can't prove a token is 0 or non-zero because it is a non-bit type.
     EXPECT_THAT(
@@ -1220,7 +1220,7 @@ fn f(arr1: token, arr2: token, arr3: token) -> token {
       ASSERT_THAT(TryProve(f, token_nodes.at(l_idx),
                            Predicate::IsEqualTo(token_nodes.at(r_idx)),
                            absl::InfiniteDuration()),
-                  IsOkAndHolds(VariantWith<ProvenTrue>(_)));
+                  IsOkAndHolds(IsProvenTrue()));
     }
     // Can't prove a token is 0 or non-zero because it is a non-bit type.
     EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
@@ -1257,7 +1257,7 @@ fn f() -> bits[32] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, IndexBitsType) {
@@ -1277,7 +1277,7 @@ fn f() -> bits[32] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 // Array test 2: Can we properly handle arrays...OF ARRAYS?
@@ -1308,7 +1308,7 @@ fn f() -> bits[32] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, IndexArrayOfArraysWithSequentialIndexOps) {
@@ -1339,7 +1339,7 @@ fn f() -> bits[32] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 // Array test 3! Arrays...OF TUPLES
@@ -1371,7 +1371,7 @@ fn f() -> bits[32] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, IndexArrayOfTuplesOfArrays) {
@@ -1408,7 +1408,7 @@ fn f() -> bits[32] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, OverflowingArrayIndex) {
@@ -1433,7 +1433,7 @@ fn f() -> bits[32] {
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_eq, IsProvenTrue());
 }
 
 // UpdateArray test 1: Array of bits
@@ -1464,7 +1464,7 @@ fn f() -> bits[32] {
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 }
 
@@ -1495,7 +1495,7 @@ fn f() -> bits[32] {
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 }
 
@@ -1516,7 +1516,7 @@ fn f() -> bits[32] {
   EXPECT_THAT(TryProve(f, FindNode("result", p.get()),
                        Predicate::IsEqualTo(FindNode("forty_two", p.get())),
                        absl::InfiniteDuration()),
-              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
+              IsOkAndHolds(IsProvenTrue()));
 }
 
 // UpdateArray test 2: Array of Arrays
@@ -1554,7 +1554,7 @@ fn f() -> bits[32] {
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 }
 
@@ -1591,7 +1591,7 @@ fn f() -> bits[32] {
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 }
 
@@ -1630,7 +1630,7 @@ fn f() -> bits[32] {
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 }
 
@@ -1681,7 +1681,7 @@ fn f() -> bits[32] {
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 }
 
@@ -1713,7 +1713,7 @@ fn f() -> bits[32] {
         TryProve(f, FindNode(expect[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenTrue>(_));
+    EXPECT_THAT(proven_eq, IsProvenTrue());
   }
 }
 
@@ -1749,7 +1749,7 @@ fn f(index: bits[32]) -> bits[32] {
         TryProve(f, FindNode(in_str[idx], p.get()),
                  Predicate::IsEqualTo(FindNode(out_str[idx], p.get())),
                  absl::InfiniteDuration()));
-    EXPECT_THAT(proven_eq, VariantWith<ProvenFalse>(_));
+    EXPECT_THAT(proven_eq, IsProvenFalse());
   }
 }
 
@@ -1779,7 +1779,7 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[4] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   EXPECT_THAT(TryProve(f, f->return_value(), Predicate::EqualToZero(),
                        absl::InfiniteDuration()),
-              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
+              IsOkAndHolds(IsProvenTrue()));
 }
 
 // Array Concat #0b - Test bits after concat are traced back to input (part b)
@@ -1812,7 +1812,7 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[1] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   EXPECT_THAT(TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                        absl::InfiniteDuration()),
-              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
+              IsOkAndHolds(IsProvenTrue()));
 }
 
 TEST_F(Z3IrTranslatorTest, ParamReuse) {
@@ -1910,7 +1910,7 @@ fn f(idx: bits[1]) -> bits[4] {
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                absl::InfiniteDuration()));
-  EXPECT_THAT(proven_nez, VariantWith<ProvenTrue>(_));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
 }
 
 TEST_F(Z3IrTranslatorTest, HandlesUMul) {

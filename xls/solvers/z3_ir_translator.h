@@ -32,6 +32,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
@@ -376,6 +377,15 @@ struct ProvenFalse {
   std::string message;
 };
 using ProverResult = std::variant<ProvenTrue, ProvenFalse>;
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const ProverResult& p) {
+  if (std::holds_alternative<ProvenTrue>(p)) {
+    absl::Format(&sink, "[ProvenTrue]");
+    return;
+  }
+  absl::Format(&sink, "[ProvenFalse: %s]", std::get<ProvenFalse>(p).message);
+}
 
 // Attempts to prove the conjunction of "terms". "terms" refers to predicates on
 // nodes within function "f". Returns true iff "terms" can be proven true in
