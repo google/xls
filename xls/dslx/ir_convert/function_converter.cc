@@ -448,6 +448,15 @@ absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
                                 node->ToString(), node->GetNodeTypeName(),
                                 IrValueToString(result),
                                 SpanToString(node->GetSpan()));
+
+  // If there was an error in the function builder while defining this node
+  // (which is an internal error -- the system-level expectation is that any
+  // issues that would occur in IR building would have been caught previously in
+  // type inference) then we flag them here to avoid returning husks of BValues
+  // that callers can trip over and segfault (e.g. because they have a nullptr
+  // type).
+  XLS_RETURN_IF_ERROR(function_builder_->GetError());
+
   SetNodeToIr(node, result);
   return result;
 }
@@ -676,10 +685,12 @@ absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
 }
 
 absl::Status FunctionConverter::HandleLet(const Let* node) {
-  VLOG(5) << "FunctionConverter::HandleLet: " << node->ToString();
+  VLOG(5) << "FunctionConverter::HandleLet: `" << node->ToString()
+          << "`; rhs: `" << node->rhs()->ToString() << "`";
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
+  XLS_RET_CHECK(rhs.valid());
 
   // Verify that the RHS conforms to the annotation (if present).
   if (node->type_annotation() != nullptr) {
@@ -712,17 +723,24 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
                     int64_t index) -> absl::Status {
       VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
                                     index, x->ToString());
+      XLS_RET_CHECK(x != nullptr);
       levels.resize(level);
       levels.push_back(Def(x, [this, &levels, x, index](SourceInfo loc) {
         if (!loc.Empty()) {
           loc = ToSourceInfo(x->is_leaf() ? ToAstNode(x->leaf())->GetSpan()
                                           : x->GetSpan());
         }
+
         BValue tuple = levels.back();
+        CHECK(tuple.valid());
+
         xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
         CHECK_LT(index, tuple_type->size())
             << "index: " << index << " type: " << tuple_type->ToString();
+
         BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
+        CHECK_OK(function_builder_->GetError());
+
         return tuple_index;
       }));
       if (x->is_leaf()) {
@@ -892,6 +910,7 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
     for (NameDefTree* pattern : arm->patterns()) {
       XLS_ASSIGN_OR_RETURN(BValue selector,
                            HandleMatcher(pattern, {i}, matched, *matched_type));
+      XLS_RET_CHECK(selector.valid());
       this_arm_selectors.push_back(selector);
     }
 
@@ -984,8 +1003,10 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
     XLS_RET_CHECK(arm_values.empty());
     SetNodeToIr(node, default_value);
   } else {
-    SetNodeToIr(node, function_builder_->MatchTrue(arm_selectors, arm_values,
-                                                   default_value));
+    BValue result =
+        function_builder_->MatchTrue(arm_selectors, arm_values, default_value);
+    XLS_RETURN_IF_ERROR(function_builder_->GetError());
+    SetNodeToIr(node, result);
   }
   return absl::OkStatus();
 }
@@ -1660,6 +1681,7 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
         function_builder_->Assert(implicit_token_data_->entry_token,
                                   function_builder_->Not(control_predicate),
                                   label_data.message, label_data.label);
+    XLS_RETURN_IF_ERROR(function_builder_->GetError());
     implicit_token_data_->control_tokens.push_back(assert_result_token);
     tokens_.push_back(assert_result_token);
   }
