@@ -460,59 +460,77 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          TypeDefinition current,
                                          TypeInfo* type_info) {
   while (true) {
-    if (std::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
-      return std::get<StructDef*>(current);
+    StructDef* retval = nullptr;
+
+    // This visitor populates `retval` if we're done, otherwise updates
+    // `current` or gives an error status.
+    absl::Status status = absl::visit(
+        Visitor{
+            [&](StructDef* n) -> absl::Status {  // Done dereferencing.
+              retval = n;
+              return absl::OkStatus();
+            },
+            [&](TypeAlias* type_alias) -> absl::Status {
+              TypeAnnotation* annotation = type_alias->type_annotation();
+              XLS_RET_CHECK(annotation != nullptr);
+              TypeRefTypeAnnotation* type_ref =
+                  dynamic_cast<TypeRefTypeAnnotation*>(annotation);
+              if (type_ref == nullptr) {
+                return TypeInferenceErrorStatus(
+                    span, nullptr,
+                    absl::StrFormat(
+                        "Could not resolve struct from %s; found: %s @ %s",
+                        original_ref_text, annotation->ToString(),
+                        annotation->span().ToString()));
+              }
+              current = type_ref->type_ref()->type_definition();
+              return absl::OkStatus();
+            },
+            [&](ColonRef* colon_ref) -> absl::Status {
+              // Colon ref has to be dereferenced, may be a module reference.
+              ColonRef::Subject subject = colon_ref->subject();
+              // TODO(leary): 2020-12-12 Original logic was this way, but we
+              // should be able to violate this assertion.
+              XLS_RET_CHECK(std::holds_alternative<NameRef*>(subject));
+              auto* name_ref = std::get<NameRef*>(subject);
+              AnyNameDef any_name_def = name_ref->name_def();
+              XLS_RET_CHECK(
+                  std::holds_alternative<const NameDef*>(any_name_def));
+              const NameDef* name_def = std::get<const NameDef*>(any_name_def);
+              AstNode* definer = name_def->definer();
+              auto* import = dynamic_cast<Import*>(definer);
+              if (import == nullptr) {
+                return TypeInferenceErrorStatus(
+                    span, nullptr,
+                    absl::StrFormat(
+                        "Could not resolve struct from %s; found: %s @ %s",
+                        original_ref_text, name_ref->ToString(),
+                        name_ref->span().ToString()));
+              }
+              std::optional<const ImportedInfo*> imported =
+                  type_info->GetImported(import);
+              XLS_RET_CHECK(imported.has_value());
+              Module* module = imported.value()->module;
+              XLS_ASSIGN_OR_RETURN(
+                  current, module->GetTypeDefinition(colon_ref->attr()));
+              XLS_ASSIGN_OR_RETURN(
+                  retval, DerefToStruct(span, original_ref_text, current,
+                                        imported.value()->type_info));
+              return absl::OkStatus();
+            },
+            [&](EnumDef* enum_def) {
+              return TypeInferenceErrorStatus(
+                  span, nullptr,
+                  absl::StrFormat(
+                      "Expected struct reference, but found enum: %s",
+                      enum_def->identifier()));
+            },
+        },
+        current);
+    XLS_RETURN_IF_ERROR(status);
+    if (retval != nullptr) {
+      return retval;
     }
-    if (std::holds_alternative<TypeAlias*>(current)) {
-      auto* type_alias = std::get<TypeAlias*>(current);
-      TypeAnnotation* annotation = type_alias->type_annotation();
-      TypeRefTypeAnnotation* type_ref =
-          dynamic_cast<TypeRefTypeAnnotation*>(annotation);
-      if (type_ref == nullptr) {
-        return TypeInferenceErrorStatus(
-            span, nullptr,
-            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
-                            original_ref_text, annotation->ToString(),
-                            annotation->span().ToString()));
-      }
-      current = type_ref->type_ref()->type_definition();
-      continue;
-    }
-    if (std::holds_alternative<ColonRef*>(current)) {
-      auto* colon_ref = std::get<ColonRef*>(current);
-      // Colon ref has to be dereferenced, may be a module reference.
-      ColonRef::Subject subject = colon_ref->subject();
-      // TODO(leary): 2020-12-12 Original logic was this way, but we should be
-      // able to violate this assertion.
-      XLS_RET_CHECK(std::holds_alternative<NameRef*>(subject));
-      auto* name_ref = std::get<NameRef*>(subject);
-      AnyNameDef any_name_def = name_ref->name_def();
-      XLS_RET_CHECK(std::holds_alternative<const NameDef*>(any_name_def));
-      const NameDef* name_def = std::get<const NameDef*>(any_name_def);
-      AstNode* definer = name_def->definer();
-      auto* import = dynamic_cast<Import*>(definer);
-      if (import == nullptr) {
-        return TypeInferenceErrorStatus(
-            span, nullptr,
-            absl::StrFormat("Could not resolve struct from %s; found: %s @ %s",
-                            original_ref_text, name_ref->ToString(),
-                            name_ref->span().ToString()));
-      }
-      std::optional<const ImportedInfo*> imported =
-          type_info->GetImported(import);
-      XLS_RET_CHECK(imported.has_value());
-      Module* module = imported.value()->module;
-      XLS_ASSIGN_OR_RETURN(current,
-                           module->GetTypeDefinition(colon_ref->attr()));
-      return DerefToStruct(span, original_ref_text, current,
-                           imported.value()->type_info);
-    }
-    XLS_RET_CHECK(std::holds_alternative<EnumDef*>(current));
-    auto* enum_def = std::get<EnumDef*>(current);
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat("Expected struct reference, but found enum: %s",
-                        enum_def->identifier()));
   }
 }
 
