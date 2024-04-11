@@ -311,3 +311,43 @@ cc_test(
         "//xls/common:xls_gunit_main",
     ],
 )
+
+cc_library(
+    name = "z3_extract_counterexample",
+    srcs = ["z3_extract_counterexample.cc"],
+    hdrs = ["z3_extract_counterexample.h"],
+    deps = [
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits",
+        "//xls/ir:format_preference",
+        "//xls/ir:number_parser",
+        "//xls/ir:type",
+        "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "z3_extract_counterexample_test",
+    srcs = ["z3_extract_counterexample_test.cc"],
+    deps = [
+        ":z3_extract_counterexample",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "@com_google_fuzztest//fuzztest",
+    ],
+)
