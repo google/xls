@@ -29,6 +29,7 @@ cc_library(
     hdrs = ["type.h"],
     deps = [
         ":parametric_expression",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/memory",

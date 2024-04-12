@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -389,6 +390,7 @@ std::string BitsConstructorType::GetDebugTypeName() const {
 }
 
 bool BitsConstructorType::HasEnum() const { return false; }
+bool BitsConstructorType::HasToken() const { return false; }
 
 std::vector<TypeDim> BitsConstructorType::GetAllDims() const {
   std::vector<TypeDim> result;
@@ -460,12 +462,13 @@ StructType::StructType(std::vector<std::unique_ptr<Type>> members,
 }
 
 bool StructType::HasEnum() const {
-  for (const std::unique_ptr<Type>& type : members_) {
-    if (type->HasEnum()) {
-      return true;
-    }
-  }
-  return false;
+  return absl::c_any_of(members_,
+                        [](const auto& type) { return type->HasEnum(); });
+}
+
+bool StructType::HasToken() const {
+  return absl::c_any_of(members_,
+                        [](const auto& type) { return type->HasToken(); });
 }
 
 std::string StructType::ToErrorString() const {
@@ -584,12 +587,13 @@ bool TupleType::operator==(const Type& other) const {
 }
 
 bool TupleType::HasEnum() const {
-  for (const std::unique_ptr<Type>& t : members_) {
-    if (t->HasEnum()) {
-      return true;
-    }
-  }
-  return false;
+  return absl::c_any_of(members_,
+                        [](const auto& type) { return type->HasEnum(); });
+}
+
+bool TupleType::HasToken() const {
+  return absl::c_any_of(members_,
+                        [](const auto& type) { return type->HasToken(); });
 }
 
 bool TupleType::empty() const { return members_.empty(); }
@@ -820,6 +824,7 @@ bool ChannelType::operator==(const Type& other) const {
 }
 
 bool ChannelType::HasEnum() const { return payload_type_->HasEnum(); }
+bool ChannelType::HasToken() const { return payload_type_->HasToken(); }
 
 std::unique_ptr<Type> ChannelType::CloneToUnique() const {
   return std::make_unique<ChannelType>(payload_type_->CloneToUnique(),

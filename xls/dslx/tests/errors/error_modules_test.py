@@ -1069,6 +1069,28 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_match_arms_with_tokens(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/match_arms_with_tokens.x'
+    )
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertIn(
+        'Match arms cannot produce values with `token`s in them -- please'
+        ' connect the tokens outside of the match',
+        stderr,
+    )
+
+  def test_proc_match_arms_with_sends(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/proc_match_arms_with_sends.x'
+    )
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertIn(
+        'Match arms cannot produce values with `token`s in them -- please'
+        ' connect the tokens outside of the match',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
