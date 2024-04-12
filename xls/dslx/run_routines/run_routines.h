@@ -194,8 +194,15 @@ absl::StatusOr<TestResultData> ParseAndTest(std::string_view program,
                                             std::string_view filename,
                                             const ParseAndTestOptions& options);
 
+struct ParseAndProveResult {
+  TestResultData test_result_data;
+  std::optional<std::vector<Value>> counterexample;
+};
+
 // Parses program and attempts to prove the given quickcheck property.
-absl::StatusOr<TestResultData> ParseAndProve(
+//
+// Note that this call can only prove a single quickcheck function.
+absl::StatusOr<ParseAndProveResult> ParseAndProve(
     std::string_view program, std::string_view module_name,
     std::string_view filename, std::string_view quickcheck_name,
     const ParseAndProveOptions& options);

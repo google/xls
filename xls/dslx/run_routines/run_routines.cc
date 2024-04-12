@@ -30,6 +30,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -72,6 +73,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/solvers/z3_extract_counterexample.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "re2/re2.h"
 
@@ -383,7 +385,7 @@ static absl::Status RunQuickChecksIfJitEnabled(
   return absl::OkStatus();
 }
 
-absl::StatusOr<TestResultData> ParseAndProve(
+absl::StatusOr<ParseAndProveResult> ParseAndProve(
     std::string_view program, std::string_view module_name,
     std::string_view filename, std::string_view quickcheck_name,
     const ParseAndProveOptions& options) {
@@ -397,7 +399,7 @@ absl::StatusOr<TestResultData> ParseAndProve(
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
       result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
-      return result;
+      return ParseAndProveResult{.test_result_data = result};
     }
     return tm_or.status();
   }
@@ -412,7 +414,7 @@ absl::StatusOr<TestResultData> ParseAndProve(
 
   if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
-    return result;
+    return ParseAndProveResult{.test_result_data = result};
   }
 
   Module* entry_module = tm_or.value().module;
@@ -462,12 +464,39 @@ absl::StatusOr<TestResultData> ParseAndProve(
 
   if (std::holds_alternative<solvers::z3::ProvenTrue>(proven)) {
     result.Finish(TestResult::kAllPassed, absl::Now() - start);
-    return result;
+    return ParseAndProveResult{.test_result_data = result};
   }
 
-  // TODO(leary) we need a programmatic way to get at the counterexample.
+  const auto& proven_false = std::get<solvers::z3::ProvenFalse>(proven);
+
+  // Build up records of what the IR parameters are so that the counterexample
+  // extraction knows what kinds of values to parse in the model output.
+  std::vector<solvers::z3::IrParamSpec> ir_params;
+  for (int64_t i = 0; i < ir_function->GetType()->parameter_count(); ++i) {
+    const xls::Type* param_type = ir_function->GetType()->parameter_type(i);
+    XLS_RET_CHECK(param_type != nullptr);
+    ir_params.push_back(solvers::z3::IrParamSpec{
+        .name = std::string{ir_function->param(i)->name()},
+        .type = param_type});
+  }
+
+  // Extract the counterexample to a mapping.
+  using NameToValue = absl::flat_hash_map<std::string, Value>;
+  XLS_ASSIGN_OR_RETURN(NameToValue name_to_value,
+                       ExtractCounterexample(proven_false.message, ir_params));
+
+  // Collapse the mapping back into proper sequential order -- the postcondition
+  // of ExtractCounterexample is that the parameters should all be present if it
+  // succeeds.
+  std::vector<Value> ir_values;
+  ir_values.reserve(name_to_value.size());
+  for (const solvers::z3::IrParamSpec& ir_param : ir_params) {
+    ir_values.push_back(name_to_value.at(ir_param.name));
+  }
+
   result.Finish(TestResult::kSomeFailed, absl::Now() - start);
-  return result;
+  return ParseAndProveResult{.test_result_data = result,
+                             .counterexample = ir_values};
 }
 
 absl::StatusOr<TestResultData> ParseAndTest(

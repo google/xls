@@ -15,6 +15,7 @@
 """Tests the prove_quickcheck_main command line utility."""
 
 import subprocess as subp
+from typing import Tuple
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -31,18 +32,26 @@ class ProveQuickcheckMainTest(test_base.TestCase):
       quickcheck_name: str,
       *,
       want_error: bool = False,
-      alsologtostderr: bool = False
-  ):
+      alsologtostderr: bool = False,
+      extra_flags: Tuple[str, ...] = (),
+  ) -> Tuple[str, str]:
     temp_file = self.create_tempfile(content=program)
-    cmd = [_BINARY, temp_file.full_path, quickcheck_name]
+    cmd = [_BINARY, temp_file.full_path, quickcheck_name] + list(extra_flags)
     if alsologtostderr:
       cmd.append('--alsologtostderr')
-    p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8', env={})
+    p = subp.run(
+        cmd,
+        check=False,
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+        encoding='utf-8',
+        env={},
+    )
     if want_error:
       self.assertNotEqual(p.returncode, 0)
     else:
       self.assertEqual(p.returncode, 0, msg=p.stderr)
-    return p.stderr
+    return p.stdout, p.stderr
 
   def test_trivially_true(self):
     program = """
@@ -64,6 +73,28 @@ class ProveQuickcheckMainTest(test_base.TestCase):
     fn qc_add_one(x: u4) -> bool { (x as u5 + u5:1) > (x as u5) }
     """
     self._prove_quickcheck(program, 'qc_add_one')
+
+  def test_never_42(self):
+    program = """
+    #[quickcheck]
+    fn qc_never_42(x: u8) -> bool { x != u8:42 }
+    """
+    _, stderr = self._prove_quickcheck(program, 'qc_never_42', want_error=True)
+    self.assertIn('counterexample: bits[8]:42', stderr)
+
+  def test_never_42_counterexamples_only(self):
+    program = """
+    #[quickcheck]
+    fn qc_never_42(x: u8) -> bool { x != u8:42 }
+    """
+    stdout, stderr = self._prove_quickcheck(
+        program,
+        'qc_never_42',
+        want_error=True,
+        extra_flags=('--counterexamples_only',),
+    )
+    self.assertEqual('bits[8]:42\n', stdout)
+    self.assertEmpty(stderr)
 
 
 if __name__ == '__main__':

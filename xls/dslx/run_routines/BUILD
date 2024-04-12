@@ -24,6 +24,7 @@ cc_library(
     hdrs = ["run_routines.h"],
     deps = [
         ":test_xml",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -66,6 +67,7 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:value",
         "//xls/passes:optimization_pass_pipeline",
+        "//xls/solvers:z3_extract_counterexample",
         "//xls/solvers:z3_ir_translator",
         "@com_googlesource_code_re2//:re2",
     ],

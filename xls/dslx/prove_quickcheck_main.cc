@@ -41,6 +41,9 @@ ABSL_FLAG(std::string, disable_warnings, "",
           "recommended, but can be used in exceptional circumstances");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
+ABSL_FLAG(bool, counterexamples_only, false,
+          "Only dumps a counterexample (if the proof process finds a "
+          "counterexample) or an empty string");
 
 const char kUsage[] = R"(
 Attempts to proves a single quickcheck property in a given module to be
@@ -53,6 +56,7 @@ namespace {
 absl::StatusOr<TestResultData> RealMain(
     std::string_view entry_module_path, std::string_view quickcheck_name,
     absl::Span<const std::filesystem::path> dslx_paths, bool warnings_as_errors,
+    bool counterexamples_only,
     std::optional<std::string_view> xml_output_file) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
@@ -66,10 +70,24 @@ absl::StatusOr<TestResultData> RealMain(
       .warnings = warnings,
   };
 
-  XLS_ASSIGN_OR_RETURN(TestResultData result_data,
+  XLS_ASSIGN_OR_RETURN(ParseAndProveResult result,
                        ParseAndProve(program, module_name, entry_module_path,
                                      quickcheck_name, options));
-  return result_data;
+
+  if (result.counterexample.has_value()) {
+    std::string counterexample_str =
+        absl::StrJoin(result.counterexample.value(), ", ");
+    if (counterexamples_only) {
+      // In "counterexamples only" mode we either spit out a counterexample or
+      // nothing (and produce an appropriate retcode from the binary).
+      std::cout << counterexample_str << "\n";
+    } else {
+      std::cerr << "found counterexample: " << counterexample_str << " in "
+                << result.test_result_data.duration() << "\n";
+    }
+  }
+
+  return result.test_result_data;
 }
 
 }  // namespace
@@ -103,16 +121,23 @@ int main(int argc, char** argv) {
   }
 
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
+  bool counterexamples_only = absl::GetFlag(FLAGS_counterexamples_only);
 
-  absl::StatusOr<xls::dslx::TestResultData> test_result =
-      xls::dslx::RealMain(positional_arguments[0], positional_arguments[1],
-                          dslx_paths, warnings_as_errors, xml_output_file);
+  absl::StatusOr<xls::dslx::TestResultData> test_result = xls::dslx::RealMain(
+      positional_arguments[0], positional_arguments[1], dslx_paths,
+      warnings_as_errors, counterexamples_only, xml_output_file);
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }
+
   if (test_result->result() != xls::dslx::TestResult::kAllPassed) {
+    if (!counterexamples_only) {
+      std::cerr << "Proof attempt(s) failed; terminating with error status.\n";
+    }
     return EXIT_FAILURE;
   }
-  std::cout << "Proven! elapsed: " << test_result->duration() << "\n";
+  if (!counterexamples_only) {
+    std::cout << "Proven! elapsed: " << test_result->duration() << "\n";
+  }
   return EXIT_SUCCESS;
 }
