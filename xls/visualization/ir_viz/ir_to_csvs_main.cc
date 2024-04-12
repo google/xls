@@ -79,7 +79,7 @@ std::string ToFieldValue(T v) {
   return absl::StrCat(v);
 }
 
-static const riegeli::CsvHeader kNodeHeader = {
+constexpr riegeli::CsvHeaderConstant kNodeHeader = {
     "name",         "label",
     "ir",           "opcode",
     "value",        "start",
@@ -88,53 +88,45 @@ static const riegeli::CsvHeader kNodeHeader = {
     "cycle",        "state_param_index",
     "initial_value"};
 riegeli::CsvRecord NodeRecord(const viz::Node& node) {
-  std::array<std::string, 13> fields;
-  fields[0] = node.id();
-  fields[1] = node.name();
-  fields[2] = node.ir();
-  fields[3] = node.opcode();
-  fields[4] = node.attributes().value();
-  fields[5] =
-      node.attributes().has_start()
-          ? ToFieldValue(static_cast<int64_t>(node.attributes().start()))
-          : "";
-  fields[6] =
-      node.attributes().has_width()
-          ? ToFieldValue(static_cast<int64_t>(node.attributes().width()))
-          : "";
-  fields[7] = node.attributes().has_delay_ps()
-                  ? ToFieldValue(node.attributes().delay_ps())
-                  : "";
-  fields[8] = node.attributes().known_bits();
-  fields[9] = node.attributes().has_on_critical_path()
-                  ? ToFieldValue(node.attributes().on_critical_path())
-                  : "";
-  fields[10] =
-      node.attributes().has_cycle()
-          ? ToFieldValue(static_cast<int64_t>(node.attributes().cycle()))
-          : "";
-  fields[11] = node.attributes().has_state_param_index()
-                   ? ToFieldValue(static_cast<int64_t>(
-                         node.attributes().state_param_index()))
-                   : "";
-  fields[12] = node.attributes().initial_value();
-  return riegeli::CsvRecord(kNodeHeader, fields);
+  return riegeli::CsvRecord(
+      *kNodeHeader,
+      {node.id(), node.name(), node.ir(), node.opcode(),
+       node.attributes().value(),
+       node.attributes().has_start()
+           ? ToFieldValue(static_cast<int64_t>(node.attributes().start()))
+           : "",
+       node.attributes().has_width()
+           ? ToFieldValue(static_cast<int64_t>(node.attributes().width()))
+           : "",
+       node.attributes().has_delay_ps()
+           ? ToFieldValue(node.attributes().delay_ps())
+           : "",
+       node.attributes().known_bits(),
+       node.attributes().has_on_critical_path()
+           ? ToFieldValue(node.attributes().on_critical_path())
+           : "",
+       node.attributes().has_cycle()
+           ? ToFieldValue(static_cast<int64_t>(node.attributes().cycle()))
+           : "",
+       node.attributes().has_state_param_index()
+           ? ToFieldValue(
+                 static_cast<int64_t>(node.attributes().state_param_index()))
+           : "",
+       node.attributes().initial_value()});
 }
 
-static const riegeli::CsvHeader kEdgeHeader = {
+constexpr riegeli::CsvHeaderConstant kEdgeHeader = {
     "node1", "node2", "id", "bit_width", "type", "on_critical_path"};
 riegeli::CsvRecord EdgeRecord(const viz::Edge& edge) {
-  std::array<std::string, 6> fields;
-  fields[0] = edge.source_id();
-  fields[1] = edge.target_id();
-  fields[2] = edge.id();
-  fields[3] = edge.has_bit_width()
-                  ? ToFieldValue(static_cast<int64_t>(edge.bit_width()))
-                  : "";
-  fields[4] = edge.type();
-  fields[5] =
-      edge.has_on_critical_path() ? ToFieldValue(edge.on_critical_path()) : "";
-  return riegeli::CsvRecord(kEdgeHeader, fields);
+  return riegeli::CsvRecord(
+      *kEdgeHeader,
+      {edge.source_id(), edge.target_id(), edge.id(),
+       edge.has_bit_width()
+           ? ToFieldValue(static_cast<int64_t>(edge.bit_width()))
+           : "",
+       edge.type(),
+       edge.has_on_critical_path() ? ToFieldValue(edge.on_critical_path())
+                                   : ""});
 }
 
 absl::Status RealMain(const std::filesystem::path& ir_path,
@@ -187,13 +179,13 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   }
 
   riegeli::CsvWriterBase::Options node_options;
-  node_options.set_header(kNodeHeader);
+  node_options.set_header(*kNodeHeader);
   auto node_writer = riegeli::CsvWriter(
       riegeli::FdWriter(node_csv_path.string()), node_options);
   XLS_RETURN_IF_ERROR(node_writer.status());
 
   riegeli::CsvWriterBase::Options edge_options;
-  edge_options.set_header(kEdgeHeader);
+  edge_options.set_header(*kEdgeHeader);
   auto edge_writer = riegeli::CsvWriter(
       riegeli::FdWriter(edge_csv_path.string()), edge_options);
   XLS_RETURN_IF_ERROR(edge_writer.status());
