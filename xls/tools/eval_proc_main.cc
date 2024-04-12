@@ -177,6 +177,9 @@ ABSL_FLAG(std::vector<std::string>, model_memories, {},
           "Comma separated list of memory=depth/element_type:initial_value "
           "pairs, for example: "
           "mem=32/bits[32]:0");
+ABSL_FLAG(bool, fail_on_assert, false,
+          "When set to true, the simulation fails on the activation or cycle "
+          "in which an assertion fires.");
 
 namespace xls {
 
@@ -191,23 +194,29 @@ static absl::Status LogInterpreterEvents(std::string_view entity_name,
                   << "\n";
       }
     }
-    for (const auto& msg : events.assert_msgs) {
-      std::string unescaped_msg;
-      XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
-      std::cerr << "Proc " << entity_name << " assert: " << unescaped_msg
-                << "\n";
-    }
+  }
+  for (const auto& msg : events.assert_msgs) {
+    std::string unescaped_msg;
+    XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
+    std::cerr << "Proc " << entity_name << " assert: " << unescaped_msg << "\n";
   }
   return absl::OkStatus();
 }
 
+struct EvaluateProcsOptions {
+  bool use_jit = false;
+  bool fail_on_assert = false;
+  std::vector<int64_t> ticks = {-1};
+};
+
 static absl::Status EvaluateProcs(
-    Package* package, bool use_jit, const std::vector<int64_t>& ticks,
+    Package* package,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     absl::btree_map<std::string, std::vector<Value>>&
-        expected_outputs_for_channels) {
+        expected_outputs_for_channels,
+    const EvaluateProcsOptions& options = {}) {
   std::unique_ptr<SerialProcRuntime> runtime;
-  if (use_jit) {
+  if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(runtime, CreateJitSerialProcRuntime(package));
   } else {
     XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(package));
@@ -234,7 +243,7 @@ static absl::Status EvaluateProcs(
 
   const int64_t trace_per_ticks = absl::GetFlag(FLAGS_trace_per_ticks);
 
-  for (int64_t this_ticks : ticks) {
+  for (int64_t this_ticks : options.ticks) {
     if (absl::GetFlag(FLAGS_show_trace)) {
       LOG(INFO) << "Resetting proc state";
     }
@@ -293,9 +302,18 @@ static absl::Status EvaluateProcs(
       std::sort(sorted_procs.begin(), sorted_procs.end(),
                 [](Proc* a, Proc* b) { return a->name() < b->name(); });
 
+      std::vector<std::string> asserts;
+
       for (Proc* proc : sorted_procs) {
-        XLS_RETURN_IF_ERROR(LogInterpreterEvents(
-            proc->name(), runtime->GetInterpreterEvents(proc)));
+        const xls::InterpreterEvents& events =
+            runtime->GetInterpreterEvents(proc);
+        XLS_RETURN_IF_ERROR(LogInterpreterEvents(proc->name(), events));
+        if (options.fail_on_assert) {
+          for (const std::string& assert : events.assert_msgs) {
+            asserts.push_back(
+                absl::StrFormat("Proc %s: %s", proc->name(), assert));
+          }
+        }
       }
 
       for (const auto& proc : package->procs()) {
@@ -303,6 +321,11 @@ static absl::Status EvaluateProcs(
         VLOG(1) << "Proc " << proc->name() << " : "
                 << absl::StrFormat("{%s}",
                                    absl::StrJoin(state, ", ", ValueFormatter));
+      }
+
+      if (!asserts.empty()) {
+        return absl::UnknownError(absl::StrFormat(
+            "Assert(s) fired:\n\n%s", absl::StrJoin(asserts, "\n")));
       }
 
       // --ticks 0 stops when all outputs are verified
@@ -641,51 +664,58 @@ static xls::Type* GetPortTypeOrNull(Block* block, std::string_view port_name) {
   return nullptr;
 }
 
+struct RunBlockOptions {
+  bool use_jit = false;
+  std::vector<int64_t> ticks = {-1};
+  int64_t max_cycles_no_output = 100;
+  std::string_view streaming_channel_data_suffix;
+  std::string_view streaming_channel_ready_suffix;
+  std::string_view streaming_channel_valid_suffix;
+  std::string_view memory_read_enable_suffix;
+  std::string_view memory_read_address_suffix;
+  std::string_view memory_read_data_suffix;
+  std::string_view memory_write_enable_suffix;
+  std::string_view memory_write_address_suffix;
+  std::string_view memory_write_data_suffix;
+  std::string_view idle_channel_name;
+  int random_seed;
+  double prob_input_valid_assert;
+  bool show_trace;
+  bool fail_on_assert;
+};
+
 static absl::Status RunBlock(
-    const BlockEvaluator& continuation_factory, Package* package,
-    const std::vector<int64_t>& ticks,
-    const verilog::ModuleSignatureProto& signature,
-    const int64_t max_cycles_no_output,
+    Package* package, const verilog::ModuleSignatureProto& signature,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels,
     const absl::flat_hash_map<std::string, std::pair<int64_t, Value>>&
         model_memories_param,
-    std::string_view streaming_channel_data_suffix,
-    std::string_view streaming_channel_ready_suffix,
-    std::string_view streaming_channel_valid_suffix,
-    std::string_view memory_read_enable_suffix,
-    std::string_view memory_read_address_suffix,
-    std::string_view memory_read_data_suffix,
-    std::string_view memory_write_enable_suffix,
-    std::string_view memory_write_address_suffix,
-    std::string_view memory_write_data_suffix,
-    std::string_view idle_channel_name, const int random_seed,
-    const double prob_input_valid_assert, bool show_trace,
-    std::string_view output_stats_path) {
+    std::string_view output_stats_path, const RunBlockOptions& options = {}) {
   if (package->blocks().size() != 1) {
     return absl::InvalidArgumentError(
         "Input IR should contain exactly one block");
   }
 
-  std::mt19937_64 bit_gen(random_seed);
+  std::mt19937_64 bit_gen(options.random_seed);
 
   Block* block = package->blocks()[0].get();
 
   // TODO: Support multiple resets
-  CHECK_EQ(ticks.size(), 1);
+  CHECK_EQ(options.ticks.size(), 1);
 
   absl::flat_hash_map<std::string, ChannelInfo> channel_info;
   XLS_ASSIGN_OR_RETURN(
       channel_info,
       InterpretBlockSignature(
           block, signature, inputs_for_channels, expected_outputs_for_channels,
-          model_memories_param, streaming_channel_data_suffix,
-          streaming_channel_ready_suffix, streaming_channel_valid_suffix,
-          memory_read_enable_suffix, memory_read_address_suffix,
-          memory_read_data_suffix, memory_write_enable_suffix,
-          memory_write_address_suffix, memory_write_data_suffix,
-          idle_channel_name));
+          model_memories_param, options.streaming_channel_data_suffix,
+          options.streaming_channel_ready_suffix,
+          options.streaming_channel_valid_suffix,
+          options.memory_read_enable_suffix, options.memory_read_address_suffix,
+          options.memory_read_data_suffix, options.memory_write_enable_suffix,
+          options.memory_write_address_suffix, options.memory_write_data_suffix,
+          options.idle_channel_name));
 
   // Prepare values in queue format
   absl::flat_hash_map<std::string, std::deque<Value>> channel_value_queues;
@@ -705,11 +735,12 @@ static absl::Status RunBlock(
   absl::flat_hash_map<std::string, std::unique_ptr<MemoryModel>> model_memories;
 
   for (const auto& [name, model_pair] : model_memories_param) {
-    const std::string rd_data = name + std::string(memory_read_data_suffix);
+    const std::string rd_data =
+        name + std::string(options.memory_read_data_suffix);
     XLS_ASSIGN_OR_RETURN(const InputPort* port, block->GetInputPort(rd_data));
     model_memories[name] = std::make_unique<MemoryModel>(
         name, model_pair.first, model_pair.second,
-        /*read_disabled_value=*/XsOfType(port->GetType()), show_trace);
+        /*read_disabled_value=*/XsOfType(port->GetType()), options.show_trace);
   }
 
   // Initial register state is one for all registers.
@@ -721,6 +752,11 @@ static absl::Status RunBlock(
     reg_state[reg->name()] = XsOfType(reg->type());
   }
 
+  const BlockEvaluator& continuation_factory =
+      options.use_jit
+          ? reinterpret_cast<const BlockEvaluator&>(kStreamingJitBlockEvaluator)
+          : reinterpret_cast<const BlockEvaluator&>(kInterpreterBlockEvaluator);
+
   XLS_ASSIGN_OR_RETURN(auto continuation,
                        continuation_factory.NewContinuation(block, reg_state));
 
@@ -731,7 +767,7 @@ static absl::Status RunBlock(
     // Idealized reset behavior
     const bool resetting = (cycle == 0);
 
-    if (show_trace && ((cycle < 30) || (cycle % 100 == 0))) {
+    if (options.show_trace && ((cycle < 30) || (cycle % 100 == 0))) {
       LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting
                 << " matched outputs " << matched_outputs;
     }
@@ -753,7 +789,7 @@ static absl::Status RunBlock(
         // Don't bring valid low without a transaction
         const bool asserted_valid = asserted_valids.contains(name);
         const bool random_go_head =
-            absl::Bernoulli(bit_gen, prob_input_valid_assert);
+            absl::Bernoulli(bit_gen, options.prob_input_valid_assert);
         const bool this_valid =
             asserted_valid || (random_go_head && !queue.empty());
         if (this_valid) {
@@ -763,7 +799,7 @@ static absl::Status RunBlock(
             Value(xls::UBits(this_valid ? 1 : 0, 1));
         // Channels without data port will return nullptr
         xls::Type* port_type = GetPortTypeOrNull(
-            block, name + streaming_channel_data_suffix.data());
+            block, name + options.streaming_channel_data_suffix.data());
 
         if (port_type != nullptr) {
           input_set[info.channel_data] =
@@ -776,7 +812,8 @@ static absl::Status RunBlock(
       }
     }
     for (const auto& [name, model] : model_memories) {
-      const std::string rd_data = name + std::string(memory_read_data_suffix);
+      const std::string rd_data =
+          name + std::string(options.memory_read_data_suffix);
       input_set[rd_data] = model->GetValueReadLastTick();
     }
     for (const auto& [name, _] : expected_outputs_for_channels) {
@@ -789,8 +826,13 @@ static absl::Status RunBlock(
         continuation->output_ports();
 
     // Output trace messages
-    XLS_RETURN_IF_ERROR(
-        LogInterpreterEvents(block->name(), continuation->events()));
+    const xls::InterpreterEvents& events = continuation->events();
+    XLS_RETURN_IF_ERROR(LogInterpreterEvents(block->name(), events));
+
+    if (!events.assert_msgs.empty() && options.fail_on_assert) {
+      return absl::UnknownError(absl::StrFormat(
+          "Assert(s) fired:\n\n%s", absl::StrJoin(events.assert_msgs, "\n")));
+    }
 
     if (resetting) {
       last_output_cycle = cycle;
@@ -810,7 +852,7 @@ static absl::Status RunBlock(
 
       std::deque<Value>& queue = channel_value_queues.at(name);
       if (vld_value && rdy_value) {
-        if (show_trace) {
+        if (options.show_trace) {
           LOG(INFO) << "Channel Model: Consuming input for " << name << ": "
                     << queue.front().ToString();
         }
@@ -838,7 +880,7 @@ static absl::Status RunBlock(
         }
         const Value& data_value = outputs.at(info.channel_data);
         const Value& match_value = queue.front();
-        if (show_trace) {
+        if (options.show_trace) {
           LOG(INFO) << "Channel Model: Consuming output for " << name << ": "
                     << data_value << ", remaining " << queue.size();
         }
@@ -865,11 +907,11 @@ static absl::Status RunBlock(
       // Write handling
       {
         const std::string wr_addr =
-            name + std::string(memory_write_address_suffix);
+            name + std::string(options.memory_write_address_suffix);
         const std::string wr_data =
-            name + std::string(memory_write_data_suffix);
+            name + std::string(options.memory_write_data_suffix);
         const std::string wr_en =
-            name + std::string(memory_write_enable_suffix);
+            name + std::string(options.memory_write_enable_suffix);
         const Value wr_en_val = outputs.at(wr_en);
         CHECK(wr_en_val.IsBits());
         if (wr_en_val.IsAllOnes()) {
@@ -884,8 +926,9 @@ static absl::Status RunBlock(
       // Read handling
       {
         const std::string rd_addr =
-            name + std::string(memory_read_address_suffix);
-        const std::string rd_en = name + std::string(memory_read_enable_suffix);
+            name + std::string(options.memory_read_address_suffix);
+        const std::string rd_en =
+            name + std::string(options.memory_read_enable_suffix);
         const Value rd_en_val = outputs.at(rd_en);
         CHECK(rd_en_val.IsBits());
         if (rd_en_val.IsAllOnes()) {
@@ -915,9 +958,10 @@ static absl::Status RunBlock(
     }
 
     // Break on no output for too long
-    if ((cycle - last_output_cycle) > max_cycles_no_output) {
-      return absl::OutOfRangeError(absl::StrFormat(
-          "Block didn't produce output for %i cycles", max_cycles_no_output));
+    if ((cycle - last_output_cycle) > options.max_cycles_no_output) {
+      return absl::OutOfRangeError(
+          absl::StrFormat("Block didn't produce output for %i cycles",
+                          options.max_cycles_no_output));
     }
 
     for (const auto& [_, model] : model_memories) {
@@ -1034,7 +1078,7 @@ static absl::Status RealMain(
     std::string_view memory_write_data_suffix,
     std::string_view idle_channel_name, const int random_seed,
     const double prob_input_valid_assert, bool show_trace,
-    std::string_view output_stats_path) {
+    std::string_view output_stats_path, bool fail_on_assert) {
   // Don't waste time and memory parsing more input than can possibly be
   // consumed.
   const int64_t total_ticks =
@@ -1088,43 +1132,53 @@ static absl::Status RealMain(
                    "specified to eval_proc_main";
   }
 
+  if (backend.starts_with("block")) {
+    RunBlockOptions block_options = {
+        .ticks = ticks,
+        .max_cycles_no_output = max_cycles_no_output,
+        .streaming_channel_data_suffix = streaming_channel_data_suffix,
+        .streaming_channel_ready_suffix = streaming_channel_ready_suffix,
+        .streaming_channel_valid_suffix = streaming_channel_valid_suffix,
+        .memory_read_enable_suffix = memory_read_enable_suffix,
+        .memory_read_address_suffix = memory_read_address_suffix,
+        .memory_read_data_suffix = memory_read_data_suffix,
+        .memory_write_enable_suffix = memory_write_enable_suffix,
+        .memory_write_address_suffix = memory_write_address_suffix,
+        .memory_write_data_suffix = memory_write_data_suffix,
+        .idle_channel_name = idle_channel_name,
+        .random_seed = random_seed,
+        .prob_input_valid_assert = prob_input_valid_assert,
+        .show_trace = show_trace,
+        .fail_on_assert = fail_on_assert};
+    if (backend == "block_jit") {
+      block_options.use_jit = true;
+    } else if (backend == "block_interpreter") {
+      block_options.use_jit = false;
+    } else {
+      LOG(QFATAL) << "Unknown backend type";
+    }
+    verilog::ModuleSignatureProto proto;
+    CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
+    return RunBlock(package.get(), proto, inputs_for_channels,
+                    expected_outputs_for_channels, model_memories,
+                    output_stats_path, block_options);
+  }
+
+  // Not block sim
+  EvaluateProcsOptions evaluate_procs_options = {
+      .fail_on_assert = fail_on_assert,
+      .ticks = ticks,
+  };
+
   if (backend == "serial_jit") {
-    return EvaluateProcs(package.get(), /*use_jit=*/true, ticks,
-                         inputs_for_channels, expected_outputs_for_channels);
+    evaluate_procs_options.use_jit = true;
+  } else if (backend == "ir_interpreter") {
+    evaluate_procs_options.use_jit = false;
+  } else {
+    LOG(QFATAL) << "Unknown backend type";
   }
-  if (backend == "ir_interpreter") {
-    return EvaluateProcs(package.get(), /*use_jit=*/false, ticks,
-                         inputs_for_channels, expected_outputs_for_channels);
-  }
-  if (backend == "block_jit") {
-    verilog::ModuleSignatureProto proto;
-    CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
-    return RunBlock(kStreamingJitBlockEvaluator, package.get(), ticks, proto,
-                    max_cycles_no_output, inputs_for_channels,
-                    expected_outputs_for_channels, model_memories,
-                    streaming_channel_data_suffix,
-                    streaming_channel_ready_suffix,
-                    streaming_channel_valid_suffix, memory_read_enable_suffix,
-                    memory_read_address_suffix, memory_read_data_suffix,
-                    memory_write_enable_suffix, memory_write_address_suffix,
-                    memory_write_data_suffix, idle_channel_name, random_seed,
-                    prob_input_valid_assert, show_trace, output_stats_path);
-  }
-  if (backend == "block_interpreter") {
-    verilog::ModuleSignatureProto proto;
-    CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
-    return RunBlock(kInterpreterBlockEvaluator, package.get(), ticks, proto,
-                    max_cycles_no_output, inputs_for_channels,
-                    expected_outputs_for_channels, model_memories,
-                    streaming_channel_data_suffix,
-                    streaming_channel_ready_suffix,
-                    streaming_channel_valid_suffix, memory_read_enable_suffix,
-                    memory_read_address_suffix, memory_read_data_suffix,
-                    memory_write_enable_suffix, memory_write_address_suffix,
-                    memory_write_data_suffix, idle_channel_name, random_seed,
-                    prob_input_valid_assert, show_trace, output_stats_path);
-  }
-  LOG(QFATAL) << "Unknown backend type";
+  return EvaluateProcs(package.get(), inputs_for_channels,
+                       expected_outputs_for_channels, evaluate_procs_options);
 }
 
 }  // namespace xls
@@ -1203,5 +1257,6 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_memory_write_data_suffix),
       absl::GetFlag(FLAGS_idle_channel_name), absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
-      absl::GetFlag(FLAGS_show_trace), absl::GetFlag(FLAGS_output_stats_path)));
+      absl::GetFlag(FLAGS_show_trace), absl::GetFlag(FLAGS_output_stats_path),
+      absl::GetFlag(FLAGS_fail_on_assert)));
 }
