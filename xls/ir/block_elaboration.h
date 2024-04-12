@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/elaboration.h"
@@ -32,6 +33,7 @@
 
 namespace xls {
 class BlockInstance;
+class ElaboratedBlockDfsVisitor;
 
 // A node and its associated hierarchical instance.
 struct ElaboratedNode {
@@ -45,6 +47,10 @@ struct ElaboratedNode {
   bool operator!=(const ElaboratedNode& other) const {
     return !(*this == other);
   }
+
+  std::string ToString() const;
+  absl::Status Accept(ElaboratedBlockDfsVisitor& visitor);
+  absl::Status VisitSingleNode(ElaboratedBlockDfsVisitor& visitor);
 };
 
 std::ostream& operator<<(std::ostream& os,
@@ -53,7 +59,7 @@ std::ostream& operator<<(std::ostream& os,
 template <typename H>
 H AbslHashValue(H h, const ElaboratedNode& node_and_instance) {
   return H::combine(std::move(h), node_and_instance.node->id(),
-                    *node_and_instance.instance);
+                    node_and_instance.instance);
 }
 
 // Representation of an instance of a block. This is a recursive data structure
@@ -110,16 +116,6 @@ class BlockInstance {
   absl::flat_hash_map<Node*, ElaboratedNode> child_to_parent_ports_;
 };
 
-template <typename H>
-H AbslHashValue(H h, const BlockInstance& inst) {
-  return H::combine(std::move(h), inst.path().ToString());
-}
-
-template <typename H>
-H AbslHashValue(H h, const BlockInstance* inst) {
-  return H::combine(std::move(h), *inst);
-}
-
 // Data structure representing the elaboration tree starting from a root block.
 class BlockElaboration {
  public:
@@ -156,6 +152,8 @@ class BlockElaboration {
   // Returns an error if the path does not exist in the elaboration.
   absl::StatusOr<BlockInstantiationPath> CreatePath(
       std::string_view path_str) const;
+
+  absl::Status Accept(ElaboratedBlockDfsVisitor& visitor) const;
 
  private:
   BlockElaboration() = default;

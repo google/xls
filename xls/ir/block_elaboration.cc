@@ -29,20 +29,379 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/elaborated_block_dfs_visitor.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 
 namespace xls {
+namespace {
+// Returns the predecessor of `node_and_instance` that exists in a different
+// instance, if it exists.
+//
+// If the input node is an InputPort, this returns the InstantiationInput in the
+// parent instance. If the input node is an InstantiationOutput, this returns
+// the OutputPort in the child instance.
+std::optional<ElaboratedNode> InterInstancePredecessor(
+    const ElaboratedNode& node_and_instance) {
+  Node* node = node_and_instance.node;
+  if (node->Is<InputPort>()) {
+    auto itr = node_and_instance.instance->child_to_parent_ports().find(
+        node_and_instance.node);
+    if (itr != node_and_instance.instance->child_to_parent_ports().end()) {
+      return itr->second;
+    }
+  }
+  if (node->Is<InstantiationOutput>()) {
+    auto itr = node_and_instance.instance->parent_to_child_ports().find(
+        node_and_instance.node);
+    if (itr != node_and_instance.instance->parent_to_child_ports().end()) {
+      return itr->second;
+    }
+  }
+
+  return std::nullopt;
+}
+
+// Returns the successor of `node_and_instance` that exists in a different
+// instance, if it exists.
+//
+// If the input node is an OutputPort, this returns the InstantiationOutput in
+// the parent instance. If the input node is an InstantiationInput, this returns
+// the InputPort in the child instance.
+std::optional<ElaboratedNode> InterInstanceSuccessor(
+    const ElaboratedNode& node_and_instance) {
+  Node* node = node_and_instance.node;
+  if (node->Is<OutputPort>()) {
+    auto itr = node_and_instance.instance->child_to_parent_ports().find(
+        node_and_instance.node);
+    if (itr != node_and_instance.instance->child_to_parent_ports().end()) {
+      return itr->second;
+    }
+  }
+  if (node->Is<InstantiationInput>()) {
+    auto itr = node_and_instance.instance->parent_to_child_ports().find(
+        node_and_instance.node);
+    if (itr != node_and_instance.instance->parent_to_child_ports().end()) {
+      return itr->second;
+    }
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
+std::string ElaboratedNode::ToString() const {
+  return absl::StrFormat("%s (%s)", node->ToString(), instance->ToString());
+}
+
+absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) {
+  if (visitor.IsVisited(*this)) {
+    return absl::OkStatus();
+  }
+  if (visitor.IsTraversing(*this)) {
+    std::vector<std::string> cycle_names = {ToString()};
+    auto first_traversing_node =
+        [&](ElaboratedNode node) -> std::optional<ElaboratedNode> {
+      ElaboratedNode to_check;
+      for (Node* operand : node.node->operands()) {
+        to_check.node = operand;
+        to_check.instance = node.instance;
+        if (visitor.IsTraversing(to_check)) {
+          return to_check;
+        }
+      }
+      std::optional<ElaboratedNode> predecessor =
+          InterInstancePredecessor(node);
+      if (predecessor.has_value() && visitor.IsTraversing(*predecessor)) {
+        return predecessor;
+      }
+      return std::nullopt;
+    };
+    ElaboratedNode current_node = *this;
+    do {
+      std::optional<ElaboratedNode> first_traversing =
+          first_traversing_node(current_node);
+      bool broke = first_traversing.has_value();
+      CHECK(broke);
+      current_node = *first_traversing;
+      cycle_names.push_back(current_node.ToString());
+    } while (current_node != *this);
+    return absl::InternalError(absl::StrFormat(
+        "Cycle detected: [\n%s\n]", absl::StrJoin(cycle_names, " ->\n")));
+  }
+  VLOG(5) << "Traversing node: " << ToString();
+  visitor.SetTraversing(*this);
+  for (Node* operand : node->operands()) {
+    ElaboratedNode operand_node{.node = operand, .instance = instance};
+    XLS_RETURN_IF_ERROR(operand_node.Accept(visitor));
+  }
+  std::optional<ElaboratedNode> predecessor = InterInstancePredecessor(*this);
+  if (predecessor.has_value()) {
+    XLS_RETURN_IF_ERROR(predecessor->Accept(visitor));
+  }
+
+  visitor.UnsetTraversing(*this);
+  visitor.MarkVisited(*this);
+  return VisitSingleNode(visitor);
+  VLOG(5) << "Traversed node: " << ToString();
+  return absl::OkStatus();
+}
+
+absl::Status ElaboratedNode::VisitSingleNode(
+    ElaboratedBlockDfsVisitor& visitor) {
+  VLOG(5) << "Visiting elaborated node: " << ToString() << "\n";
+  switch (node->op()) {
+    case Op::kAdd:
+      return visitor.HandleAdd(down_cast<BinOp*>(node), instance);
+
+    case Op::kAnd:
+      return visitor.HandleNaryAnd(down_cast<NaryOp*>(node), instance);
+
+    case Op::kAndReduce:
+      return visitor.HandleAndReduce(down_cast<BitwiseReductionOp*>(node),
+                                     instance);
+
+    case Op::kAssert:
+      return visitor.HandleAssert(down_cast<Assert*>(node), instance);
+
+    case Op::kCover:
+      return visitor.HandleCover(down_cast<Cover*>(node), instance);
+
+    case Op::kTrace:
+      return visitor.HandleTrace(down_cast<Trace*>(node), instance);
+
+    case Op::kReceive:
+      return visitor.HandleReceive(down_cast<Receive*>(node), instance);
+
+    case Op::kSend:
+      return visitor.HandleSend(down_cast<Send*>(node), instance);
+
+    case Op::kNand:
+      return visitor.HandleNaryNand(down_cast<NaryOp*>(node), instance);
+
+    case Op::kNor:
+      return visitor.HandleNaryNor(down_cast<NaryOp*>(node), instance);
+
+    case Op::kAfterAll:
+      return visitor.HandleAfterAll(down_cast<AfterAll*>(node), instance);
+
+    case Op::kMinDelay:
+      return visitor.HandleMinDelay(down_cast<MinDelay*>(node), instance);
+
+    case Op::kArray:
+      return visitor.HandleArray(down_cast<Array*>(node), instance);
+
+    case Op::kBitSlice:
+      return visitor.HandleBitSlice(down_cast<BitSlice*>(node), instance);
+
+    case Op::kDynamicBitSlice:
+      return visitor.HandleDynamicBitSlice(down_cast<DynamicBitSlice*>(node),
+                                           instance);
+
+    case Op::kBitSliceUpdate:
+      return visitor.HandleBitSliceUpdate(down_cast<BitSliceUpdate*>(node),
+                                          instance);
+
+    case Op::kConcat:
+      return visitor.HandleConcat(down_cast<Concat*>(node), instance);
+
+    case Op::kDecode:
+      return visitor.HandleDecode(down_cast<Decode*>(node), instance);
+
+    case Op::kEncode:
+      return visitor.HandleEncode(down_cast<Encode*>(node), instance);
+
+    case Op::kEq:
+      return visitor.HandleEq(down_cast<CompareOp*>(node), instance);
+
+    case Op::kIdentity:
+      return visitor.HandleIdentity(down_cast<UnOp*>(node), instance);
+
+    case Op::kArrayIndex:
+      return visitor.HandleArrayIndex(down_cast<ArrayIndex*>(node), instance);
+
+    case Op::kArrayUpdate:
+      return visitor.HandleArrayUpdate(down_cast<ArrayUpdate*>(node), instance);
+
+    case Op::kArrayConcat:
+      return visitor.HandleArrayConcat(down_cast<ArrayConcat*>(node), instance);
+
+    case Op::kArraySlice:
+      return visitor.HandleArraySlice(down_cast<ArraySlice*>(node), instance);
+
+    case Op::kInvoke:
+      return visitor.HandleInvoke(down_cast<Invoke*>(node), instance);
+
+    case Op::kCountedFor:
+      return visitor.HandleCountedFor(down_cast<CountedFor*>(node), instance);
+
+    case Op::kDynamicCountedFor:
+      return visitor.HandleDynamicCountedFor(
+          down_cast<DynamicCountedFor*>(node), instance);
+
+    case Op::kLiteral:
+      return visitor.HandleLiteral(down_cast<Literal*>(node), instance);
+
+    case Op::kMap:
+      return visitor.HandleMap(down_cast<Map*>(node), instance);
+
+    case Op::kNe:
+      return visitor.HandleNe(down_cast<CompareOp*>(node), instance);
+
+    case Op::kNeg:
+      return visitor.HandleNeg(down_cast<UnOp*>(node), instance);
+
+    case Op::kNot:
+      return visitor.HandleNot(down_cast<UnOp*>(node), instance);
+
+    case Op::kOneHot:
+      return visitor.HandleOneHot(down_cast<OneHot*>(node), instance);
+
+    case Op::kOneHotSel:
+      return visitor.HandleOneHotSel(down_cast<OneHotSelect*>(node), instance);
+
+    case Op::kPrioritySel:
+      return visitor.HandlePrioritySel(down_cast<PrioritySelect*>(node),
+                                       instance);
+
+    case Op::kOr:
+      return visitor.HandleNaryOr(down_cast<NaryOp*>(node), instance);
+
+    case Op::kOrReduce:
+      return visitor.HandleOrReduce(down_cast<BitwiseReductionOp*>(node),
+                                    instance);
+
+    case Op::kParam:
+      return visitor.HandleParam(down_cast<Param*>(node), instance);
+
+    case Op::kNext:
+      return visitor.HandleNext(down_cast<Next*>(node), instance);
+
+    case Op::kRegisterRead:
+      return visitor.HandleRegisterRead(down_cast<RegisterRead*>(node),
+                                        instance);
+
+    case Op::kRegisterWrite:
+      return visitor.HandleRegisterWrite(down_cast<RegisterWrite*>(node),
+                                         instance);
+
+    case Op::kReverse:
+      return visitor.HandleReverse(down_cast<UnOp*>(node), instance);
+
+    case Op::kSDiv:
+      return visitor.HandleSDiv(down_cast<BinOp*>(node), instance);
+
+    case Op::kSel:
+      return visitor.HandleSel(down_cast<Select*>(node), instance);
+
+    case Op::kSGt:
+      return visitor.HandleSGt(down_cast<CompareOp*>(node), instance);
+
+    case Op::kSGe:
+      return visitor.HandleSGe(down_cast<CompareOp*>(node), instance);
+
+    case Op::kShll:
+      return visitor.HandleShll(down_cast<BinOp*>(node), instance);
+
+    case Op::kShra:
+      return visitor.HandleShra(down_cast<BinOp*>(node), instance);
+
+    case Op::kShrl:
+      return visitor.HandleShrl(down_cast<BinOp*>(node), instance);
+
+    case Op::kSLe:
+      return visitor.HandleSLe(down_cast<CompareOp*>(node), instance);
+
+    case Op::kSLt:
+      return visitor.HandleSLt(down_cast<CompareOp*>(node), instance);
+
+    case Op::kSMod:
+      return visitor.HandleSMod(down_cast<BinOp*>(node), instance);
+
+    case Op::kSMul:
+      return visitor.HandleSMul(down_cast<ArithOp*>(node), instance);
+
+    case Op::kSMulp:
+      return visitor.HandleSMulp(down_cast<PartialProductOp*>(node), instance);
+
+    case Op::kSub:
+      return visitor.HandleSub(down_cast<BinOp*>(node), instance);
+
+    case Op::kTupleIndex:
+      return visitor.HandleTupleIndex(down_cast<TupleIndex*>(node), instance);
+
+    case Op::kTuple:
+      return visitor.HandleTuple(down_cast<Tuple*>(node), instance);
+
+    case Op::kUDiv:
+      return visitor.HandleUDiv(down_cast<BinOp*>(node), instance);
+
+    case Op::kUGe:
+      return visitor.HandleUGe(down_cast<CompareOp*>(node), instance);
+
+    case Op::kUGt:
+      return visitor.HandleUGt(down_cast<CompareOp*>(node), instance);
+
+    case Op::kULe:
+      return visitor.HandleULe(down_cast<CompareOp*>(node), instance);
+
+    case Op::kULt:
+      return visitor.HandleULt(down_cast<CompareOp*>(node), instance);
+
+    case Op::kUMod:
+      return visitor.HandleUMod(down_cast<BinOp*>(node), instance);
+
+    case Op::kUMul:
+      return visitor.HandleUMul(down_cast<ArithOp*>(node), instance);
+
+    case Op::kUMulp:
+      return visitor.HandleUMulp(down_cast<PartialProductOp*>(node), instance);
+
+    case Op::kXor:
+      return visitor.HandleNaryXor(down_cast<NaryOp*>(node), instance);
+
+    case Op::kXorReduce:
+      return visitor.HandleXorReduce(down_cast<BitwiseReductionOp*>(node),
+                                     instance);
+
+    case Op::kSignExt:
+      return visitor.HandleSignExtend(down_cast<ExtendOp*>(node), instance);
+
+    case Op::kZeroExt:
+      return visitor.HandleZeroExtend(down_cast<ExtendOp*>(node), instance);
+
+    case Op::kInputPort:
+      return visitor.HandleInputPort(down_cast<InputPort*>(node), instance);
+
+    case Op::kOutputPort:
+      return visitor.HandleOutputPort(down_cast<OutputPort*>(node), instance);
+
+    case Op::kGate:
+      return visitor.HandleGate(down_cast<Gate*>(node), instance);
+
+    case Op::kInstantiationInput:
+      return visitor.HandleInstantiationInput(
+          down_cast<InstantiationInput*>(node), instance);
+
+    case Op::kInstantiationOutput:
+      return visitor.HandleInstantiationOutput(
+          down_cast<InstantiationOutput*>(node), instance);
+  }
+}
 
 std::ostream& operator<<(std::ostream& os,
                          const ElaboratedNode& node_and_instance) {
@@ -319,6 +678,53 @@ absl::StatusOr<BlockInstantiationPath> BlockElaboration::CreatePath(
     block = BlockInstantiationPath::Instantiated(**instantiation);
   }
   return path;
+}
+
+absl::Status BlockElaboration::Accept(
+    ElaboratedBlockDfsVisitor& visitor) const {
+  int64_t node_count = 0;
+  for (BlockInstance* instance : instance_ptrs_) {
+    if (!instance->block().has_value()) {
+      continue;
+    }
+    Block* block = *instance->block();
+    node_count += block->node_count();
+    for (Node* node : block->nodes()) {
+      ElaboratedNode en = {.node = node, .instance = instance};
+      if (node->users().empty() && !InterInstanceSuccessor(en).has_value()) {
+        XLS_RETURN_IF_ERROR(en.Accept(visitor));
+      }
+    }
+  }
+  if (visitor.GetVisitedCount() < node_count) {
+    // Not all nodes were visited. This indicates a cycle, for example consider
+    // a pair of identity ops with each other as their operands. They will never
+    // be visited above.
+    //
+    // Create a separate trivial DFS visitor to find the cycle.
+    class CycleChecker : public ElaboratedBlockDfsVisitorWithDefault {
+      absl::Status DefaultHandler(const ElaboratedNode& node) override {
+        return absl::OkStatus();
+      }
+    };
+    CycleChecker cycle_checker;
+    for (BlockInstance* instance : instance_ptrs_) {
+      if (!instance->block().has_value()) {
+        continue;
+      }
+      Block* block = *instance->block();
+      for (Node* node : block->nodes()) {
+        ElaboratedNode en = {.node = node, .instance = instance};
+        if (!cycle_checker.IsVisited(en)) {
+          XLS_RETURN_IF_ERROR(en.Accept(cycle_checker));
+        }
+      }
+    }
+    return absl::InternalError(absl::StrFormat(
+        "Expected to find cycle in elaboration %s, but none was found.",
+        ToString()));
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xls

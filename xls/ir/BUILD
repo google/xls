@@ -1712,11 +1712,18 @@ cc_library(
 
 cc_library(
     name = "block_elaboration",
-    srcs = ["block_elaboration.cc"],
-    hdrs = ["block_elaboration.h"],
+    srcs = [
+        "block_elaboration.cc",
+        "elaborated_block_dfs_visitor.cc",
+    ],
+    hdrs = [
+        "block_elaboration.h",
+        "elaborated_block_dfs_visitor.h",
+    ],
     deps = [
         ":elaboration",
         ":ir",
+        ":op",
         "//xls/common:casts",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -1724,11 +1731,34 @@ cc_library(
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "elaborated_block_dfs_visitor_test",
+    srcs = ["elaborated_block_dfs_visitor_test.cc"],
+    deps = [
+        ":bits",
+        ":block_elaboration",
+        ":function_builder",
+        ":ir",
+        ":ir_parser",
+        ":ir_test_base",
+        ":source_location",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
     ],
 )
 
