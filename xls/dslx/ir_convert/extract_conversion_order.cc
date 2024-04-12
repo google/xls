@@ -33,10 +33,12 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -156,130 +158,6 @@ std::string ConversionRecord::ToString() const {
       "callees=%s}",
       module_->name(), f_->identifier(), is_top_ ? "true" : "false", proc_id,
       parametric_env_.ToString(), CalleesToString(callees_));
-}
-
-// TODO(vmirian) 2022-02-11 Consider collapsing this visitor
-// (CalleeCollectorVisitor) with the InvocationVisitor.
-// Collects callee information from Invocation node into a list.
-class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
- public:
-  CalleeCollectorVisitor(Module* module, TypeInfo* type_info)
-      : module_(module), type_info_(type_info) {
-    CHECK_EQ(type_info_->module(), module_);
-  }
-  absl::Status HandleInvocation(const Invocation* node) override {
-    std::optional<CalleeInfo> callee_info;
-    if (auto* colon_ref = dynamic_cast<const ColonRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
-    } else if (auto* name_ref = dynamic_cast<const NameRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info,
-                           HandleNameRefInvocation(name_ref, node));
-    } else {
-      return absl::UnimplementedError(
-          "Only calls to named functions are currently supported "
-          "for IR conversion; callee: " +
-          node->callee()->ToString());
-    }
-
-    if (!callee_info.has_value()) {
-      // Happens for example when we're invoking a builtin, there's nothing to
-      // convert.
-      return absl::OkStatus();
-    }
-
-    callees_.emplace_back(callee_info.value());
-    return absl::OkStatus();
-  }
-
-  ~CalleeCollectorVisitor() override = default;
-
-  // Helper type used to hold callee information for different forms of
-  // invocations.
-  struct CalleeInfo {
-    Module* module = nullptr;
-    Function* function = nullptr;
-
-    template <typename H>
-    friend H AbslHashValue(H h, const CalleeInfo& c);
-
-    friend bool operator==(const CalleeInfo& lhs, const CalleeInfo& rhs);
-  };
-
-  absl::Span<const CalleeInfo> GetCallees() { return callees_; }
-
- private:
-  // Helper for invocations of ColonRef callees.
-  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
-      const ColonRef* colon_ref) {
-    std::optional<Import*> import = colon_ref->ResolveImportSubject();
-    XLS_RET_CHECK(import.has_value());
-    std::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
-    XLS_RET_CHECK(info.has_value());
-    Module* module = (*info)->module;
-    XLS_ASSIGN_OR_RETURN(Function * f,
-                         module->GetMemberOrError<Function>(colon_ref->attr()));
-    return CalleeInfo{module, f};
-  }
-
-  // Helper for invocations of NameRef callees.
-  absl::StatusOr<std::optional<CalleeInfo>> HandleNameRefInvocation(
-      const NameRef* name_ref, const Invocation* invocation) {
-    Module* this_m = module_;
-    // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
-    // is fragile due to shadowing. It is also appears in the InvocationVisitor.
-    std::string identifier = name_ref->identifier();
-    if (identifier == "map") {
-      // We need to make sure we convert the mapped function!
-      XLS_RET_CHECK_EQ(invocation->args().size(), 2);
-      Expr* fn_node = invocation->args()[1];
-      VLOG(5) << "map() invoking: " << fn_node->ToString();
-      if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
-        VLOG(5) << "map() invoking ColonRef: " << mapped_colon_ref->ToString();
-        identifier = mapped_colon_ref->attr();
-        std::optional<Import*> import =
-            mapped_colon_ref->ResolveImportSubject();
-        XLS_RET_CHECK(import.has_value());
-        std::optional<const ImportedInfo*> info =
-            type_info_->GetImported(*import);
-        XLS_RET_CHECK(info.has_value());
-        this_m = (*info)->module;
-        VLOG(5) << "Module for callee: " << this_m->name();
-      } else {
-        VLOG(5) << "map() invoking NameRef";
-        auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
-        XLS_RET_CHECK(mapped_name_ref != nullptr);
-        identifier = mapped_name_ref->identifier();
-      }
-    }
-
-    Function* f = nullptr;
-    absl::StatusOr<Function*> maybe_f =
-        this_m->GetMemberOrError<Function>(identifier);
-    if (maybe_f.ok()) {
-      f = maybe_f.value();
-    } else {
-      if (IsNameParametricBuiltin(identifier)) {
-        return std::nullopt;
-      }
-      return absl::InternalError("Could not resolve invoked function: " +
-                                 identifier);
-    }
-
-    return CalleeInfo{this_m, f};
-  }
-  Module* module_;
-  TypeInfo* type_info_;
-  std::vector<CalleeInfo> callees_;
-};
-
-template <typename H>
-H AbslHashValue(H h, const CalleeCollectorVisitor::CalleeInfo& c) {
-  return H::combine(std::move(h), c.module, c.function);
-}
-
-bool operator==(const CalleeCollectorVisitor::CalleeInfo& lhs,
-                const CalleeCollectorVisitor::CalleeInfo& rhs) {
-  return lhs.module == rhs.module && lhs.function == rhs.function;
 }
 
 // Collects all Invocation nodes below the visited node.
@@ -619,33 +497,56 @@ class InvocationVisitor : public ExprVisitor {
   std::vector<Callee> callees_;
 };
 
+// Returns all spawns contained in the configuration of `p`.
+static absl::StatusOr<std::vector<Spawn*>> GetSpawns(Proc& p) {
+  Function& config = p.config();
+  std::vector<Spawn*> results;
+  XLS_ASSIGN_OR_RETURN(std::vector<AstNode*> nodes,
+                       CollectUnder(config.body(), /*want_types=*/false));
+  for (AstNode* node : nodes) {
+    if (auto* spawn = dynamic_cast<Spawn*>(node); spawn != nullptr) {
+      results.push_back(spawn);
+    }
+  }
+  return results;
+}
+
 absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
                                                     TypeInfo* type_info) {
-  CalleeCollectorVisitor visitor(module, type_info);
+  absl::flat_hash_set<Spawn*> spawns;
+
   std::vector<Proc*> procs;
-  XLS_RETURN_IF_ERROR(WalkPostOrder(module, &visitor, /*want_types=*/true));
-  absl::Span<const CalleeCollectorVisitor::CalleeInfo> callees =
-      visitor.GetCallees();
-
-  // Turn the sequence into a set for O(1) testing of whether a proc is a
-  // callee.
-  absl::flat_hash_set<CalleeCollectorVisitor::CalleeInfo> callee_set;
-  for (auto& callee : callees) {
-    callee_set.insert(callee);
-  }
-
   for (Proc* proc : module->GetProcs()) {
-    // Checking the presence of the config function suffices since the config is
-    // instantiated prior to the next function.
-    if (callee_set.find({proc->owner(), &proc->config()}) != callee_set.end()) {
-      continue;
-    }
-    if (proc->IsParametric()) {
-      continue;
-    }
-    procs.emplace_back(proc);
+    XLS_RET_CHECK(proc != nullptr);
+    XLS_ASSIGN_OR_RETURN(std::vector<Spawn*> this_spawns, GetSpawns(*proc));
+    spawns.insert(this_spawns.begin(), this_spawns.end());
   }
-  return procs;
+
+  absl::flat_hash_set<Proc*> spawned;
+  for (Spawn* spawn : spawns) {
+    Expr* spawnee = spawn->callee();
+    NameRef* spawnee_nameref = dynamic_cast<NameRef*>(spawnee);
+
+    // If it's not a reference to a name in the local module, it can't be a top
+    // level proc in this module anyway.
+    if (spawnee_nameref == nullptr) {
+      continue;
+    }
+
+    auto* this_spawned = down_cast<Proc*>(spawnee_nameref->GetDefiner());
+    spawned.insert(this_spawned);
+  }
+
+  // All non-parametric procs that are not spawned are top level.
+  std::vector<Proc*> results;
+  for (Proc* proc : module->GetProcs()) {
+    if (!proc->IsParametric() && !spawned.contains(proc)) {
+      // Proc is not parametric and not spawned, thus top level.
+      results.push_back(proc);
+    }
+  }
+
+  return results;
 }
 
 // This function removes duplicate conversion records containing a non-derived

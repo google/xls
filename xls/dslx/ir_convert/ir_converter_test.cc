@@ -1024,6 +1024,15 @@ TEST(IrConverterTest, Identity) {
   ExpectIr(converted, TestName());
 }
 
+// Because the function is not instantiated, we should not observe the error at
+// conversion time.
+TEST(IrConverterTest, TypeErrorInUninstantiatedParametric) {
+  const char* program = R"(fn f<N: u32>(x: u8) -> u8 { 42(x) })";
+  absl::StatusOr<std::string> converted =
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false});
+  XLS_EXPECT_OK(converted.status());
+}
+
 TEST(IrConverterTest, PackageLevelConstantArrayAccess) {
   const char* program =
       R"(

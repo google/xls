@@ -367,6 +367,25 @@ fn f(x: u8) -> u8 { id_u32(x) }
                HasSubstr("Mismatch between parameter and argument types")));
 }
 
+TEST(TypecheckErrorTest, InvokeNumberValue) {
+  std::string program = R"(
+fn f(x: u8) -> u8 { 42(x) }
+)";
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("invocation callee must be either a name reference or "
+                         "a colon reference; instead got: number")));
+}
+
+// Since the parametric is not instantiated we don't detect this type error.
+TEST(TypecheckTest, InvokeNumberValueInUninstantiatedParametric) {
+  std::string program = R"(
+fn f<N: u32>(x: u8) -> u8 { 42(x) }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckErrorTest, BadTupleType) {
   std::string program = R"(
 fn f() -> u32 {
