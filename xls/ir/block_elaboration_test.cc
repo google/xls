@@ -14,8 +14,10 @@
 
 #include "xls/ir/block_elaboration.h"
 
+#include <algorithm>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -30,8 +32,13 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -40,6 +47,7 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -60,6 +68,11 @@ MATCHER_P(InstantiationName, value, "") {
   }
   return arg->instantiation().value()->name() == value;
 }
+
+MATCHER_P(NodeIs, node_matcher, "") {
+  return ExplainMatchResult(node_matcher, arg.node, result_listener);
+}
+
 MATCHER_P2(NodeAndInst, node_matcher, inst_matcher, "") {
   return ExplainMatchResult(node_matcher, arg.node, result_listener) &&
          ExplainMatchResult(inst_matcher, arg.instance->ToString(),
@@ -288,6 +301,358 @@ TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
           absl::StatusCode::kInvalidArgument,
           HasSubstr("is not a block and has no instantiation `some_inst`")));
 }
+
+TEST_F(ElaborationTest, TopoSortSingleInstantiation) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, AddBlock(*p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(block));
+
+  EXPECT_THAT(ElaboratedTopoSort(elab),
+              ElementsAre(NodeIs(m::InputPort("a")), NodeIs(m::InputPort("b")),
+                          NodeIs(m::Add()), NodeIs(m::OutputPort("c"))));
+}
+
+TEST_F(ElaborationTest, TopoSortMultipleInstantiations) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, MultipleAddInstantiations(*p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(block));
+
+  EXPECT_THAT(
+      ElaboratedTopoSort(elab),
+      ElementsAre(
+          NodeAndInst(m::InputPort("a"), HasSubstr("multi_adder ")),
+          NodeAndInst(m::InputPort("b"), HasSubstr("multi_adder ")),
+          NodeAndInst(m::InputPort("c"), HasSubstr("multi_adder ")),
+          NodeAndInst(m::InputPort("d"), HasSubstr("multi_adder ")),
+          NodeAndInst(m::InstantiationInput(m::InputPort("a"), "a"),
+                      HasSubstr("multi_adder ")),
+          NodeAndInst(m::InstantiationInput(m::InputPort("b"), "b"),
+                      HasSubstr("multi_adder ")),
+          NodeAndInst(m::InstantiationInput(m::InputPort("c"), "a"),
+                      HasSubstr("multi_adder ")),
+          NodeAndInst(m::InstantiationInput(m::InputPort("d"), "b"),
+                      HasSubstr("multi_adder ")),
+          NodeAndInst(m::InputPort("a"), HasSubstr("adder0_inst->adder")),
+          NodeAndInst(m::InputPort("b"), HasSubstr("adder0_inst->adder")),
+          NodeAndInst(m::InputPort("a"), HasSubstr("adder1_inst->adder")),
+          NodeAndInst(m::InputPort("b"), HasSubstr("adder1_inst->adder")),
+          NodeAndInst(m::Add(), HasSubstr("adder0_inst->adder")),
+          NodeAndInst(m::Add(), HasSubstr("adder1_inst->adder")),
+          NodeAndInst(m::OutputPort("c"), HasSubstr("adder0_inst->adder")),
+          NodeAndInst(m::OutputPort("c"), HasSubstr("adder1_inst->adder")),
+          NodeAndInst(m::InstantiationOutput("c"), HasSubstr("multi_adder ")),
+          NodeAndInst(m::InstantiationOutput("c"), HasSubstr("multi_adder ")),
+          NodeAndInst(m::InstantiationInput(m::InstantiationOutput(), "a"),
+                      HasSubstr("multi_adder ")),
+          NodeAndInst(m::InstantiationInput(m::InstantiationOutput(), "b"),
+                      HasSubstr("multi_adder ")),
+          NodeAndInst(m::InputPort("a"), HasSubstr("adder2_inst->adder")),
+          NodeAndInst(m::InputPort("b"), HasSubstr("adder2_inst->adder")),
+          NodeAndInst(m::Add(), HasSubstr("adder2_inst->adder")),
+          NodeAndInst(m::OutputPort("c"), HasSubstr("adder2_inst->adder")),
+          NodeAndInst(m::InstantiationOutput("c"), HasSubstr("multi_adder ")),
+          NodeAndInst(m::OutputPort("out"), HasSubstr("multi_adder "))));
+}
+
+// Note that the topo sort on FunctionBase is intended to have the same order
+// (modulo instantiations) as this topo sort. Tests should be duplicated here
+// and there to the extend that it is possible.
+//
+// LINT.IfChange
+TEST(NodeIteratorTest, ReordersViaDependencies) {
+  Package p("p");
+  Block f("f", &p);
+  SourceInfo loc;
+  XLS_ASSERT_OK_AND_ASSIGN(Node * literal,
+                           f.MakeNode<Literal>(loc, Value(UBits(3, 2))));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * neg,
+                           f.MakeNode<UnOp>(loc, literal, Op::kNeg));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * out, f.MakeNode<OutputPort>(loc, neg));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(&f));
+
+  // Literal should precede the negation in RPO although we added those nodes in
+  // the opposite order.
+  std::vector<ElaboratedNode> rni = ElaboratedTopoSort(elab);
+  auto it = rni.begin();
+  EXPECT_EQ(it->node, literal);
+  ++it;
+  EXPECT_EQ(it->node, neg);
+  ++it;
+  EXPECT_EQ(it->node, out);
+  ++it;
+  EXPECT_EQ(rni.end(), it);
+}
+
+TEST(NodeIteratorTest, Diamond) {
+  constexpr std::string_view program = R"(
+  block diamond(x: bits[32], y: bits[32]) {
+    x: bits[32] = input_port(name=x)
+    neg.2: bits[32] = neg(x)
+    neg.3: bits[32] = neg(x)
+    add.4: bits[32] = add(neg.2, neg.3)
+    y: () = output_port(add.4, name=y)
+  })";
+
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * f, Parser::ParseBlock(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(f));
+
+  std::vector<ElaboratedNode> rni = ElaboratedTopoSort(elab);
+  auto it = rni.begin();
+  EXPECT_EQ(it->node->GetName(), "x");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "neg.2");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "neg.3");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "add.4");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "y");
+  ++it;
+  EXPECT_EQ(rni.end(), it);
+}
+
+// Constructs a test as follows:
+//
+//        A
+//      /   \
+//      \    B
+//       \  /
+//        \/
+//         C
+//
+// Topological order: A B C
+TEST(NodeIteratorTest, PostOrderNotPreOrder) {
+  Package p("p");
+  Block f("f", &p);
+  SourceInfo loc;
+  XLS_ASSERT_OK_AND_ASSIGN(Node * a,
+                           f.MakeNode<Literal>(loc, Value(UBits(0, 2))));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * b, f.MakeNode<BinOp>(loc, a, a, Op::kAdd));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * c, f.MakeNode<BinOp>(loc, a, b, Op::kAdd));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * output, f.MakeNode<OutputPort>(loc, c));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(&f));
+
+  std::vector<ElaboratedNode> rni = ElaboratedTopoSort(elab);
+  auto it = rni.begin();
+  EXPECT_EQ(it->node, a);
+  ++it;
+  EXPECT_EQ(it->node, b);
+  ++it;
+  EXPECT_EQ(it->node, c);
+  ++it;
+  EXPECT_EQ(it->node, output);
+  ++it;
+  EXPECT_EQ(rni.end(), it);
+}
+
+// Constructs a test as follows:
+//
+//         A --
+//        / \  \
+//        | |   \
+//        \ /   |
+//         B    C
+//          \  /
+//            D
+//
+// Topo: D B C A =(reverse)=> A C B D
+//                              2 1 3
+TEST(NodeIteratorTest, TwoOfSameOperandLinks) {
+  constexpr std::string_view program = R"(
+  block computation(a: bits[32], e: bits[32]) {
+    a: bits[32] = input_port(name=a)
+    b: bits[32] = add(a, a)
+    c: bits[32] = neg(a)
+    d: bits[32] = add(b, c)
+    e: () = output_port(d, name=e)
+  })";
+
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * f, Parser::ParseBlock(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(f));
+
+  std::vector<ElaboratedNode> rni = ElaboratedTopoSort(elab);
+  auto it = rni.begin();
+  EXPECT_EQ(it->node->GetName(), "a");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "b");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "c");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "d");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "e");
+  ++it;
+  EXPECT_EQ(rni.end(), it);
+}
+
+TEST(NodeIteratorTest, UselessParamsUnrelatedReturn) {
+  constexpr std::string_view program = R"(
+  block computation(a: bits[32], b: bits[32], c: bits[32]) {
+    a: bits[32] = input_port(name=a)
+    b: bits[32] = input_port(name=b)
+    r: bits[32] = literal(value=2)
+    c: () = output_port(r, name=c)
+  })";
+
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * f, Parser::ParseBlock(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(f));
+
+  std::vector<ElaboratedNode> rni = ElaboratedTopoSort(elab);
+  auto it = rni.begin();
+  // Note that this order differs from topo_sort_test.cc- this is because blocks
+  // input/outputs and function param/retvals are different.
+  EXPECT_EQ(it->node->GetName(), "r");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "a");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "b");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "c");
+  ++it;
+  EXPECT_EQ(rni.end(), it);
+}
+
+// Constructs a test as follows:
+//
+//      A
+//     / \
+//    T   C
+//     \ / \
+//      B   E
+//       \ /
+//        D
+TEST(NodeIteratorTest, ExtendedDiamond) {
+  constexpr std::string_view program = R"(
+  block computation(a: bits[32], f: bits[32]) {
+    a: bits[32] = input_port(name=a)
+    t: bits[32] = neg(a)
+    c: bits[32] = neg(a)
+    b: bits[32] = add(t, c)
+    e: bits[32] = neg(c)
+    d: bits[32] = add(b, e)
+    f: () = output_port(d, name=f)
+  })";
+
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * f, Parser::ParseBlock(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(f));
+
+  std::vector<ElaboratedNode> rni = ElaboratedTopoSort(elab);
+  auto it = rni.begin();
+  EXPECT_EQ(it->node->GetName(), "a");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "t");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "c");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "b");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "e");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "d");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "f");
+  ++it;
+  EXPECT_EQ(rni.end(), it);
+}
+
+TEST(NodeIteratorTest, ExtendedDiamondReverse) {
+  constexpr std::string_view program = R"(
+  block computation(a: bits[32], f: bits[32]) {
+    a: bits[32] = input_port(name=a)
+    t: bits[32] = neg(a)
+    c: bits[32] = neg(a)
+    b: bits[32] = add(t, c)
+    e: bits[32] = neg(c)
+    d: bits[32] = add(b, e)
+    f: () = output_port(d, name=f)
+  })";
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * f, Parser::ParseBlock(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(f));
+
+  // ReverseTopoSort should produce the same order but in reverse.
+  std::vector<ElaboratedNode> fwd_it = ElaboratedTopoSort(elab);
+  std::vector<ElaboratedNode> rev_it = ElaboratedReverseTopoSort(elab);
+  std::vector<ElaboratedNode> fwd(fwd_it.begin(), fwd_it.end());
+  std::vector<ElaboratedNode> rev(rev_it.begin(), rev_it.end());
+  std::reverse(fwd.begin(), fwd.end());
+  EXPECT_EQ(fwd, rev);
+}
+
+// Constructs a test as follows:
+//
+//      D
+//      | \
+//      C  \
+//      |   \
+//      B    T
+//       \  /
+//        \/
+//         A
+//
+// Given that we know we visit operands in left-to-right order, this example
+// points out the discrepancy between the RPO ordering and what our algorithm
+// produces. The depth-first traversal RPO necessitates would have us visit the
+// whole D,C,B chain before T.
+//
+// Post-Order:     D C B T A =(rev)=> A T B C D
+//                                      1 2 3 4
+// Our topo order: D T C B A =(rev)=> A B C T D
+//                                      2 3 1 4
+TEST(NodeIteratorTest, RpoVsTopo) {
+  constexpr std::string_view program = R"(
+  block computation(a: bits[32], e: bits[32]) {
+    a: bits[32] = input_port(name=a)
+    t: bits[32] = neg(a)
+    b: bits[32] = neg(a)
+    c: bits[32] = neg(b)
+    d: bits[32] = add(c, t)
+    e: () = output_port(d, name=e)
+  })";
+
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * f, Parser::ParseBlock(program, &p));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(f));
+
+  std::vector<ElaboratedNode> rni = ElaboratedTopoSort(elab);
+  auto it = rni.begin();
+  EXPECT_EQ(it->node->GetName(), "a");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "b");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "c");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "t");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "d");
+  ++it;
+  EXPECT_EQ(it->node->GetName(), "e");
+  ++it;
+  EXPECT_EQ(rni.end(), it);
+}
+
+// LINT.ThenChange(//xls/ir/topo_sort_test.cc)
 
 }  // namespace
 }  // namespace xls

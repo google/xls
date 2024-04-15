@@ -34,11 +34,19 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
 
+// Note that the elaborated topo sort on blocks is intended to have the same
+// order (modulo instantiations) as this topo sort. Tests should be duplicated
+// here and there to the extend that it is possible.
+//
+// LINT.IfChange
 TEST(NodeIteratorTest, ReordersViaDependencies) {
   Package p("p");
   Function f("f", &p);
@@ -279,6 +287,8 @@ TEST(NodeIteratorTest, RpoVsTopo) {
   ++it;
   EXPECT_EQ(rni.end(), it);
 }
+
+// LINT.ThenChange(//xls/ir/block_elaboration_test.cc)
 
 void BM_TopoSortBinaryTree(benchmark::State& state) {
   std::unique_ptr<VerifiedPackage> p =

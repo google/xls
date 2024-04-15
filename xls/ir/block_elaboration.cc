@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -25,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
@@ -725,6 +727,159 @@ absl::Status BlockElaboration::Accept(
         ToString()));
   }
   return absl::OkStatus();
+}
+
+// Returns a list of every (Node, BlockInstance) in the elaboration in topo
+// order.
+//
+// Based on implementation for unelaborated `FunctionBase`s in
+// xls/ir/topo_sort.cc. Note that that implementation discusses 'users' and
+// 'operands', whereas this one discusses 'successors' and 'predecessors'. In an
+// elaboration, 'successors' include 'users' and 'predecessors' include
+// 'operands', but both can potentially also include ElaboratedNodes from a
+// different instance, e.g. an InstantiationOutput is a successor of an
+// instantiated subblock's OutputPort.
+std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
+    const BlockElaboration& elaboration) {
+  // For topological traversal we only add nodes to the order when all of its
+  // successors have been scheduled.
+  //
+  //       o    node, now ready, can be added to order!
+  //      /|\
+  //     v v v
+  //     o o o  (successors, all present in order)
+  //
+  // When a node is placed into the ordering, we place all of its predecessors
+  // into the "pending_to_remaining_users" mapping if it is not yet present --
+  // this keeps track of how many more successors must be seen (before that node
+  // is ready to place into the ordering).
+  //
+  // NOTE: sorts reverse-topologically.  To sort topologically, reverse the
+  // result.
+  absl::flat_hash_map<ElaboratedNode, int64_t> pending_to_remaining_successors;
+  std::vector<ElaboratedNode> ordered;
+  std::deque<ElaboratedNode> ready;
+
+  auto seed_ready = [&](ElaboratedNode n) {
+    ready.push_front(n);
+    CHECK(pending_to_remaining_successors.insert({n, -1}).second);
+  };
+
+  int64_t node_count = 0;
+  for (BlockInstance* inst : elaboration.instances()) {
+    if (!inst->block().has_value()) {
+      continue;
+    }
+    Block* block = *inst->block();
+    for (Node* node : block->nodes()) {
+      ++node_count;
+      ElaboratedNode elaborated_node{.node = node, .instance = inst};
+      std::optional<ElaboratedNode> inter_instance_user =
+          InterInstanceSuccessor(elaborated_node);
+
+      if (!inter_instance_user.has_value() && node->users().empty()) {
+        VLOG(5) << "At start node was ready: " << node;
+        seed_ready(elaborated_node);
+      }
+    }
+  }
+
+  ordered.reserve(node_count);
+
+  auto all_successors_scheduled = [&](const ElaboratedNode& n) {
+    if (std::optional<ElaboratedNode> inter_instance_user =
+            InterInstanceSuccessor(n);
+        inter_instance_user.has_value()) {
+      auto it = pending_to_remaining_successors.find(*inter_instance_user);
+      if (it == pending_to_remaining_successors.end() || it->second >= 0) {
+        return false;
+      }
+    }
+    return absl::c_all_of(n.node->users(), [&](Node* user) {
+      auto it = pending_to_remaining_successors.find(
+          ElaboratedNode{.node = user, .instance = n.instance});
+      if (it == pending_to_remaining_successors.end()) {
+        return false;
+      }
+      return it->second < 0;
+    });
+  };
+  auto bump_down_remaining_successors = [&](const ElaboratedNode& n) {
+    CHECK(!n.node->users().empty() || InterInstanceSuccessor(n).has_value());
+    auto [it, inserted] =
+        pending_to_remaining_successors.insert({n, n.node->users().size()});
+    int64_t& remaining_successors = it->second;
+    // If we inserted, check if there's an inter-instance user.
+    if (inserted && InterInstanceSuccessor(n).has_value()) {
+      ++remaining_successors;
+    }
+    CHECK_GT(remaining_successors, 0);
+    remaining_successors -= 1;
+    VLOG(5) << "Bumped down remaining successors for: " << n
+            << "; now: " << remaining_successors;
+    if (remaining_successors == 0) {
+      ready.push_back(it->first);
+      remaining_successors -= 1;
+    }
+  };
+
+  absl::flat_hash_set<Node*> seen_operands;
+  auto add_to_order = [&](ElaboratedNode r) {
+    VLOG(5) << "Adding node to order: " << r;
+    DCHECK(all_successors_scheduled(r)) << r;
+    ordered.push_back(r);
+
+    if (std::optional<ElaboratedNode> inter_instance_predecessor =
+            InterInstancePredecessor(r);
+        inter_instance_predecessor.has_value()) {
+      // No need to put in seen_operands, we won't see this again.
+      bump_down_remaining_successors(*inter_instance_predecessor);
+    }
+    // We want to be careful to only bump down our operands once, since we're a
+    // single user, even though we may refer to them multiple times in our
+    // operands sequence.
+    // We share seen_operands across invocations of add_to_order to reduce
+    // overhead of constructing/allocating a set each time. Clear it before
+    // using it.
+    seen_operands.clear();
+    for (auto it = r.node->operands().rbegin(); it != r.node->operands().rend();
+         ++it) {
+      Node* operand = *it;
+      if (auto [_, inserted] = seen_operands.insert(operand); inserted) {
+        bump_down_remaining_successors(
+            ElaboratedNode{.node = operand, .instance = r.instance});
+      }
+    }
+  };
+
+  while (!ready.empty()) {
+    ElaboratedNode r = ready.front();
+    ready.pop_front();
+    add_to_order(r);
+  }
+
+  if (ordered.size() < node_count) {
+    // Not all nodes have been placed indicating a cycle in the graph. Run a
+    // trivial DFS visitor which will emit an error message displaying the
+    // cycle.
+    class CycleChecker : public ElaboratedBlockDfsVisitorWithDefault {
+      absl::Status DefaultHandler(const ElaboratedNode& node) override {
+        return absl::OkStatus();
+      }
+    };
+    CycleChecker cycle_checker;
+    CHECK_OK(elaboration.Accept(cycle_checker));
+    LOG(FATAL) << "Expected to find a cycle in the elaboration.";
+  }
+
+  return ordered;
+}
+
+std::vector<ElaboratedNode> ElaboratedTopoSort(
+    const BlockElaboration& elaboration) {
+  std::vector<ElaboratedNode> ordered = ElaboratedReverseTopoSort(elaboration);
+  std::reverse(ordered.begin(), ordered.end());
+  return ordered;
 }
 
 }  // namespace xls

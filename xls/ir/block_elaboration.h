@@ -174,6 +174,14 @@ class BlockElaboration {
       instances_of_function_;
 };
 
+// Returns a list of every (Node, BlockInstance) in the elaboration in topo
+// order.
+std::vector<ElaboratedNode> ElaboratedTopoSort(
+    const BlockElaboration& elaboration);
+
+// As above, but returns a reverse topo order.
+std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
+    const BlockElaboration& elaboration);
 
 }  // namespace xls
 

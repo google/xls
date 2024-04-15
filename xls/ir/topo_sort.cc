@@ -46,8 +46,8 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
   // keeps track of how many more users must be seen (before that node is ready
   // to place into the ordering).
   //
-  // NOTE: Initialize sorts reverse-topologically.  To sort topologically,
-  // reverse the result.
+  // NOTE: sorts reverse-topologically.  To sort topologically, reverse the
+  // result.
   absl::flat_hash_map<Node*, int64_t> pending_to_remaining_users;
   pending_to_remaining_users.reserve(f->node_count());
   std::deque<Node*> ready;
