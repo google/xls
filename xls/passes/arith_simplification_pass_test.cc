@@ -38,7 +38,6 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 #include "xls/solvers/z3_ir_translator.h"
 
@@ -51,7 +50,6 @@ constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using status_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
-using ::xls::solvers::z3::TryProveEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
@@ -102,15 +100,9 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegated) {
                                                        p.get()));
   ASSERT_THAT(f->return_value(), m::Eq(m::Neg(), m::Neg()));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Param("y")));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedConstant) {
@@ -125,15 +117,9 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegatedConstant) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::Eq(m::Neg(), m::Literal(3)));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(253)));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithOneUsedElsewhere) {
@@ -151,16 +137,10 @@ TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithOneUsedElsewhere) {
               m::Concat(m::Eq(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
                         m::Neg(m::Param("x"))));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Concat(m::Eq(m::Param("x"), m::Param("y")),
                                            m::Neg(m::Param("x"))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareEqNegatedWithBothUsedElsewhere) {
@@ -215,15 +195,9 @@ TEST_F(ArithSimplificationPassTest, CompareNeNegated) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::Ne(m::Neg(), m::Neg()));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Param("y")));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareNeNegatedConstant) {
@@ -238,15 +212,9 @@ TEST_F(ArithSimplificationPassTest, CompareNeNegatedConstant) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::Ne(m::Neg(), m::Literal(3)));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Ne(m::Param("x"), m::Literal(253)));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithOneUsedElsewhere) {
@@ -264,16 +232,10 @@ TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithOneUsedElsewhere) {
               m::Concat(m::Ne(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
                         m::Neg(m::Param("x"))));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Concat(m::Ne(m::Param("x"), m::Param("y")),
                                            m::Neg(m::Param("x"))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareNeNegatedWithBothUsedElsewhere) {
@@ -328,17 +290,11 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLtNegated) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SLt(m::Neg(), m::Neg()));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SGt(m::Param("x"), m::Param("y")),
                                         m::Ne(m::Param(), m::Literal(128)),
                                         m::Ne(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedLtNegatedConstant) {
@@ -353,16 +309,10 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLtNegatedConstant) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SLt(m::Neg(), m::Literal(3)));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SGt(m::Param("x"), m::Literal(253)),
                                         m::Eq(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest,
@@ -381,19 +331,13 @@ TEST_F(ArithSimplificationPassTest,
               m::Concat(m::SLt(m::Neg(m::Param("x")), m::Neg(m::Param("y"))),
                         m::Neg(m::Param("x"))));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Xor(m::SGt(m::Param("x"), m::Param("y")),
                                m::Ne(m::Param("x"), m::Literal(128)),
                                m::Ne(m::Param("y"), m::Literal(128))),
                         m::Neg(m::Param("x"))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest,
@@ -450,17 +394,11 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGtNegated) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SGt(m::Neg(), m::Neg()));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SLt(m::Param("x"), m::Param("y")),
                                         m::Ne(m::Param(), m::Literal(128)),
                                         m::Ne(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedGtNegatedConstant) {
@@ -475,16 +413,10 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGtNegatedConstant) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SGt(m::Neg(), m::Literal(3)));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SLt(m::Param("x"), m::Literal(253)),
                                         m::Eq(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedLeNegated) {
@@ -499,17 +431,11 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLeNegated) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SLe(m::Neg(), m::Neg()));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SGe(m::Param("x"), m::Param("y")),
                                         m::Ne(m::Param(), m::Literal(128)),
                                         m::Ne(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedLeNegatedConstant) {
@@ -524,16 +450,10 @@ TEST_F(ArithSimplificationPassTest, CompareSignedLeNegatedConstant) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SLe(m::Neg(), m::Literal(3)));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SGe(m::Param("x"), m::Literal(253)),
                                         m::Eq(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedGeNegated) {
@@ -548,17 +468,11 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGeNegated) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SGe(m::Neg(), m::Neg()));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SLe(m::Param("x"), m::Param("y")),
                                         m::Ne(m::Param(), m::Literal(128)),
                                         m::Ne(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, CompareSignedGeNegatedConstant) {
@@ -573,16 +487,10 @@ TEST_F(ArithSimplificationPassTest, CompareSignedGeNegatedConstant) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::SGe(m::Neg(), m::Literal(3)));
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Xor(m::SLe(m::Param("x"), m::Literal(253)),
                                         m::Eq(m::Param(), m::Literal(128))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy42) {
@@ -1430,15 +1338,9 @@ TEST_F(ArithSimplificationPassTest, OneBitDecode) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::Decode());
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Eq(m::Param("x"), m::Literal(0)));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, DecodeOfOneBit) {
@@ -1451,16 +1353,10 @@ TEST_F(ArithSimplificationPassTest, DecodeOfOneBit) {
                                                        p.get()));
   EXPECT_THAT(f->return_value(), m::Decode());
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Param("x"), m::Not(m::Param("x"))));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(ArithSimplificationPassTest, SignExtTwice) {

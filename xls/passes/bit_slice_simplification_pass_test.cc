@@ -33,7 +33,6 @@
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 #include "xls/solvers/z3_ir_translator.h"
 
@@ -45,7 +44,7 @@ namespace {
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
 using status_testing::IsOkAndHolds;
-using ::xls::solvers::z3::TryProveEquivalence;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
@@ -366,10 +365,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftMultipleSliceUsers) {
   fb.Concat({shift_slice1, shift_slice2});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence check_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   auto sliced_shift = m::Shll(m::BitSlice(m::Param("in"), /*start=*/0,
                                           /*width=*/10),
@@ -377,9 +373,6 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftMultipleSliceUsers) {
   EXPECT_THAT(f->return_value(),
               m::Concat(m::BitSlice(sliced_shift, /*start=*/3, /*width=*/5),
                         sliced_shift));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedShiftLeftStartNonzero) {
@@ -428,10 +421,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightMultipleSliceUsers) {
   fb.Concat({shift_slice1, shift_slice2});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence check_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   auto sliced_shift = m::Shrl(m::BitSlice(m::Param("in"), /*start=*/14,
                                           /*width=*/18),
@@ -439,9 +429,6 @@ TEST_F(BitSliceSimplificationPassTest, SlicedShiftRightMultipleSliceUsers) {
   EXPECT_THAT(f->return_value(),
               m::Concat(m::BitSlice(sliced_shift, /*start=*/2, /*width=*/10),
                         sliced_shift));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedDecode) {
@@ -452,16 +439,10 @@ TEST_F(BitSliceSimplificationPassTest, SlicedDecode) {
               /*width=*/10);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence check_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               AllOf(m::Decode(m::Param("amt")), m::Type("bits[10]")));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleUsers) {
@@ -486,10 +467,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleSliceUsers) {
   fb.Concat({decode_slice1, decode_slice2});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence check_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   auto narrowed_decode =
       AllOf(m::Decode(m::Param("amt")), m::Type(p->GetBitsType(11)));
@@ -497,9 +475,6 @@ TEST_F(BitSliceSimplificationPassTest, SlicedDecodeMultipleSliceUsers) {
       f->return_value(),
       m::Concat(narrowed_decode,
                 m::BitSlice(narrowed_decode, /*start=*/1, /*width=*/9)));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedDecodeStartNonzero) {
@@ -556,10 +531,7 @@ TEST_F(BitSliceSimplificationPassTest, SlicedOhsWithMultipleSliceUsers) {
   fb.Concat({ohs_slice1, ohs_slice2, ohs_slice3});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  auto unoptimized = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * unoptimized_f,
-                           f->Clone(f->name(), unoptimized.get()));
-
+  ScopedVerifyEquivalence check_equivalent(f, kProverTimeout);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   auto sliced_ohs =
       m::OneHotSelect(m::Param("p"),
@@ -569,9 +541,6 @@ TEST_F(BitSliceSimplificationPassTest, SlicedOhsWithMultipleSliceUsers) {
               m::Concat(m::BitSlice(sliced_ohs, /*start=*/0, /*width=*/7),
                         m::BitSlice(sliced_ohs, /*start=*/2, /*width=*/15),
                         sliced_ohs));
-
-  EXPECT_THAT(TryProveEquivalence(unoptimized_f, f, kProverTimeout),
-              IsOkAndHolds(VariantWith<solvers::z3::ProvenTrue>(_)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, SlicedSelect) {
