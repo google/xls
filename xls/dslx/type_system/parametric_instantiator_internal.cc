@@ -142,12 +142,14 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
 // asserting that their values are consistent with other bindings (via argument
 // types).
 absl::Status EagerlyPopulateParametricEnvMap(
-    absl::Span<const std::string> parametric_order,
+    absl::Span<const ParametricWithType> typed_parametrics,
     const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs,
     absl::flat_hash_map<std::string, InterpValue>& parametric_env_map,
     const Span& span, std::string_view kind_name, DeduceCtx* ctx) {
   // Attempt to interpret the parametric "default expressions" in order.
-  for (const auto& name : parametric_order) {
+  for (const ParametricWithType& typed_parametric : typed_parametrics) {
+    std::string_view name = typed_parametric.identifier();
+
     Expr* expr = nullptr;
     if (auto it = parametric_default_exprs.find(name);
         it != parametric_default_exprs.end() && it->second != nullptr) {
@@ -205,7 +207,7 @@ absl::Status EagerlyPopulateParametricEnvMap(
         return TypeInferenceErrorStatus(span, nullptr, message);
       }
     } else {
-      parametric_env_map.insert({name, result.value()});
+      parametric_env_map.insert({std::string{name}, result.value()});
     }
   }
   return absl::OkStatus();
@@ -222,6 +224,7 @@ ParametricInstantiator::ParametricInstantiator(
     : span_(std::move(span)),
       args_(args),
       ctx_(ABSL_DIE_IF_NULL(ctx)),
+      typed_parametrics_(typed_parametrics),
       parametric_env_map_(explicit_parametrics),
       parametric_bindings_(parametric_bindings) {
   // We add derived type information so we can resolve types based on
@@ -232,10 +235,6 @@ ParametricInstantiator::ParametricInstantiator(
   //  The underlined portion wants a concrete type definition so it can
   //  interpret the expression to an InterpValue.
   derived_type_info_ = ctx_->AddDerivedTypeInfo();
-
-  // Explicit parametric expressions are conceptually evaluated before other
-  // parametric expressions.
-  absl::flat_hash_set<std::string> ordered;
 
   // Note: the first N explicit parametrics (given by the map) must be the first
   // N parametrics for the thing we're instantiating; i.e. we can only
@@ -250,28 +249,21 @@ ParametricInstantiator::ParametricInstantiator(
   for (size_t i = 0; i < explicit_parametrics.size(); ++i) {
     const std::string& identifier = parametric_bindings[i]->identifier();
     CHECK(explicit_parametrics.contains(identifier));
-    parametric_order_.push_back(identifier);
-    ordered.insert(identifier);
   }
 
-  VLOG(5) << "ParametricInstantiator; span: " << span_ << " ordered: ["
-          << absl::StrJoin(ordered, ", ") << "]";
+  VLOG(5) << "ParametricInstantiator; span: " << span_;
 
   for (const ParametricWithType& parametric : typed_parametrics) {
-    std::string_view identifier = parametric.identifier();
-    if (!ordered.contains(identifier)) {
-      parametric_order_.push_back(std::string{identifier});
-      ordered.insert(std::string{identifier});
+    if (parametric.expr() != nullptr) {
+      ctx_->type_info()->SetItem(parametric.expr(), parametric.type());
     }
 
+    std::string_view identifier = parametric.identifier();
     std::unique_ptr<Type> parametric_expr_type =
         parametric.type().CloneToUnique();
-
-    if (parametric.expr() != nullptr) {
-      ctx_->type_info()->SetItem(parametric.expr(), *parametric_expr_type);
-    }
     parametric_binding_types_.emplace(identifier,
                                       std::move(parametric_expr_type));
+
     parametric_default_exprs_[identifier] = parametric.expr();
   }
 }
@@ -345,7 +337,7 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
   }
 
   XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
-      parametric_order(), parametric_default_exprs(), parametric_env_map(),
+      typed_parametrics(), parametric_default_exprs(), parametric_env_map(),
       span(), GetKindName(), &ctx()));
 
   // Phase 2: resolve and check.
@@ -382,8 +374,9 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
 
   parametric_env_expr_scope.Finish();
 
-  return TypeAndParametricEnv{std::move(resolved),
-                              ParametricEnv(parametric_env_map())};
+  return TypeAndParametricEnv{
+      .type = std::move(resolved),
+      .parametric_env = ParametricEnv(parametric_env_map())};
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<StructInstantiator>>
@@ -409,7 +402,7 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
   }
 
   XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
-      parametric_order(), parametric_default_exprs(), parametric_env_map(),
+      typed_parametrics(), parametric_default_exprs(), parametric_env_map(),
       span(), GetKindName(), &ctx()));
 
   // Phase 2: resolve and check.
@@ -427,8 +420,9 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved,
                        Resolve(*struct_type_, parametric_env_map()));
-  return TypeAndParametricEnv{std::move(resolved),
-                              ParametricEnv(parametric_env_map())};
+  return TypeAndParametricEnv{
+      .type = std::move(resolved),
+      .parametric_env = ParametricEnv(parametric_env_map())};
 }
 
 }  // namespace internal

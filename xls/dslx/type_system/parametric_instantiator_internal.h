@@ -103,11 +103,10 @@ class ParametricInstantiator {
     return parametric_default_exprs_;
   }
 
-  absl::Span<const std::string> parametric_order() const {
-    return parametric_order_;
-  }
-
   absl::Span<const InstantiateArg> args() const { return args_; }
+  absl::Span<const ParametricWithType> typed_parametrics() const {
+    return typed_parametrics_;
+  }
 
   const Span& span() const { return span_; }
   DeduceCtx& ctx() { return *ctx_; }
@@ -130,8 +129,7 @@ class ParametricInstantiator {
   // types in this instantiation.
   TypeInfo* derived_type_info_ = nullptr;
 
-  // Notes the iteration order in the original parametric bindings.
-  std::vector<std::string> parametric_order_;
+  absl::Span<const ParametricWithType> typed_parametrics_;
 
   // Note: the expressions may be null (e.g. when the parametric binding has no
   // "default" expression and must be provided by the user).
