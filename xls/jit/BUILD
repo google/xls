@@ -488,6 +488,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/interpreter:block_evaluator",
         "//xls/ir",
+        "//xls/ir:elaboration",
         "//xls/ir:events",
         "//xls/ir:register",
         "//xls/ir:type",

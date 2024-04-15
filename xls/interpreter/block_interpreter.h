@@ -26,6 +26,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/block_elaboration.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -35,7 +36,8 @@ namespace xls {
 // state.
 absl::StatusOr<BlockRunResult> BlockRun(
     const absl::flat_hash_map<std::string, Value>& inputs,
-    const absl::flat_hash_map<std::string, Value>& reg_state, Block* block);
+    const absl::flat_hash_map<std::string, Value>& reg_state,
+    const BlockElaboration& elaboration);
 
 class InterpreterBlockEvaluator final : public BlockEvaluator {
  public:
@@ -43,8 +45,8 @@ class InterpreterBlockEvaluator final : public BlockEvaluator {
   absl::StatusOr<BlockRunResult> EvaluateBlock(
       const absl::flat_hash_map<std::string, Value>& inputs,
       const absl::flat_hash_map<std::string, Value>& registers,
-      Block* block) const final {
-    return BlockRun(inputs, registers, block);
+      const BlockElaboration& elaboration) const final {
+    return BlockRun(inputs, registers, elaboration);
   }
 };
 

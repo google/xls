@@ -21,11 +21,20 @@
 
 namespace xls {
 
+struct BlockEvaluatorTestParam {
+  const BlockEvaluator* evaluator;
+  bool supports_hierarhical_blocks;
+};
+
 class BlockEvaluatorTest
     : public IrTestBase,
-      public testing::WithParamInterface<const BlockEvaluator*> {
+      public testing::WithParamInterface<BlockEvaluatorTestParam> {
  public:
-  const BlockEvaluator& evaluator() { return *GetParam(); }
+  const BlockEvaluator& evaluator() { return *GetParam().evaluator; }
+
+  bool SupportsHierarchicalBlocks() {
+    return GetParam().supports_hierarhical_blocks;
+  }
 };
 }  // namespace xls
 

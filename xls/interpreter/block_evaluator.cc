@@ -29,12 +29,15 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/block_elaboration.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -179,16 +182,24 @@ absl::StatusOr<std::vector<absl::flat_hash_map<std::string, Value>>>
 BlockEvaluator::EvaluateSequentialBlock(
     Block* block,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const {
+  XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
+                       BlockElaboration::Elaborate(block));
   // Initial register state is zero for all registers.
   absl::flat_hash_map<std::string, Value> reg_state;
-  for (Register* reg : block->GetRegisters()) {
-    reg_state[reg->name()] = ZeroOfType(reg->type());
+  for (BlockInstance* inst : elaboration.instances()) {
+    if (!inst->block().has_value()) {
+      continue;
+    }
+    for (Register* reg : inst->block().value()->GetRegisters()) {
+      reg_state[absl::StrCat(inst->RegisterPrefix(), reg->name())] =
+          ZeroOfType(reg->type());
+    }
   }
 
   std::vector<absl::flat_hash_map<std::string, Value>> outputs;
   for (const absl::flat_hash_map<std::string, Value>& input_set : inputs) {
     XLS_ASSIGN_OR_RETURN(BlockRunResult result,
-                         EvaluateBlock(input_set, reg_state, block));
+                         EvaluateBlock(input_set, reg_state, elaboration));
     outputs.push_back(std::move(result.outputs));
     reg_state = std::move(result.reg_state);
   }
@@ -394,10 +405,21 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
   std::minstd_rand random_engine;
   random_engine.seed(seed);
 
+  XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
+                       BlockElaboration::Elaborate(block));
+
   // Initial register state is zero for all registers.
   absl::flat_hash_map<std::string, Value> reg_state;
-  for (Register* reg : block->GetRegisters()) {
-    reg_state[reg->name()] = ZeroOfType(reg->type());
+  for (BlockInstance* inst : elaboration.instances()) {
+    // Instance isn't a BlockInstantiation, must be e.g. a FIFO or FFI
+    // instantiation. No registers to initialize.
+    if (!inst->block().has_value()) {
+      continue;
+    }
+    for (Register* reg : inst->block().value()->GetRegisters()) {
+      reg_state[absl::StrCat(inst->RegisterPrefix(), reg->name())] =
+          ZeroOfType(reg->type());
+    }
   }
 
   int64_t max_cycle_count = inputs.size();
@@ -427,7 +449,7 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
 
     // Block results
     XLS_ASSIGN_OR_RETURN(BlockRunResult result,
-                         EvaluateBlock(input_set, reg_state, block));
+                         EvaluateBlock(input_set, reg_state, elaboration));
 
     // Sources get ready
     for (ChannelSource& src : channel_sources) {
@@ -503,9 +525,10 @@ BlockEvaluator::EvaluateChannelizedSequentialBlockWithUint64(
 namespace {
 class BaseBlockContinuation final : public BlockContinuation {
  public:
-  BaseBlockContinuation(Block* block, BlockRunResult&& initial_result,
+  BaseBlockContinuation(BlockElaboration&& block,
+                        BlockRunResult&& initial_result,
                         const BlockEvaluator& evaluator)
-      : block_(block),
+      : elaboration_(std::move(block)),
         last_result_(std::move(initial_result)),
         evaluator_(evaluator) {}
 
@@ -525,7 +548,7 @@ class BaseBlockContinuation final : public BlockContinuation {
       const absl::flat_hash_map<std::string, Value>& inputs) final {
     XLS_ASSIGN_OR_RETURN(
         last_result_,
-        evaluator_.EvaluateBlock(inputs, last_result_.reg_state, block_));
+        evaluator_.EvaluateBlock(inputs, last_result_.reg_state, elaboration_));
     return absl::OkStatus();
   }
 
@@ -540,7 +563,7 @@ class BaseBlockContinuation final : public BlockContinuation {
   }
 
  private:
-  Block* block_;
+  BlockElaboration elaboration_;
   BlockRunResult last_result_;
   const BlockEvaluator& evaluator_;
 };
@@ -550,18 +573,36 @@ absl::StatusOr<std::unique_ptr<BlockContinuation>>
 BlockEvaluator::NewContinuation(
     Block* block,
     const absl::flat_hash_map<std::string, Value>& initial_registers) const {
-  return std::make_unique<BaseBlockContinuation>(
-      block, BlockRunResult{.reg_state = initial_registers}, *this);
+  XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
+                       BlockElaboration::Elaborate(block));
+  return NewContinuation(std::move(elaboration), initial_registers);
 }
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
 BlockEvaluator::NewContinuation(Block* block) const {
+  XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
+                       BlockElaboration::Elaborate(block));
   absl::flat_hash_map<std::string, Value> regs;
   regs.reserve(block->GetRegisters().size());
-  for (const auto reg : block->GetRegisters()) {
-    regs[reg->name()] = ZeroOfType(reg->type());
+  for (BlockInstance* inst : elaboration.instances()) {
+    if (!inst->block().has_value()) {
+      continue;
+    }
+    for (const auto reg : inst->block().value()->GetRegisters()) {
+      regs[absl::StrCat(inst->RegisterPrefix(), reg->name())] =
+          ZeroOfType(reg->type());
+    }
   }
-  return NewContinuation(block, regs);
+  return NewContinuation(std::move(elaboration), regs);
+}
+
+absl::StatusOr<std::unique_ptr<BlockContinuation>>
+BlockEvaluator::NewContinuation(
+    BlockElaboration&& elaboration,
+    const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+  return std::make_unique<BaseBlockContinuation>(
+      std::move(elaboration), BlockRunResult{.reg_state = initial_registers},
+      *this);
 }
 
 }  // namespace xls

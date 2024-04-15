@@ -76,6 +76,13 @@ class BlockInstance {
   // instantiations (e.g. fifo) do not have an associated block and will
   // return std::nullopt.
   std::optional<Block*> block() const { return block_; }
+
+  // Prefix for referencing entities hierarchically.
+  //
+  // Empty string for top inst, "inst_name::inst_name::...::" for everyone else.
+  // This is useful for e.g. referring to a register hierarchically, e.g.
+  // `inst_a::inst_b::reg_a`.
+  std::string_view RegisterPrefix() const { return register_prefix_; }
   std::string ToString() const;
 
   std::optional<Instantiation*> instantiation() const { return instantiation_; }
@@ -107,6 +114,7 @@ class BlockInstance {
   std::optional<Block*> block_;
   std::optional<Instantiation*> instantiation_;
   BlockInstantiationPath path_;
+  std::string register_prefix_;
 
   // Child instances of this instance. Unique pointers are used for pointer
   // stability as pointers to these objects are handed out.

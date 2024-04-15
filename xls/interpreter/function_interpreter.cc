@@ -14,20 +14,28 @@
 
 #include "xls/interpreter/function_interpreter.h"
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "xls/ir/bits.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/interpreter/ir_interpreter.h"
+#include "xls/ir/events.h"
 #include "xls/ir/keyword_args.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
 
 // An interpreter for XLS functions.
-class FunctionInterpreter : public IrInterpreter {
+class FunctionInterpreter final : public IrInterpreter {
  public:
   explicit FunctionInterpreter(absl::Span<const Value> args)
       : args_(args.begin(), args.end()) {}

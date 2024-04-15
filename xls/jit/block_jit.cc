@@ -34,6 +34,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
@@ -41,6 +42,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
 
@@ -341,9 +343,13 @@ absl::flat_hash_map<std::string, Value> BlockJitContinuation::GetRegistersMap()
 absl::StatusOr<BlockRunResult> JitBlockEvaluator::EvaluateBlock(
     const absl::flat_hash_map<std::string, Value>& inputs,
     const absl::flat_hash_map<std::string, Value>& reg_state,
-    Block* block) const {
+    const BlockElaboration& elaboration) const {
+  Block* top_block = *elaboration.top()->block();
+  XLS_RET_CHECK_EQ(elaboration.instances().size(), 1)
+      << "StreamingJitBlockEvaluator does not support instantiations";
+
   XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(block, runtime.get()));
+  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(top_block, runtime.get()));
   auto continuation = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(continuation->SetInputPorts(inputs));
   XLS_RETURN_IF_ERROR(continuation->SetRegisters(reg_state));
@@ -504,10 +510,13 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
 StreamingJitBlockEvaluator::NewContinuation(
-    Block* block,
+    BlockElaboration&& elaboration,
     const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+  Block* top_block = *elaboration.top()->block();
+  XLS_RET_CHECK_EQ(elaboration.instances().size(), 1)
+      << "StreamingJitBlockEvaluator does not support instantiations";
   XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(block, runtime.get()));
+  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(top_block, runtime.get()));
   auto jit_cont = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(jit_cont->SetRegisters(initial_registers));
   return std::make_unique<BlockContinuationJitWrapper>(

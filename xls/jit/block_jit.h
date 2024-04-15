@@ -36,6 +36,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
@@ -260,10 +261,11 @@ class BlockJitContinuation {
 class JitBlockEvaluator : public BlockEvaluator {
  public:
   constexpr JitBlockEvaluator() : JitBlockEvaluator("Jit") {}
+
   absl::StatusOr<BlockRunResult> EvaluateBlock(
       const absl::flat_hash_map<std::string, Value>& inputs,
       const absl::flat_hash_map<std::string, Value>& reg_state,
-      Block* block) const final;
+      const BlockElaboration& elaboration) const final;
 
  protected:
   constexpr explicit JitBlockEvaluator(std::string_view name)
@@ -294,8 +296,10 @@ class StreamingJitBlockEvaluator : public JitBlockEvaluator {
 
   // Expose the overload without `initial_registers`.
   using BlockEvaluator::NewContinuation;
+
+ protected:
   absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
-      Block* block,
+      BlockElaboration&& elaboration,
       const absl::flat_hash_map<std::string, Value>& initial_registers)
       const override;
 };
@@ -308,7 +312,9 @@ static const StreamingJitBlockEvaluator kStreamingJitBlockEvaluator;
 inline absl::StatusOr<BlockRunResult> JitBlockRun(
     const absl::flat_hash_map<std::string, Value>& inputs,
     const absl::flat_hash_map<std::string, Value>& reg_state, Block* block) {
-  return kJitBlockEvaluator.EvaluateBlock(inputs, reg_state, block);
+  XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
+                       BlockElaboration::Elaborate(block));
+  return kJitBlockEvaluator.EvaluateBlock(inputs, reg_state, elaboration);
 }
 
 }  // namespace xls

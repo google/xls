@@ -173,12 +173,14 @@ TEST_F(BlockJitTest, SetRegistersWithViews) {
                   testing::Pair("test1", Value(UBits(0, 16))),
                   testing::Pair("test2", Value(UBits(0, 16)))));
 }
-INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
-                         testing::Values(&kJitBlockEvaluator,
-                                         &kStreamingJitBlockEvaluator),
-                         [](const auto& v) {
-                           return std::string(v.param->name());
-                         });
+INSTANTIATE_TEST_SUITE_P(
+    JitBlockCommonTest, BlockEvaluatorTest,
+    testing::Values(
+        BlockEvaluatorTestParam{.evaluator = &kJitBlockEvaluator,
+                                .supports_hierarhical_blocks = false},
+        BlockEvaluatorTestParam{.evaluator = &kStreamingJitBlockEvaluator,
+                                .supports_hierarhical_blocks = false}),
+    [](const auto& v) { return std::string(v.param.evaluator->name()); });
 
 }  // namespace
 }  // namespace xls

@@ -29,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/ir/block.h"
+#include "xls/ir/block_elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/value.h"
 
@@ -211,10 +212,9 @@ class BlockEvaluator {
   // Create a new block continuation with all registers initialized to the given
   // values. This continuation can be used to feed input values in
   // cycle-by-cycle.
-  virtual absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
+  absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
       Block* block,
-      const absl::flat_hash_map<std::string, Value>& initial_registers)
-      const;
+      const absl::flat_hash_map<std::string, Value>& initial_registers) const;
 
   // Create a new block continuation with all registers initialized to zero
   // values. This continuation can be used to feed input values in
@@ -228,7 +228,7 @@ class BlockEvaluator {
   virtual absl::StatusOr<BlockRunResult> EvaluateBlock(
       const absl::flat_hash_map<std::string, Value>& inputs,
       const absl::flat_hash_map<std::string, Value>& registers,
-      Block* block) const = 0;
+      const BlockElaboration& elaboration) const = 0;
 
   // The name of this evaluator for debug purposes.
   std::string_view name() const { return name_; }
@@ -362,6 +362,10 @@ class BlockEvaluator {
   }
 
  protected:
+  virtual absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
+      BlockElaboration&& elaboration,
+      const absl::flat_hash_map<std::string, Value>& initial_registers) const;
+
   std::string_view name_;
 };
 

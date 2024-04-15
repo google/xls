@@ -35,6 +35,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -102,6 +103,18 @@ std::optional<ElaboratedNode> InterInstanceSuccessor(
     }
   }
   return std::nullopt;
+}
+
+std::string MakeRegisterPrefix(const BlockInstantiationPath& path) {
+  if (path.path.empty()) {
+    return "";
+  }
+  return absl::StrCat(
+      absl::StrJoin(path.path, "::",
+                    [](std::string* out, const Instantiation* inst) {
+                      out->append(inst->name());
+                    }),
+      "::");
 }
 
 }  // namespace
@@ -434,6 +447,7 @@ BlockInstance::BlockInstance(
     : block_(block),
       instantiation_(instantiation),
       path_(std::move(path)),
+      register_prefix_(MakeRegisterPrefix(path_)),
       child_instances_(std::move(instantiated_blocks)) {
   if (!block.has_value()) {
     return;

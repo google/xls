@@ -24,9 +24,11 @@ namespace xls {
 namespace {
 
 INSTANTIATE_TEST_SUITE_P(BlockInterpreterTest, BlockEvaluatorTest,
-                         testing::Values(&kInterpreterBlockEvaluator),
+                         testing::Values(BlockEvaluatorTestParam{
+                             .evaluator = &kInterpreterBlockEvaluator,
+                             .supports_hierarhical_blocks = true}),
                          [](const auto& v) -> std::string {
-                           return std::string(v.param->name());
+                           return std::string(v.param.evaluator->name());
                          });
 
 }  // namespace

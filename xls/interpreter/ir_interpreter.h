@@ -15,15 +15,19 @@
 #ifndef XLS_INTERPRETER_IR_INTERPRETER_H_
 #define XLS_INTERPRETER_IR_INTERPRETER_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 

@@ -18,20 +18,27 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/elaboration.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
@@ -105,6 +112,142 @@ TEST_P(BlockEvaluatorTest, OutputOnlyBlock) {
   EXPECT_THAT(evaluator().EvaluateCombinationalBlock(
                   block, absl::flat_hash_map<std::string, uint64_t>()),
               IsOkAndHolds(UnorderedElementsAre(Pair("out", 123))));
+}
+
+TEST_P(BlockEvaluatorTest, StatelessInstantiatedPassthrough) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsHierarchicalBlocks()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto package = CreatePackage();
+  Block* inner;
+  {
+    BlockBuilder b(absl::StrCat(TestName(), "_inner"), package.get());
+    b.OutputPort("out2", b.InputPort("in2", package->GetBitsType(32)));
+    XLS_ASSERT_OK_AND_ASSIGN(inner, b.Build());
+  }
+  Block* outer;
+  {
+    BlockBuilder b(TestName(), package.get());
+    XLS_ASSERT_OK_AND_ASSIGN(BlockInstantiation * inst,
+                             b.block()->AddBlockInstantiation("inst", inner));
+    b.InstantiationInput(inst, "in2",
+                         b.InputPort("in", package->GetBitsType(32)));
+    b.OutputPort("out", b.InstantiationOutput(inst, "out2"));
+    XLS_ASSERT_OK_AND_ASSIGN(outer, b.Build());
+  }
+
+  EXPECT_THAT(
+      evaluator().EvaluateCombinationalBlock(
+          outer, absl::flat_hash_map<std::string, Value>(
+                     {{"in", Value(UBits(123, 32))}})),
+      IsOkAndHolds(UnorderedElementsAre(Pair("out", Value(UBits(123, 32))))));
+}
+
+TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsHierarchicalBlocks()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto package = CreatePackage();
+  auto rot = [&](int64_t n, int64_t r) -> absl::StatusOr<Block*> {
+    BlockBuilder b(absl::StrCat(TestName(), "_rot", n, "_", r), package.get());
+    XLS_RETURN_IF_ERROR(b.AddClockPort("clk"));
+    std::vector<BValue> inputs;
+    for (int64_t i = 0; i < n; ++i) {
+      inputs.push_back(
+          b.InputPort(absl::StrCat("in", i), package->GetBitsType(8)));
+    }
+    for (int64_t i = 0; i < n; ++i) {
+      int64_t rot_idx = (i + r) % n;
+      b.OutputPort(absl::StrCat("out", i),
+                   b.InsertRegister(absl::StrCat("reg", i), inputs[rot_idx]));
+    }
+    return b.Build();
+  };
+  auto multi_rot = [&](int64_t n) -> absl::StatusOr<Block*> {
+    BlockBuilder b(absl::StrCat(TestName(), "multirot", n), package.get());
+    XLS_RETURN_IF_ERROR(b.AddClockPort("clk"));
+    std::vector<BValue> inputs;
+    for (int64_t i = 0; i < n; ++i) {
+      inputs.push_back(
+          b.InputPort(absl::StrCat("in", i), package->GetBitsType(8)));
+    }
+    for (int64_t i = 0; i < n; ++i) {
+      XLS_ASSIGN_OR_RETURN(Block * rot_block, rot(n, i));
+      XLS_ASSIGN_OR_RETURN(BlockInstantiation * inst,
+                           b.block()->AddBlockInstantiation(
+                               absl::StrFormat("rot%d_inst", i), rot_block));
+      for (int64_t j = 0; j < n; ++j) {
+        b.InstantiationInput(inst, absl::StrCat("in", j), inputs[j]);
+        inputs[j] = b.InstantiationOutput(inst, absl::StrCat("out", j));
+      }
+    }
+    for (int64_t i = 0; i < n; ++i) {
+      b.OutputPort(absl::StrCat("out", i), inputs[i]);
+    }
+    return b.Build();
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(Block * outer, multi_rot(4));
+
+  auto in_t = [](int64_t timestep) -> absl::flat_hash_map<std::string, Value> {
+    absl::flat_hash_map<std::string, Value> inputs;
+    inputs.reserve(4);
+    for (int64_t i = 0; i < 4; ++i) {
+      inputs[absl::StrCat("in", i)] = Value(UBits(timestep + i, 8));
+    }
+    return inputs;
+  };
+  std::vector<absl::flat_hash_map<std::string, Value>> inputs = {
+      in_t(0), in_t(1), in_t(2), in_t(3), in_t(4), in_t(5), in_t(6), in_t(7),
+  };
+
+  // Net result is to rotate inputs by 2 delayed by 4 cycles.
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(outer, inputs),
+              IsOkAndHolds(ElementsAre(
+                  // t = 0
+                  UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                                       Pair("out1", Value(UBits(0, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(0, 8)))),
+                  // t = 1
+                  UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                                       Pair("out1", Value(UBits(0, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(0, 8)))),
+                  // t = 2
+                  UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                                       Pair("out1", Value(UBits(0, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(0, 8)))),
+                  // t = 3
+                  UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                                       Pair("out1", Value(UBits(0, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(0, 8)))),
+                  // t = 4
+                  UnorderedElementsAre(Pair("out0", Value(UBits(2, 8))),
+                                       Pair("out1", Value(UBits(3, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(1, 8)))),
+                  // t = 5
+                  UnorderedElementsAre(Pair("out0", Value(UBits(3, 8))),
+                                       Pair("out1", Value(UBits(4, 8))),
+                                       Pair("out2", Value(UBits(1, 8))),
+                                       Pair("out3", Value(UBits(2, 8)))),
+
+                  // t = 6
+                  UnorderedElementsAre(Pair("out0", Value(UBits(4, 8))),
+                                       Pair("out1", Value(UBits(5, 8))),
+                                       Pair("out2", Value(UBits(2, 8))),
+                                       Pair("out3", Value(UBits(3, 8)))),
+                  // t = 7
+                  UnorderedElementsAre(Pair("out0", Value(UBits(5, 8))),
+                                       Pair("out1", Value(UBits(6, 8))),
+                                       Pair("out2", Value(UBits(3, 8))),
+                                       Pair("out3", Value(UBits(4, 8)))))));
 }
 
 TEST_P(BlockEvaluatorTest, SumAndDifferenceBlock) {
@@ -702,17 +845,19 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
   BValue assertion =
       b.Assert(tkn, b.UGt(x, b.Literal(Value(UBits(5, 32)))), "foo");
   BValue first_trace = b.Trace(assertion, b.Literal(Value(UBits(1, 1))), {x},
-          {"x is ", FormatPreference::kDefault});
+                               {"x is ", FormatPreference::kDefault});
   b.Trace(first_trace, b.Literal(Value(UBits(1, 1))), {x},
           {"I'm emphasizing that x is ", FormatPreference::kDefault},
           /*verbosity=*/3);
 
   b.OutputPort("y", x);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
+                           BlockElaboration::Elaborate(block));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockRunResult result,
-      evaluator().EvaluateBlock({{"x", Value(UBits(10, 32))}}, {}, block));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockRunResult result,
+                           evaluator().EvaluateBlock(
+                               {{"x", Value(UBits(10, 32))}}, {}, elaboration));
 
   EXPECT_THAT(result.interpreter_events.trace_msgs,
               ElementsAre(FieldsAre("x is 10", 0),
@@ -721,7 +866,7 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       result,
-      evaluator().EvaluateBlock({{"x", Value(UBits(3, 32))}}, {}, block));
+      evaluator().EvaluateBlock({{"x", Value(UBits(3, 32))}}, {}, elaboration));
 
   EXPECT_THAT(result.interpreter_events.trace_msgs,
               ElementsAre(FieldsAre("x is 3", 0),
@@ -747,6 +892,8 @@ TEST_P(BlockEvaluatorTest, TupleInputOutput) {
   b.OutputPort("o11", b.TupleIndex(b.TupleIndex(x, 1), 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
+                           BlockElaboration::Elaborate(block));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       BlockRunResult result,
@@ -755,7 +902,7 @@ TEST_P(BlockEvaluatorTest, TupleInputOutput) {
             Value::Tuple(
                 {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
                  Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
-          {}, block));
+          {}, elaboration));
 
   EXPECT_THAT(
       result.outputs,
@@ -783,6 +930,8 @@ TEST_P(BlockEvaluatorTest, TupleRegister) {
   b.InsertRegister("o11", b.TupleIndex(b.TupleIndex(x, 1), 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
+                           BlockElaboration::Elaborate(block));
   RecordProperty("ir", block->DumpIr());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -801,7 +950,7 @@ TEST_P(BlockEvaluatorTest, TupleRegister) {
               {"o10", all_ones.element(1).element(0)},
               {"o11", all_ones.element(1).element(1)},
           },
-          block));
+          elaboration));
 
   EXPECT_THAT(
       result.reg_state,
@@ -819,12 +968,14 @@ TEST_P(BlockEvaluatorTest, TypeChecksInputs) {
   b.InputPort("test", package->GetBitsType(32));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
+                           BlockElaboration::Elaborate(block));
 
   auto result = evaluator().EvaluateBlock(
       {{"test", Value::Tuple(
                     {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
                      Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
-      {}, block);
+      {}, elaboration);
 
   RecordProperty("error", result.status().ToString());
   EXPECT_THAT(result, Not(IsOk()));
@@ -837,13 +988,15 @@ TEST_P(BlockEvaluatorTest, TypeChecksRegister) {
   b.InsertRegister("test", b.Literal(UBits(0, 32)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
+                           BlockElaboration::Elaborate(block));
 
   auto result = evaluator().EvaluateBlock(
       {},
       {{"test", Value::Tuple(
                     {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
                      Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
-      block);
+      elaboration);
 
   RecordProperty("error", result.status().ToString());
   EXPECT_THAT(result, Not(IsOk()));
