@@ -28,6 +28,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -38,8 +39,10 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/data_structures/algorithm.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -1016,6 +1019,82 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           node->ReplaceUsesWithNew<Concat>(
                   std::vector{operand_eq_zero, node->operand(0)})
               .status());
+      return true;
+    }
+
+    if (std::optional<TreeBitLocation> unknown_bit =
+            query_engine.ExactlyOneBitUnknown(node->operand(0));
+        unknown_bit.has_value()) {
+      Node* input = node->operand(0);
+      // When only one bit is unknown there are only two possible values, so we
+      // can strength reduce this to a select between the two possible values
+      // based on the unknown bit, which should unblock more subsequent
+      // optimizations.
+      // 1. Determine the unknown bit (for use as a selector).
+      XLS_ASSIGN_OR_RETURN(
+          Node * selector,
+          node->function_base()->MakeNode<BitSlice>(
+              node->loc(), input, /*start=*/unknown_bit->bit_index(),
+              /*width=*/1));
+
+      // 2. Create the literals we select among based on whether the bit is
+      //    populated or not.
+      const int64_t input_bit_count =
+          input->GetType()->AsBitsOrDie()->bit_count();
+
+      // Build up inputs for the case where the unknown value is true and false,
+      // respectively.
+      InlineBitmap input_on_true(input_bit_count);
+      InlineBitmap input_on_false(input_bit_count);
+      int64_t seen_unknown = 0;
+      for (int64_t bitno = 0; bitno < input_bit_count; ++bitno) {
+        TreeBitLocation tree_location(input, bitno);
+        std::optional<bool> known_value =
+            query_engine.KnownValue(tree_location);
+        if (known_value.has_value()) {
+          input_on_false.Set(bitno, known_value.value());
+          input_on_true.Set(bitno, known_value.value());
+        } else {
+          seen_unknown++;
+          input_on_false.Set(bitno, false);
+          input_on_true.Set(bitno, true);
+        }
+      }
+      CHECK_EQ(seen_unknown, 1)
+          << "Query engine noted exactly one bit was unknown; saw unexpected "
+             "number of unknown bits";
+
+      // Wrapper lambda that invokes the right priority for the one hot op based
+      // on the node metadata.
+      auto do_one_hot = [&](const Bits& input) {
+        OneHot* one_hot = node->As<OneHot>();
+        if (one_hot->priority() == LsbOrMsb::kLsb) {
+          return bits_ops::OneHotLsbToMsb(input);
+        }
+        return bits_ops::OneHotMsbToLsb(input);
+      };
+
+      Bits output_on_false = do_one_hot(Bits::FromBitmap(input_on_false));
+      Bits output_on_true = do_one_hot(Bits::FromBitmap(input_on_true));
+      VLOG(2) << absl::StrFormat(
+          "input_on_false: %s input_on_true: %s output_on_false: %s "
+          "output_on_true: %s",
+          Bits::FromBitmap(input_on_false).ToDebugString(),
+          Bits::FromBitmap(input_on_true).ToDebugString(),
+          output_on_false.ToDebugString(), output_on_true.ToDebugString());
+      XLS_ASSIGN_OR_RETURN(Node * on_false,
+                           node->function_base()->MakeNode<Literal>(
+                               node->loc(), Value(std::move(output_on_false))));
+      XLS_ASSIGN_OR_RETURN(Node * on_true,
+                           node->function_base()->MakeNode<Literal>(
+                               node->loc(), Value(std::move(output_on_true))));
+
+      // 3. Create the select.
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Select>(
+                                  selector,
+                                  std::vector<Node*>{on_false, on_true},
+                                  /*default_value=*/std::nullopt)
+                              .status());
       return true;
     }
   }

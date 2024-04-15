@@ -82,6 +82,20 @@ LeafTypeTree<IntervalSet> QueryEngine::GetIntervals(Node* node) const {
       });
 }
 
+std::optional<TreeBitLocation> QueryEngine::ExactlyOneBitUnknown(
+    Node* node) const {
+  std::optional<TreeBitLocation> unknown;
+  for (const TreeBitLocation& bit : ToTreeBitLocations(node)) {
+    if (!IsKnown(bit)) {
+      if (unknown.has_value()) {
+        return std::nullopt;
+      }
+      unknown = bit;
+    }
+  }
+  return unknown;
+}
+
 bool QueryEngine::AtMostOneNodeTrue(absl::Span<Node* const> preds) const {
   return AtMostOneTrue(ToTreeBitLocations(preds));
 }

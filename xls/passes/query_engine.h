@@ -117,6 +117,10 @@ class QueryEngine {
   // Returns true if at least one of the given bits is true.
   virtual bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const = 0;
 
+  // Returns the location of the unknown bit within the node if exactly one of
+  // the given bits is unknown.
+  std::optional<TreeBitLocation> ExactlyOneBitUnknown(Node* node) const;
+
   // Returns true if 'a' implies 'b'.
   virtual bool Implies(const TreeBitLocation& a,
                        const TreeBitLocation& b) const = 0;

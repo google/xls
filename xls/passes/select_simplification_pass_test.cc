@@ -22,11 +22,17 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -674,6 +680,35 @@ TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase3) {
   EXPECT_THAT(f->return_value(),
               m::Select(m::Or(m::Param("p0"), m::Param("p1")),
                         {m::Param("y"), m::Param("x")}));
+}
+
+// Performs the following:
+//
+//  fn f(x: bool) {
+//    one_hot(1 ++ x, lsb_prio)
+//  }
+//
+// Which can simplify to: if x { 0b001 } else { 0b010 }
+TEST_F(SelectSimplificationPassTest, OneHotWithSingleUnknownBit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue x = fb.Param("x", u1);
+  BValue concat = fb.Concat({fb.Literal(UBits(1, 1)), x});
+  BValue one_hot = fb.OneHot(concat, LsbOrMsb::kLsb);
+  (void)one_hot;  // retval
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  // Note: this doesn't simplify the concat/slice but if it did the selector
+  // would be 'x'.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(
+          m::BitSlice(m::Concat(m::Literal("bits[1]:1"), m::Param("x")), 0, 1),
+          {m::Literal("bits[3]:0b010"), m::Literal("bits[3]:0b001")}));
 }
 
 }  // namespace
