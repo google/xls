@@ -38,6 +38,7 @@ nav:
       - Overview: 'ir_jit.md'
       - Data Layout: 'data_layout.md'
     - Formal: 'solvers.md'
+    - Elaboration: 'elaboration.md'
   - DSLX:
     - Reference: 'dslx_reference.md'
     - Standard Library : 'dslx_std.md'
