@@ -46,6 +46,7 @@ nav:
     - Fuzzer: 'fuzzer.md'
     - Interpreter: 'dslx_bytecode_interpreter.md'
     - Language Server: 'dslx_language_server.md'
+    - Type System: 'dslx_type_system.md'
   - Code Generation:
     - Codegen Options: 'codegen_options.md'
     - IR Lowering: 'ir_lowering.md'

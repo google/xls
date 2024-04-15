@@ -30,8 +30,13 @@ exports_files(
 )
 
 filegroup(
-    name = "dslx_reference",
+    name = "dslx_reference_md",
     srcs = ["dslx_reference.md"],
+)
+
+filegroup(
+    name = "dslx_type_system_md",
+    srcs = ["dslx_type_system.md"],
 )
 
 filegroup(

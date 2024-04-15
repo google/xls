@@ -32,6 +32,7 @@ _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
 _INPUT_FILES = [
     'docs_src/dslx_reference.md',
+    'docs_src/dslx_type_system.md',
     'docs_src/tutorials/hello_xls.md',
     'docs_src/tutorials/float_to_int.md',
     'docs_src/tutorials/intro_to_parametrics.md',
