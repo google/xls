@@ -721,15 +721,11 @@ static absl::Status RunBlock(
   absl::flat_hash_map<std::string, std::deque<Value>> channel_value_queues;
   for (const auto& [name, values] : inputs_for_channels) {
     CHECK(!channel_value_queues.contains(name));
-    for (const Value& value : values) {
-      channel_value_queues[name].push_back(value);
-    }
+    absl::c_copy(values, std::back_inserter(channel_value_queues[name]));
   }
   for (const auto& [name, values] : expected_outputs_for_channels) {
     CHECK(!channel_value_queues.contains(name));
-    for (const Value& value : values) {
-      channel_value_queues[name].push_back(value);
-    }
+    absl::c_copy(values, std::back_inserter(channel_value_queues[name]));
   }
 
   absl::flat_hash_map<std::string, std::unique_ptr<MemoryModel>> model_memories;
