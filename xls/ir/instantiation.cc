@@ -193,14 +193,17 @@ FifoInstantiation::FifoInstantiation(
 
 absl::StatusOr<InstantiationPort> FifoInstantiation::GetInputPort(
     std::string_view name) {
-  if (name == "push_data") {
-    return InstantiationPort{std::string{name}, data_type()};
+  if (name == kPushDataPortName) {
+    return InstantiationPort{.name = std::string{kPushDataPortName},
+                             .type = data_type()};
   }
-  if (name == "push_valid") {
-    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  if (name == kPushValidPortName) {
+    return InstantiationPort{.name = std::string{kPushValidPortName},
+                             .type = package_->GetBitsType(1)};
   }
-  if (name == "pop_ready") {
-    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  if (name == kPopReadyPortName) {
+    return InstantiationPort{.name = std::string{kPopReadyPortName},
+                             .type = package_->GetBitsType(1)};
   }
   return absl::NotFoundError(
       absl::Substitute("No such input port `$0`: must be one of push_data, "
@@ -210,14 +213,17 @@ absl::StatusOr<InstantiationPort> FifoInstantiation::GetInputPort(
 
 absl::StatusOr<InstantiationPort> FifoInstantiation::GetOutputPort(
     std::string_view name) {
-  if (name == "pop_data") {
-    return InstantiationPort{std::string{name}, data_type()};
+  if (name == kPopDataPortName) {
+    return InstantiationPort{.name = std::string{kPopDataPortName},
+                             .type = data_type()};
   }
-  if (name == "pop_valid") {
-    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  if (name == kPopValidPortName) {
+    return InstantiationPort{.name = std::string{kPopValidPortName},
+                             .type = package_->GetBitsType(1)};
   }
-  if (name == "push_ready") {
-    return InstantiationPort{std::string{name}, package_->GetBitsType(1)};
+  if (name == kPushReadyPortName) {
+    return InstantiationPort{.name = std::string{kPushReadyPortName},
+                             .type = package_->GetBitsType(1)};
   }
   return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
 }
