@@ -39,6 +39,13 @@ IntervalSet IntervalSet::Maximal(int64_t bit_count) {
   return result;
 }
 
+IntervalSet IntervalSet::NonZero(int64_t bit_count) {
+  IntervalSet result(bit_count);
+  result.AddInterval(Interval(UBits(1, bit_count), Bits::AllOnes(bit_count)));
+  result.Normalize();
+  return result;
+}
+
 IntervalSet IntervalSet::Precise(const Bits& bits) {
   IntervalSet result(bits.bit_count());
   result.AddInterval(Interval::Precise(bits));
@@ -174,6 +181,39 @@ bool IntervalSet::ForEachElement(
     }
   }
   return false;
+}
+
+/* static */ bool IntervalSet::Disjoint(const IntervalSet& lhs,
+                                        const IntervalSet& rhs) {
+  CHECK(lhs.IsNormalized() && rhs.IsNormalized());
+  // Try the trivial cases first.
+  if (lhs.IsEmpty() || rhs.IsEmpty()) {
+    return true;
+  }
+  if (lhs.IsMaximal() || rhs.IsMaximal()) {
+    return false;
+  }
+  Interval lhs_convex = *lhs.ConvexHull();
+  Interval rhs_convex = *rhs.ConvexHull();
+  if (Interval::Disjoint(lhs_convex, rhs_convex)) {
+    return true;
+  }
+  // Both intervals lists are sorted by lower bound since they are normalized.
+  absl::Span<Interval const> left_intervals = lhs.Intervals();
+  absl::Span<Interval const> right_intervals = rhs.Intervals();
+  auto lhs_it = left_intervals.cbegin();
+  auto rhs_it = right_intervals.cbegin();
+  while (lhs_it != left_intervals.cend() && rhs_it != right_intervals.cend()) {
+    if (Interval::Overlaps(*lhs_it, *rhs_it)) {
+      return false;
+    }
+    if (*lhs_it < *rhs_it) {
+      ++lhs_it;
+    } else {
+      ++rhs_it;
+    }
+  }
+  return true;
 }
 
 IntervalSet IntervalSet::Combine(const IntervalSet& lhs,

@@ -42,8 +42,16 @@ class IntervalSet {
   explicit IntervalSet(int64_t bit_count)
       : is_normalized_(true), bit_count_(bit_count) {}
 
+  // Returns true if the intersection of the two interval sets would be empty
+  // (without constructing the intersection).
+  static bool Disjoint(const IntervalSet& lhs, const IntervalSet& rhs);
+
   // Returns an interval set that covers every bit pattern with the given width.
   static IntervalSet Maximal(int64_t bit_count);
+
+  // Returns an interval set that covers every bit pattern except zero with the
+  // given width.
+  static IntervalSet NonZero(int64_t bit_count);
 
   // Returns an interval set that covers exactly the given bit pattern.
   static IntervalSet Precise(const Bits& bits);

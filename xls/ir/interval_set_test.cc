@@ -18,16 +18,22 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set_test_utils.h"
 
+using ::testing::ExplainMatchResult;
+using ::testing::IsTrue;
+using ::testing::Not;
 using ::testing::Optional;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAreArray;
@@ -438,6 +444,44 @@ TEST(IntervalTest, ZeroExtend) {
   EXPECT_EQ(extended.BitCount(), 60);
 }
 
+IntervalSet Intervals(absl::Span<std::pair<int64_t, int64_t> const> v,
+                      int64_t bit_count = 32) {
+  IntervalSet set(bit_count);
+  for (const auto& [l, h] : v) {
+    set.AddInterval(MakeInterval(l, h, bit_count));
+  }
+  set.Normalize();
+  return set;
+}
+
+MATCHER_P(DisjointWith, other,
+          absl::StrFormat("Is %sdisjoint with %s", negation ? "not " : "",
+                          other.ToString())) {
+  const IntervalSet& rhs = other;
+  const IntervalSet& lhs = arg;
+  return ExplainMatchResult(IsTrue(), IntervalSet::Disjoint(lhs, rhs),
+                            result_listener);
+}
+
+TEST(IntervalSetTest, Disjoint) {
+  {
+    IntervalSet low = Intervals({{1, 1}});
+    IntervalSet high = Intervals({{10, 10}});
+    EXPECT_THAT(low, DisjointWith(high));
+    EXPECT_THAT(high, DisjointWith(low));
+  }
+  {
+    IntervalSet l = Intervals({{1, 10}});
+    IntervalSet r = Intervals({{10, 10}});
+    EXPECT_THAT(l, Not(DisjointWith(r)));
+  }
+  {
+    IntervalSet l = Intervals({{1, 1}, {3, 3}, {5, 5}});
+    IntervalSet r = Intervals({{2, 2}, {4, 4}, {6, 6}});
+    EXPECT_THAT(l, DisjointWith(r));
+  }
+}
+
 void IntersectionIsSmaller(const IntervalSet& lhs, const IntervalSet& rhs) {
   IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
   std::optional<uint64_t> intersection_size = intersection.Size();
@@ -474,6 +518,16 @@ void UnionIsLarger(const IntervalSet& lhs, const IntervalSet& rhs) {
   }
 }
 FUZZ_TEST(IntervalFuzzTest, UnionIsLarger)
+    .WithDomains(ArbitraryNormalizedIntervalSet(32),
+                 ArbitraryNormalizedIntervalSet(32));
+
+void DisjointEquivalentToEmptyIntersection(const IntervalSet& lhs,
+                                           const IntervalSet& rhs) {
+  IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
+  EXPECT_EQ(IntervalSet::Disjoint(lhs, rhs), intersection.IsEmpty());
+}
+
+FUZZ_TEST(IntervalFuzzTest, DisjointEquivalentToEmptyIntersection)
     .WithDomains(ArbitraryNormalizedIntervalSet(32),
                  ArbitraryNormalizedIntervalSet(32));
 
