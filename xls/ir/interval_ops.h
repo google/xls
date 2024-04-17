@@ -18,9 +18,11 @@
 #include <cstdint>
 #include <optional>
 
+#include "absl/types/span.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 
@@ -71,6 +73,40 @@ KnownBits ExtractKnownBits(const IntervalSet& intervals,
 // secondary objective by merging smaller intervals when their is a tie in how
 // much distance is between 2 intervals might provide better results.
 IntervalSet MinimizeIntervals(IntervalSet interval_set, int64_t size);
+
+// Arithmetic
+IntervalSet Add(const IntervalSet& a, const IntervalSet& b);
+IntervalSet Sub(const IntervalSet& a, const IntervalSet& b);
+IntervalSet Neg(const IntervalSet& a);
+IntervalSet UMul(const IntervalSet& a, const IntervalSet& b,
+                 int64_t output_bitwidth);
+IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b);
+
+// Bit ops.
+IntervalSet Not(const IntervalSet& a);
+IntervalSet And(const IntervalSet& a, const IntervalSet& b);
+IntervalSet Or(const IntervalSet& a, const IntervalSet& b);
+IntervalSet Xor(const IntervalSet& a, const IntervalSet& b);
+IntervalSet AndReduce(const IntervalSet& a);
+IntervalSet OrReduce(const IntervalSet& a);
+IntervalSet XorReduce(const IntervalSet& a);
+IntervalSet Concat(absl::Span<IntervalSet const> sets);
+IntervalSet SignExtend(const IntervalSet& a, int64_t width);
+IntervalSet ZeroExtend(const IntervalSet& a, int64_t width);
+IntervalSet Truncate(const IntervalSet& a, int64_t width);
+
+// Cmp
+IntervalSet Eq(const IntervalSet& a, const IntervalSet& b);
+IntervalSet Ne(const IntervalSet& a, const IntervalSet& b);
+IntervalSet SLt(const IntervalSet& a, const IntervalSet& b);
+IntervalSet SGt(const IntervalSet& a, const IntervalSet& b);
+IntervalSet ULt(const IntervalSet& a, const IntervalSet& b);
+IntervalSet UGt(const IntervalSet& a, const IntervalSet& b);
+
+// Misc
+IntervalSet Gate(const IntervalSet& cond, const IntervalSet& val);
+IntervalSet OneHot(const IntervalSet& val, LsbOrMsb lsb_or_msb,
+                   int64_t max_interval_bits = 4);
 
 }  // namespace xls::interval_ops
 

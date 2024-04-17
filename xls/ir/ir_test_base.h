@@ -202,6 +202,29 @@ struct ScopedRecordIr {
   std::string_view name_;
 };
 
+// Helper to record something on failure.
+template <typename T>
+struct ScopedMaybeRecord {
+ public:
+  ScopedMaybeRecord(std::string_view title, T t) : title_(title), t_(t) {}
+  ~ScopedMaybeRecord() {
+    if (testing::Test::HasFailure()) {
+      if constexpr (std::is_convertible_v<T, std::string_view>) {
+        testing::Test::RecordProperty(title_, t_);
+      } else {
+        testing::Test::RecordProperty(title_, testing::PrintToString(t_));
+      }
+    }
+  }
+
+ private:
+  std::string title_;
+  T t_;
+};
+
+template <typename T>
+ScopedMaybeRecord(std::string_view, T) -> ScopedMaybeRecord<T>;
+
 }  // namespace xls
 
 #endif  // XLS_IR_IR_TEST_BASE_H_

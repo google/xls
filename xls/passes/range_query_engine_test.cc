@@ -1332,6 +1332,7 @@ TEST_F(RangeQueryEngineTest, UMul) {
   BValue y = fb.Param("y", p->GetBitsType(7));
   BValue expr = fb.UMul(x, y, 14);
   BValue overflow = fb.UMul(x, y, 12);
+  BValue overflow2 = fb.UMul(x, y, 8);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   RangeQueryEngine engine;
@@ -1352,9 +1353,17 @@ TEST_F(RangeQueryEngineTest, UMul) {
       y.node(), BitsLTT(y.node(), {Interval(UBits(61, 7), UBits(70, 7))}));
   XLS_ASSERT_OK(engine.Populate(f));
 
-  // If the multiplication can overflow, the maximal range is inferred
+  // If the multiplication can overflow without covering the whole range.
+  // 62 * 61 == 3782, 67 * 70 == 4690, 1 << 12 == 4096
+  // Overflows top once but not bottom so range can be split
   EXPECT_EQ(engine.GetIntervalSetTree(overflow.node()),
-            BitsLTT(overflow.node(), {Interval::Maximal(12)}));
+            BitsLTT(overflow.node(),
+                    {Interval(UBits(0, 12), UBits((67 * 70) % (1 << 12), 12)),
+                     Interval(UBits(3782, 12), UBits(4095, 12))}));
+  // If the multiplication can overflow on both the low and the high side we
+  // currently don't try to determine the range and fallback to maximal.
+  EXPECT_EQ(engine.GetIntervalSetTree(overflow2.node()),
+            BitsLTT(overflow2.node(), {Interval::Maximal(8)}));
 }
 
 TEST_F(RangeQueryEngineTest, UMulOverflow) {
