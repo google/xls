@@ -123,7 +123,7 @@ std::string ElaboratedNode::ToString() const {
   return absl::StrFormat("%s (%s)", node->ToString(), instance->ToString());
 }
 
-absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) {
+absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) const {
   if (visitor.IsVisited(*this)) {
     return absl::OkStatus();
   }
@@ -177,7 +177,7 @@ absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) {
 }
 
 absl::Status ElaboratedNode::VisitSingleNode(
-    ElaboratedBlockDfsVisitor& visitor) {
+    ElaboratedBlockDfsVisitor& visitor) const {
   VLOG(5) << "Visiting elaborated node: " << ToString() << "\n";
   switch (node->op()) {
     case Op::kAdd:

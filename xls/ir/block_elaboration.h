@@ -49,8 +49,8 @@ struct ElaboratedNode {
   }
 
   std::string ToString() const;
-  absl::Status Accept(ElaboratedBlockDfsVisitor& visitor);
-  absl::Status VisitSingleNode(ElaboratedBlockDfsVisitor& visitor);
+  absl::Status Accept(ElaboratedBlockDfsVisitor& visitor) const;
+  absl::Status VisitSingleNode(ElaboratedBlockDfsVisitor& visitor) const;
 };
 
 std::ostream& operator<<(std::ostream& os,
