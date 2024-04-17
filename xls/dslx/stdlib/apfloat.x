@@ -1635,7 +1635,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
 
     // If we cancelled higher bits, then we'll need to shift left.
     // Leading zeroes will be 1 if there's no carry or cancellation.
-    let leading_zeroes = clz(abs_fraction);
+    let leading_zeroes = std::clzt(abs_fraction);
 
     // Manually apply https://github.com/google/xls/issues/1274
     let cancel_fraction = abs_fraction as uN[WIDE_FRACTION + u32:1] << leading_zeroes;
