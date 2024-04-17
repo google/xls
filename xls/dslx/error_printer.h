@@ -28,7 +28,7 @@
 
 namespace xls::dslx {
 
-enum class PositionalErrorColor {
+enum class PositionalErrorColor : uint8_t {
   kNoColor,
   kErrorColor,
   kWarningColor,

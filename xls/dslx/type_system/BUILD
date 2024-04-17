@@ -839,3 +839,29 @@ cc_library(
         "//xls/dslx/frontend:pos",
     ],
 )
+
+cc_library(
+    name = "zip_types",
+    srcs = ["zip_types.cc"],
+    hdrs = ["zip_types.h"],
+    deps = [
+        ":type",
+        "@com_google_absl//absl/status",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "zip_types_test",
+    srcs = ["zip_types_test.cc"],
+    deps = [
+        ":type",
+        ":zip_types",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+    ],
+)

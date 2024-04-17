@@ -23,7 +23,6 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPE_H_
 
-#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>

@@ -1091,6 +1091,17 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_deeply_nested_type_mismatch(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/deeply_nested_type_mismatch.x'
+    )
+    self.assertIn('XlsTypeError:', stderr)
+    self.assertIn(
+        '(uN[8], uN[16], uN[32], uN[64]) vs (uN[8], uN[16], uN[33], uN[64]):'
+        ' Annotated element type did not match inferred element type',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

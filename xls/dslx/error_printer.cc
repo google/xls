@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <cstdio>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -31,9 +30,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
-#include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/warning_collector.h"
 
