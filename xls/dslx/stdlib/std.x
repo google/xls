@@ -1061,3 +1061,207 @@ fn or_reduce_lsb_impl_impl_test() {
 pub fn or_reduce_lsb<WIDTH: u32, N_WIDTH: u32>(value: uN[WIDTH], n: uN[N_WIDTH]) -> bool {
     or_reduce_lsb_impl<true>(value, n)  // using impl. typically yielding best QoR
 }
+
+// Combine the values of the two clzt halfs. If left is saturated, zeroes on the
+// right continue and need to be added; otherwise just keep left.
+// The outputs are one bit wider than the input and the inputs are never
+// larger than a leading one followed by zeros. This means that adding will
+// either never carry or in the trivial 'carry'-case number just double.
+// Thus, this whole operation can be lowered to muxing.
+fn combine_clzt_halfs<N: u32>(left: uN[N], right: uN[N]) -> uN[N + u32:1] {
+    match (left[-1:], right[-1:]) {
+        (u1:1, u1:1) => left ++ u1:0,  // Both at maximum: add them, i.e. mult by 2
+        (u1:1, u1:0) => u2:0b01 ++ right[:-1],  // right side less than max zero bits
+        _ => u1:0 ++ left,  // right side can't contribute anymore
+    }
+}
+
+#[test]
+fn combine_clzt_halfs_test() {
+    // Exhaustive test of all valid inputs
+
+    // rhs does not matter if left side has less than full bits
+    assert_eq(combine_clzt_halfs(u2:0b00, u2:0b00), u3:0);
+    assert_eq(combine_clzt_halfs(u2:0b00, u2:0b01), u3:0);
+    assert_eq(combine_clzt_halfs(u2:0b00, u2:0b10), u3:0);
+
+    assert_eq(combine_clzt_halfs(u2:0b01, u2:0b00), u3:1);
+    assert_eq(combine_clzt_halfs(u2:0b01, u2:0b01), u3:1);
+    assert_eq(combine_clzt_halfs(u2:0b01, u2:0b10), u3:1);
+
+    // Left side saturated count, add rhs.
+    assert_eq(combine_clzt_halfs(u2:0b10, u2:0b00), u3:2);
+    assert_eq(combine_clzt_halfs(u2:0b10, u2:0b01), u3:3);
+    assert_eq(combine_clzt_halfs(u2:0b10, u2:0b10), u3:4);
+
+    assert_eq(combine_clzt_halfs(u2:0b10, u2:0b10), u3:4);
+}
+
+// What we _actually_ want to write after https://github.com/google/xls/issues/510 is addressed
+
+// Count leading zeroes using a tree of gates. Input is required to be a power of 2 bits.
+// Use clzt() for general-purpose function allowing arbitrary bits.
+// fn clzt_pow2<N: u32, RESULT_BITS: u32 = {clog2(N + u32:1)}>(value: bits[N]) -> uN[RESULT_BITS] {
+//     const_assert!(is_pow2(N));
+//     if N == u32:1 {
+//         !value  // Trivial case
+//     } else {
+//         const N_HALF = (N >> 1) as s32;
+//         combine_clzt_halfs(clzt_pow2(value[-N_HALF:]), clzt_pow2(value[:-N_HALF]))
+//     }
+// }
+
+// ... Since we don't have recursion yet, expand manually into clzt_pow_$N()
+
+fn clzt_pow2_1(value: bits[1]) -> uN[1] {
+    !value  // Trivial case
+}
+
+// All the following are identical, just with lifting the N parameter as part
+// of the symbol name to allow recursion.
+fn clzt_pow2_2(value: bits[2]) -> uN[2] {
+    const N_HALF = (2 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_1(value[-N_HALF:]), clzt_pow2_1(value[:-N_HALF]))
+}
+
+fn clzt_pow2_4(value: bits[4]) -> uN[3] {
+    const N_HALF = (4 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_2(value[-N_HALF:]), clzt_pow2_2(value[:-N_HALF]))
+}
+
+fn clzt_pow2_8(value: bits[8]) -> uN[4] {
+    const N_HALF = (8 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_4(value[-N_HALF:]), clzt_pow2_4(value[:-N_HALF]))
+}
+
+fn clzt_pow2_16(value: bits[16]) -> uN[5] {
+    const N_HALF = (16 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_8(value[-N_HALF:]), clzt_pow2_8(value[:-N_HALF]))
+}
+
+fn clzt_pow2_32(value: bits[32]) -> uN[6] {
+    const N_HALF = (32 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_16(value[-N_HALF:]), clzt_pow2_16(value[:-N_HALF]))
+}
+
+fn clzt_pow2_64(value: bits[64]) -> uN[7] {
+    const N_HALF = (64 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_32(value[-N_HALF:]), clzt_pow2_32(value[:-N_HALF]))
+}
+
+fn clzt_pow2_128(value: bits[128]) -> uN[8] {
+    const N_HALF = (128 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_64(value[-N_HALF:]), clzt_pow2_64(value[:-N_HALF]))
+}
+
+fn clzt_pow2_256(value: bits[256]) -> uN[9] {
+    const N_HALF = (256 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_128(value[-N_HALF:]), clzt_pow2_128(value[:-N_HALF]))
+}
+
+fn clzt_pow2_512(value: bits[512]) -> uN[10] {
+    const N_HALF = (512 >> 1) as s32;
+    combine_clzt_halfs(clzt_pow2_256(value[-N_HALF:]), clzt_pow2_256(value[:-N_HALF]))
+}
+
+// Count leading zeroes for power of 2 numbers.
+// Since we can't have recursion, manually expand this here up to 64 bits
+fn clzt_pow2<N: u32, RESULT_BITS: u32 = {clog2(N + u32:1)}>(value: bits[N]) -> uN[RESULT_BITS] {
+    const_assert!(is_pow2(N));
+    match N {
+        // These casts for the arguments and return types should not be needed.
+        u32:512 => clzt_pow2_512(value as uN[512]) as uN[RESULT_BITS],
+        u32:256 => clzt_pow2_256(value as uN[256]) as uN[RESULT_BITS],
+        u32:128 => clzt_pow2_128(value as uN[128]) as uN[RESULT_BITS],
+        u32:64 => clzt_pow2_64(value as uN[64]) as uN[RESULT_BITS],
+        u32:32 => clzt_pow2_32(value as uN[32]) as uN[RESULT_BITS],
+        u32:16 => clzt_pow2_16(value as uN[16]) as uN[RESULT_BITS],
+        u32:8 => clzt_pow2_8(value as uN[8]) as uN[RESULT_BITS],
+        u32:4 => clzt_pow2_4(value as uN[4]) as uN[RESULT_BITS],
+        u32:2 => clzt_pow2_2(value as uN[2]) as uN[RESULT_BITS],
+        u32:1 => clzt_pow2_1(value as uN[1]) as uN[RESULT_BITS],
+        _ => clz(value) as uN[RESULT_BITS],  // More bits ? Fall back to builtin for now.
+    }
+}
+
+// count leading zero 'recursive'
+#[test]
+fn clzt_pow2_test() {
+    // Individual explicit number
+    assert_eq(clzt_pow2_2(u2:0), u2:2);
+    assert_eq(clzt_pow2_2(u2:1), u2:1);
+    assert_eq(clzt_pow2_2(u2:2), u2:0);
+    assert_eq(clzt_pow2_2(u2:3), u2:0);
+
+    assert_eq(clzt_pow2_4(u4:0b0000), u3:4);
+    assert_eq(clzt_pow2_4(u4:0b0001), u3:3);
+    assert_eq(clzt_pow2_4(u4:0b0010), u3:2);
+
+    assert_eq(clzt_pow2_4(u4:0b0100), u3:1);
+    assert_eq(clzt_pow2_4(u4:0b0101), u3:1);
+
+    assert_eq(clzt_pow2_4(u4:0b1000), u3:0);
+    assert_eq(clzt_pow2_4(u4:0b1001), u3:0);
+
+    assert_eq(clzt_pow2_8(u8:0b10000000), u4:0);
+    assert_eq(clzt_pow2_8(u8:0b01000000), u4:1);
+    assert_eq(clzt_pow2_8(u8:0b00100000), u4:2);
+    assert_eq(clzt_pow2_8(u8:0b00000001), u4:7);
+    assert_eq(clzt_pow2_8(u8:0b00000000), u4:8);
+
+    // Driver function
+    assert_eq(clzt_pow2(u2:3), u2:0);
+    assert_eq(clzt_pow2(u4:0b0010), u3:2);
+    assert_eq(clzt_pow2(u8:0b01000000), u4:1);
+}
+
+// Given a number, what is the next power of two. E.g. 5 -> 8; 8 -> 8; 20 -> 32
+fn next_pow2(n: u32) -> u32 { upow(2, clog2(n)) }
+
+#[test]
+fn test_next_pow2() {
+    assert_eq(next_pow2(u32:1), u32:1);
+    assert_eq(next_pow2(u32:2), u32:2);
+    assert_eq(next_pow2(u32:4), u32:4);
+    assert_eq(next_pow2(u32:5), u32:8);
+    assert_eq(next_pow2(u32:7), u32:8);
+    assert_eq(next_pow2(u32:8), u32:8);
+    assert_eq(next_pow2(u32:9), u32:16);
+    assert_eq(next_pow2(u32:16), u32:16);
+    assert_eq(next_pow2(u32:20), u32:32);
+    assert_eq(next_pow2(u32:47), u32:64);
+    assert_eq(next_pow2(u32:65), u32:128);
+}
+
+// General purpose clzt() number that works on any number, though most efficient for powers of two.
+// Named std::clzt() with 't'-suffix for 'tree' and to disambiguate from builtin-clz()
+pub fn clzt<N: u32, RESULT_BITS: u32 = {clog2(N + u32:1)}>(value: bits[N]) -> uN[RESULT_BITS] {
+    const BITS_MISSING_UNTIL_POWER_TWO = next_pow2(N) - N;
+    // To get a proper power of 2 number, pad the trailing end with non-zeroes.
+    clzt_pow2(value ++ mask_bits<BITS_MISSING_UNTIL_POWER_TWO>()) as uN[RESULT_BITS]
+}
+
+#[test]
+fn clzt_test() {
+    assert_eq(clzt(u2:3), u2:0);
+    assert_eq(clzt(u4:0b0010), u3:2);
+    assert_eq(clzt(u8:0b01000000), u4:1);
+    assert_eq(clzt(u9:0b010000000), u4:1);
+
+    assert_eq(clzt(u8:0b000000000), u4:8);
+    assert_eq(clzt(u9:0b0000000000), u4:9);
+
+    // Make sure numbers outside the implemented range of clzt() fall back
+    // to builtin clz()
+    assert_eq(clzt(uN[717]:1 << 710), u10:6);
+
+    const TEST_UP_TO = 555;  // Test a bit beyond implemented 512
+    for (N, _): (u32, ()) in 0..TEST_UP_TO {
+        let number = uN[TEST_UP_TO + 1]:1 << N;
+        let expectd_leading_zeres = (TEST_UP_TO - N) as u10;
+        assert_eq(clzt(number), expectd_leading_zeres);
+    }(());
+}
+
+#[quickcheck]
+fn prop_clzt_same_as_clz(x: u64) -> bool { clz(x) == clzt(x) as u64 }
