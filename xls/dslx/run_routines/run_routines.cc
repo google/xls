@@ -70,10 +70,10 @@
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/solvers/z3_extract_counterexample.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "re2/re2.h"
 
@@ -469,34 +469,18 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
 
   const auto& proven_false = std::get<solvers::z3::ProvenFalse>(proven);
 
-  // Build up records of what the IR parameters are so that the counterexample
-  // extraction knows what kinds of values to parse in the model output.
-  std::vector<solvers::z3::IrParamSpec> ir_params;
-  for (int64_t i = 0; i < ir_function->GetType()->parameter_count(); ++i) {
-    const xls::Type* param_type = ir_function->GetType()->parameter_type(i);
-    XLS_RET_CHECK(param_type != nullptr);
-    ir_params.push_back(solvers::z3::IrParamSpec{
-        .name = std::string{ir_function->param(i)->name()},
-        .type = param_type});
-  }
-
-  // Extract the counterexample to a mapping.
-  using NameToValue = absl::flat_hash_map<std::string, Value>;
-  XLS_ASSIGN_OR_RETURN(NameToValue name_to_value,
-                       ExtractCounterexample(proven_false.message, ir_params));
-
-  // Collapse the mapping back into proper sequential order -- the postcondition
-  // of ExtractCounterexample is that the parameters should all be present if it
-  // succeeds.
-  std::vector<Value> ir_values;
-  ir_values.reserve(name_to_value.size());
-  for (const solvers::z3::IrParamSpec& ir_param : ir_params) {
-    ir_values.push_back(name_to_value.at(ir_param.name));
+  // Extract the counterexample, and collapse it back into sequential order.
+  std::vector<Value> counterexample;
+  using ParamValues = absl::flat_hash_map<const xls::Param*, Value>;
+  XLS_ASSIGN_OR_RETURN(ParamValues counterexample_map,
+                       proven_false.counterexample);
+  for (const xls::Param* param : ir_function->params()) {
+    counterexample.push_back(counterexample_map[param]);
   }
 
   result.Finish(TestResult::kSomeFailed, absl::Now() - start);
   return ParseAndProveResult{.test_result_data = result,
-                             .counterexample = ir_values};
+                             .counterexample = std::move(counterexample)};
 }
 
 absl::StatusOr<TestResultData> ParseAndTest(

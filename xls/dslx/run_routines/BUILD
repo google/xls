@@ -67,7 +67,6 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:value",
         "//xls/passes:optimization_pass_pipeline",
-        "//xls/solvers:z3_extract_counterexample",
         "//xls/solvers:z3_ir_translator",
         "@com_googlesource_code_re2//:re2",
     ],

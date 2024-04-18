@@ -41,6 +41,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "../z3/src/api/z3.h"  // IWYU pragma: keep
 #include "../z3/src/api/z3_api.h"
 
@@ -372,6 +373,12 @@ struct PredicateOfNode {
 
 using ProvenTrue = std::true_type;
 struct ProvenFalse {
+  // If available, a set of Values for the function's Params that implement the
+  // counterexample; otherwise, an absl::Status documenting the failure to
+  // translate the counterexample.
+  absl::StatusOr<absl::flat_hash_map<const Param*, Value>> counterexample =
+      absl::UnimplementedError("no counterexample analysis attempted");
+
   // Typically contains the encoded Z3 solver result (which usually includes the
   // counterexample).
   std::string message;

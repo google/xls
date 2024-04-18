@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -24,9 +26,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/source_location.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
@@ -150,12 +154,117 @@ std::string QueryNode(Z3_context ctx, Z3_model model, Z3_ast node,
   return output;
 }
 
+absl::StatusOr<Value> NodeValue(Z3_context ctx, Z3_model model, Z3_ast node,
+                                Type* type) {
+  Z3_sort sort = Z3_get_sort(ctx, node);
+  switch (type->kind()) {
+    case TypeKind::kBits: {
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT ||
+          Z3_get_bv_sort_size(ctx, sort) != type->GetFlatBitCount()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Node failed to parse as type %s; had sort %s",
+                            type->ToString(), Z3_sort_to_string(ctx, sort)));
+      }
+
+      Z3_ast node_eval;
+      if (!Z3_model_eval(ctx, model, node, true, &node_eval)) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Node failed to evaluate as type %s; Z3_model_eval() error: %s",
+            type->ToString(), Z3_get_error_msg(ctx, Z3_get_error_code(ctx))));
+      }
+      const char* z3_result = Z3_get_numeral_binary_string(ctx, node_eval);
+      if (z3_result == nullptr) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Node failed to parse as type %s; "
+            "Z3_get_numeral_binary_string() error: %s",
+            type->ToString(), Z3_get_error_msg(ctx, Z3_get_error_code(ctx))));
+      }
+      const std::string_view binary_string = z3_result;
+      if (binary_string.empty()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Node failed to parse as type %s; "
+            "Z3_get_numeral_binary_string() error: %s",
+            type->ToString(), Z3_get_error_msg(ctx, Z3_get_error_code(ctx))));
+      }
+
+      BitsRope rope(type->GetFlatBitCount());
+      for (auto it = binary_string.crbegin(); it != binary_string.crend();
+           ++it) {
+        rope.push_back(*it == '1');
+      }
+      rope.push_back(Bits(type->GetFlatBitCount() - binary_string.size()));
+      return Value(rope.Build());
+    }
+    case TypeKind::kToken: {
+      // Token types don't contain any data. A 0-field tuple is a convenient
+      // way to let (most of) the rest of the z3 infrastructure treat
+      // token like a normal data-type.
+      if (Z3_get_sort_kind(ctx, sort) != Z3_DATATYPE_SORT ||
+          Z3_get_tuple_sort_num_fields(ctx, sort) != 0) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Node failed to parse as type %s; had sort %s",
+                            type->ToString(), Z3_sort_to_string(ctx, sort)));
+      }
+      return Value::Token();
+    }
+    case TypeKind::kTuple: {
+      std::vector<Value> elements;
+      if (Z3_get_sort_kind(ctx, sort) != Z3_DATATYPE_SORT ||
+          Z3_get_datatype_sort_num_constructors(ctx, sort) != 1 ||
+          Z3_get_tuple_sort_num_fields(ctx, sort) !=
+              type->AsTupleOrDie()->element_types().size()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Node failed to parse as type %s; had sort %s",
+                            type->ToString(), Z3_sort_to_string(ctx, sort)));
+      }
+      for (unsigned int i = 0; i < type->AsTupleOrDie()->element_types().size();
+           i++) {
+        Z3_func_decl proj_fn = Z3_get_tuple_sort_field_decl(ctx, sort, i);
+        Z3_ast element_node = Z3_mk_app(ctx, proj_fn, 1, &node);
+        XLS_ASSIGN_OR_RETURN(
+            Value element, NodeValue(ctx, model, element_node,
+                                     type->AsTupleOrDie()->element_types()[i]));
+        elements.push_back(std::move(element));
+      }
+      return Value::Tuple(elements);
+    }
+    case TypeKind::kArray: {
+      if (Z3_get_sort_kind(ctx, sort) != Z3_ARRAY_SORT) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Node failed to parse as type %s; had sort %s",
+                            type->ToString(), Z3_sort_to_string(ctx, sort)));
+      }
+      std::vector<Value> elements;
+      for (int i = 0; i < type->AsArrayOrDie()->size(); ++i) {
+        std::string index_str = absl::StrCat(i);
+        Z3_ast index = Z3_mk_numeral(ctx, index_str.c_str(),
+                                     Z3_get_array_sort_domain(ctx, sort));
+        Z3_ast value;
+        if (!Z3_model_eval(ctx, model, Z3_mk_select(ctx, node, index), true,
+                           &value)) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Failed to evaluate element %d of array; Z3_model_eval() error: "
+              "%s",
+              i, Z3_get_error_msg(ctx, Z3_get_error_code(ctx))));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Value element,
+            NodeValue(ctx, model, value, type->AsArrayOrDie()->element_type()));
+        elements.push_back(std::move(element));
+      }
+      return Value::Array(elements);
+    }
+    default:
+      LOG(FATAL) << "Unsupported type kind: " << TypeKindToString(type->kind());
+  }
+}
+
 std::string HexifyOutput(const std::string& input) {
   std::string text = input;
   std::string match;
   // If this was ever used to match a wall of text, it'd be faster to chop up
-  // the input, rather than searching over the whole string over and over...but
-  // that's not the expected use case.
+  // the input, rather than searching over the whole string over and
+  // over...but that's not the expected use case.
   while (RE2::PartialMatch(text, "(#b[01]+)", &match)) {
     BitsRope rope(match.size() - 2);
     for (int i = match.size() - 1; i >= 2; i--) {

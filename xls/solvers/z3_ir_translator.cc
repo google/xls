@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -43,6 +44,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/solvers/z3_op_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -1450,7 +1452,7 @@ namespace {
 enum class PredicateCombination : std::uint8_t { kDisjunction, kConjunction };
 
 absl::StatusOr<ProverResult> TryProveCombination(
-    std::unique_ptr<IrTranslator> translator,
+    FunctionBase* f, std::unique_ptr<IrTranslator> translator,
     absl::Span<const PredicateOfNode> terms,
     PredicateCombination predicate_combination) {
   Z3OpTranslator t(translator->ctx());
@@ -1498,10 +1500,27 @@ absl::StatusOr<ProverResult> TryProveCombination(
     case Z3_L_FALSE:
       // Unsatisfiable; no value contradicts the claim, so the result is true.
       return ProvenTrue();
-    case Z3_L_TRUE:
+    case Z3_L_TRUE: {
       // Satisfiable; found a value that contradicts the claim.
-      return ProvenFalse{.message = solvers::z3::SolverResultToString(
-                             ctx, solver, satisfiable)};
+      absl::StatusOr<absl::flat_hash_map<const Param*, Value>> counterexample =
+          absl::flat_hash_map<const Param*, Value>();
+      auto model = Z3_solver_get_model(ctx, solver);
+      for (const Param* param : f->params()) {
+        absl::StatusOr<Value> value = NodeValue(
+            ctx, model, translator->GetTranslation(param), param->GetType());
+        if (value.ok()) {
+          counterexample->emplace(param, *std::move(value));
+        } else {
+          counterexample = std::move(value).status();
+          break;
+        }
+      }
+      return ProvenFalse{
+          .counterexample = std::move(counterexample),
+          .message =
+              solvers::z3::SolverResultToString(ctx, solver, satisfiable),
+      };
+    }
     case Z3_L_UNDEF:
       // No result; timeout.
       return absl::DeadlineExceededError("Z3 solver timed out");
@@ -1519,7 +1538,7 @@ absl::StatusOr<ProverResult> TryProveConjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetTimeout(timeout);
-  return TryProveCombination(std::move(translator), terms,
+  return TryProveCombination(f, std::move(translator), terms,
                              PredicateCombination::kConjunction);
 }
 
@@ -1530,7 +1549,7 @@ absl::StatusOr<ProverResult> TryProveConjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetRlimit(rlimit);
-  return TryProveCombination(std::move(translator), terms,
+  return TryProveCombination(f, std::move(translator), terms,
                              PredicateCombination::kConjunction);
 }
 
@@ -1541,7 +1560,7 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetTimeout(timeout);
-  return TryProveCombination(std::move(translator), terms,
+  return TryProveCombination(f, std::move(translator), terms,
                              PredicateCombination::kDisjunction);
 }
 
@@ -1552,7 +1571,7 @@ absl::StatusOr<ProverResult> TryProveDisjunction(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
                        IrTranslator::CreateAndTranslate(f, allow_unsupported));
   translator->SetRlimit(rlimit);
-  return TryProveCombination(std::move(translator), terms,
+  return TryProveCombination(f, std::move(translator), terms,
                              PredicateCombination::kDisjunction);
 }
 
