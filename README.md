@@ -55,6 +55,23 @@ We are early stage and this has some practical effects:
     * If you are building a corpus of hardware with XLS, please be thoughtful
       about your process for bringing in new versions of the compiler.
 
+## Colab Notebooks
+
+For a more setup-free and environment-independent way of trying out XLS, see our
+colab notebooks:
+
+* [bit.ly/learn-xls](https://bit.ly/learn-xls): a "learn XLS in Y minutes"
+  style walkthrough in DSLX, our Rust-inspired domain specific language (DSL).
+* [bit.ly/xls-playground](https://bit.ly/xls-playground): an XLS evaluation
+  environment that can run the following interactively:
+
+  * XLS tests
+  * XLS→IR conversion
+  * IR→Verilog codegen
+  * Verilog synthesis via Yosys (using open PDKs ASAP7 and SKY130)
+  * Place-and-Route (P&R) via OpenROAD
+  * Power/Performance/Area (PPA) metric collection
+
 ## Install Latest Release
 
 The following downloads the latest github repo release binaries for an x64 Linux machine:
@@ -80,20 +97,21 @@ cd xls-*/
 
 ## Building From Source
 
-Currently, XLS must be built from source using the Bazel build system.
-
-*Note:* Binary distributions of the XLS library are not currently available, but
-we hope to enable them via continuous integration,
-[see this issue](https://github.com/google/xls/issues/108).
+Aside from the binary releases (available for x64 Linux as described above), and
+the available colab notebooks, XLS must be built from source using the Bazel
+build system.
 
 The following instructions are for the Ubuntu 22.04 (Jammy Jellyfish) Linux
 distribution.
 
-We start by assuming
-[Bazel has been installed](https://bazel.build/install/ubuntu).
-On an average 8-core VM, a full initial build (including the C++ frontend) may take up to 6 hours.
-A build without the C++ frontend may take about 2 hours. Please see the two corresponding
-command lines below:
+On an average 8-core VM:
+
+*   A full initial build **without the C++ front-end (e.g. "DSLX only") may take
+    about 2 hours**,
+*   **Including the C++ front-end may take up to 6 hours.**
+
+Please see the two corresponding command lines below -- we start by assuming
+[Bazel has been installed](https://bazel.build/install/ubuntu):
 
 ```console
 ~$ git clone https://github.com/google/xls.git
@@ -113,24 +131,22 @@ bazel 6.4.0
 ~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3
 
 ~/xls$ # Now build/test in optimized build mode.
-~/xls$ # If you don't plan on using the C++ frontend, which is not needed to get started,
-~/xls$ # use this command line:
+~/xls$ # If you don't plan on using the C++ front-end, which is not strictly
+~/xls$ # needed (i.e. DSLX front-end only), use this command line:
 ~/xls$ bazel test -c opt -- //xls/... -//xls/contrib/xlscc/...
 
-~/xls$ # To build everything, including the C++ frontend:
+~/xls$ # To build everything, including the C++ front-end:
 ~/xls$ bazel test -c opt -- //xls/...
 ```
 
-Reference build/test environment setups are also provided via `Dockerfile`s:
+Reference build/test environment setups are also provided via `Dockerfile`s, if
+you have difficulty setting up the (limited set of) dependencies shown above in
+your environment:
 
 ```console
 ~$ git clone https://github.com/google/xls.git
 ~$ cd xls
-
-~/xls$ # Several Dockerfiles are available to choose from:
-~/xls$ docker build . -f Dockerfile-ubuntu-20.04 # Performs optimized build and test.
-~/xls$ docker build . -f Dockerfile-ubuntu-20.10
-~/xls$ docker build . -f Dockerfile-ubuntu-22.04
+~/xls$ docker build . -f Dockerfile-ubuntu-22.04  # Performs optimized build-and-test.
 ```
 
 ### Adding Additional Build Caching
