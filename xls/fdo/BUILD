@@ -58,6 +58,23 @@ cc_test(
 )
 
 cc_library(
+    name = "grpc_synthesizer",
+    srcs = ["grpc_synthesizer.cc"],
+    hdrs = ["grpc_synthesizer.h"],
+    deps = [
+        ":synthesizer",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:casts",
+        "//xls/common:module_initializer",
+        "//xls/common/status:status_macros",
+        "//xls/synthesis:synthesis_cc_proto",
+        "//xls/synthesis:synthesis_client",
+    ],
+    alwayslink = True,  # Always link because it has a module-level initialization that registers the synthesizer.
+)
+
+cc_library(
     name = "synthesized_delay_diff_utils",
     srcs = ["synthesized_delay_diff_utils.cc"],
     hdrs = ["synthesized_delay_diff_utils.h"],
@@ -101,6 +118,7 @@ cc_library(
     srcs = ["synthesizer.cc"],
     hdrs = ["synthesizer.h"],
     deps = [
+        ":extract_nodes",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

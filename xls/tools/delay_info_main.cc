@@ -37,6 +37,7 @@
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/fdo/grpc_synthesizer.h"
 #include "xls/fdo/synthesized_delay_diff_utils.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/ir_parser.h"
@@ -45,7 +46,6 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
-#include "xls/scheduling/scheduling_options.h"
 
 const char kUsage[] = R"(
 
@@ -75,13 +75,8 @@ ABSL_FLAG(std::string, schedule_path, "",
 ABSL_FLAG(bool, compare_to_synthesis, false,
           "Whether to compare the delay info from the XLS delay model to "
           "synthesizer output.");
-ABSL_FLAG(
-    std::string, yosys_path, "",
-    "Path to the Yosys binary, required if using --compare_to_synthesis.");
-ABSL_FLAG(std::string, sta_path, "",
-          "Path to the STA binary, required if using --compare_to_synthesis.");
-ABSL_FLAG(std::string, synthesis_libraries, "",
-          "Path to the synthesis libraries, required if using "
+ABSL_FLAG(std::string, synthesis_server, "ipv4:///0.0.0.0:10000",
+          "The address, including port, of the gRPC server to use with "
           "--compare_to_synthesis.");
 ABSL_FLAG(int, abs_delay_diff_min_ps, 0,
           "Return an error exit code if the absolute value of `synthesized "
@@ -116,14 +111,12 @@ absl::Status RealMain(std::string_view input_path) {
                        GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
   std::unique_ptr<synthesis::Synthesizer> synthesizer;
   if (absl::GetFlag(FLAGS_compare_to_synthesis)) {
-    SchedulingOptions flags;
-    flags.fdo_yosys_path(absl::GetFlag(FLAGS_yosys_path));
-    flags.fdo_sta_path(absl::GetFlag(FLAGS_sta_path));
-    flags.fdo_synthesis_libraries(absl::GetFlag(FLAGS_synthesis_libraries));
+    synthesis::GrpcSynthesizerParameters parameters(
+        absl::GetFlag(FLAGS_synthesis_server));
     XLS_ASSIGN_OR_RETURN(
         synthesizer,
         synthesis::GetSynthesizerManagerSingleton().MakeSynthesizer(
-            flags.fdo_synthesizer_name(), flags));
+            parameters.name(), parameters));
   }
   std::optional<synthesis::SynthesizedDelayDiff> total_diff;
   if (absl::GetFlag(FLAGS_schedule_path).empty()) {

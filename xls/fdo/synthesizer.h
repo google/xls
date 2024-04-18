@@ -51,9 +51,11 @@ class Synthesizer {
   // Wraps the given set of nodes into a module, synthesize the module with a
   // synthesis tool, and return its overall delay. The nodes set can be an
   // arbitrary subgraph or multiple disjointed subgraphs from a function or
-  // proc.
+  // proc. The default implementation generates intermediate Verilog and calls
+  // `SynthesizeVerilogAndGetDelay`; a subclass may override this if desired,
+  // for example, to change how the intermediate Verilog is structured.
   virtual absl::StatusOr<int64_t> SynthesizeNodesAndGetDelay(
-      const absl::flat_hash_set<Node *> &nodes) const = 0;
+      const absl::flat_hash_set<Node *> &nodes) const;
 
   // Launches "SynthesizeNodesAndGetDelay" concurrently for each set of nodes
   // listed in "nodes_list" and get their delays.

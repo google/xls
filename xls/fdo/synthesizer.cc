@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -30,6 +31,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
+#include "xls/fdo/extract_nodes.h"
 #include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/synthesis/synthesis.pb.h"
@@ -65,6 +67,21 @@ Synthesizer::SynthesizeNodesConcurrentlyAndGetDelays(
     delay_list.push_back(result.value());
   }
   return delay_list;
+}
+
+absl::StatusOr<int64_t> Synthesizer::SynthesizeNodesAndGetDelay(
+    const absl::flat_hash_set<Node *> &nodes) const {
+  std::string top_name = "tmp_module";
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<std::string> verilog_text,
+      ExtractNodesAndGetVerilog(nodes, top_name, /*flop_inputs_outputs=*/true));
+  if (!verilog_text.has_value()) {
+    return 0;
+  }
+  XLS_ASSIGN_OR_RETURN(
+      int64_t nodes_delay,
+      SynthesizeVerilogAndGetDelay(verilog_text.value(), top_name));
+  return nodes_delay;
 }
 
 absl::StatusOr<SynthesizerFactory *> SynthesizerManager::GetSynthesizerFactory(

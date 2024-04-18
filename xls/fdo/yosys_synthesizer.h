@@ -50,9 +50,6 @@ class YosysSynthesizer : public Synthesizer {
       std::string_view verilog_text,
       std::string_view top_module_name) const override;
 
-  absl::StatusOr<int64_t> SynthesizeNodesAndGetDelay(
-      const absl::flat_hash_set<Node *> &nodes) const override;
-
  private:
   YosysSynthesisServiceImpl service_;
 };

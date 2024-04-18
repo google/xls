@@ -47,21 +47,6 @@ absl::StatusOr<int64_t> YosysSynthesizer::SynthesizeVerilogAndGetDelay(
   return response.slack_ps() == 0 ? 0 : kClockPeriodPs - response.slack_ps();
 }
 
-absl::StatusOr<int64_t> YosysSynthesizer::SynthesizeNodesAndGetDelay(
-    const absl::flat_hash_set<Node *> &nodes) const {
-  std::string top_name = "tmp_module";
-  XLS_ASSIGN_OR_RETURN(
-      std::optional<std::string> verilog_text,
-      ExtractNodesAndGetVerilog(nodes, top_name, /*flop_inputs_outputs=*/true));
-  if (!verilog_text.has_value()) {
-    return 0;
-  }
-  XLS_ASSIGN_OR_RETURN(
-      int64_t nodes_delay,
-      SynthesizeVerilogAndGetDelay(verilog_text.value(), top_name));
-  return nodes_delay;
-}
-
 absl::StatusOr<std::unique_ptr<Synthesizer>>
 YosysSynthesizerFactory::CreateSynthesizer(
     const SynthesizerParameters &parameters) {
