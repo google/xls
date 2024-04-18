@@ -173,6 +173,14 @@ std::string DefaultPrintValue(
   return absl::StrCat(value);
 }
 
+inline std::string DefaultPrintValue(double value) {
+  return absl::StrFormat("%.16e (%a)", value, value);
+}
+
+inline std::string DefaultPrintValue(float value) {
+  return absl::StrFormat("%.9e (%a)", value, value);
+}
+
 template <typename ValueT>
 std::string DefaultPrintValue(
     const ValueT& value,

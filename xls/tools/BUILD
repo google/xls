@@ -454,6 +454,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "testbench_builder_utils_test",
+    srcs = ["testbench_builder_utils_test.cc"],
+    deps = [
+        ":testbench_builder_utils",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+    ],
+)
+
 cc_library(
     name = "testbench_thread",
     hdrs = ["testbench_thread.h"],
