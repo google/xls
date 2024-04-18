@@ -121,6 +121,26 @@ IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
 
 namespace {
 enum class Tonicity : bool { Monotone, Antitone };
+// What sort of behavior the argument exhibits
+struct ArgumentBehavior {
+  // Whether increasing the value of this argument causes the output value to
+  // increase (monotone) or decrease (antitone). NB This ignores overflows.
+  Tonicity tonicity;
+
+  // Whether the argument is size-preserving; i.e., does changing the argument
+  // by 1 cause a change in the output by 1 (either up or down depending on
+  // tonicity).
+  bool size_preserving;
+};
+static constexpr ArgumentBehavior kMonotoneSizePreserving{
+    .tonicity = Tonicity::Monotone, .size_preserving = true};
+static constexpr ArgumentBehavior kMonotoneNonSizePreserving{
+    .tonicity = Tonicity::Monotone, .size_preserving = false};
+static constexpr ArgumentBehavior kAntitoneSizePreserving{
+    .tonicity = Tonicity::Antitone, .size_preserving = true};
+static constexpr ArgumentBehavior kAntitoneNonSizePreserving{
+    .tonicity = Tonicity::Antitone, .size_preserving = false};
+
 TernaryValue OneBitRangeToTernary(const IntervalSet& is) {
   CHECK_EQ(is.BitCount(), 1);
   if (is.IsPrecise()) {
@@ -152,10 +172,10 @@ template <typename Calculate>
   requires(
       std::is_invocable_r_v<OverflowResult, Calculate, absl::Span<Bits const>>)
 IntervalSet PerformVariadicOp(Calculate calc,
-                              absl::Span<Tonicity const> tonicities,
+                              absl::Span<ArgumentBehavior const> behaviors,
                               absl::Span<IntervalSet const> input_operands,
                               int64_t result_bit_size) {
-  CHECK_EQ(input_operands.size(), tonicities.size());
+  CHECK_EQ(input_operands.size(), behaviors.size());
 
   std::vector<IntervalSet> operands;
   operands.reserve(input_operands.size());
@@ -178,6 +198,19 @@ IntervalSet PerformVariadicOp(Calculate calc,
     }
   }
 
+  if (absl::c_all_of(operands,
+                     [](const IntervalSet& i) { return i.IsPrecise(); })) {
+    // All inputs are fully known. The result is the one result of applying the
+    // calculation. Overflow doesn't matter since the operation only occurs with
+    // one set of values.
+    std::vector<Bits> real_values;
+    real_values.reserve(operands.size());
+    for (const IntervalSet& i : operands) {
+      real_values.push_back(*i.GetPreciseValue());
+    }
+    return IntervalSet::Precise(calc(real_values).result);
+  }
+
   std::vector<int64_t> radix;
   radix.reserve(operands.size());
   for (const IntervalSet& interval_set : operands) {
@@ -185,6 +218,23 @@ IntervalSet PerformVariadicOp(Calculate calc,
   }
 
   IntervalSet result_intervals(result_bit_size);
+  bool overflow_is_size_preserving = true;
+  int64_t count_non_precise = 0;
+  for (int64_t i = 0; overflow_is_size_preserving && i < behaviors.size();
+       ++i) {
+    overflow_is_size_preserving =
+        overflow_is_size_preserving &&
+        (behaviors[i].size_preserving || operands[i].IsPrecise());
+    if (!operands[i].IsPrecise()) {
+      ++count_non_precise;
+    }
+  }
+  // If there's only one non-precise argument and overflow caused by it is
+  // size-preserving then overflow of the high-side (or low-side on antitone
+  // operation) can't "catch-up" to the low-side meaning that '[f(low) %
+  // (1<<bit_count), f(high) % (1 << bit_count)]' is always a valid range.
+  overflow_is_size_preserving =
+      overflow_is_size_preserving && count_non_precise == 1;
 
   // Each iteration of this do-while loop explores a different choice of
   // intervals from each interval set associated with a parameter.
@@ -195,7 +245,7 @@ IntervalSet PerformVariadicOp(Calculate calc,
     upper_bounds.reserve(indexes.size());
     for (int64_t i = 0; i < indexes.size(); ++i) {
       Interval interval = operands[i].Intervals()[indexes[i]];
-      switch (tonicities[i]) {
+      switch (behaviors[i].tonicity) {
         case Tonicity::Monotone: {
           // The essential property of a unary monotone function `f` is that
           // the codomain of `f` applied to `[x, y]` is `[f(x), f(y)]`.
@@ -220,6 +270,17 @@ IntervalSet PerformVariadicOp(Calculate calc,
     OverflowResult upper = calc(upper_bounds);
     if (!lower.first_overflow_bit && !upper.first_overflow_bit) {
       // No overflow at all.
+      result_intervals.AddInterval(Interval(lower.result, upper.result));
+      return false;
+    }
+    // Size-preserving here means that only a single input is varying. In this
+    // case the fact that it's size-preserving means that to overflow twice is
+    // impossible since that would mean that there would need to be elements in
+    // the output that are not mapped to. Since we are size-preserving the
+    // difference between the input and output must remain the same so we can
+    // just add the interval.
+    if (overflow_is_size_preserving) {
+      // Possibly improper interval.
       result_intervals.AddInterval(Interval(lower.result, upper.result));
       return false;
     }
@@ -252,62 +313,64 @@ IntervalSet PerformVariadicOp(Calculate calc,
 template <typename Calculate>
   requires(std::is_invocable_r_v<Bits, Calculate, absl::Span<Bits const>>)
 IntervalSet PerformVariadicOp(Calculate calc,
-                              absl::Span<Tonicity const> tonicities,
+                              absl::Span<ArgumentBehavior const> behaviors,
                               absl::Span<IntervalSet const> input_operands,
                               int64_t result_bit_size) {
   return PerformVariadicOp(
       [&](absl::Span<Bits const> a) -> OverflowResult {
         return {.result = calc(a)};
       },
-      tonicities, input_operands, result_bit_size);
+      behaviors, input_operands, result_bit_size);
 }
 
 template <typename Calculate>
   requires(std::is_invocable_r_v<OverflowResult, Calculate, const Bits&,
                                  const Bits&>)
 IntervalSet PerformBinOp(Calculate calc, const IntervalSet& lhs,
-                         Tonicity lhs_tone, const IntervalSet& rhs,
-                         Tonicity rhs_tone, int64_t result_bit_size) {
+                         ArgumentBehavior lhs_behavior, const IntervalSet& rhs,
+                         ArgumentBehavior rhs_behavior,
+                         int64_t result_bit_size) {
   return PerformVariadicOp(
       [&](absl::Span<Bits const> bits) -> OverflowResult {
         CHECK_EQ(bits.size(), 2);
         return calc(bits[0], bits[1]);
       },
-      {lhs_tone, rhs_tone}, {lhs, rhs}, result_bit_size);
+      {lhs_behavior, rhs_behavior}, {lhs, rhs}, result_bit_size);
 }
 template <typename Calculate>
   requires(std::is_invocable_r_v<Bits, Calculate, const Bits&, const Bits&>)
 IntervalSet PerformBinOp(Calculate calc, const IntervalSet& lhs,
-                         Tonicity lhs_tone, const IntervalSet& rhs,
-                         Tonicity rhs_tone, int64_t result_bit_size) {
+                         ArgumentBehavior lhs_behavior, const IntervalSet& rhs,
+                         ArgumentBehavior rhs_behavior,
+                         int64_t result_bit_size) {
   return PerformBinOp(
       [&calc](const Bits& l, const Bits& r) -> OverflowResult {
         return {.result = calc(l, r)};
       },
-      lhs, lhs_tone, rhs, rhs_tone, result_bit_size);
+      lhs, lhs_behavior, rhs, rhs_behavior, result_bit_size);
 }
 
 template <typename Calculate>
   requires(std::is_invocable_r_v<OverflowResult, Calculate, const Bits&>)
 IntervalSet PerformUnaryOp(Calculate calc, const IntervalSet& arg,
-                           Tonicity tone, int64_t result_bit_size) {
+                           ArgumentBehavior behavior, int64_t result_bit_size) {
   return PerformVariadicOp(
       [&](absl::Span<Bits const> bits) -> OverflowResult {
         CHECK_EQ(bits.size(), 1);
         return calc(bits[0]);
       },
-      {tone}, {arg}, result_bit_size);
+      {behavior}, {arg}, result_bit_size);
 }
 
 template <typename Calculate>
   requires(std::is_invocable_r_v<Bits, Calculate, const Bits&>)
 IntervalSet PerformUnaryOp(Calculate calc, const IntervalSet& arg,
-                           Tonicity tone, int64_t result_bit_size) {
+                           ArgumentBehavior behavior, int64_t result_bit_size) {
   return PerformUnaryOp(
       [&calc](const Bits& b) -> OverflowResult {
         return OverflowResult{.result = calc(b)};
       },
-      arg, tone, result_bit_size);
+      arg, behavior, result_bit_size);
 }
 
 // An intrusive list node of an interval list
@@ -437,7 +500,7 @@ IntervalSet Add(const IntervalSet& a, const IntervalSet& b) {
             .second_overflow_bit = false,
         };
       },
-      a, Tonicity::Monotone, b, Tonicity::Monotone, a.BitCount());
+      a, kMonotoneSizePreserving, b, kMonotoneSizePreserving, a.BitCount());
 }
 IntervalSet Sub(const IntervalSet& a, const IntervalSet& b) {
   return PerformBinOp(
@@ -446,10 +509,11 @@ IntervalSet Sub(const IntervalSet& a, const IntervalSet& b) {
         return {.result = bits_ops::Sub(lhs, rhs),
                 .first_overflow_bit = bits_ops::ULessThan(lhs, rhs)};
       },
-      a, Tonicity::Monotone, b, Tonicity::Antitone, a.BitCount());
+      a, kMonotoneSizePreserving, b, kAntitoneSizePreserving, a.BitCount());
 }
 IntervalSet Neg(const IntervalSet& a) {
-  return PerformUnaryOp(bits_ops::Negate, a, Tonicity::Antitone, a.BitCount());
+  return PerformUnaryOp(bits_ops::Negate, a, kAntitoneSizePreserving,
+                        a.BitCount());
 }
 IntervalSet UMul(const IntervalSet& a, const IntervalSet& b,
                  int64_t output_bitwidth) {
@@ -463,7 +527,8 @@ IntervalSet UMul(const IntervalSet& a, const IntervalSet& b,
                 .first_overflow_bit = msb_set_bit >= output_bitwidth,
                 .second_overflow_bit = msb_set_bit >= output_bitwidth + 1};
       },
-      a, Tonicity::Monotone, b, Tonicity::Monotone, output_bitwidth);
+      a, kMonotoneNonSizePreserving, b, kMonotoneNonSizePreserving,
+      output_bitwidth);
 }
 IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b) {
   // Integer division is antitone on the second argument since
@@ -472,16 +537,17 @@ IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b) {
   // implementation is defined such that UDiv(x, 0) == MAX_int so in cases where
   // zero is possible we add that in.
   if (!b.CoversZero()) {
-    return PerformBinOp(bits_ops::UDiv, a, Tonicity::Monotone, b,
-                        Tonicity::Antitone, a.BitCount());
+    return PerformBinOp(bits_ops::UDiv, a, kMonotoneNonSizePreserving, b,
+                        kAntitoneNonSizePreserving, a.BitCount());
   }
   IntervalSet nonzero_divisor =
       IntervalSet::Intersect(b, IntervalSet::NonZero(b.BitCount()));
   IntervalSet results(a.BitCount());
   if (!nonzero_divisor.IsEmpty()) {
     // We aren't *only* dividing by zero. Get the non-zero divisor ranges.
-    results = PerformBinOp(bits_ops::UDiv, a, Tonicity::Monotone,
-                           nonzero_divisor, Tonicity::Antitone, a.BitCount());
+    results =
+        PerformBinOp(bits_ops::UDiv, a, kMonotoneNonSizePreserving,
+                     nonzero_divisor, kAntitoneNonSizePreserving, a.BitCount());
   }
   // Stick in the single value that division by zero yields.
   results.AddInterval(Interval::Precise(Bits::AllOnes(a.BitCount())));
@@ -491,12 +557,12 @@ IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b) {
 IntervalSet SignExtend(const IntervalSet& a, int64_t width) {
   return PerformUnaryOp(
       [&](const Bits& b) -> Bits { return bits_ops::SignExtend(b, width); }, a,
-      Tonicity::Monotone, width);
+      kMonotoneSizePreserving, width);
 }
 IntervalSet ZeroExtend(const IntervalSet& a, int64_t width) {
   return PerformUnaryOp(
       [&](const Bits& b) -> Bits { return bits_ops::ZeroExtend(b, width); }, a,
-      Tonicity::Monotone, width);
+      kMonotoneSizePreserving, width);
 }
 IntervalSet Truncate(const IntervalSet& a, int64_t width) {
   IntervalSet result(width);
@@ -517,9 +583,11 @@ IntervalSet Truncate(const IntervalSet& a, int64_t width) {
 }
 
 IntervalSet Concat(absl::Span<IntervalSet const> sets) {
+  std::vector<ArgumentBehavior> behaviors(sets.size(),
+                                          kMonotoneNonSizePreserving);
+  behaviors.back() = kMonotoneSizePreserving;
   return PerformVariadicOp(
-      bits_ops::Concat, std::vector<Tonicity>(sets.size(), Tonicity::Monotone),
-      sets,
+      bits_ops::Concat, behaviors, sets,
       absl::c_accumulate(
           sets, int64_t{0},
           [](int64_t v, const IntervalSet& is) { return v + is.BitCount(); }));

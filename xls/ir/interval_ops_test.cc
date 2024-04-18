@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -270,7 +271,8 @@ auto BitsRange(int64_t bits) {
   return fuzztest::InRange(int64_t{0}, int64_t{1 << bits} - 1);
 }
 auto IntervalDomain(int64_t bits) {
-  return fuzztest::VectorOf(fuzztest::PairOf(BitsRange(bits), BitsRange(bits)))
+  return fuzztest::UniqueElementsVectorOf(
+             fuzztest::PairOf(BitsRange(bits), BitsRange(bits)))
       .WithMaxSize(8)
       .WithMinSize(1);
 }
@@ -325,6 +327,58 @@ void SubZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
       Sub, lhs, rhs, /*bits=*/16);
 }
 FUZZ_TEST(IntervalOpsTest, SubZ3Fuzz)
+    .WithDomains(IntervalDomain(16), IntervalDomain(16));
+
+// Test the transform used to perform signed comparisons (with some loss of
+// precision).
+void AddSubIntMaxIsIdentity(absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  auto l = IntervalSet::Precise(Bits::MinSigned(16));
+  auto r = FromRanges(rhs, 16);
+  if (r.NumberOfIntervals() > 5 || Add(l, r).NumberOfIntervals() > 5) {
+    // Precision loss will happen before doing sub breaking identity.
+    return;
+  }
+  EXPECT_EQ(Sub(Add(l, r), l), r)
+      << "add is add(" << l << ", " << r << ") = " << Add(l, r);
+}
+FUZZ_TEST(IntervalOpsTest, AddSubIntMaxIsIdentity)
+    .WithDomains(IntervalDomain(16));
+
+void AddSubConstantIntIsIdentity(
+    int64_t constant, absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  auto l = IntervalSet::Precise(UBits(constant, 8));
+  auto r = FromRanges(rhs, 8);
+  if (r.NumberOfIntervals() > 5 || Add(l, r).NumberOfIntervals() > 5) {
+    // Precision loss will happen before doing sub breaking identity.
+    return;
+  }
+  EXPECT_EQ(Sub(Add(l, r), l), r)
+      << "add is add(" << l << ", " << r << ") = " << Add(l, r);
+}
+FUZZ_TEST(IntervalOpsTest, AddSubConstantIntIsIdentity)
+    .WithDomains(
+        fuzztest::InRange<int64_t>(0, std::numeric_limits<uint8_t>::max()),
+        IntervalDomain(8));
+
+MATCHER_P(IntervalSupersetOf, initial,
+          absl::StrFormat("Is %sa superset of %s", negation ? "not " : "",
+                          initial.ToString())) {
+  const IntervalSet& target = initial;
+  auto comp = IntervalSet::Complement(arg);
+  return testing::ExplainMatchResult(
+      testing::IsEmpty(), IntervalSet::Intersect(comp, target).Intervals(),
+      result_listener);
+}
+
+void AddSubIsGeneralSuperset(
+    absl::Span<std::pair<int64_t, int64_t> const> lhs,
+    absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  auto l = FromRanges(lhs, 16);
+  auto r = FromRanges(rhs, 16);
+  EXPECT_THAT(Add(Sub(l, r), r), IntervalSupersetOf(l));
+  EXPECT_THAT(Sub(Add(l, r), r), IntervalSupersetOf(l));
+}
+FUZZ_TEST(IntervalOpsTest, AddSubIsGeneralSuperset)
     .WithDomains(IntervalDomain(16), IntervalDomain(16));
 
 TEST(IntervalOpsTest, Neg) {
