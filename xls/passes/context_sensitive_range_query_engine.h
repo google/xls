@@ -43,7 +43,7 @@ namespace xls {
 // information must be directly asked for.
 //
 // This works by enumerating all select cases, extracting range information
-// given their selector is at the appropriate value and propogating that down
+// given their selector is at the appropriate value and propagating that down
 // for each single case. This means the engine is only able to provide
 // information for a single case at a time.
 class ContextSensitiveRangeQueryEngine final : public QueryEngine {
