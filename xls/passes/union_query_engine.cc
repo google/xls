@@ -26,6 +26,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
@@ -35,9 +36,10 @@
 
 namespace xls {
 
-absl::StatusOr<ReachedFixpoint> UnionQueryEngine::Populate(FunctionBase* f) {
+absl::StatusOr<ReachedFixpoint> UnownedUnionQueryEngine::Populate(
+    FunctionBase* f) {
   ReachedFixpoint result = ReachedFixpoint::Unchanged;
-  for (const std::unique_ptr<QueryEngine>& engine : engines_) {
+  for (QueryEngine* engine : engines_) {
     XLS_ASSIGN_OR_RETURN(ReachedFixpoint rf, engine->Populate(f));
     // Unchanged is the top of the lattice so it's an identity
     if (result == ReachedFixpoint::Unchanged) {
@@ -54,7 +56,7 @@ absl::StatusOr<ReachedFixpoint> UnionQueryEngine::Populate(FunctionBase* f) {
   return result;
 }
 
-bool UnionQueryEngine::IsTracked(Node* node) const {
+bool UnownedUnionQueryEngine::IsTracked(Node* node) const {
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
       return true;
@@ -63,7 +65,8 @@ bool UnionQueryEngine::IsTracked(Node* node) const {
   return false;
 }
 
-LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
+LeafTypeTree<TernaryVector> UnownedUnionQueryEngine::GetTernary(
+    Node* node) const {
   LeafTypeTree<TernaryVector> result =
       LeafTypeTree<TernaryVector>::CreateFromFunction(
           node->GetType(),
@@ -85,7 +88,7 @@ LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
   return result;
 }
 
-std::unique_ptr<QueryEngine> UnionQueryEngine::SpecializeGivenPredicate(
+std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGivenPredicate(
     const absl::flat_hash_set<PredicateState>& state) const {
   std::vector<std::unique_ptr<QueryEngine>> engines;
   engines.reserve(engines_.size());
@@ -95,7 +98,8 @@ std::unique_ptr<QueryEngine> UnionQueryEngine::SpecializeGivenPredicate(
   return std::make_unique<UnionQueryEngine>(std::move(engines));
 }
 
-LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
+LeafTypeTree<IntervalSet> UnownedUnionQueryEngine::GetIntervals(
+    Node* node) const {
   LeafTypeTree<IntervalSet> result(node->GetType());
   for (int64_t i = 0; i < result.size(); ++i) {
     result.elements()[i] =
@@ -113,7 +117,7 @@ LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
   return result;
 }
 
-bool UnionQueryEngine::AtMostOneTrue(
+bool UnownedUnionQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
   for (const auto& engine : engines_) {
     if (engine->AtMostOneTrue(bits)) {
@@ -123,7 +127,7 @@ bool UnionQueryEngine::AtMostOneTrue(
   return false;
 }
 
-bool UnionQueryEngine::AtLeastOneTrue(
+bool UnownedUnionQueryEngine::AtLeastOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
   for (const auto& engine : engines_) {
     if (engine->AtLeastOneTrue(bits)) {
@@ -133,8 +137,8 @@ bool UnionQueryEngine::AtLeastOneTrue(
   return false;
 }
 
-bool UnionQueryEngine::KnownEquals(const TreeBitLocation& a,
-                                   const TreeBitLocation& b) const {
+bool UnownedUnionQueryEngine::KnownEquals(const TreeBitLocation& a,
+                                          const TreeBitLocation& b) const {
   for (const auto& engine : engines_) {
     if (engine->KnownEquals(a, b)) {
       return true;
@@ -143,8 +147,8 @@ bool UnionQueryEngine::KnownEquals(const TreeBitLocation& a,
   return false;
 }
 
-bool UnionQueryEngine::KnownNotEquals(const TreeBitLocation& a,
-                                      const TreeBitLocation& b) const {
+bool UnownedUnionQueryEngine::KnownNotEquals(const TreeBitLocation& a,
+                                             const TreeBitLocation& b) const {
   for (const auto& engine : engines_) {
     if (engine->KnownNotEquals(a, b)) {
       return true;
@@ -153,8 +157,8 @@ bool UnionQueryEngine::KnownNotEquals(const TreeBitLocation& a,
   return false;
 }
 
-bool UnionQueryEngine::Implies(const TreeBitLocation& a,
-                               const TreeBitLocation& b) const {
+bool UnownedUnionQueryEngine::Implies(const TreeBitLocation& a,
+                                      const TreeBitLocation& b) const {
   for (const auto& engine : engines_) {
     if (engine->Implies(a, b)) {
       return true;
@@ -163,7 +167,7 @@ bool UnionQueryEngine::Implies(const TreeBitLocation& a,
   return false;
 }
 
-std::optional<Bits> UnionQueryEngine::ImpliedNodeValue(
+std::optional<Bits> UnownedUnionQueryEngine::ImpliedNodeValue(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
   for (const auto& engine : engines_) {

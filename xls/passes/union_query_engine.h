@@ -35,19 +35,21 @@
 
 namespace xls {
 
-// A query engine that combines the results of multiple given query engines.
+// A query engine that combines the results of multiple (unowned) given query
+// engines.
 //
 // `GetKnownBits` and `GetKnownBitsValues` use `const_cast<...>(this)` under the
 // hood, so it is undefined behavior to define a `const UnionQueryEngine`
 // variable (but `const UnionQueryEngine*` is fine, the storage location just
 // must be mutable). This is due to an infelicity in the QueryEngine API that
 // will be fixed at some point.
-class UnionQueryEngine : public QueryEngine {
+//
+// The unioned query engines are not owned and must live at least as long as
+// this query engine does.
+class UnownedUnionQueryEngine : public QueryEngine {
  public:
-  explicit UnionQueryEngine(std::vector<std::unique_ptr<QueryEngine>> engines) {
-    engines_ = std::move(engines);
-  }
-
+  explicit UnownedUnionQueryEngine(std::vector<QueryEngine*> engines)
+      : engines_(std::move(engines)) {}
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   bool IsTracked(Node* node) const override;
@@ -79,7 +81,33 @@ class UnionQueryEngine : public QueryEngine {
  private:
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;
-  std::vector<std::unique_ptr<QueryEngine>> engines_;
+  std::vector<QueryEngine*> engines_;
+};
+
+// A query engine that combines the results of multiple given query engines.
+//
+// `GetKnownBits` and `GetKnownBitsValues` use `const_cast<...>(this)` under the
+// hood, so it is undefined behavior to define a `const UnionQueryEngine`
+// variable (but `const UnionQueryEngine*` is fine, the storage location just
+// must be mutable). This is due to an infelicity in the QueryEngine API that
+// will be fixed at some point.
+class UnionQueryEngine : public UnownedUnionQueryEngine {
+ public:
+  explicit UnionQueryEngine(std::vector<std::unique_ptr<QueryEngine>> engines)
+      : UnownedUnionQueryEngine(ToUnownedVector(engines)),
+        owned_engines_(std::move(engines)) {}
+
+ private:
+  static std::vector<QueryEngine*> ToUnownedVector(absl::Span<
+      std::unique_ptr<QueryEngine> const> ptrs) {
+    std::vector<QueryEngine*> result;
+    result.reserve(ptrs.size());
+    for (const auto& ptr : ptrs) {
+      result.push_back(ptr.get());
+    }
+    return result;
+  }
+  std::vector<std::unique_ptr<QueryEngine>> owned_engines_;
 };
 
 }  // namespace xls
