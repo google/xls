@@ -20,9 +20,10 @@
 
 namespace xls::dslx {
 
-// Attempts to give a diagnostic explanation for an error, if it is positional
-// and there are additional diagnostics for it. Otherwise, passes the original
-// error back unmodified.
+// Attempts to give a diagnostic explanation for a type mismatch error, if it is
+// positional and there are additional diagnostics for it. Otherwise, passes the
+// original error data back as an absl::Status form similar to other DSLX
+// errors.
 absl::Status MaybeExplainError(const TypeMismatchErrorData& data);
 
 }  // namespace xls::dslx

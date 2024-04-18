@@ -36,6 +36,18 @@ enum class PositionalErrorColor : uint8_t {
 
 // Prints pretty message to output for a error with a position.
 //
+// This primarily prints the context around the error and emits the error
+// message with appropriate coloring (as requested by args).
+//
+// Args:
+//  error_span: The span of text that the error message pertains to.
+//  error_message: The message to display, attributed to the span.
+//  os: The output stream to use in emitting the printed error.
+//  get_file_contents: Retrieves the underlying file text contents given a path.
+//  color: Whether to print with a particular color; e.g. none/warning/error.
+//  error_context_line_count: Lines to print above & below the error span --
+//    this is appropriately clipped if it runs to start-of-file / end-of-file.
+//
 // Errors:
 //   InvalidArgumentError: if the error_context_line_count is not odd (only odd
 //    values can be symmetrical around the erroneous line).
