@@ -38,6 +38,7 @@ namespace xls::dslx {
 namespace {
 
 using status_testing::StatusIs;
+using testing::AllOf;
 using testing::HasSubstr;
 
 TEST(TypecheckErrorTest, SendInFunction) {
@@ -149,10 +150,12 @@ TEST(TypecheckTest, Unit) {
 TEST(TypecheckTest, Arithmetic) {
   // Simple add.
   XLS_EXPECT_OK(Typecheck("fn f(x: u32, y: u32) -> u32 { x + y }"));
+
   // Wrong return type (implicitly unit).
   EXPECT_THAT(
       Typecheck("fn f(x: u32, y: u32) { x + y }"),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("uN[32] vs ()")));
+
   // Wrong return type (implicitly unit).
   EXPECT_THAT(
       Typecheck(R"(
@@ -160,10 +163,12 @@ TEST(TypecheckTest, Arithmetic) {
       fn g() -> u64 { f(u64:5, u64:5) }
       )"),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("uN[64] vs ()")));
+
   // Mixing widths not permitted.
   EXPECT_THAT(Typecheck("fn f(x: u32, y: bits[4]) { x + y }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("uN[32] vs uN[4]")));
+
   // Parametric same-width is ok!
   XLS_EXPECT_OK(
       Typecheck("fn f<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x + y }"));
@@ -591,8 +596,8 @@ fn main() -> u32 {
   p(u32[1][1]:[[u32:0]])
 })"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("(uN[32], uN[64]) vs uN[32][1]: expected argument "
-                         "kind 'array' to match parameter kind 'tuple'")));
+               HasSubstr("expected argument kind 'array' to match parameter "
+                         "kind 'tuple'\n   (uN[32], uN[64])\nvs uN[32][1]")));
 }
 
 TEST(TypecheckTest, ForBuiltinInBody) {
@@ -624,8 +629,9 @@ fn f(x: u32) -> (u32, u8) {
 })"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("(uN[32], uN[8]) vs (uN[32], (uN[32], uN[8])): For-loop "
-                    "annotated type did not match inferred type.")));
+          AllOf(HasSubstr("(uN[32], uN[8])\nvs (uN[32], (uN[32], uN[8])"),
+                HasSubstr(
+                    "For-loop annotated type did not match inferred type."))));
 }
 
 TEST(TypecheckTest, DerivedExprTypeMismatch) {
@@ -1165,8 +1171,9 @@ fn f() -> Foo {
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("vs uN[32]: Array member did not have same "
-                                 "type as other members.")));
+                       AllOf(HasSubstr("(uN[8], uN[32])\nvs uN[32]"),
+                             HasSubstr("Array member did not have same "
+                                       "type as other members."))));
 }
 
 TEST(TypecheckTest, ArrayOfConsts) {
@@ -1496,7 +1503,7 @@ fn g() -> Point {
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("struct 'Point' structure: Point { x: sN[8], "
-                                 "y: uN[32] } vs struct 'OtherPoint'")));
+                                 "y: uN[32] }\nvs struct 'OtherPoint'")));
 }
 
 TEST(TypecheckTest, ParametricWithConstantArrayEllipsis) {
@@ -1681,7 +1688,7 @@ fn g() -> (s8, u32) {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("(sN[8], uN[32]) vs struct 'Point' structure")));
+               HasSubstr("(sN[8], uN[32])\nvs struct 'Point' structure")));
 }
 
 TEST(TypecheckStructInstanceTest, SplatWithDuplicate) {
@@ -1782,7 +1789,7 @@ TEST(TypecheckParametricStructInstanceTest, BadReturnType) {
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
-              "struct 'Point' structure: Point { x: uN[32], y: uN[64] } vs "
+              "   struct 'Point' structure: Point { x: uN[32], y: uN[64] }\nvs "
               "struct 'Point' structure: Point { x: uN[5], y: uN[10] }")));
 }
 
@@ -2290,8 +2297,9 @@ TEST(TypecheckTest, ConcatS1Nil) {
   EXPECT_THAT(
       Typecheck("fn f(x: s1, y: ()) -> () { x ++ y }").status(),
       IsPosError("XlsTypeError",
-                 HasSubstr("sN[1] vs (): Concatenation requires operand types "
-                           "to be either both-arrays or both-bits")));
+                 AllOf(HasSubstr("Concatenation requires operand types "
+                                 "to be either both-arrays or both-bits"),
+                       HasSubstr("sN[1] vs ()"))));
 }
 
 TEST(TypecheckTest, ConcatNilNil) {
@@ -2303,11 +2311,11 @@ TEST(TypecheckTest, ConcatNilNil) {
 }
 
 TEST(TypecheckTest, ConcatU1ArrayOfOneU8) {
-  EXPECT_THAT(
-      Typecheck("fn f(x: u1, y: u8[1]) -> () { x ++ y }").status(),
-      IsPosError("XlsTypeError",
-                 HasSubstr("uN[1] vs uN[8][1]: Attempting to concatenate "
-                           "array/non-array values together")));
+  EXPECT_THAT(Typecheck("fn f(x: u1, y: u8[1]) -> () { x ++ y }").status(),
+              IsPosError("XlsTypeError",
+                         AllOf(HasSubstr("uN[1]\nvs uN[8][1]"),
+                               HasSubstr("Attempting to concatenate "
+                                         "array/non-array values together"))));
 }
 
 TEST(TypecheckTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
@@ -2339,8 +2347,9 @@ TEST(TypecheckTest, AssertBuiltinIsUnitType) {
 TEST(TypecheckTest, ConcatNilArrayOfOneU8) {
   EXPECT_THAT(Typecheck("fn f(x: (), y: u8[1]) -> () { x ++ y }").status(),
               IsPosError("XlsTypeError",
-                         HasSubstr("() vs uN[8][1]: Attempting to concatenate "
-                                   "array/non-array values together")));
+                         AllOf(HasSubstr("()\nvs uN[8][1]"),
+                               HasSubstr("Attempting to concatenate "
+                                         "array/non-array values together"))));
 }
 
 TEST(TypecheckTest, ParametricStructWithoutAllParametricsBoundInReturnType) {

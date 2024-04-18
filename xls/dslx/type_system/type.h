@@ -204,6 +204,14 @@ class Type {
   // Returns whether this type contains a token type (transitively).
   virtual bool HasToken() const = 0;
 
+  // Returns whether this type is (or contains) an aggregate.
+  //
+  // Generally any type that contains other types is considered an aggregate.
+  //
+  // We do notably make an exception for the nil tuple as it's often used as a
+  // "void style" type.
+  virtual bool IsAggregate() const = 0;
+
   // Returns a flat sequence of all dimensions contained (transitively) within
   // this type.
   virtual std::vector<TypeDim> GetAllDims() const = 0;
@@ -285,6 +293,7 @@ class MetaType : public Type {
 
   bool HasEnum() const override { return wrapped_->HasEnum(); }
   bool HasToken() const override { return wrapped_->HasToken(); }
+  bool IsAggregate() const override { return wrapped_->IsAggregate(); }
   std::vector<TypeDim> GetAllDims() const override {
     return wrapped_->GetAllDims();
   }
@@ -330,6 +339,7 @@ class TokenType : public Type {
 
   bool HasEnum() const override { return false; }
   bool HasToken() const override { return true; }
+  bool IsAggregate() const override { return false; }
 
   std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<TokenType>();
@@ -362,6 +372,7 @@ class StructType : public Type {
 
   bool HasEnum() const override;
   bool HasToken() const override;
+  bool IsAggregate() const override { return true; }
 
   std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<StructType>(CloneSpan(members_), struct_def_);
@@ -438,6 +449,10 @@ class TupleType : public Type {
   bool HasEnum() const override;
   bool HasToken() const override;
 
+  // Note: we treat nil as a non-aggregate because we often use it in a context
+  // where we want to say "void" similar to a scalar.
+  bool IsAggregate() const override { return !empty(); }
+
   std::unique_ptr<Type> CloneToUnique() const override;
 
   bool empty() const;
@@ -473,6 +488,7 @@ class ArrayType : public Type {
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   bool HasEnum() const override { return element_type_->HasEnum(); }
   bool HasToken() const override { return element_type_->HasToken(); }
+  bool IsAggregate() const override { return true; }
 
   bool operator==(const Type& other) const override;
 
@@ -509,6 +525,7 @@ class EnumType : public Type {
   std::vector<TypeDim> GetAllDims() const override;
   bool HasEnum() const override { return true; }
   bool HasToken() const override { return false; }
+  bool IsAggregate() const override { return false; }
   std::string GetDebugTypeName() const override { return "enum"; }
   absl::StatusOr<TypeDim> GetTotalBitCount() const override {
     return size_.Clone();
@@ -559,6 +576,7 @@ class BitsConstructorType : public Type {
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override;
   bool HasToken() const override;
+  bool IsAggregate() const override { return false; }
 
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
@@ -612,6 +630,7 @@ class BitsType : public Type {
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override { return false; }
   bool HasToken() const override { return false; }
+  bool IsAggregate() const override { return false; }
 
   std::unique_ptr<BitsType> ToUBits() const;
 
@@ -677,6 +696,7 @@ class FunctionType : public Type {
     auto has_token = [](const auto& param) { return param->HasToken(); };
     return absl::c_any_of(params_, has_token) || return_type_->HasToken();
   }
+  bool IsAggregate() const override { return true; }
 
   // Return type of the function.
   const Type& return_type() const { return *return_type_; }
@@ -717,6 +737,7 @@ class ChannelType : public Type {
   bool operator==(const Type& other) const override;
   bool HasEnum() const override;
   bool HasToken() const override;
+  bool IsAggregate() const override { return true; }
   std::unique_ptr<Type> CloneToUnique() const override;
 
   const Type& payload_type() const { return *payload_type_; }

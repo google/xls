@@ -272,7 +272,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/invalid_array_expression_type.x:16:12-16:18',
         stderr,
     )
-    self.assertIn('uN[32][2] vs uN[8][2]', stderr)
+    self.assertIn('uN[32][2]\nvs uN[8][2]', stderr)
 
   def test_invalid_array_expression_size(self):
     stderr = self._run(
@@ -1097,9 +1097,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('XlsTypeError:', stderr)
     self.assertIn(
-        '(uN[8], uN[16], uN[32], uN[64]) vs (uN[8], uN[16], uN[33], uN[64]):'
-        ' Annotated element type did not match inferred element type',
+        '(uN[8], uN[16], uN[32], uN[64])\nvs (uN[8], uN[16], uN[33], uN[64])',
         stderr,
+    )
+    self.assertIn(
+        ' Annotated element type did not match inferred element type', stderr
     )
 
 

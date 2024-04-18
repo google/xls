@@ -75,7 +75,7 @@ proc entry {
   EXPECT_THAT(Typecheck(kProgram),
               status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("(chan(uN[32], dir=in)) vs ()")));
+                  testing::HasSubstr("(chan(uN[32], dir=in))\nvs ()")));
 }
 
 TEST(TypecheckErrorTest, ConfigTooFewElementsGiven) {
@@ -92,7 +92,7 @@ proc entry {
   EXPECT_THAT(Typecheck(kProgram),
               status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("() vs (chan(uN[32], dir=in))")));
+                  testing::HasSubstr("()\nvs (chan(uN[32], dir=in))")));
 }
 
 TEST(TypecheckErrorTest, ConfigNonTupleGiven) {

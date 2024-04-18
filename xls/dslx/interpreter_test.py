@@ -382,13 +382,18 @@ class InterpreterTest(test_base.TestCase):
     }
     """)
     stderr = self._parse_and_test(program, want_error=True)
-    self.assertIn(textwrap.dedent("""\
+    self.assertIn(
+        textwrap.dedent("""\
     0002: fn cast_array_to_wrong_bit_count_test() {
     0003:   let x = u2[2]:[2, 3];
     0004:   assert_eq(u3:0, x as u3)
-    ~~~~~~~~~~~~~~~~~~~~~~~~^-----^ XlsTypeError: uN[2][2] vs uN[3]: Cannot cast from expression type uN[2][2] to uN[3].
+    ~~~~~~~~~~~~~~~~~~~~~~~~^-----^ XlsTypeError: Cannot cast from expression type uN[2][2] to uN[3].
+       uN[2][2]
+    vs uN[3]
     0005: }
-    """), stderr)
+    """),
+        stderr,
+    )
 
   def test_cast_enum_oob_causes_fail(self):
     """Tests casting an out-of-bound value to enum causes a runtime failure."""
