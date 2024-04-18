@@ -1104,6 +1104,18 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         ' Annotated element type did not match inferred element type', stderr
     )
 
+  def test_colon_ref_nonexistent_within_import(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/colon_ref_nonexistent_within_import.x'
+    )
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertRegex(
+        stderr,
+        'Cannot resolve `::` to type definition -- module:'
+        ' `.*xls.dslx.tests.errors.mod_empty` attr:'
+        ' `DoesNotExist`',
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

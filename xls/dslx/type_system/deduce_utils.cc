@@ -348,8 +348,17 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
   // And the subject has to be a type, namely an enum, since the ColonRef must
   // be of the form: <MODULE>::SOMETHING::SOMETHING_ELSE. Keep in mind, though,
   // that we might have to traverse an EnumDef.
-  XLS_ASSIGN_OR_RETURN(TypeDefinition td,
-                       module->GetTypeDefinition(subject->attr()));
+  absl::StatusOr<TypeDefinition> td =
+      module->GetTypeDefinition(subject->attr());
+  if (!td.status().ok() && absl::IsNotFound(td.status())) {
+    return TypeInferenceErrorStatus(
+        colon_ref->span(), nullptr,
+        absl::StrFormat(
+            "Cannot resolve `::` to type definition -- module: `%s` attr: `%s`",
+            module->name(), subject->attr()));
+  }
+  CHECK_OK(td.status())
+      << "Only not-found error expected in retrieving type definition.";
 
   using ReturnT = absl::StatusOr<ColonRefSubjectT>;
 
@@ -365,7 +374,7 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
           [](EnumDef* enum_def) -> ReturnT { return enum_def; },
           [](ColonRef* colon_ref) -> ReturnT { return colon_ref; },
       },
-      td);
+      td.value());
 }
 
 absl::StatusOr<
