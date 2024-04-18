@@ -76,13 +76,7 @@ LeafTypeTree<IntervalSet> BitsLTT(
 LeafTypeTree<IntervalSet> BitsLTT(Node* node,
                                   absl::Span<const Interval> intervals) {
   CHECK(!intervals.empty());
-  int64_t bit_count = intervals[0].BitCount();
-  IntervalSet interval_set(bit_count);
-  for (const Interval& interval : intervals) {
-    CHECK_EQ(interval.BitCount(), bit_count);
-    interval_set.AddInterval(interval);
-  }
-  interval_set.Normalize();
+  IntervalSet interval_set = IntervalSet::Of(intervals);
   CHECK(node->GetType()->IsBits());
   LeafTypeTree<IntervalSet> result(node->GetType());
   result.Set({}, interval_set);
@@ -329,13 +323,14 @@ TEST_F(RangeQueryEngineTest, ArrayIndex3D) {
   // array[3, 3, 1] = 65
   // array[3, 4, 1] = 68
 
-  IntervalSet expected(32);
-  expected.AddInterval(Interval::Precise(UBits(44, 32)));
-  expected.AddInterval(Interval::Precise(UBits(47, 32)));
-  expected.AddInterval(Interval::Precise(UBits(50, 32)));
-  expected.AddInterval(Interval::Precise(UBits(62, 32)));
-  expected.AddInterval(Interval::Precise(UBits(65, 32)));
-  expected.AddInterval(Interval::Precise(UBits(68, 32)));
+  IntervalSet expected = IntervalSet::Of({
+      Interval::Precise(UBits(44, 32)),
+      Interval::Precise(UBits(47, 32)),
+      Interval::Precise(UBits(50, 32)),
+      Interval::Precise(UBits(62, 32)),
+      Interval::Precise(UBits(65, 32)),
+      Interval::Precise(UBits(68, 32)),
+  });
 
   EXPECT_EQ(expected, engine.GetIntervalSetTree(index.node()).Get({}));
 }
@@ -1722,11 +1717,11 @@ TEST_F(RangeQueryEngineTest, TupleRangeGivenValue) {
   // Given xy an a-priori range.
 
   IntervalSetTree xy_tree(fb.GetType(xy));
-  IntervalSet x_interval(8);
-  x_interval.AddInterval(Interval(UBits(0, 8), UBits(12, 8)));
-  x_interval.Normalize();
-  IntervalSet y_interval(8);
-  y_interval.AddInterval(Interval(UBits(0, 8), UBits(3, 8)));
+  IntervalSet x_interval =
+      IntervalSet::Of({Interval(UBits(0, 8), UBits(12, 8))});
+  IntervalSet y_interval = IntervalSet::Of({
+      Interval(UBits(0, 8), UBits(3, 8)),
+  });
   y_interval.Normalize();
   xy_tree.Set({0}, x_interval);
   xy_tree.Set({1}, y_interval);

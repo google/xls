@@ -139,6 +139,8 @@ class IntervalSet {
   // given interval set.
   static IntervalSet Complement(const IntervalSet& set);
 
+  static IntervalSet Of(absl::Span<Interval const> intervals);
+
   // Returns the number of points covered by the intervals in this interval set,
   // if that is expressible as an `int64_t`. Otherwise, returns `std::nullopt`.
   // CHECK fails if the interval set is not normalized.

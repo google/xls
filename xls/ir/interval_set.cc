@@ -288,6 +288,15 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
   return result;
 }
 
+/* static */ IntervalSet IntervalSet::Of(absl::Span<Interval const> intervals) {
+  IntervalSet result(intervals.front().BitCount());
+  for (const Interval& a : intervals) {
+    result.AddInterval(a);
+  }
+  result.Normalize();
+  return result;
+}
+
 IntervalSet IntervalSet::Complement(const IntervalSet& set) {
   // The complement of an interval set is the intersection of the complements of
   // the component intervals.

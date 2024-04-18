@@ -222,10 +222,7 @@ class SignedRangeComparisonContextSensitiveRangeQueryEngineTest
   }
   std::vector<Interval> InverseParamInterval(const Bits& left,
                                              const Bits& right) {
-    IntervalSet set(left.bit_count());
-    absl::c_for_each(ParamInterval(left, right),
-                     [&](const auto i) { set.AddInterval(i); });
-    set.Normalize();
+    IntervalSet set = IntervalSet::Of(ParamInterval(left, right));
     auto complement = IntervalSet::Complement(set);
     auto intervals = complement.Intervals();
     return std::vector<Interval>(intervals.begin(), intervals.end());
@@ -265,13 +262,7 @@ class SignedRangeComparisonContextSensitiveRangeQueryEngineTest
 LeafTypeTree<IntervalSet> BitsLTT(Node* node,
                                   absl::Span<const Interval> intervals) {
   CHECK(!intervals.empty());
-  int64_t bit_count = intervals[0].BitCount();
-  IntervalSet interval_set(bit_count);
-  for (const Interval& interval : intervals) {
-    CHECK_EQ(interval.BitCount(), bit_count);
-    interval_set.AddInterval(interval);
-  }
-  interval_set.Normalize();
+  IntervalSet interval_set = IntervalSet::Of(intervals);
   CHECK(node->GetType()->IsBits());
   LeafTypeTree<IntervalSet> result(node->GetType());
   result.Set({}, interval_set);

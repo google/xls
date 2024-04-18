@@ -59,14 +59,6 @@ TEST_F(BackPropagateRangeAnalysisTest, PropagateNothing) {
                                         IntervalSet::Precise(UBits(0, 1)))));
 }
 
-IntervalSet Intervals(absl::Span<Interval const> intervals) {
-  IntervalSet o(intervals.front().BitCount());
-  for (const auto& i : intervals) {
-    o.AddInterval(i);
-  }
-  return o;
-}
-
 TEST_F(BackPropagateRangeAnalysisTest, LessThanX) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -84,7 +76,7 @@ TEST_F(BackPropagateRangeAnalysisTest, LessThanX) {
       UnorderedElementsAre(
           Pair(target.node(), IntervalSet::Precise(UBits(1, 1))),
           Pair(arg.node(),
-               Intervals({Interval::Closed(UBits(0, 4), UBits(1, 4))}))));
+               IntervalSet::Of({Interval::Closed(UBits(0, 4), UBits(1, 4))}))));
 }
 
 TEST_F(BackPropagateRangeAnalysisTest, Between) {
@@ -103,15 +95,11 @@ TEST_F(BackPropagateRangeAnalysisTest, Between) {
   EXPECT_THAT(
       results,
       UnorderedElementsAre(
-          Pair(target.node(),
-               IntervalSet::Precise(UBits(1, 1))),
+          Pair(target.node(), IntervalSet::Precise(UBits(1, 1))),
           Pair(arg.node(),
-               Intervals({Interval::Closed(
-                                          UBits(1, 4), UBits(4, 4))})),
-          Pair(target.node()->operand(0),
-               IntervalSet::Precise(UBits(1, 1))),
-          Pair(target.node()->operand(1),
-               IntervalSet::Precise(UBits(1, 1)))));
+               IntervalSet::Of({Interval::Closed(UBits(1, 4), UBits(4, 4))})),
+          Pair(target.node()->operand(0), IntervalSet::Precise(UBits(1, 1))),
+          Pair(target.node()->operand(1), IntervalSet::Precise(UBits(1, 1)))));
 }
 
 }  // namespace

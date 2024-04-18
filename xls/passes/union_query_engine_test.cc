@@ -304,16 +304,14 @@ TEST_F(UnionQueryEngineTest, Intervals) {
   XLS_ASSERT_OK(fb.Build());
 
   FakeQueryEngine query_engine_a;
-  IntervalSet x_a(8);
-  x_a.AddInterval(Interval(UBits(20, 8), UBits(40, 8)));
-  x_a.Normalize();
+  IntervalSet x_a = IntervalSet::Of({
+      Interval(UBits(20, 8), UBits(40, 8)),
+  });
   query_engine_a.AddIntervals(
       tuple.node(), LeafTypeTree<IntervalSet>(tuple.node()->GetType(),
                                               {x_a, IntervalSet::Maximal(8)}));
   FakeQueryEngine query_engine_b;
-  IntervalSet y_b(8);
-  y_b.AddInterval(Interval(UBits(200, 8), UBits(240, 8)));
-  y_b.Normalize();
+  IntervalSet y_b = IntervalSet::Of({Interval(UBits(200, 8), UBits(240, 8))});
   query_engine_b.AddIntervals(
       tuple.node(), LeafTypeTree<IntervalSet>(tuple.node()->GetType(),
                                               {IntervalSet::Maximal(8), y_b}));
