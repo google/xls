@@ -15,11 +15,11 @@
 #ifndef XLS_PASSES_BACK_PROPAGATE_RANGE_ANALYSIS_H_
 #define XLS_PASSES_BACK_PROPAGATE_RANGE_ANALYSIS_H_
 
-
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/passes/range_query_engine.h"
 
@@ -28,11 +28,13 @@ namespace xls {
 // Helper to analyze a function by back-propagating range information.
 //
 // Returns the data extracted from analyzing the given computation.
-absl::StatusOr<absl::flat_hash_map<Node*, RangeData>> PropagateGivensBackwards(
-    const RangeQueryEngine& engine, Node* node, RangeData given);
+absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
+PropagateGivensBackwards(const RangeQueryEngine& engine, Node* node,
+                         const IntervalSet& given);
 
-absl::StatusOr<absl::flat_hash_map<Node*, RangeData>> PropagateGivensBackwards(
-    const RangeQueryEngine& engine, Node* node, const Bits& given);
+absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
+PropagateGivensBackwards(const RangeQueryEngine& engine, Node* node,
+                         const Bits& given);
 
 }  // namespace xls
 

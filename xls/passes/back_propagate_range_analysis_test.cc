@@ -40,25 +40,6 @@ using testing::ElementsAre;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 
-MATCHER_P(TernaryIs, tern,
-          absl::StrFormat("ternary %smatch", negation ? "does not " : "")) {
-  std::optional<TernaryVector> vec = arg;
-  return testing::ExplainMatchResult(
-      tern, vec ? std::make_optional(ToString(*vec)) : std::nullopt,
-      result_listener);
-}
-
-MATCHER_P2(HasRangeData, tern, ist,
-           absl::StrFormat("range data which is%s 'ternary: %s', 'ist: %s'",
-                           negation ? " not" : "", tern,
-                           testing::DescribeMatcher<IntervalSet>(ist))) {
-  const RangeData& r = arg;
-  IntervalSet is = r.interval_set.Get({});
-  return testing::ExplainMatchResult(TernaryIs(tern), r.ternary,
-                                     result_listener) &&
-         testing::ExplainMatchResult(ist, is, result_listener);
-}
-
 // Super basic check that we can call this without issues.
 TEST_F(BackPropagateRangeAnalysisTest, PropagateNothing) {
   auto p = CreatePackage();
@@ -74,10 +55,8 @@ TEST_F(BackPropagateRangeAnalysisTest, PropagateNothing) {
   XLS_ASSERT_OK(qe.Populate(f).status());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto results, PropagateGivensBackwards(qe, target.node(), UBits(0, 1)));
-  EXPECT_THAT(results,
-              ElementsAre(Pair(
-                  target.node(),
-                  HasRangeData("0b0", IntervalSet::Precise(UBits(0, 1))))));
+  EXPECT_THAT(results, ElementsAre(Pair(target.node(),
+                                        IntervalSet::Precise(UBits(0, 1)))));
 }
 
 IntervalSet Intervals(absl::Span<Interval const> intervals) {
@@ -103,11 +82,9 @@ TEST_F(BackPropagateRangeAnalysisTest, LessThanX) {
   EXPECT_THAT(
       results,
       UnorderedElementsAre(
-          Pair(target.node(),
-               HasRangeData("0b1", IntervalSet::Precise(UBits(1, 1)))),
+          Pair(target.node(), IntervalSet::Precise(UBits(1, 1))),
           Pair(arg.node(),
-               HasRangeData("0b000X", Intervals({Interval::Closed(
-                                          UBits(0, 4), UBits(1, 4))})))));
+               Intervals({Interval::Closed(UBits(0, 4), UBits(1, 4))}))));
 }
 
 TEST_F(BackPropagateRangeAnalysisTest, Between) {
@@ -127,14 +104,14 @@ TEST_F(BackPropagateRangeAnalysisTest, Between) {
       results,
       UnorderedElementsAre(
           Pair(target.node(),
-               HasRangeData("0b1", IntervalSet::Precise(UBits(1, 1)))),
+               IntervalSet::Precise(UBits(1, 1))),
           Pair(arg.node(),
-               HasRangeData("0b0XXX", Intervals({Interval::Closed(
-                                          UBits(1, 4), UBits(4, 4))}))),
+               Intervals({Interval::Closed(
+                                          UBits(1, 4), UBits(4, 4))})),
           Pair(target.node()->operand(0),
-               HasRangeData("0b1", IntervalSet::Precise(UBits(1, 1)))),
+               IntervalSet::Precise(UBits(1, 1))),
           Pair(target.node()->operand(1),
-               HasRangeData("0b1", IntervalSet::Precise(UBits(1, 1))))));
+               IntervalSet::Precise(UBits(1, 1)))));
 }
 
 }  // namespace

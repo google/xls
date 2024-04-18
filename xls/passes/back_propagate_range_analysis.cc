@@ -15,8 +15,6 @@
 #include "xls/passes/back_propagate_range_analysis.h"
 
 #include <array>
-#include <cstdint>
-#include <functional>
 #include <optional>
 #include <utility>
 
@@ -32,13 +30,11 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/interval.h"
-#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/passes/range_query_engine.h"
 
@@ -97,13 +93,13 @@ class BackPropagate : public DfsVisitorWithDefault {
   //   return MaybeUnifyOr(or_op);
   // }
 
-  const absl::flat_hash_map<Node*, RangeData>& ranges() const& {
+  const absl::flat_hash_map<Node*, IntervalSet>& ranges() const& {
     return result_;
   }
-  absl::flat_hash_map<Node*, RangeData>&& ranges() && {
+  absl::flat_hash_map<Node*, IntervalSet>&& ranges() && {
     return std::move(result_);
   }
-  void AddGiven(Node* n, RangeData data) { result_[n] = std::move(data); }
+  void AddGiven(Node* n, IntervalSet data) { result_[n] = std::move(data); }
 
  private:
   absl::Status UnifyComparison(CompareOp* cmp) {
@@ -112,13 +108,12 @@ class BackPropagate : public DfsVisitorWithDefault {
                   cmp->op() == Op::kULe || cmp->op() == Op::kULt ||
                   cmp->op() == Op::kUGe || cmp->op() == Op::kUGt)
         << cmp;
-    XLS_RET_CHECK(result_[cmp].ternary.has_value() &&
-                  ternary_ops::IsFullyKnown(*result_[cmp].ternary))
+    XLS_RET_CHECK(result_[cmp].IsPrecise())
         << "selector " << cmp
         << " not given actual value during context sensitive range analysis!";
     // Standardize so we are assuming the comparison is true.
     XLS_ASSIGN_OR_RETURN(Op invert, InvertComparisonOp(cmp->op()));
-    Op op = ternary_ops::IsKnownOne(*result_[cmp].ternary) ? cmp->op() : invert;
+    Op op = result_[cmp].CoversOne() ? cmp->op() : invert;
     Node* l_op = cmp->operand(0);
     Node* r_op = cmp->operand(1);
     IntervalSet l_interval = query_engine_.GetIntervalSetTree(l_op).Get({});
@@ -154,20 +149,20 @@ class BackPropagate : public DfsVisitorWithDefault {
     // some numbers where condition is false)
     Node* a = eq->operand(0);
     Node* b = eq->operand(1);
-    IntervalSetTree a_intervals = query_engine_.GetIntervalSetTree(a);
-    IntervalSetTree b_intervals = query_engine_.GetIntervalSetTree(b);
+    if (!a->GetType()->IsBits() || !b->GetType()->IsBits()) {
+      // We don't want to have to deal with non-bits types and we learn very
+      // little anyway since dataflow removes most of them.
+      return absl::OkStatus();
+    }
+    IntervalSet a_intervals = query_engine_.GetIntervalSetTree(a).Get({});
+    IntervalSet b_intervals = query_engine_.GetIntervalSetTree(b).Get({});
 
-    if (result_[eq].ternary == ternary_ops::BitsToTernary(eq->op() == Op::kEq
-                                                              ? UBits(1, 1)
-                                                              : UBits(0, 1))) {
+    if (result_[eq].CoversOne() == (eq->op() == Op::kEq)) {
       // Case: (L == R) == TRUE
       // Case: (L != R) == FALSE
-      IntervalSetTree unified = leaf_type_tree::Zip<IntervalSet, IntervalSet>(
-          a_intervals.AsView(), b_intervals.AsView(), IntervalSet::Intersect);
+      IntervalSet unified = IntervalSet::Intersect(a_intervals, b_intervals);
 
-      if (absl::c_any_of(unified.elements(), [](const IntervalSet& set) {
-            return set.NumberOfIntervals() == 0;
-          })) {
+      if (unified.NumberOfIntervals() == 0) {
         // This implies the condition is actually unreachable impossible
         // (since we unify to bottom on an element). For now just leave
         // unconstrained.
@@ -177,64 +172,28 @@ class BackPropagate : public DfsVisitorWithDefault {
         // associated branches.
         return absl::OkStatus();
       }
-      RangeData joined{
-          .ternary =
-              a->GetType()->IsBits()
-                  ? std::make_optional(
-                        interval_ops::ExtractTernaryVector(unified.Get({})))
-                  : std::nullopt,
-          .interval_set = unified};
-      result_[a] = joined;
-      result_[b] = joined;
+      result_[a] = unified;
+      result_[b] = unified;
     } else {
       // Case: (L == R) == FALSE
       // Case: (L != R) == TRUE
       // Basically only have any information if a or b is precise.
-      auto is_precise = [](const IntervalSetTree& tree) -> bool {
-        return absl::c_all_of(tree.elements(),
-                              std::mem_fn(&IntervalSet::IsPrecise));
-      };
-      // TODO(allight): 2023-08-16, We should possibly do this element by
-      // element instead of forcing all elements of any tuples to be precise.
-      // That makes this much more complicated however.
-      if (is_precise(a_intervals) || is_precise(b_intervals)) {
-        Node* precise = is_precise(a_intervals) ? a : b;
-        const IntervalSetTree& precise_intervals =
+      if (a_intervals.IsPrecise() || b_intervals.IsPrecise()) {
+        Node* precise = a_intervals.IsPrecise() ? a : b;
+        const IntervalSet& precise_intervals =
             precise == a ? a_intervals : b_intervals;
         Node* imprecise = precise == a ? b : a;
-        bool is_bits = precise->GetType()->IsBits();
 
-        std::optional<TernaryVector> ternary =
-            is_bits
-                ? std::make_optional(query_engine_.GetTernary(precise).Get({}))
-                : std::nullopt;
-        result_[precise] = RangeData{
-            .ternary = ternary,
-            .interval_set = query_engine_.GetIntervalSetTree(precise)};
-        IntervalSetTree imprecise_complement_interval =
-            leaf_type_tree::Map<IntervalSet, IntervalSet>(
-                query_engine_.GetIntervalSetTree(imprecise).AsView(),
-                &IntervalSet::Complement);
+        IntervalSet imprecise_complement_interval = IntervalSet::Complement(
+            query_engine_.GetIntervalSetTree(imprecise).AsView().Get({}));
         // Remove the single known precise value from the imprecise values
-        // range.
-        XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
-            imprecise_complement_interval.AsMutableView(),
-            [&](Type* type, IntervalSet& imprecise,
-                absl::Span<const int64_t> location) -> absl::Status {
-              XLS_RET_CHECK(precise_intervals.Get(location).IsPrecise());
-              imprecise.AddInterval(
-                  precise_intervals.Get(location).Intervals().front());
-              imprecise.Normalize();
-              return absl::OkStatus();
-            }));
-        IntervalSetTree imprecise_interval =
-            leaf_type_tree::Map<IntervalSet, IntervalSet>(
-                imprecise_complement_interval.AsView(),
-                &IntervalSet::Complement);
-        if (absl::c_any_of(imprecise_interval.elements(),
-                           [](const IntervalSet& set) {
-                             return set.NumberOfIntervals() == 0;
-                           })) {
+        // // range.
+        imprecise_complement_interval.AddInterval(
+            precise_intervals.Intervals().front());
+        imprecise_complement_interval.Normalize();
+        IntervalSet imprecise_interval =
+            IntervalSet::Complement(imprecise_complement_interval);
+        if (imprecise_interval.NumberOfIntervals() == 0) {
           // This implies the condition is actually unreachable
           // (since we unify to bottom on some element). For now just leave
           // unconstrained.
@@ -244,13 +203,7 @@ class BackPropagate : public DfsVisitorWithDefault {
           // associated branches.
           return absl::OkStatus();
         }
-        result_[imprecise] = RangeData{
-            .ternary =
-                is_bits ? std::make_optional(interval_ops::ExtractTernaryVector(
-                              imprecise_interval.Get({})))
-                        : std::nullopt,
-            .interval_set = imprecise_interval,
-        };
+        result_[imprecise] = imprecise_interval;
       } else {
         // TODO(allight): 2023-08-10 Technically there is information to be
         // gleaned here if |L \intersect R| == 1 but probably not worth it. For
@@ -271,8 +224,8 @@ class BackPropagate : public DfsVisitorWithDefault {
     }
     auto canonical_range = ExtractRange(and_op->operand(0), and_op->operand(1));
     if (canonical_range) {
-      return UnifyRangeComparison(
-          *canonical_range, ternary_ops::IsKnownOne(*result_[and_op].ternary));
+      return UnifyRangeComparison(*canonical_range,
+                                  result_[and_op].CoversOne());
     }
     return absl::OkStatus();
   }
@@ -392,29 +345,17 @@ class BackPropagate : public DfsVisitorWithDefault {
     range_interval.Normalize();
     if (value_is_in_range) {
       // Value is in range, intersect with range.
-      IntervalSetTree true_tree(range.low_range->GetType());
-      true_tree.Set({}, IntervalSet::Precise(Bits::AllOnes(1)));
-      RangeData true_range{
-          .ternary = ternary_ops::BitsToTernary(Bits::AllOnes(1)),
-          .interval_set = true_tree};
+      IntervalSet true_range = IntervalSet::Precise(Bits::AllOnes(1));
       result_[range.low_range] = true_range;
       result_[range.high_range] = true_range;
       IntervalSet constrained_param =
           IntervalSet::Intersect(base_interval, range_interval);
-      result_[range.param] =
-          RangeData{.ternary = interval_ops::ExtractTernaryVector(
-                        constrained_param, range.param),
-                    .interval_set = IntervalSetTree(range.param->GetType(),
-                                                    constrained_param)};
+      result_[range.param] = constrained_param;
     } else {
       // Outside of range, add the inverse.
       IntervalSet constrained_param = IntervalSet::Intersect(
           base_interval, IntervalSet::Complement(range_interval));
-      result_[range.param] =
-          RangeData{.ternary = interval_ops::ExtractTernaryVector(
-                        constrained_param, range.param),
-                    .interval_set = IntervalSetTree(range.param->GetType(),
-                                                    constrained_param)};
+      result_[range.param] = constrained_param;
     }
     return absl::OkStatus();
   }
@@ -465,11 +406,7 @@ class BackPropagate : public DfsVisitorWithDefault {
       // branches.
       return absl::OkStatus();
     }
-    RangeData result{
-        .ternary = interval_ops::ExtractTernaryVector(restricted_set),
-        .interval_set = IntervalSetTree(variable->GetType(), {restricted_set}),
-    };
-    result_[variable] = result;
+    result_[variable] = restricted_set;
     return absl::OkStatus();
   }
   absl::Status UnifyImpreciseComparison(Node* l_op, Node* r_op,
@@ -481,15 +418,16 @@ class BackPropagate : public DfsVisitorWithDefault {
   }
 
   const RangeQueryEngine& query_engine_;
-  absl::flat_hash_map<Node*, RangeData> result_;
+  absl::flat_hash_map<Node*, IntervalSet> result_;
 };
 
 }  // namespace
 
-absl::StatusOr<absl::flat_hash_map<Node*, RangeData>> PropagateGivensBackwards(
-    const RangeQueryEngine& engine, Node* node, RangeData given) {
+absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
+PropagateGivensBackwards(const RangeQueryEngine& engine, Node* node,
+                         const IntervalSet& given) {
   BackPropagate prop(engine);
-  prop.AddGiven(node, std::move(given));
+  prop.AddGiven(node, given);
   // We could back-propagate arbitrarily but (1) writing the rules for that is
   // tricky and time consuming since we need to do a reverse-topo sort and
   // unification between different users and (2) a single propagation is
@@ -500,13 +438,10 @@ absl::StatusOr<absl::flat_hash_map<Node*, RangeData>> PropagateGivensBackwards(
   return std::move(prop).ranges();
 }
 
-absl::StatusOr<absl::flat_hash_map<Node*, RangeData>> PropagateGivensBackwards(
-    const RangeQueryEngine& engine, Node* node, const Bits& given) {
-  return PropagateGivensBackwards(
-      engine, node,
-      RangeData{.ternary = ternary_ops::BitsToTernary(given),
-                .interval_set = IntervalSetTree::CreateSingleElementTree(
-                    node->GetType(), IntervalSet::Precise(given))});
+absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
+PropagateGivensBackwards(const RangeQueryEngine& engine, Node* node,
+                         const Bits& given) {
+  return PropagateGivensBackwards(engine, node, IntervalSet::Precise(given));
 }
 
 }  // namespace xls

@@ -352,22 +352,27 @@ class Analysis {
     Select* select_node = s.node()->As<Select>();
     Node* selector = select_node->selector();
     CHECK(selector->GetType()->IsBits()) << "Non-bits select: " << *selector;
-    RangeData given;
+    IntervalSet given(selector->GetType()->GetFlatBitCount());
     if (s.IsDefaultArm()) {
-      IntervalSet is;
-      is.AddInterval(Interval::Open(
+      given.AddInterval(Interval::Open(
           UBits(select_node->cases().size(), selector->BitCountOrDie()),
           Bits::AllOnes(selector->BitCountOrDie())));
-      given = {.ternary = interval_ops::ExtractTernaryVector(is, selector),
-               .interval_set = IntervalSetTree::CreateSingleElementTree(
-                   selector->GetType(), is)};
     } else {
       Bits value = UBits(s.arm_index(), selector->BitCountOrDie());
-      given = {.ternary = ternary_ops::BitsToTernary(value),
-               .interval_set = IntervalSetTree::CreateSingleElementTree(
-                   selector->GetType(), IntervalSet::Precise(value))};
+      given = IntervalSet::Precise(value);
     }
-    return PropagateGivensBackwards(base_range_, selector, given);
+    XLS_ASSIGN_OR_RETURN(
+        (absl::flat_hash_map<Node*, IntervalSet> intervals),
+        PropagateGivensBackwards(base_range_, selector, given));
+    absl::flat_hash_map<Node*, RangeData> ranges;
+    ranges.reserve(intervals.size());
+    for (auto [node, interval] : std::move(intervals)) {
+      ranges[node] =
+          RangeData{.ternary = interval_ops::ExtractTernaryVector(interval),
+                    .interval_set = IntervalSetTree::CreateSingleElementTree(
+                        node->GetType(), std::move(interval))};
+    }
+    return ranges;
   }
 
   std::vector<Node*> topo_sort_;
