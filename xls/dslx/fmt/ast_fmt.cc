@@ -267,7 +267,7 @@ DocRef Fmt(const TypeRefTypeAnnotation& n, const Comments& comments,
 DocRef Fmt(const ChannelTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   std::vector<DocRef> pieces = {
-      arena.Make(Keyword::kChannel),
+      arena.Make(Keyword::kChan),
       arena.oangle(),
       Fmt(*n.payload(), comments, arena),
       arena.cangle(),
@@ -750,7 +750,7 @@ DocRef Fmt(const Cast& n, const Comments& comments, DocArena& arena) {
 
 DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces{
-      arena.Make(Keyword::kChannel),
+      arena.Make(Keyword::kChan),
       arena.oangle(),
       Fmt(*n.type(), comments, arena),
   };

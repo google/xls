@@ -46,7 +46,7 @@
   X(kSN, SN, "sN")                         \
   X(kXN, XN, "xN")                         \
   X(kBool, BOOL, "bool")                   \
-  X(kChannel, CHANNEL, "chan")             \
+  X(kChan, CHAN, "chan")                   \
   /* unsigned */                           \
   X(kU1, U1, "u1")                         \
   X(kU2, U2, "u2")                         \
@@ -320,7 +320,7 @@
   X(kSN, SN, "sN")                \
   X(kXN, XN, "xN")                \
   X(kBool, BOOL, "bool")          \
-  X(kChannel, CHANNEL, "chan")    \
+  X(kChan, CHAN, "chan")          \
   XLS_DSLX_SIZED_TYPE_KEYWORDS(X) \
   /* done */
 

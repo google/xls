@@ -554,7 +554,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
   if (peek->IsKeyword(Keyword::kUnrollFor)) {
     return ParseUnrollFor(bindings);
   }
-  if (peek->IsKeyword(Keyword::kChannel)) {
+  if (peek->IsKeyword(Keyword::kChan)) {
     return ParseChannelDecl(bindings);
   }
   if (peek->IsKeyword(Keyword::kSpawn)) {
@@ -720,7 +720,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 
   if (tok.IsTypeKeyword()) {  // Builtin types.
     Pos start_pos = tok.span().start();
-    if (tok.GetKeyword() == Keyword::kChannel) {
+    if (tok.GetKeyword() == Keyword::kChan) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
       XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
                            ParseTypeAnnotation(bindings));
@@ -2467,7 +2467,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 }
 
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChannel));
+  XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChan));
 
   std::optional<std::vector<Expr*>> dims = std::nullopt;
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
