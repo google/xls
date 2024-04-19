@@ -76,6 +76,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
     }
   }
 
+  if (!member_types.empty() && member_types[0]->HasToken()) {
+    return TypeInferenceErrorStatus(
+        node->span(), member_types[0].get(),
+        "Types with tokens cannot be placed in arrays.");
+  }
+
   if (node->has_ellipsis() && node->members().empty()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,

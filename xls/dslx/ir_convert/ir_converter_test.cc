@@ -2037,6 +2037,50 @@ fn main(x: u8, y: s8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ArrayOfTokenError) {
+  constexpr std::string_view kProgram =
+      R"(
+proc main {
+  init {}
+  config() {}
+  next(t: token, st:()) {
+    let x: token = [t][u1:0];
+    ()
+  }
+}
+)";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("tokens cannot be placed in arrays.")));
+}
+
+TEST(IrConverterTest, ArrayOfTupleWithTokenError) {
+  constexpr std::string_view kProgram =
+      R"(
+proc main {
+  init {}
+  config() {}
+  next(t: token, st:()) {
+    let x: token = [(t,)][u1:0];
+    ()
+  }
+}
+)";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("tokens cannot be placed in arrays.")));
+}
+
 TEST(IrConverterTest, ArraySizeBuiltin) {
   constexpr std::string_view program =
       R"(
