@@ -1121,6 +1121,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         ' `DoesNotExist`',
     )
 
+  def test_nested_tuple_type_mismatch(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/nested_tuple_type_mismatch.x'
+    )
+    self.assertIn('XlsTypeError:', stderr)
+    self.assertIn(
+        'Tuple has extra elements:',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

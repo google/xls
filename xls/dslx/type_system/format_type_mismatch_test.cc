@@ -41,15 +41,17 @@ TEST(FormatTypeMismatchTest, ElementInTuple) {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
 
-  EXPECT_EQ(got,
-            ANSI_RESET "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
-                       " type:\n"
-                       "   uN[16]\n"
-                       "vs sN[16]\n" ANSI_BOLD "Overall" ANSI_UNBOLD
-                       " type mismatch:\n" ANSI_RESET "   (uN[8], " ANSI_RED
-                       "uN[16]" ANSI_RESET
-                       ", uN[32])\n"
-                       "vs (uN[8], " ANSI_RED "sN[16]" ANSI_RESET ", uN[32])");
+  EXPECT_EQ(
+      got,
+      ANSI_RESET "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
+                 " type:\n"     //
+                 "   uN[16]\n"  //
+                 "vs sN[16]\n" ANSI_BOLD "Overall" ANSI_UNBOLD
+                 " type mismatch:\n"  //
+      ANSI_RESET "   (uN[8], " ANSI_RED "uN[16]" ANSI_RESET
+                 ", uN[32])\n"                                           //
+                 "vs (uN[8], " ANSI_RED "sN[16]" ANSI_RESET ", uN[32])"  //
+  );
 }
 
 TEST(FormatTypeMismatchTest, ElementTypeInArrayInTuple) {
@@ -64,13 +66,14 @@ TEST(FormatTypeMismatchTest, ElementTypeInArrayInTuple) {
 
   EXPECT_EQ(got,
             ANSI_RESET "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
-                       " type:\n"
-                       "   uN[32]\n"
-                       "vs sN[32]\n" ANSI_BOLD "Overall" ANSI_UNBOLD
-                       " type mismatch:\n" ANSI_RESET "   (uN[1], " ANSI_RED
-                       "uN[32]" ANSI_RESET
-                       "[4])\n"
-                       "vs (uN[1], " ANSI_RED "sN[32]" ANSI_RESET "[4])");
+                       " type:\n"                                 //
+                       "   uN[32]\n"                              //
+                       "vs sN[32]\n" ANSI_BOLD                    //
+                       "Overall" ANSI_UNBOLD " type mismatch:\n"  //
+            ANSI_RESET "   (uN[1], " ANSI_RED "uN[32]" ANSI_RESET
+                       "[4])\n"                                           //
+                       "vs (uN[1], " ANSI_RED "sN[32]" ANSI_RESET "[4])"  //
+  );
 }
 
 TEST(FormatTypeMismatchTest, TotallyDifferentTuples) {
@@ -83,6 +86,29 @@ TEST(FormatTypeMismatchTest, TotallyDifferentTuples) {
             "Type mismatch:\n"
             "   (uN[8], uN[32])\n"
             "vs (uN[1], uN[64])");
+}
+
+TEST(FormatTypeMismatchTest, TuplesWithSharedPrefixDifferentLength) {
+  auto t0 = TupleType::Create3(BitsType::MakeU1(), BitsType::MakeU8(),
+                               BitsType::MakeU32());
+  auto t1 = TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU8());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+
+  EXPECT_EQ(got,
+            "Tuple is missing elements:\n"
+            "   uN[32] (index 2 of (uN[1], uN[8], uN[32]))\n"
+            "Type mismatch:\n"
+            "   (uN[1], uN[8], uN[32])\n"
+            "vs (uN[1], uN[8])");
+
+  XLS_ASSERT_OK_AND_ASSIGN(got, FormatTypeMismatch(*t1, *t0));
+  EXPECT_EQ(got,
+            "Tuple has extra elements:\n"
+            "   uN[32] (index 2 of (uN[1], uN[8], uN[32]))\n"
+            "Type mismatch:\n"
+            "   (uN[1], uN[8])\n"
+            "vs (uN[1], uN[8], uN[32])");
 }
 
 }  // namespace

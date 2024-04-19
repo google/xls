@@ -157,12 +157,14 @@ TEST(TypecheckTest, Arithmetic) {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("uN[32] vs ()")));
 
   // Wrong return type (implicitly unit).
-  EXPECT_THAT(
-      Typecheck(R"(
+  EXPECT_THAT(Typecheck(R"(
       fn f<N: u32>(x: bits[N], y: bits[N]) { x + y }
       fn g() -> u64 { f(u64:5, u64:5) }
       )"),
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("uN[64] vs ()")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("() vs uN[64]"),
+                             HasSubstr("function body for 'f' did not match "
+                                       "the annotated return type"))));
 
   // Mixing widths not permitted.
   EXPECT_THAT(Typecheck("fn f(x: u32, y: bits[4]) { x + y }"),

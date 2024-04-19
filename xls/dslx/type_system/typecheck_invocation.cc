@@ -502,21 +502,21 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
     if (callee_fn.tag() == FunctionTag::kProcInit) {
       return ctx->TypeMismatchError(
-          callee_fn.body()->span(), callee_fn.body(), *resolved_body_type,
-          nullptr, annotated_return_type,
+          callee_fn.body()->span(), nullptr, annotated_return_type,
+          callee_fn.body(), *resolved_body_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (callee_fn.tag() == FunctionTag::kProcNext) {
       return ctx->TypeMismatchError(
-          callee_fn.body()->span(), callee_fn.body(), *resolved_body_type,
-          nullptr, annotated_return_type,
+          callee_fn.body()->span(), nullptr, annotated_return_type,
+          callee_fn.body(), *resolved_body_type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
-        callee_fn.body()->span(), callee_fn.body(), *resolved_body_type,
-        nullptr, annotated_return_type,
+        callee_fn.body()->span(), nullptr, annotated_return_type,
+        callee_fn.body(), *resolved_body_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         callee_fn.identifier()));
