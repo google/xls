@@ -16,6 +16,9 @@
 #define XLS_FDO_SYNTHESIZED_DELAY_DIFF_UTILS_H_
 
 #include <cstdint>
+#include <cstdlib>
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -24,6 +27,7 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
@@ -37,11 +41,27 @@ struct SynthesizedDelayDiff {
   int64_t synthesized_delay_ps = 0;
 };
 
+// A difference in the percent of a total pipeline delay that a particular stage
+// accounts for, between the XLS delay model and what a synthesis tool reports.
+struct StagePercentDiff {
+  double xls_percent = 0;
+  double synthesized_percent = 0;
+};
+
+// Returns the absolute value of the difference of XLS and synthesized percents
+// of a pipeline accounted for by a given stage.
+inline double AbsPercentDiff(const StagePercentDiff& diff) {
+  return std::abs(diff.synthesized_percent - diff.xls_percent);
+}
+
 // A per-stage breakdown of the difference in estimated delay between the XLS
 // delay model and what a synthesis tool reports.
 struct SynthesizedDelayDiffByStage {
   SynthesizedDelayDiff total_diff;
+  double max_stage_percent_diff_abs = 0;
+  double total_stage_percent_diff_abs = 0;
   std::vector<SynthesizedDelayDiff> stage_diffs;
+  std::vector<StagePercentDiff> stage_percent_diffs;
 };
 
 // Synthesizes `f` and returns the difference in reported delay, compared to
@@ -62,13 +82,21 @@ absl::StatusOr<SynthesizedDelayDiffByStage> CreateDelayDiffByStage(
 
 // Converts the given diff to a human-readable format that is an expanded form
 // of what `CriticalPathToString` would return.
-std::string SynthesizedDelayDiffToString(const SynthesizedDelayDiff& diff);
+std::string SynthesizedDelayDiffToString(
+    const SynthesizedDelayDiff& diff,
+    std::optional<std::function<std::string(Node*)>> extra_info = std::nullopt);
 
 // Like `SynthesizedDelayDiffToString(stage_diff)`, but includes the percent
 // of the pipeline delay that is in the given stage, based on `overall_diff`.
 std::string SynthesizedStageDelayDiffToString(
-    const SynthesizedDelayDiff& stage_diff,
-    const SynthesizedDelayDiff& overall_diff);
+    const SynthesizedDelayDiff& absolute_diff,
+    const StagePercentDiff& percent_diff);
+
+// Returns just the synthesis-to-delay model overall comparison header that
+// would be at the top of the `SynthesizedDelayDiffToString(diff)` output.
+// Example: "1262ps as synthesized (-1035ps); 54.94%".
+std::string SynthesizedDelayDiffToStringHeaderWithPercent(
+    const SynthesizedDelayDiff& diff);
 
 }  // namespace synthesis
 }  // namespace xls

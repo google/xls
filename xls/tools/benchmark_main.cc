@@ -51,6 +51,9 @@
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/fdo/grpc_synthesizer.h"
+#include "xls/fdo/synthesized_delay_diff_utils.h"
+#include "xls/fdo/synthesizer.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -118,6 +121,12 @@ ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "usage context to narrow values more aggressively.");
 ABSL_FLAG(bool, run_evaluators, true,
           "Whether to run the JIT and interpreter.");
+ABSL_FLAG(bool, compare_delay_to_synthesis, false,
+          "Synthesize the target and report metrics for post-synthesis delay "
+          "vs. the delay model prediction.");
+ABSL_FLAG(std::string, synthesis_server, "ipv4:///0.0.0.0:10000",
+          "The address, including port, of the gRPC server to use with "
+          "--compare_delay_to_synthesis.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
@@ -241,11 +250,9 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
 
 absl::Status PrintCriticalPath(
     FunctionBase* f, const QueryEngine& query_engine,
-    const DelayEstimator& delay_estimator,
-    std::optional<int64_t> effective_clock_period_ps) {
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<CriticalPathEntry> critical_path,
-      AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
+    const synthesis::SynthesizedDelayDiffByStage& delay_diff) {
+  const std::vector<CriticalPathEntry>& critical_path =
+      delay_diff.total_diff.critical_path;
   std::cout << absl::StrFormat("Critical path delay: %dps\n",
                                critical_path.front().path_delay_ps);
   std::cout << absl::StrFormat("Critical path entry count: %d\n",
@@ -253,8 +260,8 @@ absl::Status PrintCriticalPath(
 
   absl::flat_hash_map<Op, std::pair<int64_t, int64_t>> op_to_sum;
   std::cout << "Critical path:" << '\n';
-  std::cout << CriticalPathToString(
-      critical_path, [&query_engine](Node* n) -> std::string {
+  std::cout << SynthesizedDelayDiffToString(
+      delay_diff.total_diff, [&query_engine](Node* n) -> std::string {
         if (absl::GetFlag(FLAGS_show_known_bits)) {
           return absl::StrFormat(
               "        %s <= [%s]\n", KnownBitString(n, query_engine),
@@ -266,7 +273,7 @@ absl::Status PrintCriticalPath(
         return "";
       });
 
-  for (CriticalPathEntry& entry : critical_path) {
+  for (const CriticalPathEntry& entry : critical_path) {
     // Make a note of the sums.
     auto& tally = op_to_sum[entry.node->op()];
     tally.first += entry.node_delay_ps;
@@ -291,6 +298,14 @@ absl::Status PrintCriticalPath(
         op_to_sum[op].second,
         static_cast<double>(op_to_sum[op].first) / op_to_sum[op].second);
   }
+  std::cout << "\nOverall delay: "
+            << synthesis::SynthesizedDelayDiffToStringHeaderWithPercent(
+                   delay_diff.total_diff)
+            << "\nTotal synthesized stage weight diff: "
+            << absl::StrFormat("%.2f", delay_diff.total_stage_percent_diff_abs)
+            << "\nMax synthesized stage weight diff: "
+            << absl::StrFormat("%.2f", delay_diff.max_stage_percent_diff_abs)
+            << "\n";
   return absl::OkStatus();
 }
 
@@ -753,18 +768,37 @@ absl::Status RealMain(std::string_view path) {
         GetDelayEstimator(scheduling_options_flags_proto.delay_model()));
   }
   const auto& delay_estimator = *pdelay_estimator;
-  XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_estimator,
-                                        effective_clock_period_ps));
-  XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
-
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<CriticalPathEntry> critical_path,
+      AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
+  std::unique_ptr<synthesis::Synthesizer> synthesizer;
+  if (absl::GetFlag(FLAGS_compare_delay_to_synthesis)) {
+    synthesis::GrpcSynthesizerParameters parameters(
+        absl::GetFlag(FLAGS_synthesis_server));
+    XLS_ASSIGN_OR_RETURN(
+        synthesizer,
+        synthesis::GetSynthesizerManagerSingleton().MakeSynthesizer(
+            parameters.name(), parameters));
+  }
   if (absl::GetFlag(FLAGS_run_evaluators)) {
     XLS_RETURN_IF_ERROR(RunInterpreterAndJit(f, "optimized"));
   }
-
   const bool benchmark_codegen =
       scheduling_options_flags_proto.clock_period_ps() > 0 ||
       scheduling_options_flags_proto.pipeline_stages() > 0;
-  if (benchmark_codegen) {
+  if (!f->IsProc() && !benchmark_codegen) {
+    synthesis::SynthesizedDelayDiff delay_diff;
+    if (synthesizer) {
+      XLS_ASSIGN_OR_RETURN(
+          delay_diff,
+          SynthesizeAndGetDelayDiff(f, critical_path, synthesizer.get()));
+    } else {
+      delay_diff.critical_path = std::move(critical_path);
+    }
+    XLS_RETURN_IF_ERROR(PrintCriticalPath(
+        f, query_engine, {.total_diff = std::move(delay_diff)}));
+    XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
+  } else if (benchmark_codegen) {
     TimingReport timing_report;
     PipelineScheduleOrGroup schedules = PackagePipelineSchedules();
     XLS_ASSIGN_OR_RETURN(
@@ -772,6 +806,14 @@ absl::Status RealMain(std::string_view path) {
         ScheduleAndCodegen(package.get(), scheduling_options_flags_proto,
                            codegen_flags_proto, delay_model_flag_passed,
                            &timing_report, &schedules));
+    XLS_ASSIGN_OR_RETURN(
+        synthesis::SynthesizedDelayDiffByStage delay_diff,
+        CreateDelayDiffByStage(f, std::get<PipelineSchedule>(schedules),
+                               *pdelay_estimator, synthesizer.get()));
+    delay_diff.total_diff.critical_path = std::move(critical_path);
+    XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_diff));
+    XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
+
     std::cout << absl::StreamFormat(
         "Scheduling time: %dms\n",
         timing_report.scheduling_time / absl::Milliseconds(1));

@@ -150,7 +150,7 @@ absl::Status RealMain(std::string_view input_path) {
       std::cout << absl::StrFormat("# Critical path for stage %d:\n", i);
       if (synthesizer) {
         std::cout << SynthesizedStageDelayDiffToString(
-            delay_diff.stage_diffs[i], delay_diff.total_diff);
+            delay_diff.stage_diffs[i], delay_diff.stage_percent_diffs[i]);
       } else {
         std::cout << CriticalPathToString(
             delay_diff.stage_diffs[i].critical_path);

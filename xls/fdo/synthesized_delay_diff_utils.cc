@@ -14,7 +14,9 @@
 
 #include "xls/fdo/synthesized_delay_diff_utils.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -41,16 +43,30 @@ namespace {
 double GetSynthesizedPercentOfPipeline(
     const SynthesizedDelayDiff& stage_diff,
     const SynthesizedDelayDiff& overall_diff) {
-  return static_cast<double>(stage_diff.synthesized_delay_ps) * 100.0 /
-         static_cast<double>(overall_diff.synthesized_delay_ps);
+  return overall_diff.synthesized_delay_ps == 0
+             ? 0
+             : static_cast<double>(stage_diff.synthesized_delay_ps) * 100.0 /
+                   static_cast<double>(overall_diff.synthesized_delay_ps);
 }
 
 // Returns the percent of overall pipeline delay that is in the stage
 // represented by `stage_diff` according to the XLS delay model.
 double GetXlsPercentOfPipeline(const SynthesizedDelayDiff& stage_diff,
                                const SynthesizedDelayDiff& overall_diff) {
-  return static_cast<double>(stage_diff.xls_delay_ps) * 100.0 /
-         static_cast<double>(overall_diff.xls_delay_ps);
+  return overall_diff.xls_delay_ps == 0
+             ? 0
+             : static_cast<double>(stage_diff.xls_delay_ps) * 100.0 /
+                   static_cast<double>(overall_diff.xls_delay_ps);
+}
+
+// Returns the percent of the XLS delay model prediction that the actual
+// synthesized delay represents. Most of the time, this is less than 100%, i.e.
+// the delay model is pessimistic.
+double GetSynthesizedPercentOfXlsDelay(const SynthesizedDelayDiff& diff) {
+  return diff.xls_delay_ps == 0
+             ? 0
+             : static_cast<double>(diff.synthesized_delay_ps) * 100.0 /
+                   static_cast<double>(diff.xls_delay_ps);
 }
 
 // Converts the given delay diff to a human-readable header suitable to prepend
@@ -86,6 +102,7 @@ absl::StatusOr<SynthesizedDelayDiffByStage> CreateDelayDiffByStage(
     synthesis::Synthesizer* synthesizer) {
   SynthesizedDelayDiffByStage result;
   result.stage_diffs.resize(schedule.length());
+  result.stage_percent_diffs.resize(schedule.length());
   for (int i = 0; i < schedule.length(); ++i) {
     SynthesizedDelayDiff& stage_diff = result.stage_diffs[i];
     XLS_ASSIGN_OR_RETURN(Function * stage_function,
@@ -107,25 +124,42 @@ absl::StatusOr<SynthesizedDelayDiffByStage> CreateDelayDiffByStage(
     result.total_diff.synthesized_delay_ps += stage_diff.synthesized_delay_ps;
     result.total_diff.xls_delay_ps += stage_diff.xls_delay_ps;
   }
+  for (int i = 0; i < schedule.length(); ++i) {
+    const SynthesizedDelayDiff& stage_diff = result.stage_diffs[i];
+    StagePercentDiff& stage_percent_diff = result.stage_percent_diffs[i];
+    stage_percent_diff.synthesized_percent =
+        GetSynthesizedPercentOfPipeline(stage_diff, result.total_diff);
+    stage_percent_diff.xls_percent =
+        GetXlsPercentOfPipeline(stage_diff, result.total_diff);
+    double abs_diff = AbsPercentDiff(stage_percent_diff);
+    result.total_stage_percent_diff_abs += abs_diff;
+    result.max_stage_percent_diff_abs =
+        std::max(result.max_stage_percent_diff_abs, abs_diff);
+  }
   return result;
 }
 
-std::string SynthesizedDelayDiffToString(const SynthesizedDelayDiff& diff) {
-  return SynthesizedDelayDiffToStringHeader(diff) + "\n" +
-         CriticalPathToString(diff.critical_path);
+std::string SynthesizedDelayDiffToString(
+    const SynthesizedDelayDiff& diff,
+    std::optional<std::function<std::string(Node*)>> extra_info) {
+  return SynthesizedDelayDiffToStringHeaderWithPercent(diff) + "\n" +
+         CriticalPathToString(diff.critical_path, std::move(extra_info));
 }
 
 std::string SynthesizedStageDelayDiffToString(
-    const SynthesizedDelayDiff& stage_diff,
-    const SynthesizedDelayDiff& overall_diff) {
-  const double synthesized_percent =
-      GetSynthesizedPercentOfPipeline(stage_diff, overall_diff);
-  const double xls_percent = GetXlsPercentOfPipeline(stage_diff, overall_diff);
-  std::string result = SynthesizedDelayDiffToStringHeader(stage_diff);
+    const SynthesizedDelayDiff& absolute_diff,
+    const StagePercentDiff& percent_diff) {
+  std::string result = SynthesizedDelayDiffToStringHeader(absolute_diff);
   absl::StrAppendFormat(
       &result, "; %.2f%% of synthesized pipeline vs. %.2f%% according to XLS.",
-      synthesized_percent, xls_percent);
-  return result + "\n" + CriticalPathToString(stage_diff.critical_path);
+      percent_diff.synthesized_percent, percent_diff.xls_percent);
+  return result + "\n" + CriticalPathToString(absolute_diff.critical_path);
+}
+
+std::string SynthesizedDelayDiffToStringHeaderWithPercent(
+    const SynthesizedDelayDiff& diff) {
+  return SynthesizedDelayDiffToStringHeader(diff) +
+         absl::StrFormat("; %.2f%%", GetSynthesizedPercentOfXlsDelay(diff));
 }
 
 }  // namespace synthesis

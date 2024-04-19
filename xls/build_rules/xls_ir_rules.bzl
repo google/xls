@@ -456,7 +456,9 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         benchmark_ir_args.setdefault("top", ctx.attr.top)
     my_args = args_to_string(benchmark_ir_args)
 
-    cmd = "{} {} {}".format(
+    # Note: The user, or a higher level script, may pass ad hoc arguments through this script to
+    # benchmark_main, such as `--compare_delay_to_synthesis=true`.
+    cmd = "{} {} {} $@".format(
         benchmark_ir_tool.short_path,
         src.short_path,
         my_args,

@@ -109,16 +109,24 @@ TEST_F(SynthesizedDelayDiffUtilsTest, CreateDelayDiffByStage) {
   EXPECT_EQ(diff.total_diff.synthesized_delay_ps, 504);
   EXPECT_EQ(diff.total_diff.xls_delay_ps, 5);
   EXPECT_THAT(diff.total_diff.critical_path, IsEmpty());
+  EXPECT_EQ(diff.total_stage_percent_diff_abs, 20.0);
+  EXPECT_EQ(diff.max_stage_percent_diff_abs, 10.0);
   ASSERT_EQ(diff.stage_diffs.size(), 3);
   EXPECT_EQ(diff.stage_diffs[0].critical_path.size(), 4);
   EXPECT_EQ(diff.stage_diffs[0].synthesized_delay_ps, 252);
   EXPECT_EQ(diff.stage_diffs[0].xls_delay_ps, 3);
+  EXPECT_EQ(diff.stage_percent_diffs[0].xls_percent, 60.0);
+  EXPECT_EQ(diff.stage_percent_diffs[0].synthesized_percent, 50.0);
   EXPECT_EQ(diff.stage_diffs[1].critical_path.size(), 2);
   EXPECT_EQ(diff.stage_diffs[1].synthesized_delay_ps, 126);
   EXPECT_EQ(diff.stage_diffs[1].xls_delay_ps, 1);
+  EXPECT_EQ(diff.stage_percent_diffs[1].xls_percent, 20.0);
+  EXPECT_EQ(diff.stage_percent_diffs[1].synthesized_percent, 25.0);
   EXPECT_EQ(diff.stage_diffs[2].critical_path.size(), 2);
   EXPECT_EQ(diff.stage_diffs[2].synthesized_delay_ps, 126);
   EXPECT_EQ(diff.stage_diffs[2].xls_delay_ps, 1);
+  EXPECT_EQ(diff.stage_percent_diffs[2].xls_percent, 20.0);
+  EXPECT_EQ(diff.stage_percent_diffs[2].synthesized_percent, 25.0);
 }
 
 TEST_F(SynthesizedDelayDiffUtilsTest, CreateDelayDiffByStageWithoutSynthesis) {
@@ -129,16 +137,24 @@ TEST_F(SynthesizedDelayDiffUtilsTest, CreateDelayDiffByStageWithoutSynthesis) {
   EXPECT_EQ(diff.total_diff.synthesized_delay_ps, 0);
   EXPECT_EQ(diff.total_diff.xls_delay_ps, 5);
   EXPECT_THAT(diff.total_diff.critical_path, IsEmpty());
+  EXPECT_EQ(diff.total_stage_percent_diff_abs, 100.0);
+  EXPECT_EQ(diff.max_stage_percent_diff_abs, 60.0);
   ASSERT_EQ(diff.stage_diffs.size(), 3);
   EXPECT_EQ(diff.stage_diffs[0].critical_path.size(), 4);
   EXPECT_EQ(diff.stage_diffs[0].synthesized_delay_ps, 0);
   EXPECT_EQ(diff.stage_diffs[0].xls_delay_ps, 3);
+  EXPECT_EQ(diff.stage_percent_diffs[0].xls_percent, 60.0);
+  EXPECT_EQ(diff.stage_percent_diffs[0].synthesized_percent, 0);
   EXPECT_EQ(diff.stage_diffs[1].critical_path.size(), 2);
   EXPECT_EQ(diff.stage_diffs[1].synthesized_delay_ps, 0);
   EXPECT_EQ(diff.stage_diffs[1].xls_delay_ps, 1);
+  EXPECT_EQ(diff.stage_percent_diffs[1].xls_percent, 20.0);
+  EXPECT_EQ(diff.stage_percent_diffs[1].synthesized_percent, 0);
   EXPECT_EQ(diff.stage_diffs[2].critical_path.size(), 2);
   EXPECT_EQ(diff.stage_diffs[2].synthesized_delay_ps, 0);
   EXPECT_EQ(diff.stage_diffs[2].xls_delay_ps, 1);
+  EXPECT_EQ(diff.stage_percent_diffs[2].xls_percent, 20.0);
+  EXPECT_EQ(diff.stage_percent_diffs[2].synthesized_percent, 0);
 }
 
 TEST_F(SynthesizedDelayDiffUtilsTest, SynthesizedDelayDiffToString) {
@@ -150,7 +166,7 @@ TEST_F(SynthesizedDelayDiffUtilsTest, SynthesizedDelayDiffToString) {
                             .xls_delay_ps = 65,
                             .synthesized_delay_ps = 31};
   EXPECT_EQ(SynthesizedDelayDiffToString(diff),
-            "     31ps as synthesized (-34ps)\n" +
+            "     31ps as synthesized (-34ps); 47.69%\n" +
                 CriticalPathToString(critical_path));
 }
 
@@ -164,9 +180,9 @@ TEST_F(SynthesizedDelayDiffUtilsTest, SynthesizedStageDelayDiffToString) {
                             .synthesized_delay_ps = 31};
   // To keep this simple, just pretend `f_` is one stage of a fictitious
   // containing pipeline.
-  SynthesizedDelayDiff overall_diff{.xls_delay_ps = 110,
-                                    .synthesized_delay_ps = 40};
-  EXPECT_EQ(SynthesizedStageDelayDiffToString(diff, overall_diff),
+  StagePercentDiff percent_diff{.xls_percent = 59.09,
+                                .synthesized_percent = 77.50};
+  EXPECT_EQ(SynthesizedStageDelayDiffToString(diff, percent_diff),
             "     31ps as synthesized (-34ps); 77.50% of synthesized pipeline "
             "vs. 59.09% according to XLS.\n" +
                 CriticalPathToString(critical_path));
