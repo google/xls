@@ -52,59 +52,6 @@
 
 namespace xls {
 namespace {
-// Returns the predecessor of `node_and_instance` that exists in a different
-// instance, if it exists.
-//
-// If the input node is an InputPort, this returns the InstantiationInput in the
-// parent instance. If the input node is an InstantiationOutput, this returns
-// the OutputPort in the child instance.
-std::optional<ElaboratedNode> InterInstancePredecessor(
-    const ElaboratedNode& node_and_instance) {
-  Node* node = node_and_instance.node;
-  if (node->Is<InputPort>()) {
-    auto itr = node_and_instance.instance->child_to_parent_ports().find(
-        node_and_instance.node);
-    if (itr != node_and_instance.instance->child_to_parent_ports().end()) {
-      return itr->second;
-    }
-  }
-  if (node->Is<InstantiationOutput>()) {
-    auto itr = node_and_instance.instance->parent_to_child_ports().find(
-        node_and_instance.node);
-    if (itr != node_and_instance.instance->parent_to_child_ports().end()) {
-      return itr->second;
-    }
-  }
-
-  return std::nullopt;
-}
-
-// Returns the successor of `node_and_instance` that exists in a different
-// instance, if it exists.
-//
-// If the input node is an OutputPort, this returns the InstantiationOutput in
-// the parent instance. If the input node is an InstantiationInput, this returns
-// the InputPort in the child instance.
-std::optional<ElaboratedNode> InterInstanceSuccessor(
-    const ElaboratedNode& node_and_instance) {
-  Node* node = node_and_instance.node;
-  if (node->Is<OutputPort>()) {
-    auto itr = node_and_instance.instance->child_to_parent_ports().find(
-        node_and_instance.node);
-    if (itr != node_and_instance.instance->child_to_parent_ports().end()) {
-      return itr->second;
-    }
-  }
-  if (node->Is<InstantiationInput>()) {
-    auto itr = node_and_instance.instance->parent_to_child_ports().find(
-        node_and_instance.node);
-    if (itr != node_and_instance.instance->parent_to_child_ports().end()) {
-      return itr->second;
-    }
-  }
-  return std::nullopt;
-}
-
 std::string MakeRegisterPrefix(const BlockInstantiationPath& path) {
   if (path.path.empty()) {
     return "";
@@ -118,6 +65,87 @@ std::string MakeRegisterPrefix(const BlockInstantiationPath& path) {
 }
 
 }  // namespace
+
+std::optional<ElaboratedNode> InterInstancePredecessor(
+    const ElaboratedNode& node_and_instance) {
+  Node* node = node_and_instance.node;
+  BlockInstance* instance = node_and_instance.instance;
+
+  if (node->Is<InputPort>() && instance->instantiation().has_value()) {
+    Instantiation* instantiation = *instance->instantiation();
+    CHECK(instance->parent_instance().has_value() &&
+          instance->parent_instance().value()->block().has_value());
+    Block* parent_block = *instance->parent_instance().value()->block();
+
+    absl::Span<InstantiationInput* const> inputs =
+        parent_block->GetInstantiationInputs(instantiation);
+    auto iter =
+        absl::c_find_if(inputs, [&node](const InstantiationInput* input) {
+          return input->port_name() == node->As<InputPort>()->name();
+        });
+    if (iter != inputs.end()) {
+      return ElaboratedNode{.node = *iter,
+                            .instance = *instance->parent_instance()};
+    }
+  }
+  if (node->Is<InstantiationOutput>()) {
+    InstantiationOutput* instantiation_output = node->As<InstantiationOutput>();
+    BlockInstance* child_instance = instance->instantiation_to_instance().at(
+        instantiation_output->instantiation());
+    if (child_instance->block().has_value()) {
+      Block* child_block = *child_instance->block();
+      absl::StatusOr<OutputPort*> port =
+          child_block->GetOutputPort(instantiation_output->port_name());
+      CHECK_OK(port.status());
+      return ElaboratedNode{.node = *port, .instance = child_instance};
+    }
+  }
+
+  return std::nullopt;
+}
+
+std::optional<ElaboratedNode> InterInstanceSuccessor(
+    const ElaboratedNode& node_and_instance) {
+  Node* node = node_and_instance.node;
+  BlockInstance* instance = node_and_instance.instance;
+
+  if (node->Is<OutputPort>() && instance->parent_instance().has_value()) {
+    CHECK(instance->instantiation().has_value());
+    Instantiation* instantiation = *instance->instantiation();
+    switch (instantiation->kind()) {
+      case InstantiationKind::kBlock: {
+        CHECK(instance->parent_instance().value()->block().has_value());
+        Block* parent_block = *instance->parent_instance().value()->block();
+        absl::Span<InstantiationOutput* const> outputs =
+            parent_block->GetInstantiationOutputs(instantiation);
+        auto iter = absl::c_find_if(
+            outputs, [&node](const InstantiationOutput* output) {
+              return output->port_name() == node->As<OutputPort>()->name();
+            });
+        if (iter != outputs.end()) {
+          return ElaboratedNode{.node = *iter,
+                                .instance = *instance->parent_instance()};
+        }
+        return std::nullopt;
+      }
+      default:
+        return std::nullopt;
+    }
+  }
+  if (node->Is<InstantiationInput>()) {
+    InstantiationInput* instantiation_input = node->As<InstantiationInput>();
+    BlockInstance* child_instance = instance->instantiation_to_instance().at(
+        instantiation_input->instantiation());
+    if (child_instance->block().has_value()) {
+      Block* child_block = *child_instance->block();
+      absl::StatusOr<InputPort*> port =
+          child_block->GetInputPort(instantiation_input->port_name());
+      CHECK_OK(port.status());
+      return ElaboratedNode{.node = *port, .instance = child_instance};
+    }
+  }
+  return std::nullopt;
+}
 
 std::string ElaboratedNode::ToString() const {
   return absl::StrFormat("%s (%s)", node->ToString(), instance->ToString());
@@ -425,21 +453,6 @@ std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
-struct InstAndPort {
-  Instantiation* inst;
-  std::string name;
-
-  bool operator==(const InstAndPort& other) const {
-    return inst == other.inst && name == other.name;
-  }
-};
-
-template <typename H>
-H AbslHashValue(H h, const InstAndPort& inst_and_port) {
-  return H::combine(std::move(h), inst_and_port.inst->name(),
-                    inst_and_port.inst->name());
-}
-
 BlockInstance::BlockInstance(
     std::optional<Block*> block, std::optional<Instantiation*> instantiation,
     BlockInstantiationPath&& path,
@@ -452,17 +465,16 @@ BlockInstance::BlockInstance(
   if (!block.has_value()) {
     return;
   }
-  absl::flat_hash_map<Instantiation*, BlockInstance*> instantiation_to_instance;
-  instantiation_to_instance.reserve(child_instances_.size());
+  instantiation_to_instance_.reserve(child_instances_.size());
   for (const std::unique_ptr<BlockInstance>& child_instance :
        child_instances_) {
+    child_instance->parent_instance_ = this;
     if (!child_instance->instantiation().has_value()) {
       continue;
     }
-    instantiation_to_instance.insert(
+    instantiation_to_instance_.insert(
         {*child_instance->instantiation(), child_instance.get()});
   }
-  absl::flat_hash_map<InstAndPort, Node*> inst_ports;
   for (Instantiation* inst : block.value()->GetInstantiations()) {
     if (inst->kind() != InstantiationKind::kBlock) {
       continue;
@@ -481,36 +493,7 @@ BlockInstance::BlockInstance(
       } else {
         ABSL_UNREACHABLE();
       }
-      inst_ports.insert(
-          {InstAndPort{.inst = inst, .name = Block::PortName(port)}, node});
     }
-  }
-
-  parent_to_child_ports_.reserve(inst_ports.size());
-  child_to_parent_ports_.reserve(inst_ports.size());
-  for (Node* node : block.value()->nodes()) {
-    std::string port_name;
-    Instantiation* inst;
-    if (node->Is<InstantiationInput>()) {
-      port_name = node->As<InstantiationInput>()->port_name();
-      inst = node->As<InstantiationInput>()->instantiation();
-    } else if (node->Is<InstantiationOutput>()) {
-      port_name = node->As<InstantiationOutput>()->port_name();
-      inst = node->As<InstantiationOutput>()->instantiation();
-    } else {
-      continue;
-    }
-    auto inst_itr =
-        inst_ports.find(InstAndPort{.inst = inst, .name = port_name});
-    if (inst_itr == inst_ports.end()) {
-      continue;
-    }
-    BlockInstance* child_instance = instantiation_to_instance.at(inst);
-    parent_to_child_ports_.insert(
-        {node,
-         ElaboratedNode{.node = inst_itr->second, .instance = child_instance}});
-    child_instance->child_to_parent_ports_.insert(
-        {inst_itr->second, ElaboratedNode{.node = node, .instance = this}});
   }
 }
 

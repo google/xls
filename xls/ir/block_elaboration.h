@@ -62,6 +62,24 @@ H AbslHashValue(H h, const ElaboratedNode& node_and_instance) {
                     node_and_instance.instance);
 }
 
+// Returns the predecessor of `node_and_instance` that exists in a different
+// instance, if it exists.
+//
+// If the input node is an InputPort, this returns the InstantiationInput in the
+// parent instance. If the input node is an InstantiationOutput, this returns
+// the OutputPort in the child instance.
+std::optional<ElaboratedNode> InterInstancePredecessor(
+    const ElaboratedNode& node_and_instance);
+
+// Returns the successor of `node_and_instance` that exists in a different
+// instance, if it exists.
+//
+// If the input node is an OutputPort, this returns the InstantiationOutput in
+// the parent instance. If the input node is an InstantiationInput, this returns
+// the InputPort in the child instance.
+std::optional<ElaboratedNode> InterInstanceSuccessor(
+    const ElaboratedNode& node_and_instance);
+
 // Representation of an instance of a block. This is a recursive data structure
 // which also owns all block instances instantiated by this block (and
 // transitively their instances).
@@ -95,19 +113,14 @@ class BlockInstance {
     return child_instances_;
   }
 
-  // Nodes that are connected to child instances. These are
-  // InstantiationInput/InstantiationOutput nodes connected to child
-  // InputPort/OutputPort nodes.
-  const absl::flat_hash_map<Node*, ElaboratedNode>& parent_to_child_ports()
-      const {
-    return parent_to_child_ports_;
+  // Map of instantiations in block() -> block instances in the elaboration.
+  const absl::flat_hash_map<Instantiation*, BlockInstance*>&
+  instantiation_to_instance() const {
+    return instantiation_to_instance_;
   }
-  // Nodes that are connected to the parent instance. These are
-  // InputPort/OutputPort nodes connected to parent
-  // InstantiationInput/InstantiationOutput.
-  const absl::flat_hash_map<Node*, ElaboratedNode>& child_to_parent_ports()
-      const {
-    return child_to_parent_ports_;
+
+  std::optional<BlockInstance*> parent_instance() const {
+    return parent_instance_;
   }
 
  private:
@@ -119,9 +132,13 @@ class BlockInstance {
   // Child instances of this instance. Unique pointers are used for pointer
   // stability as pointers to these objects are handed out.
   std::vector<std::unique_ptr<BlockInstance>> child_instances_;
-
-  absl::flat_hash_map<Node*, ElaboratedNode> parent_to_child_ports_;
-  absl::flat_hash_map<Node*, ElaboratedNode> child_to_parent_ports_;
+  // The parent instance of this instance. Only std::nullopt for the root
+  // instance.
+  std::optional<BlockInstance*> parent_instance_;
+  // Map of instantiations in the Block to block instances in the elaboration.
+  // Each pointer (keys and values!) must be non-null.
+  absl::flat_hash_map<Instantiation*, BlockInstance*>
+      instantiation_to_instance_;
 };
 
 // Data structure representing the elaboration tree starting from a root block.

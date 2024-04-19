@@ -104,8 +104,7 @@ TEST_F(ElaborationTest, ElaborateSingleBlock) {
   EXPECT_EQ(elab.top()->path().top, elab.top()->block());
   EXPECT_THAT(elab.top()->path().path, IsEmpty());
   EXPECT_THAT(elab.top()->child_instances(), IsEmpty());
-  EXPECT_THAT(elab.top()->child_to_parent_ports(), IsEmpty());
-  EXPECT_THAT(elab.top()->parent_to_child_ports(), IsEmpty());
+  EXPECT_THAT(elab.top()->instantiation_to_instance(), IsEmpty());
   EXPECT_THAT(elab.blocks(), UnorderedElementsAre(block));
   EXPECT_THAT(elab.instances(), UnorderedElementsAre(BlockInstanceFor(block)));
   EXPECT_THAT(elab.GetInstance("adder"), IsOkAndHolds(BlockInstanceFor(block)));
@@ -174,32 +173,12 @@ TEST_F(ElaborationTest, ElaborateMultipleBlockInstantiations) {
   EXPECT_THAT(elab.top()->path().path, IsEmpty());
   ASSERT_EQ(elab.top()->child_instances().size(), 3);
   EXPECT_THAT(elab.top()->child_instances(), Each(BlockInstanceName("adder")));
-  EXPECT_THAT(elab.top()->child_to_parent_ports(), IsEmpty());
-
   EXPECT_THAT(
-      elab.top()->parent_to_child_ports(),
+      elab.top()->instantiation_to_instance(),
       UnorderedElementsAre(
-          // adder0_inst mapping
-          Pair(m::InstantiationInput(m::InputPort("a"), "a"),
-               NodeAndInst(m::InputPort("a"), HasSubstr("adder0_inst"))),
-          Pair(m::InstantiationInput(m::InputPort("b"), "b"),
-               NodeAndInst(m::InputPort("b"), HasSubstr("adder0_inst"))),
-          Pair(m::InstantiationOutput("c"),
-               NodeAndInst(m::OutputPort("c"), HasSubstr("adder0_inst"))),
-          // adder1_inst mapping
-          Pair(m::InstantiationInput(m::InputPort("c"), "a"),
-               NodeAndInst(m::InputPort("a"), HasSubstr("adder1_inst"))),
-          Pair(m::InstantiationInput(m::InputPort("d"), "b"),
-               NodeAndInst(m::InputPort("b"), HasSubstr("adder1_inst"))),
-          Pair(m::InstantiationOutput("c"),
-               NodeAndInst(m::OutputPort("c"), HasSubstr("adder1_inst"))),
-          // adder2_inst mapping
-          Pair(m::InstantiationInput(m::InstantiationOutput("c"), "a"),
-               NodeAndInst(m::InputPort("a"), HasSubstr("adder2_inst"))),
-          Pair(m::InstantiationInput(m::InstantiationOutput("c"), "b"),
-               NodeAndInst(m::InputPort("b"), HasSubstr("adder2_inst"))),
-          Pair(m::InstantiationOutput("c"),
-               NodeAndInst(m::OutputPort("c"), HasSubstr("adder2_inst")))));
+          Pair(m::Instantiation("adder0_inst"), BlockInstanceName("adder")),
+          Pair(m::Instantiation("adder1_inst"), BlockInstanceName("adder")),
+          Pair(m::Instantiation("adder2_inst"), BlockInstanceName("adder"))));
 
   Block* child_block = *elab.top()->child_instances().front()->block();
 
@@ -281,8 +260,9 @@ TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
   EXPECT_THAT(elab.top()->path().path, IsEmpty());
   EXPECT_THAT(elab.top()->child_instances(),
               UnorderedElementsAre(InstantiationName("fifo_inst")));
-  EXPECT_THAT(elab.top()->child_to_parent_ports(), IsEmpty());
-  EXPECT_THAT(elab.top()->parent_to_child_ports(), IsEmpty());
+  EXPECT_THAT(elab.top()->instantiation_to_instance(),
+              UnorderedElementsAre(Pair(m::Instantiation("fifo_inst"),
+                                        InstantiationName("fifo_inst"))));
   EXPECT_THAT(elab.blocks(), UnorderedElementsAre(block));
   EXPECT_THAT(elab.instances(),
               UnorderedElementsAre(BlockInstanceFor(block),

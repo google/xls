@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -134,36 +135,42 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
                                       instance->RegisterPrefix(), reg_state_,
                                       next_reg_state_)});
     }
-    SetInstance(elaboration.top());
+    CHECK_OK(SetInstance(elaboration.top()));
   }
 
   absl::Status HandleInputPort(InputPort* input_port,
                                BlockInstance* instance) override {
-    SetInstance(instance);
-    auto parent_node_itr =
-        current_instance_->child_to_parent_ports().find(input_port);
-    if (parent_node_itr == current_instance_->child_to_parent_ports().end()) {
-      auto port_iter = inputs_.find(input_port->GetName());
-      if (port_iter == inputs_.end()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Missing input for port '%s'", input_port->GetName()));
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
+    if (current_instance_->parent_instance().has_value()) {
+      BlockInstance* parent_instance = *current_instance_->parent_instance();
+      std::optional<ElaboratedNode> predecessor = InterInstancePredecessor(
+          ElaboratedNode{.node = input_port, .instance = instance});
+
+      XLS_RET_CHECK(predecessor.has_value() &&
+                    predecessor->node->Is<InstantiationInput>());
+
+      auto parent_interpreter_iter = interpreters_.find(parent_instance);
+      if (parent_interpreter_iter == interpreters_.end()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Missing parent interpreter for instance '%s'",
+                            parent_instance->ToString()));
       }
-      return current_interpreter_->SetValueResult(input_port,
-                                                  port_iter->second);
+      const BlockInterpreter& parent_interpreter =
+          parent_interpreter_iter->second;
+      return current_interpreter_->SetValueResult(
+          input_port, parent_interpreter.ResolveAsValue(
+                          predecessor->node->As<InstantiationInput>()->data()));
     }
-    Node* parent_node = parent_node_itr->second.node;
-    XLS_RET_CHECK(parent_node->Is<InstantiationInput>());
-    Node* parent_input_data = parent_node->As<InstantiationInput>()->data();
-
-    const Value& parent_value =
-        interpreters_.at(parent_node_itr->second.instance)
-            .ResolveAsValue(parent_input_data);
-
-    return current_interpreter_->SetValueResult(input_port, parent_value);
+    auto port_iter = inputs_.find(input_port->GetName());
+    if (port_iter == inputs_.end()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Missing input for port '%s'", input_port->GetName()));
+    }
+    return current_interpreter_->SetValueResult(input_port, port_iter->second);
   }
   absl::Status HandleInstantiationInput(InstantiationInput* instantiation_input,
                                         BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     // Instantiation inputs have empty tuple types.
     return current_interpreter_->SetValueResult(instantiation_input,
                                                 Value::Tuple({}));
@@ -171,352 +178,357 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
   absl::Status HandleInstantiationOutput(
       InstantiationOutput* instantiation_output,
       BlockInstance* instance) override {
-    SetInstance(instance);
-    auto child_itr =
-        current_instance_->parent_to_child_ports().find(instantiation_output);
-    if (child_itr == current_instance_->parent_to_child_ports().end()) {
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
+    BlockInstance* child_instance = instance->instantiation_to_instance().at(
+        instantiation_output->instantiation());
+    std::optional<ElaboratedNode> predecessor = InterInstancePredecessor(
+        ElaboratedNode{.node = instantiation_output, .instance = instance});
+    XLS_RET_CHECK(predecessor.has_value() &&
+                  predecessor->node->Is<OutputPort>());
+    Node* child_output_data = predecessor->node->As<OutputPort>()->operand(0);
+    auto child_interpreter_iter = interpreters_.find(child_instance);
+    if (child_interpreter_iter == interpreters_.end()) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Missing instantiation output for port '%s'",
-                          instantiation_output->GetName()));
+          absl::StrFormat("Missing child interpreter for instance '%s'",
+                          child_instance->ToString()));
     }
-    Node* child_node = child_itr->second.node;
-    XLS_RET_CHECK(child_node->Is<OutputPort>()) << absl::StreamFormat(
-        "Unexpected instantiation output for port '%v'", *instantiation_output);
-    Node* child_output_data = child_node->As<OutputPort>()->operand(0);
-    BlockInstance* child_instance = child_itr->second.instance;
     const Value& child_value =
-        interpreters_.at(child_instance).ResolveAsValue(child_output_data);
+        child_interpreter_iter->second.ResolveAsValue(child_output_data);
     return current_interpreter_->SetValueResult(instantiation_output,
                                                 child_value);
   }
   absl::Status HandleOutputPort(OutputPort* output_port,
                                 BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     // Output ports have empty tuple types.
     return current_interpreter_->SetValueResult(output_port, Value::Tuple({}));
   }
 
   // The rest of these handlers simply forward to the underlying interpreter.
   absl::Status HandleAdd(BinOp* add, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleAdd(add);
   }
   absl::Status HandleAfterAll(AfterAll* after_all,
                               BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleAfterAll(after_all);
   }
   absl::Status HandleMinDelay(MinDelay* min_delay,
                               BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleMinDelay(min_delay);
   }
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce,
                                BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleAndReduce(and_reduce);
   }
   absl::Status HandleArray(Array* array, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleArray(array);
   }
   absl::Status HandleArrayConcat(ArrayConcat* array_concat,
                                  BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleArrayConcat(array_concat);
   }
   absl::Status HandleAssert(Assert* assert_op,
                             BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleAssert(assert_op);
   }
   absl::Status HandleBitSlice(BitSlice* bit_slice,
                               BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleBitSlice(bit_slice);
   }
   absl::Status HandleBitSliceUpdate(BitSliceUpdate* update,
                                     BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleBitSliceUpdate(update);
   }
   absl::Status HandleConcat(Concat* concat, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleConcat(concat);
   }
   absl::Status HandleCountedFor(CountedFor* counted_for,
                                 BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleCountedFor(counted_for);
   }
   absl::Status HandleCover(Cover* cover, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleCover(cover);
   }
   absl::Status HandleDecode(Decode* decode, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleDecode(decode);
   }
   absl::Status HandleDynamicBitSlice(DynamicBitSlice* dynamic_bit_slice,
                                      BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleDynamicBitSlice(dynamic_bit_slice);
   }
   absl::Status HandleDynamicCountedFor(DynamicCountedFor* dynamic_counted_for,
                                        BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleDynamicCountedFor(dynamic_counted_for);
   }
   absl::Status HandleEncode(Encode* encode, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleEncode(encode);
   }
   absl::Status HandleEq(CompareOp* eq, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleEq(eq);
   }
   absl::Status HandleGate(Gate* gate, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleGate(gate);
   }
   absl::Status HandleIdentity(UnOp* identity,
                               BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleIdentity(identity);
   }
   absl::Status HandleInvoke(Invoke* invoke, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleInvoke(invoke);
   }
   absl::Status HandleLiteral(Literal* literal,
                              BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleLiteral(literal);
   }
   absl::Status HandleMap(Map* map, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleMap(map);
   }
   absl::Status HandleArrayIndex(ArrayIndex* index,
                                 BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleArrayIndex(index);
   }
   absl::Status HandleArraySlice(ArraySlice* update,
                                 BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleArraySlice(update);
   }
   absl::Status HandleArrayUpdate(ArrayUpdate* update,
                                  BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleArrayUpdate(update);
   }
   absl::Status HandleNaryAnd(NaryOp* and_op, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNaryAnd(and_op);
   }
   absl::Status HandleNaryNand(NaryOp* nand_op,
                               BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNaryNand(nand_op);
   }
   absl::Status HandleNaryNor(NaryOp* nor_op, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNaryNor(nor_op);
   }
   absl::Status HandleNaryOr(NaryOp* or_op, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNaryOr(or_op);
   }
   absl::Status HandleNaryXor(NaryOp* xor_op, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNaryXor(xor_op);
   }
   absl::Status HandleNe(CompareOp* ne, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNe(ne);
   }
   absl::Status HandleNeg(UnOp* neg, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNeg(neg);
   }
   absl::Status HandleNot(UnOp* not_op, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNot(not_op);
   }
   absl::Status HandleOneHot(OneHot* one_hot, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleOneHot(one_hot);
   }
   absl::Status HandleOneHotSel(OneHotSelect* sel,
                                BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleOneHotSel(sel);
   }
   absl::Status HandlePrioritySel(PrioritySelect* sel,
                                  BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandlePrioritySel(sel);
   }
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce,
                               BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleOrReduce(or_reduce);
   }
   absl::Status HandleParam(Param* param, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleParam(param);
   }
   absl::Status HandleNext(Next* next, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNext(next);
   }
   absl::Status HandleReceive(Receive* receive,
                              BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleReceive(receive);
   }
   absl::Status HandleRegisterRead(RegisterRead* reg_read,
                                   BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleRegisterRead(reg_read);
   }
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write,
                                    BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleRegisterWrite(reg_write);
   }
   absl::Status HandleReverse(UnOp* reverse, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleReverse(reverse);
   }
   absl::Status HandleSDiv(BinOp* div, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSDiv(div);
   }
   absl::Status HandleSGe(CompareOp* ge, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSGe(ge);
   }
   absl::Status HandleSGt(CompareOp* gt, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSGt(gt);
   }
   absl::Status HandleSLe(CompareOp* le, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSLe(le);
   }
   absl::Status HandleSLt(CompareOp* lt, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSLt(lt);
   }
   absl::Status HandleSMod(BinOp* mod, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSMod(mod);
   }
   absl::Status HandleSMul(ArithOp* mul, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSMul(mul);
   }
   absl::Status HandleSMulp(PartialProductOp* mul,
                            BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSMulp(mul);
   }
   absl::Status HandleSel(Select* sel, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSel(sel);
   }
   absl::Status HandleSend(Send* send, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSend(send);
   }
   absl::Status HandleShll(BinOp* shll, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleShll(shll);
   }
   absl::Status HandleShra(BinOp* shra, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleShra(shra);
   }
   absl::Status HandleShrl(BinOp* shrl, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleShrl(shrl);
   }
   absl::Status HandleSignExtend(ExtendOp* sign_ext,
                                 BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSignExtend(sign_ext);
   }
   absl::Status HandleSub(BinOp* sub, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleSub(sub);
   }
   absl::Status HandleTrace(Trace* trace_op, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleTrace(trace_op);
   }
   absl::Status HandleTuple(Tuple* tuple, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleTuple(tuple);
   }
   absl::Status HandleTupleIndex(TupleIndex* index,
                                 BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleTupleIndex(index);
   }
   absl::Status HandleUDiv(BinOp* div, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleUDiv(div);
   }
   absl::Status HandleUGe(CompareOp* ge, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleUGe(ge);
   }
   absl::Status HandleUGt(CompareOp* gt, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleUGt(gt);
   }
   absl::Status HandleULe(CompareOp* le, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleULe(le);
   }
   absl::Status HandleULt(CompareOp* lt, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleULt(lt);
   }
   absl::Status HandleUMod(BinOp* mod, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleUMod(mod);
   }
   absl::Status HandleUMul(ArithOp* mul, BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleUMul(mul);
   }
   absl::Status HandleUMulp(PartialProductOp* mul,
                            BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleUMulp(mul);
   }
   absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce,
                                BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleXorReduce(xor_reduce);
   }
   absl::Status HandleZeroExtend(ExtendOp* zero_ext,
                                 BlockInstance* instance) override {
-    SetInstance(instance);
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleZeroExtend(zero_ext);
   }
 
-  void SetInstance(BlockInstance* instance) {
+  absl::Status SetInstance(BlockInstance* instance) {
     if (current_instance_ == instance) {
-      DCHECK(current_interpreter_ == &interpreters_.at(instance));
-      return;
+      XLS_RET_CHECK(interpreters_.contains(instance) &&
+                    current_interpreter_ == &interpreters_.at(instance));
+      return absl::OkStatus();
     }
     current_instance_ = instance;
-    current_interpreter_ = &interpreters_.at(instance);
+    auto it = interpreters_.find(instance);
+    XLS_RET_CHECK(it != interpreters_.end());
+    current_interpreter_ = &it->second;
+    return absl::OkStatus();
   }
 
   BlockInterpreter& GetInterpreter(BlockInstance* instance) {
@@ -596,7 +608,7 @@ absl::StatusOr<BlockRunResult> BlockRun(
   XLS_RETURN_IF_ERROR(elaboration.Accept(interpreter));
 
   BlockRunResult result;
-  interpreter.SetInstance(elaboration.top());
+  XLS_RETURN_IF_ERROR(interpreter.SetInstance(elaboration.top()));
   BlockInterpreter& top_interpreter =
       interpreter.GetInterpreter(elaboration.top());
   result.outputs.reserve(top_block->GetOutputPorts().size());
