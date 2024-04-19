@@ -65,6 +65,13 @@ ABSL_FLAG(
     "If true, when `--clock_period_ps` is given but is infeasible for "
     "scheduling, search for & report the shortest feasible clock period. "
     "Otherwise, just reports whether increasing the clock period can help.");
+ABSL_FLAG(
+    bool, recover_after_minimizing_clock, false,
+    "If both this and `--minimize_clock_on_failure` are true and "
+    "`--clock_period_ps` is given and infeasible for scheduling, search for & "
+    "use the shortest feasible clock period - even if this does not meet the "
+    "`--clock_period_ps` target - after printing a warning."
+    "Otherwise, will stop with an error if `--clock_period_ps` is infeasible.");
 ABSL_FLAG(bool, minimize_worst_case_throughput, false,
           "If true, when `--worst_case_throughput` is not given, search for & "
           "report the best possible worst-case throughput of the circuit "
@@ -189,6 +196,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(clock_margin_percent);
   POPULATE_FLAG(period_relaxation_percent);
   POPULATE_FLAG(minimize_clock_on_failure);
+  POPULATE_FLAG(recover_after_minimizing_clock);
   POPULATE_FLAG(minimize_worst_case_throughput);
   {
     any_flags_set |= FLAGS_worst_case_throughput.IsSpecifiedOnCommandLine();
@@ -278,6 +286,8 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   }
   scheduling_options.minimize_clock_on_failure(
       proto.minimize_clock_on_failure());
+  scheduling_options.recover_after_minimizing_clock(
+      proto.recover_after_minimizing_clock());
   if (proto.worst_case_throughput() != 1) {
     scheduling_options.worst_case_throughput(proto.worst_case_throughput());
   }

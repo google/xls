@@ -67,6 +67,11 @@ control the scheduler.
     relaxed), XLS will find and report the minimum feasible clock period if one
     exists. If disabled, XLS will report only that the clock period was
     infeasible, potentially saving time.
+-   `--recover_after_minimizing_clock` is disabled by default. If both this and
+    `--minimize_clock_on_error` are enabled, when `--clock_period_ps` is given
+    with an infeasible clock, XLS will print a warning, find and report the
+    minimum feasible clock period (if one exists), and then continue generating
+    Verilog as if this had been the specified clock period.
 -   `--minimize_worst_case_throughput` is disabled by default. If enabled, when
     `--worst_case_throughput` is not specified (or disabled by setting it to 0
     or a negative value), XLS will find & report the best possible worst-case

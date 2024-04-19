@@ -124,6 +124,10 @@ SCHEDULING_FIELDS = {
     "minimize_clock_on_error": "If true, when `--clock_period_ps` is given " +
                                "but is infeasible for scheduling, search for " +
                                "& report the shortest feasible clock period.",
+    "recover_after_minimizing_clock": "If this and `--minimize_clock_on_error` are both given, " +
+                                      "when `--clock_period_ps` is given but is infeasible for " +
+                                      "scheduling, will print a warning and continue scheduling " +
+                                      "as if the shortest feasible clock period had been given.",
     "minimize_worst_case_throughput": "If true, when `--worst_case_throughput` " +
                                       "is not given, search for & report the best " +
                                       "possible worst-case throughput of the circuit " +

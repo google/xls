@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/log_severity.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -463,14 +464,25 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
         if (options.minimize_clock_on_failure().value_or(true)) {
           // Find the smallest clock period that would have worked.
-          LOG(ERROR)
-              << "Unable to schedule with the specified clock period; finding "
-                 "the shortest feasible clock period...";
+          LOG(LEVEL(options.recover_after_minimizing_clock().value_or(false)
+                        ? absl::LogSeverity::kWarning
+                        : absl::LogSeverity::kError))
+              << "Unable to schedule with the specified clock period ("
+              << clock_period_ps
+              << " ps); finding the shortest feasible clock period...";
           int64_t target_clock_period_ps = clock_period_ps + 1;
           absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
               f, options.pipeline_stages(), input_delay_added, *sdc_scheduler,
               options.failure_behavior(), target_clock_period_ps);
           if (min_clock_period_ps.ok()) {
+            if (options.recover_after_minimizing_clock().value_or(false)) {
+              LOG(WARNING) << "Continuing with clock period = "
+                           << *min_clock_period_ps << " ps.";
+              SchedulingOptions new_clock_options(options);
+              new_clock_options.clock_period_ps(*min_clock_period_ps);
+              return RunPipelineSchedule(f, delay_estimator, new_clock_options,
+                                         synthesizer);
+            }
             // Just increasing the clock period suffices.
             return absl::InvalidArgumentError(absl::StrFormat(
                 "cannot achieve the specified clock period. Try "

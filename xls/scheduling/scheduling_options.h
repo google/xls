@@ -231,6 +231,7 @@ class SchedulingOptions {
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
       : strategy_(strategy),
         minimize_clock_on_failure_(true),
+        recover_after_minimizing_clock_(false),
         minimize_worst_case_throughput_(false),
         constraints_({
             BackedgeConstraint(),
@@ -299,6 +300,16 @@ class SchedulingOptions {
   }
   std::optional<bool> minimize_clock_on_failure() const {
     return minimize_clock_on_failure_;
+  }
+
+  // Sets/gets whether to fall back to the fastest feasible clock if scheduling
+  // is infeasible at the user's specified clock.
+  SchedulingOptions& recover_after_minimizing_clock(bool value) {
+    recover_after_minimizing_clock_ = value;
+    return *this;
+  }
+  std::optional<bool> recover_after_minimizing_clock() const {
+    return recover_after_minimizing_clock_;
   }
 
   // Sets/gets whether to find the fastest feasible worst-case throughput if the
@@ -494,6 +505,7 @@ class SchedulingOptions {
   std::optional<int64_t> clock_margin_percent_;
   std::optional<int64_t> period_relaxation_percent_;
   bool minimize_clock_on_failure_;
+  bool recover_after_minimizing_clock_;
   bool minimize_worst_case_throughput_;
   std::optional<int64_t> worst_case_throughput_;
   std::optional<int64_t> additional_input_delay_ps_;
