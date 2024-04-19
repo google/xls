@@ -388,6 +388,7 @@ class InterpreterTest(test_base.TestCase):
     0003:   let x = u2[2]:[2, 3];
     0004:   assert_eq(u3:0, x as u3)
     ~~~~~~~~~~~~~~~~~~~~~~~~^-----^ XlsTypeError: Cannot cast from expression type uN[2][2] to uN[3].
+    Type mismatch:
        uN[2][2]
     vs uN[3]
     0005: }

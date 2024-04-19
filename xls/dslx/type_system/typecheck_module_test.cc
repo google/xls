@@ -595,9 +595,11 @@ fn p<N: u32>(x: (u32, u64)[N]) -> u32 { x[0].0 }
 fn main() -> u32 {
   p(u32[1][1]:[[u32:0]])
 })"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("expected argument kind 'array' to match parameter "
-                         "kind 'tuple'\n   (uN[32], uN[64])\nvs uN[32][1]")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstr("expected argument kind 'array' to match parameter "
+                          "kind 'tuple'"),
+                HasSubstr("(uN[32], uN[64])\nvs uN[32][1]"))));
 }
 
 TEST(TypecheckTest, ForBuiltinInBody) {
@@ -629,7 +631,7 @@ fn f(x: u32) -> (u32, u8) {
 })"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          AllOf(HasSubstr("(uN[32], uN[8])\nvs (uN[32], (uN[32], uN[8])"),
+          AllOf(HasSubstr("uN[8]\nvs (uN[32], uN[8])"),
                 HasSubstr(
                     "For-loop annotated type did not match inferred type."))));
 }
@@ -1489,9 +1491,9 @@ fn f() -> MyEnum { MyEnum::C }
                HasSubstr("Name 'C' is not defined by the enum MyEnum")));
 }
 
+// Nominal typing not structural, e.g. OtherPoint cannot be passed where we want
+// a Point, even though their members are the same.
 TEST(TypecheckTest, NominalTyping) {
-  // Nominal typing not structural, e.g. OtherPoint cannot be passed where we
-  // want a Point, even though their members are the same.
   EXPECT_THAT(Typecheck(R"(
 struct Point { x: s8, y: u32 }
 struct OtherPoint { x: s8, y: u32 }
@@ -1502,8 +1504,8 @@ fn g() -> Point {
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("struct 'Point' structure: Point { x: sN[8], "
-                                 "y: uN[32] }\nvs struct 'OtherPoint'")));
+                       HasSubstr("Point { x: sN[8], y: uN[32] }\nvs OtherPoint "
+                                 "{ x: sN[8], y: uN[32] }")));
 }
 
 TEST(TypecheckTest, ParametricWithConstantArrayEllipsis) {
@@ -1688,7 +1690,7 @@ fn g() -> (s8, u32) {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("(sN[8], uN[32])\nvs struct 'Point' structure")));
+               HasSubstr("(sN[8], uN[32])\nvs Point { x: sN[8], y: uN[32] }")));
 }
 
 TEST(TypecheckStructInstanceTest, SplatWithDuplicate) {
@@ -1783,14 +1785,11 @@ fn main() {
 }
 
 TEST(TypecheckParametricStructInstanceTest, BadReturnType) {
-  EXPECT_THAT(
-      TypecheckParametricStructInstance(
-          "fn f() -> Point<5, 10> { Point { x: u32:5, y: u64:255 } }"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "   struct 'Point' structure: Point { x: uN[32], y: uN[64] }\nvs "
-              "struct 'Point' structure: Point { x: uN[5], y: uN[10] }")));
+  EXPECT_THAT(TypecheckParametricStructInstance(
+                  "fn f() -> Point<5, 10> { Point { x: u32:5, y: u64:255 } }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Point { x: uN[32], y: uN[64] }\nvs Point { "
+                                 "x: uN[5], y: uN[10] }")));
 }
 
 // Bad struct type-parametric instantiation in parametric function.

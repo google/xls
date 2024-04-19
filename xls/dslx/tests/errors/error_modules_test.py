@@ -1097,7 +1097,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('XlsTypeError:', stderr)
     self.assertIn(
-        '(uN[8], uN[16], uN[32], uN[64])\nvs (uN[8], uN[16], uN[33], uN[64])',
+        'Mismatched elements within type:\n'
+        '   uN[32]\n'
+        'vs uN[33]\n'
+        'Overall type mismatch:\n'
+        '   (uN[8], uN[16], uN[32], uN[64])\n'
+        'vs (uN[8], uN[16], uN[33], uN[64])',
         stderr,
     )
     self.assertIn(

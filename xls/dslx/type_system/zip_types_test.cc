@@ -46,7 +46,9 @@ enum class CallbackKind : uint8_t {
 struct CallbackData {
   CallbackKind kind;
   const Type* lhs = nullptr;
+  const Type* lhs_parent = nullptr;
   const Type* rhs = nullptr;
+  const Type* rhs_parent = nullptr;
   std::optional<AggregatePair> aggregates;
 };
 
@@ -101,14 +103,24 @@ class ZipTypesCallbacksCollector : public ZipTypesCallbacks {
         CallbackData{.kind = CallbackKind::kAggregateEnd, .aggregates = pair});
     return absl::OkStatus();
   }
-  absl::Status NoteMatchedLeafType(const Type& lhs, const Type& rhs) override {
-    data_.push_back(CallbackData{
-        .kind = CallbackKind::kMatchedLeaf, .lhs = &lhs, .rhs = &rhs});
+  absl::Status NoteMatchedLeafType(const Type& lhs, const Type* lhs_parent,
+                                   const Type& rhs,
+                                   const Type* rhs_parent) override {
+    data_.push_back(CallbackData{.kind = CallbackKind::kMatchedLeaf,
+                                 .lhs = &lhs,
+                                 .lhs_parent = lhs_parent,
+                                 .rhs = &rhs,
+                                 .rhs_parent = rhs_parent});
     return absl::OkStatus();
   }
-  absl::Status NoteTypeMismatch(const Type& lhs, const Type& rhs) override {
-    data_.push_back(CallbackData{
-        .kind = CallbackKind::kMismatch, .lhs = &lhs, .rhs = &rhs});
+  absl::Status NoteTypeMismatch(const Type& lhs, const Type* lhs_parent,
+                                const Type& rhs,
+                                const Type* rhs_parent) override {
+    data_.push_back(CallbackData{.kind = CallbackKind::kMismatch,
+                                 .lhs = &lhs,
+                                 .lhs_parent = lhs_parent,
+                                 .rhs = &rhs,
+                                 .rhs_parent = rhs_parent});
     return absl::OkStatus();
   }
 
@@ -147,9 +159,10 @@ TEST(ZipTypesTest, BitsConstructorVsBitsType) {
   ZipTypesCallbacksCollector collector;
   XLS_ASSERT_OK(ZipTypes(*lhs, *rhs, collector));
 
-  EXPECT_THAT(collector.data(),
-              ElementsAre(FieldsAre(CallbackKind::kMatchedLeaf, lhs.get(),
-                                    rhs.get(), std::nullopt)));
+  EXPECT_THAT(
+      collector.data(),
+      ElementsAre(FieldsAre(CallbackKind::kMatchedLeaf, lhs.get(), nullptr,
+                            rhs.get(), nullptr, std::nullopt)));
 }
 
 TEST(ZipTypesTest, TupleWithOneDifferingElement) {
@@ -167,16 +180,18 @@ TEST(ZipTypesTest, TupleWithOneDifferingElement) {
       std::make_pair(lhs.get(), rhs.get());
   EXPECT_THAT(collector.data()[0],
               FieldsAre(CallbackKind::kAggregateStart, nullptr, nullptr,
-                        AggregatePair{aggregates}));
-  EXPECT_THAT(collector.data()[1],
-              FieldsAre(CallbackKind::kMatchedLeaf, &lhs->GetMemberType(0),
-                        &rhs->GetMemberType(0), std::nullopt));
-  EXPECT_THAT(collector.data()[2],
-              FieldsAre(CallbackKind::kMismatch, &lhs->GetMemberType(1),
-                        &rhs->GetMemberType(1), std::nullopt));
+                        nullptr, nullptr, AggregatePair{aggregates}));
+  EXPECT_THAT(
+      collector.data()[1],
+      FieldsAre(CallbackKind::kMatchedLeaf, &lhs->GetMemberType(0), lhs.get(),
+                &rhs->GetMemberType(0), rhs.get(), std::nullopt));
+  EXPECT_THAT(
+      collector.data()[2],
+      FieldsAre(CallbackKind::kMismatch, &lhs->GetMemberType(1), lhs.get(),
+                &rhs->GetMemberType(1), rhs.get(), std::nullopt));
   EXPECT_THAT(collector.data()[3],
-              FieldsAre(CallbackKind::kAggregateEnd, nullptr, nullptr,
-                        AggregatePair{aggregates}));
+              FieldsAre(CallbackKind::kAggregateEnd, nullptr, nullptr, nullptr,
+                        nullptr, AggregatePair{aggregates}));
 }
 
 }  // namespace

@@ -35,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/warning_collector.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 
@@ -77,6 +78,17 @@ absl::Status PrintPositionalError(
       std::max(start.lineno() - line_count_each_side, int64_t{0});
   int64_t last_line_printed =
       std::min(limit.lineno() + line_count_each_side, file_limit.lineno());
+
+  // Strip ANSI escape codes from the error message opportunistically if we know
+  // we shouldn't be emitting colors.
+  //
+  // This is a bit of a layering violation but makes life easier as it allows
+  // "downstream" error message creation to insert ANSI codes without needing to
+  // be told explicitly if color error messages are ok.
+  std::string msg{error_message};
+  if (!isatty(fileno(stderr)) || color == PositionalErrorColor::kNoColor) {
+    RE2::GlobalReplace(&msg, "\33\\[\\d+m", "");
+  }
 
   std::string_view pos_color_leader;
   std::string_view msg_color_leader;
@@ -134,14 +146,14 @@ absl::Status PrintPositionalError(
           dashes_and_arrow = std::string(width - 1, '-') + "^";
         }
         os << absl::StreamFormat("%s%s^%s %s%s\n", msg_color_leader, squiggles,
-                                 dashes_and_arrow, error_message, color_reset);
+                                 dashes_and_arrow, msg, color_reset);
       }
     } else if (i == limit.lineno()) {
       // Emit arrow pointing to the end of the multi-line error.
       std::string spaces(std::string_view("0000: ").size(), ' ');
       std::string underscores(std::max(int64_t{0}, limit.colno()), '_');
       os << absl::StreamFormat("%s%s|%s^ %s%s\n", msg_color_leader, spaces,
-                               underscores, error_message, color_reset);
+                               underscores, msg, color_reset);
       // We're done drawing the multiline arrows; put down the crayon.
       bar = bar_off;
     }

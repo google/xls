@@ -261,12 +261,13 @@ cc_library(
     srcs = ["maybe_explain_error.cc"],
     hdrs = ["maybe_explain_error.h"],
     deps = [
+        ":format_type_mismatch",
         ":type",
         ":type_mismatch_error_data",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/dslx:errors",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
@@ -863,5 +864,35 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+    ],
+)
+
+cc_library(
+    name = "format_type_mismatch",
+    srcs = ["format_type_mismatch.cc"],
+    hdrs = ["format_type_mismatch.h"],
+    deps = [
+        ":type",
+        ":zip_types",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "format_type_mismatch_test",
+    srcs = ["format_type_mismatch_test.cc"],
+    deps = [
+        ":format_type_mismatch",
+        ":type",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
     ],
 )

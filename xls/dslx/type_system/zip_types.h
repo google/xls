@@ -48,12 +48,16 @@ class ZipTypesCallbacks {
   // Called when there is a leaf type (non aggregate) where the types are
   // type-compatible.
   virtual absl::Status NoteMatchedLeafType(const Type& lhs,
-                                           const Type& rhs) = 0;
+                                           const Type* lhs_parent,
+                                           const Type& rhs,
+                                           const Type* rhs_parent) = 0;
 
   // Called when there is a type (could be leaf or aggregate) where the types
   // are not type-compatible -- we do not recurse into these as they likely do
   // not have a common internal structure given that they mismatch.
-  virtual absl::Status NoteTypeMismatch(const Type& lhs, const Type& rhs) = 0;
+  virtual absl::Status NoteTypeMismatch(const Type& lhs, const Type* lhs_parent,
+                                        const Type& rhs,
+                                        const Type* rhs_parent) = 0;
 };
 
 // Zips the /common structure/ of "lhs" type and "rhs" type, invoking "f" at all

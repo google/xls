@@ -24,14 +24,23 @@
 namespace xls::dslx {
 namespace {
 
+// Forward decl.
+absl::Status ZipTypesWithParents(const Type& lhs, const Type& rhs,
+                                 const Type* lhs_parent, const Type* rhs_parent,
+                                 ZipTypesCallbacks& callbacks);
+
 // This is an implementation detail in traversing types and then recursively
 // calling ZipTypes -- we inherit TypeVisitor because we need to learn the
 // actual type of the generic `Type` on the left hand side and then compare that
 // to what we see on the right hand side at each step.
 class ZipTypeVisitor : public TypeVisitor {
  public:
-  explicit ZipTypeVisitor(const Type& rhs, ZipTypesCallbacks& callbacks)
-      : rhs_(rhs), callbacks_(callbacks) {}
+  explicit ZipTypeVisitor(const Type& rhs, const Type* lhs_parent,
+                          const Type* rhs_parent, ZipTypesCallbacks& callbacks)
+      : rhs_(rhs),
+        lhs_parent_(lhs_parent),
+        rhs_parent_(rhs_parent),
+        callbacks_(callbacks) {}
 
   ~ZipTypeVisitor() override = default;
 
@@ -56,13 +65,15 @@ class ZipTypeVisitor : public TypeVisitor {
     if (auto* rhs = dynamic_cast<const TupleType*>(&rhs_)) {
       return HandleTupleLike(lhs, *rhs);
     }
-    return callbacks_.NoteTypeMismatch(lhs, rhs_);
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
   absl::Status HandleStruct(const StructType& lhs) override {
     if (auto* rhs = dynamic_cast<const StructType*>(&rhs_)) {
-      return HandleTupleLike(lhs, *rhs);
+      if (&lhs.nominal_type() == &rhs->nominal_type()) {
+        return HandleTupleLike(lhs, *rhs);
+      }
     }
-    return callbacks_.NoteTypeMismatch(lhs, rhs_);
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
   absl::Status HandleArray(const ArrayType& lhs) override {
     if (auto* rhs = dynamic_cast<const ArrayType*>(&rhs_)) {
@@ -73,7 +84,7 @@ class ZipTypeVisitor : public TypeVisitor {
       XLS_RETURN_IF_ERROR(ZipTypes(lhs_elem, rhs_elem, callbacks_));
       return callbacks_.NoteAggregateEnd(aggregates);
     }
-    return callbacks_.NoteTypeMismatch(lhs, rhs_);
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
   absl::Status HandleChannel(const ChannelType& lhs) override {
     if (auto* rhs = dynamic_cast<const ChannelType*>(&rhs_)) {
@@ -83,7 +94,7 @@ class ZipTypeVisitor : public TypeVisitor {
           ZipTypes(lhs.payload_type(), rhs->payload_type(), callbacks_));
       return callbacks_.NoteAggregateEnd(aggregates);
     }
-    return callbacks_.NoteTypeMismatch(lhs, rhs_);
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
   absl::Status HandleFunction(const FunctionType& lhs) override {
     if (auto* rhs = dynamic_cast<const FunctionType*>(&rhs_)) {
@@ -97,7 +108,7 @@ class ZipTypeVisitor : public TypeVisitor {
           ZipTypes(lhs.return_type(), rhs->return_type(), callbacks_));
       return callbacks_.NoteAggregateEnd(aggregates);
     }
-    return callbacks_.NoteTypeMismatch(lhs, rhs_);
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
   absl::Status HandleMeta(const MetaType& lhs) override {
     if (auto* rhs = dynamic_cast<const MetaType*>(&rhs_)) {
@@ -107,7 +118,7 @@ class ZipTypeVisitor : public TypeVisitor {
           ZipTypes(*lhs.wrapped(), *rhs->wrapped(), callbacks_));
       return callbacks_.NoteAggregateEnd(aggregates);
     }
-    return callbacks_.NoteTypeMismatch(lhs, rhs_);
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
 
  private:
@@ -116,14 +127,15 @@ class ZipTypeVisitor : public TypeVisitor {
   absl::Status HandleTupleLike(const T& lhs, const T& rhs) {
     bool structurally_compatible = lhs.size() == rhs.size();
     if (!structurally_compatible) {
-      return callbacks_.NoteTypeMismatch(lhs, rhs);
+      return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs, rhs_parent_);
     }
     AggregatePair aggregates = std::make_pair(&lhs, &rhs);
     XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateStart(aggregates));
     for (int64_t i = 0; i < lhs.size(); ++i) {
       const Type& lhs_elem = lhs.GetMemberType(i);
       const Type& rhs_elem = rhs.GetMemberType(i);
-      XLS_RETURN_IF_ERROR(ZipTypes(lhs_elem, rhs_elem, callbacks_));
+      XLS_RETURN_IF_ERROR(
+          ZipTypesWithParents(lhs_elem, rhs_elem, &lhs, &rhs, callbacks_));
     }
     XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateEnd(aggregates));
     return absl::OkStatus();
@@ -131,21 +143,30 @@ class ZipTypeVisitor : public TypeVisitor {
 
   absl::Status HandleNonAggregate(const Type& lhs) {
     if (lhs.CompatibleWith(rhs_)) {
-      return callbacks_.NoteMatchedLeafType(lhs, rhs_);
+      return callbacks_.NoteMatchedLeafType(lhs, lhs_parent_, rhs_,
+                                            rhs_parent_);
     }
-    return callbacks_.NoteTypeMismatch(lhs, rhs_);
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
 
   const Type& rhs_;
+  const Type* lhs_parent_;
+  const Type* rhs_parent_;
   ZipTypesCallbacks& callbacks_;
 };
+
+absl::Status ZipTypesWithParents(const Type& lhs, const Type& rhs,
+                                 const Type* lhs_parent, const Type* rhs_parent,
+                                 ZipTypesCallbacks& callbacks) {
+  ZipTypeVisitor visitor(rhs, lhs_parent, rhs_parent, callbacks);
+  return lhs.Accept(visitor);
+}
 
 }  // namespace
 
 absl::Status ZipTypes(const Type& lhs, const Type& rhs,
                       ZipTypesCallbacks& callbacks) {
-  ZipTypeVisitor visitor(rhs, callbacks);
-  return lhs.Accept(visitor);
+  return ZipTypesWithParents(lhs, rhs, nullptr, nullptr, callbacks);
 }
 
 }  // namespace xls::dslx

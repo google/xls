@@ -378,6 +378,15 @@ class StructType : public Type {
     return std::make_unique<StructType>(CloneSpan(members_), struct_def_);
   }
 
+  std::optional<int64_t> IndexOf(const Type& e) const {
+    for (int64_t i = 0; i < size(); ++i) {
+      if (&GetMemberType(i) == &e) {
+        return i;
+      }
+    }
+    return std::nullopt;
+  }
+
   // For user-level error reporting, we also note the name of the struct
   // definition if one is available.
   std::string ToErrorString() const override;
@@ -452,6 +461,15 @@ class TupleType : public Type {
   // Note: we treat nil as a non-aggregate because we often use it in a context
   // where we want to say "void" similar to a scalar.
   bool IsAggregate() const override { return !empty(); }
+
+  std::optional<int64_t> IndexOf(const Type& e) const {
+    for (int64_t i = 0; i < size(); ++i) {
+      if (&GetMemberType(i) == &e) {
+        return i;
+      }
+    }
+    return std::nullopt;
+  }
 
   std::unique_ptr<Type> CloneToUnique() const override;
 

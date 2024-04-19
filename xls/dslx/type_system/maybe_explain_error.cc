@@ -21,9 +21,11 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/type_system/format_type_mismatch.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_mismatch_error_data.h"
 
@@ -34,17 +36,18 @@ namespace {
 absl::Status XlsTypeErrorStatus(const Span& span, const Type& lhs,
                                 const Type& rhs, std::string_view message) {
   if (lhs.IsAggregate() || rhs.IsAggregate()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "XlsTypeError: %s %s\n"
-        "   %s\n"
-        "vs %s",
-        span.ToString(), message, lhs.ToErrorString(), rhs.ToErrorString()));
+    XLS_ASSIGN_OR_RETURN(std::string type_diff, FormatTypeMismatch(lhs, rhs));
+    return absl::InvalidArgumentError(
+        absl::StrFormat("XlsTypeError: %s %s\n"
+                        "%s",
+                        span.ToString(), message, type_diff));
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
                       lhs.ToErrorString(), rhs.ToErrorString(), message));
 }
 
+// Creates an XlsTypeErrorStatus using the data within the type mismatch struct.
 absl::Status MakeTypeError(const TypeMismatchErrorData& data) {
   return XlsTypeErrorStatus(data.error_span, *data.lhs, *data.rhs,
                             data.message);
