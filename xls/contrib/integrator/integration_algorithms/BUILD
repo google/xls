@@ -28,9 +28,13 @@ cc_library(
     ],
     deps = [
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/contrib/integrator:integration_options",
         "//xls/contrib/integrator:ir_integrator",
         "//xls/ir",
+        "//xls/ir:verifier",
     ],
 )
 
@@ -48,5 +52,6 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "//xls/ir:verifier",
     ],
 )

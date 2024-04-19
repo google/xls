@@ -323,6 +323,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/ir:verifier",
     ],
 )
 

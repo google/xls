@@ -205,6 +205,7 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:verifier",
     ],
 )
 
@@ -268,6 +269,7 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:ir_scanner",
         "//xls/ir:value",
+        "//xls/ir:verifier",
     ],
 )
 

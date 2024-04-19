@@ -39,7 +39,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/unwrapping_iterator.h"
-#include "xls/ir/verifier.h"
+#include "xls/ir/verify_node.h"
 
 namespace xls {
 

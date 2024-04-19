@@ -84,7 +84,7 @@ cc_library(
     deps = [
         ":optimization_pass",
         "@com_google_absl//absl/status",
-        "//xls/ir",
+        "//xls/ir:verifier",
     ],
 )
 
@@ -2775,6 +2775,7 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
+        "//xls/ir:verifier",
     ],
 )
 

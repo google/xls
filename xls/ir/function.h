@@ -17,25 +17,19 @@
 
 #include <list>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/iterator_range.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
-#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
-#include "xls/ir/unwrapping_iterator.h"
-#include "xls/ir/verifier.h"
 
 namespace xls {
 

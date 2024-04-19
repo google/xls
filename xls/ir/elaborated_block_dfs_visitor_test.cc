@@ -237,8 +237,9 @@ block foo(p: bits[42], q: bits[42], r: bits[42]) {
   r: () = output_port(sum, name=r)
 }
 )";
+  // ParsePackageNoVerify because there's a cycle.
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
-                           Parser::ParsePackage(input));
+                           Parser::ParsePackageNoVerify(input));
   XLS_ASSERT_OK_AND_ASSIGN(
       BlockElaboration elab,
       BlockElaboration::Elaborate(p->GetBlock("foo").value()));

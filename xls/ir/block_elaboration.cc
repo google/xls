@@ -96,8 +96,9 @@ std::optional<ElaboratedNode> InterInstancePredecessor(
       Block* child_block = *child_instance->block();
       absl::StatusOr<OutputPort*> port =
           child_block->GetOutputPort(instantiation_output->port_name());
-      CHECK_OK(port.status());
-      return ElaboratedNode{.node = *port, .instance = child_instance};
+      if (port.ok()) {
+        return ElaboratedNode{.node = *port, .instance = child_instance};
+      }
     }
   }
 
@@ -140,8 +141,9 @@ std::optional<ElaboratedNode> InterInstanceSuccessor(
       Block* child_block = *child_instance->block();
       absl::StatusOr<InputPort*> port =
           child_block->GetInputPort(instantiation_input->port_name());
-      CHECK_OK(port.status());
-      return ElaboratedNode{.node = *port, .instance = child_instance};
+      if (port.ok()) {
+        return ElaboratedNode{.node = *port, .instance = child_instance};
+      }
     }
   }
   return std::nullopt;

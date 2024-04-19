@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,26 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_VERIFIER_H_
-#define XLS_IR_VERIFIER_H_
+#ifndef XLS_IR_VERIFY_NODE_H_
+#define XLS_IR_VERIFY_NODE_H_
 
 #include "absl/status/status.h"
+#include "xls/ir/node.h"
 
 namespace xls {
-
-class Node;
-class Function;
-class Proc;
-class Block;
-class Package;
-
-// Verifies numerous invariants of the IR for the given IR construct. Returns a
-// error status if a violation is found.
-absl::Status VerifyPackage(Package* package, bool codegen = false);
-absl::Status VerifyFunction(Function* function, bool codegen = false);
-absl::Status VerifyProc(Proc* Proc, bool codegen = false);
-absl::Status VerifyBlock(Block* Block, bool codegen = false);
-
+// Verifies numerous invariants of the IR for the given node. Returns an error
+// status if a violation is found.
+// This is split out of verifier.h because that needs to be part of the
+// monolithic "ir" compilation unit. Splitting this out lets most of the
+// verifier be in its own compilation unit.
+absl::Status VerifyNode(Node* Node, bool codegen = false);
 }  // namespace xls
 
-#endif  // XLS_IR_VERIFIER_H_
+#endif  // XLS_IR_VERIFY_NODE_H_

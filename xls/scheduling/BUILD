@@ -428,6 +428,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:verifier",
         "//xls/passes:optimization_pass",
     ],
 )
@@ -518,6 +519,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:value",
+        "//xls/ir:verifier",
         "//xls/passes:cse_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",

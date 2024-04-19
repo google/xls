@@ -50,6 +50,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/ir/verify_node.h"
 
 namespace xls {
 
