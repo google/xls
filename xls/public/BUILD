@@ -145,3 +145,24 @@ cc_library(
         "//xls/ir:ir_parser",
     ],
 )
+
+cc_library(
+    name = "c_api",
+    srcs = ["c_api.cc"],
+    hdrs = ["c_api.h"],
+    deps = [
+        ":runtime_build_actions",
+    ],
+)
+
+cc_test(
+    name = "c_api_test",
+    srcs = ["c_api_test.cc"],
+    deps = [
+        ":c_api",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+    ],
+)
+
