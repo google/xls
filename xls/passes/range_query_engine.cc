@@ -101,6 +101,18 @@ class RangeQueryVisitor : public DfsVisitor {
     return engine_->GetIntervalSetTree(node);
   }
 
+  // Wrapper around GetIntervalSetTreeView. Returns std::nullopt if there is no
+  // existing tree (indicating the node is unconstrained).
+  std::optional<IntervalSetTreeView> MaybeGetIntervalSetTreeView(Node* node) {
+    if (engine_->HasExplicitIntervals(node)) {
+      absl::StatusOr<IntervalSetTreeView> view =
+          engine_->GetIntervalSetTreeView(node);
+      CHECK_OK(view) << node << " has explicit intervals but no tree-view!";
+      return *view;
+    }
+    return std::nullopt;
+  }
+
   // Wrapper that avoids copying interval-sets.
   absl::StatusOr<std::optional<std::reference_wrapper<const IntervalSet>>>
   GetIntervalSet(Node* node) const {
@@ -293,16 +305,15 @@ void RangeQueryEngine::InitializeNode(Node* node) {
     engine_->InitializeNode(node); \
   } while (false)
 
-#define ASSIGN_INTERVAL_SET_REF_OR_RETURN(target, source)                    \
-  XLS_ASSIGN_OR_RETURN(auto __##target##_TEMPORARY, GetIntervalSet(source)); \
-  IntervalSet __memory_##target##_TEMPORARY;                  \
-  if (!__##target##_TEMPORARY) {                                             \
-    __memory_##target##_TEMPORARY =                                          \
-        IntervalSet::Maximal(source->GetType()->GetFlatBitCount());          \
-  }                                                                          \
-  const IntervalSet& target =                                                \
-      __##target##_TEMPORARY                                                 \
-          .value_or(std::ref(__memory_##target##_TEMPORARY))         \
+#define ASSIGN_INTERVAL_SET_REF_OR_RETURN(target, source)                      \
+  XLS_ASSIGN_OR_RETURN(auto __##target##_TEMPORARY, GetIntervalSet(source));   \
+  IntervalSet __memory_##target##_TEMPORARY;                                   \
+  if (!__##target##_TEMPORARY) {                                               \
+    __memory_##target##_TEMPORARY =                                            \
+        IntervalSet::Maximal(source->GetType()->GetFlatBitCount());            \
+  }                                                                            \
+  const IntervalSet& target =                                                  \
+      __##target##_TEMPORARY.value_or(std::ref(__memory_##target##_TEMPORARY)) \
           .get()
 
 absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
@@ -981,9 +992,13 @@ absl::Status RangeQueryVisitor::HandleTuple(Tuple* tuple) {
 
 absl::Status RangeQueryVisitor::HandleTupleIndex(TupleIndex* index) {
   INITIALIZE_OR_SKIP(index);
-  LeafTypeTree<IntervalSet> arg = GetIntervalSetTree(index->operand(0));
-  SetIntervalSetTree(index,
-                     leaf_type_tree::Clone(arg.AsView({index->index()})));
+  if (std::optional<LeafTypeTreeView<IntervalSet>> view =
+          MaybeGetIntervalSetTreeView(index->operand(0))) {
+    SetIntervalSetTree(index,
+                       leaf_type_tree::Clone(view->AsView({index->index()})));
+  }
+  // If we don't have any explicit ranges for the tuple there's nothing for the
+  // index either.
   return absl::OkStatus();
 }
 
