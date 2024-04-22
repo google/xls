@@ -38,14 +38,12 @@
 
 #include <cstdint>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
 #include <thread>
 #include <type_traits>
 
-#include "absl/strings/str_format.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder_utils.h"
 

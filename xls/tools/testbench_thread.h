@@ -20,10 +20,10 @@
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <cstdint>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "xls/common/thread.h"
 #include "xls/ir/package.h"

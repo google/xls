@@ -438,7 +438,6 @@ cc_library(
     deps = [
         ":testbench",
         ":testbench_builder_utils",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -470,13 +469,9 @@ cc_library(
     deps = [
         "//xls/common:thread",
         "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/jit:function_jit",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
     ],
 )
 
