@@ -44,12 +44,10 @@ cc_library(
         ":pipeline_schedule",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:type",
-        "//xls/ir:value_utils",
+        "//xls/ir:source_location",
     ],
 )
 
