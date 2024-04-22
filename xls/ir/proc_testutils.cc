@@ -123,16 +123,22 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     BValue real_data = fb_.Param(
         absl::StrFormat("%s_act%d_read", r->channel_name(), activation_),
         r->GetPayloadType());
+    std::vector<BValue> result_values{fb_.Literal(token_value_)};
     if (r->predicate()) {
-      values_[{r, activation_}] =
-          fb_.Tuple({fb_.Literal(token_value_),
-                     fb_.Select(values_[{r->predicate().value(), activation_}],
-                                {fb_.Literal(ZeroOfType(r->GetPayloadType())),
-                                 real_data})});
+      result_values.push_back(fb_.Select(
+          values_[{r->predicate().value(), activation_}],
+          {fb_.Literal(ZeroOfType(r->GetPayloadType())), real_data}));
     } else {
-      values_[{r, activation_}] =
-          fb_.Tuple({fb_.Literal(token_value_), real_data});
+      result_values.push_back(real_data);
     }
+    if (!r->is_blocking()) {
+      // valid is an input.
+      result_values.push_back(
+          fb_.Param(absl::StrFormat("%s_act%d_read_valid", r->channel_name(),
+                                    activation_),
+                    fb_.package()->GetBitsType(1)));
+    }
+    values_[{r, activation_}] = fb_.Tuple(result_values);
     BValue res = values_[{r, activation_}];
     VLOG(2) << "got " << r << " -> " << res;
     return absl::OkStatus();
