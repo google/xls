@@ -396,5 +396,158 @@ TEST_F(BackPropagateRangeAnalysisTest, Nor) {
                   Pair(comp.node(), IntervalSet::Precise(UBits(0, 1)))));
 }
 
+TEST_F(BackPropagateRangeAnalysisTest, Concat) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a1 = fb.Param("a1", p->GetBitsType(4));
+  auto cmp = fb.ULe(a1, fb.Literal(UBits(2, 4)));
+  auto cc = fb.Concat({fb.Literal(UBits(0b1010, 4)), cmp});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_true,
+      PropagateGivensBackwards(
+          qe, f, {{cc.node(), IntervalSet::Precise(UBits(0b10101, 5))}}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_false,
+      PropagateGivensBackwards(
+          qe, f, {{cc.node(), IntervalSet::Precise(UBits(0b10100, 5))}}));
+
+  EXPECT_THAT(results_true,
+              UnorderedElementsAre(
+                  LiteralPair(UBits(2, 4)), LiteralPair(UBits(0b1010, 4)),
+                  Pair(cc.node(), IntervalSet::Precise(UBits(0b10101, 5))),
+                  Pair(cmp.node(), IntervalSet::Precise(UBits(1, 1))),
+                  Pair(a1.node(),
+                       IntervalSet::Of({Interval(UBits(0, 4), UBits(2, 4))}))));
+  EXPECT_THAT(
+      results_false,
+      UnorderedElementsAre(
+          LiteralPair(UBits(2, 4)), LiteralPair(UBits(0b1010, 4)),
+          Pair(cc.node(), IntervalSet::Precise(UBits(0b10100, 5))),
+          Pair(cmp.node(), IntervalSet::Precise(UBits(0, 1))),
+          Pair(a1.node(),
+               IntervalSet::Of({Interval(UBits(3, 4), Bits::AllOnes(4))}))));
+}
+
+TEST_F(BackPropagateRangeAnalysisTest, SignExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a1 = fb.Param("a1", p->GetBitsType(4));
+  auto target = fb.SignExtend(a1, 64);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results,
+      PropagateGivensBackwards(
+          qe, f,
+          {{target.node(),
+            IntervalSet::Of({Interval(SBits(-6, 64), SBits(-4, 64)),
+                             Interval(SBits(-2, 64), SBits(-1, 64))})}}));
+  EXPECT_THAT(
+      results,
+      UnorderedElementsAre(
+          Pair(target.node(),
+               IntervalSet::Of({Interval(SBits(-6, 64), SBits(-4, 64)),
+                                Interval(SBits(-2, 64), SBits(-1, 64))})),
+          Pair(a1.node(),
+               IntervalSet::Of({Interval(SBits(-6, 4), SBits(-4, 4)),
+                                Interval(SBits(-2, 4), SBits(-1, 4))}))));
+}
+
+TEST_F(BackPropagateRangeAnalysisTest, ZeroExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a1 = fb.Param("a1", p->GetBitsType(4));
+  auto target = fb.ZeroExtend(a1, 64);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results,
+      PropagateGivensBackwards(
+          qe, f,
+          {{target.node(),
+            IntervalSet::Of({Interval(SBits(-6, 64), SBits(-4, 64)),
+                             Interval(SBits(-2, 64), SBits(-1, 64))})}}));
+  EXPECT_THAT(
+      results,
+      UnorderedElementsAre(
+          Pair(target.node(),
+               IntervalSet::Of({Interval(SBits(-6, 64), SBits(-4, 64)),
+                                Interval(SBits(-2, 64), SBits(-1, 64))})),
+          Pair(a1.node(),
+               IntervalSet::Of({Interval(SBits(-6, 4), SBits(-4, 4)),
+                                Interval(SBits(-2, 4), SBits(-1, 4))}))));
+}
+
+TEST_F(BackPropagateRangeAnalysisTest, AndReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a1 = fb.Param("a1", p->GetBitsType(4));
+  auto target = fb.AndReduce(a1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_true,
+      PropagateGivensBackwards(
+          qe, f, {{target.node(), IntervalSet::Precise(UBits(1, 1))}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_false,
+      PropagateGivensBackwards(
+          qe, f, {{target.node(), IntervalSet::Precise(UBits(0, 1))}}));
+  EXPECT_THAT(
+      results_true,
+      UnorderedElementsAre(
+          Pair(target.node(),
+               IntervalSet::Precise(UBits(1, 1))),
+          Pair(a1.node(),
+               IntervalSet::Precise(Bits::AllOnes(4)))));
+  EXPECT_THAT(
+      results_false,
+      UnorderedElementsAre(
+          Pair(target.node(),
+               IntervalSet::Precise(UBits(0, 1)))));
+}
+
+TEST_F(BackPropagateRangeAnalysisTest, OrReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto a1 = fb.Param("a1", p->GetBitsType(4));
+  auto target = fb.OrReduce(a1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_true,
+      PropagateGivensBackwards(
+          qe, f, {{target.node(), IntervalSet::Precise(UBits(1, 1))}}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_false,
+      PropagateGivensBackwards(
+          qe, f, {{target.node(), IntervalSet::Precise(UBits(0, 1))}}));
+  EXPECT_THAT(
+      results_false,
+      UnorderedElementsAre(
+          Pair(target.node(),
+               IntervalSet::Precise(UBits(0, 1))),
+          Pair(a1.node(),
+               IntervalSet::Precise(Bits(4)))));
+  EXPECT_THAT(
+      results_true,
+      UnorderedElementsAre(
+          Pair(target.node(),
+               IntervalSet::Precise(UBits(1, 1)))));
+}
+
 }  // namespace
 }  // namespace xls

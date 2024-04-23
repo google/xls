@@ -15,6 +15,7 @@
 #include "xls/passes/back_propagate_range_analysis.h"
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -101,9 +102,21 @@ class BackPropagate : public DfsVisitorWithDefault {
                Op::kNand,
                Op::kOr,
                Op::kNor,
+               // Bits ops we can make use of on (at least some) some values
+               Op::kConcat,
+               Op::kSignExt,
+               Op::kZeroExt,
+               Op::kAndReduce,
+               Op::kOrReduce,
            });
   }
   absl::Status DefaultHandler(Node* node) final { return absl::OkStatus(); }
+  absl::Status HandleSignExtend(ExtendOp* ext) final {
+    return UnifyExtend(ext);
+  }
+  absl::Status HandleZeroExtend(ExtendOp* ext) final {
+    return UnifyExtend(ext);
+  }
   absl::Status HandleAdd(BinOp* add) final { return UnifyMath(add); }
   absl::Status HandleSub(BinOp* sub) final { return UnifyMath(sub); }
   absl::Status HandleNot(UnOp* not_op) final {
@@ -135,6 +148,34 @@ class BackPropagate : public DfsVisitorWithDefault {
     return UnifyAndLike(nor_op);
   }
   absl::Status HandleNaryOr(NaryOp* or_op) final { return UnifyAndLike(or_op); }
+  absl::Status HandleConcat(Concat* concat) final {
+    IntervalSet end_intervals = GetIntervals(concat);
+    if (!end_intervals.IsPrecise()) {
+      // TODO: allight - Technically we can get some stuff from this (especially
+      // around the higher bits) but it seems unlikely we'd get much of worth
+      // since range-representation is not very good at representing individual
+      // bits.
+      return absl::OkStatus();
+    }
+    int64_t bit_off = 0;
+    Bits real_value = *end_intervals.GetPreciseValue();
+    for (int64_t i = 0; i < concat->operand_count(); ++i) {
+      Node* operand = concat->operand(concat->operand_count() - (i + 1));
+      int64_t operand_width = operand->GetType()->GetFlatBitCount();
+      XLS_RETURN_IF_ERROR(MergeIn(
+          operand,
+          IntervalSet::Precise(real_value.Slice(bit_off, operand_width))));
+      bit_off += operand_width;
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) final {
+    return UnifyReductionOp(and_reduce);
+  }
+  absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) final {
+    return UnifyReductionOp(or_reduce);
+  }
 
   const absl::flat_hash_map<Node*, IntervalSet>& ranges() const& {
     return result_;
@@ -163,6 +204,7 @@ class BackPropagate : public DfsVisitorWithDefault {
   // Intersected with the existing knowledge.
   absl::Status MergeIn(Node* node, const IntervalSet& new_data) {
     XLS_RET_CHECK(node->GetType()->IsBits());
+    XLS_RET_CHECK(new_data.IsNormalized());
     if (!result_.contains(node)) {
       result_[node] = query_engine_.GetIntervalSetTree(node).Get({});
     }
@@ -181,6 +223,38 @@ class BackPropagate : public DfsVisitorWithDefault {
             << " and will propagate down";
     waiting_to_see_.emplace(node);
     return absl::OkStatus();
+  }
+
+  absl::Status UnifyReductionOp(BitwiseReductionOp* op) {
+    XLS_RET_CHECK(op->OpIn({Op::kAndReduce, Op::kOrReduce}));
+    IntervalSet res = GetIntervals(op);
+    // Exactly 0/1 is the only place we can ever get anything.
+    if (!res.IsPrecise()) {
+      // Can't do anything
+      return absl::OkStatus();
+    }
+    int64_t bit_count = op->operand(0)->BitCountOrDie();
+    Bits argument_value;
+    if (op->op() == Op::kAndReduce && res.CoversOne()) {
+      // Only all-1s maps to 1 with and_reduce.
+      argument_value = Bits::AllOnes(bit_count);
+    } else if (op->op() == Op::kOrReduce && res.CoversZero()) {
+      // Only 0 maps to 0 with or_reduce.
+      argument_value = Bits(bit_count);
+    } else {
+      // Can't get anything. Mix of 1s and 0s but no additional info on which
+      // particular bits are which.
+      return absl::OkStatus();
+    }
+    return MergeIn(op->operand(0), IntervalSet::Precise(argument_value));
+  }
+
+  // Both sign and zero extend imply that the argument is just the truncation of
+  // the extended value.
+  absl::Status UnifyExtend(ExtendOp* ext) {
+    return MergeIn(ext->operand(0),
+                   interval_ops::Truncate(GetIntervals(ext),
+                                          ext->operand(0)->BitCountOrDie()));
   }
 
   // Propagate ranges through a math +/- expression.
