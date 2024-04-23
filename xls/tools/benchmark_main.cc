@@ -806,10 +806,13 @@ absl::Status RealMain(std::string_view path) {
         ScheduleAndCodegen(package.get(), scheduling_options_flags_proto,
                            codegen_flags_proto, delay_model_flag_passed,
                            &timing_report, &schedules));
-    XLS_ASSIGN_OR_RETURN(
-        synthesis::SynthesizedDelayDiffByStage delay_diff,
-        CreateDelayDiffByStage(f, std::get<PipelineSchedule>(schedules),
-                               *pdelay_estimator, synthesizer.get()));
+    synthesis::SynthesizedDelayDiffByStage delay_diff;
+    if (synthesizer) {
+      XLS_ASSIGN_OR_RETURN(
+          delay_diff,
+          CreateDelayDiffByStage(f, std::get<PipelineSchedule>(schedules),
+                                 *pdelay_estimator, synthesizer.get()));
+    }
     delay_diff.total_diff.critical_path = std::move(critical_path);
     XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_diff));
     XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
