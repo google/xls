@@ -53,7 +53,6 @@ using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
-using ::testing::VariantWith;
 
 class ArithSimplificationPassTest : public IrTestBase {
  protected:
