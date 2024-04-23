@@ -367,7 +367,7 @@ struct BubbleFlowControl {
 // Returns the ready signal output by the earliest pipeline stage.
 //
 static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
-    absl::Span<Node* const> output_ready_nodes, const CodegenOptions& options,
+    const CodegenOptions& options,
     absl::Span<std::optional<Node*> const> pipeline_valid_nodes,
     absl::Span<std::optional<Node*> const> pipeline_done_nodes,
     absl::Span<PipelineStageRegisters> pipeline_data_registers,
@@ -1856,8 +1856,7 @@ static absl::StatusOr<std::vector<std::optional<Node*>>> AddBubbleFlowControl(
 
   XLS_ASSIGN_OR_RETURN(BubbleFlowControl bubble_flow_control,
                        UpdatePipelineWithBubbleFlowControl(
-                           absl::MakeSpan(all_active_outputs_ready), options,
-                           absl::MakeSpan(streaming_io.pipeline_valid),
+                           options, absl::MakeSpan(streaming_io.pipeline_valid),
                            absl::MakeSpan(streaming_io.stage_done),
                            absl::MakeSpan(streaming_io.pipeline_registers),
                            absl::MakeSpan(streaming_io.state_registers),
