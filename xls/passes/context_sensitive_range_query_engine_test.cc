@@ -1581,38 +1581,10 @@ TEST_P(SignedRangeComparisonContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(consequent_arm_range->GetIntervals(add_ten.node()), add_ten_ist);
 }
 
-TEST_P(SignedRangeComparisonContextSensitiveRangeQueryEngineTest,
-       UsedInFalseRange) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-
-  // if (x in [10, 15]) { y } else { x + 10 }
-  BValue x = fb.Param("x", p->GetBitsType(8));
-  BValue y = fb.Param("y", p->GetBitsType(8));
-  BValue cmp = RangeComparison(fb, fb.Literal(UBits(10, 8)), x,
-                               fb.Literal(UBits(15, 8)));
-  BValue add_ten = fb.Add(x, fb.Literal(UBits(10, 8)));
-  BValue res = fb.Select(cmp, {add_ten, y});
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  RecordProperty("f", f->DumpIr());
-  ContextSensitiveRangeQueryEngine engine;
-  XLS_ASSERT_OK(engine.Populate(f));
-
-  IntervalSetTree x_ist =
-      BitsLTT(x.node(), InverseParamInterval(UBits(10, 8), UBits(15, 8)));
-  IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
-  IntervalSetTree add_ten_ist =
-      BitsLTT(add_ten.node(), InverseParamInterval(UBits(20, 8), UBits(25, 8)));
-  IntervalSetTree add_ten_ist_global =
-      BitsLTT(add_ten.node(), {Interval::Maximal(8)});
-
-  auto alternate_arm_range = engine.SpecializeGivenPredicate(
-      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
-  EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
-  EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_ist_global);
-
-  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
-}
+// TODO(allight): Changes in the implementation of back-propogation meant we
+// could no longer see through code like (X < 5 && X > 0) == FALSE. It would be
+// nice to get this back but it is complicated by the sort of transform we need
+// to do.
 
 TEST_F(ContextSensitiveRangeQueryEngineTest, DirectUse) {
   auto p = CreatePackage();

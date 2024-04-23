@@ -16,25 +16,30 @@
 
 #include <array>
 #include <optional>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/interval.h"
+#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/passes/range_query_engine.h"
 
@@ -42,40 +47,69 @@ namespace xls {
 
 namespace {
 
-// A canonical representation of a range check holding the low-boundary,
-// variable, and high-boundary.
-struct CanonicalRange {
-  // The low value which 'param' is compared to.
-  Node* low_value;
-  // The cmp used to compare low-value with param. Executed as `(low_cmp
-  // param low_value)`. That is low_value is on the left. This is one of 'SGt',
-  // 'UGt', 'SGe', or 'UGe'.
-  Op low_cmp;
-  // The parameter which is being constrained by the range.
-  Node* param;
-  // The cmp used to compare low-value with param. Executed as `(high_cmp
-  // param high_value)`. That is low_value is on the left. This is one of 'SLt',
-  // 'ULt', 'SLe', or 'ULe'.
-  Op high_cmp;
-  // The high value which 'param' is compared to.
-  Node* high_value;
-
-  // The actual instruction which implements the (low_cmp low_value param)
-  // operation.
-  CompareOp* low_range;
-  // The actual instruction which implements the (high_cmp high_value param)
-  // operation.
-  CompareOp* high_range;
-};
-
 // Class which can back-propagate node ranges.
 //
-// This is currently limited to a single step.
+// This walks the tree in reverse topo order updating values as it goes. It
+// only visits a node if (1) it is possible to actually find more information
+// based on that node and (2) the inputs to that node have updated information.
 class BackPropagate : public DfsVisitorWithDefault {
  public:
-  explicit BackPropagate(const RangeQueryEngine& query_engine)
-      : query_engine_(query_engine) {}
+  explicit BackPropagate(const RangeQueryEngine& query_engine,
+                         absl::flat_hash_map<Node*, IntervalSet> givens)
+      : query_engine_(query_engine), result_(std::move(givens)) {
+    for (const auto& [node, _] : result_) {
+      if (CanUpdateWith(node)) {
+        waiting_to_see_.emplace(node);
+      }
+    }
+  }
+
+  // Note that we are handling some node. Used to allow us to bail out early.
+  void NoteVisit(Node* n) { waiting_to_see_.erase(n); }
+  // Bail out if we've seen all the givens already. That means there's no new
+  // information to discover.
+  bool CanContinue() const { return !waiting_to_see_.empty(); }
+  // Will we be able to propagate information from this node into its
+  // predecessors?
+  bool CanUpdateWith(Node* n) {
+    // need to have givens and be a computable operation.
+    //
+    // NB We could track through array and tuple but Dataflow will usually
+    // eliminate those anyway so no need to bother.
+    return result_.contains(n) && n->GetType()->IsBits() &&
+           !result_[n].IsMaximal() &&
+           absl::c_all_of(n->operands(),
+                          [](Node* op) { return op->GetType()->IsBits(); }) &&
+           n->OpIn({
+               // Merge ranges
+               Op::kEq,
+               Op::kNe,
+               Op::kUGt,
+               Op::kUGe,
+               Op::kULt,
+               Op::kULe,
+               Op::kSGt,
+               Op::kSGe,
+               Op::kSLt,
+               Op::kSLe,
+               // On some values we can distribute
+               Op::kNot,
+               Op::kAnd,
+               Op::kNand,
+               Op::kOr,
+               Op::kNor,
+           });
+  }
   absl::Status DefaultHandler(Node* node) final { return absl::OkStatus(); }
+  absl::Status HandleNot(UnOp* not_op) final {
+    const IntervalSet& value = GetIntervals(not_op);
+    if (value.IsMaximal()) {
+      // If we have no bounds there's no additional info we can get by looking
+      // at our arguments.
+      return absl::OkStatus();
+    }
+    return MergeIn(not_op->operand(0), interval_ops::Not(value));
+  }
   absl::Status HandleNe(CompareOp* ne) final { return UnifyExactMatch(ne); }
   absl::Status HandleEq(CompareOp* eq) final { return UnifyExactMatch(eq); }
   absl::Status HandleSGe(CompareOp* cmp) final { return UnifyComparison(cmp); }
@@ -87,11 +121,15 @@ class BackPropagate : public DfsVisitorWithDefault {
   absl::Status HandleULe(CompareOp* cmp) final { return UnifyComparison(cmp); }
   absl::Status HandleULt(CompareOp* cmp) final { return UnifyComparison(cmp); }
   absl::Status HandleNaryAnd(NaryOp* and_op) final {
-    return MaybeUnifyAnd(and_op);
+    return UnifyAndLike(and_op);
   }
-  // absl::Status HandleNaryOr(NaryOp* or_op) final {
-  //   return MaybeUnifyOr(or_op);
-  // }
+  absl::Status HandleNaryNand(NaryOp* nand_op) final {
+    return UnifyAndLike(nand_op);
+  }
+  absl::Status HandleNaryNor(NaryOp* nor_op) final {
+    return UnifyAndLike(nor_op);
+  }
+  absl::Status HandleNaryOr(NaryOp* or_op) final { return UnifyAndLike(or_op); }
 
   const absl::flat_hash_map<Node*, IntervalSet>& ranges() const& {
     return result_;
@@ -99,47 +137,152 @@ class BackPropagate : public DfsVisitorWithDefault {
   absl::flat_hash_map<Node*, IntervalSet>&& ranges() && {
     return std::move(result_);
   }
-  void AddGiven(Node* n, IntervalSet data) { result_[n] = std::move(data); }
 
  private:
+  // Get the current range of the given node, either from the givens, calculated
+  // from a parent or from the base query-engine.
+  IntervalSet GetIntervals(Node* node) {
+    CHECK(node->GetType()->IsBits());
+    if (result_.contains(node)) {
+      return result_[node];
+    }
+    if (query_engine_.HasExplicitIntervals(node)) {
+      // Try to avoid allocating LTTs needlessly.
+      return query_engine_.GetIntervalSetTreeView(node).value().Get({});
+    }
+    return query_engine_.GetIntervalSetTree(node).Get({});
+  }
+
+  // Merge the given 'new_data' with the already known facts about the given
+  // node. Since this data is (transitively) based on the givens it is
+  // Intersected with the existing knowledge.
+  absl::Status MergeIn(Node* node, const IntervalSet& new_data) {
+    XLS_RET_CHECK(node->GetType()->IsBits());
+    if (!result_.contains(node)) {
+      result_[node] = query_engine_.GetIntervalSetTree(node).Get({});
+    }
+    IntervalSet old_data = std::move(result_[node]);
+    result_[node] = IntervalSet::Intersect(old_data, new_data);
+    if (result_[node] == old_data) {
+      VLOG(3) << "Calculated range of " << node << " did not change.";
+      return absl::OkStatus();
+    }
+    if (!CanUpdateWith(node)) {
+      VLOG(3) << "Calculated range of " << node << " is now " << result_[node]
+              << " but cannot propagate further.";
+      return absl::OkStatus();
+    }
+    VLOG(3) << "Calculated range of " << node << " is now " << result_[node]
+            << " and will propagate down";
+    waiting_to_see_.emplace(node);
+    return absl::OkStatus();
+  }
+
+  // Propagate values through a comparison.
   absl::Status UnifyComparison(CompareOp* cmp) {
     XLS_RET_CHECK(cmp->op() == Op::kSLe || cmp->op() == Op::kSLt ||
                   cmp->op() == Op::kSGe || cmp->op() == Op::kSGt ||
                   cmp->op() == Op::kULe || cmp->op() == Op::kULt ||
                   cmp->op() == Op::kUGe || cmp->op() == Op::kUGt)
         << cmp;
-    XLS_RET_CHECK(result_[cmp].IsPrecise())
-        << "selector " << cmp
-        << " not given actual value during context sensitive range analysis!";
-    // Standardize so we are assuming the comparison is true.
+    IntervalSet cmp_intervals = GetIntervals(cmp);
+    if (!cmp_intervals.IsPrecise()) {
+      // Not able to propagate down any more.
+      return absl::OkStatus();
+    }
+    // Normalize the comparison to be a 'true' result of either the form `X > Y`
+    // or the form `X >= Y`.
     XLS_ASSIGN_OR_RETURN(Op invert, InvertComparisonOp(cmp->op()));
-    Op op = result_[cmp].CoversOne() ? cmp->op() : invert;
+    // If the operation results in false invert it.
+    Op op = cmp_intervals.CoversOne() ? cmp->op() : invert;
     Node* l_op = cmp->operand(0);
     Node* r_op = cmp->operand(1);
-    IntervalSet l_interval = query_engine_.GetIntervalSetTree(l_op).Get({});
-    IntervalSet r_interval = query_engine_.GetIntervalSetTree(r_op).Get({});
-    if (!l_interval.IsPrecise() && !r_interval.IsPrecise()) {
-      return UnifyImpreciseComparison(l_op, r_op, l_interval, r_interval);
-    }
-    // Standardize so right side is always precise.
-    bool is_signed =
-        op == Op::kSLe || op == Op::kSLt || op == Op::kSGe || op == Op::kSGt;
-    bool is_or_equals =
-        op == Op::kULe || op == Op::kUGe || op == Op::kSLe || op == Op::kSGe;
-    bool is_less_than =
-        op == Op::kSLe || op == Op::kULe || op == Op::kSLt || op == Op::kULt;
-    if (l_interval.IsPrecise()) {
-      // We want to ensure that the constant is always on the right to simplify
-      // UnifyLiteralComparison. This requires doing a transform 'ReverseOp'
-      // such that '(op L R) == ((ReverseOp op) R L)'. The transform that works
-      // for this is replacing '</<=' with '>/>=' and vice versa.
-      is_less_than = !is_less_than;
+    // If the operation is a less-than (<) reverse the operand order and swap
+    // the comparison.
+    if (op == Op::kSLt || op == Op::kSLe || op == Op::kULt || op == Op::kULe) {
       std::swap(l_op, r_op);
-      std::swap(l_interval, r_interval);
+      XLS_ASSIGN_OR_RETURN(op, ReverseComparisonOp(op));
     }
-    return UnifyLiteralComparison(l_op, l_interval,
-                                  r_interval.GetPreciseValue().value(),
-                                  is_or_equals, is_less_than, is_signed);
+    return UnifyTrueComparison(l_op, GetIntervals(l_op), r_op,
+                               GetIntervals(r_op), op);
+  }
+
+  // Analyze a normalized comparison which is a 'true' greater-than or
+  // greater-than-or-equal operation.
+  absl::Status UnifyTrueComparison(Node* left, const IntervalSet& left_range,
+                                   Node* right, const IntervalSet& right_range,
+                                   Op op) {
+    CHECK(op == Op::kUGe || op == Op::kUGt || op == Op::kSGe || op == Op::kSGt)
+        << op;
+    // Perform the comparison for specifically unsigned operations.
+    auto range_unsigned = [](Op op, const IntervalSet& left_range,
+                             const IntervalSet& right_range)
+        -> std::pair<IntervalSet, IntervalSet> {
+      // NB Result is TRUE.
+      CHECK(op == Op::kUGe || op == Op::kUGt);
+      if (op == Op::kUGe) {
+        // left >= right
+        // left can't be lower than right.LowerBound
+        IntervalSet new_left = IntervalSet::Intersect(
+            IntervalSet::Of(
+                {Interval::Closed(*right_range.LowerBound(),
+                                  Bits::AllOnes(left_range.BitCount()))}),
+            left_range);
+        // right can't be higher than left.UpperBound
+        IntervalSet new_right = IntervalSet::Intersect(
+            IntervalSet::Of({Interval::Closed(Bits(right_range.BitCount()),
+                                              *left_range.UpperBound())}),
+            right_range);
+        return {new_left, new_right};
+      }
+      // left > right
+      // left can't be lower than right.LowerBound
+      IntervalSet new_left = IntervalSet::Intersect(
+          IntervalSet::Of(
+              {Interval::LeftOpen(*right_range.LowerBound(),
+                                  Bits::AllOnes(left_range.BitCount()))}),
+          left_range);
+      // right can't be higher than left.UpperBound
+      IntervalSet new_right = IntervalSet::Intersect(
+          IntervalSet::Of({Interval::RightOpen(Bits(right_range.BitCount()),
+                                               *left_range.UpperBound())}),
+          right_range);
+      return {new_left, new_right};
+    };
+    IntervalSet new_left;
+    IntervalSet new_right;
+    switch (op) {
+      case Op::kUGt:
+      case Op::kUGe: {
+        std::tie(new_left, new_right) =
+            range_unsigned(op, left_range, right_range);
+        break;
+      }
+      case Op::kSGe:
+      case Op::kSGt: {
+        // Scale interval up so INT_MIN == 0. Overflows negative to be less than
+        // positive unsigned. The interval_ops ensure that this operation is
+        // reversible - modulo precision losses due to potentially splitting
+        // ranges. We could extend the interval_ops::Add/Sub functions to have
+        // them ignore the precision limit and operate with perfect precision
+        // but that seems unlikely to produce enough benefits to be worth the
+        // performance cost at the moment.
+        IntervalSet offset =
+            IntervalSet::Precise(Bits::MinSigned(left_range.BitCount()));
+        XLS_ASSIGN_OR_RETURN(Op unsigned_op, SignedCompareToUnsigned(op));
+        auto [scaled_new_left, scaled_new_right] =
+            range_unsigned(unsigned_op, interval_ops::Add(offset, left_range),
+                           interval_ops::Add(offset, right_range));
+        new_left = interval_ops::Sub(scaled_new_left, offset);
+        new_right = interval_ops::Sub(scaled_new_right, offset);
+        break;
+      }
+      default:
+        return absl::InternalError("Unexpected op");
+    }
+    XLS_RETURN_IF_ERROR(MergeIn(left, new_left));
+    XLS_RETURN_IF_ERROR(MergeIn(right, new_right));
+    return absl::OkStatus();
   }
 
   absl::Status UnifyExactMatch(CompareOp* eq) {
@@ -154,10 +297,15 @@ class BackPropagate : public DfsVisitorWithDefault {
       // little anyway since dataflow removes most of them.
       return absl::OkStatus();
     }
-    IntervalSet a_intervals = query_engine_.GetIntervalSetTree(a).Get({});
-    IntervalSet b_intervals = query_engine_.GetIntervalSetTree(b).Get({});
+    IntervalSet eq_interval = GetIntervals(eq);
+    if (!eq_interval.IsPrecise()) {
+      // Don't know the result of this computation. Can't continue.
+      return absl::OkStatus();
+    }
+    IntervalSet a_intervals = GetIntervals(a);
+    IntervalSet b_intervals = GetIntervals(b);
 
-    if (result_[eq].CoversOne() == (eq->op() == Op::kEq)) {
+    if (eq_interval.CoversOne() == (eq->op() == Op::kEq)) {
       // Case: (L == R) == TRUE
       // Case: (L != R) == FALSE
       IntervalSet unified = IntervalSet::Intersect(a_intervals, b_intervals);
@@ -165,15 +313,15 @@ class BackPropagate : public DfsVisitorWithDefault {
       if (unified.NumberOfIntervals() == 0) {
         // This implies the condition is actually unreachable impossible
         // (since we unify to bottom on an element). For now just leave
-        // unconstrained.
+        // unconstrained and continue.
         // TODO(allight): 2023-09-25: We can do better and should probably try
         // to communicate and remove the impossible cases here. This would
         // need to be done in narrowing or strength reduction by removing the
         // associated branches.
         return absl::OkStatus();
       }
-      result_[a] = unified;
-      result_[b] = unified;
+      XLS_RETURN_IF_ERROR(MergeIn(a, unified));
+      XLS_RETURN_IF_ERROR(MergeIn(b, unified));
     } else {
       // Case: (L == R) == FALSE
       // Case: (L != R) == TRUE
@@ -184,8 +332,8 @@ class BackPropagate : public DfsVisitorWithDefault {
             precise == a ? a_intervals : b_intervals;
         Node* imprecise = precise == a ? b : a;
 
-        IntervalSet imprecise_complement_interval = IntervalSet::Complement(
-            query_engine_.GetIntervalSetTree(imprecise).AsView().Get({}));
+        IntervalSet imprecise_complement_interval =
+            IntervalSet::Complement(imprecise == a ? a_intervals : b_intervals);
         // Remove the single known precise value from the imprecise values
         // // range.
         imprecise_complement_interval.AddInterval(
@@ -203,7 +351,7 @@ class BackPropagate : public DfsVisitorWithDefault {
           // associated branches.
           return absl::OkStatus();
         }
-        result_[imprecise] = imprecise_interval;
+        XLS_RETURN_IF_ERROR(MergeIn(imprecise, imprecise_interval));
       } else {
         // TODO(allight): 2023-08-10 Technically there is information to be
         // gleaned here if |L \intersect R| == 1 but probably not worth it. For
@@ -214,234 +362,101 @@ class BackPropagate : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status MaybeUnifyAnd(NaryOp* and_op) {
-    // To simplify the unification logic we only handle a single 'range' op
-    // This is to catch the dslx a..b match type.
-    // TODO(allight): 2023-09-07 We could do better in the positive case since
-    // we know everything is true.
-    if (and_op->operand_count() != 2) {
+  // Operations that, like the boolean and operation, match the behavior where
+  // there are some values X & Y such that (eq? (op A B C ...) X) iff (all-of?
+  // (eq? A Y) (eq? B Y) (eq? C Y) ...). This is true of 'and' where (eq? (and A
+  // B C) #t) iff A B & C are all #t.
+  absl::Status UnifyAndLike(NaryOp* and_op) {
+    XLS_RET_CHECK(and_op->OpIn({Op::kAnd, Op::kNor, Op::kOr, Op::kNand}));
+    IntervalSet interval = GetIntervals(and_op);
+    if (interval.BitCount() != 1 || !interval.IsPrecise()) {
+      // We could analyze higher bit counts but we often wouldn't get very much
+      // (range analysis does not work well with bit-vectors). If the range is
+      // not precise we of course cannot say anything at all about the inputs.
       return absl::OkStatus();
     }
-    auto canonical_range = ExtractRange(and_op->operand(0), and_op->operand(1));
-    if (canonical_range) {
-      return UnifyRangeComparison(*canonical_range,
-                                  result_[and_op].CoversOne());
-    }
-    return absl::OkStatus();
-  }
-
-  // Extract the CanonicalRange comparison out of the two and'd comparisons.
-  //
-  // Returns nullopt if the elements do not form a range check.
-  std::optional<CanonicalRange> ExtractRange(Node* element_one,
-                                             Node* element_two) {
-    const std::array<Op, 8> cmp_ops{
-        Op::kSLe, Op::kSLt, Op::kSGe, Op::kSGt,
-        Op::kULe, Op::kULt, Op::kUGe, Op::kUGt,
-    };
-    if (!element_one->OpIn(cmp_ops) || !element_two->OpIn(cmp_ops)) {
-      return std::nullopt;
-    }
-    // canonicalize both to
-    // (<OP> <COMMON> <DIFFERENT>)
-    // A range check is 'x in range(start, end)' this is represented in the IR
-    // as (and (< start x) (< x end)). To simplify handling we make both ends
-    // ordered in the 'x' 'start/end' direction.
-    Op e1_op;
-    Op e2_op;
-    Node* e1_comparator;
-    Node* e2_comparator;
-    Node* common;
-    if (element_one->operand(0) == element_two->operand(0)) {
-      // Already in canonical order
-      common = element_one->operand(0);
-      e1_op = element_one->op();
-      e2_op = element_two->op();
-      e1_comparator = element_one->operand(1);
-      e2_comparator = element_two->operand(1);
-    } else if (element_one->operand(1) == element_two->operand(0)) {
-      // element2 in canonical order
-      common = element_one->operand(1);
-      e1_op = *ReverseComparisonOp(element_one->op());
-      e2_op = element_two->op();
-      e1_comparator = element_one->operand(0);
-      e2_comparator = element_two->operand(1);
-    } else if (element_one->operand(0) == element_two->operand(1)) {
-      // element1 in canonical order
-      common = element_one->operand(0);
-      e1_op = element_one->op();
-      e2_op = *ReverseComparisonOp(element_two->op());
-      e1_comparator = element_one->operand(1);
-      e2_comparator = element_two->operand(0);
-    } else if (element_one->operand(1) == element_two->operand(1)) {
-      // both in reversed order
-      common = element_one->operand(1);
-      e1_op = *ReverseComparisonOp(element_one->op());
-      e2_op = *ReverseComparisonOp(element_two->op());
-      e1_comparator = element_one->operand(0);
-      e2_comparator = element_two->operand(0);
-    } else {
-      // Not a range, no common comparator.
-      return std::nullopt;
-    }
-    // order the operations
-    std::array<Op, 4> low_ops{Op::kSGe, Op::kSGt, Op::kUGe, Op::kUGt};
-    std::array<Op, 4> high_ops{Op::kSLe, Op::kSLt, Op::kULe, Op::kULt};
-    if (absl::c_find(low_ops, e1_op) != low_ops.cend() &&
-        absl::c_find(high_ops, e2_op) != high_ops.cend()) {
-      return CanonicalRange{
-          .low_value = e1_comparator,
-          .low_cmp = e1_op,
-          .param = common,
-          .high_cmp = e2_op,
-          .high_value = e2_comparator,
-          .low_range = element_one->As<CompareOp>(),
-          .high_range = element_two->As<CompareOp>(),
-      };
-    }
-    if (absl::c_find(high_ops, e1_op) != high_ops.cend() &&
-        absl::c_find(low_ops, e2_op) != low_ops.cend()) {
-      return CanonicalRange{
-          .low_value = e2_comparator,
-          .low_cmp = e2_op,
-          .param = common,
-          .high_cmp = e1_op,
-          .high_value = e1_comparator,
-          .low_range = element_two->As<CompareOp>(),
-          .high_range = element_one->As<CompareOp>(),
-      };
-    }
-    return std::nullopt;
-  }
-
- private:
-  // Extract interval sets from the range given the range check succeeds or
-  // fails (value_is_in_range).
-  absl::Status UnifyRangeComparison(const CanonicalRange& range,
-                                    bool value_is_in_range) {
-    IntervalSet low_interval =
-        query_engine_.GetIntervalSetTree(range.low_value).Get({});
-    IntervalSet high_interval =
-        query_engine_.GetIntervalSetTree(range.high_value).Get({});
-    IntervalSet base_interval =
-        query_engine_.GetIntervalSetTree(range.param).Get({});
-    bool left_is_open = range.low_cmp == Op::kSGt || range.low_cmp == Op::kUGt;
-    bool right_is_open =
-        range.high_cmp == Op::kSLt || range.high_cmp == Op::kULt;
-    IntervalSet range_interval(base_interval.BitCount());
-    if (left_is_open && right_is_open) {
-      range_interval.AddInterval(Interval::Open(*low_interval.LowerBound(),
-                                                *high_interval.UpperBound()));
-    } else if (left_is_open && !right_is_open) {
-      range_interval.AddInterval(Interval::LeftOpen(
-          *low_interval.LowerBound(), *high_interval.UpperBound()));
-    } else if (!left_is_open && right_is_open) {
-      range_interval.AddInterval(Interval::RightOpen(
-          *low_interval.LowerBound(), *high_interval.UpperBound()));
-    } else {
-      range_interval.AddInterval(Interval::Closed(*low_interval.LowerBound(),
-                                                  *high_interval.UpperBound()));
-    }
-    range_interval.Normalize();
-    if (value_is_in_range) {
-      // Value is in range, intersect with range.
-      IntervalSet true_range = IntervalSet::Precise(Bits::AllOnes(1));
-      result_[range.low_range] = true_range;
-      result_[range.high_range] = true_range;
-      IntervalSet constrained_param =
-          IntervalSet::Intersect(base_interval, range_interval);
-      result_[range.param] = constrained_param;
-    } else {
-      // Outside of range, add the inverse.
-      IntervalSet constrained_param = IntervalSet::Intersect(
-          base_interval, IntervalSet::Complement(range_interval));
-      result_[range.param] = constrained_param;
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status UnifyLiteralComparison(Node* variable, const IntervalSet& base,
-                                      Bits literal, bool is_or_equals,
-                                      bool is_less_than, bool is_signed) {
-    // Invert so we can remove elements from the interval.
-    IntervalSet invert_base = IntervalSet::Complement(base);
-    Bits min_value = is_signed ? Bits::MinSigned(literal.bit_count())
-                               : Bits(literal.bit_count());
-    Bits max_value = is_signed ? Bits::MaxSigned(literal.bit_count())
-                               : Bits::AllOnes(literal.bit_count());
-    Bits epsilon = UBits(1, literal.bit_count());
-    if (is_less_than) {
-      if (is_or_equals) {
-        // variable <= literal
-        if (literal == max_value) {
-          // Nothing to restrict.
-          // is V <= std::numeric_limits::max(). Always true.
-          return absl::OkStatus();
+    switch (and_op->op()) {
+      case Op::kAnd: {
+        if (interval.CoversOne()) {
+          return UnifyAllOperandsMatch(and_op, /*boolean_value_is=*/true);
         }
-        literal = bits_ops::Add(literal, epsilon);
+        // (and x y z) == false doesn't imply anything except that at least one
+        // is false, so we can't continue.
+        return absl::OkStatus();
       }
-      // variable < literal
-      invert_base.AddInterval(Interval(literal, max_value));
-    } else {
-      if (is_or_equals) {
-        // variable >= literal
-        if (literal == min_value) {
-          // nothing to restrict
-          // is v >= std::numeric_limits::min(). Always true.
-          return absl::OkStatus();
+      case Op::kOr: {
+        if (interval.CoversZero()) {
+          return UnifyAllOperandsMatch(and_op, /*boolean_value_is=*/false);
         }
-        literal = bits_ops::Sub(literal, epsilon);
+        return absl::OkStatus();
       }
-      // variable > literal
-      invert_base.AddInterval(Interval(min_value, literal));
+      case Op::kNand: {
+        if (interval.CoversZero()) {
+          return UnifyAllOperandsMatch(and_op, /*boolean_value_is=*/true);
+        }
+        return absl::OkStatus();
+      }
+      case Op::kNor: {
+        if (interval.CoversOne()) {
+          return UnifyAllOperandsMatch(and_op, /*boolean_value_is=*/false);
+        }
+        return absl::OkStatus();
+      }
+      default:
+        return absl::InternalError("unsuported op");
     }
-    invert_base.Normalize();
-    IntervalSet restricted_set = IntervalSet::Complement(invert_base);
-    if (restricted_set.Intervals().empty()) {
-      // This implies the condition is actually unreachable impossible (since
-      // we unify to bottom). For now just leave unconstrained.
-      // TODO(allight): 2023-09-25: We can do better and should probably try to
-      // communicate and remove the impossible cases here. This would need to be
-      // done in narrowing or strength reduction by removing the associated
-      // branches.
-      return absl::OkStatus();
-    }
-    result_[variable] = restricted_set;
-    return absl::OkStatus();
   }
-  absl::Status UnifyImpreciseComparison(Node* l_op, Node* r_op,
-                                        const IntervalSet& l_interval,
-                                        const IntervalSet& r_interval) {
-    // TODO(allight): 2023-08-10 This is much more complex and will be
-    // implemented later.
+
+  absl::Status UnifyAllOperandsMatch(NaryOp* op, bool boolean_value_is) {
+    IntervalSet value =
+        IntervalSet::Precise(boolean_value_is ? UBits(1, 1) : UBits(0, 1));
+    for (Node* operand : op->operands()) {
+      XLS_RETURN_IF_ERROR(MergeIn(operand, value));
+    }
     return absl::OkStatus();
   }
 
+  // Underlying query-engine providing base ranges.
   const RangeQueryEngine& query_engine_;
+  // Set of all givens and any calculated refined ranges.
   absl::flat_hash_map<Node*, IntervalSet> result_;
+  // Set of nodes which we have updated data for which might be possible to
+  // propagate.
+  absl::flat_hash_set<Node*> waiting_to_see_;
 };
 
 }  // namespace
 
 absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
-PropagateGivensBackwards(const RangeQueryEngine& engine, Node* node,
-                         const IntervalSet& given) {
-  BackPropagate prop(engine);
-  prop.AddGiven(node, given);
-  // We could back-propagate arbitrarily but (1) writing the rules for that is
-  // tricky and time consuming since we need to do a reverse-topo sort and
-  // unification between different users and (2) a single propagation is
-  // likely good enough for most things.  This makes sure we figure out that
-  // stuff like 'x < 4 == true' implies that x \in [0, 3] and such but we
-  // don't need to deal with those tricky issues.
-  XLS_RETURN_IF_ERROR(node->VisitSingleNode(&prop));
+PropagateGivensBackwards(
+    const RangeQueryEngine& engine, FunctionBase* function,
+    absl::flat_hash_map<Node*, IntervalSet> givens,
+    std::optional<absl::Span<Node* const>> reverse_topo_sort) {
+  XLS_RET_CHECK(!givens.empty());
+  BackPropagate prop(engine, std::move(givens));
+  std::vector<Node*> nodes_mem =
+      reverse_topo_sort ? std::vector<Node*>{} : ReverseTopoSort(function);
+  absl::Span<Node* const> nodes =
+      reverse_topo_sort.value_or(absl::MakeConstSpan(nodes_mem));
+  for (Node* n : nodes) {
+    // Check if we've got any more nodes with updated values we can propagate.
+    if (!prop.CanContinue()) {
+      break;
+    }
+    // Remove this node from the waiting-to-visit set.
+    prop.NoteVisit(n);
+    if (prop.CanUpdateWith(n)) {
+      VLOG(3) << "Propagating backwards through " << n;
+      XLS_RETURN_IF_ERROR(n->VisitSingleNode(&prop));
+    }
+  }
   return std::move(prop).ranges();
 }
 
 absl::StatusOr<absl::flat_hash_map<Node*, IntervalSet>>
-PropagateGivensBackwards(const RangeQueryEngine& engine, Node* node,
-                         const Bits& given) {
-  return PropagateGivensBackwards(engine, node, IntervalSet::Precise(given));
+PropagateOneGivenBackwards(const RangeQueryEngine& engine, Node* node,
+                           const Bits& given) {
+  return PropagateOneGivenBackwards(engine, node, IntervalSet::Precise(given));
 }
 
 }  // namespace xls

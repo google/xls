@@ -363,14 +363,23 @@ class Analysis {
     }
     XLS_ASSIGN_OR_RETURN(
         (absl::flat_hash_map<Node*, IntervalSet> intervals),
-        PropagateGivensBackwards(base_range_, selector, given));
+        PropagateOneGivenBackwards(base_range_, selector, given));
     absl::flat_hash_map<Node*, RangeData> ranges;
     ranges.reserve(intervals.size());
     for (auto [node, interval] : std::move(intervals)) {
-      ranges[node] =
-          RangeData{.ternary = interval_ops::ExtractTernaryVector(interval),
-                    .interval_set = IntervalSetTree::CreateSingleElementTree(
-                        node->GetType(), std::move(interval))};
+      if (interval.IsEmpty()) {
+        // This case is actually impossible? For now just ignore.
+        // TODO: Figure out some way to communicate this.
+        ranges[node] = RangeData{
+            .ternary = base_range_.GetTernary(node).Get({}),
+            .interval_set = base_range_.GetIntervals(node),
+        };
+      } else {
+        ranges[node] =
+            RangeData{.ternary = interval_ops::ExtractTernaryVector(interval),
+                      .interval_set = IntervalSetTree::CreateSingleElementTree(
+                          node->GetType(), std::move(interval))};
+      }
     }
     return ranges;
   }

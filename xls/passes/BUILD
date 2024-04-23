@@ -678,6 +678,8 @@ cc_library(
         ":range_query_engine",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -693,7 +695,6 @@ cc_library(
         "//xls/ir:interval_set",
         "//xls/ir:node_util",
         "//xls/ir:op",
-        "//xls/ir:ternary",
         "//xls/ir:type",
     ],
 )
@@ -2432,7 +2433,6 @@ cc_test(
     deps = [
         ":back_propagate_range_analysis",
         ":range_query_engine",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -2442,8 +2442,9 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:interval",
         "//xls/ir:interval_set",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "//xls/ir:ternary",
+        "//xls/ir:op",
     ],
 )
 
