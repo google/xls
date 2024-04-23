@@ -84,10 +84,9 @@ std::string Channel::ToString() const {
     const std::optional<FifoConfig>& fifo_config =
         streaming_channel->fifo_config();
     if (fifo_config.has_value()) {
-      absl::StrAppendFormat(&result, "fifo_depth=%d, ", fifo_config->depth);
-      if (!fifo_config->bypass) {
-        absl::StrAppend(&result, "bypass=true, ");
-      }
+      absl::StrAppendFormat(&result, "fifo_depth=%d, bypass=%s, ",
+                            fifo_config->depth,
+                            fifo_config->bypass ? "true" : "false");
     }
   }
 
