@@ -81,6 +81,9 @@ class BackPropagate : public DfsVisitorWithDefault {
            absl::c_all_of(n->operands(),
                           [](Node* op) { return op->GetType()->IsBits(); }) &&
            n->OpIn({
+               // Basic arithmetic can push down limits.
+               Op::kAdd,
+               Op::kSub,
                // Merge ranges
                Op::kEq,
                Op::kNe,
@@ -101,6 +104,8 @@ class BackPropagate : public DfsVisitorWithDefault {
            });
   }
   absl::Status DefaultHandler(Node* node) final { return absl::OkStatus(); }
+  absl::Status HandleAdd(BinOp* add) final { return UnifyMath(add); }
+  absl::Status HandleSub(BinOp* sub) final { return UnifyMath(sub); }
   absl::Status HandleNot(UnOp* not_op) final {
     const IntervalSet& value = GetIntervals(not_op);
     if (value.IsMaximal()) {
@@ -175,6 +180,44 @@ class BackPropagate : public DfsVisitorWithDefault {
     VLOG(3) << "Calculated range of " << node << " is now " << result_[node]
             << " and will propagate down";
     waiting_to_see_.emplace(node);
+    return absl::OkStatus();
+  }
+
+  // Propagate ranges through a math +/- expression.
+  absl::Status UnifyMath(Node* math) {
+    // Mul and Div lose too much information to be easily reversible.
+    XLS_RET_CHECK(math->OpIn({Op::kAdd, Op::kSub})) << math << " not supported";
+    IntervalSet res = GetIntervals(math);
+    IntervalSet l_interval = GetIntervals(math->operand(0));
+    IntervalSet r_interval = GetIntervals(math->operand(1));
+    IntervalSet new_l;
+    IntervalSet new_r;
+    switch (math->op()) {
+      // We can prove that iterating this logic is a no-op; on repetition, we
+      // would just end up intersecting with supersets of the original
+      // r_intervals and l_intervals.
+      case Op::kAdd: {
+        // l + r = res
+        // l = res - r
+        // r = res - l
+        new_l = interval_ops::Sub(res, r_interval);
+        new_r = interval_ops::Sub(res, l_interval);
+        break;
+      }
+      case Op::kSub: {
+        // l - r = res
+        // l = res + r
+        // -r = res - l
+        // r = l - res
+        new_l = interval_ops::Add(res, r_interval);
+        new_r = interval_ops::Sub(l_interval, res);
+        break;
+      }
+      default:
+        return absl::InternalError("Unexpected op");
+    }
+    XLS_RETURN_IF_ERROR(MergeIn(math->operand(0), new_l));
+    XLS_RETURN_IF_ERROR(MergeIn(math->operand(1), new_r));
     return absl::OkStatus();
   }
 
