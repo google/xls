@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/network_component.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>

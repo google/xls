@@ -19,6 +19,7 @@
 #ifndef XLS_NOC_SIMULATION_GLOBAL_ROUTING_TABLE_H_
 #define XLS_NOC_SIMULATION_GLOBAL_ROUTING_TABLE_H_
 
+#include <cstdint>
 #include <utility>
 #include <vector>
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <string>

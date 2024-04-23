@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <bitset>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>

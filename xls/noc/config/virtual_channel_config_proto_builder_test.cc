@@ -14,6 +14,8 @@
 
 #include "xls/noc/config/virtual_channel_config_proto_builder.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

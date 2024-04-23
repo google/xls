@@ -18,6 +18,7 @@
 // TODO(leary): 2019-04-07 Probably want a way to select the desired output
 // format; e.g. -hex, -dec, -bin and so on.
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <ostream>

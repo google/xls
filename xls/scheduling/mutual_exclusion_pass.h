@@ -15,6 +15,7 @@
 #ifndef XLS_SCHEDULING_MUTUAL_EXCLUSION_PASS_H_
 #define XLS_SCHEDULING_MUTUAL_EXCLUSION_PASS_H_
 
+#include <cstdint>
 #include <optional>
 
 #include "absl/status/statusor.h"

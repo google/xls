@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_MIN_CUT_H_
 #define XLS_DATA_STRUCTURES_MIN_CUT_H_
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>

@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_GRAPH_CONTRACTION_H_
 #define XLS_DATA_STRUCTURES_GRAPH_CONTRACTION_H_
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 

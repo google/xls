@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/dimension_bounds.h"
 
+#include <cstdint>
 #include <initializer_list>
 
 #include "absl/log/check.h"

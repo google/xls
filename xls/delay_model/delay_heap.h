@@ -15,6 +15,7 @@
 #ifndef XLS_DELAY_MODEL_DELAY_HEAP_H_
 #define XLS_DELAY_MODEL_DELAY_HEAP_H_
 
+#include <cstdint>
 #include <functional>
 #include <set>
 #include <string>

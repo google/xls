@@ -14,6 +14,7 @@
 
 #include "xls/passes/bdd_query_engine.h"
 
+#include <cstdint>
 #include <optional>
 #include <utility>
 

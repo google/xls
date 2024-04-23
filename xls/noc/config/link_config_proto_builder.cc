@@ -14,6 +14,7 @@
 
 #include "xls/noc/config/link_config_proto_builder.h"
 
+#include <cstdint>
 #include <string_view>
 
 #include "xls/common/proto_adaptor_utils.h"

@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/packetizer.h"
 
+#include <cstdint>
 #include <vector>
 
 namespace xls::noc {

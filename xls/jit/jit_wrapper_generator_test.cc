@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/jit/jit_wrapper_generator.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>

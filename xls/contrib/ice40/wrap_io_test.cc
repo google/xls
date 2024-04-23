@@ -14,6 +14,7 @@
 
 #include "xls/contrib/ice40/wrap_io.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

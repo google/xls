@@ -15,6 +15,7 @@
 #include "xls/jit/llvm_type_converter.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <vector>
 

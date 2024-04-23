@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/node_options_proto_builder.h"
 
+#include <cstdint>
 #include <string_view>
 
 #include "absl/log/die_if_null.h"

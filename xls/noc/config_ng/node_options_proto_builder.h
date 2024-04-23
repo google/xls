@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NG_NODE_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_NG_NODE_OPTIONS_PROTO_BUILDER_H_
 
+#include <cstdint>
 #include <string_view>
 
 #include "xls/noc/config_ng/coordinate_options_proto_builder.h"

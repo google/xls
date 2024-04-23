@@ -14,6 +14,7 @@
 
 #include "xls/scheduling/function_partition.h"
 
+#include <cstdint>
 #include <limits>
 #include <utility>
 #include <vector>

@@ -14,6 +14,7 @@
 
 #include "xls/passes/bdd_simplification_pass.h"
 
+#include <cstdint>
 #include <string_view>
 
 #include "gmock/gmock.h"

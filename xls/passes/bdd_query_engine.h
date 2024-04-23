@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_BDD_QUERY_ENGINE_H_
 #define XLS_PASSES_BDD_QUERY_ENGINE_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>

@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NETWORK_CONFIG_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_NETWORK_CONFIG_PROTO_BUILDER_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>

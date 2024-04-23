@@ -14,6 +14,8 @@
 
 #include "xls/data_structures/binary_search.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

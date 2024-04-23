@@ -15,6 +15,7 @@
 #include "xls/delay_model/delay_heap.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <string>
 #include <vector>

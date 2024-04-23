@@ -14,6 +14,7 @@
 
 #include "xls/common/string_to_int.h"
 
+#include <cstdint>
 #include <limits>
 #include <string_view>
 

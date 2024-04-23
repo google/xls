@@ -14,6 +14,8 @@
 
 #include "xls/noc/simulation/sim_objects.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"

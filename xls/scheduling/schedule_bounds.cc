@@ -15,6 +15,7 @@
 #include "xls/scheduling/schedule_bounds.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <utility>

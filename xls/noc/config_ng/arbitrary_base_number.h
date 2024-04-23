@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NG_ARBITRARY_BASE_NUMBER_H_
 #define XLS_NOC_CONFIG_NG_ARBITRARY_BASE_NUMBER_H_
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 

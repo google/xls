@@ -15,6 +15,7 @@
 #include "xls/examples/jpeg/streams.h"
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <utility>

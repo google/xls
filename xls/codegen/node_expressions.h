@@ -13,8 +13,11 @@
 // limitations under the License.
 
 // Library to assist the lowering of IR Nodes down to Verilog.
+
 #ifndef XLS_CODEGEN_NODE_EXPRESSIONS_H_
 #define XLS_CODEGEN_NODE_EXPRESSIONS_H_
+
+#include <cstdint>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

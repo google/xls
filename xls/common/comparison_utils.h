@@ -15,6 +15,7 @@
 #ifndef XLS_COMMON_COMPARISON_UTILS_H_
 #define XLS_COMMON_COMPARISON_UTILS_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <type_traits>

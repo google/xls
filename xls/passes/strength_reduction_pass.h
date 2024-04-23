@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_STRENGTH_REDUCTION_PASS_H_
 #define XLS_PASSES_STRENGTH_REDUCTION_PASS_H_
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/optimization_pass.h"

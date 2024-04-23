@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/indexer.h"
 
+#include <cstdint>
 #include <string_view>
 #include <utility>
 #include <vector>

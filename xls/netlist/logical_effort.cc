@@ -15,6 +15,7 @@
 #include "xls/netlist/logical_effort.h"
 
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
 #include "absl/log/log.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_IR_EVALUATOR_TEST_BASE_H_
 #define XLS_INTERPRETER_IR_EVALUATOR_TEST_BASE_H_
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <string_view>

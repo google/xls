@@ -14,6 +14,7 @@
 
 #include "xls/contrib/integrator/ir_integrator.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <set>

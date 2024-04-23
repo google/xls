@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/network_graph.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

@@ -15,6 +15,8 @@
 #ifndef XLS_IR_DFS_VISITOR_H_
 #define XLS_IR_DFS_VISITOR_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "xls/ir/node.h"

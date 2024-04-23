@@ -15,6 +15,7 @@
 #ifndef XLS_IR_CARET_H_
 #define XLS_IR_CARET_H_
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>

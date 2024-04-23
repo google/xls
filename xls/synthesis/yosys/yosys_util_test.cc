@@ -16,6 +16,7 @@
 
 #include "xls/synthesis/yosys/yosys_util.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <utility>

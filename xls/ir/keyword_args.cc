@@ -14,6 +14,7 @@
 
 #include "xls/ir/keyword_args.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

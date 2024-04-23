@@ -15,6 +15,7 @@
 #ifndef XLS_IR_CODE_TEMPLATE_H_
 #define XLS_IR_CODE_TEMPLATE_H_
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <string_view>

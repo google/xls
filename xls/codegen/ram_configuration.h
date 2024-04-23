@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_RAM_CONFIGURATION_H_
 #define XLS_CODEGEN_RAM_CONFIGURATION_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

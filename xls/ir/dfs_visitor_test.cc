@@ -14,6 +14,7 @@
 
 #include "xls/ir/dfs_visitor.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>

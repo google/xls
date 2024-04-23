@@ -17,6 +17,8 @@
 #ifndef XLS_NOC_CONFIG_COMMON_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_COMMON_NETWORK_CONFIG_BUILDER_OPTIONS_PROTO_BUILDER_H_
 
+#include <cstdint>
+
 #include "absl/log/die_if_null.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_builder_options.pb.h"

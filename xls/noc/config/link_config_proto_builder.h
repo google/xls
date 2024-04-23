@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_LINK_CONFIG_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_LINK_CONFIG_PROTO_BUILDER_H_
 
+#include <cstdint>
 #include <string_view>
 
 #include "absl/log/die_if_null.h"

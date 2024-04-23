@@ -16,6 +16,8 @@
 
 #include "xls/noc/config/custom_network_config_builder_options_proto_builder.h"
 
+#include <cstdint>
+
 namespace xls::noc {
 
 GridNetworkConfigOptionsProtoBuilder&

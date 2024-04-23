@@ -14,6 +14,7 @@
 
 #include "xls/common/file/file_descriptor.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <utility>
 

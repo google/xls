@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/random_number_interface.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "gmock/gmock.h"

@@ -15,6 +15,7 @@
 // Random-sampling test for DSLX 32-bit floating-point fast, approximate
 // inverse sqrt.
 #include <cmath>
+#include <cstdint>
 #include <limits>
 
 #include "absl/flags/flag.h"

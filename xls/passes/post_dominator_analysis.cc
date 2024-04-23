@@ -15,6 +15,7 @@
 #include "xls/passes/post_dominator_analysis.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <memory>
 #include <queue>

@@ -14,6 +14,7 @@
 
 // Random-sampling test for the 32-bit FMA (fused multiply-add) module.
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <tuple>

@@ -14,6 +14,7 @@
 
 #include "xls/noc/config/network_config_proto_builder.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>

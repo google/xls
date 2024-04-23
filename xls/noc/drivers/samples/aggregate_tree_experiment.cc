@@ -14,6 +14,7 @@
 
 #include "xls/noc/drivers/samples/aggregate_tree_experiment.h"
 
+#include <cstdint>
 #include <string>
 
 #include "absl/status/statusor.h"

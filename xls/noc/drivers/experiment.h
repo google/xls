@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_DRIVERS_EXPERIMENT_H_
 #define XLS_NOC_DRIVERS_EXPERIMENT_H_
 
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <queue>

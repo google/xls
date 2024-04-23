@@ -15,6 +15,7 @@
 #include "xls/passes/bdd_cse_pass.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <vector>
 

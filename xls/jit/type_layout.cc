@@ -14,6 +14,7 @@
 
 #include "xls/jit/type_layout.h"
 
+#include <cstdint>
 #include <cstring>
 #include <ostream>
 #include <string>

@@ -15,6 +15,7 @@
 #include "xls/examples/jpeg/jpeg_grm.h"
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>

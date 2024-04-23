@@ -14,6 +14,7 @@
 
 #include "xls/passes/boolean_simplification_pass.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 

@@ -15,6 +15,7 @@
 #ifndef XLS_NETLIST_CELL_LIBRARY_H_
 #define XLS_NETLIST_CELL_LIBRARY_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

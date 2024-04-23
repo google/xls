@@ -21,6 +21,7 @@
 #define XLS_NETLIST_LIB_PARSER_H_
 
 #include <cctype>
+#include <cstdint>
 #include <fstream>
 #include <memory>
 #include <optional>

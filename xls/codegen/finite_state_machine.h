@@ -16,6 +16,7 @@
 #define XLS_CODEGEN_FINITE_STATE_MACHINE_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>

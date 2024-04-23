@@ -14,6 +14,7 @@
 
 #include "xls/contrib/integrator/integration_algorithms/basic_integration_algorithm.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>

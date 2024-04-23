@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_RANDOM_VALUE_H_
 #define XLS_INTERPRETER_RANDOM_VALUE_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/random/bit_gen_ref.h"

@@ -14,6 +14,7 @@
 
 #include "xls/examples/jpeg/jpeg_grm.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "gmock/gmock.h"

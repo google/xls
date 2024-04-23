@@ -14,6 +14,7 @@
 
 #include "xls/examples/sample_packages.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>

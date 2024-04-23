@@ -15,6 +15,8 @@
 #ifndef XLS_NOC_CONFIG_NG_DIMENSION_ORDER_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_NG_DIMENSION_ORDER_OPTIONS_PROTO_BUILDER_H_
 
+#include <cstdint>
+
 #include "xls/noc/config_ng/dimension_order_entry_options_proto_builder.h"
 #include "xls/noc/config_ng/topology_endpoint_options_proto_builder.h"
 #include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"

@@ -14,6 +14,7 @@
 
 #include "xls/tools/codegen_flags.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>

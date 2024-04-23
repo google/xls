@@ -22,6 +22,7 @@
 #ifndef XLS_IR_IR_PARSER_H_
 #define XLS_IR_IR_PARSER_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>

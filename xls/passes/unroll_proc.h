@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_UNROLL_PROC_H_
 #define XLS_PASSES_UNROLL_PROC_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/node.h"

@@ -16,6 +16,7 @@
 #include <arpa/inet.h>
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <string>

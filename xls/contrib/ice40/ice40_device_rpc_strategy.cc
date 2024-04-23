@@ -20,6 +20,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <ios>

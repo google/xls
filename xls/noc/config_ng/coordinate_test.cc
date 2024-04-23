@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/coordinate.h"
 
+#include <cstdint>
+
 #include "gtest/gtest.h"
 
 namespace xls::noc {

@@ -14,6 +14,7 @@
 #include "xls/solvers/z3_utils.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

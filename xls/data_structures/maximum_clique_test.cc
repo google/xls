@@ -14,6 +14,7 @@
 
 #include "xls/data_structures/maximum_clique.h"
 
+#include <cstdint>
 #include <functional>
 #include <random>
 #include <string>

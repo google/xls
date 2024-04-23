@@ -15,6 +15,7 @@
 #ifndef XLS_IR_VALUE_UTILS_H_
 #define XLS_IR_VALUE_UTILS_H_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/log/log.h"

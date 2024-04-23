@@ -15,6 +15,7 @@
 // Tool to prove or disprove logical equivalence of XLS IR and a netlist.
 
 #include <csignal>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <string>

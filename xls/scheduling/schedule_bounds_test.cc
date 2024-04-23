@@ -14,6 +14,7 @@
 
 #include "xls/scheduling/schedule_bounds.h"
 
+#include <cstdint>
 #include <limits>
 
 #include "gmock/gmock.h"

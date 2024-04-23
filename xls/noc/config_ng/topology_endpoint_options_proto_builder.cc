@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/topology_endpoint_options_proto_builder.h"
 
+#include <cstdint>
+
 #include "absl/log/die_if_null.h"
 
 namespace xls::noc {

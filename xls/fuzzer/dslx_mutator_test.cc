@@ -14,6 +14,8 @@
 
 #include "xls/fuzzer/dslx_mutator.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/random/mock_distributions.h"

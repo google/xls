@@ -15,6 +15,7 @@
 #ifndef XLS_SIMULATION_MODULE_SIMULATOR_H_
 #define XLS_SIMULATION_MODULE_SIMULATOR_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

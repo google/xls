@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/global_routing_table.h"
 
+#include <cstdint>
 #include <string_view>
 #include <vector>
 

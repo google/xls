@@ -15,6 +15,7 @@
 
 #include "xls/synthesis/yosys/yosys_util.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>

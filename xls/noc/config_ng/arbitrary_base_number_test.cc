@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/arbitrary_base_number.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

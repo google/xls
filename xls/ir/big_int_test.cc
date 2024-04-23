@@ -14,6 +14,7 @@
 
 #include "xls/ir/big_int.h"
 
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <string_view>

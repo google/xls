@@ -14,6 +14,7 @@
 
 // Test of the XLS GCM mode implementation against a reference (in this
 // case, BoringSSL's implementation).
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <memory>

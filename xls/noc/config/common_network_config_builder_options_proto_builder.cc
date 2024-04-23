@@ -16,6 +16,8 @@
 
 #include "xls/noc/config/common_network_config_builder_options_proto_builder.h"
 
+#include <cstdint>
+
 namespace xls::noc {
 
 ArbiterSchemeOptionsProtoBuilder&

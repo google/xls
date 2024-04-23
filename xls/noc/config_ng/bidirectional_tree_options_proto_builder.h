@@ -15,6 +15,8 @@
 #ifndef XLS_NOC_CONFIG_NG_BIDIRECTIONAL_TREE_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_NG_BIDIRECTIONAL_TREE_OPTIONS_PROTO_BUILDER_H_
 
+#include <cstdint>
+
 #include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {

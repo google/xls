@@ -16,6 +16,7 @@
 #define XLS_NOC_CONFIG_NG_FLATTENED_MULTI_DIMENSIONAL_ARRAY_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <vector>
 

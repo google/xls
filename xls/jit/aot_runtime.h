@@ -18,6 +18,7 @@
 #ifndef XLS_JIT_AOT_RUNTIME_H_
 #define XLS_JIT_AOT_RUNTIME_H_
 
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>

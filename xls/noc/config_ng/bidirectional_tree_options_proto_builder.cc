@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/bidirectional_tree_options_proto_builder.h"
 
+#include <cstdint>
+
 #include "absl/log/die_if_null.h"
 
 namespace xls::noc {

@@ -15,6 +15,7 @@
 #ifndef XLS_CONTRIB_INTEGRATOR_AREA_MODEL_AREA_ESTIMATOR_H_
 #define XLS_CONTRIB_INTEGRATOR_AREA_MODEL_AREA_ESTIMATOR_H_
 
+#include <cstdint>
 #include <memory>
 #include <string_view>
 

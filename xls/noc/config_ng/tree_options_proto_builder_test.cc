@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/tree_options_proto_builder.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "gmock/gmock.h"

@@ -14,6 +14,7 @@
 
 #include "xls/ir/ir_test_base.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

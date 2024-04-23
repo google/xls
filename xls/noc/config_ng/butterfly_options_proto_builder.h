@@ -15,6 +15,8 @@
 #ifndef XLS_NOC_CONFIG_NG_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_NG_BUTTERFLY_OPTIONS_PROTO_BUILDER_H_
 
+#include <cstdint>
+
 #include "xls/noc/config_ng/bidirectional_butterfly_options_proto_builder.h"
 #include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 #include "xls/noc/config_ng/unidirectional_butterfly_options_proto_builder.h"

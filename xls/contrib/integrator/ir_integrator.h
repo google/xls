@@ -15,6 +15,7 @@
 #ifndef XLS_CONTRIB_INTEGRATOR_IR_INTEGRATOR_H_
 #define XLS_CONTRIB_INTEGRATOR_IR_INTEGRATOR_H_
 
+#include <cstdint>
 #include <list>
 #include <memory>
 #include <optional>

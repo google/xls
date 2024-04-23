@@ -14,6 +14,7 @@
 
 #include "xls/passes/dce_pass.h"
 
+#include <cstdint>
 #include <deque>
 
 #include "absl/log/log.h"

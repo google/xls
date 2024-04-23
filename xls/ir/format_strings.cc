@@ -15,6 +15,7 @@
 #include "xls/ir/format_strings.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <variant>

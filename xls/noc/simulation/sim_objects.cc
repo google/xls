@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/sim_objects.h"
 
+#include <cstdint>
 #include <queue>
 #include <utility>
 #include <vector>

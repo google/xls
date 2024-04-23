@@ -14,6 +14,7 @@
 
 #include "xls/ir/value_conversion_utils.h"
 
+#include <cstdint>
 #include <tuple>
 #include <vector>
 

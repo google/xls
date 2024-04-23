@@ -14,6 +14,7 @@
 
 #include "xls/flows/ir_wrapper.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

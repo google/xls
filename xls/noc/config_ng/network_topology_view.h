@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NG_NETWORK_TOPOLOGY_VIEW_H_
 #define XLS_NOC_CONFIG_NG_NETWORK_TOPOLOGY_VIEW_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/status/statusor.h"

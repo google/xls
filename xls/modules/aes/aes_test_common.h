@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #ifndef XLS_MODULES_AES_AES_TEST_COMMON_H_
 #define XLS_MODULES_AES_AES_TEST_COMMON_H_
 
@@ -19,6 +20,7 @@
 #include <arpa/inet.h>
 
 #include <array>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <vector>

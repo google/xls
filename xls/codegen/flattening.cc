@@ -14,6 +14,7 @@
 
 #include "xls/codegen/flattening.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/log/check.h"

@@ -16,6 +16,7 @@
 #define XLS_NOC_SIMULATION_TRAFFIC_DESCRIPTION_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <queue>
 #include <string>
 #include <string_view>

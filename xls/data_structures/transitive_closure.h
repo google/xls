@@ -15,6 +15,8 @@
 #ifndef XLS_DATA_STRUCTURES_TRANSITIVE_CLOSURE_H_
 #define XLS_DATA_STRUCTURES_TRANSITIVE_CLOSURE_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_format.h"

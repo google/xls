@@ -15,6 +15,7 @@
 #include "xls/dslx/make_value_format_descriptor.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

@@ -14,6 +14,8 @@
 
 #include "xls/passes/receive_default_value_simplification_pass.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

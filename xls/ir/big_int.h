@@ -15,6 +15,7 @@
 #ifndef XLS_IR_BIG_INT_H_
 #define XLS_IR_BIG_INT_H_
 
+#include <cstdint>
 #include <ostream>
 #include <string>
 #include <tuple>

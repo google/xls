@@ -15,6 +15,7 @@
 #include "xls/netlist/function_parser.h"
 
 #include <cctype>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>

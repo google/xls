@@ -14,6 +14,7 @@
 
 #include "xls/data_structures/strongly_connected_components.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

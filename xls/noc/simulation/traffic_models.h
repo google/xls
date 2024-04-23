@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_TRAFFIC_MODELS_H_
 #define XLS_NOC_SIMULATION_TRAFFIC_MODELS_H_
 
+#include <cstdint>
 #include <memory>
 #include <type_traits>
 #include <vector>

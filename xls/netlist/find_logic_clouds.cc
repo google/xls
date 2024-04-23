@@ -15,6 +15,7 @@
 #include "xls/netlist/find_logic_clouds.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>

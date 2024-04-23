@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/dslx_mutator.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

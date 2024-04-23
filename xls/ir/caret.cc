@@ -15,6 +15,7 @@
 #include "xls/ir/caret.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>

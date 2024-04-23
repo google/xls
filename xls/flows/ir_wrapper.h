@@ -15,6 +15,7 @@
 #ifndef XLS_FLOWS_IR_WRAPPER_H_
 #define XLS_FLOWS_IR_WRAPPER_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

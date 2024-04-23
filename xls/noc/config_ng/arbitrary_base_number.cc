@@ -15,6 +15,7 @@
 #include "xls/noc/config_ng/arbitrary_base_number.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 
 #include "absl/log/check.h"

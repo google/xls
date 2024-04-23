@@ -14,6 +14,7 @@
 
 #include "xls/passes/ternary_evaluator.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

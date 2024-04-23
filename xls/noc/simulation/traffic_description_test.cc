@@ -14,6 +14,8 @@
 
 #include "xls/noc/simulation/traffic_description.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

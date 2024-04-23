@@ -14,6 +14,7 @@
 
 #include "xls/passes/optimization_pass_pipeline.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

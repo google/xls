@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_SAMPLE_H_
 #define XLS_FUZZER_SAMPLE_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>

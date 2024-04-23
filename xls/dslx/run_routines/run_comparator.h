@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_RUN_COMPARATOR_H_
 #define XLS_DSLX_RUN_COMPARATOR_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

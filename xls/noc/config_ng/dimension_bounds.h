@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NG_DIMENSION_BOUNDS_H_
 #define XLS_NOC_CONFIG_NG_DIMENSION_BOUNDS_H_
 
+#include <cstdint>
 #include <initializer_list>
 #include <vector>
 

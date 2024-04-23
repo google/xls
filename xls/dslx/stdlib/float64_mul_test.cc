@@ -14,6 +14,7 @@
 
 // Random-sampling test for the DSLX 2x64 floating-point multiplier.
 #include <cmath>
+#include <cstdint>
 #include <tuple>
 
 #include "absl/flags/flag.h"

@@ -15,6 +15,7 @@
 #include "xls/noc/simulation/traffic_models.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <vector>

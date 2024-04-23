@@ -15,6 +15,7 @@
 #include "xls/codegen/finite_state_machine.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>

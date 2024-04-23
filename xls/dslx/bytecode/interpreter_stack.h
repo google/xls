@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_BYTECODE_INTERPRETER_STACK_H_
 #define XLS_DSLX_BYTECODE_INTERPRETER_STACK_H_
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>

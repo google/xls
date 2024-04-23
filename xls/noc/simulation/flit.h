@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_FLIT_H_
 #define XLS_NOC_SIMULATION_FLIT_H_
 
+#include <cstdint>
 #include <string>
 
 #include "absl/container/inlined_vector.h"

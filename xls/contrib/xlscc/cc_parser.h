@@ -15,6 +15,7 @@
 #ifndef XLS_CONTRIB_XLSCC_PARSE_CPP_H_
 #define XLS_CONTRIB_XLSCC_PARSE_CPP_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

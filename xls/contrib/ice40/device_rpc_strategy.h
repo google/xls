@@ -15,6 +15,8 @@
 #ifndef XLS_CONTRIB_ICE40_DEVICE_RPC_STRATEGY_H_
 #define XLS_CONTRIB_ICE40_DEVICE_RPC_STRATEGY_H_
 
+#include <cstdint>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/flattened_multi_dimensional_array.h"
 
+#include <cstdint>
+
 #include "gtest/gtest.h"
 
 namespace xls::noc {

@@ -15,6 +15,7 @@
 #include "xls/noc/simulation/noc_traffic_injector.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>

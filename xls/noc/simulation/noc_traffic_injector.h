@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_NOC_TRAFFIC_INJECTOR_H_
 #define XLS_NOC_SIMULATION_NOC_TRAFFIC_INJECTOR_H_
 
+#include <cstdint>
 #include <memory>
 #include <queue>
 #include <vector>

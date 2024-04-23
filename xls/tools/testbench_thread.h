@@ -16,11 +16,11 @@
 #define XLS_TOOLS_TESTBENCH_THREAD_H_
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <type_traits>
-#include <cstdint>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"

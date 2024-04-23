@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_MAXIMUM_CLIQUE_H_
 #define XLS_DATA_STRUCTURES_MAXIMUM_CLIQUE_H_
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>

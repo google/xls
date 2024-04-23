@@ -15,6 +15,7 @@
 #include "xls/ir/number_parser.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <string_view>

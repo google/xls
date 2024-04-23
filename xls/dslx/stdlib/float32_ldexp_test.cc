@@ -14,6 +14,7 @@
 
 // Random-sampling test for the DSLX 32-bit floating-point ldexp.
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <tuple>
 

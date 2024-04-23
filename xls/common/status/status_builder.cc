@@ -14,7 +14,6 @@
 
 #include "xls/common/status/status_builder.h"
 
-#include <cstdio>
 #include <memory>
 #include <optional>
 #include <ostream>

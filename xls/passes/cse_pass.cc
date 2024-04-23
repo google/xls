@@ -14,6 +14,7 @@
 
 #include "xls/passes/cse_pass.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/hash/hash.h"

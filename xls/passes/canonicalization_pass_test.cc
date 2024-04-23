@@ -14,6 +14,7 @@
 
 #include "xls/passes/canonicalization_pass.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

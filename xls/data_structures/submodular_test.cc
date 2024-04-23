@@ -14,6 +14,8 @@
 
 #include "xls/data_structures/submodular.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

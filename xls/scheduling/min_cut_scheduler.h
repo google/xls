@@ -15,6 +15,7 @@
 #ifndef XLS_SCHEDULING_MIN_CUT_SCHEDULER_H_
 #define XLS_SCHEDULING_MIN_CUT_SCHEDULER_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

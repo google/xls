@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/sample.h"
 
+#include <cstdint>
 #include <optional>
 #include <ostream>
 #include <string>

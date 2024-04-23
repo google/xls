@@ -15,6 +15,7 @@
 #include "xls/netlist/lib_parser.h"
 
 #include <cctype>
+#include <cstdint>
 #include <fstream>
 #include <memory>
 #include <optional>

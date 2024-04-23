@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/network_topology_view.h"
 
+#include <cstdint>
+
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/config_ng/network_view_utils.h"
 

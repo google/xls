@@ -14,6 +14,8 @@
 
 // Negative compilation tests for StrongInt.
 
+#include <cstdint>
+
 #include "xls/common/strong_int.h"
 
 XLS_DEFINE_STRONG_INT_TYPE(USD, int32_t);

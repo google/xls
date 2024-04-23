@@ -14,6 +14,7 @@
 
 #include "xls/ir/ternary.h"
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 

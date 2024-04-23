@@ -15,6 +15,7 @@
 #ifndef XLS_IR_FORMAT_STRINGS_H_
 #define XLS_IR_FORMAT_STRINGS_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <variant>

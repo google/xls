@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/network_view.h"
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 

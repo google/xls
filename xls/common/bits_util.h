@@ -16,6 +16,7 @@
 #define XLS_COMMON_BITS_UTIL_H_
 
 #include <algorithm>
+#include <cstdint>
 
 #include "absl/log/check.h"
 

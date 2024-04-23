@@ -18,6 +18,7 @@
 #ifndef XLS_EXAMPLES_SAMPLE_PACKAGES_H_
 #define XLS_EXAMPLES_SAMPLE_PACKAGES_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

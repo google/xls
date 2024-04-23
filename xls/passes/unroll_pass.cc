@@ -14,6 +14,7 @@
 
 #include "xls/passes/unroll_pass.h"
 
+#include <cstdint>
 #include <vector>
 
 #include "absl/status/status.h"

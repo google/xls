@@ -15,6 +15,7 @@
 #include "xls/data_structures/min_cut.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <limits>
 #include <set>

@@ -14,6 +14,7 @@
 
 #include "xls/codegen/codegen_options.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string_view>

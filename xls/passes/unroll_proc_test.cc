@@ -14,6 +14,7 @@
 
 #include "xls/passes/unroll_proc.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 

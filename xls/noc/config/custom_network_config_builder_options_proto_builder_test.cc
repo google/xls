@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/noc/config/custom_network_config_builder_options_proto_builder.h"
+
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/noc/config/custom_network_config_builder_options_proto_builder.h"
 
 namespace xls::noc {
 

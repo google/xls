@@ -15,6 +15,7 @@
 #include "xls/data_structures/binary_decision_diagram.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <tuple>
