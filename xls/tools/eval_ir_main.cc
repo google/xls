@@ -100,7 +100,7 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Evaluates an IR file with user-specified or random inputs using the IR
 interpreter. Example invocations:
 
@@ -657,7 +657,6 @@ class EvalInvariantChecker : public OptimizationInvariantChecker {
                 << results->invocations.back().pass_name << "\n";
     }
     XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
-    std::string actual_src = "before optimizations";
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets_, use_jit_,
                              /*actual_src=*/results->invocations.empty()
                                  ? std::string("start of pipeline")

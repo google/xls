@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
@@ -33,7 +34,7 @@
 #include "xls/synthesis/synthesis_service.grpc.pb.h"
 #include "grpcpp/support/status_code_enum.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Launches a XLS synthesis server which serves fake results. The flag
 --max_frequency_ghz is used to determine whether a negative slack value is
 returned in the response.

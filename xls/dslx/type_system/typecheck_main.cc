@@ -50,7 +50,7 @@ ABSL_FLAG(std::string, output_path, "",
 namespace xls::dslx {
 namespace {
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Parses and typechecks the specified module and emits the type information that
 was deduced.
 )";

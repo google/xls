@@ -91,7 +91,7 @@
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/unroll_pass.h"
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Tool for reducing IR to a minimal test case based on an external test.
 
 Selectively removes nodes from the graph and performs various simplifications

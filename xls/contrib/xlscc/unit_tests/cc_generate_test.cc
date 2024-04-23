@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -27,7 +26,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/contrib/xlscc/unit_tests/cc_generator.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Generates XLScc fuzz samples.
 )";
 

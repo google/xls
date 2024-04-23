@@ -34,7 +34,7 @@
 namespace xls::dslx {
 namespace {
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Emits an ANSI-highlighted version of a given DSLX file.
 )";
 

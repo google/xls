@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
@@ -27,7 +28,9 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -35,7 +38,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/jit/function_jit.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Runs an IR function with a set of inputs through both the JIT and the
 interpreter. Prints the first input which results in a mismatch between the JIT
 and the interpreter. Returns a non-zer error code otherwise. Usage:

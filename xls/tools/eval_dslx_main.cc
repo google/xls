@@ -43,7 +43,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/warning_kind.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Evaluates a DSLX file with user-specified or random inputs using the DSLX
 interpreter. Example invocations:
 

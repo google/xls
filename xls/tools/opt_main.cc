@@ -42,10 +42,9 @@
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/pass_base.h"
 #include "xls/tools/opt.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Takes in an IR file and produces an IR file that has been run through the
 standard optimization pipeline.
 

@@ -24,11 +24,14 @@
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/solvers/z3_ir_translator.h"
 
@@ -41,7 +44,7 @@ ABSL_FLAG(std::string, other, "",
 ABSL_FLAG(int64_t, timeout_ms, 60000,
           "Timeout for proof attempt, in milliseconds");
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Attempts to prove a property of a node in an XLS IR entry function within a
 user-specified timeout (given by -timeout_ms).
 

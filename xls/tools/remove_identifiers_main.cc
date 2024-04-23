@@ -30,7 +30,7 @@
 #include "xls/ir/package.h"
 #include "xls/tools/remove_identifiers.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Removes all identifiers and renumbers an IR file.
 
 This can make some IR files which have undergone minimzation or other transforms

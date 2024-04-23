@@ -29,7 +29,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 
-const char kUsage[] =
+static constexpr std::string_view kUsage =
     "A bogus yosys binary used by tests. It regurgitates a precanned stdout "
     "which looks like yosys output and writes a json netlist file output.";
 

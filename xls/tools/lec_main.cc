@@ -16,19 +16,19 @@
 
 #include <csignal>
 #include <cstdint>
+#include <cstring>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
+#include "absl/synchronization/mutex.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -36,7 +36,11 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/function_extractor.h"
 #include "xls/netlist/lib_parser.h"
@@ -46,7 +50,6 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/solvers/z3_lec.h"
-#include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
 
 ABSL_FLAG(std::string, cell_lib_path, "",
@@ -98,7 +101,7 @@ ABSL_FLAG(int32_t, stage, -1,
 namespace xls {
 namespace {
 
-constexpr const char kIrConverterPath[] =
+static constexpr std::string_view kIrConverterPath =
     "xls/dslx/ir_convert/ir_converter_main";
 
 // Loads a cell library, either from a raw Liberty file or a preprocessed

@@ -19,6 +19,9 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -28,8 +31,9 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 
 Appends a summary of a given IR file(s) to the specified Protobuf summary
 file. emitted. The summary information includes information such as op types,

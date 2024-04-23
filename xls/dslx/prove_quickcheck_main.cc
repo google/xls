@@ -45,7 +45,7 @@ ABSL_FLAG(bool, counterexamples_only, false,
           "Only dumps a counterexample (if the proof process finds a "
           "counterexample) or an empty string");
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Attempts to proves a single quickcheck property in a given module to be
 infallible, or provide a counterexample.
 )";

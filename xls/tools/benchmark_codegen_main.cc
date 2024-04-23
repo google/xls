@@ -50,7 +50,7 @@
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Dumps various codegen-related metrics about a block and corresponding Verilog
 file. Designed to be used with run_benchmarks.py script.
 

@@ -37,7 +37,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/bdd_function.h"
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Builds a BDD from XLS IR and prints various metrics about the BDD. Usage:
 
 To gather BDD stats of an IR file:

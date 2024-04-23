@@ -20,18 +20,19 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_join.h"
+#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/inlining_pass.h"
@@ -41,10 +42,9 @@
 #include "xls/passes/unroll_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3.h"
 #include "../z3/src/api/z3_api.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Verifies that the two provided XLS IR files are logically equivalent; that is,
 they produce the same outputs across all inputs. The most common usage is to
 prove that optimizations are safe - that they don't change program outputs.

@@ -25,7 +25,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 A dummy JSON metrics script meant to mimic the behavior of an OpenROAD metrics
 script wrapped using bazel_rules_hdl modular hardware flows.
 

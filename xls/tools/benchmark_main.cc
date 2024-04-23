@@ -86,7 +86,7 @@
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Prints numerous metrics and other information about an XLS IR file including:
 total delay, critical path, codegen information, optimization time, etc.
 

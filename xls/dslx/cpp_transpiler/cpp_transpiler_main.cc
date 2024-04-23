@@ -48,7 +48,7 @@ namespace xls {
 namespace dslx {
 namespace {
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Parses the specified module and emits corresponding C++ declarations for the
 types therein. For each encountered struct type, functions are provided to
 create a struct from a corresponding XLS Value and vice-versa.

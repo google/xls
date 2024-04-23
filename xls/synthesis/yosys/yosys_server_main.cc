@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "grpcpp/security/server_credentials.h"
@@ -30,7 +31,7 @@
 #include "xls/synthesis/credentials.h"
 #include "xls/synthesis/yosys/yosys_synthesis_service.h"
 
-const char kUsage[] =
+static constexpr std::string_view kUsage =
     R"( Launches a XLS synthesis server which uses Yosys for synthesis
 and optionally Nextpnr for place-and-route *OR* OpenSTA for static timing.
 

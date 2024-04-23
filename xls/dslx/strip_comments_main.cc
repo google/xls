@@ -24,7 +24,6 @@
 
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/exit_status.h"
@@ -42,7 +41,7 @@ ABSL_FLAG(std::optional<std::string>, output_path, std::nullopt,
 namespace xls::dslx {
 namespace {
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Emits the original DSLX source text with comment tokens stripped out.
 )";
 

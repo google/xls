@@ -434,7 +434,6 @@ absl::StatusOr<int64_t> CollectMessageCounts(const std::string& top_package,
 absl::StatusOr<int64_t> CollectEnumOrIntegralCount(
     const Message& message, const FieldDescriptor* fd,
     MessageRecord* message_record) {
-  std::string field_name = fd->name();
   if (fd->is_repeated()) {
     const Reflection* reflection = message.GetReflection();
     return std::max(message_record->children[fd->name()].count,

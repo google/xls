@@ -28,7 +28,7 @@
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Create a scheduling options and codegen options proto with values populated
 from flags or default values if a flag is not specified.
 )";

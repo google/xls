@@ -20,6 +20,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -31,7 +32,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 
-const char kUsage[] =
+static constexpr std::string_view kUsage =
     "A bogus nextpnr binary used by tests. It consumes a json netlist, "
     "regurgitates a precanned stderr, and writes a place-and-route result "
     "file.";

@@ -66,7 +66,7 @@ ABSL_FLAG(bool, warnings_as_errors, true,
 namespace xls::dslx {
 namespace {
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Converts a DSLX input file (and optional entry point) to XLS IR.
 
 Successfully converted XLS IR is printed to stdout; errors are printed to

@@ -59,7 +59,7 @@ ABSL_FLAG(
 namespace xls::dslx {
 namespace {
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Formats the DSLX source code present inside of a `.x` file.
 )";
 

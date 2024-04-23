@@ -47,7 +47,7 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 
 Dumps delay information about an XLS function including per-node delay
 information and critical-path. Example invocations:

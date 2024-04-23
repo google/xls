@@ -50,7 +50,7 @@
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Dump scheduling result to stdout in Graphviz's dot plain text format.
 Explicitly show the pipeline stage.
 

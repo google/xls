@@ -46,7 +46,7 @@
 #include "xls/simulation/verilog_simulators.h"
 #include "xls/tools/eval_utils.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both
 the Verilog text and the module signature which includes metadata about the
 block.

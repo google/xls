@@ -72,7 +72,7 @@
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/tools/eval_utils.h"
 
-constexpr const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Evaluates an IR file containing Procs, or a Block generated from them.
 The Proc network will be ticked a fixed number of times
 (specified on the command line) and the final state

@@ -41,7 +41,7 @@
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Generates Verilog RTL from a given IR file. Writes a Verilog file and a module
 signature describing the module interface to a specified location. Example
 invocations:

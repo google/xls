@@ -23,16 +23,20 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/time/clock.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/netlist/lib_parser.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Extracts the boolean formula that governs a cell's output pins.
 
 Example invocation:

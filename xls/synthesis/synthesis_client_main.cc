@@ -34,7 +34,7 @@ ABSL_FLAG(int, port, 10000, "Server port to connect to");
 ABSL_FLAG(double, ghz, 1.0, "The target frequency for synthesis (GHz)");
 ABSL_FLAG(std::string, top, "main", "Name of the top module to synthesize");
 
-static constexpr char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 A test client in C++ for using the synthesis server.
 The default port matches that used by the Yosys synth server.
 

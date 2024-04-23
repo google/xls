@@ -90,7 +90,7 @@ enum class CompareFlag : uint8_t {
   kInterpreter,
 };
 
-const char* kUsage = R"(
+static constexpr std::string_view kUsage = R"(
 Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
 

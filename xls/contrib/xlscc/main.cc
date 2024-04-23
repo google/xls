@@ -16,14 +16,11 @@
 // front-end. It accepts as input a C/C++ file and produces as textual output
 // the equivalent XLS intermediate representation (IR).
 
-#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <fstream>
 #include <iostream>
-#include <streambuf>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -31,9 +28,11 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -45,8 +44,10 @@
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Generates XLS IR from a given C++ file, or generates Verilog in the special
 case of a combinational module.
 

@@ -26,12 +26,11 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/ir/ram_rewrite.pb.h"
 
-const char kUsage[] = R"(
+static constexpr std::string_view kUsage = R"(
 Simplified utility to convert a textproto to a binary proto.  Used
 to to provide binary protos to xls rules and command line
 interfaces that utilize binary protos for configuration (ex. xlscc).
