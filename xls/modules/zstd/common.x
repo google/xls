@@ -56,6 +56,10 @@ pub struct ExtendedBlockDataPacket {
     packet: BlockDataPacket,
 }
 
+pub struct LiteralsBufferCtrl {
+    length: u64
+}
+
 pub struct SequenceExecutorPacket {
     msg_type: SequenceExecutorMessageType,
     length: CopyOrMatchLength,  // Literal length or match length

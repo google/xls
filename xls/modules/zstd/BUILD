@@ -1373,3 +1373,77 @@ place_and_route(
     synthesized_rtl = ":fse_table_iterator_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "command_constructor_dslx",
+    srcs = ["command_constructor.x"],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "command_constructor_dslx_test",
+    dslx_test_args = {"compare": "none"},
+    library = ":command_constructor_dslx",
+)
+
+xls_dslx_verilog(
+    name = "command_constructor_verilog",
+    codegen_args = {
+        "module_name": "CommandConstructor",
+        "delay_model": "asap7",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "CommandConstructor",
+    library = ":command_constructor_dslx",
+    verilog_file = "command_constructor.v",
+)
+
+xls_benchmark_ir(
+    name = "command_constructor_opt_ir_benchmark",
+    src = ":command_constructor_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "8",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "command_constructor_verilog_benchmark",
+    verilog_target = "command_constructor_verilog",
+)
+
+verilog_library(
+    name = "command_constructor_lib",
+    srcs = [
+        ":command_constructor.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "command_constructor_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "CommandConstructor",
+    deps = [
+        ":command_constructor_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "command_constructor_benchmark_synth",
+    synth_target = ":command_constructor_asap7",
+)
+
+place_and_route(
+    name = "command_constructor_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.3",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":command_constructor_asap7",
+    target_die_utilization_percentage = "10",
+)
