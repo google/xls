@@ -133,7 +133,7 @@ absl::StatusOr<Function*> AddFunctionViaInvoke(Package* p,
   return fb.Build();
 }
 
-TEST_F(SchedulingWrapperPassTest, DCEDoesntChangeWhenRunOnSinglePorc) {
+TEST_F(SchedulingWrapperPassTest, DCEDoesntChangeWhenRunOnSingleProc) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * add_func,
                            AddFunction(p.get(), "add_func"));
