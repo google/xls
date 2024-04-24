@@ -788,10 +788,7 @@ cc_library(
     name = "scrub_crasher",
     srcs = ["scrub_crasher.cc"],
     hdrs = ["scrub_crasher.h"],
-    deps = [
-        "@com_google_absl//absl/strings",
-        "@com_googlesource_code_re2//:re2",
-    ],
+    deps = ["@com_googlesource_code_re2//:re2"],
 )
 
 cc_test(
