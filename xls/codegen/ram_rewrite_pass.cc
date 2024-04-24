@@ -486,23 +486,6 @@ absl::StatusOr<bool> Ram1RWRewrite(
                            rw_block_ports.resp_ports.resp_ready->operand(0),
                            Op::kIdentity, resp_ready_port_buf_name));
 
-  // Update channel ready/valid ports usages with new internal signals.
-  absl::flat_hash_map<Node*, Node*> replaced_nodes = {
-      {rw_block_ports.resp_ports.resp_data, resp_rd_data_port},
-      {rw_block_ports.resp_ports.resp_ready, resp_ready_port_buf},
-      {rw_block_ports.resp_ports.resp_ready->operand(0), resp_ready_port_buf},
-      {rw_block_ports.resp_ports.resp_valid, ram_resp_valid},
-      {rw_block_ports.req_ports.req_ready, resp_ready_port_buf},
-  };
-  for (auto& [_, metadata] : unit->metadata) {
-    for (Node*& node :
-         metadata.streaming_io_and_pipeline.all_active_outputs_ready) {
-      auto itr = replaced_nodes.find(node);
-      if (itr != replaced_nodes.end()) {
-        node = itr->second;
-      }
-    }
-  }
   XLS_RETURN_IF_ERROR(
       rw_block_ports.resp_ports.resp_ready->ReplaceOperandNumber(
           0, resp_ready_port_buf));

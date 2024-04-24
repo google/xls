@@ -209,16 +209,6 @@ struct StreamingIOPipeline {
   std::vector<std::optional<StateRegister>> state_registers;
   std::optional<OutputPort*> idle_port;
 
-  // Node in each stage that represents when all output channels (that are
-  // predicated true) are ready.  See MakeInputReadyPortsForOutputChannels().
-  std::vector<Node*> all_active_outputs_ready;
-  // Node in each stage that represents when all inputs channels (that are
-  // predicated true) are valid.  See MakeInputValidPortsForInputChannels().
-  std::vector<Node*> all_active_inputs_valid;
-  // Node in each stage that represents when all state values (that are
-  // predicated true) are valid.  See MakeValidNodesForInputStates().
-  std::vector<Node*> all_active_states_valid;
-
   // Map of stage# -> node which denotes if the stages input data from the
   // previous stage is valid at this stage (i.e. the stage does not contain a
   // bubble). See MakePipelineStagesForValid().

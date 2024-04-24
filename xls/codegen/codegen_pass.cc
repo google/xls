@@ -92,31 +92,6 @@ void CodegenPassUnit::GcMetadata() {
         }
       }
     }
-    block_metadata.streaming_io_and_pipeline.all_active_outputs_ready.erase(
-        std::remove_if(
-            block_metadata.streaming_io_and_pipeline.all_active_outputs_ready
-                .begin(),
-            block_metadata.streaming_io_and_pipeline.all_active_outputs_ready
-                .end(),
-            [&nodes](const auto& node) { return !nodes.contains(node); }),
-        block_metadata.streaming_io_and_pipeline.all_active_outputs_ready
-            .end());
-    block_metadata.streaming_io_and_pipeline.all_active_inputs_valid.erase(
-        std::remove_if(
-            block_metadata.streaming_io_and_pipeline.all_active_inputs_valid
-                .begin(),
-            block_metadata.streaming_io_and_pipeline.all_active_inputs_valid
-                .end(),
-            [&nodes](const auto& node) { return !nodes.contains(node); }),
-        block_metadata.streaming_io_and_pipeline.all_active_inputs_valid.end());
-    block_metadata.streaming_io_and_pipeline.all_active_states_valid.erase(
-        std::remove_if(
-            block_metadata.streaming_io_and_pipeline.all_active_states_valid
-                .begin(),
-            block_metadata.streaming_io_and_pipeline.all_active_states_valid
-                .end(),
-            [&nodes](const auto& node) { return !nodes.contains(node); }),
-        block_metadata.streaming_io_and_pipeline.all_active_states_valid.end());
     for (std::optional<Node*>& valid :
          block_metadata.streaming_io_and_pipeline.pipeline_valid) {
       if (valid.has_value() && !nodes.contains(*valid)) {

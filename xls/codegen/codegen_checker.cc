@@ -155,18 +155,6 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
     XLS_RET_CHECK(nodes.contains(*streaming_io.idle_port))
         << absl::StreamFormat("Idle port not found for %s", block->name());
   }
-  for (Node* node : streaming_io.all_active_outputs_ready) {
-    XLS_RET_CHECK(nodes.contains(node)) << absl::StreamFormat(
-        "Active ready port not found for %s", block->name());
-  }
-  for (Node* node : streaming_io.all_active_inputs_valid) {
-    XLS_RET_CHECK(nodes.contains(node)) << absl::StreamFormat(
-        "Active valid port not found for %s", block->name());
-  }
-  for (Node* node : streaming_io.all_active_states_valid) {
-    XLS_RET_CHECK(nodes.contains(node)) << absl::StreamFormat(
-        "Active state valid port not found for %s", block->name());
-  }
   int64_t stage = 0;
   for (const std::optional<Node*>& node : streaming_io.pipeline_valid) {
     XLS_RET_CHECK(!node.has_value() || nodes.contains(*node))
