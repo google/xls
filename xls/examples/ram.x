@@ -251,7 +251,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
     if read_req_valid && ASSERT_VALID_READ {
       let mem_initialized_as_bits =
         std::convert_to_bits_msb0(array_rev(mem_initialized[read_req.addr]));
-      assert_eq(read_req.mask & !mem_initialized_as_bits, uN[NUM_PARTITIONS]:0)
+      assert!(read_req.mask & !mem_initialized_as_bits == uN[NUM_PARTITIONS]:0, "memory_not_initialized")
     } else { () };
 
     let (value_to_write, written_mem_initialized) = write_word(
@@ -265,11 +265,8 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
       match SIMULTANEOUS_READ_WRITE_BEHAVIOR {
         SimultaneousReadWriteBehavior::READ_BEFORE_WRITE => mem[read_req.addr],
         SimultaneousReadWriteBehavior::WRITE_BEFORE_READ => value_to_write,
-        SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => {
-          // Assertion failure, we have a conflicting read and write.
-          assert_eq(true, false);
-          mem[read_req.addr]  // Need to return something.
-        },
+        SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => fail!("conflicting_read_and_write", mem[read_req.addr]),
+        _ => fail!("impossible_case", uN[DATA_WIDTH]:0),
       }
     } else { mem[read_req.addr] };
     let read_resp_value = ReadResp<DATA_WIDTH> {
