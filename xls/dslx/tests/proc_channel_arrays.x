@@ -36,7 +36,7 @@ proc producer {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (ps, cs) = chan<u16>[128][64][32];
+    let (ps, cs) = chan<u16>[128][64][32]("multidim_chan");
     spawn consumer(ps[0][1], cs[0]);
     (ps, cs, terminator)
   }

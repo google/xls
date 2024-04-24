@@ -767,6 +767,9 @@ DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
       pieces.push_back(arena.cbracket());
     }
   }
+  pieces.push_back(arena.oparen());
+  pieces.push_back(Fmt(n.channel_name_expr(), comments, arena));
+  pieces.push_back(arena.cparen());
   return ConcatNGroup(arena, pieces);
 }
 

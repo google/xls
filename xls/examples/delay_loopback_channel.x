@@ -48,7 +48,7 @@ pub proc Delay {
     loopback_pop: chan<uN[DATA_WIDTH]> in;
 
     config(data_in: chan<bits[DATA_WIDTH]> in, data_out: chan<bits[DATA_WIDTH]> out) {
-        let (loopback_push, loopback_pop) = chan<uN[DATA_WIDTH], DELAY>;
+        let (loopback_push, loopback_pop) = chan<uN[DATA_WIDTH], DELAY>("loopback");
         (data_in, data_out, loopback_push, loopback_pop)
     }
 
@@ -88,8 +88,8 @@ proc DelayTest {
     data_in: chan<uN[DATA_WIDTH]> in;
 
     config(terminator: chan<bool> out) {
-        let (data_in_c, data_in_p) = chan<uN[DATA_WIDTH], DELAY>;
-        let (data_out_c, data_out_p) = chan<uN[DATA_WIDTH], DELAY>;
+        let (data_in_c, data_in_p) = chan<uN[DATA_WIDTH], DELAY>("data_in");
+        let (data_out_c, data_out_p) = chan<uN[DATA_WIDTH], DELAY>("data_out");
         spawn Delay(data_in_p, data_out_c);
         (terminator, data_in_c, data_out_p)
     }

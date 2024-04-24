@@ -306,10 +306,10 @@ proc RamModelWriteReadMaskedWriteReadTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_s, read_req_r) = chan<ReadReq<8, 32>>;
-    let (read_resp_s, read_resp_r) = chan<ReadResp<32>>;
-    let (write_req_s, write_req_r) = chan<WriteReq<8, 32, 32>>;
-    let (write_resp_s, write_resp_r) = chan<WriteResp>;
+    let (read_req_s, read_req_r) = chan<ReadReq<8, 32>>("read_req");
+    let (read_resp_s, read_resp_r) = chan<ReadResp<32>>("read_rest");
+    let (write_req_s, write_req_r) = chan<WriteReq<8, 32, 32>>("write_req");
+    let (write_resp_s, write_resp_r) = chan<WriteResp>("write_resp");
     spawn RamModel<
       u32:32,  // DATA_WIDTH
       u32:256, // SIZE
@@ -375,10 +375,10 @@ proc RamModelInitializationTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_s, read_req_r) = chan<ReadReq<8, 32>>;
-    let (read_resp_s, read_resp_r) = chan<ReadResp<32>>;
-    let (_, write_req_r) = chan<WriteReq<8, 32, 32>>;
-    let (write_resp_s, _) = chan<WriteResp>;
+    let (read_req_s, read_req_r) = chan<ReadReq<8, 32>>("read_req");
+    let (read_resp_s, read_resp_r) = chan<ReadResp<32>>("read_resp");
+    let (_, write_req_r) = chan<WriteReq<8, 32, 32>>("write_req");
+    let (write_resp_s, _) = chan<WriteResp>("write_resp");
     spawn RamModel<
       u32:32,   // DATA_WIDTH
       u32:256,  // SIZE
@@ -417,10 +417,10 @@ proc RamModelFourBitMaskReadWriteTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_s, read_req_r) = chan<ReadReq<8, 2>>;
-    let (read_resp_s, read_resp_r) = chan<ReadResp<8>>;
-    let (write_req_s, write_req_r) = chan<WriteReq<8, 8, 2>>;
-    let (write_resp_s, write_resp_r) = chan<WriteResp>;
+    let (read_req_s, read_req_r) = chan<ReadReq<8, 2>>("read_req");
+    let (read_resp_s, read_resp_r) = chan<ReadResp<8>>("read_resp");
+    let (write_req_s, write_req_r) = chan<WriteReq<8, 8, 2>>("write_req");
+    let (write_resp_s, write_resp_r) = chan<WriteResp>("write_resp");
     spawn RamModel<
       u32:8,   // DATA_WIDTH
       u32:256, // SIZE
@@ -556,9 +556,9 @@ proc SinglePortRamModelTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (req_s, req_r) = chan<RWRamReq<10, 32, 0>>;
-    let (resp_s, resp_r) = chan<RWRamResp<32>>;
-    let (wr_comp_s, wr_comp_r) = chan<()>;
+    let (req_s, req_r) = chan<RWRamReq<10, 32, 0>>("req");
+    let (resp_s, resp_r) = chan<RWRamResp<32>>("resp");
+    let (wr_comp_s, wr_comp_r) = chan<()>("wr_comp");
     spawn SinglePortRamModel<
       u32:32,   // DATA_WIDTH
       u32:1024, // SIZE
@@ -700,12 +700,12 @@ proc RamModel2RWTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (req0_s, req0_r) = chan<RWRamReq<10, 32, 0>>;
-    let (resp0_s, resp0_r) = chan<RWRamResp<32>>;
-    let (wr_comp0_s, wr_comp0_r) = chan<()>;
-    let (req1_s, req1_r) = chan<RWRamReq<10, 32, 0>>;
-    let (resp1_s, resp1_r) = chan<RWRamResp<32>>;
-    let (wr_comp1_s, wr_comp1_r) = chan<()>;
+    let (req0_s, req0_r) = chan<RWRamReq<10, 32, 0>>("req0");
+    let (resp0_s, resp0_r) = chan<RWRamResp<32>>("resp0");
+    let (wr_comp0_s, wr_comp0_r) = chan<()>("wr_comp0");
+    let (req1_s, req1_r) = chan<RWRamReq<10, 32, 0>>("req1");
+    let (resp1_s, resp1_r) = chan<RWRamResp<32>>("resp1");
+    let (wr_comp1_s, wr_comp1_r) = chan<()>("wr_comp");
     spawn RamModel2RW<
       u32:32,   // DATA_WIDTH
       u32:1024, // SIZE

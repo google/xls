@@ -872,6 +872,15 @@ inline bool IsBitsLikeWithNBitsAndSignedness(const Type& t, bool is_signed,
   return false;
 }
 
+inline bool IsU8Array(const Type& t) {
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&t);
+      array_type != nullptr &&
+      IsBitsLikeWithNBitsAndSignedness(array_type->element_type(), false, 8)) {
+    return true;
+  }
+  return false;
+}
+
 // Returns whether the given type, which should be either a bits or an enum
 // type, is signed.
 absl::StatusOr<bool> IsSigned(const Type& c);

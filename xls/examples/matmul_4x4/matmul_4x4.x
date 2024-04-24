@@ -61,15 +61,15 @@ proc matmul<ROWS: u32, COLS: u32> {
     // Declare the east-to-west channels.
     // Add one extra channel for easy indexing / going "off the edge".
     // TODO(rspringer): 2022-04-18: Maybe eliminate the need for this?
-    let (east_outputs, west_inputs) = chan<F32>[COLS + u32:1][ROWS];
+    let (east_outputs, west_inputs) = chan<F32>[COLS + u32:1][ROWS]("east_west");
 
     // Declare the north-to-south channels.
-    let (south_outputs, north_inputs) = chan<F32>[COLS][ROWS];
+    let (south_outputs, north_inputs) = chan<F32>[COLS][ROWS]("north_south");
 
     // TODO(rspringer): Zeros (as initial partial sums) would be best provided
     // by single-value channels.
     // Declare the zero-valued initial partial sum channels.
-    let (zeroes_out, zeroes_in) = chan<F32>[COLS];
+    let (zeroes_out, zeroes_in) = chan<F32>[COLS]("zeros");
 
     // Spawn all the procs. Specify weights to give a "mul-by-two" matrix.
     let f32_0 = float32::zero(false);
@@ -118,8 +118,8 @@ proc test_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (activations_out, activations_in) = chan<F32>[4];
-    let (results_out, results_in) = chan<F32>[4];
+    let (activations_out, activations_in) = chan<F32>[4]("activations");
+    let (results_out, results_in) = chan<F32>[4]("results");
     spawn matmul<u32:4, u32:4>(activations_in, results_out);
     (activations_out, results_in, terminator)
   }

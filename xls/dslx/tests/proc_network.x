@@ -30,12 +30,12 @@ proc first_level_proc {
     output_r1: chan<u32> in;
 
     config() {
-        let (input_s0, input_r0) = chan<u32>;
-        let (output_s0, output_r0) = chan<u32>;
+        let (input_s0, input_r0) = chan<u32>("input0");
+        let (output_s0, output_r0) = chan<u32>("output0");
         spawn second_level_proc(input_r0, output_s0);
 
-        let (input_s1, input_r1) = chan<u32>;
-        let (output_s1, output_r1) = chan<u32>;
+        let (input_s1, input_r1) = chan<u32>("input1");
+        let (output_s1, output_r1) = chan<u32>("output1");
         spawn second_level_proc(input_r1, output_s1);
 
         (input_s0, input_s1, output_r0, output_r1)

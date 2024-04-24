@@ -66,7 +66,7 @@ TEST(TypecheckErrorTest, ConfigTooManyElementsGiven) {
 proc entry {
     init { () }
     config() {
-      let (_p, c) = chan<u32>;
+      let (_p, c) = chan<u32>("my_chan");
       (c,)
     }
     next (tok: token, state: ()) { () }
@@ -134,7 +134,7 @@ proc entry {
     c: chan<u32> out;
     init { () }
     config() {
-        let (p, c) = chan<u32>;
+        let (p, c) = chan<u32>("my_chan");
         spawn foo(p);
         (c,)
     }
@@ -247,7 +247,7 @@ proc entry {
     c: chan<u32> in;
     init { () }
     config() {
-        let (p, c) = chan<u32>;
+        let (p, c) = chan<u32>("my_chan");
         spawn foo(c);
         (p,)
     }
@@ -269,7 +269,7 @@ proc entry {
     c: chan<u32> in;
     init { () }
     config() {
-        let (p, c) = chan<u32>;
+        let (p, c) = chan<u32>("my_chan");
         (p, c)
     }
     next (tok: token, state: ()) {
@@ -312,7 +312,7 @@ proc entry {
     c: chan<u32> in;
     init { () }
     config() {
-        let (p, c) = chan<u32>;
+        let (p, c) = chan<u32>("my_chan");
         (p, c)
     }
     next (tok: token, state: ()) {

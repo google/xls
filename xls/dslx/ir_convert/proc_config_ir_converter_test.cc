@@ -65,7 +65,7 @@ proc main {
   c: chan<u32> out;
   init { () }
   config() {
-    let (p, c) = chan<u32>;
+    let (p, c) = chan<u32>("my_chan");
     spawn test_proc(c, u32:7);
     (p,)
   }
@@ -121,7 +121,7 @@ proc main {
   c: chan<u32> out;
   init { () }
   config() {
-    let (p, c) = chan<u32>;
+    let (p, c) = chan<u32>("my_chan");
     spawn test_proc(c);
     (p,)
   }
@@ -174,7 +174,7 @@ proc test_proc<X: u32, Y: u32> {
   c_out: chan<u32> out;
   init {}
   config(c_in: chan<u32> in, c_out: chan<u32> out) {
-    let (p, c) = chan<u32, {X + Y}>;
+    let (p, c) = chan<u32, {X + Y}>("my_chan");
     spawn passthrough(c_in, p);
     spawn passthrough(c, c_out);
     (c_in, c_out)

@@ -149,8 +149,8 @@ proc RunLengthDecoderTransactionTest {
   init {()}
 
   config(terminator: chan<bool> out) {
-    let (dec_input_s, dec_input_r)   = chan<TestDecInData>;
-    let (dec_output_s, dec_output_r) = chan<TestDecOutData>;
+    let (dec_input_s, dec_input_r)   = chan<TestDecInData>("dec_input");
+    let (dec_output_s, dec_output_r) = chan<TestDecOutData>("dec_output");
 
     spawn RunLengthDecoder<TEST_SYMBOL_WIDTH, TEST_COUNT_WIDTH>(
       dec_input_r, dec_output_s);
@@ -220,8 +220,8 @@ proc RunLengthDecoderLastAfterLastTest {
   init {()}
 
   config(terminator: chan<bool> out) {
-    let (dec_input_s, dec_input_r)   = chan<TestDecInData>;
-    let (dec_output_s, dec_output_r) = chan<TestDecOutData>;
+    let (dec_input_s, dec_input_r)   = chan<TestDecInData>("dec_input");
+    let (dec_output_s, dec_output_r) = chan<TestDecOutData>("dec_output");
 
     spawn RunLengthDecoder<TEST_SYMBOL_WIDTH, TEST_COUNT_WIDTH>(
         dec_input_r, dec_output_s);

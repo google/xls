@@ -43,10 +43,10 @@ proc smoke_test {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (input_a_s, input_a_r) = chan<F32>;
-        let (input_b_s, input_b_r) = chan<F32>;
-        let (reset_s, reset_r) = chan<bool>;
-        let (output_s, output_r) = chan<F32>;
+        let (input_a_s, input_a_r) = chan<F32>("input_a");
+        let (input_b_s, input_b_r) = chan<F32>("input_b");
+        let (reset_s, reset_r) = chan<bool>("reset");
+        let (output_s, output_r) = chan<F32>("output");
         spawn fp32_fmac(input_a_r, input_b_r, reset_r, output_s);
         (input_a_s, input_b_s, reset_s, output_r, terminator)
     }

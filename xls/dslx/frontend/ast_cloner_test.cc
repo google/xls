@@ -20,6 +20,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/frontend/ast.h"
@@ -561,8 +563,8 @@ proc MyProc {
     input_p: chan<u32> out;
     output_c: chan<u64> out;
     config() {
-        let (input_p, input_c) = chan<u32>;
-        let (output_p, output_c) = chan<u64>;
+        let (input_p, input_c) = chan<u32>("input");
+        let (output_p, output_c) = chan<u64>("output");
         spawn other_module::OtherProc(input_c, output_p);
         (input_p, output_c)
     }
@@ -580,8 +582,8 @@ proc MyProc {
 })";
   constexpr std::string_view kExpected = R"(import other_module;
 fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
-    let (input_p, input_c) = chan<u32>;
-    let (output_p, output_c) = chan<u64>;
+    let (input_p, input_c) = chan<u32>("input");
+    let (output_p, output_c) = chan<u64>("output");
     spawn other_module::OtherProc(input_c, output_p);
     (input_p, output_c)
 }
@@ -600,8 +602,8 @@ proc MyProc {
     input_p: chan<u32> out;
     output_c: chan<u64> out;
     config() {
-        let (input_p, input_c) = chan<u32>;
-        let (output_p, output_c) = chan<u64>;
+        let (input_p, input_c) = chan<u32>("input");
+        let (output_p, output_c) = chan<u64>("output");
         spawn other_module::OtherProc(input_c, output_p);
         (input_p, output_c)
     }

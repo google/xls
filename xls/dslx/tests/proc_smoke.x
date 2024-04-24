@@ -35,7 +35,7 @@ proc test_main {
   init { u32:0 }
 
   config(terminator_s: chan<bool> out) {
-    let (s, r) = chan<u32>;
+    let (s, r) = chan<u32>("c");
     spawn proc_under_test(r);
     (s, terminator_s)
   }

@@ -51,6 +51,8 @@ cc_test(
         ":ast",
         ":ast_cloner",
         ":module",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:casts",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

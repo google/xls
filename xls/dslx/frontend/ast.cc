@@ -851,8 +851,9 @@ std::string ChannelDecl::ToStringInternal() const {
   if (fifo_depth_.has_value()) {
     fifo_depth_str = absl::StrCat(", ", fifo_depth_.value()->ToString());
   }
-  return absl::StrFormat("chan<%s%s>%s", type_->ToString(), fifo_depth_str,
-                         absl::StrJoin(dims, ""));
+  return absl::StrFormat("chan<%s%s>%s(%s)", type_->ToString(), fifo_depth_str,
+                         absl::StrJoin(dims, ""),
+                         channel_name_expr_.ToString());
 }
 
 absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node) {

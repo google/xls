@@ -2088,7 +2088,7 @@ proc Top {
     config() {
         // The "chan" constructor provides send (`out`) and receive (`in`)
         // port halves.
-        let (s, r) = chan<u32>;
+        let (s, r) = chan<u32>("my_chan");
         // Instantiate the `CountUp` proc which will talk to us using this channel half.
         spawn CountUp(s);
         // Initialize our member using the receive half of the channel we created.

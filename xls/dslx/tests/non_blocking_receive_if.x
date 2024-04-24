@@ -40,9 +40,9 @@ proc Tester {
     result_in: chan<(u32, bool)> in;
 
     config(terminator: chan<bool> out) {
-        let (do_recv_out, do_recv_in) = chan<bool>;
-        let (data_out, data_in) = chan<u32>;
-        let (result_out, result_in) = chan<(u32, bool)>;
+        let (do_recv_out, do_recv_in) = chan<bool>("do_recv");
+        let (data_out, data_in) = chan<u32>("data");
+        let (result_out, result_in) = chan<(u32, bool)>("result");
         spawn Main(do_recv_in, data_in, result_out);
         (terminator, do_recv_out, data_out, result_in)
     }

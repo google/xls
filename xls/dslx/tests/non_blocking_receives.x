@@ -66,9 +66,9 @@ proc test_main {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (in0_s, in0_r) = chan<u32>;
-    let (in1_s, in1_r) = chan<u32>;
-    let (out0_s, out0_r) = chan<u32>;
+    let (in0_s, in0_r) = chan<u32>("in0");
+    let (in1_s, in1_r) = chan<u32>("in1");
+    let (out0_s, out0_r) = chan<u32>("out0");
 
     spawn proc_main(in0_r, in1_r, out0_s);
 

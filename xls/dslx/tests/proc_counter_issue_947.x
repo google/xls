@@ -32,7 +32,7 @@ proc counter_test {
     output_r: chan<u8> in;
 
     config(t: chan<bool> out) {
-        let (output_s, output_r) = chan<u8>;
+        let (output_s, output_r) = chan<u8>("output");
         spawn counter(output_s);
         (t, output_s, output_r)
     }

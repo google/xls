@@ -31,7 +31,7 @@ proc test_case {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (ch_in, ch_out) = chan<bool>;
+    let (ch_in, ch_out) = chan<bool>("ch");
     spawn foo(ch_in, ch_out);
     (terminator, )
   }

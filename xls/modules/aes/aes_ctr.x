@@ -147,9 +147,9 @@ proc aes_ctr_test_128 {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_s, command_r) = chan<Command>;
-        let (ptxt_s, ptxt_r) = chan<Block>;
-        let (ctxt_s, ctxt_r) = chan<Block>;
+        let (command_s, command_r) = chan<Command>("command");
+        let (ptxt_s, ptxt_r) = chan<Block>("ptxt");
+        let (ctxt_s, ctxt_r) = chan<Block>("ctxt");
         spawn aes_ctr(command_r, ptxt_r, ctxt_s);
         (terminator, command_s, ptxt_s, ctxt_r)
     }

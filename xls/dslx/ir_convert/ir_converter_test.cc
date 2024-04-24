@@ -1558,11 +1558,10 @@ TEST(IrConverterTest, HandlesChannelDecls) {
 proc main {
   init { () }
   config() {
-    let (p0, c0) : (chan<u32> out, chan<u32> in) = chan<u32>;
-    let (p1, c1) : (chan<u64> out, chan<u64> in) = chan<u64>;
-    let (p2, c2) : (chan<(u64, (u64, (u64)))> out, chan<(u64, (u64, (u64)))> in) = chan<(u64, (u64, (u64)))>;
-    let (p3, c3) = chan<(u64, (u64, u64[4]))>;
-    ()
+    let (p0, c0) : (chan<u32> out, chan<u32> in) = chan<u32>("u32_chan");
+    let (p1, c1) : (chan<u64> out, chan<u64> in) = chan<u64>("u64_chan");
+    let (p2, c2) : (chan<(u64, (u64, (u64)))> out, chan<(u64, (u64, (u64)))> in) = chan<(u64, (u64, (u64)))>("tuple_chan");
+    let (p3, c3) = chan<(u64, (u64, u64[4]))>("tuple_with_array_chan");
   }
 
   next(tok: token, state: ()) {
@@ -1615,7 +1614,7 @@ proc consumer {
 proc main {
   init { () }
   config() {
-    let (p, c) = chan<u32>;
+    let (p, c) = chan<u32>("my_chan");
     spawn producer(p);
     spawn consumer(c);
     ()
@@ -1703,7 +1702,7 @@ proc consumer {
 proc main {
   init { () }
   config() {
-    let (p, c) = chan<u32>;
+    let (p, c) = chan<u32>("my_chan");
     spawn producer(p);
     spawn consumer(c);
     ()
@@ -1734,10 +1733,10 @@ TEST(IrConverterTest, Join) {
   }
 
   config() {
-    let (p0, c0) = chan<u32>;
-    let (p1, c1) = chan<u32>;
-    let (p2, c2) = chan<u32>;
-    let (p3, c3) = chan<u32>;
+    let (p0, c0) = chan<u32>("chan0");
+    let (p1, c1) = chan<u32>("chan1");
+    let (p2, c2) = chan<u32>("chan2");
+    let (p3, c3) = chan<u32>("chan3");
     (p0, p1, p2, c3)
   }
 
@@ -1755,9 +1754,8 @@ TEST(IrConverterTest, Join) {
 proc main {
   init { () }
   config() {
-    let (p, c) = chan<u32>;
+    let (p, c) = chan<u32>("my_chan");
     spawn foo();
-    ()
   }
   next(tok: token, state: ()) { () }
 }
@@ -1920,7 +1918,7 @@ TEST(IrConverterTest, ParameterShadowingModuleLevelConstant) {
 
 TEST(IrConverterTest, ChannelDecl) {
   constexpr std::string_view kProgram = R"(fn main() {
-  let _ = chan<u8>;
+  let _ = chan<u8>("my_chan");
   ()
   })";
   ConvertOptions options;

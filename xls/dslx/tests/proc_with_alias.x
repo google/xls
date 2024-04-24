@@ -33,7 +33,7 @@ proc TestProc {
     r: chan<u32> in;
 
     config(terminator: chan<bool> out) {
-        let (s, r) = chan<u32>;
+        let (s, r) = chan<u32>("my_chan");
         spawn P(s);
         (terminator, r)
     }

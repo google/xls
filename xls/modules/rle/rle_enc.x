@@ -181,8 +181,8 @@ proc RunLengthEncoderCountSymbolTest {
 
   init {()}
   config (terminator: chan<bool> out) {
-    let (enc_input_s, enc_input_r) = chan<CountSymbolTestEncInData>;
-    let (enc_output_s, enc_output_r) = chan<CountSymbolTestEncOutData>;
+    let (enc_input_s, enc_input_r) = chan<CountSymbolTestEncInData>("enc_input");
+    let (enc_output_s, enc_output_r) = chan<CountSymbolTestEncOutData>("enc_output");
 
     spawn RunLengthEncoder<COUNT_SYMBOL_TEST_SYMBOL_WIDTH, COUNT_SYMBOL_TEST_COUNT_WIDTH>(
         enc_input_r, enc_output_s);
@@ -245,8 +245,8 @@ proc RunLengthEncoderOverflowTest {
 
   init {()}
   config (terminator: chan<bool> out) {
-    let (enc_input_s, enc_input_r) = chan<OverflowEncInData>;
-    let (enc_output_s, enc_output_r) = chan<OverflowEncOutData>;
+    let (enc_input_s, enc_input_r) = chan<OverflowEncInData>("enc_input");
+    let (enc_output_s, enc_output_r) = chan<OverflowEncOutData>("enc_output");
 
     spawn RunLengthEncoder<OVERFLOW_SYMBOL_WIDTH, OVERFLOW_COUNT_WIDTH>(
         enc_input_r, enc_output_s);
@@ -320,8 +320,8 @@ proc RunLengthEncoderLastAfterLastTest {
 
   init {()}
   config (terminator: chan<bool> out) {
-    let (enc_input_s, enc_input_r) = chan<LastAfterLastEncInData>;
-    let (enc_output_s, enc_output_r) = chan<LastAfterLastEncOutData>;
+    let (enc_input_s, enc_input_r) = chan<LastAfterLastEncInData>("enc_input");
+    let (enc_output_s, enc_output_r) = chan<LastAfterLastEncOutData>("enc_output");
 
     spawn RunLengthEncoder<LAST_AFTER_LAST_SYMBOL_WIDTH, LAST_AFTER_LAST_COUNT_WIDTH>(
         enc_input_r, enc_output_s);
@@ -387,9 +387,9 @@ proc RunLengthEncoderOverflowWithLastTest {
 
   init {()}
   config (terminator: chan<bool> out) {
-    let (enc_input_s, enc_input_r) = chan<OverflowWithLastEncInData>;
+    let (enc_input_s, enc_input_r) = chan<OverflowWithLastEncInData>("enc_input");
     let (enc_output_s, enc_output_r) =
-        chan<OverflowWithLastEncOutData>;
+        chan<OverflowWithLastEncOutData>("enc_output");
 
     spawn RunLengthEncoder<OVERFLOW_WITH_LAST_SYMBOL_WIDTH,
                  OVERFLOW_WITH_LAST_COUNT_WIDTH>(

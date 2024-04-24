@@ -49,7 +49,7 @@ proc main {
   init { () }
 
   config() {
-    let (s, r) = chan<u32>;
+    let (s, r) = chan<u32>("my_chan");
     spawn producer(s);
     spawn consumer<u32:2>(r);
     ()

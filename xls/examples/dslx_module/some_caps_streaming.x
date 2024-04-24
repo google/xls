@@ -49,8 +49,8 @@ proc test_streaming_somecaps {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (send_to_proc_in, send_to_proc_out) = chan<u8[TEST_SIZE]>;
-    let (recv_from_proc_in, recv_from_proc_out) = chan<u8[TEST_SIZE]>;
+    let (send_to_proc_in, send_to_proc_out) = chan<u8[TEST_SIZE]>("send_to_proc");
+    let (recv_from_proc_in, recv_from_proc_out) = chan<u8[TEST_SIZE]>("recv_from_proc");
     spawn some_caps_streaming<TEST_SIZE>(send_to_proc_out, recv_from_proc_in);
     (send_to_proc_in, recv_from_proc_out, terminator)
   }

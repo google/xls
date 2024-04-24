@@ -1510,7 +1510,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelDecl) {
     cout: chan<u32> out;
 
     config() {
-        let (cin, cout) = chan<u32>;
+        let (cin, cout) = chan<u32>("c");
         (cin, cout)
     }
 
@@ -1528,7 +1528,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelArrayDecl) {
     cout: chan<u32>[2] out;
 
     config() {
-        let (cin, cout) = chan<u32>[2];
+        let (cin, cout) = chan<u32>[2]("c");
         (cin, cout)
     }
 
@@ -1546,7 +1546,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
     cout: chan<u32> out;
 
     config() {
-        let (cin, cout) = chan<u32, u32:4>;
+        let (cin, cout) = chan<u32, u32:4>("c");
         (cin, cout)
     }
 
@@ -1572,7 +1572,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithSpawn) {
 
 pub proc q {
     config() {
-        let (cin, cout) = chan<u32, u32:4>;
+        let (cin, cout) = chan<u32, u32:4>("c");
         spawn p(cin, cout);
         ()
     }
@@ -1599,7 +1599,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithSpawnNoTrailingTuple) {
 
 pub proc q {
     config() {
-        let (cin, cout) = chan<u32, u32:4>;
+        let (cin, cout) = chan<u32, u32:4>("c");
         spawn p(cin, cout);
     }
 

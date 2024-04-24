@@ -287,9 +287,9 @@ proc ghash_test {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_s, command_r) = chan<Command>;
-        let (data_s, data_r) = chan<Block>;
-        let (tag_s, tag_r) = chan<Block>;
+        let (command_s, command_r) = chan<Command>("command");
+        let (data_s, data_r) = chan<Block>("data");
+        let (tag_s, tag_r) = chan<Block>("tag");
 
         spawn ghash(command_r, data_r, tag_s);
         (command_s, data_s, tag_r, terminator)

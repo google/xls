@@ -44,7 +44,7 @@ proc consumer {
 proc main {
     init { () }
     config() {
-        let (s, r) = chan<u32>;
+        let (s, r) = chan<u32>("my_chan");
         spawn producer(s);
         spawn consumer(r);
     }
@@ -60,8 +60,8 @@ proc test_main {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (data0_s, data0_r) = chan<u32>;
-        let (data1_s, data1_r) = chan<u32>;
+        let (data0_s, data0_r) = chan<u32>("data0");
+        let (data1_s, data1_r) = chan<u32>("data1");
 
         spawn producer(data0_s);
         spawn consumer(data1_r);

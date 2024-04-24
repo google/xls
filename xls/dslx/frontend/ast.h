@@ -2981,17 +2981,18 @@ class ConstRef : public NameRef {
   }
 };
 
-// A channel declaration, e.g., let (p, c) = chan<u32>.
-// ------------------------------------------^^^^^^^^^ this part.
+// A channel declaration, e.g., `let (p, c) = chan<u32>("my_chan");`
+// -------------------------------------------^^^^^^^^^^^^^^^^^^^^ this part.
 class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
               std::optional<std::vector<Expr*>> dims,
-              std::optional<Expr*> fifo_depth)
+              std::optional<Expr*> fifo_depth, Expr& channel_name_expr)
       : Expr(owner, std::move(span)),
         type_(type),
         dims_(std::move(dims)),
-        fifo_depth_(fifo_depth) {}
+        fifo_depth_(fifo_depth),
+        channel_name_expr_(channel_name_expr) {}
 
   ~ChannelDecl() override;
 
@@ -3007,12 +3008,16 @@ class ChannelDecl : public Expr {
   std::string_view GetNodeTypeName() const override { return "ChannelDecl"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(type_)};
+    if (want_types) {
+      return {type_, &channel_name_expr_};
+    }
+    return {&channel_name_expr_};
   }
 
   TypeAnnotation* type() const { return type_; }
   const std::optional<std::vector<Expr*>>& dims() const { return dims_; }
   std::optional<Expr*> fifo_depth() const { return fifo_depth_; }
+  Expr& channel_name_expr() const { return channel_name_expr_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
@@ -3024,6 +3029,7 @@ class ChannelDecl : public Expr {
   TypeAnnotation* type_;
   std::optional<std::vector<Expr*>> dims_;
   std::optional<Expr*> fifo_depth_;
+  Expr& channel_name_expr_;
 };
 
 // Helper for determining whether an AST node is constant (e.g. can be

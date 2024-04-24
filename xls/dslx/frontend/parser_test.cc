@@ -531,7 +531,7 @@ proc consumer<N: u32> {
 }
 proc main {
     config() {
-        let (p, c) = chan<u32>;
+        let (p, c) = chan<u32>("my_chan");
         spawn producer(u32:10, p);
         spawn consumer(range(10), c);
         ()
@@ -578,7 +578,7 @@ proc consumer<N: u32> {
 }
 proc main {
     config() {
-        let (p, c) = chan<u32, 2>;
+        let (p, c) = chan<u32, 2>("my_chan");
         spawn producer(u32:10, p);
         spawn consumer(range(10), c);
         ()
@@ -632,7 +632,7 @@ TEST_F(ParserTest, ChannelArraysOneD) {
 proc producer {
     channels: chan<u32>[32] out;
     config() {
-        let (ps, cs) = chan<u32>[32];
+        let (ps, cs) = chan<u32>[32]("my_chan");
         spawn consumer(cs[0]);
         (ps,)
     }
@@ -664,7 +664,7 @@ TEST_F(ParserTest, ChannelArraysThreeD) {
 proc producer {
     channels: chan<u32>[32][64][128] out;
     config() {
-        let (ps, cs) = chan<u32>[32][64][128];
+        let (ps, cs) = chan<u32>[32][64][128]("my_chan");
         spawn consumer(cs[0]);
         (ps,)
     }
@@ -807,8 +807,8 @@ proc tester {
     c: chan<u32> in;
     terminator: chan<u32> out;
     config(terminator: chan<u32> out) {
-        let (input_p, input_c) = chan<u32>;
-        let (output_p, output_c) = chan<u32>;
+        let (input_p, input_c) = chan<u32>("input");
+        let (output_p, output_c) = chan<u32>("output");
         spawn testee(input_c, output_p);
         (input_p, output_c, terminator)
     }
@@ -1971,8 +1971,8 @@ TEST_F(ParserTest, ChannelDeclWithFifoDepthExpression) {
   constexpr std::string_view kProgram = R"(proc foo<N: u32, M: u32> {
     c_in: chan<u32> in;
     c_out: chan<u32> out;
-    config () {
-        let (c_p, c_c) = chan<u32, {N + M}>;
+    config() {
+        let (c_p, c_c) = chan<u32, {N + M}>("my_chan");
         (c_p, c_c)
     }
     init {}

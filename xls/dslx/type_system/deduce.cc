@@ -1752,6 +1752,27 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceChannelDecl(const ChannelDecl* node,
     }
   }
 
+  // The channel name must be a constexpr u8 array.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> channel_name_type,
+                       Deduce(&node->channel_name_expr(), ctx));
+  if (!IsU8Array(*channel_name_type)) {
+    return TypeInferenceErrorStatus(
+        node->channel_name_expr().span(), channel_name_type.get(),
+        "Channel name must be an array of u8s; i.e. u8[N]");
+  }
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue channel_name_value,
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          ctx->GetCurrentParametricEnv(), &node->channel_name_expr(),
+          channel_name_type.get()));
+  XLS_ASSIGN_OR_RETURN(int64_t name_length, channel_name_value.GetLength());
+  if (name_length == 0) {
+    return TypeInferenceErrorStatus(node->channel_name_expr().span(),
+                                    channel_name_type.get(),
+                                    "Channel name must not be empty");
+  }
+
   std::vector<std::unique_ptr<Type>> elements;
   elements.push_back(std::move(producer));
   elements.push_back(std::move(consumer));

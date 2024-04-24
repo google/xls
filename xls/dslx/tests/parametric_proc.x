@@ -34,8 +34,8 @@ proc test_proc {
     input_p: chan<u37> out;
 
     config(terminator: chan<bool> out) {
-        let (input_p, input_c) = chan<u37>;
-        let (output_p, output_c) = chan<u37>;
+        let (input_p, input_c) = chan<u37>("input");
+        let (output_p, output_c) = chan<u37>("output");
         spawn parametric<u32:32, u32:37>(input_c, output_p);
         (terminator, output_c, input_p)
     }

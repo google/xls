@@ -172,7 +172,8 @@ class AstCloner : public AstNodeVisitor {
 
     old_to_new_[n] = module_->Make<ChannelDecl>(
         n->span(), down_cast<TypeAnnotation*>(old_to_new_.at(n->type())),
-        new_dims, new_fifo_depth);
+        new_dims, new_fifo_depth,
+        *down_cast<Expr*>(old_to_new_.at(&n->channel_name_expr())));
     return absl::OkStatus();
   }
 

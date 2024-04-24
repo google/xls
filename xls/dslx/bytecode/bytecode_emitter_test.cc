@@ -26,6 +26,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode.h"
@@ -1277,7 +1278,7 @@ proc Foo {
   y: u32;
   init { () }
   config() {
-    let (p, c) = chan<u32>;
+    let (p, c) = chan<u32>("my_chan");
     (c, u32:100)
   }
 
@@ -1338,7 +1339,7 @@ proc Parent {
   p: chan<u32> out;
   init { () }
   config() {
-    let (p, c) = chan<u32>;
+    let (p, c) = chan<u32>("my_chan");
     spawn Child(c, u64:100, uN[128]:200);
     (p,)
   }

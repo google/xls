@@ -2422,7 +2422,7 @@ proc t {
     result_in: chan<u32> in;
 
     config(terminator: chan<bool> out) {
-        let (result_out, result_in) = chan<u32>;
+        let (result_out, result_in) = chan<u32>("result");
         (result_in,)
     }
 

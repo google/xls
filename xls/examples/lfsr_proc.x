@@ -52,8 +52,8 @@ proc test {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (value_s, value_r) = chan<u8>;
-    let (seed_s, seed_r) = chan<(u8, u8)>;
+    let (value_s, value_r) = chan<u8>("value");
+    let (seed_s, seed_r) = chan<(u8, u8)>("seed");
     spawn user_module<u32:8>(value_s, seed_r);
     (value_r, seed_s, terminator)
   }

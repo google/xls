@@ -192,14 +192,14 @@ proc aes_gcm {
     config(command_in: chan<Command> in,
            data_r: chan<Block> in,
            data_s: chan<Block> out) {
-        let (ctr_cmd_s, ctr_cmd_r) = chan<aes_ctr::Command>;
-        let (ctr_input_s, ctr_input_r) = chan<Block>;
-        let (ctr_result_s, ctr_result_r) = chan<Block>;
+        let (ctr_cmd_s, ctr_cmd_r) = chan<aes_ctr::Command>("ctr_cmd");
+        let (ctr_input_s, ctr_input_r) = chan<Block>("ctr_input");
+        let (ctr_result_s, ctr_result_r) = chan<Block>("ctr_result");
         spawn aes_ctr::aes_ctr(ctr_cmd_r, ctr_input_r, ctr_result_s);
 
-        let (ghash_cmd_s, ghash_cmd_r) = chan<ghash::Command>;
-        let (ghash_input_s, ghash_input_r) = chan<Block>;
-        let (ghash_tag_s, ghash_tag_r) = chan<Block>;
+        let (ghash_cmd_s, ghash_cmd_r) = chan<ghash::Command>("ghash_cmd");
+        let (ghash_input_s, ghash_input_r) = chan<Block>("ghash_input");
+        let (ghash_tag_s, ghash_tag_r) = chan<Block>("ghash_tag");
         spawn ghash::ghash(ghash_cmd_r, ghash_input_r, ghash_tag_s);
 
         (command_in, data_r, data_s,
@@ -297,9 +297,9 @@ proc aes_gcm_test_smoke_128 {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_s, command_r) = chan<Command>;
-        let (input_s, input_r) = chan<Block>;
-        let (result_s, result_r) = chan<Block>;
+        let (command_s, command_r) = chan<Command>("command");
+        let (input_s, input_r) = chan<Block>("input");
+        let (result_s, result_r) = chan<Block>("result");
         spawn aes_gcm(command_r, input_r, result_s);
         (command_s, input_s, result_r, terminator)
     }
@@ -364,9 +364,9 @@ proc aes_gcm_multi_block_gcm {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_s, command_r) = chan<Command>;
-        let (input_s, input_r) = chan<Block>;
-        let (result_s, result_r) = chan<Block>;
+        let (command_s, command_r) = chan<Command>("command");
+        let (input_s, input_r) = chan<Block>("input");
+        let (result_s, result_r) = chan<Block>("result");
         spawn aes_gcm(command_r, input_r, result_s);
         (command_s, input_s, result_r, terminator)
     }
@@ -486,9 +486,9 @@ proc aes_128_gcm_zero_block_commands {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_s, command_r) = chan<Command>;
-        let (input_s, input_r) = chan<Block>;
-        let (result_s, result_r) = chan<Block>;
+        let (command_s, command_r) = chan<Command>("command");
+        let (input_s, input_r) = chan<Block>("input");
+        let (result_s, result_r) = chan<Block>("result");
         spawn aes_gcm(command_r, input_r, result_s);
         (command_s, input_s, result_r, terminator)
     }
@@ -612,9 +612,9 @@ proc sample_generator_test {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_s, command_r) = chan<Command>;
-        let (input_s, input_r) = chan<Block>;
-        let (result_s, result_r) = chan<Block>;
+        let (command_s, command_r) = chan<Command>("command");
+        let (input_s, input_r) = chan<Block>("input");
+        let (result_s, result_r) = chan<Block>("result");
         spawn aes_gcm(command_r, input_r, result_s);
         (command_s, input_s, result_r, terminator)
     }

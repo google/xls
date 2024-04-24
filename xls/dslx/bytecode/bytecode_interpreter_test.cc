@@ -1618,8 +1618,8 @@ proc BTester {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (data_in_p, data_in_c) = chan<u32>;
-        let (data_out_p, data_out_c) = chan<u32>;
+        let (data_in_p, data_in_c) = chan<u32>("data_in");
+        let (data_out_p, data_out_c) = chan<u32>("data_out");
         spawn B<u32:5, u32:3>(data_in_c, data_out_p);
         (data_in_p, data_out_c, terminator)
     }
@@ -1870,8 +1870,8 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u32>;
-    let (output_p, output_c) = chan<u32>;
+    let (input_p, input_c) = chan<u32>("input");
+    let (output_p, output_c) = chan<u32>("output");
     spawn incrementer(input_c, output_p);
     (input_p, output_c, terminator)
   }
@@ -1952,8 +1952,8 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u32>;
-    let (output_p, output_c) = chan<u32>;
+    let (input_p, input_c) = chan<u32>("input");
+    let (output_p, output_c) = chan<u32>("output");
     spawn incrementer(input_c, output_p);
     (input_p, output_c, terminator)
   }
@@ -2036,8 +2036,8 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u32>;
-    let (output_p, output_c) = chan<u32>;
+    let (input_p, input_c) = chan<u32>("input");
+    let (output_p, output_c) = chan<u32>("output");
     spawn incrementer(input_c, output_p);
     (input_p, output_c, terminator)
   }
@@ -2113,8 +2113,8 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<Foo>;
-    let (output_p, output_c) = chan<Foo>;
+    let (input_p, input_c) = chan<Foo>("input");
+    let (output_p, output_c) = chan<Foo>("output");
     spawn incrementer(input_c, output_p);
     (input_p, output_c, terminator)
   }
@@ -2197,8 +2197,8 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u32>[1];
-    let (output_p, output_c) = chan<u32>[1];
+    let (input_p, input_c) = chan<u32>[1]("input");
+    let (output_p, output_c) = chan<u32>[1]("output");
     spawn incrementer(input_c[0], output_p[0]);
     (input_p, output_c, terminator)
   }

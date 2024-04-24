@@ -239,9 +239,9 @@ proc varint_streaming_u32_decode_test {
 
   config (terminator: chan<bool> out) {
     let (bytes_s, bytes_r) =
-      chan<(u8[TEST_INPUT_BYTES], uN[TEST_INPUT_BYTES_WIDTH])>;
+      chan<(u8[TEST_INPUT_BYTES], uN[TEST_INPUT_BYTES_WIDTH])>("bytes");
     let (words_s, words_r) =
-      chan<(u32[TEST_OUTPUT_WORDS], uN[TEST_OUTPUT_WORDS_WIDTH])>;
+      chan<(u32[TEST_OUTPUT_WORDS], uN[TEST_OUTPUT_WORDS_WIDTH])>("words");
     spawn varint_streaming_u32_decode<TEST_INPUT_BYTES,
                                       TEST_OUTPUT_WORDS,
                                       TEST_BIG_SHIFT>(bytes_r, words_s);

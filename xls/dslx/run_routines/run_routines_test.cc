@@ -343,8 +343,8 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_out, input_in) = chan<u32>;
-    let (output_out, output_in) = chan<u32>;
+    let (input_out, input_in) = chan<u32>("input");
+    let (output_out, output_in) = chan<u32>("output");
     spawn incrementer(input_in, output_out);
     (input_out, output_in, terminator)
   }
@@ -391,8 +391,8 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_out, input_in) = chan<u32>;
-    let (output_out, output_in) = chan<u32>;
+    let (input_out, input_in) = chan<u32>("input");
+    let (output_out, output_in) = chan<u32>("output");
     spawn incrementer(input_in, output_out);
     (input_out, output_in, terminator)
   }

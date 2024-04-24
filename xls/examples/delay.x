@@ -184,7 +184,7 @@ pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
         ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>> out,
         ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in,
         ram_wr_comp: chan<()> in) {
-        let (internal_data_s, internal_data_r) = chan<bits[DATA_WIDTH]>;
+        let (internal_data_s, internal_data_r) = chan<bits[DATA_WIDTH]>("internal_data");
         spawn DelayInternal<DATA_WIDTH, DELAY, INIT_DATA, ADDR_WIDTH,
                             DOUBLE_DATA_WIDTH, HALF_FLOOR_DELAY>(
             data_in, internal_data_s, ram_req, ram_resp, ram_wr_comp);
@@ -236,14 +236,14 @@ proc delay_smoke_test_even {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64, 0>>;
-        let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>;
-        let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>;
+        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64, 0>>("ram_req");
+        let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>("ram_resp");
+        let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>("ram_wr_comp");
         spawn ram::SinglePortRamModel<u32:64, u32:1024>(
             ram_req_r, ram_resp_s, ram_wr_comp_s);
 
-        let (data_in_s, data_in_r) = chan<u32>;
-        let (data_out_s, data_out_r) = chan<u32>;
+        let (data_in_s, data_in_r) = chan<u32>("data_in");
+        let (data_out_s, data_out_r) = chan<u32>("data_out");
         spawn Delay<u32:32, TEST0_DELAY, u32:3>(
             data_in_r, data_out_s, ram_req_s, ram_resp_r, ram_wr_comp_r);
 
@@ -286,14 +286,14 @@ const TEST1_DELAY = u32:2047;
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64, 0>>;
-        let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>;
-        let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>;
+        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64, 0>>("ram_req");
+        let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>("ram_resp");
+        let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>("ram_wr_comp");
         spawn ram::SinglePortRamModel<u32:64, u32:1024>(
             ram_req_r, ram_resp_s, ram_wr_comp_s);
 
-        let (data_in_s, data_in_r) = chan<u32>;
-        let (data_out_s, data_out_r) = chan<u32>;
+        let (data_in_s, data_in_r) = chan<u32>("data_in");
+        let (data_out_s, data_out_r) = chan<u32>("data_out");
         spawn Delay<u32:32, TEST1_DELAY, u32:3>(
             data_in_r, data_out_s, ram_req_s, ram_resp_r, ram_wr_comp_r);
         (data_in_s, data_out_r, terminator)

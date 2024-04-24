@@ -113,14 +113,14 @@ proc Spawner {
   fmac_2_output_consumer = chan<F32> in;
 
   config() {
-    let (fmac_1_a_p, fmac_1_a_c) = chan<F32>;
-    let (fmac_1_b_p, fmac_1_b_c) = chan<F32>;
-    let (fmac_1_output_p, fmac_1_output_c) = chan<F32>;
+    let (fmac_1_a_p, fmac_1_a_c) = chan<F32>("fmac_1_a");
+    let (fmac_1_b_p, fmac_1_b_c) = chan<F32>("fmac_1_b");
+    let (fmac_1_output_p, fmac_1_output_c) = chan<F32>("fmac_1_output");
     spawn fmac(fmac_1_a_c, fmac_1_b_c, fmac_1_output_p)(float32::zero(false));
 
-    let (fmac_2_a_p, fmac_2_a_c) = chan<F32>;
-    let (fmac_2_b_p, fmac_2_b_c) = chan<F32>;
-    let (fmac_2_output_p, fmac_2_output_c) = chan<F32>;
+    let (fmac_2_a_p, fmac_2_a_c) = chan<F32>("fmac_2_a");
+    let (fmac_2_b_p, fmac_2_b_c) = chan<F32>("fmac_2_b");
+    let (fmac_2_output_p, fmac_2_output_c) = chan<F32>("fmac_2_output");
     spawn fmac(fmac_2_a_c, fmac_2_b_c, fmac_2_output_p)(float32::zero(false));
 
     (fmac_1_a_p, fmac_1_b_p, fmac_1_output_c,

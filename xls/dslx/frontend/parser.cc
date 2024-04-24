@@ -2471,6 +2471,7 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
 
   std::optional<std::vector<Expr*>> dims = std::nullopt;
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
+
   // For parametric instantiation we allow a form like:
   //
   //  chan<MyStruct<Y>>
@@ -2505,8 +2506,17 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
   if (peek_is_obrack) {
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings, &limit_pos));
   }
+
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen, nullptr,
+                                       "expect '(' for channel declaration"));
+  XLS_ASSIGN_OR_RETURN(Expr * channel_name_expr, ParseExpression(bindings));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(
+      TokenKind::kCParen, nullptr,
+      "expect ')' at end of channel declaration (after name)"));
+
+  XLS_RET_CHECK_NE(channel_name_expr, nullptr);
   return module_->Make<ChannelDecl>(Span(channel.span().start(), limit_pos),
-                                    type, dims, fifo_depth);
+                                    type, dims, fifo_depth, *channel_name_expr);
 }
 
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
