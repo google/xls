@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/log/die_if_null.h"
+#include "absl/status/status.h"
 
 namespace xls::noc {
 

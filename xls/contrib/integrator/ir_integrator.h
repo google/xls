@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/contrib/integrator/integration_options.h"
 #include "xls/ir/function.h"

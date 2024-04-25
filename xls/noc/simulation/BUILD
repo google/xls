@@ -121,6 +121,7 @@ cc_library(
         ":network_graph",
         ":parameters",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
@@ -153,6 +154,7 @@ cc_library(
         ":network_graph_builder",
         ":parameters",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
@@ -171,6 +173,7 @@ cc_library(
         ":parameters",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -181,6 +184,7 @@ cc_test(
     srcs = ["indexer_test.cc"],
     deps = [
         ":indexer",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -201,6 +205,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
@@ -217,6 +222,7 @@ cc_test(
         ":network_graph_builder",
         ":sample_network_graphs",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:variant",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -254,6 +260,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
@@ -286,6 +293,7 @@ cc_library(
         ":common",
         ":sim_objects",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/ir:bits",
@@ -396,6 +404,7 @@ cc_library(
     deps = [
         ":common",
         ":flit",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -406,6 +415,7 @@ cc_library(
         ":common",
         ":noc_traffic_injector",
         ":sim_objects",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -416,6 +426,7 @@ cc_library(
     deps = [
         ":common",
         ":sim_objects",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -435,6 +446,7 @@ cc_library(
         ":traffic_models",
         ":units",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
@@ -452,6 +464,7 @@ cc_test(
         ":sim_objects",
         ":traffic_description",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

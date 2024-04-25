@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"

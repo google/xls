@@ -27,6 +27,7 @@
 #include <ostream>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/examples/jpeg/constants.h"
 #include "xls/examples/jpeg/streams.h"

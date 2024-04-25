@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/noc/config_ng/network_topology_component.h"
 #include "xls/noc/config_ng/network_view.h"

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"

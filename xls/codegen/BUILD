@@ -171,6 +171,7 @@ cc_test(
         "//xls/ir:foreign_function",
         "//xls/ir:number_parser",
         "//xls/ir:source_location",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -187,6 +188,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/simulation:verilog_test_base",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -856,6 +858,7 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/simulation:verilog_test_base",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -1099,6 +1102,7 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ],

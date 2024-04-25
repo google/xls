@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_SIMULATOR_TO_TRAFFIC_INJECTOR_SHIM_H_
 #define XLS_NOC_SIMULATION_SIMULATOR_TO_TRAFFIC_INJECTOR_SHIM_H_
 
+#include "absl/status/status.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/noc_traffic_injector.h"
 #include "xls/noc/simulation/sim_objects.h"

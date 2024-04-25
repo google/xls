@@ -128,6 +128,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -197,6 +198,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
 )

@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_NG_FAKE_NETWORK_COMPONENT_H_
 #define XLS_NOC_CONFIG_NG_FAKE_NETWORK_COMPONENT_H_
 
+#include "absl/status/status.h"
 #include "xls/noc/config_ng/network_component.h"
 
 namespace xls::noc {

@@ -933,6 +933,7 @@ cc_library(
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",

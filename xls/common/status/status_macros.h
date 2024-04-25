@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/status/status.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/status_builder.h"  // IWYU pragma: export
 

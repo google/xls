@@ -14,6 +14,7 @@
 
 #include "xls/dslx/frontend/ast_node.h"
 
+#include "absl/status/status.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls::dslx {

@@ -20,6 +20,7 @@
 #include <queue>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"

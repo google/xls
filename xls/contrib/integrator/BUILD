@@ -32,6 +32,7 @@ cc_library(
     hdrs = ["ir_integrator.h"],
     deps = [
         ":integration_options",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/ir",
         "//xls/ir:ir_parser",
@@ -65,6 +66,7 @@ cc_library(
     deps = [
         ":integration_options",
         ":ir_integrator",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/contrib/integrator/integration_algorithms:basic_integration_algorithm",
         "//xls/ir",

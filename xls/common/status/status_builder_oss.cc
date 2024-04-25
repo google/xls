@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/common/source_location.h"
+#include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/status_builder.h"
 
 namespace xabsl {

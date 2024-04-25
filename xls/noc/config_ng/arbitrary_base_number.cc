@@ -19,6 +19,7 @@
 #include <optional>
 
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 
 namespace xls::noc {
 

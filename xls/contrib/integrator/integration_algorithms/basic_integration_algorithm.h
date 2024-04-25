@@ -20,6 +20,7 @@
 #include <list>
 #include <memory>
 
+#include "absl/status/status.h"
 #include "xls/contrib/integrator/integration_algorithms/integration_algorithm.h"
 
 namespace xls {

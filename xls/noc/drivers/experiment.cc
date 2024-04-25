@@ -22,6 +22,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/noc/simulation/common.h"

@@ -230,6 +230,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
 )

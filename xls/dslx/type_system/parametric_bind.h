@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/status/status.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"

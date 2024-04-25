@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/bits_util.h"

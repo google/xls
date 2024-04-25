@@ -376,6 +376,7 @@ cc_test(
     srcs = ["binary_search_test.cc"],
     deps = [
         ":binary_search",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

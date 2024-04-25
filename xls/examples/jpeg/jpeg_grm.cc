@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/jpeg/constants.h"

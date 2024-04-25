@@ -19,6 +19,7 @@
 #include <queue>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"

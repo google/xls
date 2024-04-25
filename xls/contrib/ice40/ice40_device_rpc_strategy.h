@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/contrib/ice40/device_rpc_strategy.h"
 

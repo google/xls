@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/network_view_utils.h"
 
+#include "absl/status/status.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/config_ng/network_component_utils.h"
 #include "xls/noc/config_ng/network_connection_utils.h"

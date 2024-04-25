@@ -221,6 +221,7 @@ cc_test(
     deps = [
         ":constants",
         ":streams",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -236,6 +237,7 @@ cc_library(
         ":idct_chen_jit_wrapper",
         ":streams",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",

@@ -256,6 +256,7 @@ cc_test(
     deps = [
         ":subprocess",
         ":xls_gunit_main",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
@@ -310,6 +311,7 @@ cc_test(
     deps = [
         ":string_to_int",
         ":xls_gunit_main",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit",

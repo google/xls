@@ -14,6 +14,8 @@
 
 #include "xls/ir/events.h"
 
+#include "absl/status/status.h"
+
 namespace xls {
 
 absl::Status InterpreterEventsToStatus(const InterpreterEvents& events) {

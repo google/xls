@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_SAMPLE_NETWORK_GRAPHS_H_
 #define XLS_NOC_SIMULATION_SAMPLE_NETWORK_GRAPHS_H_
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/config/network_config.pb.h"

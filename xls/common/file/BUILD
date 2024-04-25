@@ -150,6 +150,7 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
@@ -173,6 +174,7 @@ cc_library(
     hdrs = ["temp_file.h"],
     deps = [
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:strerror",
@@ -219,6 +221,7 @@ cc_test(
     deps = [
         ":filesystem",
         ":temp_file",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"

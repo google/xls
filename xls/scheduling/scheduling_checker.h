@@ -15,6 +15,7 @@
 #ifndef XLS_SCHEDULING_SCHEDULING_CHECKER_H_
 #define XLS_SCHEDULING_SCHEDULING_CHECKER_H_
 
+#include "absl/status/status.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_pass.h"
 

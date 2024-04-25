@@ -17,6 +17,7 @@
 
 #include <cstdint>
 
+#include "absl/status/status.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/sim_objects.h"
 

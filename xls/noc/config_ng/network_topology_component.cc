@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/network_topology_component.h"
 
+#include "absl/status/status.h"
 #include "xls/noc/config_ng/network_component_visitor_abstract.h"
 
 namespace xls::noc {

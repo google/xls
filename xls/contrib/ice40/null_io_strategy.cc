@@ -14,6 +14,8 @@
 
 #include "xls/contrib/ice40/null_io_strategy.h"
 
+#include "absl/status/status.h"
+
 namespace xls {
 namespace verilog {
 

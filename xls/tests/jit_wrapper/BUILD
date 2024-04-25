@@ -120,6 +120,7 @@ cc_test(
         ":is_inf",
         ":make_tuple",
         ":wide_identity",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

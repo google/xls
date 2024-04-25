@@ -14,6 +14,8 @@
 
 #include "xls/noc/simulation/simulator_to_link_monitor_service_shim.h"
 
+#include "absl/status/status.h"
+
 namespace xls::noc {
 
 NocSimulatorToLinkMonitorServiceShim::NocSimulatorToLinkMonitorServiceShim(

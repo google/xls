@@ -138,6 +138,7 @@ cc_library(
     hdrs = ["code_template.h"],
     deps = [
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -155,6 +156,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -397,6 +399,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_fuzztest//fuzztest",
@@ -700,6 +703,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -988,6 +992,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -1045,6 +1050,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -1067,6 +1073,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -1288,6 +1295,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -1302,6 +1310,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -1959,6 +1968,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],

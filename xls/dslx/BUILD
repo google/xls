@@ -202,6 +202,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:format_preference",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -239,6 +240,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
 )

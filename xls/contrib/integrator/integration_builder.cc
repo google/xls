@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "xls/contrib/integrator/integration_algorithms/basic_integration_algorithm.h"
 
 namespace xls {

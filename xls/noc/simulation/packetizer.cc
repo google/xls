@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/status/status.h"
+
 namespace xls::noc {
 
 absl::StatusOr<std::vector<Bits>*>

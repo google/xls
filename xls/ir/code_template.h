@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 

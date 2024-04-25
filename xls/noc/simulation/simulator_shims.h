@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_SIMULATION_SIMULATOR_SHIMS_H_
 #define XLS_NOC_SIMULATION_SIMULATOR_SHIMS_H_
 
+#include "absl/status/status.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
 

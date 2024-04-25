@@ -492,6 +492,7 @@ cc_library(
     hdrs = ["fake_network_component.h"],
     deps = [
         ":network_component",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -606,6 +607,7 @@ cc_library(
     hdrs = ["arbitrary_base_number.h"],
     deps = [
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/ir:bits",
     ],
@@ -616,6 +618,7 @@ cc_test(
     srcs = ["arbitrary_base_number_test.cc"],
     deps = [
         ":arbitrary_base_number",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -725,6 +728,7 @@ cc_library(
         ":network_topology_component",
         ":network_view",
         ":network_view_utils",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
     ],

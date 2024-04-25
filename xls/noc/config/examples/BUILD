@@ -22,6 +22,7 @@ cc_test(
     srcs = ["custom_network_config_builder_options_textproto_test.cc"],
     data = glob(["*.textproto"]),
     deps = [
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

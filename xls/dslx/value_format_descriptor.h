@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 
