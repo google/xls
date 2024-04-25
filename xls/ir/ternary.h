@@ -102,6 +102,9 @@ absl::Status UpdateWithUnion(TernaryVector& lhs, TernarySpan rhs);
 // lengths.
 TernaryVector Intersection(TernarySpan lhs, TernarySpan rhs);
 
+// Returns true if `bits` is a possible value for `pattern`.
+bool IsCompatible(TernarySpan pattern, const Bits& bits);
+
 // Updates `lhs`, turning it into a vector of bits known to have the same value
 // in both `lhs` and `rhs`. CHECK fails if `lhs` and `rhs` have different
 // lengths.

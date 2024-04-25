@@ -222,6 +222,11 @@ class Interval {
                       interval.upper_bound_);
   }
 
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Interval& interval) {
+    absl::Format(&sink, "%s", interval.ToString());
+  }
+
  private:
   void EnsureValid() const { CHECK(is_valid_); }
 

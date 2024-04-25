@@ -21,7 +21,6 @@
 #include <memory>
 #include <optional>
 #include <utility>
-#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
@@ -30,7 +29,6 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
-#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/ternary_evaluator.h"
@@ -117,6 +115,130 @@ IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
   }
   is.Normalize();
   return is;
+}
+
+bool CoversTernary(const Interval& interval, TernarySpan ternary) {
+  if (interval.BitCount() != ternary.size()) {
+    return false;
+  }
+  if (ternary_ops::IsFullyKnown(ternary)) {
+    return interval.Covers(ternary_ops::ToKnownBitsValues(ternary));
+  }
+  if (interval.IsPrecise()) {
+    return ternary_ops::IsCompatible(ternary, interval.LowerBound());
+  }
+
+  Bits lcp = bits_ops::LongestCommonPrefixMSB(
+      {interval.LowerBound(), interval.UpperBound()});
+
+  // We know the next bit of the bounds of `interval` differs, and the interval
+  // is proper iff the upper bound has a 1 there.
+  const bool proper = interval.UpperBound().GetFromMsb(lcp.bit_count());
+
+  TernarySpan prefix = ternary.subspan(ternary.size() - lcp.bit_count());
+
+  // If the interval is proper, then the interval only contains things with
+  // this least-common prefix.
+  if (proper && !ternary_ops::IsCompatible(prefix, lcp)) {
+    return false;
+  }
+
+  // If the interval is improper, then it contains everything that doesn't share
+  // this prefix. Therefore, unless `prefix` is fully-known and matches the
+  // least-common prefix, `ternary` can definitely represent something in the
+  // interval.
+  if (!proper && !(ternary_ops::IsFullyKnown(prefix) &&
+                   ternary_ops::ToKnownBitsValues(prefix) == lcp)) {
+    return true;
+  }
+
+  // Take the leading value in `ternary`.
+  TernaryValue x = ternary[ternary.size() - lcp.bit_count() - 1];
+
+  // Drop all the bits we've already confirmed match, plus one more.
+  Bits L = interval.LowerBound().Slice(0, ternary.size() - lcp.bit_count() - 1);
+  Bits U = interval.UpperBound().Slice(0, ternary.size() - lcp.bit_count() - 1);
+  TernarySpan t = ternary.subspan(0, ternary.size() - lcp.bit_count() - 1);
+
+  auto could_be_le = [](TernarySpan t, const Bits& L) {
+    for (int64_t i = t.size() - 1; i >= 0; --i) {
+      if (L.Get(i)) {
+        if (t[i] != TernaryValue::kKnownOne) {
+          // If this bit is zero, it will make t < L.
+          return true;
+        }
+      } else if (t[i] == TernaryValue::kKnownOne) {
+        // We know t > L.
+        return false;
+      }
+    }
+    return true;
+  };
+  auto could_be_ge = [](TernarySpan t, const Bits& U) {
+    for (int64_t i = t.size() - 1; i >= 0; --i) {
+      if (U.Get(i)) {
+        if (t[i] == TernaryValue::kKnownZero) {
+          // We know t < U.
+          return false;
+        }
+      } else if (t[i] != TernaryValue::kKnownZero) {
+        // If this bit is one, it will make t > L.
+        return true;
+      }
+    }
+    return true;
+  };
+
+  // NOTE: At this point, we want to know:
+  //
+  //   if improper, whether it's possible to have:
+  //     xt <= 0U || 1L <= xt, which is true iff
+  //     (x == 0 && t <= U) || (x == 1 && L <= t).
+  //
+  //   if proper, whether it's possible to have:
+  //     0L <= xt && xt <= 1U, which is true iff
+  //     (x == 1 || L <= t) && (x == 0 || t <= U).
+  //
+  // If x is known, then this is easy:
+  //   if x == 0 && proper: check if it's possible to have L <= t.
+  //   if x == 1 && improper: check if it's possible to have L <= t.
+  //   if x == 0 && improper: check if it's possible to have t <= U.
+  //   if x == 1 && proper: check if it's possible to have t <= U.
+  // In other words:
+  //   if (x == 0) == proper, check if it's possible to have L <= t.
+  //               Otherwise, check if it's possible to have t <= U.
+  if (ternary_ops::IsKnown(x)) {
+    if ((x == TernaryValue::kKnownZero) == proper) {
+      return could_be_ge(t, L);
+    }
+    return could_be_le(t, U);
+  }
+
+  // If x is unknown, then we can choose whichever value we want. Therefore, we
+  // just need to know:
+  //   if improper, whether it's possible to have... well.
+  //     if we take x == 0, then we just need to check if we can have t <= U.
+  //     if we take x == 1, then we just need to check if we can have L <= t.
+  //     Therefore, we just need to check whether it's possible to have:
+  //       t <= U || L <= t.
+  //   if proper, whether it's possible to have... well.
+  //     If we take x == 1, then we just need to check if we can have t <= U.
+  //     If we take x == 0, then we just need to check if we can have L <= t.
+  //     Therefore, we just need to check whether it's possible to have:
+  //       t <= U || L <= t.
+  // The conclusion is the same whether the interval is proper or improper, so
+  // we check this and we're done.
+  return could_be_le(t, U) || could_be_ge(t, L);
+}
+
+bool CoversTernary(const IntervalSet& intervals, TernarySpan ternary) {
+  if (intervals.BitCount() != ternary.size()) {
+    return false;
+  }
+  return absl::c_any_of(intervals.Intervals(),
+                        [&ternary](const Interval& interval) {
+                          return CoversTernary(interval, ternary);
+                        });
 }
 
 namespace {

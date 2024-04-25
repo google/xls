@@ -292,12 +292,13 @@ bool Interval::IsMaximal() const {
 
 bool Interval::IsTrueWhenAndWith(const Bits& value) const {
   CHECK_EQ(value.bit_count(), BitCount());
-  int64_t right_index = std::min(LowerBound().CountTrailingZeros(),
-                                 UpperBound().CountTrailingZeros());
-  int64_t left_index = BitCount() - UpperBound().CountLeadingZeros();
-  Bits interval_mask_value(BitCount());
-  interval_mask_value.SetRange(right_index, left_index);
-  return !bits_ops::And(interval_mask_value, value).IsZero();
+  BitsRope interval_mask_value(BitCount());
+  Bits common_prefix =
+      bits_ops::LongestCommonPrefixMSB({LowerBound(), UpperBound()});
+  interval_mask_value.push_back(
+      Bits::AllOnes(BitCount() - common_prefix.bit_count()));
+  interval_mask_value.push_back(common_prefix);
+  return !bits_ops::And(interval_mask_value.Build(), value).IsZero();
 }
 
 bool Interval::Covers(const Bits& point) const {

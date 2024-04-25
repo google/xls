@@ -770,11 +770,15 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
           lhs = IntervalSet::Combine(lhs, rhs);
         });
   }
+  TernaryVector case_pattern(sel->cases().size(), TernaryValue::kUnknown);
   for (int64_t i = 0; i < sel->cases().size(); ++i) {
     // TODO(vmirian): Make implementation more efficient by considering only the
     // ranges of interest.
-    if (selector_intervals.IsTrueWhenMaskWith(
-            bits_ops::ShiftLeftLogical(UBits(1, sel->cases().size()), i))) {
+    case_pattern[i] = TernaryValue::kKnownOne;
+    if (i > 0) {
+      case_pattern[i - 1] = TernaryValue::kKnownZero;
+    }
+    if (interval_ops::CoversTernary(selector_intervals, case_pattern)) {
       leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
           result.AsMutableView(), GetIntervalSetTree(sel->cases()[i]).AsView(),
           [](IntervalSet& lhs, const IntervalSet& rhs) {

@@ -272,16 +272,19 @@ TEST(IntervalTest, Size) {
 }
 
 TEST(IntervalTest, IsTrueWhenMaskWith) {
-  IntervalSet example(3);
-  example.AddInterval(MakeInterval(0, 0, 3));
-  for (int64_t value = 0; value < 8; ++value) {
-    EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(value, 3)));
+  IntervalSet example(4);
+  example.AddInterval(MakeInterval(0, 0, 4));
+  for (int64_t value = 0; value < 16; ++value) {
+    EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(value, 4)));
   }
-  example.AddInterval(MakeInterval(2, 4, 3));
-  EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(0, 3)));
-  EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(1, 3)));
-  for (int64_t value = 2; value < 8; ++value) {
-    EXPECT_TRUE(example.IsTrueWhenMaskWith(UBits(value, 3)));
+  example.AddInterval(MakeInterval(2, 4, 4));
+  EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(0, 4)));
+  for (int64_t value = 1; value < 8; ++value) {
+    EXPECT_TRUE(example.IsTrueWhenMaskWith(UBits(value, 4)));
+  }
+  EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(8, 4)));
+  for (int64_t value = 9; value < 16; ++value) {
+    EXPECT_TRUE(example.IsTrueWhenMaskWith(UBits(value, 4)));
   }
 }
 

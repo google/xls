@@ -208,6 +208,7 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
+        ":bits_test_utils",
         ":interval",
         ":interval_test_utils",
         "//xls/common:xls_gunit",
@@ -249,6 +250,7 @@ cc_test(
         ":interval",
         ":interval_ops",
         ":interval_set",
+        ":interval_test_utils",
         ":ir",
         ":ir_test_base",
         ":ternary",

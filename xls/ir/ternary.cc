@@ -221,6 +221,22 @@ TernaryVector Intersection(TernarySpan lhs, TernarySpan rhs) {
   return result;
 }
 
+bool IsCompatible(TernarySpan pattern, const Bits& bits) {
+  if (pattern.size() != bits.bit_count()) {
+    return false;
+  }
+
+  for (int64_t i = 0; i < pattern.size(); ++i) {
+    if (pattern[i] == TernaryValue::kUnknown) {
+      continue;
+    }
+    if (bits.Get(i) != (pattern[i] == TernaryValue::kKnownOne)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void UpdateWithIntersection(TernaryVector& lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
 

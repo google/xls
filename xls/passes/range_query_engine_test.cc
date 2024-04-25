@@ -914,6 +914,17 @@ TEST_F(RangeQueryEngineTest, PrioritySel) {
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
       selector.node(),
+      BitsLTT(selector.node(), {Interval::Precise(UBits(4, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(z_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
       BitsLTT(selector.node(), {Interval(UBits(1, 3), UBits(4, 3))}));
   engine.SetIntervalSetTree(x.node(), x_ist);
   engine.SetIntervalSetTree(y.node(), y_ist);
@@ -926,16 +937,17 @@ TEST_F(RangeQueryEngineTest, PrioritySel) {
       engine.GetIntervalSetTree(expr.node()).Get({}));
 
   // Test case with overlapping bits for selector.
+  // TODO(epastor): Fix test once this is better supported.
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
       selector.node(),
-      BitsLTT(selector.node(), {Interval(UBits(2, 3), UBits(6, 3))}));
+      BitsLTT(selector.node(), {Interval(UBits(5, 3), UBits(7, 3))}));
   engine.SetIntervalSetTree(x.node(), x_ist);
   engine.SetIntervalSetTree(y.node(), y_ist);
   engine.SetIntervalSetTree(z.node(), z_ist);
   XLS_ASSERT_OK(engine.Populate(f));
 
-  EXPECT_EQ(IntervalSet::Combine(y_ist.Get({}), z_ist.Get({})),
+  EXPECT_EQ(IntervalSet::Combine(x_ist.Get({}), y_ist.Get({})),
             engine.GetIntervalSetTree(expr.node()).Get({}));
 
   // Test case where default is covered.

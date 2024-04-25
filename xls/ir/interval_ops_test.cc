@@ -35,6 +35,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/interval_test_utils.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -867,6 +868,28 @@ FUZZ_TEST(MinimizeIntervalsTest, MinimizeIntervalsGeneratesSuperset)
                      fuzztest::PairOf(fuzztest::NonNegative<int64_t>(),
                                       fuzztest::NonNegative<int64_t>())),
                  fuzztest::InRange<int64_t>(1, 256));
+
+void CoversTernaryWorksForIntervals(const Interval& interval,
+                                    TernarySpan ternary) {
+  EXPECT_EQ(interval_ops::CoversTernary(interval, ternary),
+            interval.ForEachElement([&](const Bits& element) {
+              return ternary ==
+                     ternary_ops::Intersection(
+                         ternary_ops::BitsToTernary(element), ternary);
+            }))
+      << "interval: "
+      << absl::StrFormat("[%s, %s]", interval.LowerBound().ToDebugString(),
+                         interval.UpperBound().ToDebugString())
+      << ", ternary: " << ToString(ternary);
+}
+FUZZ_TEST(IntervalOpsFuzzTest, CoversTernaryWorksForIntervals)
+    .WithDomains(ArbitraryInterval(8),
+                 fuzztest::VectorOf(fuzztest::ElementOf({
+                                        TernaryValue::kKnownZero,
+                                        TernaryValue::kKnownOne,
+                                        TernaryValue::kUnknown,
+                                    }))
+                     .WithSize(8));
 
 }  // namespace
 }  // namespace xls::interval_ops

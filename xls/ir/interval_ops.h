@@ -50,6 +50,11 @@ IntervalSet FromTernary(TernarySpan ternary, int64_t max_interval_bits = 4);
 TernaryVector ExtractTernaryVector(const IntervalSet& intervals,
                                    std::optional<Node*> source = std::nullopt);
 
+// Determine whether the given `intervals` include any element that matches the
+// given `ternary` span.
+bool CoversTernary(const Interval& interval, TernarySpan ternary);
+bool CoversTernary(const IntervalSet& intervals, TernarySpan ternary);
+
 struct KnownBits {
   Bits known_bits;
   Bits known_bit_values;
@@ -81,6 +86,9 @@ IntervalSet Neg(const IntervalSet& a);
 IntervalSet UMul(const IntervalSet& a, const IntervalSet& b,
                  int64_t output_bitwidth);
 IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b);
+
+// Encode/decode
+IntervalSet Decode(const IntervalSet& a, int64_t width);
 
 // Bit ops.
 IntervalSet Not(const IntervalSet& a);
