@@ -500,9 +500,11 @@ Bits OneHotMsbToLsb(const Bits& bits) {
 }
 
 Bits Reverse(const Bits& bits) {
-  auto bits_vector = bits.ToBitVector();
-  std::reverse(bits_vector.begin(), bits_vector.end());
-  return Bits(bits_vector);
+  InlineBitmap reversed_bitmap(bits.bit_count());
+  for (int64_t i = 0; i < bits.bit_count(); ++i) {
+    reversed_bitmap.Set(bits.bit_count() - i - 1, bits.Get(i));
+  }
+  return Bits::FromBitmap(std::move(reversed_bitmap));
 }
 
 Bits DropLeadingZeroes(const Bits& bits) {
@@ -561,27 +563,39 @@ Bits LongestCommonPrefixLSB(absl::Span<const Bits> bits_span) {
     CHECK_EQ(bits.bit_count(), input_size);
   }
 
-  absl::InlinedVector<bool, 1> result_vector;
-  result_vector.reserve(input_size);
-  for (int32_t i = 0; i < input_size; ++i) {
-    bool expected_bit = bits_span[0].Get(i);
-    for (const Bits& bits : bits_span) {
-      if (bits.Get(i) != expected_bit) {
-        return Bits(result_vector);
+  int64_t first_difference = input_size;
+  for (int64_t i = 0; first_difference == input_size && i < input_size; ++i) {
+    for (const Bits& bits : bits_span.subspan(1)) {
+      if (bits_span[0].Get(i) != bits.Get(i)) {
+        first_difference = i;
+        break;
       }
     }
-    result_vector.push_back(expected_bit);
   }
-  return Bits(result_vector);
+  return bits_span[0].Slice(0, first_difference);
 }
 
 Bits LongestCommonPrefixMSB(absl::Span<const Bits> bits_span) {
-  std::vector<Bits> reversed;
-  reversed.reserve(bits_span.size());
-  for (const Bits& bits : bits_span) {
-    reversed.push_back(bits_ops::Reverse(bits));
+  if (bits_span.empty()) {
+    return Bits();
   }
-  return bits_ops::Reverse(bits_ops::LongestCommonPrefixLSB(reversed));
+
+  int64_t input_size = bits_span[0].bit_count();
+  for (const Bits& bits : bits_span) {
+    CHECK_EQ(bits.bit_count(), input_size);
+  }
+
+  int64_t first_difference = -1;
+  for (int64_t i = input_size - 1; first_difference == -1 && i >= 0; --i) {
+    for (const Bits& bits : bits_span.subspan(1)) {
+      if (bits_span[0].Get(i) != bits.Get(i)) {
+        first_difference = i;
+        break;
+      }
+    }
+  }
+  return bits_span[0].Slice(first_difference + 1,
+                            input_size - first_difference - 1);
 }
 
 }  // namespace bits_ops
