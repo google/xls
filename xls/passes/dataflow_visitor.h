@@ -143,10 +143,11 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
         result_view, array_update->indices().size(),
         [&](MutableLeafTypeTreeView<LeafT> element_view,
-            absl::Span<const int64_t> index) {
+            absl::Span<const int64_t> index) -> absl::Status {
           if (IndicesAreEqual(array_update->indices(), index, bounds,
                               /*indices_clamped=*/false)) {
-            leaf_type_tree::ReplaceElements(element_view, update_value);
+            XLS_RETURN_IF_ERROR(
+                leaf_type_tree::ReplaceElements(element_view, update_value));
           } else if (IndicesMightBeEqual(array_update->indices(), index, bounds,
                                          /*indices_clamped=*/false)) {
             return leaf_type_tree::UpdateFrom<LeafT, LeafT>(
