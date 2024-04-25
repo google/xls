@@ -38,38 +38,50 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 
+namespace {
+
 // If the given node is an Op::kEq or Op::kNe node which compares against a
-// bits-typed literal which fits in a uint64_t, then return the two operands of
+// bits-typed constant which fits in a uint64_t, then return the two operands of
 // the comparison as a Uint64Comparison. Returns std::nullopt otherwise.
 struct Uint64Comparison {
   Node* index;
   uint64_t key;
   Op comparison_op;
 };
-static std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
+std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(
+    Node* node, QueryEngine& query_engine) {
   if (node->op() != Op::kEq && node->op() != Op::kNe) {
     return std::nullopt;
   }
-  auto is_uint64_literal = [](Node* n) {
-    return n->Is<Literal>() && n->As<Literal>()->value().IsBits() &&
-           n->As<Literal>()->value().bits().FitsInUint64();
+  auto to_uint64_constant =
+      [&query_engine](Node* n) -> std::optional<uint64_t> {
+    if (!n->GetType()->IsBits()) {
+      return std::nullopt;
+    }
+    const std::optional<Bits> constant = query_engine.KnownValueAsBits(n);
+    if (!constant.has_value() || !constant->FitsInUint64()) {
+      return std::nullopt;
+    }
+    return *constant->ToUint64();
   };
-  if (is_uint64_literal(node->operand(0))) {
-    // Literal is the lhs.
-    return Uint64Comparison{
-        node->operand(1),
-        node->operand(0)->As<Literal>()->value().bits().ToUint64().value(),
-        node->op()};
+  if (std::optional<uint64_t> constant = to_uint64_constant(node->operand(0));
+      constant.has_value()) {
+    // Constant is the lhs.
+    return Uint64Comparison{.index = node->operand(1),
+                            .key = *constant,
+                            .comparison_op = node->op()};
   }
-  if (is_uint64_literal(node->operand(1))) {
-    // Literal is the rhs.
-    return Uint64Comparison{
-        node->operand(0),
-        node->operand(1)->As<Literal>()->value().bits().ToUint64().value(),
-        node->op()};
+  if (std::optional<uint64_t> constant = to_uint64_constant(node->operand(1));
+      constant.has_value()) {
+    // Constant is the rhs.
+    return Uint64Comparison{.index = node->operand(0),
+                            .key = *constant,
+                            .comparison_op = node->op()};
   }
   return std::nullopt;
 }
@@ -98,7 +110,8 @@ struct Link {
 //
 // If a match is found, the respective Link fields are filled in (as named
 // above). Otherwise std::nullopt is returned.
-static std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
+std::optional<Link> MatchLink(QueryEngine& query_engine, Node* node,
+                              Node* index = nullptr) {
   if (!IsBinarySelect(node)) {
     return std::nullopt;
   }
@@ -106,7 +119,7 @@ static std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
 
   // The selector must be a comparison to a literal which fits in a uint64_t.
   std::optional<Uint64Comparison> match =
-      MatchCompareEqAgainstUint64(select->selector());
+      MatchCompareEqAgainstUint64(select->selector(), query_engine);
   if (!match.has_value()) {
     return std::nullopt;
   }
@@ -156,7 +169,7 @@ static std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
 //
 // Returns std::nullopt if the chain cannot be represented as an index into a
 // literal array.
-static absl::StatusOr<std::optional<Value>> LinksToTable(
+absl::StatusOr<std::optional<Value>> LinksToTable(
     absl::Span<const Link> links) {
   if (links.empty()) {
     VLOG(3) << "Empty chain.";
@@ -267,9 +280,13 @@ static absl::StatusOr<std::optional<Value>> LinksToTable(
   return std::nullopt;
 }
 
+}  // namespace
+
 absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
+  StatelessQueryEngine query_engine;
+
   bool changed = false;
   absl::flat_hash_set<Node*> transformed;
   for (Node* node : ReverseTopoSort(f)) {
@@ -280,7 +297,7 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     }
     // Check if this node is the start of a chain of selects. This also
     // identifies the common index.
-    std::optional<Link> start = MatchLink(node);
+    std::optional<Link> start = MatchLink(query_engine, node);
     if (!start.has_value()) {
       VLOG(3) << absl::StreamFormat("%s is not the start of a chain.",
                                     node->GetName());
@@ -310,7 +327,7 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     Node* next = start->next;
     Node* index = start->index;
     std::vector<Link> links = {start.value()};
-    while (std::optional<Link> link = MatchLink(next, index)) {
+    while (std::optional<Link> link = MatchLink(query_engine, next, index)) {
       next = link->next;
       links.push_back(link.value());
     }

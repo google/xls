@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,17 +28,21 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 
@@ -149,7 +154,8 @@ absl::StatusOr<Node*> CreateSum(absl::Span<Node* const> nodes) {
 // are created enabling beneficial reassociation for delay minimization when
 // Reassociate() is run. Also, literals are grouped together across add and
 // subtract expressions.
-absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
+absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f,
+                                          const QueryEngine& query_engine) {
   VLOG(4) << "Reassociating subtracts";
   bool changed = false;
   // Keep track of which nodes we've already considered for reassociation so we
@@ -209,14 +215,15 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f) {
     std::vector<Node*> negated_nodes;
     for (const AddSubLeaf& leaf : leaves) {
       if (leaf.negated) {
-        if (leaf.node->Is<Literal>()) {
+        if (std::optional<Bits> value =
+                query_engine.KnownValueAsBits(leaf.node);
+            value.has_value()) {
           // Negated literal term. Negate the literal making it a nonnegated
           // term.
-          const Bits& value = leaf.node->As<Literal>()->value().bits();
           XLS_ASSIGN_OR_RETURN(
               Node * new_literal,
               f->MakeNode<Literal>(leaf.node->loc(),
-                                   Value(bits_ops::Negate(value))));
+                                   Value(bits_ops::Negate(*value))));
           nonnegated_nodes.push_back(new_literal);
           negated_constant = true;
         } else {
@@ -372,7 +379,8 @@ int64_t GatherExpressionLeaves(Op op, Node* node, std::vector<Node*>* leaves,
 
 // Reassociate associative and commutative operations to minimize delay and
 // maximize opportunity for constant folding.
-absl::StatusOr<bool> Reassociate(FunctionBase* f) {
+absl::StatusOr<bool> Reassociate(FunctionBase* f,
+                                 const QueryEngine& query_engine) {
   bool changed = false;
   // Keep track of which nodes we've already considered for reassociation so we
   // don't revisit subexpressions multiple times.
@@ -456,13 +464,13 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
     //
     //     Then C_0 + C_1 can be folded.
 
-    // First, separate the leaves of the expression into literals and
-    // non-literals ('inputs').
-    std::vector<Node*> literals;
+    // First, separate the leaves of the expression into constants and
+    // variables ('inputs').
+    std::vector<Node*> constants;
     std::vector<Node*> inputs;
     for (Node* leaf : leaves) {
-      if (leaf->Is<Literal>()) {
-        literals.push_back(leaf);
+      if (query_engine.IsFullyKnown(leaf)) {
+        constants.push_back(leaf);
       } else {
         inputs.push_back(leaf);
       }
@@ -471,7 +479,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
     // We only want to transform for one of the two cases above.
     if (interior_nodes.size() <= 1 ||
         (expression_depth == CeilOfLog2(leaves.size()) &&
-         literals.size() <= 1)) {
+         constants.size() <= 1)) {
       continue;
     }
 
@@ -485,8 +493,8 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
     VLOG(4) << "  operations to reassociate:  "
             << absl::StrJoin(interior_nodes, ", ", node_joiner);
     VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ", node_joiner);
-    VLOG(4) << "  literals leaves:  "
-            << absl::StrJoin(literals, ", ", node_joiner);
+    VLOG(4) << "  constants leaves:  "
+            << absl::StrJoin(constants, ", ", node_joiner);
 
     auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
       if (is_full_width_addition) {
@@ -522,20 +530,21 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
       return node->Clone({lhs, rhs});
     };
 
-    if (literals.size() == 1) {
-      // Only one literal in the expression. Just add it to the other inputs. It
-      // will appear on the far right of the tree.
-      inputs.push_back(literals.front());
-    } else if (literals.size() > 1) {
-      // More than one literal appears in the expression. Compute the result of
-      // the literals separately so it will be folded, then append the result to
-      // the other inputs.
-      XLS_ASSIGN_OR_RETURN(Node * literal_expr,
-                           new_node(literals[0], literals[1]));
-      for (int64_t i = 2; i < literals.size(); ++i) {
-        XLS_ASSIGN_OR_RETURN(literal_expr, new_node(literals[i], literal_expr));
+    if (constants.size() == 1) {
+      // Only one constant in the expression. Just add it to the other inputs.
+      // It will appear on the far right of the tree.
+      inputs.push_back(constants.front());
+    } else if (constants.size() > 1) {
+      // More than one constant appears in the expression. Compute the result of
+      // the constants separately so it will be folded, then append the result
+      // to the other inputs.
+      XLS_ASSIGN_OR_RETURN(Node * constant_expr,
+                           new_node(constants[0], constants[1]));
+      for (int64_t i = 2; i < constants.size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(constant_expr,
+                             new_node(constants[i], constant_expr));
       }
-      inputs.push_back(literal_expr);
+      inputs.push_back(constant_expr);
     }
 
     VLOG(4) << "  inputs before balancing:  "
@@ -598,8 +607,10 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
 absl::StatusOr<bool> ReassociationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  XLS_ASSIGN_OR_RETURN(bool reassoc_subtracts_changed, ReassociateSubtracts(f));
-  XLS_ASSIGN_OR_RETURN(bool reassoc_changed, Reassociate(f));
+  StatelessQueryEngine query_engine;
+  XLS_ASSIGN_OR_RETURN(bool reassoc_subtracts_changed,
+                       ReassociateSubtracts(f, query_engine));
+  XLS_ASSIGN_OR_RETURN(bool reassoc_changed, Reassociate(f, query_engine));
   return reassoc_subtracts_changed || reassoc_changed;
 }
 

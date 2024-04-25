@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -34,6 +35,14 @@
 #include "xls/passes/query_engine.h"
 
 namespace xls {
+
+std::optional<Value> StatelessQueryEngine::KnownValue(Node* node) const {
+  if (node->Is<Literal>()) {
+    return node->As<Literal>()->value();
+  }
+
+  return QueryEngine::KnownValue(node);
+}
 
 LeafTypeTree<TernaryVector> StatelessQueryEngine::GetTernary(Node* node) const {
   if (node->Is<Literal>()) {

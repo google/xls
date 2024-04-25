@@ -260,11 +260,13 @@ absl::StatusOr<bool> StrengthReduceNode(
     if (!ok) {
       return false;
     }
-    if (IsLiteralAllOnes(node->operand(2)) && IsLiteralZero(node->operand(1))) {
+    if (query_engine.IsAllOnes(node->operand(2)) &&
+        query_engine.IsAllZeros(node->operand(1))) {
       *invert_selector = false;
       return true;
     }
-    if (IsLiteralAllOnes(node->operand(1)) && IsLiteralZero(node->operand(2))) {
+    if (query_engine.IsAllOnes(node->operand(1)) &&
+        query_engine.IsAllZeros(node->operand(2))) {
       *invert_selector = true;
       return true;
     }
@@ -352,13 +354,12 @@ absl::StatusOr<bool> StrengthReduceNode(
   //   x:10 <  256:10  ->  bit_slice(x, 9, 2) == 0b00
   if (NarrowingEnabled(opt_level) &&
       (node->op() == Op::kUGe || node->op() == Op::kULt) &&
-      node->operand(1)->Is<Literal>()) {
-    const Bits& op1_literal_bits =
-        node->operand(1)->As<Literal>()->value().bits();
-    if (op1_literal_bits.IsPowerOfTwo()) {
-      int64_t one_position = op1_literal_bits.bit_count() -
-                             op1_literal_bits.CountLeadingZeros() - 1;
-      int64_t width = op1_literal_bits.bit_count() - one_position;
+      query_engine.IsFullyKnown(node->operand(1))) {
+    const Bits op1_bits = *query_engine.KnownValueAsBits(node->operand(1));
+    if (op1_bits.IsPowerOfTwo()) {
+      int64_t one_position =
+          op1_bits.bit_count() - op1_bits.CountLeadingZeros() - 1;
+      int64_t width = op1_bits.bit_count() - one_position;
       Op new_op = node->op() == Op::kUGe ? Op::kNe : Op::kEq;
       XLS_ASSIGN_OR_RETURN(Node * slice,
                            node->function_base()->MakeNode<BitSlice>(
@@ -379,7 +380,7 @@ absl::StatusOr<bool> StrengthReduceNode(
   //  where bits(x) <= 2
   if (NarrowingEnabled(opt_level) && node->op() == Op::kEq &&
       node->operand(0)->BitCountOrDie() == 2 &&
-      IsLiteralZero(node->operand(1))) {
+      query_engine.IsAllZeros(node->operand(1))) {
     FunctionBase* f = node->function_base();
     XLS_ASSIGN_OR_RETURN(
         Node * x_0, f->MakeNode<BitSlice>(node->loc(), node->operand(0), 0, 1));

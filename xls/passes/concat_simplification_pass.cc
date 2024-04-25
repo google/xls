@@ -322,13 +322,14 @@ absl::StatusOr<std::map<int64_t, int64_t>> GetBitRangeUnionOfInputConcats(
   return begin_end_bits_inclusive;
 }
 
-// If `node` is an n-ary logical operation with a literal and a concat, then
+// If `node` is an n-ary logical operation with a constant and a concat, then
 // hoist the operation above the concat. For example, if `x` and `y` are 8-bit:
 //
 //   0xab & {x, y} => {x & 0xa, x & 0xb}
 //
 // Returns true if the transformation succeeded.
-absl::StatusOr<bool> TryHoistBitWiseWithConstant(Node* node) {
+absl::StatusOr<bool> TryHoistBitWiseWithConstant(Node* node,
+                                                 QueryEngine& query_engine) {
   // TODO(meheff): Handle cases where there are multiple non-literal concat
   // operands. No need to consider multiple literal operands as canonicalization
   // merges multiple literal operands of bitwise operations.
@@ -337,11 +338,11 @@ absl::StatusOr<bool> TryHoistBitWiseWithConstant(Node* node) {
   }
   // Currently only nary ops are bitwise.
   XLS_RET_CHECK(node->Is<NaryOp>());
-  Literal* literal;
-  if (node->operand(0)->Is<Literal>()) {
-    literal = node->operand(0)->As<Literal>();
-  } else if (node->operand(1)->Is<Literal>()) {
-    literal = node->operand(1)->As<Literal>();
+  Bits constant_bits;
+  if (query_engine.IsFullyKnown(node->operand(0))) {
+    constant_bits = *query_engine.KnownValueAsBits(node->operand(0));
+  } else if (query_engine.IsFullyKnown(node->operand(1))) {
+    constant_bits = *query_engine.KnownValueAsBits(node->operand(1));
   } else {
     return false;
   }
@@ -355,13 +356,12 @@ absl::StatusOr<bool> TryHoistBitWiseWithConstant(Node* node) {
   }
   std::vector<Node*> new_operands;
   int64_t offset = 0;
-  const Bits& literal_bits = literal->value().bits();
   for (int64_t i = concat->operand_count() - 1; i >= 0; --i) {
     Node* concat_operand = concat->operand(i);
     int64_t concat_operand_width = concat_operand->BitCountOrDie();
     XLS_ASSIGN_OR_RETURN(Literal * sliced_literal,
                          node->function_base()->MakeNode<Literal>(
-                             node->loc(), Value(literal_bits.Slice(
+                             node->loc(), Value(constant_bits.Slice(
                                               offset, concat_operand_width))));
     XLS_ASSIGN_OR_RETURN(
         Node * new_operand,
@@ -390,11 +390,13 @@ absl::StatusOr<bool> TryHoistBitWiseWithConstant(Node* node) {
 //
 // Preconditions:
 //   * All operands of the bitwise operation are concats.
-absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
+absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node,
+                                              QueryEngine& query_engine) {
   XLS_RET_CHECK(OpIsBitWise(node->op()));
 
-  if (node->Is<NaryOp>()) {
-    XLS_ASSIGN_OR_RETURN(bool changed, TryHoistBitWiseWithConstant(node));
+  {
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         TryHoistBitWiseWithConstant(node, query_engine));
     if (changed) {
       return true;
     }
@@ -407,7 +409,7 @@ absl::StatusOr<bool> TryHoistBitWiseOperation(Node* node) {
   }
 
   // Collect bit ranges.
-  // Note: XLS_ASSIGN_OR_RETURN doesn't seem to handle std::map correclty
+  // Note: XLS_ASSIGN_OR_RETURN doesn't seem to handle std::map correctly
   // (probably due to comma).
   auto union_result = GetBitRangeUnionOfInputConcats(node);
   if (!union_result.ok()) {
@@ -550,6 +552,8 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
+  StatelessQueryEngine query_engine;
+
   // For optimizations which replace concats with other concats use a worklist
   // of unprocessed concats in the graphs. As new concats are created they are
   // added to the worklist.
@@ -574,7 +578,7 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
     for (Node* node : TopoSort(f)) {
       if (OpIsBitWise(node->op())) {
         XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
-                             TryHoistBitWiseOperation(node));
+                             TryHoistBitWiseOperation(node, query_engine));
         changed = changed || bitwise_changed;
       } else {
         XLS_ASSIGN_OR_RETURN(bool distribute_changed,

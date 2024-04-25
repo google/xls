@@ -21,8 +21,11 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 
@@ -51,7 +54,7 @@ bool IsValidBitOfNonblockingReceive(Node* node) {
 }
 
 // Matches `node` against a useless binary select between the data value of a
-// conditional or non-blocking receive node and a literal 0. There are two
+// conditional or non-blocking receive node and a constant 0. There are two
 // patterns. For the conditional case:
 //
 //                            predicate
@@ -59,7 +62,7 @@ bool IsValidBitOfNonblockingReceive(Node* node) {
 //               receive <-------+
 //                  |            |
 //                  |            |
-//   Literal(0)  tuple_index(1)  |
+//  constant(0)  tuple_index(1)  |
 //          \    /               |
 //           \  /                |
 //          select <-------------+
@@ -70,21 +73,26 @@ bool IsValidBitOfNonblockingReceive(Node* node) {
 //                      |
 //                      +---------------+
 //                      |               |
-//   Literal(0)  tuple_index(1)   tuple_index(2)
+//  constant(0)  tuple_index(1)   tuple_index(2)
 //          \    /                      |
 //           \  /                       |
 //          select <--------------------+
 //
 // In these case, the select is equivalent to the data value of the receive.
-std::optional<ReceiveData> MatchUselessSelectAfterReceive(Select* select) {
+std::optional<ReceiveData> MatchUselessSelectAfterReceive(
+    Select* select, QueryEngine& query_engine) {
   if (!IsBinarySelect(select)) {
     return std::nullopt;
   }
 
   std::optional<ReceiveData> receive_data =
       MatchReceiveDataValue(select->get_case(1));
-  if (!receive_data.has_value() || !select->get_case(0)->Is<Literal>() ||
-      !select->get_case(0)->As<Literal>()->value().IsAllZeros()) {
+  if (!receive_data.has_value()) {
+    return std::nullopt;
+  }
+
+  std::optional<Value> constant = query_engine.KnownValue(select->get_case(0));
+  if (!constant.has_value() || !constant->IsAllZeros()) {
     return std::nullopt;
   }
 
@@ -108,13 +116,15 @@ std::optional<ReceiveData> MatchUselessSelectAfterReceive(Select* select) {
 absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options,
     PassResults* results) const {
+  StatelessQueryEngine query_engine;
+
   bool changed = false;
   for (Node* node : TopoSort(proc)) {
     if (!node->Is<Select>()) {
       continue;
     }
     std::optional<ReceiveData> receive_data =
-        MatchUselessSelectAfterReceive(node->As<Select>());
+        MatchUselessSelectAfterReceive(node->As<Select>(), query_engine);
     if (receive_data.has_value()) {
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(receive_data->data));
       changed = true;

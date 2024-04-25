@@ -34,35 +34,41 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 
 namespace {
 
-// Returns true if 'm' and 'n' are both literals whose bits values are
+// Returns true if 'm' and 'n' are both constants whose bits values are
 // sequential unsigned values (m + 1 = n).
-bool AreSequentialLiterals(Node* m, Node* n) {
-  if (!m->Is<Literal>() || !m->As<Literal>()->value().IsBits() ||
-      !n->Is<Literal>() || !n->As<Literal>()->value().IsBits()) {
+bool AreSequentialConstants(Node* m, Node* n, QueryEngine& query_engine) {
+  if (!m->GetType()->IsBits() || !n->GetType()->IsBits()) {
     return false;
   }
-  const Bits& m_bits = m->As<Literal>()->value().bits();
-  const Bits& n_bits = n->As<Literal>()->value().bits();
+  std::optional<Bits> m_bits = query_engine.KnownValueAsBits(m);
+  std::optional<Bits> n_bits = query_engine.KnownValueAsBits(n);
+  if (!m_bits.has_value() || !n_bits.has_value()) {
+    return false;
+  }
   // Zero extend before adding one to avoid overflow.
-  return bits_ops::UEqual(
-      bits_ops::Increment(bits_ops::ZeroExtend(m_bits, m_bits.bit_count() + 1)),
-      n_bits);
+  return bits_ops::UEqual(bits_ops::Increment(bits_ops::ZeroExtend(
+                              *m_bits, m_bits->bit_count() + 1)),
+                          *n_bits);
 }
 
-// Returns true if 'm' and 'n' are both literals whose bits values are equal.
-bool AreEqualLiterals(Node* m, Node* n) {
-  if (!m->Is<Literal>() || !m->As<Literal>()->value().IsBits() ||
-      !n->Is<Literal>() || !n->As<Literal>()->value().IsBits()) {
+// Returns true if 'm' and 'n' are both constants whose bits values are equal.
+bool AreEqualConstants(Node* m, Node* n, QueryEngine& query_engine) {
+  if (!m->GetType()->IsBits() || !n->GetType()->IsBits()) {
     return false;
   }
-  const Bits& m_bits = m->As<Literal>()->value().bits();
-  const Bits& n_bits = n->As<Literal>()->value().bits();
-  return bits_ops::UEqual(m_bits, n_bits);
+  std::optional<Bits> m_bits = query_engine.KnownValueAsBits(m);
+  std::optional<Bits> n_bits = query_engine.KnownValueAsBits(n);
+  if (!m_bits.has_value() || !n_bits.has_value()) {
+    return false;
+  }
+  return bits_ops::UEqual(*m_bits, *n_bits);
 }
 
 // Change clamps to high or low values to a canonical form:
@@ -77,7 +83,8 @@ bool AreEqualLiterals(Node* m, Node* n) {
 //
 // We only have to consider forms where the literal in the comparison is on the
 // rhs and strict comparison operations because of other canonicalizations.
-absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n) {
+absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n,
+                                            QueryEngine& query_engine) {
   if (!n->GetType()->IsBits() || !n->Is<Select>()) {
     return false;
   }
@@ -98,32 +105,37 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n) {
   Literal* k = nullptr;
   bool is_clamp_low = false;
   bool is_clamp_high = false;
-  if (cmp == Op::kUGt && a == d && AreSequentialLiterals(b, c)) {
+  if (cmp == Op::kUGt && a == d && AreSequentialConstants(b, c, query_engine)) {
     //         a cmp b   ? c : d
     //  (i)    x > K - 1 ? K : x   =>   x > K ? K : x
     is_clamp_high = true;
     k = c->As<Literal>();
-  } else if (cmp == Op::kULt && a == c && AreEqualLiterals(b, d)) {
+  } else if (cmp == Op::kULt && a == c &&
+             AreEqualConstants(b, d, query_engine)) {
     //         a cmp b   ? c : d
     //  (ii)   x < K     ? x : K   =>   x > K ? K : x
     is_clamp_high = true;
     k = d->As<Literal>();
-  } else if (cmp == Op::kULt && a == c && AreSequentialLiterals(d, b)) {
+  } else if (cmp == Op::kULt && a == c &&
+             AreSequentialConstants(d, b, query_engine)) {
     //         a cmp b   ? c : d
     //  (iii)  x < K + 1 ? x : K   =>   x > K ? K : x
     is_clamp_high = true;
     k = d->As<Literal>();
-  } else if (cmp == Op::kULt && a == d && AreSequentialLiterals(c, b)) {
+  } else if (cmp == Op::kULt && a == d &&
+             AreSequentialConstants(c, b, query_engine)) {
     //         a cmp b   ? c : d
     //  (iv)   x < K + 1 ? K : x   =>   x < K ? K : x
     is_clamp_low = true;
     k = c->As<Literal>();
-  } else if (cmp == Op::kUGt && a == c && AreEqualLiterals(b, d)) {
+  } else if (cmp == Op::kUGt && a == c &&
+             AreEqualConstants(b, d, query_engine)) {
     //         a cmp b   ? c : d
     //  (v)    x > K     ? x : K   =>   x < K ? K : x
     is_clamp_low = true;
     k = d->As<Literal>();
-  } else if (cmp == Op::kUGt && a == c && AreSequentialLiterals(b, d)) {
+  } else if (cmp == Op::kUGt && a == c &&
+             AreSequentialConstants(b, d, query_engine)) {
     //         a cmp b   ? c : d
     //  (vi)   x > K - 1 ? x : K   =>   x < K ? K : x
     is_clamp_low = true;
@@ -158,12 +170,14 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n) {
 // to be matched, instead of two.
 static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   FunctionBase* f = n->function_base();
+  StatelessQueryEngine query_engine;
 
-  // Always move kLiteral to right for commutative operators.
+  // Always move constants to right for commutative operators.
   Op op = n->op();
   if (OpIsCommutative(op) && n->operand_count() == 2) {
-    if (n->operand(0)->Is<Literal>() && !n->operand(1)->Is<Literal>()) {
-      VLOG(2) << "Replaced 'op(literal, x) with op(x, literal)";
+    if (query_engine.IsFullyKnown(n->operand(0)) &&
+        !query_engine.IsFullyKnown(n->operand(1))) {
+      VLOG(2) << "Replaced 'op(constant, x) with op(x, constant)";
       XLS_ASSIGN_OR_RETURN(Node * replacement,
                            n->Clone({n->operand(1), n->operand(0)}));
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(replacement));
@@ -172,8 +186,8 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   }
 
   // Move kLiterals to the right for comparison operators.
-  if (OpIsCompare(n->op()) && n->operand(0)->Is<Literal>() &&
-      !n->operand(1)->Is<Literal>()) {
+  if (OpIsCompare(n->op()) && query_engine.IsFullyKnown(n->operand(0)) &&
+      !query_engine.IsFullyKnown(n->operand(1))) {
     XLS_ASSIGN_OR_RETURN(Op commuted_op, ReverseComparisonOp(n->op()));
     VLOG(2) << absl::StreamFormat("Replaced %s(literal, x) with %s(x, literal)",
                                   OpToString(n->op()), OpToString(commuted_op));
@@ -187,12 +201,12 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   // equals" form). Literal operand should be on the right according to the
   // above canonicalization.
   // TODO(meheff): 2020-01-22 Handle the signed variants.
-  if (OpIsCompare(n->op()) && n->operand(1)->Is<Literal>() &&
-      n->operand(1)->GetType()->IsBits()) {
-    const Bits& literal = n->operand(1)->As<Literal>()->value().bits();
-    if (n->op() == Op::kUGe && !literal.IsZero()) {
+  if (OpIsCompare(n->op()) && n->operand(1)->GetType()->IsBits() &&
+      query_engine.IsFullyKnown(n->operand(1))) {
+    Bits constant = *query_engine.KnownValueAsBits(n->operand(1));
+    if (n->op() == Op::kUGe && !constant.IsZero()) {
       VLOG(2) << "Replaced Uge(x, K) with Ugt(x, K - 1)";
-      Bits k_minus_one = bits_ops::Decrement(literal);
+      Bits k_minus_one = bits_ops::Decrement(constant);
       XLS_ASSIGN_OR_RETURN(
           Literal * new_literal,
           n->function_base()->MakeNode<Literal>(n->loc(), Value(k_minus_one)));
@@ -201,9 +215,9 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
               .status());
       return true;
     }
-    if (n->op() == Op::kULe && !literal.IsAllOnes()) {
+    if (n->op() == Op::kULe && !constant.IsAllOnes()) {
       VLOG(2) << "Replaced ULe(x, literal) with Ult(x, literal + 1)";
-      Bits k_plus_one = bits_ops::Increment(literal);
+      Bits k_plus_one = bits_ops::Increment(constant);
       XLS_ASSIGN_OR_RETURN(
           Literal * new_literal,
           n->function_base()->MakeNode<Literal>(n->loc(), Value(k_plus_one)));
@@ -214,18 +228,19 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(bool min_max_changed, MaybeCanonicalizeClamp(n));
+  XLS_ASSIGN_OR_RETURN(bool min_max_changed,
+                       MaybeCanonicalizeClamp(n, query_engine));
   if (min_max_changed) {
     return true;
   }
 
   // Replace (x - literal) with x + (-literal)
-  if (n->op() == Op::kSub && n->operand(1)->Is<Literal>()) {
+  if (n->op() == Op::kSub && query_engine.IsFullyKnown(n->operand(1))) {
     XLS_ASSIGN_OR_RETURN(
         Node * neg_rhs,
         f->MakeNode<Literal>(
             n->loc(), Value(bits_ops::Negate(
-                          n->operand(1)->As<Literal>()->value().bits()))));
+                          *query_engine.KnownValueAsBits(n->operand(1))))));
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<BinOp>(n->operand(0), neg_rhs, Op::kAdd)
             .status());

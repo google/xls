@@ -664,14 +664,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                         : node->As<PrioritySelect>()->cases();
     if (query_engine.IsTracked(selector)) {
       TernaryVector selector_bits = query_engine.GetTernary(selector).Get({});
-      auto is_zero_literal = [](Node* n) {
-        return n->Is<Literal>() && n->As<Literal>()->value().IsAllZeros();
-      };
       // For one-hot-selects if either the selector bit or the case value is
       // zero, the case can be removed. For priority selects, the case can be
       // removed only if the selector bit is zero.
       auto is_removable_case = [&](int64_t c) {
-        return (node->Is<OneHotSelect>() && is_zero_literal(cases[c])) ||
+        return (node->Is<OneHotSelect>() && cases[c]->GetType()->IsBits() &&
+                query_engine.IsAllZeros(cases[c])) ||
                selector_bits[c] == TernaryValue::kKnownZero;
       };
       bool has_removable_case = false;

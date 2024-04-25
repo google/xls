@@ -161,7 +161,7 @@ class QueryEngine {
 
   // Returns the output of the given node at the given index, if completely
   // known; otherwise returns std::nullopt.
-  std::optional<Value> KnownValue(Node* node) const;
+  virtual std::optional<Value> KnownValue(Node* node) const;
 
   // Returns the output of the given node at the given index, if completely
   // known; otherwise returns std::nullopt. Precondition: 'node' must be

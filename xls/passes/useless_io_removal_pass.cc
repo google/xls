@@ -32,6 +32,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 
@@ -71,11 +72,13 @@ absl::StatusOr<ChannelMaps> ComputeChannelMaps(Package* package) {
 absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
     Package* p, const OptimizationPassOptions& options,
     PassResults* results) const {
+  StatelessQueryEngine query_engine;
+
   bool changed = false;
   XLS_ASSIGN_OR_RETURN(ChannelMaps channel_maps, ComputeChannelMaps(p));
-  // Remove send_if and recv_if with literal false conditions, unless they are
+  // Remove send_if and recv_if with constant false conditions, unless they are
   // the last send/receive on that channel.
-  // Replace send_if and recv_if with literal true conditions with unpredicated
+  // Replace send_if and recv_if with constant true conditions with unpredicated
   // send and recv.
   for (std::unique_ptr<Proc>& proc : p->procs()) {
     for (Node* node : TopoSort(proc.get())) {
@@ -88,11 +91,11 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
                              GetChannelRefUsedByNode(node));
         Node* predicate = send->predicate().value();
-        if (IsLiteralZero(predicate) &&
+        if (query_engine.IsAllZeros(predicate) &&
             channel_maps.to_send.at(channel_ref).size() >= 2) {
           channel_maps.to_send.at(channel_ref).erase(send);
           replacement = send->token();
-        } else if (IsLiteralUnsignedOne(predicate)) {
+        } else if (query_engine.IsAllOnes(predicate)) {
           XLS_ASSIGN_OR_RETURN(
               replacement,
               proc->MakeNode<Send>(node->loc(), send->token(), send->data(),
@@ -107,7 +110,7 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
                              GetChannelRefUsedByNode(node));
         Node* predicate = receive->predicate().value();
-        if (IsLiteralZero(predicate) &&
+        if (query_engine.IsAllZeros(predicate) &&
             channel_maps.to_receive.at(channel_ref).size() >= 2) {
           XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
           channel_maps.to_receive.at(channel_ref).erase(receive);
@@ -118,7 +121,7 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
               replacement,
               proc->MakeNode<Tuple>(
                   node->loc(), std::vector<Node*>{receive->token(), zero}));
-        } else if (IsLiteralUnsignedOne(predicate)) {
+        } else if (query_engine.IsAllOnes(predicate)) {
           XLS_ASSIGN_OR_RETURN(replacement, proc->MakeNode<Receive>(
                                                 node->loc(), receive->token(),
                                                 /*predicate=*/std::nullopt,

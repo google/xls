@@ -16,6 +16,7 @@
 #define XLS_PASSES_DATAFLOW_VISITOR_H_
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 
@@ -175,7 +177,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     // If the selector is not one-hot then the cases may be or-ed together or
     // the result may be zero which does not fit in the lattice domain so
     // bail.
-    if (!sel->selector()->Is<OneHot>()) {
+    if (!query_engine_.ExactlyOneBitTrue(sel->selector())) {
       return DefaultHandler(sel);
     }
 
@@ -306,12 +308,13 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   bool IndexIsEqual(Node* index, int64_t concrete_index, int64_t bound,
                     bool index_clamped) const {
     CHECK_LT(concrete_index, bound);
-    if (!index->Is<Literal>()) {
+    std::optional<Bits> bits_index = query_engine_.KnownValueAsBits(index);
+    if (!bits_index.has_value()) {
       return false;
     }
-    const Bits& bits_index = index->As<Literal>()->value().bits();
-    return bits_ops::UEqual(bits_index, concrete_index) ||
-           (index_clamped && bits_ops::UGreaterThanOrEqual(bits_index, bound) &&
+    return bits_ops::UEqual(*bits_index, concrete_index) ||
+           (index_clamped &&
+            bits_ops::UGreaterThanOrEqual(*bits_index, bound) &&
             (concrete_index == bound - 1));
   }
 
@@ -321,12 +324,13 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   bool IndexMightBeEqual(Node* index, int64_t concrete_index, int64_t bound,
                          bool index_clamped) const {
     CHECK_LT(concrete_index, bound);
-    if (!index->Is<Literal>()) {
+    std::optional<Bits> bits_index = query_engine_.KnownValueAsBits(index);
+    if (!bits_index.has_value()) {
       return true;
     }
-    const Bits& bits_index = index->As<Literal>()->value().bits();
-    return bits_ops::UEqual(bits_index, concrete_index) ||
-           (index_clamped && bits_ops::UGreaterThanOrEqual(bits_index, bound) &&
+    return bits_ops::UEqual(*bits_index, concrete_index) ||
+           (index_clamped &&
+            bits_ops::UGreaterThanOrEqual(*bits_index, bound) &&
             (concrete_index == bound - 1));
   }
 
@@ -376,6 +380,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     return bounds;
   }
 
+  StatelessQueryEngine query_engine_;
   absl::flat_hash_map<Node*, LeafTypeTree<LeafT>> map_;
 };
 

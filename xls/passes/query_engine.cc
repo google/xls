@@ -170,11 +170,11 @@ std::optional<Bits> QueryEngine::KnownValueAsBits(Node* node) const {
     return std::nullopt;
   }
 
-  TernaryVector ternary = GetTernary(node).Get({});
-  if (!ternary_ops::IsFullyKnown(ternary)) {
+  std::optional<Value> value = KnownValue(node);
+  if (!value.has_value()) {
     return std::nullopt;
   }
-  return ternary_ops::ToKnownBitsValues(ternary);
+  return value->bits();
 }
 
 bool QueryEngine::IsMsbKnown(Node* node) const {

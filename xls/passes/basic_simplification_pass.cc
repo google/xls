@@ -35,6 +35,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 namespace {
@@ -73,19 +74,24 @@ bool IsBinaryIrreflexiveRelation(Node* node) {
 // Return 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
 absl::StatusOr<bool> MatchPatterns(Node* n) {
+  StatelessQueryEngine query_engine;
+
   // Pattern: Add/Sub/Or/Shift a value with 0 on the RHS.
   if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
        n->op() == Op::kShrl || n->op() == Op::kShra) &&
-      IsLiteralZero(n->operand(1))) {
+      query_engine.IsAllZeros(n->operand(1))) {
     VLOG(2) << "FOUND: Useless operation of value with zero";
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;
   }
 
   // Returns true if all operands of 'node' are the same.
-  auto all_operands_same = [](Node* node) {
+  auto all_operands_same = [&query_engine](Node* node) {
     return std::all_of(node->operands().begin(), node->operands().end(),
-                       [node](Node* op) { return op == node->operand(0); });
+                       [node, &query_engine](Node* op) {
+                         return query_engine.NodesKnownUnsignedEquals(
+                             op, node->operand(0));
+                       });
   };
 
   // Duplicate operands of AND and OR (and their inverting forms NAND and OR)
@@ -186,14 +192,19 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Nor(x, 0, y) => Nor(x, y)
   if ((n->op() == Op::kOr || n->op() == Op::kXor || n->op() == Op::kNor)) {
     VLOG(2) << "FOUND: remove zero valued operands from or, nor, or, xor";
-    XLS_ASSIGN_OR_RETURN(bool changed, eliminate_operands_where(IsLiteralZero));
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         eliminate_operands_where([&query_engine](Node* node) {
+                           return query_engine.IsAllZeros(node);
+                         }));
     if (changed) {
       return true;
     }
   }
 
   // Or(x, -1, y) => -1
-  if (n->op() == Op::kOr && AnyOperandWhere(n, IsLiteralAllOnes)) {
+  if (n->op() == Op::kOr && AnyOperandWhere(n, [&query_engine](Node* node) {
+        return query_engine.IsAllOnes(node);
+      })) {
     VLOG(2) << "FOUND: replace or(..., 1, ...) with 1";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
@@ -201,7 +212,9 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   }
 
   // Nor(x, -1, y) => 0
-  if (n->op() == Op::kNor && AnyOperandWhere(n, IsLiteralAllOnes)) {
+  if (n->op() == Op::kNor && AnyOperandWhere(n, [&query_engine](Node* node) {
+        return query_engine.IsAllOnes(node);
+      })) {
     VLOG(2) << "FOUND: replace nor(..., 1, ...) with 0";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
@@ -213,14 +226,18 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   if (n->op() == Op::kAnd || n->op() == Op::kNand) {
     VLOG(2) << "FOUND: remove all-ones operands from and/nand";
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         eliminate_operands_where(IsLiteralAllOnes));
+                         eliminate_operands_where([&query_engine](Node* node) {
+                           return query_engine.IsAllOnes(node);
+                         }));
     if (changed) {
       return true;
     }
   }
 
   // And(x, 0) => 0
-  if (n->op() == Op::kAnd && AnyOperandWhere(n, IsLiteralZero)) {
+  if (n->op() == Op::kAnd && AnyOperandWhere(n, [&query_engine](Node* node) {
+        return query_engine.IsAllZeros(node);
+      })) {
     VLOG(2) << "FOUND: replace and(..., 0, ...) with 0";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
@@ -228,7 +245,9 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   }
 
   // Nand(x, 0) => 1
-  if (n->op() == Op::kNand && AnyOperandWhere(n, IsLiteralZero)) {
+  if (n->op() == Op::kNand && AnyOperandWhere(n, [&query_engine](Node* node) {
+        return query_engine.IsAllZeros(node);
+      })) {
     VLOG(2) << "FOUND: replace nand(..., 0, ...) with 1";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(AllOnesOfType(n->GetType())).status());
@@ -289,7 +308,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // Xor(x, -1) => Not(x)
   if (n->op() == Op::kXor && n->operand_count() == 2 &&
-      IsLiteralAllOnes(n->operand(1))) {
+      query_engine.IsAllOnes(n->operand(1))) {
     VLOG(2) << "FOUND: Found xor with all ones";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
@@ -335,17 +354,19 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     }
   }
 
-  // Fold the literal values presented to the nary op.
+  // Fold the constant values presented to the nary op.
   //
   //   Op(C0, x, C1)  =>  Op(C2, x) where C2 == Op(C0, C1)
   if (OpIsCommutative(n->op()) && OpIsAssociative(n->op()) && n->Is<NaryOp>() &&
-      AnyTwoOperandsWhere(n, IsLiteral)) {
+      AnyTwoOperandsWhere(n, [&query_engine](Node* node) {
+        return query_engine.IsFullyKnown(node);
+      })) {
     std::vector<Node*> new_operands;
     Bits bits = LogicalOpIdentity(n->op(), n->BitCountOrDie());
     for (Node* operand : n->operands()) {
-      if (operand->Is<Literal>()) {
+      if (query_engine.IsFullyKnown(operand)) {
         bits = DoLogicalOp(n->op(),
-                           {bits, operand->As<Literal>()->value().bits()});
+                           {bits, *query_engine.KnownValueAsBits(operand)});
       } else {
         new_operands.push_back(operand);
       }
@@ -362,7 +383,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
   // Pattern: Mul by 0
   if ((n->op() == Op::kSMul || n->op() == Op::kUMul) &&
-      IsLiteralZero(n->operand(1))) {
+      query_engine.IsAllZeros(n->operand(1))) {
     VLOG(2) << "FOUND: Mul by 0";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
@@ -392,14 +413,15 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
   // Because eq is commutative, we can rely on the literal being on the right
   // because of canonicalization.
   if (n->op() == Op::kEq && n->operand(0)->GetType()->IsBits() &&
-      n->operand(0)->BitCountOrDie() == 1 && n->operand(1)->Is<Literal>()) {
-    if (IsLiteralZero(n->operand(1))) {
+      n->operand(0)->BitCountOrDie() == 1 &&
+      query_engine.IsFullyKnown(n->operand(1))) {
+    if (query_engine.IsAllZeros(n->operand(1))) {
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
       return true;
     }
     VLOG(2) << "FOUND: eq comparison with bits[1]:0 or bits[1]:1";
-    XLS_RET_CHECK(IsLiteralUnsignedOne(n->operand(1)));
+    XLS_RET_CHECK(query_engine.KnownValueAsBits(n->operand(1))->IsOne());
     XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     return true;
   }

@@ -29,6 +29,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -46,6 +47,8 @@ class StatelessQueryEngine : public QueryEngine {
   }
 
   bool IsTracked(Node* node) const override { return true; }
+
+  std::optional<Value> KnownValue(Node* node) const override;
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override;
 

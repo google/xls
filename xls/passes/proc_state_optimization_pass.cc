@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -44,7 +43,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -393,21 +391,22 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
 }
 
 // If there's a sequence of state elements `c` with length `k` such that
-//     next[c[i + 1]] ≡ param[c[i]] and next[c[0]] is a literal
+//     next[c[i + 1]] ≡ param[c[i]] and next[c[0]] is a constant
 // where `≡` denotes semantic equivalence, then this function will convert all
 // of those state elements into a single state element of size ⌈log₂(k)⌉ bits,
-// unless the literal value is equal to init_value[c[0]], in which case the
+// unless the constant value is equal to init_value[c[0]], in which case the
 // state will be eliminated entirely.
 //
 // The reason this takes a chain as input rather than a single state element
-// with literal input (and then run to fixed point) is because the latter would
+// with constant input (and then run to fixed point) is because the latter would
 // result in a one-hot encoding of the state rather than binary.
 //
 // TODO: 2022-08-31 this could be modified to handle arbitrary DAGs where each
 // included next function doesn't have any receives (i.e.: a DAG consisting of
-// arithmetic/logic operations, literals, and registers).
-absl::Status LiteralChainToStateMachine(Proc* proc,
-                                        absl::Span<const int64_t> chain) {
+// arithmetic/logic operations, constants, and registers).
+absl::Status ConstantChainToStateMachine(Proc* proc,
+                                         absl::Span<const int64_t> chain,
+                                         const QueryEngine& query_engine) {
   CHECK(!chain.empty());
 
   std::string state_machine_name = "state_machine";
@@ -464,18 +463,22 @@ absl::Status LiteralChainToStateMachine(Proc* proc,
     initial_state_literals.push_back(init);
   }
 
-  Node* chain_literal;
+  Node* chain_constant;
   if (proc->next_values(proc->GetStateParam(chain.front())).empty()) {
-    chain_literal = proc->GetNextStateElement(chain.front());
+    chain_constant = proc->GetNextStateElement(chain.front());
   } else {
     CHECK_EQ(proc->next_values(proc->GetStateParam(chain.front())).size(), 1);
     Next* next_value =
         *proc->next_values(proc->GetStateParam(chain.front())).begin();
     CHECK(next_value->predicate() == std::nullopt &&
-          next_value->value()->Is<Literal>());
-    chain_literal = next_value->value();
+          query_engine.IsFullyKnown(next_value->value()));
+    chain_constant = next_value->value();
   }
-  CHECK(chain_literal != nullptr && chain_literal->Is<Literal>());
+  CHECK(chain_constant != nullptr && query_engine.IsFullyKnown(chain_constant));
+  XLS_ASSIGN_OR_RETURN(
+      Literal * chain_literal,
+      proc->MakeNode<Literal>(chain_constant->loc(),
+                              *query_engine.KnownValue(chain_constant)));
 
   absl::btree_set<int64_t, std::greater<int64_t>> indices_to_remove;
   for (int64_t chain_index = 0; chain_index < chain.size(); ++chain_index) {
@@ -505,18 +508,25 @@ absl::Status LiteralChainToStateMachine(Proc* proc,
 }
 
 // Convert all chains in the state element graph (as described in the docs for
-// `LiteralChainToStateMachine`) into state machines with `⌈log₂(k)⌉` bits of
+// `ConstantChainToStateMachine`) into state machines with `⌈log₂(k)⌉` bits of
 // state where `k` is the length of the chain.
 //
 // TODO: 2022-08-31 this currently only handles chains of length 1 with
 // syntactic equivalence
-absl::StatusOr<bool> ConvertLiteralChainsToStateMachines(Proc* proc) {
+absl::StatusOr<bool> ConvertConstantChainsToStateMachines(
+    Proc* proc, QueryEngine& query_engine) {
   bool changed = false;
   for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    if (proc->GetNextStateElement(i)->Is<Literal>()) {
-      XLS_RETURN_IF_ERROR(LiteralChainToStateMachine(proc, {i}));
+    if (query_engine.IsFullyKnown(proc->GetNextStateElement(i))) {
+      XLS_RETURN_IF_ERROR(ConstantChainToStateMachine(proc, {i}, query_engine));
       changed = true;
+
+      // Repopulate the query engine in case we need to use it again.
+      XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
+
+      continue;
     }
+
     const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
         proc->next_values(proc->GetStateParam(i));
     if (next_values.size() != 1) {
@@ -524,9 +534,14 @@ absl::StatusOr<bool> ConvertLiteralChainsToStateMachines(Proc* proc) {
     }
     Next* next_value = *next_values.begin();
     if (next_value->predicate() == std::nullopt &&
-        next_value->value()->Is<Literal>()) {
-      XLS_RETURN_IF_ERROR(LiteralChainToStateMachine(proc, {i}));
+        query_engine.IsFullyKnown(next_value->value())) {
+      XLS_RETURN_IF_ERROR(ConstantChainToStateMachine(proc, {i}, query_engine));
       changed = true;
+
+      // Repopulate the query engine in case we need to use it again.
+      XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
+
+      continue;
     }
   }
   return changed;
@@ -563,9 +578,10 @@ absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
     changed = changed || constant_changed;
   } while (constant_changed);
 
-  XLS_ASSIGN_OR_RETURN(bool literal_chains_changed,
-                       ConvertLiteralChainsToStateMachines(proc));
-  changed = changed || literal_chains_changed;
+  XLS_ASSIGN_OR_RETURN(
+      bool constant_chains_changed,
+      ConvertConstantChainsToStateMachines(proc, query_engine));
+  changed = changed || constant_chains_changed;
 
   XLS_ASSIGN_OR_RETURN(bool unobservable_changed,
                        RemoveUnobservableStateElements(proc));

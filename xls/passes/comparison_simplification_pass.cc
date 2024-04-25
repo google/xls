@@ -39,6 +39,8 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 namespace {
@@ -110,7 +112,8 @@ IntervalSet MakeUGtRange(const Bits& limit) {
 // determined.
 std::optional<RangeEquivalence> ComputeRangeEquivalence(
     Node* node,
-    const absl::flat_hash_map<Node*, RangeEquivalence>& equivalences) {
+    const absl::flat_hash_map<Node*, RangeEquivalence>& equivalences,
+    QueryEngine& query_engine) {
   if (!node->GetType()->IsBits() || node->BitCountOrDie() != 1 ||
       (OpIsCompare(node->op()) && !node->operand(0)->GetType()->IsBits())) {
     return std::nullopt;
@@ -119,45 +122,46 @@ std::optional<RangeEquivalence> ComputeRangeEquivalence(
   // A compare operation with a literal operand trivially has a range
   // equivalence.
   if (OpIsCompare(node->op()) &&
-      (node->operand(0)->Is<Literal>() || node->operand(1)->Is<Literal>())) {
-    Literal* literal_operand;
+      (query_engine.IsFullyKnown(node->operand(0)) ||
+       query_engine.IsFullyKnown(node->operand(1)))) {
+    Bits constant_operand;
     Node* other_operand;
-    bool literal_on_rhs;
-    if (node->operand(0)->Is<Literal>()) {
-      literal_operand = node->operand(0)->As<Literal>();
+    bool constant_on_rhs;
+    if (query_engine.IsFullyKnown(node->operand(0))) {
+      constant_operand = *query_engine.KnownValueAsBits(node->operand(0));
       other_operand = node->operand(1);
-      literal_on_rhs = false;
+      constant_on_rhs = false;
     } else {
-      literal_operand = node->operand(1)->As<Literal>();
+      constant_operand = *query_engine.KnownValueAsBits(node->operand(1));
       other_operand = node->operand(0);
-      literal_on_rhs = true;
+      constant_on_rhs = true;
     }
     switch (node->op()) {
       case Op::kEq:
         return RangeEquivalence{
-            other_operand,
-            IntervalSet::Precise(literal_operand->value().bits())};
+            .node = other_operand,
+            .range = IntervalSet::Precise(constant_operand)};
       case Op::kNe:
-        return RangeEquivalence{other_operand,
-                                IntervalSet::Complement(IntervalSet::Precise(
-                                    literal_operand->value().bits()))};
+        return RangeEquivalence{.node = other_operand,
+                                .range = IntervalSet::Complement(
+                                    IntervalSet::Precise(constant_operand))};
       // We only need to consider the strict comparisons (kUGt, kULt) because
-      // canonicalization transforms non-strict comparions (kULe, kUGe) with
+      // canonicalization transforms non-strict comparisons (kULe, kUGe) with
       // literals into the strict form.
       case Op::kULt:
         // ULt(x, C)  =>  [0, C-1]
         // ULt(C, x)  =>  [C+1, MAX]
-        return RangeEquivalence{
-            other_operand, literal_on_rhs
-                               ? MakeULtRange(literal_operand->value().bits())
-                               : MakeUGtRange(literal_operand->value().bits())};
+        return RangeEquivalence{.node = other_operand,
+                                .range = constant_on_rhs
+                                             ? MakeULtRange(constant_operand)
+                                             : MakeUGtRange(constant_operand)};
       case Op::kUGt:
         // UGt(x, C)  =>  [C+1, MAX]
         // UGt(C, x)  =>  [0, C-1]
-        return RangeEquivalence{
-            other_operand, literal_on_rhs
-                               ? MakeUGtRange(literal_operand->value().bits())
-                               : MakeULtRange(literal_operand->value().bits())};
+        return RangeEquivalence{.node = other_operand,
+                                .range = constant_on_rhs
+                                             ? MakeUGtRange(constant_operand)
+                                             : MakeULtRange(constant_operand)};
       default:
         return std::nullopt;
     }
@@ -319,6 +323,8 @@ absl::StatusOr<bool> TransformDerivedComparisons(FunctionBase* f) {
 absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
+  StatelessQueryEngine query_engine;
+
   bool changed = false;
 
   // Compute range equivalences for all nodes. Single-bit node X has an
@@ -334,7 +340,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                                 f->name());
   for (Node* node : TopoSort(f)) {
     std::optional<RangeEquivalence> equivalence =
-        ComputeRangeEquivalence(node, equivalences);
+        ComputeRangeEquivalence(node, equivalences, query_engine);
     if (!equivalence.has_value()) {
       VLOG(3) << absl::StreamFormat("  %s : <none>", node->GetName());
       continue;

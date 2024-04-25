@@ -26,6 +26,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/big_int.h"
@@ -41,6 +42,8 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
+#include "xls/passes/stateless_query_engine.h"
 
 namespace xls {
 namespace {
@@ -91,7 +94,8 @@ struct ClampExpr {
   Node* node;
   Bits upper_limit;
 };
-std::optional<ClampExpr> MatchClampUpperLimit(Node* n) {
+std::optional<ClampExpr> MatchClampUpperLimit(Node* n,
+                                              const QueryEngine& query_engine) {
   if (!n->Is<Select>()) {
     return std::nullopt;
   }
@@ -109,10 +113,13 @@ std::optional<ClampExpr> MatchClampUpperLimit(Node* n) {
   } else {
     alternative = select->get_case(1);
   }
-  if (select->selector()->op() == Op::kUGt && alternative->Is<Literal>() &&
+  if (select->selector()->op() == Op::kUGt &&
+      query_engine.IsFullyKnown(alternative) &&
       cmp->operand(1) == alternative && cmp->operand(0) == consequent) {
-    return ClampExpr{cmp->operand(0),
-                     alternative->As<Literal>()->value().bits()};
+    return ClampExpr{
+        .node = cmp->operand(0),
+        .upper_limit = *query_engine.KnownValueAsBits(alternative),
+    };
   }
   return std::nullopt;
 }
@@ -223,30 +230,33 @@ absl::StatusOr<Node*> NarrowOrExtend(Node* n, bool n_is_signed,
   return n;
 }
 
-struct BinaryOpWithLiteral {
+struct BinaryOpWithConstant {
   Node* operand;
-  Literal* literal;
-  bool literal_on_lhs;
+  Value constant;
+  bool constant_on_lhs;
   Op op;
 };
 
-// Matches the given node as binary operation performed with a literal on the
-// lhs or rhs. If match succeeds, returns BinaryOpWithLiteral metadata.
-std::optional<BinaryOpWithLiteral> MatchBinaryOpWithLiteral(Node* node) {
+// Matches the given node as binary operation performed with a constant on the
+// lhs or rhs. If match succeeds, returns BinaryOpWithConstant metadata.
+std::optional<BinaryOpWithConstant> MatchBinaryOpWithConstant(
+    Node* node, const QueryEngine& query_engine) {
   if (node->operand_count() != 2) {
     return std::nullopt;
   }
-  if (node->operand(0)->Is<Literal>()) {
-    return BinaryOpWithLiteral{.operand = node->operand(1),
-                               .literal = node->operand(0)->As<Literal>(),
-                               .literal_on_lhs = true,
-                               .op = node->op()};
+  if (std::optional<Value> constant = query_engine.KnownValue(node->operand(0));
+      constant.has_value()) {
+    return BinaryOpWithConstant{.operand = node->operand(1),
+                                .constant = *constant,
+                                .constant_on_lhs = true,
+                                .op = node->op()};
   }
-  if (node->operand(1)->Is<Literal>()) {
-    return BinaryOpWithLiteral{.operand = node->operand(0),
-                               .literal = node->operand(1)->As<Literal>(),
-                               .literal_on_lhs = false,
-                               .op = node->op()};
+  if (std::optional<Value> constant = query_engine.KnownValue(node->operand(1));
+      constant.has_value()) {
+    return BinaryOpWithConstant{.operand = node->operand(0),
+                                .constant = *constant,
+                                .constant_on_lhs = false,
+                                .op = node->op()};
   }
   return std::nullopt;
 }
@@ -263,19 +273,21 @@ std::optional<BinaryOpWithLiteral> MatchBinaryOpWithLiteral(Node* node) {
 //   X == C_1 - C_0
 //
 // Operations handled are `kAdd` and `kSub`.
-absl::StatusOr<bool> MatchComparisonOfInjectiveOp(Node* node) {
+absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
+    Node* node, const QueryEngine& query_engine) {
   if (!node->GetType()->IsBits()) {
     return false;
   }
-  std::optional<BinaryOpWithLiteral> compare = MatchBinaryOpWithLiteral(node);
+  std::optional<BinaryOpWithConstant> compare =
+      MatchBinaryOpWithConstant(node, query_engine);
   if (!compare.has_value()) {
     return false;
   }
   if (compare->op != Op::kEq && compare->op != Op::kNe) {
     return false;
   }
-  std::optional<BinaryOpWithLiteral> binary_op =
-      MatchBinaryOpWithLiteral(compare->operand);
+  std::optional<BinaryOpWithConstant> binary_op =
+      MatchBinaryOpWithConstant(compare->operand, query_engine);
   if (!binary_op.has_value()) {
     return false;
   }
@@ -286,18 +298,18 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(Node* node) {
   Bits solution;
   if (binary_op->op == Op::kAdd) {
     // (X + C_0) cmp C_1  => x cmp C_1 - C_0
-    solution = bits_ops::Sub(compare->literal->value().bits(),
-                             binary_op->literal->value().bits());
+    solution =
+        bits_ops::Sub(compare->constant.bits(), binary_op->constant.bits());
   } else {
     XLS_RET_CHECK_EQ(binary_op->op, Op::kSub);
-    if (binary_op->literal_on_lhs) {
+    if (binary_op->constant_on_lhs) {
       // (C_0 - X) cmp C_1  => x cmp C_0 - C_1
-      solution = bits_ops::Sub(binary_op->literal->value().bits(),
-                               compare->literal->value().bits());
+      solution =
+          bits_ops::Sub(binary_op->constant.bits(), compare->constant.bits());
     } else {
       // (X - C_0) cmp C_1  => x cmp C_0 + C_1
-      solution = bits_ops::Add(compare->literal->value().bits(),
-                               binary_op->literal->value().bits());
+      solution =
+          bits_ops::Add(compare->constant.bits(), binary_op->constant.bits());
     }
   }
   XLS_ASSIGN_OR_RETURN(
@@ -323,11 +335,11 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(Node* node) {
 // Note: the source for the algorithms used to optimize division by constant is
 // "Division by Invariant Integers using Multiplication"
 // https://gmplib.org/~tege/divcnst-pldi94.pdf
-absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op) {
+absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op,
+                                         const QueryEngine& query_engine) {
   if (original_div_op->op() == Op::kUDiv &&
-      original_div_op->operand(1)->Is<Literal>()) {
-    const Bits& rhs =
-        original_div_op->operand(1)->As<Literal>()->value().bits();
+      query_engine.IsFullyKnown(original_div_op->operand(1))) {
+    Bits rhs = *query_engine.KnownValueAsBits(original_div_op->operand(1));
     if (!rhs.IsPowerOfTwo()  // power of two is handled elsewhere.
         && !rhs.IsZero()     // div by 0 is handled elsewhere
     ) {
@@ -452,13 +464,13 @@ absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op) {
 // Note: the source for the algorithms used to optimize divison by constant is
 // "Division by Invariant Integers using Multiplication"
 // https://gmplib.org/~tege/divcnst-pldi94.pdf
-absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op) {
+absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
+                                       const QueryEngine& query_engine) {
   // TODO paper mentions overflow when n=-(2^(N-1)) and d=-1. Make sure I handle
   // that correctly. I'm not sure if Figure 5.2 does.
   if (original_div_op->op() == Op::kSDiv &&
-      original_div_op->operand(1)->Is<Literal>()) {
-    const Bits& rhs =
-        original_div_op->operand(1)->As<Literal>()->value().bits();
+      query_engine.IsFullyKnown(original_div_op->operand(1))) {
+    Bits rhs = *query_engine.KnownValueAsBits(original_div_op->operand(1));
     if (!rhs.IsZero()  // div by 0 is handled elsewhere
     ) {
       FunctionBase* fb = original_div_op->function_base();
@@ -607,11 +619,12 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op) {
 //
 // Return 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
-absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
+absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
+                                        const QueryEngine& query_engine) {
   // Pattern: UDiv/UMul/SMul by a positive power of two.
   if ((n->op() == Op::kSMul || n->op() == Op::kUMul || n->op() == Op::kUDiv) &&
-      n->operand(1)->Is<Literal>()) {
-    const Bits& rhs = n->operand(1)->As<Literal>()->value().bits();
+      query_engine.IsFullyKnown(n->operand(1))) {
+    const Bits rhs = *query_engine.KnownValueAsBits(n->operand(1));
     const bool is_signed = n->op() == Op::kSMul;
     if (rhs.IsPowerOfTwo() &&
         (!is_signed || (is_signed && bits_ops::SGreaterThan(rhs, 0)))) {
@@ -642,8 +655,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   }
 
   // Pattern: UMod/SMod by a literal.
-  if (n->OpIn({Op::kUMod, Op::kSMod}) && n->operand(1)->Is<Literal>()) {
-    const Bits& rhs = n->operand(1)->As<Literal>()->value().bits();
+  if (n->OpIn({Op::kUMod, Op::kSMod}) &&
+      query_engine.IsFullyKnown(n->operand(1))) {
+    const Bits rhs = *query_engine.KnownValueAsBits(n->operand(1));
     const bool is_signed = n->op() == Op::kSMod;
 
     if (rhs.IsOne() || rhs.IsZero()) {
@@ -723,12 +737,12 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
-  XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n));
+  XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n, query_engine));
   if (udiv_matched) {
     return true;
   }
 
-  XLS_ASSIGN_OR_RETURN(bool sdiv_matched, MatchSignedDivide(n));
+  XLS_ASSIGN_OR_RETURN(bool sdiv_matched, MatchSignedDivide(n, query_engine));
   if (sdiv_matched) {
     return true;
   }
@@ -743,9 +757,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // implies a barrel shifter which is not necessary for a shift by a constant
   // amount.
   if ((n->op() == Op::kShll || n->op() == Op::kShrl) &&
-      n->operand(1)->Is<Literal>()) {
+      query_engine.IsFullyKnown(n->operand(1))) {
     int64_t bit_count = n->BitCountOrDie();
-    const Bits& shift_bits = n->operand(1)->As<Literal>()->value().bits();
+    const Bits shift_bits = *query_engine.KnownValueAsBits(n->operand(1));
     if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
@@ -793,9 +807,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // This simplification is desirable because in the canonical lower-level IR a
   // shift implies a barrel shifter which is not necessary for a shift by a
   // constant amount.
-  if (n->op() == Op::kShra && n->operand(1)->Is<Literal>()) {
+  if (n->op() == Op::kShra && query_engine.IsFullyKnown(n->operand(1))) {
     const int64_t bit_count = n->BitCountOrDie();
-    const Bits& shift_bits = n->operand(1)->As<Literal>()->value().bits();
+    const Bits shift_bits = *query_engine.KnownValueAsBits(n->operand(1));
     if (shift_bits.IsZero()) {
       // A shift by zero is a nop.
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
@@ -833,8 +847,12 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //              0 otherwise.
   //
   // ... as long as it's not an arithmetic shift-right of bits[1]:1.
+  auto is_unsigned_one = [&](Node* node) {
+    const std::optional<Value> value = query_engine.KnownValue(node);
+    return value.has_value() && value->IsBits() && value->bits().IsOne();
+  };
   if ((n->op() == Op::kShra || n->op() == Op::kShrl) &&
-      IsLiteralUnsignedOne(n->operand(0))) {
+      is_unsigned_one(n->operand(0))) {
     // Make absolutely sure we're not dealing with an arithmetic shift-right of
     // bits[1]:1. (For correctness, that case must be handled first.)
     XLS_RET_CHECK(n->op() != Op::kShra || n->operand(0)->BitCountOrDie() > 1);
@@ -892,13 +910,13 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // NOTE: This is expected to reduce delay in other scenarios too, but we
   //       currently have no way to model the tradeoff between area & delay, so
   //       we only do this where we can fully eliminate one negation.
-  auto is_removable_negate = [](Node* node) {
+  auto is_removable_negate = [&query_engine](Node* node) {
     return node->op() == Op::kNeg &&
            !node->function_base()->HasImplicitUse(node) &&
-           absl::c_all_of(node->users(), [](Node* user) {
+           absl::c_all_of(node->users(), [&query_engine](Node* user) {
              return IsSignedCompare(user) &&
                     user->operand(0)->op() == Op::kNeg &&
-                    (user->operand(1)->Is<Literal>() ||
+                    (query_engine.IsFullyKnown(user->operand(1)) ||
                      user->operand(1)->op() == Op::kNeg);
            });
   };
@@ -963,15 +981,17 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //
   // Canonicalization puts the literal on the right for comparisons.
   if (IsBitsCompare(n) && IsSignedCompare(n) &&
-      n->operand(0)->op() == Op::kNeg && n->operand(1)->Is<Literal>() &&
+      n->operand(0)->op() == Op::kNeg &&
+      query_engine.IsFullyKnown(n->operand(1)) &&
       is_removable_negate(n->operand(0))) {
     VLOG(2) << "FOUND: Signed comparison of negation to literal";
     Node* expr = n->operand(0)->operand(0);
-    Literal* k = n->operand(1)->As<Literal>();
+    Bits k_bits = *query_engine.KnownValueAsBits(n->operand(1));
 
-    Bits neg_k_bits = bits_ops::Negate(k->value().bits());
-    XLS_ASSIGN_OR_RETURN(Literal * neg_k, n->function_base()->MakeNode<Literal>(
-                                              k->loc(), Value(neg_k_bits)));
+    Bits neg_k_bits = bits_ops::Negate(k_bits);
+    XLS_ASSIGN_OR_RETURN(Literal * neg_k,
+                         n->function_base()->MakeNode<Literal>(
+                             n->operand(1)->loc(), Value(neg_k_bits)));
 
     Node* equivalent;
     XLS_ASSIGN_OR_RETURN(Op reversed_op, ReverseComparisonOp(n->op()));
@@ -981,7 +1001,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     if (n->op() == Op::kEq || n->op() == Op::kNe) {
       equivalent = reversed_cmp;
     } else {
-      XLS_RET_CHECK_EQ(n->operand(0)->BitCountOrDie(), k->BitCountOrDie());
+      XLS_RET_CHECK_EQ(n->operand(0)->BitCountOrDie(), k_bits.bit_count());
       const int64_t bit_count = n->operand(0)->BitCountOrDie();
       InlineBitmap hi_bit(bit_count);
       hi_bit.Set(bit_count - 1);
@@ -992,7 +1012,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
       XLS_ASSIGN_OR_RETURN(Literal * min_value,
                            n->function_base()->MakeNode<Literal>(
                                n->loc(), Value(min_value_bits)));
-      if (k->value().bits() != min_value_bits) {
+      if (k_bits != min_value_bits) {
         XLS_ASSIGN_OR_RETURN(x, n->function_base()->MakeNode<CompareOp>(
                                     n->loc(), expr, min_value, Op::kEq));
       } else {
@@ -1016,7 +1036,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   if (n->op() == Op::kShll || n->op() == Op::kShrl || n->op() == Op::kShra) {
     if (n->operand(1)->Is<Concat>()) {
       Concat* concat = n->operand(1)->As<Concat>();
-      if (IsLiteralZero(concat->operand(0))) {
+      if (query_engine.IsAllZeros(concat->operand(0))) {
         Node* new_shift_amount;
         if (concat->operand_count() == 1) {
           new_shift_amount = concat->operand(0);
@@ -1040,7 +1060,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //
   //   decode({0, b}) => zero_ext(decode(b))
   if (n->op() == Op::kDecode && n->operand(0)->Is<Concat>() &&
-      IsLiteralZero(n->operand(0)->As<Concat>()->operand(0))) {
+      query_engine.IsAllZeros(n->operand(0)->As<Concat>()->operand(0))) {
     Concat* concat = n->operand(0)->As<Concat>();
     Node* new_index;
     if (concat->operand_count() == 1) {
@@ -1084,7 +1104,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   // This transformation can be performed for any value of LIMIT greater than
   // or equal to width(x).
   if (n->op() == Op::kShll || n->op() == Op::kShrl || n->op() == Op::kShra) {
-    std::optional<ClampExpr> clamp_expr = MatchClampUpperLimit(n->operand(1));
+    std::optional<ClampExpr> clamp_expr =
+        MatchClampUpperLimit(n->operand(1), query_engine);
     if (clamp_expr.has_value() &&
         bits_ops::UGreaterThanOrEqual(clamp_expr->upper_limit,
                                       n->BitCountOrDie())) {
@@ -1095,7 +1116,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   }
   // This also applies to decode(clamp(amt, LIMIT)), since decode(x) == 1 << x.
   if (n->op() == Op::kDecode) {
-    std::optional<ClampExpr> clamp_expr = MatchClampUpperLimit(n->operand(0));
+    std::optional<ClampExpr> clamp_expr =
+        MatchClampUpperLimit(n->operand(0), query_engine);
     if (clamp_expr.has_value() &&
         bits_ops::UGreaterThanOrEqual(clamp_expr->upper_limit,
                                       n->BitCountOrDie())) {
@@ -1122,13 +1144,13 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     }
   }
 
-  // Slt(x, 0) -> msb(x)
+  // SLt(x, 0) -> msb(x)
   // SGe(x, 0) -> not(msb(x))
   //
   // Canonicalization puts the literal on the right for comparisons.
   //
   if (NarrowingEnabled(opt_level) && IsBitsCompare(n) &&
-      IsLiteralZero(n->operand(1))) {
+      query_engine.IsAllZeros(n->operand(1))) {
     if (n->op() == Op::kSLt) {
       VLOG(2) << "FOUND: SLt(x, 0)";
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<BitSlice>(
@@ -1167,7 +1189,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     return true;
   }
 
-  // An unsigned comparison against a literal mask of LSBs (e.g., 0b0001111)
+  // An unsigned comparison against a constant mask of LSBs (e.g., 0b0001111)
   // can be simplified:
   //
   //    x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR
@@ -1176,8 +1198,21 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //   x <= 0b0001111  =>  nor_reduce(msb_slice(x))
   //   x >= 0b0001111  =>  or_reduce(msb_slice(x)) OR and_reduce(lsb_slice(x))
   int64_t leading_zeros, trailing_ones;
+  auto is_constant_mask = [&](Node* node, int64_t* leading_zero_count,
+                              int64_t* trailing_one_count) {
+    const std::optional<Bits> constant = query_engine.KnownValueAsBits(node);
+    if (!constant.has_value()) {
+      return false;
+    }
+    int64_t trailing_zeros = -1;
+    if (!constant->HasSingleRunOfSetBits(leading_zero_count, trailing_one_count,
+                                         &trailing_zeros)) {
+      return false;
+    }
+    return trailing_zeros == 0;
+  };
   if (NarrowingEnabled(opt_level) && IsBitsCompare(n) &&
-      IsLiteralMask(n->operand(1), &leading_zeros, &trailing_ones)) {
+      is_constant_mask(n->operand(1), &leading_zeros, &trailing_ones)) {
     VLOG(2) << "Found comparison to literal mask; leading zeros: "
             << leading_zeros << " trailing ones: " << trailing_ones
             << " :: " << n;
@@ -1233,9 +1268,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //
   // Another pass will simplify the shift-left by a literal to a concat & slice
   // (see above).
-  if (n->op() == Op::kShll && n->operand(0)->Is<Literal>()) {
-    Literal* lhs_literal = n->operand(0)->As<Literal>();
-    const Bits& lhs = lhs_literal->value().bits();
+  if (n->op() == Op::kShll && query_engine.IsFullyKnown(n->operand(0))) {
+    const Bits lhs = *query_engine.KnownValueAsBits(n->operand(0));
     if (lhs.IsPowerOfTwo()) {
       VLOG(2) << "FOUND: shift left of power of two";
       int64_t k = lhs.CountTrailingZeros();
@@ -1264,7 +1298,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(bool injective_matched, MatchComparisonOfInjectiveOp(n));
+  XLS_ASSIGN_OR_RETURN(bool injective_matched,
+                       MatchComparisonOfInjectiveOp(n, query_engine));
   if (injective_matched) {
     return true;
   }
@@ -1277,8 +1312,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  return TransformNodesToFixedPoint(
-      f, [this](Node* n) { return MatchArithPatterns(opt_level_, n); });
+  return TransformNodesToFixedPoint(f, [this](Node* n) {
+    return MatchArithPatterns(opt_level_, n, StatelessQueryEngine());
+  });
 }
 
 REGISTER_OPT_PASS(ArithSimplificationPass, pass_config::kOptLevel);

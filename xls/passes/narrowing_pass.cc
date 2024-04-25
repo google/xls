@@ -1100,23 +1100,25 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       int64_t min_index_width =
           std::max(int64_t{1}, Bits::MinBitCountUnsigned(array_size - 1));
 
-      if (index->Is<Literal>()) {
-        const Bits& bits_index = index->As<Literal>()->value().bits();
-        Bits new_bits_index = bits_index;
-        if (bits_ops::UGreaterThanOrEqual(bits_index, array_size)) {
+      const QueryEngine& query_engine =
+          specialized_query_engine_.ForNode(index);
+      if (std::optional<Bits> bits_index = query_engine.KnownValueAsBits(index);
+          bits_index.has_value()) {
+        Bits new_bits_index = *bits_index;
+        if (bits_ops::UGreaterThanOrEqual(*bits_index, array_size)) {
           // Index is out-of-bounds. Replace with a (potentially narrower)
           // index equal to the first out-of-bounds element.
           new_bits_index =
               UBits(array_size, Bits::MinBitCountUnsigned(array_size));
-        } else if (bits_index.bit_count() > min_index_width) {
+        } else if (bits_index->bit_count() > min_index_width) {
           // Index is in-bounds and is wider than necessary to index the
           // entire array. Replace with a literal which is perfectly sized
           // (width) to index the whole array.
-          XLS_ASSIGN_OR_RETURN(int64_t int_index, bits_index.ToUint64());
+          XLS_ASSIGN_OR_RETURN(int64_t int_index, bits_index->ToUint64());
           new_bits_index = UBits(int_index, min_index_width);
         }
         Node* new_index = index;
-        if (bits_index != new_bits_index) {
+        if (*bits_index != new_bits_index) {
           XLS_ASSIGN_OR_RETURN(new_index,
                                array_index->function_base()->MakeNode<Literal>(
                                    array_index->loc(), Value(new_bits_index)));
@@ -1650,6 +1652,7 @@ static void RangeAnalysisLog(FunctionBase* f,
     }
   }
 
+  StatelessQueryEngine stateless_query_engine;
   for (Node* node : f->nodes()) {
     if (node->GetType()->IsBits()) {
       IntervalSet intervals = range_query_engine.GetIntervals(node).Get({});
@@ -1663,7 +1666,8 @@ static void RangeAnalysisLog(FunctionBase* f,
       int64_t hull_size =
           bits_ops::DropLeadingZeroes(intervals.ConvexHull().value().SizeBits())
               .bit_count();
-      if (node->Is<Literal>() && (compressed_size < current_size)) {
+      if (stateless_query_engine.IsFullyKnown(node) &&
+          (compressed_size < current_size)) {
         std::vector<std::string> parents;
         for (Node* parent : parents_map[node]) {
           parents.push_back(parent->ToString());
