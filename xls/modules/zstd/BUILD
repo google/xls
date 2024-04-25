@@ -1447,3 +1447,162 @@ place_and_route(
     synthesized_rtl = ":command_constructor_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "ram_demux_dslx",
+    srcs = ["ram_demux.x"],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "ram_demux_dslx_test",
+    dslx_test_args = {"compare": "none"},
+    library = ":ram_demux_dslx",
+)
+
+xls_dslx_verilog(
+    name = "ram_demux_verilog",
+    codegen_args = {
+        "module_name": "RamDemux",
+        "generator": "pipeline",
+        "delay_model": "asap7",
+        "ram_configurations": ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "ram{}".format(num),
+                rd_req = "ram_demux__rd_req{}_s".format(num),
+                rd_resp = "ram_demux__rd_resp{}_r".format(num),
+                wr_req = "ram_demux__wr_req{}_s".format(num),
+                wr_resp = "ram_demux__wr_resp{}_r".format(num),
+            )
+            for num in range(2)
+        ]),
+        "pipeline_stages": "6",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "RamDemuxInst",
+    library = ":ram_demux_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_8_5_next",
+    },
+    verilog_file = "ram_demux.v",
+)
+
+xls_benchmark_ir(
+    name = "ram_demux_opt_ir_benchmark",
+    src = "ram_demux_verilog.opt.ir",
+    benchmark_ir_args = {
+        "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_8_5_next",
+    },
+    codegen_args = {
+        "pipeline_stages": "10",
+    },
+)
+
+verilog_library(
+    name = "ram_demux_verilog_lib",
+    srcs = [
+        ":ram_demux.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "ram_demux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "RamDemux",
+    deps = [
+        ":ram_demux_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "ram_demux_benchmark_synth",
+    synth_target = ":ram_demux_synth_asap7",
+)
+
+place_and_route(
+    name = "ram_demux_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":ram_demux_synth_asap7",
+    target_die_utilization_percentage = "5",
+)
+
+xls_dslx_verilog(
+    name = "ram_demux_naive_verilog",
+    codegen_args = {
+        "module_name": "RamDemuxNaive",
+        "generator": "pipeline",
+        "delay_model": "asap7",
+        "ram_configurations": ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "ram{}".format(num),
+                rd_req = "ram_demux__rd_req{}_s".format(num),
+                rd_resp = "ram_demux__rd_resp{}_r".format(num),
+                wr_req = "ram_demux__wr_req{}_s".format(num),
+                wr_resp = "ram_demux__wr_resp{}_r".format(num),
+            )
+            for num in range(2)
+        ]),
+        "pipeline_stages": "6",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "RamDemuxNaiveInst",
+    library = ":ram_demux_dslx",
+    opt_ir_args = {
+        "top": "__ram_demux__RamDemuxNaiveInst__RamDemuxNaive_0__5_8_0_8_next",
+    },
+    verilog_file = "ram_demux_naive.v",
+)
+
+xls_benchmark_ir(
+    name = "ram_demux_naive_opt_ir_benchmark",
+    src = "ram_demux_naive_verilog.opt.ir",
+    benchmark_ir_args = {
+        "top": "__ram_demux__RamDemuxNaiveInst__RamDemuxNaive_0__5_8_0_8_next",
+    },
+    codegen_args = {
+        "pipeline_stages": "10",
+    },
+)
+
+verilog_library(
+    name = "ram_demux_naive_verilog_lib",
+    srcs = [
+        ":ram_demux_naive.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "ram_demux_naive_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "RamDemuxNaive",
+    deps = [
+        ":ram_demux_naive_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "ram_demux_naive_benchmark_synth",
+    synth_target = ":ram_demux_naive_synth_asap7",
+)
+
+place_and_route(
+    name = "ram_demux_naive_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":ram_demux_naive_synth_asap7",
+    target_die_utilization_percentage = "5",
+)
