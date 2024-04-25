@@ -139,7 +139,13 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
 
   std::optional<FifoConfig> fifo_config;
   if (fifo_depth.has_value()) {
-    fifo_config.emplace(FifoConfig{.depth = *fifo_depth});
+    // We choose bypass=true for zero-depth FIFOs (bypass=false does not make
+    // sense), and false otherwise. No-bypass FIFOs as a default seem reasonable
+    // as they avoid many issues, especially wrt combo-loops and scheduling.
+    // TODO: google/xls#1391 - we should have a better way to specify fifo
+    // configuration.
+    fifo_config.emplace(
+        FifoConfig{.depth = *fifo_depth, .bypass = *fifo_depth == 0});
   }
   XLS_ASSIGN_OR_RETURN(
       StreamingChannel * channel,
