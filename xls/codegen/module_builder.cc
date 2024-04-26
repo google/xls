@@ -1074,7 +1074,7 @@ absl::Status ModuleBuilder::AssignRegisters(
   // logic input. For example (`a` is a register with a reset, `b` uses the
   // reset signal as a logic input):
   //
-  // always_ff @(psoedge clk) begin
+  // always_ff @(posedge clk) begin
   //   if (rst) begin
   //     a <= ...;
   //   end else begin
