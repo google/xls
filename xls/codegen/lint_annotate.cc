@@ -14,6 +14,10 @@
 
 #include "xls/codegen/lint_annotate.h"
 
+#include "absl/strings/str_format.h"
+#include "xls/codegen/vast.h"
+#include "xls/ir/source_location.h"
+
 namespace xls::verilog {
 
 void ScopedLintDisable::ToggleCheck(Lint flag, bool on) {

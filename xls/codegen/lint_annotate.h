@@ -15,6 +15,11 @@
 #ifndef XLS_CODEGEN_LINT_ANNOTATE_H_
 #define XLS_CODEGEN_LINT_ANNOTATE_H_
 
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/strings/str_format.h"
 #include "xls/codegen/vast.h"
 
 namespace xls::verilog {

@@ -298,6 +298,7 @@ cc_library(
     hdrs = ["lint_annotate.h"],
     deps = [
         ":vast",
+        "//xls/ir:source_location",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
