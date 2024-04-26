@@ -42,9 +42,6 @@ cc_library(
 cc_library(
     name = "proto_adaptor_utils",
     hdrs = ["proto_adaptor_utils.h"],
-    deps = [
-        "@com_google_absl//absl/strings",
-    ],
 )
 
 cc_test(
@@ -146,7 +143,6 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/log:globals",
@@ -397,7 +393,6 @@ cc_library(
     deps = [
         ":type_traits_utils",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

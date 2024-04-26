@@ -296,7 +296,6 @@ cc_test(
     ],
     deps = [
         ":unit_test",
-        "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
     ],
 )
@@ -315,7 +314,6 @@ cc_test(
     ],
     deps = [
         ":unit_test",
-        "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
     ],
 )
@@ -367,7 +365,6 @@ cc_library(
         "//xls/common:random_util",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

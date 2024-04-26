@@ -128,7 +128,6 @@ cc_library(
     deps = [
         ":delay_estimator",
         "//xls/common/status:status_macros",
-        "//xls/fdo:synthesizer",
         "//xls/ir",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
@@ -180,7 +179,6 @@ cc_library(
         "//xls/delay_model/models",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 

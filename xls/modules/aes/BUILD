@@ -237,7 +237,6 @@ cc_library(
     hdrs = ["aes_test_common.h"],
     deps = [
         "//xls/common/status:status_macros",
-        "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:value",

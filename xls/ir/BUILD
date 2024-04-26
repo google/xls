@@ -276,7 +276,6 @@ cc_library(
         ":bits",
         ":bits_ops",
         ":interval",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

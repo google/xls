@@ -1143,7 +1143,6 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/passes:bdd_function",
         "//xls/passes:bdd_query_engine",
-        "//xls/passes:query_engine",
         "@com_google_absl//absl/status:statusor",
     ],
 )

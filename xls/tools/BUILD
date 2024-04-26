@@ -138,19 +138,15 @@ cc_library(
     srcs = ["remove_identifiers.cc"],
     hdrs = ["remove_identifiers.h"],
     deps = [
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:source_location",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

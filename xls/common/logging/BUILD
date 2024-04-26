@@ -30,11 +30,7 @@ cc_library(
     deps = [
         ":log_flags",
         "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:die_if_null",
-        "@com_google_absl//absl/status",
     ],
 )
 
