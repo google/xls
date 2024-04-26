@@ -14,6 +14,7 @@
 
 #include "xls/dslx/extract_module_name.h"
 
+#include <filesystem>  // NOLINT
 #include <string>
 
 #include "absl/strings/str_format.h"

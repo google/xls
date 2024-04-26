@@ -14,7 +14,9 @@
 
 #include "xls/common/file/filesystem.h"
 
-#include <filesystem>
+#include <unistd.h>
+
+#include <filesystem>  // NOLINT
 #include <fstream>
 #include <ios>
 #include <string>

@@ -21,6 +21,7 @@
 // subnormals are flushed to zero.
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
 #include <string>

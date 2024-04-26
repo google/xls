@@ -14,6 +14,7 @@
 #include "xls/jit/jit_wrapper_generator.h"
 
 #include <algorithm>
+#include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
 #include <string_view>
