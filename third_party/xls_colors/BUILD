@@ -38,7 +38,6 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fast_hsv2rgb",
-        "//xls/codegen:combinational_generator",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
@@ -47,10 +46,11 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/ir:bits",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
     ],
 )
 

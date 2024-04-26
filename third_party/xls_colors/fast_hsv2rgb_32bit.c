@@ -21,7 +21,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-#include "fast_hsv2rgb.h"
+#include "third_party/xls_colors/fast_hsv2rgb.h"
 
 #if defined(HSV_USE_ASSEMBLY) && !defined(__AVR_ARCH__)
 //#warning "Only AVR assembly is implemented. Other architectures use C fallback."

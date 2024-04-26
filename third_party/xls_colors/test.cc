@@ -20,15 +20,23 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#include "fast_hsv2rgb.h"
+#include <cstdint>
+#include <filesystem>  // NOLINT
+#include <string>
+
+#include "gtest/gtest.h"
+#include "third_party/xls_colors/fast_hsv2rgb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/value.h"
 
 namespace {
 
