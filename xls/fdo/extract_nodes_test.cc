@@ -14,7 +14,7 @@
 
 #include "xls/fdo/extract_nodes.h"
 
-#include <optional>
+#include <memory>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -31,7 +31,7 @@ namespace {
 class ExtractNodesTest : public IrTestBase {};
 
 TEST_F(ExtractNodesTest, SimpleExtraction) {
-  std::string ir_text = R"(
+  const std::string ir_text = R"(
 package p
 
 fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
@@ -46,50 +46,20 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
                                     FindNode("i1", function),
                                     FindNode("add.1", function)});
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::optional<std::string> verilog_text,
-      ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false));
-  std::string expected_verilog_text = R"(module test(
-  input wire [2:0] i0,
-  input wire [2:0] i1,
-  output wire [2:0] out
-);
-  wire [2:0] add_6;
-  assign add_6 = i0 + i1;
-  assign out = add_6;
-endmodule
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> tmp_package,
+                           ExtractNodes(nodes, "test"));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f,
+                           tmp_package->GetFunction("test"));
+  const std::string expected_result_ir =
+      R"(fn test(i0: bits[3], i1: bits[3]) -> bits[3] {
+  ret add.3: bits[3] = add(i0, i1, id=3)
+}
 )";
-  EXPECT_EQ(verilog_text.has_value(), true);
-  EXPECT_EQ(verilog_text.value(), expected_verilog_text);
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::optional<std::string> ff_verilog_text,
-                           ExtractNodesAndGetVerilog(
-                               nodes, "ff_test", /*flop_inputs_outputs=*/true));
-  std::string expected_ff_verilog_text = R"(module ff_test(
-  input wire clk,
-  input wire [2:0] i0,
-  input wire [2:0] i1,
-  output wire [2:0] out
-);
-  reg [2:0] p0_i0;
-  reg [2:0] p0_i1;
-  reg [2:0] p1_add_10;
-  wire [2:0] add_10;
-  assign add_10 = p0_i0 + p0_i1;
-  always @ (posedge clk) begin
-    p0_i0 <= i0;
-    p0_i1 <= i1;
-    p1_add_10 <= add_10;
-  end
-  assign out = p1_add_10;
-endmodule
-)";
-  EXPECT_EQ(ff_verilog_text.has_value(), true);
-  EXPECT_EQ(ff_verilog_text.value(), expected_ff_verilog_text);
+  EXPECT_EQ(tmp_f->DumpIr(), expected_result_ir);
 }
 
 TEST_F(ExtractNodesTest, ExtractionWithLivein) {
-  std::string ir_text = R"(
+  const std::string ir_text = R"(
 package p
 
 fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
@@ -104,24 +74,20 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   absl::flat_hash_set<Node*> nodes({FindNode("sub.2", function)});
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::optional<std::string> verilog_text,
-      ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false));
-  std::string expected_verilog_text = R"(module test(
-  input wire [2:0] add_1,
-  input wire [2:0] i1,
-  output wire [2:0] out
-);
-  wire [2:0] sub_6;
-  assign sub_6 = add_1 - i1;
-  assign out = sub_6;
-endmodule
+      std::unique_ptr<Package> tmp_package,
+      ExtractNodes(nodes, "test", /*flop_inputs_outputs=*/false));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f,
+                           tmp_package->GetFunction("test"));
+  const std::string expected_result_ir =
+      R"(fn test(add_1: bits[3], i1: bits[3]) -> bits[3] {
+  ret sub.3: bits[3] = sub(add_1, i1, id=3)
+}
 )";
-  EXPECT_EQ(verilog_text.has_value(), true);
-  EXPECT_EQ(verilog_text.value(), expected_verilog_text);
+  EXPECT_EQ(tmp_f->DumpIr(), expected_result_ir);
 }
 
 TEST_F(ExtractNodesTest, ExtractionWithLiveout) {
-  std::string ir_text = R"(
+  const std::string ir_text = R"(
 package p
 
 fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
@@ -137,43 +103,31 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   absl::flat_hash_set<Node*> nodes(
       {FindNode("add.1", function), FindNode("sub.2", function)});
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::optional<std::string> verilog_text,
-      ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false));
-  std::string expected_verilog_text = R"(module test(
-  input wire [2:0] i0,
-  input wire [2:0] i1,
-  output wire [2:0] out
-);
-  wire [2:0] add_7;
-  wire [2:0] sub_8;
-  assign add_7 = i0 + i1;
-  assign sub_8 = add_7 - i1;
-  assign out = sub_8;
-endmodule
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> tmp_package,
+                           ExtractNodes(nodes, "test"));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f,
+                           tmp_package->GetFunction("test"));
+  const std::string expected_result_ir =
+      R"(fn test(i0: bits[3], i1: bits[3]) -> bits[3] {
+  add.3: bits[3] = add(i0, i1, id=3)
+  ret sub.4: bits[3] = sub(add.3, i1, id=4)
+}
 )";
-  EXPECT_EQ(verilog_text.has_value(), true);
-  EXPECT_EQ(verilog_text.value(), expected_verilog_text);
+  EXPECT_EQ(tmp_f->DumpIr(), expected_result_ir);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::optional<std::string> all_liveouts_verilog_text,
-      ExtractNodesAndGetVerilog(nodes, "test", /*flop_inputs_outputs=*/false,
-                                /*return_all_liveouts=*/true));
-  std::string expected_all_liveouts_verilog_text = R"(module test(
-  input wire [2:0] i0,
-  input wire [2:0] i1,
-  output wire [5:0] out
-);
-  wire [2:0] add_8;
-  wire [2:0] sub_9;
-  assign add_8 = i0 + i1;
-  assign sub_9 = add_8 - i1;
-  assign out = {add_8, sub_9};
-endmodule
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> tmp_package_with_liveouts,
+                           ExtractNodes(nodes, "test",
+                                        /*return_all_liveouts=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f_with_liveouts,
+                           tmp_package_with_liveouts->GetFunction("test"));
+  const std::string expected_result_ir_with_liveouts =
+      R"(fn test(i0: bits[3], i1: bits[3]) -> (bits[3], bits[3]) {
+  add.3: bits[3] = add(i0, i1, id=3)
+  sub.4: bits[3] = sub(add.3, i1, id=4)
+  ret tuple.5: (bits[3], bits[3]) = tuple(add.3, sub.4, id=5)
+}
 )";
-  EXPECT_EQ(all_liveouts_verilog_text.has_value(), true);
-  EXPECT_EQ(all_liveouts_verilog_text.value(),
-            expected_all_liveouts_verilog_text);
+  EXPECT_EQ(tmp_f_with_liveouts->DumpIr(), expected_result_ir_with_liveouts);
 }
 
 }  // namespace

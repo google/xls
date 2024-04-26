@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -48,17 +49,29 @@ class Synthesizer {
       std::string_view verilog_text,
       std::string_view top_module_name) const = 0;
 
-  // Wraps the given set of nodes into a module, synthesize the module with a
+  // Wraps the given set of nodes into a module, synthesizes the module with a
   // synthesis tool, and return its overall delay. The nodes set can be an
   // arbitrary subgraph or multiple disjointed subgraphs from a function or
-  // proc. The default implementation generates intermediate Verilog and calls
-  // `SynthesizeVerilogAndGetDelay`; a subclass may override this if desired,
-  // for example, to change how the intermediate Verilog is structured.
+  // proc. This function generates intermediate Verilog using
+  // `FunctionToVerilog` and calls `SynthesizeVerilogAndGetDelay`. A subclass
+  // may customize the behavior by overriding those functions; overriding this
+  // entire function is generally only necessary in tests.
   virtual absl::StatusOr<int64_t> SynthesizeNodesAndGetDelay(
       const absl::flat_hash_set<Node *> &nodes) const;
 
-  // Launches "SynthesizeNodesAndGetDelay" concurrently for each set of nodes
-  // listed in "nodes_list" and get their delays.
+  // Variant of `SynthesizeNodesAndGetDelay` that operates on a complete
+  // function or proc, sending `f` as is to `FunctionBaseToVerilog` and then
+  // `SynthesizeVerilogAndGetDelay`.
+  virtual absl::StatusOr<int64_t> SynthesizeFunctionBaseAndGetDelay(
+      FunctionBase *f) const;
+
+  // Converts the given `FunctionBase` to Verilog suitable for
+  // `SynthesizeVerilogAndGetDelay`.
+  virtual absl::StatusOr<std::string> FunctionBaseToVerilog(
+      FunctionBase *f, bool flop_inputs_outputs) const;
+
+  // Launches `SynthesizeNodesAndGetDelay` concurrently for each set of nodes
+  // listed in `nodes_list` and get their delays.
   absl::StatusOr<std::vector<int64_t>> SynthesizeNodesConcurrentlyAndGetDelays(
       absl::Span<const absl::flat_hash_set<Node *>> nodes_list) const;
 

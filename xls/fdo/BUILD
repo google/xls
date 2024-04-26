@@ -80,7 +80,6 @@ cc_library(
     hdrs = ["synthesized_delay_diff_utils.h"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
@@ -127,11 +126,34 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/codegen:block_conversion",
+        "//xls/codegen:block_generator",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_pass",
+        "//xls/common:casts",
         "//xls/common:thread",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "//xls/synthesis:synthesis_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "synthesizer_test",
+    srcs = ["synthesizer_test.cc"],
+    deps = [
+        ":synthesizer",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
     ],
 )
 

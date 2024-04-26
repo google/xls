@@ -15,8 +15,7 @@
 #ifndef XLS_FDO_EXTRACT_NODES_H_
 #define XLS_FDO_EXTRACT_NODES_H_
 
-#include <optional>
-#include <string>
+#include <memory>
 #include <string_view>
 
 #include "absl/container/flat_hash_set.h"
@@ -25,11 +24,11 @@
 
 namespace xls {
 
-// Extract the given set of nodes from a function and return the verilog text of
-// them. Flip-flops can be inserted to the live-ins and live-outs optionally.
-absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
+// Extracts the given set of nodes from a function and returns them as a
+// function named `top_name` in a temporary package.
+absl::StatusOr<std::unique_ptr<Package>> ExtractNodes(
     const absl::flat_hash_set<Node*>& nodes, std::string_view top_module_name,
-    bool flop_inputs_outputs = false, bool return_all_liveouts = false);
+    bool return_all_liveouts = false);
 
 }  // namespace xls
 

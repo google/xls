@@ -56,6 +56,11 @@ class FakeSynthesizer : public Synthesizer {
     return base_delay_ * nodes.size();
   }
 
+  absl::StatusOr<int64_t> SynthesizeFunctionBaseAndGetDelay(
+      FunctionBase* f) const override {
+    return base_delay_ * f->node_count();
+  }
+
   void SetBaseDelay(int64_t delay) { base_delay_ = delay; }
 
  private:

@@ -19,15 +19,12 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
-#include "xls/codegen/block_conversion.h"
-#include "xls/codegen/block_generator.h"
-#include "xls/codegen/codegen_options.h"
-#include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
@@ -37,16 +34,12 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
-#include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 
-absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
-    const absl::flat_hash_set<Node*>& nodes,
-    std::string_view top_module_name,
-    bool flop_inputs_outputs, bool return_all_liveouts) {
-
+absl::StatusOr<std::unique_ptr<Package>> ExtractNodes(
+    const absl::flat_hash_set<Node*>& nodes, std::string_view top_module_name,
+    bool return_all_liveouts) {
   XLS_RET_CHECK(!nodes.empty());
   FunctionBase* f = (*nodes.begin())->function_base();
   XLS_RET_CHECK(std::all_of(nodes.begin(), nodes.end(), [&](Node* node) {
@@ -64,28 +57,21 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
         // Unexpected case (it seems tuples w/ tokens have been dissolved).
         // It probably *would* work correctly, but if this is encountered,
         // verify that handling is correct (that data paths are timed correctly)
-        XLS_RET_CHECK(!TypeHasToken(ntype)) <<
-            "Unexpected node with a type that contains a token" <<
-            node->ToString();
+        XLS_RET_CHECK(!TypeHasToken(ntype))
+            << "Unexpected node with a type that contains a token"
+            << node->ToString();
 
         topo_sorted_nodes.emplace_back(node);
         filtered_nodes.insert(node);
       } else {
         // Currently support FDO only post-opt;
         // only tokens should have zero bitwidth
-        XLS_RET_CHECK(ntype->IsToken()) <<
-            "Not expecting non-token type with zero bits" <<
-            node->ToString();
+        XLS_RET_CHECK(ntype->IsToken())
+            << "Not expecting non-token type with zero bits"
+            << node->ToString();
         // skip (don't include token-producing nodes)
       }
     }
-  }
-
-  // If the list is empty now, that's because the fragment had
-  //   nothing except token ops; just return no value
-  if (topo_sorted_nodes.empty()) {
-    std::optional<std::string> no_value;
-    return no_value;
   }
 
   // Here, we create a temporary package for holding the temporary function. The
@@ -164,47 +150,8 @@ absl::StatusOr<std::optional<std::string>> ExtractNodesAndGetVerilog(
       XLS_RETURN_IF_ERROR(tmp_f->set_return_value(return_tuple));
     }
   }
-
-  // With the temporary function, we convert it to a combinational block. If
-  // flop_inputs_outputs is set, we insert registers to the inputs and outputs.
-  Block* tmp_block;
-  if (!flop_inputs_outputs) {
-    verilog::CodegenOptions options;
-    options.entry(top_module_name);
-    XLS_ASSIGN_OR_RETURN(
-        verilog::CodegenPassUnit unit,
-        verilog::FunctionToCombinationalBlock(tmp_f.get(), options));
-    XLS_RET_CHECK_NE(unit.top_block, nullptr);
-    tmp_block = unit.top_block;
-  } else {
-    ScheduleCycleMap cycle_map;
-    for (Node* node : tmp_f->nodes()) {
-      cycle_map.emplace(node, 0);
-    }
-
-    // Generate block with flopped inputs and outputs. We always use verilog
-    // instead of system verilog. We always split the tuple outputs into
-    // individuals.
-    verilog::CodegenOptions options;
-    options.entry(top_module_name)
-        .clock_name("clk")
-        .use_system_verilog(false)
-        .flop_inputs(true)
-        .flop_outputs(true);
-
-    PipelineSchedule schedule(tmp_f.get(), cycle_map, 1);
-    XLS_ASSIGN_OR_RETURN(
-        verilog::CodegenPassUnit unit,
-        verilog::FunctionBaseToPipelinedBlock(schedule, options, tmp_f.get()));
-    XLS_RET_CHECK_NE(unit.top_block, nullptr);
-    tmp_block = unit.top_block;
-  }
-
-  verilog::CodegenOptions options;
-  XLS_ASSIGN_OR_RETURN(
-      std::string verilog_text,
-      GenerateVerilog(tmp_block, options.use_system_verilog(false)));
-  return verilog_text;
+  tmp_package->AddFunction(std::move(tmp_f));
+  return std::move(tmp_package);
 }
 
 }  // namespace xls

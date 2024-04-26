@@ -29,10 +29,19 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/block_generator.h"
+#include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
+#include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
 #include "xls/fdo/extract_nodes.h"
+#include "xls/ir/block.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/synthesis/synthesis.pb.h"
 
@@ -72,16 +81,74 @@ Synthesizer::SynthesizeNodesConcurrentlyAndGetDelays(
 absl::StatusOr<int64_t> Synthesizer::SynthesizeNodesAndGetDelay(
     const absl::flat_hash_set<Node *> &nodes) const {
   std::string top_name = "tmp_module";
-  XLS_ASSIGN_OR_RETURN(
-      std::optional<std::string> verilog_text,
-      ExtractNodesAndGetVerilog(nodes, top_name, /*flop_inputs_outputs=*/true));
-  if (!verilog_text.has_value()) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> tmp_package,
+                       ExtractNodes(nodes, top_name));
+  XLS_ASSIGN_OR_RETURN(Function * f, tmp_package->GetFunction(top_name));
+  XLS_ASSIGN_OR_RETURN(std::string verilog_text,
+                       FunctionBaseToVerilog(f, /*flop_inputs_outputs=*/true));
+  if (verilog_text.empty()) {
     return 0;
   }
-  XLS_ASSIGN_OR_RETURN(
-      int64_t nodes_delay,
-      SynthesizeVerilogAndGetDelay(verilog_text.value(), top_name));
-  return nodes_delay;
+  return SynthesizeVerilogAndGetDelay(verilog_text, top_name);
+}
+
+absl::StatusOr<int64_t> Synthesizer::SynthesizeFunctionBaseAndGetDelay(
+    FunctionBase *f) const {
+  XLS_ASSIGN_OR_RETURN(std::string verilog_text,
+                       FunctionBaseToVerilog(f, /*flop_inputs_outputs=*/true));
+  if (verilog_text.empty()) {
+    return 0;
+  }
+  return SynthesizeVerilogAndGetDelay(verilog_text, f->name());
+}
+
+absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
+    FunctionBase *f, bool flop_inputs_outputs) const {
+  if (f->node_count() == 0) {
+    return "";
+  }
+  // With the temporary function, we convert it to a combinational block. If
+  // flop_inputs_outputs is set, we insert registers to the inputs and outputs.
+  Block *tmp_block;
+  if (!flop_inputs_outputs) {
+    if (!f->IsFunction()) {
+      return absl::InvalidArgumentError(
+          "Proc inputs and outputs must be flopped.");
+    }
+    verilog::CodegenOptions options;
+    options.entry(f->name());
+    XLS_ASSIGN_OR_RETURN(verilog::CodegenPassUnit unit,
+                         verilog::FunctionToCombinationalBlock(
+                             down_cast<Function *>(f), options));
+    XLS_RET_CHECK_NE(unit.top_block, nullptr);
+    tmp_block = unit.top_block;
+  } else {
+    ScheduleCycleMap cycle_map;
+    for (Node *node : f->nodes()) {
+      cycle_map.emplace(node, 0);
+    }
+    // Generate block with flopped inputs and outputs. We always use verilog
+    // instead of system verilog. We always split the tuple outputs into
+    // individuals.
+    verilog::CodegenOptions options;
+    options.entry(f->name())
+        .clock_name("clk")
+        .use_system_verilog(false)
+        .flop_inputs(true)
+        .flop_outputs(true);
+    if (f->IsProc()) {
+      options.reset("rst", false, false, false);
+    }
+    PipelineSchedule schedule(f, cycle_map, 1);
+    XLS_ASSIGN_OR_RETURN(
+        verilog::CodegenPassUnit unit,
+        verilog::FunctionBaseToPipelinedBlock(schedule, options, f));
+    XLS_RET_CHECK_NE(unit.top_block, nullptr);
+    tmp_block = unit.top_block;
+  }
+
+  verilog::CodegenOptions options;
+  return GenerateVerilog(tmp_block, options.use_system_verilog(false));
 }
 
 absl::StatusOr<SynthesizerFactory *> SynthesizerManager::GetSynthesizerFactory(

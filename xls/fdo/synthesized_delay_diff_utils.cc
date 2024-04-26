@@ -22,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
@@ -83,10 +82,8 @@ std::string SynthesizedDelayDiffToStringHeader(
 absl::StatusOr<SynthesizedDelayDiff> SynthesizeAndGetDelayDiff(
     FunctionBase* f, std::vector<CriticalPathEntry> critical_path,
     synthesis::Synthesizer* synthesizer) {
-  absl::flat_hash_set<Node*> nodes;
-  nodes.insert(f->nodes().begin(), f->nodes().end());
   XLS_ASSIGN_OR_RETURN(int64_t delay,
-                       synthesizer->SynthesizeNodesAndGetDelay(nodes));
+                       synthesizer->SynthesizeFunctionBaseAndGetDelay(f));
   const int64_t xls_delay_ps =
       critical_path.empty() ? 0 : critical_path[0].path_delay_ps;
   return SynthesizedDelayDiff{
