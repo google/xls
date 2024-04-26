@@ -72,6 +72,7 @@ cc_library(
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:flags",
+        "@com_google_absl//absl/log:globals",
     ],
     alwayslink = True,  # Provides some flags such as --alsologtostderr
 )

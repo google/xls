@@ -126,6 +126,7 @@ cc_library(
     hdrs = ["benchmark_support.h"],
     visibility = ["//visibility:private"],
     deps = [
+        "@com_google_absl//absl/flags:flag",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
@@ -148,6 +149,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/flags:config",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/log:initialize",
     ],
 )
@@ -508,6 +510,7 @@ cc_library(
     name = "update_golden_files_flag",
     testonly = True,
     hdrs = ["update_golden_files_flag.inc"],
+    deps = ["@com_google_absl//absl/flags:flag"],
 )
 
 py_library(
