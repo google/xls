@@ -77,7 +77,7 @@ cc_library(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:flags",
     ],
-    alwayslink = 1,
+    alwayslink = True,  # Provides some flags such as --alsologtostderr
 )
 
 py_test(
