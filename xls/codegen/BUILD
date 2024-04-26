@@ -1148,13 +1148,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "lint_annotate_cc",
-    srcs = ["lint_annotate.cc"],
-    hdrs = ["lint_annotate.h"],
-    deps = [":vast"],
-)
-
 cc_test(
     name = "bdd_io_analysis_test",
     srcs = ["bdd_io_analysis_test.cc"],
