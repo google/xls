@@ -424,10 +424,9 @@ absl::StatusOr<EvalT> AbstractStateTable<EvalT>::GetSignalValue(
       if (switched_signal) {
         if (stimulus_signal == response_signal) {
           return input_stimulus.at(signal);
-        } else {
-          EvalT value = input_stimulus.at(signal);
-          return !value;
         }
+        EvalT value = input_stimulus.at(signal);
+        return !value;
       }
 
       return response_signal == StateTableSignal::kHigh ? one_ : zero_;

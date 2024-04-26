@@ -43,7 +43,8 @@
 #include <sstream>
 #include <string>
 
-#include "absl/flags/declare.h"
+#include "absl/base/attributes.h"
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/source_location.h"
@@ -149,11 +150,11 @@ std::string* MakeCheckOpString(const T1& v1, const T2& v2,
   template <typename T1, typename T2>                                     \
   inline std::string* name##Impl(const T1& v1, const T2& v2,              \
                                  const char* exprtext) {                  \
-    if (ABSL_PREDICT_TRUE(v1 op v2))                                      \
+    if (ABSL_PREDICT_TRUE(v1 op v2)) {                                    \
       return nullptr;                                                     \
-    else                                                                  \
-      return ::xls::internal_status_macros_ret_check::MakeCheckOpString(  \
-          v1, v2, exprtext);                                              \
+    }                                                                     \
+    return ::xls::internal_status_macros_ret_check::MakeCheckOpString(    \
+        v1, v2, exprtext);                                                \
   }                                                                       \
   inline std::string* name##Impl(int v1, int v2, const char* exprtext) {  \
     return ::xls::internal_status_macros_ret_check::name##Impl<int, int>( \

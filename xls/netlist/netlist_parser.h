@@ -17,7 +17,9 @@
 
 #include <sys/types.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -30,16 +32,15 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/string_to_int.h"
 #include "xls/ir/bits.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/netlist.h"
 #include "re2/re2.h"
 
@@ -369,15 +370,18 @@ absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
 template <typename EvalT>
 absl::StatusOr<std::variant<std::string, int64_t>>
 AbstractParser<EvalT>::PopNameOrNumberOrError(size_t& width) {
-  TokenKind kind = scanner_->Peek()->kind;
-  if (kind == TokenKind::kName) {
-    XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
-    return token.value;
-  } else if (kind == TokenKind::kNumber) {
-    return PopNumberOrError(width);
+  const TokenKind kind = scanner_->Peek()->kind;
+  switch (kind) {
+    case TokenKind::kName: {
+      XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
+      return token.value;
+    }
+    case TokenKind::kNumber:
+      return PopNumberOrError(width);
+    default:
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Expected name or number token; got: ", static_cast<int>(kind)));
   }
-  return absl::InvalidArgumentError(absl::StrCat(
-      "Expected name or number token; got: ", static_cast<int>(kind)));
 }
 
 template <typename EvalT>

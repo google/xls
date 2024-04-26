@@ -32,10 +32,20 @@ cc_library(
     hdrs = ["ir_integrator.h"],
     deps = [
         ":integration_options",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:math_util",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:type",
     ],
 )
 

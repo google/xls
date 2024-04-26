@@ -22,8 +22,22 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "xls/ir/ir_parser.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
+#include "xls/common/math_util.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/contrib/integrator/integration_options.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 
@@ -209,11 +223,10 @@ absl::StatusOr<bool> IntegrationFunction::NodeSourceFunctionsCollide(
       [this](const Node* node) -> absl::StatusOr<std::set<int64_t>> {
     if (IntegrationFunctionOwnsNode(node)) {
       return GetSourceFunctionIndexesOfNodesMappedToNode(node);
-    } else {
-      XLS_ASSIGN_OR_RETURN(int64_t source_index,
-                           GetSourceFunctionIndexOfNode(node));
-      return std::set<int64_t>({source_index});
     }
+    XLS_ASSIGN_OR_RETURN(int64_t source_index,
+                         GetSourceFunctionIndexOfNode(node));
+    return std::set<int64_t>({source_index});
   };
 
   // Check for source function index collision.
@@ -267,9 +280,8 @@ IntegrationFunction::UnifyIntegrationNodes(Node* node_a, Node* node_b) {
 
   if (integration_options_.unique_select_signal_per_mux()) {
     return UnifyIntegrationNodesWithPerMuxSelect(node_a, node_b);
-  } else {
-    return UnifyIntegrationNodesWithGlobalMuxSelect(node_a, node_b);
   }
+  return UnifyIntegrationNodesWithGlobalMuxSelect(node_a, node_b);
 }
 
 absl::StatusOr<IntegrationFunction::UnifiedNode>
@@ -356,13 +368,12 @@ IntegrationFunction::UnifyIntegrationNodesWithGlobalMuxSelect(Node* node_a,
     return UnifyIntegrationNodesWithGlobalMuxSelectNoMuxArg(node_a, node_b);
 
     // One input is already a pre-existing mux.
-  } else {
-    // ID mux and new case for mux.
-    Node* mux = a_is_unify_mux ? node_a : node_b;
-    Node* case_node = !a_is_unify_mux ? node_a : node_b;
-
-    return UnifyIntegrationNodesWithGlobalMuxSelectArgIsMux(mux, case_node);
   }
+  // ID mux and new case for mux.
+  Node* mux = a_is_unify_mux ? node_a : node_b;
+  Node* case_node = !a_is_unify_mux ? node_a : node_b;
+
+  return UnifyIntegrationNodesWithGlobalMuxSelectArgIsMux(mux, case_node);
 }
 
 absl::StatusOr<IntegrationFunction::UnifiedNode>
@@ -633,13 +644,12 @@ IntegrationFunction::MergeNodesBackend(const Node* node_a, const Node* node_b) {
         .target_b = merged,
         .changed_muxes = unified_operands.changed_muxes,
         .other_added_nodes = {merged}};
-  } else {
-    // TODO(jbaileyhandle): Add logic for nodes that are not identical but
-    // may still be merged e.g. different bitwidths for bitwise ops.
-    switch (node_a->op()) {
-      default:
-        break;
-    }
+  }
+  // TODO(jbaileyhandle): Add logic for nodes that are not identical but
+  // may still be merged e.g. different bitwidths for bitwise ops.
+  switch (node_a->op()) {
+    default:
+      break;
   }
 
   return MergeNodesBackendResult{.can_merge = false};

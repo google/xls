@@ -22,6 +22,7 @@
 
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "xls/noc/config_ng/coordinate.h"
 #include "xls/noc/config_ng/dimension_bounds.h"
 
@@ -252,29 +253,26 @@ class FlattenedMultiDimensionalArray {
       if (coordinate_.HasZeroDimensions()) {
         traversed_zero_dimension_ = true;
         return;
-      } else {
-        // Already at the end. Do not increment.
-        if (IsAtBounds()) {
-          return;
-        }
-        bool carry = false;
-        for (int64_t count : dimension_index_order_) {
-          coordinate_.SetCoordinate(count,
-                                    coordinate_.GetCoordinate(count) + 1);
-          carry = coordinate_.GetCoordinate(count) ==
-                  dimensions_.GetDimensionBound(count);
-          if (carry) {
-            coordinate_.SetCoordinate(count, 0);
-          } else {
-            break;
-          }
-        }
+      }
+      // Already at the end. Do not increment.
+      if (IsAtBounds()) {
+        return;
+      }
+      bool carry = false;
+      for (int64_t count : dimension_index_order_) {
+        coordinate_.SetCoordinate(count, coordinate_.GetCoordinate(count) + 1);
+        carry = coordinate_.GetCoordinate(count) ==
+                dimensions_.GetDimensionBound(count);
         if (carry) {
-          for (int index = 0; index < dimensions_.GetDimensionCount();
-               index++) {
-            coordinate_.SetCoordinate(index,
-                                      dimensions_.GetDimensionBound(index));
-          }
+          coordinate_.SetCoordinate(count, 0);
+        } else {
+          break;
+        }
+      }
+      if (carry) {
+        for (int index = 0; index < dimensions_.GetDimensionCount(); index++) {
+          coordinate_.SetCoordinate(index,
+                                    dimensions_.GetDimensionBound(index));
         }
       }
     }

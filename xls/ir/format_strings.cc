@@ -102,11 +102,10 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
             "Invalid or unsupported format specifier \"%s\" in format string "
             "\"%s\"",
             format_string.substr(i, close_pos - i + 1), format_string));
-      } else {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "{ without matching } at position %d in format string \"%s\"", i,
-            format_string));
       }
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "{ without matching } at position %d in format string \"%s\"", i,
+          format_string));
     }
     if (format_string[i] == '}') {
       return absl::InvalidArgumentError(absl::StrFormat(

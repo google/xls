@@ -106,7 +106,8 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
     // Narrow the Bits value to be just wide enough to hold the value.
     int64_t new_width = unnarrowed.bit_count() - unnarrowed.CountLeadingZeros();
     return unnarrowed.Slice(0, new_width);
-  } else if (bit_count > unnarrowed.bit_count()) {
+  }
+  if (bit_count > unnarrowed.bit_count()) {
     BitsRope rope(bit_count);
     rope.push_back(unnarrowed);
     rope.push_back(Bits(bit_count - unnarrowed.bit_count()));

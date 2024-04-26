@@ -16,6 +16,8 @@
 
 #include <string_view>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 
 namespace xls {
@@ -97,17 +99,23 @@ absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     std::string_view s) {
   if (s == "default") {
     return FormatPreference::kDefault;
-  } else if (s == "binary") {
+  }
+  if (s == "binary") {
     return FormatPreference::kBinary;
-  } else if (s == "hex") {
+  }
+  if (s == "hex") {
     return FormatPreference::kHex;
-  } else if (s == "signed-decimal") {
+  }
+  if (s == "signed-decimal") {
     return FormatPreference::kSignedDecimal;
-  } else if (s == "unsigned-decimal") {
+  }
+  if (s == "unsigned-decimal") {
     return FormatPreference::kUnsignedDecimal;
-  } else if (s == "plain_binary") {
+  }
+  if (s == "plain_binary") {
     return FormatPreference::kPlainBinary;
-  } else if (s == "plain_hex") {
+  }
+  if (s == "plain_hex") {
     return FormatPreference::kPlainHex;
   }
   return absl::InvalidArgumentError(

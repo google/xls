@@ -41,9 +41,11 @@ std::string ChannelOpsToString(ChannelOps ops) {
 absl::StatusOr<ChannelOps> StringToChannelOps(std::string_view str) {
   if (str == "send_only") {
     return ChannelOps::kSendOnly;
-  } else if (str == "receive_only") {
+  }
+  if (str == "receive_only") {
     return ChannelOps::kReceiveOnly;
-  } else if (str == "send_receive") {
+  }
+  if (str == "send_receive") {
     return ChannelOps::kSendReceive;
   }
   return absl::InvalidArgumentError(

@@ -14,12 +14,15 @@
 
 #include "xls/ir/name_uniquer.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 
 namespace xls {
@@ -87,22 +90,20 @@ std::string NameUniquer::GetSanitizedUniqueName(std::string_view prefix) {
     if (numeric_suffix.has_value()) {
       return absl::StrCat(root, separator_,
                           generator.RegisterId(numeric_suffix.value()));
-    } else {
-      return absl::StrCat(root, separator_, generator.NextId());
     }
-  } else {
-    // This is the first time that the name root has been seen. Create a
-    // SequentialIdGenerator to create future unique names based on this root.
-    SequentialIdGenerator& generator = generated_names_[root];
-    if (numeric_suffix.has_value()) {
-      return absl::StrCat(root, separator_,
-                          generator.RegisterId(numeric_suffix.value()));
-    } else {
-      // Root has not been seen before and there is no suffix. Just return the
-      // root.
-      return root;
-    }
+    return absl::StrCat(root, separator_, generator.NextId());
   }
+
+  // This is the first time that the name root has been seen. Create a
+  // SequentialIdGenerator to create future unique names based on this root.
+  SequentialIdGenerator& generator = generated_names_[root];
+  if (numeric_suffix.has_value()) {
+    return absl::StrCat(root, separator_,
+                        generator.RegisterId(numeric_suffix.value()));
+  }
+
+  // Root has not been seen before and there is no suffix. Just return it.
+  return root;
 }
 
 /* static */ bool NameUniquer::IsValidIdentifier(std::string_view str) {

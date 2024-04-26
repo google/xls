@@ -55,9 +55,8 @@ IntegrationAlgorithm<AlgorithmType>::ExecuteMove(
     XLS_ASSIGN_OR_RETURN(Node * node,
                          integration_function->InsertNode(move.node));
     return std::vector<Node*>({node});
-  } else {
-    return integration_function->MergeNodes(move.node, move.merge_node);
   }
+  return integration_function->MergeNodes(move.node, move.merge_node);
 }
 
 }  // namespace xls

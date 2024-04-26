@@ -57,10 +57,9 @@ constexpr IntegralType CeilOrFloorOfRatio(IntegralType numerator,
   if (ceil) {  // Compile-time condition: not an actual branching
     return rounded_toward_zero +
            static_cast<IntegralType>(same_sign && needs_round);
-  } else {
-    return rounded_toward_zero -
-           static_cast<IntegralType>(!same_sign && needs_round);
   }
+  return rounded_toward_zero -
+         static_cast<IntegralType>(!same_sign && needs_round);
 }
 
 // ----------------------------------------------------------------------

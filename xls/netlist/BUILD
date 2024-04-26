@@ -107,6 +107,7 @@ cc_library(
     hdrs = ["netlist_parser.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":cell_library",
         ":netlist",
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",

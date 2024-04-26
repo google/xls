@@ -483,11 +483,10 @@ class PackedTupleView {
     if (kCurrentIndex < kTargetIndex) {
       return GetStartBitOffset<kCurrentIndex + 1, kTargetIndex, NextT, Rest...>(
           offset);
-    } else {
-      return NextT::kBitCount +
-             GetStartBitOffset<kCurrentIndex + 1, kTargetIndex, NextT, Rest...>(
-                 offset);
     }
+    return NextT::kBitCount +
+           GetStartBitOffset<kCurrentIndex + 1, kTargetIndex, NextT, Rest...>(
+               offset);
   }
 
   template <int kCurrentIndex, int kTargetIndex, typename FrontT,
