@@ -422,18 +422,12 @@ cc_test(
     name = "proc_typecheck_test",
     srcs = ["proc_typecheck_test.cc"],
     deps = [
-        ":typecheck_module",
         ":typecheck_test_utils",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/dslx:create_import_data",
-        "//xls/dslx:error_printer",
         "//xls/dslx:error_test_utils",
-        "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx/frontend:ast",
     ],
 )
 
@@ -887,6 +881,5 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
     ],
 )

@@ -78,7 +78,6 @@ cc_test(
     deps = [
         ":run_comparator",
         ":run_routines",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",

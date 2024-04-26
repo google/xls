@@ -242,7 +242,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
-        "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
     ],

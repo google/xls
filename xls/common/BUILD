@@ -114,7 +114,6 @@ cc_library(
     hdrs = ["gunit_init_xls.h"],
     deps = [
         ":init_xls",
-        "@com_google_absl//absl/flags:parse",
         "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],

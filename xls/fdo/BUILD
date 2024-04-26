@@ -51,7 +51,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
-        "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
     ],
@@ -97,7 +96,6 @@ cc_test(
     deps = [
         ":synthesized_delay_diff_utils",
         ":synthesizer",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",

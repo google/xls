@@ -35,8 +35,6 @@ cc_test(
     srcs = ["matmul_4x4_test.cc"],
     data = ["matmul_4x4.ir"],
     deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",

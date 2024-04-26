@@ -127,10 +127,7 @@ cc_test(
     name = "netlist_parser_test",
     srcs = ["netlist_parser_test.cc"],
     deps = [
-        ":cell_library",
         ":fake_cell_library",
-        ":function_extractor",
-        ":lib_parser",
         ":netlist_parser",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

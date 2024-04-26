@@ -646,7 +646,6 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
         "//xls/ir:source_location",

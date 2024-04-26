@@ -769,11 +769,9 @@ cc_test(
         ":error_test_utils",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/dslx/frontend:bindings",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
     ],
 )
 

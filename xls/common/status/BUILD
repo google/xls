@@ -105,7 +105,6 @@ cc_test(
     deps = [
         ":status_builder",
         "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:log_entry",
@@ -142,7 +141,6 @@ cc_test(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
     ],

@@ -1925,12 +1925,10 @@ cc_test(
     name = "proc_elaboration_test",
     srcs = ["proc_elaboration_test.cc"],
     deps = [
-        ":bits",
         ":channel",
         ":channel_ops",
         ":function_builder",
         ":ir",
-        ":ir_matcher",
         ":ir_test_base",
         ":proc_elaboration",
         "//xls/common:xls_gunit",

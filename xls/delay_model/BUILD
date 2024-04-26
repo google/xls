@@ -69,7 +69,6 @@ cc_test(
     srcs = ["delay_estimator_test.cc"],
     deps = [
         ":delay_estimator",
-        ":delay_estimators",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -77,7 +76,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
