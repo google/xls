@@ -352,16 +352,17 @@ absl::StatusOr<ChannelInstance*> ProcElaboration::GetChannelInstance(
     std::string_view channel_name, std::string_view path_str) const {
   XLS_ASSIGN_OR_RETURN(ProcInstantiationPath path, CreatePath(path_str));
   XLS_ASSIGN_OR_RETURN(ProcInstance * proc_instance, GetProcInstance(path));
-  ChannelReference* channel_reference;
   if (proc_instance->proc()->HasChannelReference(channel_name,
                                                  Direction::kReceive)) {
-    XLS_ASSIGN_OR_RETURN(channel_reference,
-                         proc_instance->proc()->GetChannelReference(
-                             channel_name, Direction::kReceive));
+    XLS_RETURN_IF_ERROR(
+        proc_instance->proc()
+            ->GetChannelReference(channel_name, Direction::kReceive)
+            .status());
   } else {
-    XLS_ASSIGN_OR_RETURN(channel_reference,
-                         proc_instance->proc()->GetChannelReference(
-                             channel_name, Direction::kSend));
+    XLS_RETURN_IF_ERROR(
+        proc_instance->proc()
+            ->GetChannelReference(channel_name, Direction::kSend)
+            .status());
   }
   return proc_instance->GetChannelInstance(channel_name);
 }

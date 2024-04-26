@@ -189,9 +189,6 @@ class JittedFunctionBase {
       FunctionBase* function, JitBuilderContext& jit_context,
       bool build_packed_wrapper);
 
-  // The XLS FunctionBase this jitted function implements.
-  FunctionBase* function_base_;
-
   // Name and function pointer for the jitted function which accepts/produces
   // arguments/results in LLVM native format.
   std::string function_name_;

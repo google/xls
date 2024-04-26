@@ -67,7 +67,7 @@ class ScopedVerifyProcEquivalence {
   ScopedVerifyProcEquivalence(ScopedVerifyProcEquivalence&&) = default;
   ScopedVerifyProcEquivalence(const ScopedVerifyProcEquivalence&) = delete;
   ScopedVerifyProcEquivalence& operator=(ScopedVerifyProcEquivalence&&) =
-      default;
+      delete;
   ScopedVerifyProcEquivalence& operator=(const ScopedVerifyProcEquivalence&) =
       delete;
 

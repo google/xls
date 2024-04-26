@@ -38,8 +38,6 @@ namespace {
 
 using ::testing::HasSubstr;
 
-constexpr char kTestdataPath[] = "xls/visualization/ir_viz/testdata";
-
 using IrToJsonTest = IrTestBase;
 
 TEST_F(IrToJsonTest, SimpleFunction) {

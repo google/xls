@@ -689,6 +689,8 @@ cc_test(
     name = "flattened_multi_dimensional_array_test",
     srcs = ["flattened_multi_dimensional_array_test.cc"],
     deps = [
+        ":coordinate",
+        ":dimension_bounds",
         ":flattened_multi_dimensional_array",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",

@@ -15,8 +15,11 @@
 #include "xls/noc/config_ng/flattened_multi_dimensional_array.h"
 
 #include <cstdint>
+#include <optional>
 
 #include "gtest/gtest.h"
+#include "xls/noc/config_ng/coordinate.h"
+#include "xls/noc/config_ng/dimension_bounds.h"
 
 namespace xls::noc {
 namespace {
@@ -34,16 +37,14 @@ TEST(FlattenedMultiDimensionalArrayTest, iterators) {
   // Test with a dimensional space of (3,4): 12 elements.
   FlattenedMultiDimensionalArray<int64_t> array({3, 4});
   int64_t count = 0;
-  for (int64_t element : array) {
-    element++;
+  for (int64_t _ [[maybe_unused]] : array) {
     count++;
   }
   EXPECT_EQ(array.GetElementCount(), count);
   // Test with zero dimensions (no dimensions).
   FlattenedMultiDimensionalArray<int64_t> zero_array({});
   count = 0;
-  for (int64_t element : zero_array) {
-    element++;
+  for (int64_t _ [[maybe_unused]] : zero_array) {
     count++;
   }
   EXPECT_EQ(zero_array.GetElementCount(), count);

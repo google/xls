@@ -304,7 +304,9 @@ class ArgParser {
         keyword_handlers;
     for (const auto& pair : keywords_) {
       const std::string& keyword = pair.first;
-      keyword_handlers[keyword] = [=] { return ParseKeywordArg(keyword); };
+      keyword_handlers[keyword] = [this, keyword] {
+        return ParseKeywordArg(keyword);
+      };
     }
     XLS_RETURN_IF_ERROR(
         parser_->ParseKeywordArguments(keyword_handlers, mandatory_keywords_));

@@ -2370,7 +2370,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -2380,7 +2379,6 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "//xls/solvers:z3_ir_equivalence",
         "//xls/solvers:z3_ir_equivalence_testutils",
     ],
 )
@@ -2765,7 +2763,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

@@ -477,26 +477,6 @@ BlockInstance::BlockInstance(
     instantiation_to_instance_.insert(
         {*child_instance->instantiation(), child_instance.get()});
   }
-  for (Instantiation* inst : block.value()->GetInstantiations()) {
-    if (inst->kind() != InstantiationKind::kBlock) {
-      continue;
-    }
-    Block* inst_block =
-        down_cast<BlockInstantiation*>(inst)->instantiated_block();
-    for (const Block::Port& port : inst_block->GetPorts()) {
-      if (std::holds_alternative<Block::ClockPort*>(port)) {
-        continue;
-      }
-      Node* node;
-      if (std::holds_alternative<InputPort*>(port)) {
-        node = std::get<InputPort*>(port);
-      } else if (std::holds_alternative<OutputPort*>(port)) {
-        node = std::get<OutputPort*>(port);
-      } else {
-        ABSL_UNREACHABLE();
-      }
-    }
-  }
 }
 
 std::string BlockInstance::ToString() const {

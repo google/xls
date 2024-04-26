@@ -299,7 +299,7 @@ absl::Status Translator::PropagateVariables(const TranslationContext& from,
 
 std::function<std::optional<std::string>(xls::Fileno)>
 Translator::LookUpInPackage() {
-  return [=](xls::Fileno file_number) {
+  return [this](xls::Fileno file_number) {
     AddSourceInfoToPackage(*package_);
     return package_->GetFilename(file_number);
   };
