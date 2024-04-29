@@ -141,11 +141,8 @@ cc_library(
     linkstamp = "build_embed.cc",
     visibility = ["//xls:xls_utility_users"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:flags",
-        "@com_google_absl//absl/log:globals",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/flags:config",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
