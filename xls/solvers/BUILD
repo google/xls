@@ -76,7 +76,6 @@ cc_library(
     deps = [
         ":z3_ir_translator",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -133,7 +132,6 @@ cc_library(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:proc_testutils",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )

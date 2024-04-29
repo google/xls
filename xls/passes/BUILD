@@ -1012,6 +1012,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_benchmark//:benchmark",
     ],
 )
 
@@ -2108,6 +2109,7 @@ cc_test(
         "//xls/ir:ternary",
         "//xls/ir:value",
         "//xls/ir:value_builder",
+        "@com_google_benchmark//:benchmark",
     ],
 )
 
@@ -2200,6 +2202,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_benchmark//:benchmark",
     ],
 )
 
@@ -2895,6 +2898,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_benchmark//:benchmark",
     ],
 )
 

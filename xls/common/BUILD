@@ -114,7 +114,6 @@ cc_library(
     hdrs = ["gunit_init_xls.h"],
     deps = [
         ":init_xls",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -528,10 +527,7 @@ cc_library(
     name = "xls_gunit",
     testonly = True,
     visibility = ["//xls:xls_utility_users"],
-    deps = [
-        "@com_google_benchmark//:benchmark",
-        "@com_google_googletest//:gtest",
-    ],
+    deps = ["@com_google_googletest//:gtest"],
 )
 
 cc_library(
@@ -542,7 +538,6 @@ cc_library(
     deps = [
         ":benchmark_support",
         ":gunit_init_xls",
-        "@com_google_benchmark//:benchmark",
         "@com_google_fuzztest//fuzztest:init_fuzztest",
         "@com_google_googletest//:gtest",
     ],

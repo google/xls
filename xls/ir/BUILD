@@ -612,6 +612,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/types:span",
+        "@com_google_benchmark//:benchmark",
     ],
 )
 
@@ -859,7 +860,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -1086,7 +1086,6 @@ cc_library(
     hdrs = ["value_test_util.h"],
     deps = [
         ":value",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -1333,6 +1332,7 @@ cc_test(
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
+        "@com_google_benchmark//:benchmark",
         "@com_google_fuzztest//fuzztest",
     ],
 )
@@ -1438,7 +1438,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )

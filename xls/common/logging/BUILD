@@ -44,7 +44,6 @@ cc_library(
         "@com_google_absl//absl/log:log_entry",
         "@com_google_absl//absl/log:log_sink",
         "@com_google_absl//absl/log:log_sink_registry",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )

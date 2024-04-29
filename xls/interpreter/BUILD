@@ -192,7 +192,6 @@ cc_library(
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
         "//xls/ir:value",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -239,7 +238,6 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "//xls/ir:verifier",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -323,7 +321,6 @@ cc_library(
         "//xls/ir:elaboration",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -362,7 +359,6 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -456,7 +452,6 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@com_google_benchmark//:benchmark",
         "@com_google_googletest//:gtest",
     ],
 )
