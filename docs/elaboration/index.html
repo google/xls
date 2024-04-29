@@ -8,25 +8,25 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_state/">
+        <link rel="canonical" href="https://google.github.io/xls/elaboration/">
       
       
-        <link rel="prev" href="../xlscc_memory/">
+        <link rel="prev" href="../solvers/">
       
       
-        <link rel="next" href="../xlscc_pipelined_loops/">
+        <link rel="next" href="../dslx_reference/">
       
       
-      <link rel="icon" href="../../assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
     
     
       
-        <title>State - XLS: Accelerated HW Synthesis</title>
+        <title>Elaboration - XLS: Accelerated HW Synthesis</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.66ac8b77.min.css">
       
       
 
@@ -45,7 +45,7 @@
       
     
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xlscontrib-tutorial-xlscc-state" class="md-skip">
+        <a href="#xls-elaboration" class="md-skip">
           Skip to content
         </a>
       
@@ -80,7 +80,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -100,7 +100,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              State
+              Elaboration
             
           </span>
         </div>
@@ -187,7 +187,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -217,7 +217,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -237,7 +237,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../talks/" class="md-nav__link">
+      <a href="../talks/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -254,19 +254,17 @@
       
   
   
-    
   
   
-  
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -280,7 +278,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             Tutorials
@@ -294,7 +292,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../tutorials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -350,7 +348,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hello_xls/" class="md-nav__link">
+      <a href="../tutorials/hello_xls/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -371,7 +369,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../float_to_int/" class="md-nav__link">
+      <a href="../tutorials/float_to_int/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -392,7 +390,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../intro_to_parametrics/" class="md-nav__link">
+      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -413,7 +411,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../crc32/" class="md-nav__link">
+      <a href="../tutorials/crc32/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -434,7 +432,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../prefix_scan/" class="md-nav__link">
+      <a href="../tutorials/prefix_scan/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -455,7 +453,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../intro_to_procs/" class="md-nav__link">
+      <a href="../tutorials/intro_to_procs/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -481,19 +479,17 @@
                 
   
   
-    
   
   
-  
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
         
           
           <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
@@ -507,7 +503,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
             \[contrib\] XLS[cc]
@@ -521,7 +517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_overview/" class="md-nav__link">
+      <a href="../tutorials/xlscc_overview/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -542,7 +538,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_integers/" class="md-nav__link">
+      <a href="../tutorials/xlscc_integers/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -563,7 +559,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_channels/" class="md-nav__link">
+      <a href="../tutorials/xlscc_channels/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -584,7 +580,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_memory/" class="md-nav__link">
+      <a href="../tutorials/xlscc_memory/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -602,30 +598,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    State
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../tutorials/xlscc_state/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -634,62 +610,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#c-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      C++ Source
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generate-optimized-xls-ir" class="md-nav__link">
-    <span class="md-ellipsis">
-      Generate optimized XLS IR.
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
-    <span class="md-ellipsis">
-      Perform code-generation into a pipelined Verilog block.
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#additional-xlscc-examples" class="md-nav__link">
-    <span class="md-ellipsis">
-      Additional XLS[cc] examples.
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -702,7 +622,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_pipelined_loops/" class="md-nav__link">
+      <a href="../tutorials/xlscc_pipelined_loops/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -738,7 +658,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../faq/" class="md-nav__link">
+      <a href="../faq/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -755,17 +675,19 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
           <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
@@ -779,7 +701,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             IR
@@ -793,7 +715,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_overview/" class="md-nav__link">
+      <a href="../ir_overview/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -814,7 +736,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_semantics/" class="md-nav__link">
+      <a href="../ir_semantics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -835,7 +757,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../optimizations/optimizations/" class="md-nav__link">
+      <a href="../optimizations/optimizations/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -891,7 +813,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../scheduling/" class="md-nav__link">
+      <a href="../scheduling/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -912,7 +834,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../delay_estimation/" class="md-nav__link">
+      <a href="../delay_estimation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -941,7 +863,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_visualization/" class="md-nav__link">
+      <a href="../ir_visualization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -997,7 +919,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_jit/" class="md-nav__link">
+      <a href="../ir_jit/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1018,7 +940,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../data_layout/" class="md-nav__link">
+      <a href="../data_layout/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1047,7 +969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../solvers/" class="md-nav__link">
+      <a href="../solvers/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1065,10 +987,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../elaboration/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Elaboration
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -1077,6 +1019,77 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#function" class="md-nav__link">
+    <span class="md-ellipsis">
+      Function
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proc" class="md-nav__link">
+    <span class="md-ellipsis">
+      Proc
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#block" class="md-nav__link">
+    <span class="md-ellipsis">
+      Block
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Block">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#topological-sorting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Topological Sorting
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visitors" class="md-nav__link">
+    <span class="md-ellipsis">
+      Visitors
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1131,7 +1144,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_reference/" class="md-nav__link">
+      <a href="../dslx_reference/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1152,7 +1165,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_std/" class="md-nav__link">
+      <a href="../dslx_std/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1173,7 +1186,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../floating_point/" class="md-nav__link">
+      <a href="../floating_point/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1194,7 +1207,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../fuzzer/" class="md-nav__link">
+      <a href="../fuzzer/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1215,7 +1228,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_bytecode_interpreter/" class="md-nav__link">
+      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1236,7 +1249,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_language_server/" class="md-nav__link">
+      <a href="../dslx_language_server/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1257,7 +1270,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_type_system/" class="md-nav__link">
+      <a href="../dslx_type_system/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1320,7 +1333,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../codegen_options/" class="md-nav__link">
+      <a href="../codegen_options/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1341,7 +1354,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_lowering/" class="md-nav__link">
+      <a href="../ir_lowering/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1362,7 +1375,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../vast/" class="md-nav__link">
+      <a href="../vast/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1425,7 +1438,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build_system/" class="md-nav__link">
+      <a href="../build_system/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1446,7 +1459,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../bazel_rules_macros/" class="md-nav__link">
+      <a href="../bazel_rules_macros/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1467,7 +1480,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tools_quick_start/" class="md-nav__link">
+      <a href="../tools_quick_start/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1488,7 +1501,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tools/" class="md-nav__link">
+      <a href="../tools/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1509,7 +1522,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../interpreters/" class="md-nav__link">
+      <a href="../interpreters/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1572,7 +1585,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+      <a href="../contributing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1593,7 +1606,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_style/" class="md-nav__link">
+      <a href="../xls_style/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1614,7 +1627,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adding_ir_operation/" class="md-nav__link">
+      <a href="../adding_ir_operation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1635,7 +1648,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ideas_and_projects/" class="md-nav__link">
+      <a href="../ideas_and_projects/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1656,7 +1669,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../fpga_characterization/" class="md-nav__link">
+      <a href="../fpga_characterization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1712,7 +1725,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
+      <a href="../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1733,7 +1746,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design_docs/proc_scoped_channels/" class="md-nav__link">
+      <a href="../design_docs/proc_scoped_channels/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1762,7 +1775,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../releasing/" class="md-nav__link">
+      <a href="../releasing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1825,7 +1838,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_readme/" class="md-nav__link">
+      <a href="../noc/xls_noc_readme/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1881,7 +1894,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_topologies/" class="md-nav__link">
+      <a href="../noc/xls_noc_topologies/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1902,7 +1915,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_dimension_order_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_dimension_order_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1923,7 +1936,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_tree_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_tree_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1944,7 +1957,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_butterfly_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_butterfly_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1965,7 +1978,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_fully_connected_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_fully_connected_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1986,7 +1999,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_star_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_star_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2015,7 +2028,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_glossary/" class="md-nav__link">
+      <a href="../noc/xls_noc_glossary/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2063,38 +2076,53 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#c-source" class="md-nav__link">
+  <a href="#function" class="md-nav__link">
     <span class="md-ellipsis">
-      C++ Source
+      Function
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#generate-optimized-xls-ir" class="md-nav__link">
+  <a href="#proc" class="md-nav__link">
     <span class="md-ellipsis">
-      Generate optimized XLS IR.
+      Proc
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
+  <a href="#block" class="md-nav__link">
     <span class="md-ellipsis">
-      Perform code-generation into a pipelined Verilog block.
+      Block
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Block">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#topological-sorting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Topological Sorting
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#additional-xlscc-examples" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#visitors" class="md-nav__link">
     <span class="md-ellipsis">
-      Additional XLS[cc] examples.
+      Visitors
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2116,104 +2144,112 @@
   
 
 
-<h1 id="xlscontrib-tutorial-xlscc-state">[xls/contrib] Tutorial: XLS[cc] state.</h1>
+<h1 id="xls-elaboration">XLS: Elaboration</h1>
 <div class="toc">
 <ul>
-<li><a href="#xlscontrib-tutorial-xlscc-state">[xls/contrib] Tutorial: XLS[cc] state.</a><ul>
-<li><a href="#c-source">C++ Source</a></li>
-<li><a href="#generate-optimized-xls-ir">Generate optimized XLS IR.</a></li>
-<li><a href="#perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</a></li>
-<li><a href="#additional-xlscc-examples">Additional XLS[cc] examples.</a></li>
+<li><a href="#xls-elaboration">XLS: Elaboration</a><ul>
+<li><a href="#function">Function</a></li>
+<li><a href="#proc">Proc</a></li>
+<li><a href="#block">Block</a><ul>
+<li><a href="#topological-sorting">Topological Sorting</a></li>
+<li><a href="#visitors">Visitors</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
 </div>
-<p>This tutorial is aimed at walking you through the implementation and synthesis
-into Verilog of a C++ function containing state.</p>
-<p>XLS[cc] may infer that in order to achieve a particular implementation of a C++
-function, operations may occur over multiple cycles and require additional proc
-state to be kept. Common constructs that may require this are static variables,
-or loops that aren't unrolled. In this tutorial we give an example using static
-variables.</p>
-<h2 id="c-source">C++ Source</h2>
-<p>Create a file named <code>test_state.cc</code> with the following contents.</p>
-<div class="highlight"><pre><span></span><code><span class="k">template</span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
-<span class="k">using</span><span class="w"> </span><span class="n">OutputChannel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">__xls_channel_dir_Out</span><span class="o">&gt;</span><span class="p">;</span>
+<p>XLS IR has a notion of instantiation and elaboration similar to RTL.<sup id="fnref:1"><a class="footnote-ref" href="#fn:1">1</a></sup>
+A hierarchy is a directed acyclic graph of elements connected via instantiation.
+An elaboration flattens the hierarchy into a tree by walking all paths in the
+hierarchy starting at a <code>top</code> proc/block where a path is a chain of
+instantiations. The elaboration creates an "instance" object for each path
+through the hierarchy from the top proc/block to each IR construct (channel or
+instantiation).</p>
+<p>This outlines what elaboration looks like for each kind of <code>FunctionBase</code>.</p>
+<h2 id="function">Function</h2>
+<p>Functions are "instantiated" via <code>invoke</code> operations. <code>opt</code> inlines all function
+invocations, so there is no separate elaboration of functions.</p>
+<h2 id="proc">Proc</h2>
+<p>New-style procs can instantiate child procs. They have a notion of "channel
+references" that are a parent proc can bind to a child proc via instantiation,
+which is how procs communicate with the procs they instantiate. These channel
+references are bound to channel instances during elaboration.</p>
+<p>Example proc hierarchy:</p>
+<div class="highlight"><pre><span></span><code>  proc leaf_proc&lt;ch0: ... in, ch1: .... out&gt;(...) { }
 
-<span class="k">class</span><span class="w"> </span><span class="nc">TestBlock</span><span class="w"> </span><span class="p">{</span>
-<span class="k">public</span><span class="o">:</span>
-<span class="w">    </span><span class="n">OutputChannel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+  proc other_proc&lt;x: ... in, y: .... out&gt;(...) {
+    chan z(...)
+    proc_instantiation other_inst0(x, z, proc=leaf_proc)
+    proc_instantiation other_inst1(z, y, proc=leaf_proc)
+  }
 
-<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
-
-<span class="w">    </span><span class="cp">#pragma hls_top</span>
-<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">Run</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="n">count</span><span class="p">);</span>
-<span class="w">        </span><span class="n">count</span><span class="o">++</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">};</span>
+  proc my_top&lt;a: ... in, b: ... out&gt;(...) {
+    chan c(...)
+    chan d(...)
+    proc_instantiation my_inst0(a, b, proc=other_proc)
+    proc_instantiation my_inst1(c, c, proc=other_proc)
+    proc_instantiation my_inst2(d, d, proc=leaf_proc)
+  }
 </code></pre></div>
-<h2 id="generate-optimized-xls-ir">Generate optimized XLS IR.</h2>
-<p>Use a combination of <code>xlscc</code> and <code>opt_main</code> to generate optimized XLS IR.</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/contrib/xlscc/xlscc<span class="w"> </span>test_state.cc<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--block_from_class<span class="w"> </span>TestBlock<span class="w"> </span>--block_pb<span class="w"> </span>block.pb<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>&gt;<span class="w"> </span>test_state.ir
-$<span class="w"> </span>./bazel-bin/xls/tools/opt_main<span class="w"> </span>test_state.ir<span class="w"> </span>&gt;<span class="w"> </span>test_state.opt.ir
+<p>Elaborating this hierarchy from <code>my_top</code> yields the following elaboration tree.
+Each line is a instance of either a proc or a channel.</p>
+<div class="highlight"><pre><span></span><code> &lt;a, b&gt;my_top
+   chan c
+   chan d
+   other_proc&lt;x=a, y=b&gt; [my_inst0]
+     chan z
+     leaf_proc&lt;ch0=x, ch1=z&gt; [other_inst0]
+     leaf_proc&lt;ch0=z, ch1=y&gt; [other_inst1]
+   other_proc&lt;x=c, y=c&gt; [my_inst1]
+     chan z
+     leaf_proc&lt;ch0=x, ch1=z&gt; [other_inst0]
+     leaf_proc&lt;ch0=z, ch1=y&gt; [other_inst1]
+   leaf_proc&lt;ch0=d, ch1=d&gt; [my_inst2]
 </code></pre></div>
-<h2 id="perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</h2>
-<p>In this case, we will generate a single-stage pipeline without input and output
-flops. This will result in a module with a 32-bit increment adder along with
-32-bit of state.</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/tools/codegen_main<span class="w"> </span>test_state.opt.ir<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--generator<span class="o">=</span>pipeline<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--delay_model<span class="o">=</span><span class="s2">&quot;sky130&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output_verilog_path<span class="o">=</span>xls_counter.v<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--module_name<span class="o">=</span>xls_counter<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--top<span class="o">=</span>TestBlock_proc<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset<span class="o">=</span>rst<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset_active_low<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset_asynchronous<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset_data_path<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--pipeline_stages<span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="se">\</span>
-<span class="w">  </span>--flop_inputs<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--flop_outputs<span class="o">=</span><span class="nb">false</span>
-</code></pre></div>
-<p>After running codegen, you should see a file named <code>xls_counter.v</code> with contents
-similar to the following.</p>
-<div class="highlight"><pre><span></span><code>module xls_counter(
-  input wire clk,
-  input wire rst,
-  input wire out_rdy,
-  output wire [31:0] out,
-  output wire out_vld
-);
-  reg [31:0] __st__1;
-  wire literal_43;
-  wire literal_40;
-  wire [31:0] add_37;
-  wire pipeline_enable;
-  assign literal_43 = 1&#39;h1;
-  assign literal_40 = 1&#39;h1;
-  assign add_37 = __st__1 + 32&#39;h0000_0001;
-  assign pipeline_enable = literal_43 &amp; literal_40 &amp; out_rdy &amp; (literal_43 &amp; literal_40 &amp; out_rdy);
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      __st__1 &lt;= 32&#39;h0000_0000;
-    end else begin
-      __st__1 &lt;= pipeline_enable ? add_37 : __st__1;
-    end
-  end
-  assign out = __st__1;
-  assign out_vld = literal_40 &amp; literal_43 &amp; 1&#39;h1;
-endmodule
-</code></pre></div>
-<h2 id="additional-xlscc-examples">Additional XLS[cc] examples.</h2>
-<p>For developers, it is possible to check if a specific feature is supported by
-checking
-<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/translator_static_test.cc">translator_static_test.cc</a>
-and
-<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/translator_proc_test.cc">translator_proc_test.cc</a>
-for unit tests.</p>
+<p>There are five instances of <code>leaf_proc</code> as there are five paths from <code>top_proc</code>
+to <code>leaf_proc</code> in the proc hierarchy.</p>
+<h2 id="block">Block</h2>
+<p>Blocks can instantiate:</p>
+<ul>
+<li>Other blocks</li>
+<li>FIFOs</li>
+<li>External modules</li>
+</ul>
+<p>Blocks interact with their instantiations via <code>InstantiationInput</code> and
+<code>InstantiationOutput</code> operations, which bind a value to a named port on the
+instantiation.</p>
+<p>A block elaboration has an instance for each instantiation and builds maps from
+parent→child and child→parent ports or instantiation input/output ops.</p>
+<h3 id="topological-sorting">Topological Sorting</h3>
+<p>Elaborated blocks can be topo sorted via <code>ElaboratedTopoSort()</code>. Each element in
+the sort is a pair of <code>Node*</code> and <code>BlockInstance*</code>. This means that blocks
+instantiated multiple times will have their nodes appear in the sort multiple
+times (once for each instantiation).</p>
+<p><code>InstantiationInput/InputPort</code> and <code>OutputPort/InstantiationOutput</code> pairs are
+treated as edges in the DAG. This is in contrast to the "unelaborated"
+<code>TopoSort()</code> function which only produces a topo sort for an isolated <code>Block</code>.
+An example use-case of <code>ElaboratedTopoSort()</code> is evaluating IR with dependencies
+that span the hierarchy.</p>
+<p>Note that our implementations of <code>ElaboratedTopoSort()</code> and <code>TopoSort()</code> produce
+the same order for blocks that have no instantiatiations.</p>
+<h3 id="visitors">Visitors</h3>
+<p>In the same way that <code>ElaboratedTopoSort()</code> extends <code>TopoSort()</code> to elaborated
+blocks, <code>ElaboratedBlockDfsVisitor</code> extends <code>DfsVisitor</code> to elaborated blocks.
+The main difference is the signature for op handlers. For <code>DfsVisitor</code>, they
+take the form <code>HandleNodeT(NodeT* node)</code>, but for <code>ElaboratedBlockDfsVisitor</code>
+they take the form <code>HandleNodeT(NodeT* node, BlockInstance* instance)</code>.</p>
+<p>Like <code>ElaboratedTopoSort()</code>, <code>InstantiationInput/InputPort</code> and
+<code>OutputPort/InstantiationOutput</code> pairs are treated as edges in the DAG.</p>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:1">
+<p>Note that elaboration is internal to the compiler, users generally don't
+need to be aware of or orchestrate an elaboration.&#160;<a class="footnote-backref" href="#fnref:1" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div>
 
 
 
@@ -2260,10 +2296,10 @@ for unit tests.</p>
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../assets/javascripts/bundle.dd8806f2.min.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       

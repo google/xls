@@ -2,277 +2,287 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://google.github.io/xls/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/adding_ir_operation/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/bazel_rules_macros/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/build_system/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/codegen_options/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/contributing/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/data_layout/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/delay_estimation/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/dslx_bytecode_interpreter/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/dslx_language_server/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/dslx_reference/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/dslx_std/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://google.github.io/xls/dslx_type_system/</loc>
+         <lastmod>2024-04-29</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://google.github.io/xls/elaboration/</loc>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/faq/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/floating_point/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/fpga_characterization/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/fuzzer/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/ideas_and_projects/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/interpreters/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/ir_jit/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/ir_lowering/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/ir_overview/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/ir_semantics/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/ir_visualization/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/releasing/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/scheduling/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/solvers/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/talks/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tools/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tools_quick_start/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/vast/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/xls_style/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/design_docs/legalize_multiple_channel_ops_per_channel/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/design_docs/proc_scoped_channels/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_butterfly_topology/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_dimension_order_topology/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_fully_connected_topology/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_glossary/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_readme/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_star_topology/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_topologies/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/noc/xls_noc_tree_topology/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/optimizations/optimizations/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/crc32/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/float_to_int/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/hello_xls/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/intro_to_parametrics/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/intro_to_procs/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/prefix_scan/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/xlscc_channels/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/xlscc_integers/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/xlscc_memory/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/xlscc_overview/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/xlscc_pipelined_loops/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
          <loc>https://google.github.io/xls/tutorials/xlscc_state/</loc>
-         <lastmod>2024-04-05</lastmod>
+         <lastmod>2024-04-29</lastmod>
          <changefreq>daily</changefreq>
     </url>
 </urlset>

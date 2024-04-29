@@ -8,25 +8,25 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_state/">
+        <link rel="canonical" href="https://google.github.io/xls/dslx_type_system/">
       
       
-        <link rel="prev" href="../xlscc_memory/">
+        <link rel="prev" href="../dslx_language_server/">
       
       
-        <link rel="next" href="../xlscc_pipelined_loops/">
+        <link rel="next" href="../codegen_options/">
       
       
-      <link rel="icon" href="../../assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
     
     
       
-        <title>State - XLS: Accelerated HW Synthesis</title>
+        <title>Type System - XLS: Accelerated HW Synthesis</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.66ac8b77.min.css">
       
       
 
@@ -45,7 +45,7 @@
       
     
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xlscontrib-tutorial-xlscc-state" class="md-skip">
+        <a href="#dslx-type-system" class="md-skip">
           Skip to content
         </a>
       
@@ -80,7 +80,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -100,7 +100,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              State
+              Type System
             
           </span>
         </div>
@@ -187,7 +187,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -217,7 +217,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -237,7 +237,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../talks/" class="md-nav__link">
+      <a href="../talks/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -254,19 +254,17 @@
       
   
   
-    
   
   
-  
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -280,7 +278,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             Tutorials
@@ -294,7 +292,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../tutorials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -350,7 +348,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hello_xls/" class="md-nav__link">
+      <a href="../tutorials/hello_xls/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -371,7 +369,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../float_to_int/" class="md-nav__link">
+      <a href="../tutorials/float_to_int/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -392,7 +390,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../intro_to_parametrics/" class="md-nav__link">
+      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -413,7 +411,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../crc32/" class="md-nav__link">
+      <a href="../tutorials/crc32/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -434,7 +432,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../prefix_scan/" class="md-nav__link">
+      <a href="../tutorials/prefix_scan/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -455,7 +453,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../intro_to_procs/" class="md-nav__link">
+      <a href="../tutorials/intro_to_procs/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -481,19 +479,17 @@
                 
   
   
-    
   
   
-  
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
         
           
           <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
@@ -507,7 +503,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_3">
             <span class="md-nav__icon md-icon"></span>
             \[contrib\] XLS[cc]
@@ -521,7 +517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_overview/" class="md-nav__link">
+      <a href="../tutorials/xlscc_overview/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -542,7 +538,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_integers/" class="md-nav__link">
+      <a href="../tutorials/xlscc_integers/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -563,7 +559,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_channels/" class="md-nav__link">
+      <a href="../tutorials/xlscc_channels/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -584,7 +580,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_memory/" class="md-nav__link">
+      <a href="../tutorials/xlscc_memory/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -602,30 +598,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    State
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../tutorials/xlscc_state/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -634,62 +610,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#c-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      C++ Source
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generate-optimized-xls-ir" class="md-nav__link">
-    <span class="md-ellipsis">
-      Generate optimized XLS IR.
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
-    <span class="md-ellipsis">
-      Perform code-generation into a pipelined Verilog block.
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#additional-xlscc-examples" class="md-nav__link">
-    <span class="md-ellipsis">
-      Additional XLS[cc] examples.
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -702,7 +622,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_pipelined_loops/" class="md-nav__link">
+      <a href="../tutorials/xlscc_pipelined_loops/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -738,7 +658,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../faq/" class="md-nav__link">
+      <a href="../faq/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -793,7 +713,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_overview/" class="md-nav__link">
+      <a href="../ir_overview/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -814,7 +734,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_semantics/" class="md-nav__link">
+      <a href="../ir_semantics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -835,7 +755,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../optimizations/optimizations/" class="md-nav__link">
+      <a href="../optimizations/optimizations/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -891,7 +811,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../scheduling/" class="md-nav__link">
+      <a href="../scheduling/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -912,7 +832,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../delay_estimation/" class="md-nav__link">
+      <a href="../delay_estimation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -941,7 +861,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_visualization/" class="md-nav__link">
+      <a href="../ir_visualization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -997,7 +917,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_jit/" class="md-nav__link">
+      <a href="../ir_jit/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1018,7 +938,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../data_layout/" class="md-nav__link">
+      <a href="../data_layout/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1047,7 +967,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../solvers/" class="md-nav__link">
+      <a href="../solvers/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1068,7 +988,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../elaboration/" class="md-nav__link">
+      <a href="../elaboration/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1093,17 +1013,19 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
           <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
@@ -1117,7 +1039,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             DSLX
@@ -1131,7 +1053,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_reference/" class="md-nav__link">
+      <a href="../dslx_reference/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1152,7 +1074,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_std/" class="md-nav__link">
+      <a href="../dslx_std/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1173,7 +1095,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../floating_point/" class="md-nav__link">
+      <a href="../floating_point/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1194,7 +1116,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../fuzzer/" class="md-nav__link">
+      <a href="../fuzzer/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1215,7 +1137,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_bytecode_interpreter/" class="md-nav__link">
+      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1236,7 +1158,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_language_server/" class="md-nav__link">
+      <a href="../dslx_language_server/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1254,10 +1176,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../dslx_type_system/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Type System
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -1266,6 +1208,95 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#parametric-instantiation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parametric Instantiation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typechecked-on-instantiation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Typechecked on Instantiation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parametric-evaluation-ordering" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parametric Evaluation Ordering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parametric Evaluation Ordering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-binding-explicit-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      1: Binding Explicit Values
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-binding-actual-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      2: Binding Actual Arguments
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-default-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      3: Default Expressions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aside-earlier-bindings-in-later-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Aside: Earlier Bindings in Later Types
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1320,7 +1351,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../codegen_options/" class="md-nav__link">
+      <a href="../codegen_options/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1341,7 +1372,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_lowering/" class="md-nav__link">
+      <a href="../ir_lowering/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1362,7 +1393,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../vast/" class="md-nav__link">
+      <a href="../vast/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1425,7 +1456,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build_system/" class="md-nav__link">
+      <a href="../build_system/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1446,7 +1477,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../bazel_rules_macros/" class="md-nav__link">
+      <a href="../bazel_rules_macros/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1467,7 +1498,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tools_quick_start/" class="md-nav__link">
+      <a href="../tools_quick_start/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1488,7 +1519,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tools/" class="md-nav__link">
+      <a href="../tools/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1509,7 +1540,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../interpreters/" class="md-nav__link">
+      <a href="../interpreters/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1572,7 +1603,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+      <a href="../contributing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1593,7 +1624,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_style/" class="md-nav__link">
+      <a href="../xls_style/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1614,7 +1645,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adding_ir_operation/" class="md-nav__link">
+      <a href="../adding_ir_operation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1635,7 +1666,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ideas_and_projects/" class="md-nav__link">
+      <a href="../ideas_and_projects/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1656,7 +1687,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../fpga_characterization/" class="md-nav__link">
+      <a href="../fpga_characterization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1712,7 +1743,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
+      <a href="../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1733,7 +1764,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../design_docs/proc_scoped_channels/" class="md-nav__link">
+      <a href="../design_docs/proc_scoped_channels/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1762,7 +1793,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../releasing/" class="md-nav__link">
+      <a href="../releasing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1825,7 +1856,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_readme/" class="md-nav__link">
+      <a href="../noc/xls_noc_readme/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1881,7 +1912,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_topologies/" class="md-nav__link">
+      <a href="../noc/xls_noc_topologies/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1902,7 +1933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_dimension_order_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_dimension_order_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1923,7 +1954,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_tree_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_tree_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1944,7 +1975,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_butterfly_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_butterfly_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1965,7 +1996,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_fully_connected_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_fully_connected_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1986,7 +2017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_star_topology/" class="md-nav__link">
+      <a href="../noc/xls_noc_star_topology/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2015,7 +2046,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../noc/xls_noc_glossary/" class="md-nav__link">
+      <a href="../noc/xls_noc_glossary/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -2063,38 +2094,71 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#c-source" class="md-nav__link">
+  <a href="#parametric-instantiation" class="md-nav__link">
     <span class="md-ellipsis">
-      C++ Source
+      Parametric Instantiation
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#generate-optimized-xls-ir" class="md-nav__link">
+  <a href="#typechecked-on-instantiation" class="md-nav__link">
     <span class="md-ellipsis">
-      Generate optimized XLS IR.
+      Typechecked on Instantiation
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
+  <a href="#parametric-evaluation-ordering" class="md-nav__link">
     <span class="md-ellipsis">
-      Perform code-generation into a pipelined Verilog block.
+      Parametric Evaluation Ordering
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parametric Evaluation Ordering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-binding-explicit-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      1: Binding Explicit Values
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#additional-xlscc-examples" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#2-binding-actual-arguments" class="md-nav__link">
     <span class="md-ellipsis">
-      Additional XLS[cc] examples.
+      2: Binding Actual Arguments
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-default-expressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      3: Default Expressions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aside-earlier-bindings-in-later-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      Aside: Earlier Bindings in Later Types
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2116,104 +2180,170 @@
   
 
 
-<h1 id="xlscontrib-tutorial-xlscc-state">[xls/contrib] Tutorial: XLS[cc] state.</h1>
-<div class="toc">
+<h1 id="dslx-type-system">DSLX: Type System</h1>
+<p>The DSL (frontend) performs a few primary tasks:</p>
+<ol>
+<li>Parsing text files to an AST representation.</li>
+<li>Typechecking the AST representation.</li>
+<li>Conversion of the AST to bytecode that can be interpreted.</li>
+<li>Conversion of the AST to XLS IR (from which it can be interpreted or
+    optimized or scheduled or code generated, etc.)</li>
+</ol>
+<p>Note that step #2 is an essential component for steps #3 and #4 -- the type
+information computed in the type checking process is used by the bytecode
+emission/evaluation and IR conversion processes.</p>
+<p>(You could imagine a bytecode interpreter that did not use any pre-computed type
+information and tried to derive it all dynamically, but that is not how the
+system is set up -- using the type information from typechecking time avoids
+redundant work and replication of similar code in a way that could get out of
+sync.)</p>
+<p>Aside: bytecode emission/interpretation may also be necessary for constexpr
+(compile-time constant) evaluation, and so #2 and #3 will be interleaved to some
+degree.</p>
+<h2 id="parametric-instantiation">Parametric Instantiation</h2>
+<p>The most interesting thing that happens in the type system, and one of the main
+things that the DSL provides as a useful abstraction on top of XLS IR, is
+<em>parametric instantiation</em>. This is where users write a parameterized function
+(or proc) and instantiate it with particular concrete parmeters; e.g.</p>
+<div class="highlight"><pre><span></span><code><span class="c1">// A parametric (identity) function.</span>
+<span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">}</span>
+
+<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="kt">u8</span> <span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">)</span><span class="w">  </span><span class="c1">// Instantiates p with N=8</span>
+<span class="p">}</span>
+
+<span class="cp">#[test]</span>
+<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>This allows us to write more generic code as library-style functions, which
+dovetails nicely with the facilities that XLS core has to schedule and optimize
+across cycles.</p>
+<p>With parametric instantiation as a feature, several questions around the nature
+of the parameterized definition are raised; e.g.</p>
 <ul>
-<li><a href="#xlscontrib-tutorial-xlscc-state">[xls/contrib] Tutorial: XLS[cc] state.</a><ul>
-<li><a href="#c-source">C++ Source</a></li>
-<li><a href="#generate-optimized-xls-ir">Generate optimized XLS IR.</a></li>
-<li><a href="#perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</a></li>
-<li><a href="#additional-xlscc-examples">Additional XLS[cc] examples.</a></li>
+<li>When <code>p</code> is defined with a parametric <code>N</code>, should we check that the
+    definition has no type errors "for all N"? (Note: we do not.)</li>
+<li>If <code>p</code> is not instantiated anywhere, do we check that <code>p</code> has no type errors
+    for "there exists some N"? (Note: we do not.)</li>
 </ul>
-</li>
-</ul>
-</div>
-<p>This tutorial is aimed at walking you through the implementation and synthesis
-into Verilog of a C++ function containing state.</p>
-<p>XLS[cc] may infer that in order to achieve a particular implementation of a C++
-function, operations may occur over multiple cycles and require additional proc
-state to be kept. Common constructs that may require this are static variables,
-or loops that aren't unrolled. In this tutorial we give an example using static
-variables.</p>
-<h2 id="c-source">C++ Source</h2>
-<p>Create a file named <code>test_state.cc</code> with the following contents.</p>
-<div class="highlight"><pre><span></span><code><span class="k">template</span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
-<span class="k">using</span><span class="w"> </span><span class="n">OutputChannel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">__xls_channel_dir_Out</span><span class="o">&gt;</span><span class="p">;</span>
+<p>These relate to the "laziness" of parametric instantiation. As a historical
+example for comparison, C++ originally had template definitions as token
+substitutions, not even ensuring that the definition could parse, more akin to
+syntactic macros.</p>
+<h2 id="typechecked-on-instantiation">Typechecked on Instantiation</h2>
+<p>In the DSL, as noted above, the definitions of parametric instances are parsed,
+but not typechecked until instantiation, and errors are raised if the concrete
+set of parameterized values cause a type error during instantiation. That is:</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">N</span><span class="p">()</span><span class="w">  </span><span class="c1">// type error on instantiation: cannot invoke a number</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>If there is no instantiation of <code>p</code>, this definition will parse, but the type
+error will go unreported, because it is never instantiated, and thus never type
+checked. If another function were to instantiate it by calling <code>p</code>, however, a
+type error would occur due to that instantiation.</p>
+<p>Similarly, we can consider a definition that does not work "for all N", but
+works "for one N", and that's the only <code>N</code> we instantiate it with.</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">const_assert</span><span class="o">!</span><span class="p">(</span><span class="n">N</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">);</span>
+<span class="w">    </span><span class="n">u42</span>:<span class="mi">64</span>
+<span class="p">}</span>
+<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">u42</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">42</span><span class="o">&gt;</span><span class="p">()</span><span class="w">  </span><span class="c1">// this is fine</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="parametric-evaluation-ordering">Parametric Evaluation Ordering</h2>
+<p>There are three components to parametric invocations. (Note: "binding" refers to
+the assignment of a value to each named parameter.)</p>
+<ol>
+<li>Binding explicit values (given in angle brackets, i.e. <code>&lt;&gt;</code>) given in the
+    caller</li>
+<li>Binding actual arguments (passed by the caller) against the parametric
+    bindings</li>
+<li>Filling in any "remaining holes" in the parametric bindings using <em>default
+    expressions</em> in the parametric bindings</li>
+</ol>
+<p>The three components are performed in that order.</p>
+<h3 id="1-binding-explicit-values">1: Binding Explicit Values</h3>
+<p>In this example:</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">],</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]</span>:<span class="mi">64</span><span class="p">)</span>
+<span class="p">}</span>
 
-<span class="k">class</span><span class="w"> </span><span class="nc">TestBlock</span><span class="w"> </span><span class="p">{</span>
-<span class="k">public</span><span class="o">:</span>
-<span class="w">    </span><span class="n">OutputChannel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="p">(</span><span class="kt">u8</span><span class="p">,</span><span class="w"> </span><span class="kt">u16</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">16</span><span class="o">&gt;</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The caller <code>main</code> explicitly binds the parametrics <code>A</code> and <code>B</code> by supplying
+arguments in the angle brackets.</p>
+<h3 id="2-binding-actual-arguments">2: Binding Actual Arguments</h3>
+<p>In this example:</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span>:<span class="mi">1</span>
+<span class="p">}</span>
+<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">u13</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="n">u13</span>:<span class="mi">42</span><span class="p">)</span>
+<span class="p">}</span>
 
-<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="cp">#[test]</span>
+<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="n">u13</span>:<span class="mi">43</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>main</code> is implicitly saying what <code>A</code> must be by passing a <code>u13</code> -- we know that
+the parameter to <code>p</code> is declared to be a <code>bits[A]</code>, so we know that <code>A</code> must be
+<code>13</code> since a <code>u13</code> was passed as the "actual" argument (i.e. argument value from
+the caller).</p>
+<p>Note that if you contradict an explicit binding and a binding from actual
+arguments, you will get a type error; e.g. this will cause a type error:</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">u13</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">14</span><span class="o">&gt;</span><span class="p">(</span><span class="n">u13</span>:<span class="mi">42</span><span class="p">)</span><span class="w">  </span><span class="c1">// explicit says 14 bits, actual arg is 13 bits</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="3-default-expressions">3: Default Expressions</h3>
+<p>In this example:</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">A</span><span class="o">+</span><span class="n">A</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]</span>
+<span class="p">}</span>
 
-<span class="w">    </span><span class="cp">#pragma hls_top</span>
-<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">Run</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="n">count</span><span class="p">);</span>
-<span class="w">        </span><span class="n">count</span><span class="o">++</span><span class="p">;</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">};</span>
+<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="kt">u32</span> <span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="kt">u16</span>:<span class="mi">42</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="cp">#[test]</span>
+<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">);</span>
+<span class="p">}</span>
 </code></pre></div>
-<h2 id="generate-optimized-xls-ir">Generate optimized XLS IR.</h2>
-<p>Use a combination of <code>xlscc</code> and <code>opt_main</code> to generate optimized XLS IR.</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/contrib/xlscc/xlscc<span class="w"> </span>test_state.cc<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--block_from_class<span class="w"> </span>TestBlock<span class="w"> </span>--block_pb<span class="w"> </span>block.pb<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>&gt;<span class="w"> </span>test_state.ir
-$<span class="w"> </span>./bazel-bin/xls/tools/opt_main<span class="w"> </span>test_state.ir<span class="w"> </span>&gt;<span class="w"> </span>test_state.opt.ir
+<p><code>main</code> is implicitly saying what <code>A</code> must be by passing a <code>u16</code>; however, <code>B</code> is
+not specified; neither by an explicit parametric value (i.e. in <code>&lt;&gt;</code> in the
+caller), nor implicitly by an actual arg that was passed. As a result, we go
+evaluate the <em>default expression</em> for the parametric, and populate <code>B</code> with the
+result of the expression <code>A+A</code>. Since <code>A</code> is <code>16</code>, <code>B</code> is <code>32</code>.</p>
+<h3 id="aside-earlier-bindings-in-later-types">Aside: Earlier Bindings in Later Types</h3>
+<p>Note: this is not generally necessary to know to use parametrics effectively,
+but is useful in thinking through the design and power of parametric
+instantiation.</p>
+<p>One consequence of the ordering defined is that earlier parametric bindings can
+be used to define the types of later parametric bindings; e.g.</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span>:<span class="mi">0</span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">B</span>
+<span class="p">}</span>
+
+<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="kt">u8</span> <span class="p">{</span><span class="w"> </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+
+<span class="cp">#[test]</span>
+<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">0</span><span class="p">)</span>
+<span class="p">}</span>
 </code></pre></div>
-<h2 id="perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</h2>
-<p>In this case, we will generate a single-stage pipeline without input and output
-flops. This will result in a module with a 32-bit increment adder along with
-32-bit of state.</p>
-<div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/tools/codegen_main<span class="w"> </span>test_state.opt.ir<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--generator<span class="o">=</span>pipeline<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--delay_model<span class="o">=</span><span class="s2">&quot;sky130&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--output_verilog_path<span class="o">=</span>xls_counter.v<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--module_name<span class="o">=</span>xls_counter<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--top<span class="o">=</span>TestBlock_proc<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset<span class="o">=</span>rst<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset_active_low<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset_asynchronous<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--reset_data_path<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--pipeline_stages<span class="o">=</span><span class="m">1</span><span class="w">  </span><span class="se">\</span>
-<span class="w">  </span>--flop_inputs<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--flop_outputs<span class="o">=</span><span class="nb">false</span>
-</code></pre></div>
-<p>After running codegen, you should see a file named <code>xls_counter.v</code> with contents
-similar to the following.</p>
-<div class="highlight"><pre><span></span><code>module xls_counter(
-  input wire clk,
-  input wire rst,
-  input wire out_rdy,
-  output wire [31:0] out,
-  output wire out_vld
-);
-  reg [31:0] __st__1;
-  wire literal_43;
-  wire literal_40;
-  wire [31:0] add_37;
-  wire pipeline_enable;
-  assign literal_43 = 1&#39;h1;
-  assign literal_40 = 1&#39;h1;
-  assign add_37 = __st__1 + 32&#39;h0000_0001;
-  assign pipeline_enable = literal_43 &amp; literal_40 &amp; out_rdy &amp; (literal_43 &amp; literal_40 &amp; out_rdy);
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      __st__1 &lt;= 32&#39;h0000_0000;
-    end else begin
-      __st__1 &lt;= pipeline_enable ? add_37 : __st__1;
-    end
-  end
-  assign out = __st__1;
-  assign out_vld = literal_40 &amp; literal_43 &amp; 1&#39;h1;
-endmodule
-</code></pre></div>
-<h2 id="additional-xlscc-examples">Additional XLS[cc] examples.</h2>
-<p>For developers, it is possible to check if a specific feature is supported by
-checking
-<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/translator_static_test.cc">translator_static_test.cc</a>
-and
-<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/translator_proc_test.cc">translator_proc_test.cc</a>
-for unit tests.</p>
+<p>Note that <code>main</code> uses an explicit parametric to define <code>A</code> as <code>8</code>. Then the
+<em>type</em> of <code>B</code> is defined based on the <em>value</em> of <code>A</code>; i.e. the type of B is
+defined to be <code>u8</code> as a result, and the value of <code>B</code> is defined to be a <code>u8:0</code>.
+This is interesting because we used an earlier parametric binding to define a
+later parametric binding's type.</p>
 
 
 
@@ -2260,10 +2390,10 @@ for unit tests.</p>
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../assets/javascripts/bundle.dd8806f2.min.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
