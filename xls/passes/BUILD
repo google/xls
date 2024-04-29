@@ -2249,13 +2249,9 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":bdd_function",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/random:bit_gen_ref",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/dslx:create_import_data",
-        "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/examples:sample_packages",

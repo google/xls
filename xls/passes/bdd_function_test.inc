@@ -14,7 +14,6 @@
 
 #include <string_view>
 
-#include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/interpreter/random_value.h"

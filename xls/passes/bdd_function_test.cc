@@ -23,8 +23,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/ir_convert/ir_converter.h"
-#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
