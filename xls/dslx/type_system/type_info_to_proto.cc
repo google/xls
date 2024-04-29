@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -138,6 +139,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_FORMAT_MACRO;
     case AstNodeKind::kZeroMacro:
       return AST_NODE_KIND_ZERO_MACRO;
+    case AstNodeKind::kAllOnesMacro:
+      return AST_NODE_KIND_ALL_ONES_MACRO;
     case AstNodeKind::kSlice:
       return AST_NODE_KIND_SLICE;
     case AstNodeKind::kEnumDef:
@@ -712,14 +715,23 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kUnrollFor;
     case AST_NODE_KIND_STATEMENT:
       return AstNodeKind::kStatement;
+    case AST_NODE_KIND_ZERO_MACRO:
+      return AstNodeKind::kZeroMacro;
+    case AST_NODE_KIND_ALL_ONES_MACRO:
+      return AstNodeKind::kAllOnesMacro;
+    case AST_NODE_KIND_CONST_ASSERT:
+      return AstNodeKind::kConstAssert;
+    case AST_NODE_KIND_PROC_MEMBER:
+      return AstNodeKind::kProcMember;
     // Note: since this is a proto enum there are sentinel values defined in
-    // addition to the "real" above, which is why the enumeration of cases is
-    // not exhaustive.
+    // addition to the "real" above. Return an invalid argument error.
     case AST_NODE_KIND_INVALID:
-    default:
+    case AstNodeKindProto_INT_MIN_SENTINEL_DO_NOT_USE_:
+    case AstNodeKindProto_INT_MAX_SENTINEL_DO_NOT_USE_:
       return absl::InvalidArgumentError(
           absl::StrCat("Unknown AstNodeKindProto: ", p));
   }
+  ABSL_UNREACHABLE();
 }
 
 }  // namespace

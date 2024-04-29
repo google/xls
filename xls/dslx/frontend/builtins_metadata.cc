@@ -70,6 +70,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           //
           // TODO(cdleary): 2023-06-01 I don't remember why, but there was a
           // reason this seemed better than built-ins at the time.
+          {"all_ones!", {.signature = "() -> T", .is_ast_node = true}},
           {"zero!", {.signature = "() -> T", .is_ast_node = true}},
           {"trace_fmt!", {.signature = "(T) -> T", .is_ast_node = true}},
 

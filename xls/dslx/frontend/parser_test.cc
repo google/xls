@@ -1138,6 +1138,24 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStructArray) {
   ASSERT_TRUE(expr_or.ok());
 }
 
+TEST_F(ParserTest, AllonesMacroSimple) {
+  RoundTripExpr("all_ones!<u32>()", {}, /*populate_dslx_builtins=*/true);
+}
+
+TEST_F(ParserTest, AllOnesMacroSimpleStruct) {
+  RoundTripExpr("all_ones!<MyType>()", {"MyType"},
+                /*populate_dslx_builtins=*/true);
+}
+
+TEST_F(ParserTest, AllOnesMacroSimpleArray) {
+  RoundTripExpr("all_ones!<u32[10]>()", {}, /*populate_dslx_builtins=*/true);
+}
+
+TEST_F(ParserTest, AllOnesMacroSimpleBitsArray) {
+  RoundTripExpr("all_ones!<bits[32][10]>()", {},
+                /*populate_dslx_builtins=*/true);
+}
+
 TEST_F(ParserTest, ParseBlockWithTwoStatements) {
   RoundTripExpr(R"({
     type MyU32 = u32;

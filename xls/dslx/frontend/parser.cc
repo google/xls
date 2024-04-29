@@ -1901,6 +1901,24 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
         return module_->Make<ZeroMacro>(span, parametrics.at(0));
       }
 
+      if (name == "all_ones!") {
+        if (parametrics.size() != 1) {
+          return ParseErrorStatus(
+              span,
+              absl::StrFormat("%s macro takes a single parametric argument "
+                              "(the type to create an all-ones value for, e.g. "
+                              "`all_ones!<T>()`; got %d parametric arguments",
+                              name, parametrics.size()));
+        }
+        if (!args.empty()) {
+          return ParseErrorStatus(
+              span,
+              absl::StrFormat("%s macro does not take any arguments", name));
+        }
+
+        return module_->Make<AllOnesMacro>(span, parametrics.at(0));
+      }
+
       if (name == "fail!") {
         if (args.size() != 2) {
           return ParseErrorStatus(

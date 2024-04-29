@@ -365,4 +365,26 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceZeroMacro(const ZeroMacro* node,
   return parametric_type;
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceAllOnesMacro(
+    const AllOnesMacro* node, DeduceCtx* ctx) {
+  VLOG(5) << "DeduceAllOnesMacro; node: `" << node->ToString() << "`";
+  // Note: since it's a macro the parser checks arg count and parametric count.
+  //
+  // This says the type of the parametric type arg is the type of the result.
+  // However, we have to check that all of the transitive type within the
+  // parametric argument type are "all-ones capable".
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_type,
+                       DeduceAndResolve(ToAstNode(node->type()), ctx));
+  XLS_ASSIGN_OR_RETURN(parametric_type,
+                       UnwrapMetaType(std::move(parametric_type), node->span(),
+                                      "all_ones! macro type"));
+  XLS_RET_CHECK(!parametric_type->IsMeta());
+
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue value,
+      MakeAllOnesValue(*parametric_type, *ctx->import_data(), node->span()));
+  ctx->type_info()->NoteConstExpr(node, value);
+  return parametric_type;
+}
+
 }  // namespace xls::dslx

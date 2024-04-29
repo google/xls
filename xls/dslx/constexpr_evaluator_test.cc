@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -77,7 +78,7 @@ absl::StatusOr<Type*> GetType(TypeInfo* ti, Expr* expr) {
   return maybe_type.value();
 }
 
-TEST(ConstexprEvaluatorTest, HandleAttr_Simple) {
+TEST(ConstexprEvaluatorTest, HandleAttrSimple) {
   constexpr std::string_view kModule = R"(
 struct MyStruct {
   x: u32,
@@ -111,7 +112,7 @@ fn Foo() -> u64 {
   EXPECT_TRUE(warnings.warnings().empty());
 }
 
-TEST(ConstexprEvaluatorTest, HandleNumber_Simple) {
+TEST(ConstexprEvaluatorTest, HandleNumberSimple) {
   constexpr std::string_view kModule = R"(
 const kFoo = u32:7;
 )";
@@ -133,7 +134,7 @@ const kFoo = u32:7;
   EXPECT_TRUE(warnings.warnings().empty());
 }
 
-TEST(ConstexprEvaluatorTest, HandleCast_Simple) {
+TEST(ConstexprEvaluatorTest, HandleCastSimple) {
   constexpr std::string_view kModule = R"(
 const kFoo = u32:13;
 
@@ -183,7 +184,7 @@ fn main() -> u32 {
   EXPECT_EQ(value.GetBitValueViaSign().value(), 500);
 }
 
-TEST(ConstexprEvaluatorTest, HandleStructInstance_Simple) {
+TEST(ConstexprEvaluatorTest, HandleStructInstanceSimple) {
   constexpr std::string_view kModule = R"(
 struct MyStruct {
   x: u32,
@@ -527,6 +528,36 @@ fn main() -> MyStruct {
   ASSERT_TRUE(value.IsTuple());
   ASSERT_THAT(value.GetLength(), status_testing::IsOkAndHolds(1));
   EXPECT_EQ(value.GetValuesOrDie().at(0).GetBitValueViaSign().value(), 0);
+}
+
+TEST(ConstexprEvaluatorTest, AllOnesMacro) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct {
+  field: u32
+}
+
+fn main() -> MyStruct {
+  all_ones!<MyStruct>()
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+  WarningCollector warnings(kAllWarningsSet);
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             &warnings, ParametricEnv(),
+                                             f->body(), nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(f->body()));
+  ASSERT_TRUE(value.IsTuple());
+  ASSERT_THAT(value.GetLength(), status_testing::IsOkAndHolds(1));
+  EXPECT_EQ(value.GetValuesOrDie().at(0).GetBitValueViaSign().value(),
+            0xFFFFFFFFll);
 }
 
 TEST(ConstexprEvaluatorTest, BuiltinArraySize) {

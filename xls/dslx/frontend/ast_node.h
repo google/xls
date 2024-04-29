@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_FRONTEND_AST_NODE_H_
 #define XLS_DSLX_FRONTEND_AST_NODE_H_
 
+#include <cstdint>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -30,7 +31,8 @@ namespace xls::dslx {
 // Enum with an entry for each leaf type in the AST class hierarchy -- this is
 // primarily for convenience in tasks like serialization, for most purposes
 // visitors should be used (e.g. AstNodeVisitor, ExprVisitor).
-enum class AstNodeKind {
+enum class AstNodeKind : uint8_t {
+  kAllOnesMacro,
   kArray,
   kAttr,
   kBinop,

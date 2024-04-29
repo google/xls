@@ -466,6 +466,8 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
@@ -473,6 +475,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
+        "//xls/ir:bits",
     ],
 )
 
@@ -524,6 +527,7 @@ cc_library(
         ":type",
         ":type_info",
         ":type_info_cc_proto",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

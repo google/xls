@@ -92,6 +92,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_STATEMENT = 58;
   AST_NODE_KIND_CONST_ASSERT = 59;
   AST_NODE_KIND_PROC_MEMBER = 60;
+  AST_NODE_KIND_ALL_ONES_MACRO = 61;
 }
 
 message BitsValueProto {

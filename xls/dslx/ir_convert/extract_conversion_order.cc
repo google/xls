@@ -246,6 +246,10 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) override {
+    return absl::OkStatus();
+  }
+
   absl::Status HandleZeroMacro(const ZeroMacro* expr) override {
     return absl::OkStatus();
   }

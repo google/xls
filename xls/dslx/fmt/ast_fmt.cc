@@ -1301,6 +1301,17 @@ DocRef Fmt(const ZeroMacro& n, const Comments& comments, DocArena& arena) {
                              });
 }
 
+DocRef Fmt(const AllOnesMacro& n, const Comments& comments, DocArena& arena) {
+  return ConcatNGroup(arena, {
+                                 arena.MakeText("all_ones!"),
+                                 arena.oangle(),
+                                 FmtExprOrType(n.type(), comments, arena),
+                                 arena.cangle(),
+                                 arena.oparen(),
+                                 arena.cparen(),
+                             });
+}
+
 DocRef Fmt(const Unop& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {
       arena.MakeText(UnopKindToString(n.unop_kind()))};

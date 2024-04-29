@@ -1931,6 +1931,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Invocation, DeduceInvocation)
   DEDUCE_DISPATCH(FormatMacro, DeduceFormatMacro)
   DEDUCE_DISPATCH(ZeroMacro, DeduceZeroMacro)
+  DEDUCE_DISPATCH(AllOnesMacro, DeduceAllOnesMacro)
   DEDUCE_DISPATCH(ConstRef, DeduceConstRef)
   DEDUCE_DISPATCH(NameRef, DeduceNameRef)
 

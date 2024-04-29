@@ -266,6 +266,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "format macro";
     case AstNodeKind::kZeroMacro:
       return "zero macro";
+    case AstNodeKind::kAllOnesMacro:
+      return "all-ones macro";
     case AstNodeKind::kSlice:
       return "slice";
     case AstNodeKind::kEnumDef:
@@ -1229,6 +1231,24 @@ std::vector<AstNode*> ZeroMacro::GetChildren(bool want_types) const {
 
 std::string ZeroMacro::ToStringInternal() const {
   return absl::StrFormat("zero!<%s>()", ToAstNode(type_)->ToString());
+}
+
+// -- class AllOnesMacro
+
+AllOnesMacro::AllOnesMacro(Module* owner, Span span, ExprOrType type)
+    : Expr(owner, std::move(span)), type_(type) {}
+
+AllOnesMacro::~AllOnesMacro() = default;
+
+std::vector<AstNode*> AllOnesMacro::GetChildren(bool want_types) const {
+  if (want_types) {
+    return {ToAstNode(type_)};
+  }
+  return {};
+}
+
+std::string AllOnesMacro::ToStringInternal() const {
+  return absl::StrFormat("all_ones!<%s>()", ToAstNode(type_)->ToString());
 }
 
 // -- class FormatMacro

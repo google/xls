@@ -495,6 +495,48 @@ fn f() -> MyStruct {
 }
 ```
 
+### `all_ones!<T>`
+
+Similar to `zero!<T>`, DSLX has a macro for easy creation of all-ones values,
+even from aggregate types. Invoke the macro with the type parameter as follows:
+
+```dslx
+struct MyPoint {
+  x: u32,
+  y: u32,
+}
+
+enum MyEnum : u2 {
+  ZERO = u2:0,
+  ONE = u2:1,
+  THREE = u2:3,
+}
+
+#[test]
+fn test_all_ones_macro() {
+  assert_eq(all_ones!<u32>(), u32:0);
+  assert_eq(all_ones!<MyPoint>(), MyPoint{x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF});
+  assert_eq(all_ones!<MyEnum>(), MyEnum::THREE);
+}
+```
+
+The `all_ones!<T>` macro can also be used with the struct update syntax to
+initialize a subset of fields to zero. In the example below all fields except
+`foo` are initialized to zero in the struct returned by `f`.
+
+```dslx
+struct MyStruct {
+  foo: u1,
+  bar: u2,
+  baz: u3,
+  bat: u4,
+}
+
+fn f() -> MyStruct {
+  MyStruct{foo: u1:1, ..all_ones!<MyStruct>()}
+}
+```
+
 ### `trace_fmt!`
 
 DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows

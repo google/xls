@@ -15,13 +15,17 @@
 #include "xls/dslx/type_system/type_zero_value.h"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -31,9 +35,13 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/bits.h"
 
 namespace xls::dslx {
 namespace {
+
+inline constexpr std::string_view kZeroValueName = "zero-value";
+inline constexpr std::string_view kAllOnesValueName = "all-ones-value";
 
 // Returns whether enum type t has a member that is definitively zero-valued.
 absl::StatusOr<bool> HasKnownZeroValue(const EnumType& t,
@@ -52,89 +60,166 @@ absl::StatusOr<bool> HasKnownZeroValue(const EnumType& t,
   return false;
 }
 
-class MakeZeroVisitor : public TypeVisitor {
- public:
-  MakeZeroVisitor(const ImportData& import_data, const Span& span)
-      : import_data_(import_data), span_(span) {}
+// Returns whether enum type t has a member that is definitively
+// all-ones-valued.
+absl::StatusOr<bool> HasKnownAllOnesValue(const EnumType& t,
+                                          const ImportData& import_data) {
+  const EnumDef& def = t.nominal_type();
+  XLS_ASSIGN_OR_RETURN(const TypeInfo* type_info,
+                       import_data.GetRootTypeInfoForNode(&def));
 
-  absl::Status HandleEnum(const EnumType& t) override {
+  for (const EnumMember& member : def.values()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue v, type_info->GetConstExpr(member.value));
+    if (v.GetBitsOrDie().IsAllOnes()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+absl::StatusOr<InterpValue> ZeroOfLeafType(const Type& type,
+                                           const ImportData& import_data,
+                                           const Span& span) {
+  if (const auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
     XLS_ASSIGN_OR_RETURN(bool has_known_zero,
-                         HasKnownZeroValue(t, import_data_));
+                         HasKnownZeroValue(*enum_type, import_data));
     if (!has_known_zero) {
       return TypeInferenceErrorStatus(
-          span_, &t,
+          span, enum_type,
           absl::StrFormat("Enum type '%s' does not have a known zero value.",
-                          t.nominal_type().identifier()));
+                          enum_type->nominal_type().identifier()));
     }
 
-    XLS_ASSIGN_OR_RETURN(int64_t size, t.size().GetAsInt64());
-    result_ =
-        InterpValue::MakeEnum(Bits(size), t.is_signed(), &t.nominal_type());
+    XLS_ASSIGN_OR_RETURN(int64_t size, enum_type->size().GetAsInt64());
+    return InterpValue::MakeEnum(Bits(size), enum_type->is_signed(),
+                                 &enum_type->nominal_type());
+  }
+  if (const auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
+    XLS_ASSIGN_OR_RETURN(int64_t size, bits_type->size().GetAsInt64());
+    return InterpValue::MakeBits(bits_type->is_signed(), Bits(size));
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Type '%s' is not a leaf type.", type.ToString()));
+}
+
+absl::StatusOr<InterpValue> AllOnesOfLeafType(const Type& type,
+                                              const ImportData& import_data,
+                                              const Span& span) {
+  if (const auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
+    XLS_ASSIGN_OR_RETURN(bool has_known_all_ones,
+                         HasKnownAllOnesValue(*enum_type, import_data));
+    if (!has_known_all_ones) {
+      return TypeInferenceErrorStatus(
+          span, enum_type,
+          absl::StrFormat(
+              "Enum type '%s' does not have a known all-ones value.",
+              enum_type->nominal_type().identifier()));
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t size, enum_type->size().GetAsInt64());
+    return InterpValue::MakeEnum(Bits::AllOnes(size), enum_type->is_signed(),
+                                 &enum_type->nominal_type());
+  }
+  if (const auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
+    XLS_ASSIGN_OR_RETURN(int64_t size, bits_type->size().GetAsInt64());
+    return InterpValue::MakeBits(bits_type->is_signed(), Bits::AllOnes(size));
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Type '%s' is not a leaf type.", type.ToString()));
+}
+
+class MakeValueVisitor : public TypeVisitor {
+  using LeafFn = std::function<absl::StatusOr<InterpValue>(
+      const Type&, const ImportData&, const Span&)>;
+
+ public:
+  MakeValueVisitor(LeafFn&& leaf_fn, const ImportData& import_data,
+                   const Span& span, std::string_view value_name)
+      : leaf_fn_(std::move(leaf_fn)),
+        import_data_(import_data),
+        span_(span),
+        value_name_(value_name) {}
+
+  absl::Status HandleEnum(const EnumType& t) override {
+    XLS_ASSIGN_OR_RETURN(result_, leaf_fn_(t, import_data_, span_));
     return absl::OkStatus();
   }
 
   absl::Status HandleBits(const BitsType& t) override {
-    XLS_ASSIGN_OR_RETURN(int64_t size, t.size().GetAsInt64());
-    result_ = InterpValue::MakeBits(t.is_signed(), Bits(size));
+    XLS_ASSIGN_OR_RETURN(result_, leaf_fn_(t, import_data_, span_));
     return absl::OkStatus();
   }
 
   absl::Status HandleFunction(const FunctionType& t) override {
     return TypeInferenceErrorStatus(
-        span_, &t, "Cannot make a zero-value of function type.");
+        span_, &t,
+        absl::StrCat("Cannot make a ", value_name_, " of function type."));
   }
   absl::Status HandleChannel(const ChannelType& t) override {
     return TypeInferenceErrorStatus(
-        span_, &t, "Cannot make a zero-value of channel type.");
+        span_, &t,
+        absl::StrCat("Cannot make a ", value_name_, " of channel type."));
   }
   absl::Status HandleToken(const TokenType& t) override {
-    return TypeInferenceErrorStatus(span_, &t,
-                                    "Cannot make a zero-value of token type.");
+    return TypeInferenceErrorStatus(
+        span_, &t,
+        absl::StrCat("Cannot make a ", value_name_, " of token type."));
   }
   absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
-    return TypeInferenceErrorStatus(
-        span_, &t, "Cannot make a zero-value of bits-constructor type.");
+    return TypeInferenceErrorStatus(span_, &t,
+                                    absl::StrCat("Cannot make a ", value_name_,
+                                                 "of bits-constructor type."));
   }
   absl::Status HandleStruct(const StructType& t) override {
     std::vector<InterpValue> elems;
     for (const auto& member : t.members()) {
-      XLS_ASSIGN_OR_RETURN(InterpValue z,
-                           MakeZeroValue(*member, import_data_, span_));
-      elems.push_back(std::move(z));
+      XLS_RETURN_IF_ERROR(member->Accept(*this));
+      XLS_ASSIGN_OR_RETURN(InterpValue elem_value, ResultOrError());
+      elems.push_back(std::move(elem_value));
     }
     result_ = InterpValue::MakeTuple(std::move(elems));
     return absl::OkStatus();
   }
+
   absl::Status HandleTuple(const TupleType& t) override {
     std::vector<InterpValue> elems;
     for (const auto& m : t.members()) {
-      XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                           MakeZeroValue(*m, import_data_, span_));
-      elems.push_back(std::move(zero));
+      XLS_RETURN_IF_ERROR(m->Accept(*this));
+      XLS_ASSIGN_OR_RETURN(InterpValue elem_value, ResultOrError());
+      elems.push_back(std::move(elem_value));
     }
     result_ = InterpValue::MakeTuple(std::move(elems));
     return absl::OkStatus();
   }
 
   absl::Status HandleArray(const ArrayType& t) override {
-    XLS_ASSIGN_OR_RETURN(InterpValue elem_value,
-                         MakeZeroValue(t.element_type(), import_data_, span_));
+    XLS_RETURN_IF_ERROR(t.element_type().Accept(*this));
+    XLS_ASSIGN_OR_RETURN(InterpValue elem_value, ResultOrError());
     XLS_ASSIGN_OR_RETURN(int64_t size, t.size().GetAsInt64());
     XLS_ASSIGN_OR_RETURN(
         result_,
         InterpValue::MakeArray(std::vector<InterpValue>(size, elem_value)));
     return absl::OkStatus();
   }
+
   absl::Status HandleMeta(const MetaType& t) override {
-    return TypeInferenceErrorStatus(span_, &t,
-                                    "Cannot make a zero-value of a meta-type.");
+    return TypeInferenceErrorStatus(
+        span_, &t,
+        absl::StrCat("Cannot make a ", value_name_, " of a meta-type."));
   }
 
-  const std::optional<InterpValue>& result() const { return result_; }
+  absl::StatusOr<InterpValue> ResultOrError() const {
+    XLS_RET_CHECK(result_.has_value());
+    return *result_;
+  }
 
  private:
+  LeafFn leaf_fn_;
   const ImportData& import_data_;
   const Span& span_;
+  std::string_view value_name_;
   std::optional<InterpValue> result_;
 };
 
@@ -144,10 +229,18 @@ absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span) {
   VLOG(5) << "MakeZeroValue; type: " << type << " @ " << span;
-  MakeZeroVisitor v(import_data, span);
+  MakeValueVisitor v(ZeroOfLeafType, import_data, span, kZeroValueName);
   XLS_RETURN_IF_ERROR(type.Accept(v));
-  XLS_RET_CHECK(v.result().has_value());
-  return v.result().value();
+  return v.ResultOrError();
+}
+
+absl::StatusOr<InterpValue> MakeAllOnesValue(const Type& type,
+                                             const ImportData& import_data,
+                                             const Span& span) {
+  VLOG(5) << "MakeAllOnesValue; type: " << type << " @ " << span;
+  MakeValueVisitor v(AllOnesOfLeafType, import_data, span, kAllOnesValueName);
+  XLS_RETURN_IF_ERROR(type.Accept(v));
+  return v.ResultOrError();
 }
 
 }  // namespace xls::dslx

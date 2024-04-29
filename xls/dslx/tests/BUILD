@@ -218,6 +218,8 @@ dslx_lang_test(
 
 dslx_lang_test(name = "zero_macro")
 
+dslx_lang_test(name = "all_ones_macro")
+
 dslx_lang_test(name = "tuple_with_array_member")
 
 dslx_lang_test(

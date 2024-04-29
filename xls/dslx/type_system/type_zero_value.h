@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_ZERO_VALUE_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPE_ZERO_VALUE_H_
 
+#include "absl/status/statusor.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
@@ -29,6 +31,15 @@ namespace xls::dslx {
 absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span);
+
+// Make an all-ones-value of this concrete type.
+//
+// This is not always possible, e.g. when there is an enum that does not have a
+// defined all-ones value, in which cases an error is returned. In this case,
+// span is used to cite the source of the error in the program text.
+absl::StatusOr<InterpValue> MakeAllOnesValue(const Type& type,
+                                             const ImportData& import_data,
+                                             const Span& span);
 
 }  // namespace xls::dslx
 

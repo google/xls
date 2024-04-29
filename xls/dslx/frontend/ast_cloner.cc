@@ -308,6 +308,14 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    ExprOrType new_eot = ToExprOrType(old_to_new_.at(ToAstNode(n->type())));
+    old_to_new_[n] = module_->Make<AllOnesMacro>(n->span(), new_eot);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFunction(const Function* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));

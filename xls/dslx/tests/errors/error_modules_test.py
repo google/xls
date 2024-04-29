@@ -651,6 +651,44 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'TypeInferenceError',
     )
 
+  def test_all_ones_macro_on_enum_sans_all_ones_value(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/all_ones_macro_on_enum_sans_all_ones_value.x'
+    )
+    self.assertIn(
+        'all_ones_macro_on_enum_sans_all_ones_value.x:22:12-22:33', stderr
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        "Enum type 'HasNoAllOnesValue' does not have a known all-ones value.",
+        stderr,
+    )
+
+  def test_simple_all_ones_macro_misuses(self):
+    def test(
+        contents: str, want_message_substr: str, want_type: str = 'ParseError'
+    ):
+      self._test_simple(contents, want_type, want_message_substr)
+
+    test(
+        'fn f(x: u32) -> u32 { all_ones!<u32>(x) }',
+        'all_ones! macro does not take any arguments',
+    )
+    test(
+        'fn f() -> u32 { all_ones!<u32, u64>() }', 'got 2 parametric arguments'
+    )
+    test('fn f() -> () { all_ones!<>() }', 'got 0 parametric arguments')
+    test(
+        'fn f() -> token { all_ones!<token>() }',
+        'Cannot make a all-ones-value of token type',
+        'TypeInferenceError',
+    )
+    test(
+        'fn unit() -> () { () } fn f() { all_ones!<unit>() }',
+        'Expected a type in all_ones! macro type',
+        'TypeInferenceError',
+    )
+
   def test_parametric_instantiation_with_runtime_value(self):
     stderr = self._run(
         'xls/dslx/tests/errors/parametric_instantiation_with_runtime_value.x'

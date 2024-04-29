@@ -56,6 +56,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
 absl::StatusOr<std::unique_ptr<Type>> DeduceZeroMacro(const ZeroMacro* node,
                                                       DeduceCtx* ctx);
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceAllOnesMacro(
+    const AllOnesMacro* node, DeduceCtx* ctx);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_INVOCATION_H_

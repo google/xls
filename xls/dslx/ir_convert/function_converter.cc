@@ -260,6 +260,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   TRAVERSE_DISPATCH(Binop)
   TRAVERSE_DISPATCH(XlsTuple)
   TRAVERSE_DISPATCH(ZeroMacro)
+  TRAVERSE_DISPATCH(AllOnesMacro)
 
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
@@ -621,6 +622,15 @@ absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
 }
 
 absl::Status FunctionConverter::HandleZeroMacro(const ZeroMacro* node) {
+  XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+  Def(node, [this, &value](const SourceInfo& loc) {
+    return function_builder_->Literal(value, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleAllOnesMacro(const AllOnesMacro* node) {
   XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
   XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
   Def(node, [this, &value](const SourceInfo& loc) {

@@ -926,6 +926,12 @@ absl::Status BytecodeEmitter::HandleZeroMacro(const ZeroMacro* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleAllOnesMacro(const AllOnesMacro* node) {
+  XLS_ASSIGN_OR_RETURN(InterpValue value, type_info_->GetConstExpr(node));
+  Add(Bytecode::MakeLiteral(node->span(), std::move(value)));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   for (const Expr* arg : node->args()) {
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));

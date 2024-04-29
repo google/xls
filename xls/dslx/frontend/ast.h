@@ -45,6 +45,7 @@
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
 #define XLS_DSLX_EXPR_NODE_EACH(X) \
+  X(AllOnesMacro)                  \
   X(Array)                         \
   X(Attr)                          \
   X(Binop)                         \
@@ -2017,6 +2018,41 @@ class ZeroMacro : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "ZeroMacro"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  ExprOrType type() const { return type_; }
+
+  Precedence GetPrecedenceWithoutParens() const final {
+    return Precedence::kStrongest;
+  }
+
+ private:
+  std::string ToStringInternal() const final;
+
+  ExprOrType type_;
+};
+
+// Represents a call to a parametric "make an all-ones value" macro;
+// e.g. `allones!<T>()`
+//
+// Note that the parametric arg is a type annotation or a type expression, which
+// we currently represent as ExprOrType.
+class AllOnesMacro : public Expr {
+ public:
+  AllOnesMacro(Module* owner, Span span, ExprOrType type);
+
+  ~AllOnesMacro() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kAllOnesMacro; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleAllOnesMacro(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleAllOnesMacro(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "AllOnesMacro"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   ExprOrType type() const { return type_; }

@@ -298,6 +298,7 @@ class FunctionConverter {
   absl::Status HandleUnop(const Unop* node);
   absl::Status HandleXlsTuple(const XlsTuple* node);
   absl::Status HandleZeroMacro(const ZeroMacro* node);
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* node);
 
   // AstNode handlers that recur "manually" internal to the handler.
   absl::Status HandleArray(const Array* node);

@@ -26,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -44,7 +45,7 @@ class BytecodeEmitter : public ExprVisitor {
  public:
   // `caller_bindings` contains the symbolic bindings associated with the
   // _caller_ of `f`, if any, and is used to determine the symbolic bindings for
-  // `f` itself. It will be nullopt for non-parametric functions.
+  // `f` itself. It will be std::nullopt for non-parametric functions.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Emit(
       ImportData* import_data, const TypeInfo* type_info, const Function& f,
       const std::optional<ParametricEnv>& caller_bindings,
@@ -93,6 +94,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleFor(const For* node) override;
   absl::Status HandleFormatMacro(const FormatMacro* node) override;
   absl::Status HandleZeroMacro(const ZeroMacro* node) override;
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* node) override;
   absl::Status HandleIndex(const Index* node) override;
   absl::Status HandleInvocation(const Invocation* node) override;
   absl::Status HandleCastImpl(const Invocation* node);

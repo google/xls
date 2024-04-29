@@ -169,6 +169,31 @@ absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
   return absl::OkStatus();
 }
 
+absl::Status ConstexprEvaluator::HandleAllOnesMacro(const AllOnesMacro* expr) {
+  ExprOrType type_reference = expr->type();
+  std::optional<Type*> maybe_type =
+      type_info_->GetItem(ToAstNode(type_reference));
+  if (!maybe_type.has_value()) {
+    std::optional<Span> span = ToAstNode(type_reference)->GetSpan();
+    std::string span_str = span.has_value() ? span->ToString() : "<none>";
+    return absl::InternalError(
+        absl::StrFormat("Could not find type for \"%s\" @ %s",
+                        ToAstNode(type_reference)->ToString(), span_str));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Type> type,
+      UnwrapMetaType(maybe_type.value()->CloneToUnique(), expr->span(),
+                     "all-ones macro input type"));
+
+  // At this point type inference should have checked that this type has an
+  // all-ones value.
+  XLS_ASSIGN_OR_RETURN(InterpValue value,
+                       MakeAllOnesValue(*type, *import_data_, expr->span()));
+  type_info_->NoteConstExpr(expr, value);
+  return absl::OkStatus();
+}
+
 absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
   VLOG(3) << "ConstexprEvaluator::HandleArray : " << expr->ToString();
   std::vector<InterpValue> values;
