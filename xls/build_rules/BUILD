@@ -64,7 +64,7 @@ bzl_library(
 bzl_library(
     name = "xls_utilities_bzl",
     srcs = ["xls_utilities.bzl"],
-    deps = ["xls_common_rules_bzl"],
+    deps = [":xls_common_rules_bzl"],
 )
 
 bzl_library(
@@ -77,7 +77,7 @@ bzl_library(
     name = "xls_config_rules_bzl",
     srcs = ["xls_config_rules.bzl"],
     deps = [
-        "xls_oss_config_rules_bzl",
+        ":xls_oss_config_rules_bzl",
     ],
 )
 
