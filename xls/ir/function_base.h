@@ -171,8 +171,11 @@ class FunctionBase {
   bool IsProc() const;
   bool IsBlock() const;
 
+  const Function* AsFunctionOrDie() const;
   Function* AsFunctionOrDie();
+  const Proc* AsProcOrDie() const;
   Proc* AsProcOrDie();
+  const Block* AsBlockOrDie() const;
   Block* AsBlockOrDie();
 
   // Returns true if the given node has implicit uses in the function. Implicit

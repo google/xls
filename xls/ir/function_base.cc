@@ -189,6 +189,20 @@ bool FunctionBase::IsBlock() const {
   return dynamic_cast<const Block*>(this) != nullptr;
 }
 
+const Function* FunctionBase::AsFunctionOrDie() const {
+  CHECK(IsFunction());
+  return down_cast<const Function*>(this);
+}
+
+const Proc* FunctionBase::AsProcOrDie() const {
+  CHECK(IsProc());
+  return down_cast<const Proc*>(this);
+}
+
+const Block* FunctionBase::AsBlockOrDie() const {
+  CHECK(IsBlock());
+  return down_cast<const Block*>(this);
+}
 Function* FunctionBase::AsFunctionOrDie() {
   CHECK(IsFunction());
   return down_cast<Function*>(this);
