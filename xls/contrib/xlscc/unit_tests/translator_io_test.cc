@@ -13,10 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
-#include <cstdio>
 #include <list>
-#include <memory>
-#include <ostream>
 #include <string>
 #include <vector>
 
@@ -24,21 +21,12 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
-#include "absl/strings/str_format.h"
-#include "google/protobuf/message.h"
-#include "google/protobuf/text_format.h"
-#include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
-#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/ir_test_base.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 
 namespace xlscc {
@@ -1268,7 +1256,7 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsRead) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
-       void my_package(__xls_channel<int>& dir_in, 
+       void my_package(__xls_channel<int>& dir_in,
                        __xls_channel<int>& in1,
                        __xls_channel<int>& in2,
                        __xls_channel<int>& out) {
@@ -1293,15 +1281,15 @@ TEST_F(TranslatorIOTest, ReturnChannelSubroutine) {
   const std::string content = R"(
        template<typename T>
        using my_ch = __xls_channel<T>;
-  
-       my_ch<int>& SelectCh(bool select_a, 
+
+       my_ch<int>& SelectCh(bool select_a,
                         my_ch<int>& ac,
                         my_ch<int>& bc) {
           return ac;
        }
-       
+
        #pragma hls_top
-       void my_package(my_ch<int>& dir_in, 
+       void my_package(my_ch<int>& dir_in,
                        my_ch<int>& in1,
                        my_ch<int>& in2,
                        my_ch<int>& out) {
@@ -1326,15 +1314,15 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutine) {
   const std::string content = R"(
        template<typename T>
        using my_ch = __xls_channel<T>;
-  
-       my_ch<int>& SelectCh(bool select_a, 
+
+       my_ch<int>& SelectCh(bool select_a,
                         my_ch<int>& ac,
                         my_ch<int>& bc) {
           return select_a ? ac : bc;
        }
-       
+
        #pragma hls_top
-       void my_package(my_ch<int>& dir_in, 
+       void my_package(my_ch<int>& dir_in,
                        my_ch<int>& in1,
                        my_ch<int>& in2,
                        my_ch<int>& out) {
@@ -1361,16 +1349,16 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineTemplated) {
   const std::string content = R"(
        template<typename T>
        using my_ch = __xls_channel<T>;
-  
+
        template<typename T>
-       my_ch<T>& SelectCh(bool select_a, 
+       my_ch<T>& SelectCh(bool select_a,
                         my_ch<T>& ac,
                         my_ch<T>& bc) {
           return select_a ? ac : bc;
        }
-       
+
        #pragma hls_top
-       void my_package(my_ch<int>& dir_in, 
+       void my_package(my_ch<int>& dir_in,
                        my_ch<int>& in1,
                        my_ch<int>& in2,
                        my_ch<int>& out) {
@@ -1397,17 +1385,17 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutine2) {
   const std::string content = R"(
        template<typename T>
        using my_ch = __xls_channel<T>;
-  
-       my_ch<int>& SelectCh(bool select_a, 
+
+       my_ch<int>& SelectCh(bool select_a,
                             bool select_c,
                             my_ch<int>& ac,
                             my_ch<int>& bc,
                             my_ch<int>& cc) {
           return select_c ? cc : (!select_a ? ac : bc);
        }
-       
+
        #pragma hls_top
-       void my_package(my_ch<int>& dir_a_in, 
+       void my_package(my_ch<int>& dir_a_in,
                        my_ch<int>& dir_c_in,
                        my_ch<int>& ina,
                        my_ch<int>& inb,
@@ -1449,7 +1437,7 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineSwitch) {
   const std::string content = R"(
        template<typename T>
        using my_ch = __xls_channel<T>;
-  
+
        my_ch<int>& SelectCh(int idx, my_ch<int>& a, my_ch<int>& b) {
         switch (idx) {
           default:
@@ -1461,9 +1449,9 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineSwitch) {
             return a;
           }
         }
-  
+
        #pragma hls_top
-       void my_package(my_ch<int>& dir_in, 
+       void my_package(my_ch<int>& dir_in,
                        my_ch<int>& in1,
                        my_ch<int>& in2,
                        my_ch<int>& out) {
@@ -1516,12 +1504,12 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineSwitchTemplated) {
             return a;
           }
         }
-  
+
        template<typename T>
        using my_ch = __xls_channel<T>;
 
        #pragma hls_top
-       void my_package(my_ch<int>& dir_in, 
+       void my_package(my_ch<int>& dir_in,
                        my_ch<int>& in1,
                        my_ch<int>& in2,
                        my_ch<int>& out) {
@@ -1563,7 +1551,7 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadAssign) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
-       void my_package(__xls_channel<int>& dir_in, 
+       void my_package(__xls_channel<int>& dir_in,
                        __xls_channel<int>& in1,
                        __xls_channel<int>& in2,
                        __xls_channel<int>& out) {
@@ -1591,7 +1579,7 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsWrite) {
        #include "/xls_builtin.h"
        #pragma hls_top
        void my_package(__xls_channel<int>& dir_in,
-                       __xls_channel<int>& in, 
+                       __xls_channel<int>& in,
                        __xls_channel<int>& out1,
                        __xls_channel<int>& out2) {
           const int dir = dir_in.read();
@@ -1613,7 +1601,7 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsNonblocking) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
-       void my_package(__xls_channel<int>& dir_in, 
+       void my_package(__xls_channel<int>& dir_in,
                        __xls_channel<int>& in1,
                        __xls_channel<int>& in2,
                        __xls_channel<int>& out) {
@@ -1661,7 +1649,7 @@ TEST_F(TranslatorIOTest, TernaryChannelRefParam) {
         return ch.read();
        }
        #pragma hls_top
-       void my_package(__xls_channel<int>& dir_in, 
+       void my_package(__xls_channel<int>& dir_in,
                        __xls_channel<int>& in1,
                        __xls_channel<int>& in2,
                        __xls_channel<int>& out) {
@@ -1686,7 +1674,7 @@ TEST_F(TranslatorIOTest, ChannelRefInStructSubroutineRef) {
         SenderThing(__xls_channel<int>& ch, int out_init = 3)
           : ch(ch), out(out_init)
         {}
-       
+
         void send(int offset) {
           ch.write(offset + out);
         }
@@ -1694,7 +1682,7 @@ TEST_F(TranslatorIOTest, ChannelRefInStructSubroutineRef) {
         __xls_channel<int>& ch;
         int out;
        };
-       
+
        void SubSend(SenderThing& sender, int val) {
         sender.send(val);
        }
@@ -1722,7 +1710,7 @@ TEST_F(TranslatorIOTest, TopParameterStructWithChannel) {
         int x;
         __xls_channel<int> ch;
         int y;
-      }; 
+      };
       #include "/xls_builtin.h"
       #pragma hls_top
       void my_package(Block in,
