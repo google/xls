@@ -13,17 +13,13 @@
 // limitations under the License.
 
 // Random-sampling test for the DSLX 2x32 floating-point multiplier.
-#include <cmath>
 #include <cstdint>
 #include <tuple>
 
 #include "absl/flags/flag.h"
-#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
-#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/stdlib/float32_mul_jit_wrapper.h"
 #include "xls/dslx/stdlib/float32_test_utils.h"
 #include "xls/tools/testbench.h"

@@ -14,7 +14,6 @@
 
 #include "xls/common/file/get_runfile_path.h"
 
-#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
@@ -23,10 +22,10 @@
 #include "absl/base/const_init.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/module_initializer.h"
-#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 namespace xls {

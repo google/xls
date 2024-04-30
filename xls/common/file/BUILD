@@ -100,8 +100,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
-        "//xls/common:module_initializer",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@bazel_tools//tools/cpp/runfiles",
     ],
