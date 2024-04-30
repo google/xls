@@ -36,11 +36,9 @@ cc_test(
     deps = [
         ":z3_op_translator",
         ":z3_utils",
-        "@com_google_absl//absl/cleanup",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
-        "//xls/common/status:matchers",
         "@z3//:api",
     ],
 )

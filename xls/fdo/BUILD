@@ -26,18 +26,12 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
-        "//xls/codegen:block_conversion",
-        "//xls/codegen:block_generator",
-        "//xls/codegen:codegen_options",
-        "//xls/codegen:codegen_pass",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",
-        "//xls/scheduling:pipeline_schedule",
-        "//xls/scheduling:scheduling_options",
     ],
 )
 
@@ -144,7 +138,6 @@ cc_test(
     srcs = ["synthesizer_test.cc"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
