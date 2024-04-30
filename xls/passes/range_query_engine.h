@@ -227,6 +227,7 @@ class RangeQueryEngine : public QueryEngine {
   // overwrite the interval sets you define using this method, depending on what
   // node you defined.
   void SetIntervalSetTree(Node* node, const IntervalSetTree& interval_sets);
+  void SetIntervalSetTree(Node* node, IntervalSetTree&& interval_sets);
 
   // Initialize a node's known bits.
   // This must be called before `SetIntervalSetTree`.
@@ -234,6 +235,10 @@ class RangeQueryEngine : public QueryEngine {
 
  private:
   friend class RangeQueryVisitor;
+
+  IntervalSetTree& GetOrCreateIntervalSetTree(Node* node);
+  MutableLeafTypeTreeView<IntervalSet> GetOrCreateMutableIntervalSetTreeView(
+      Node* node);
 
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;

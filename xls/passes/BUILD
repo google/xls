@@ -650,7 +650,6 @@ cc_library(
     deps = [
         ":query_engine",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/log",
@@ -666,7 +665,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
-        "//xls/ir:interval",
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
         "//xls/ir:op",

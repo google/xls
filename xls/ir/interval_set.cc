@@ -35,21 +35,22 @@ namespace xls {
 IntervalSet IntervalSet::Maximal(int64_t bit_count) {
   IntervalSet result(bit_count);
   result.AddInterval(Interval::Maximal(bit_count));
-  result.Normalize();
+  result.is_normalized_ = true;
   return result;
 }
 
 IntervalSet IntervalSet::NonZero(int64_t bit_count) {
+  CHECK_GE(bit_count, 0);
   IntervalSet result(bit_count);
   result.AddInterval(Interval(UBits(1, bit_count), Bits::AllOnes(bit_count)));
-  result.Normalize();
+  result.is_normalized_ = true;
   return result;
 }
 
 IntervalSet IntervalSet::Precise(const Bits& bits) {
   IntervalSet result(bits.bit_count());
   result.AddInterval(Interval::Precise(bits));
-  result.Normalize();
+  result.is_normalized_ = true;
   return result;
 }
 
