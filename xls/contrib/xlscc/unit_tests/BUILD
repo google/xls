@@ -64,7 +64,6 @@ cc_test(
     deps = [
         ":unit_test",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
@@ -81,6 +80,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -90,7 +90,6 @@ cc_test(
     shard_count = 32,
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:hls_block_cc_proto",
@@ -100,6 +99,7 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -109,7 +109,6 @@ cc_test(
     shard_count = 32,
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -119,6 +118,7 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -129,7 +129,6 @@ cc_test(
     shard_count = 32,
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
@@ -155,6 +154,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
         "@llvm-project//clang:ast",
     ],
@@ -165,13 +165,13 @@ cc_test(
     srcs = ["translator_pointer_test.cc"],
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:translator",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -180,7 +180,6 @@ cc_test(
     srcs = ["translator_static_test.cc"],
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -190,6 +189,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -202,7 +202,6 @@ cc_test(
     ],
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -210,6 +209,7 @@ cc_test(
         "//xls/contrib/xlscc:translator",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -226,7 +226,6 @@ cc_test(
         "//xls/codegen:block_generator",
         "//xls/codegen:codegen_pass",
         "//xls/codegen:signature_generator",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:hls_block_cc_proto",
@@ -238,6 +237,7 @@ cc_test(
         "//xls/simulation:verilog_simulators",
         "//xls/simulation:verilog_test_base",
         "@com_google_absl//absl/log",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -262,12 +262,12 @@ cc_test(
     srcs = ["cc_parser_test.cc"],
     deps = [
         ":unit_test",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:cc_parser",
         "//xls/contrib/xlscc:metadata_output_cc_proto",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
         "@llvm-project//clang:basic",
     ],
 )
@@ -322,8 +322,8 @@ cc_test(
     deps = [
         ":unit_test",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -342,8 +342,8 @@ cc_test(
     deps = [
         ":unit_test",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -387,10 +387,10 @@ xls_ac_fuzz_binaries(
         "//xls/codegen:codegen_options",
         "//xls/codegen:vast",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/ir:bits",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -404,9 +404,9 @@ xls_ac_fuzz_binaries(
         "//xls/codegen:codegen_options",
         "//xls/codegen:vast",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/ir:bits",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )

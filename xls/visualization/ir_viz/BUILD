@@ -124,7 +124,6 @@ cc_test(
         ":ir_to_proto",
         ":visualization_cc_proto",
         "//xls/common:golden_files",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
@@ -136,6 +135,7 @@ cc_test(
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -164,7 +164,6 @@ cc_test(
     ]),
     deps = [
         ":ir_to_json",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
@@ -176,6 +175,7 @@ cc_test(
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 

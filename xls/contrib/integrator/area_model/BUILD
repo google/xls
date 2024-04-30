@@ -57,13 +57,13 @@ cc_test(
     srcs = ["area_estimators_test.cc"],
     deps = [
         ":area_estimator",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
+        "@com_google_googletest//:gtest",
     ],
 )
 

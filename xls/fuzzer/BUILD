@@ -90,7 +90,6 @@ cc_test(
         ":run_fuzz",
         ":sample",
         "//xls/common:subprocess",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -100,6 +99,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -112,7 +112,6 @@ cc_test(
         ":ast_generator",
         ":run_fuzz",
         ":sample",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -122,6 +121,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -135,7 +135,6 @@ cc_test(
         ":ast_generator",
         ":run_fuzz",
         ":sample",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -145,6 +144,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -158,7 +158,6 @@ cc_test(
         ":ast_generator",
         ":run_fuzz",
         ":sample",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -168,6 +167,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -180,7 +180,6 @@ cc_test(
         ":ast_generator",
         ":run_fuzz",
         ":sample",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -190,6 +189,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -203,7 +203,6 @@ cc_test(
         ":ast_generator",
         ":run_fuzz",
         ":sample",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -213,6 +212,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -226,7 +226,6 @@ cc_test(
         ":ast_generator",
         ":run_fuzz",
         ":sample",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -236,6 +235,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -332,7 +332,6 @@ cc_test(
         ":sample",
         ":sample_cc_proto",
         ":sample_runner",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -351,6 +350,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -703,7 +703,6 @@ cc_test(
     srcs = ["ast_generator_test.cc"],
     deps = [
         ":ast_generator",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -718,6 +717,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -775,12 +775,12 @@ cc_test(
     srcs = ["dslx_mutator_test.cc"],
     deps = [
         ":dslx_mutator",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:mock_distributions",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -799,12 +799,12 @@ cc_test(
         ":sample",
         ":sample_generator",
         ":value_generator",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:channel_direction",
         "//xls/dslx:interp_value",
         "//xls/dslx/type_system:type",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -818,7 +818,6 @@ cc_test(
         ":run_fuzz",
         ":sample",
         "//xls/common:stopwatch",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -831,6 +830,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -844,7 +844,6 @@ cc_test(
         ":run_fuzz",
         ":sample",
         "//xls/common:stopwatch",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -857,6 +856,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -893,7 +893,6 @@ cc_test(
     srcs = ["value_generator_test.cc"],
     deps = [
         ":value_generator",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
@@ -901,6 +900,7 @@ cc_test(
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -909,11 +909,11 @@ cc_test(
     srcs = ["sample_cc_test.cc"],
     deps = [
         ":sample",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
         "@com_google_absl//absl/log",
+        "@com_google_googletest//:gtest",
     ],
 )
 

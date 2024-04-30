@@ -57,7 +57,6 @@ cc_test(
         ":ir_integrator",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -66,6 +65,7 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:verifier",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -88,7 +88,6 @@ cc_test(
     srcs = ["integration_builder_test.cc"],
     deps = [
         ":integration_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -96,5 +95,6 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
+        "@com_google_googletest//:gtest",
     ],
 )

@@ -24,11 +24,11 @@ cc_test(
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_builder_options_cc_proto",
+        "@com_google_googletest//:gtest",
     ],
 )

@@ -39,9 +39,9 @@ cc_test(
         ":file_descriptor",
         ":filesystem",
         ":temp_directory",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -72,9 +72,9 @@ cc_test(
         ":temp_file",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -115,9 +115,9 @@ cc_test(
         ":filesystem",
         ":get_runfile_path",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -136,10 +136,10 @@ cc_test(
     srcs = ["path_test.cc"],
     deps = [
         ":path",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -162,9 +162,9 @@ cc_test(
     deps = [
         ":filesystem",
         ":temp_directory",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -209,9 +209,9 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "//xls/common:thread",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -223,8 +223,8 @@ cc_test(
         ":temp_file",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )

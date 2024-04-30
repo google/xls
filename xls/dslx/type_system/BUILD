@@ -58,7 +58,6 @@ cc_test(
         ":type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
@@ -66,6 +65,7 @@ cc_test(
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/ir:bits",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -404,7 +404,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -415,6 +414,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -424,10 +424,10 @@ cc_test(
     deps = [
         ":typecheck_test_utils",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:error_test_utils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -451,8 +451,8 @@ cc_test(
     deps = [
         ":parametric_expression",
         "@com_google_absl//absl/container:flat_hash_set",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -555,12 +555,12 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -609,7 +609,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:casts",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -618,6 +617,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -650,12 +650,12 @@ cc_test(
         ":parametric_expression",
         ":type",
         "@com_google_absl//absl/container:flat_hash_map",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -789,7 +789,6 @@ cc_test(
         ":type_info",
         "@com_google_absl//absl/status",
         "//xls/common:casts",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:import_data",
@@ -799,6 +798,7 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:proc",
         "//xls/dslx/frontend:scanner",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -852,9 +852,9 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -882,8 +882,8 @@ cc_test(
     deps = [
         ":format_type_mismatch",
         ":type",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )

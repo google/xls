@@ -57,7 +57,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:golden_files",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -70,5 +69,6 @@ cc_test(
         "//xls/ir:value",
         "//xls/ir:value_view",
         "//xls/jit:function_jit",
+        "@com_google_googletest//:gtest",
     ],
 )

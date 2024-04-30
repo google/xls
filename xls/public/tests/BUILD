@@ -22,9 +22,9 @@ cc_test(
     name = "function_builder_test",
     srcs = ["function_builder_test.cc"],
     deps = [
-        "//xls/common:xls_gunit",
         "//xls/public:function_builder",
         "//xls/public:status_matchers",
         "//xls/public:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )

@@ -63,10 +63,10 @@ cc_test(
     srcs = ["runtime_build_actions_test.cc"],
     deps = [
         ":runtime_build_actions",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
+        "@com_google_googletest//:gtest",
     ],
 )
 

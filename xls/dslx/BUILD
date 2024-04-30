@@ -81,7 +81,6 @@ cc_test(
         ":warning_collector",
         ":warning_kind",
         "//xls/common:casts",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -95,6 +94,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -134,11 +134,11 @@ cc_test(
     srcs = ["errors_test.cc"],
     deps = [
         ":errors",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -171,7 +171,6 @@ cc_test(
     deps = [
         ":interp_value",
         ":interp_value_utils",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:ast",
@@ -182,6 +181,7 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -237,11 +237,11 @@ cc_test(
     srcs = ["interp_value_test.cc"],
     deps = [
         ":interp_value",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -268,12 +268,12 @@ cc_test(
     srcs = ["interp_bindings_test.cc"],
     deps = [
         ":interp_bindings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -365,9 +365,9 @@ cc_test(
     srcs = ["mangle_test.cc"],
     deps = [
         ":mangle",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -440,13 +440,13 @@ cc_test(
     srcs = ["error_printer_test.cc"],
     deps = [
         ":error_printer",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -653,9 +653,9 @@ cc_test(
     srcs = ["warning_kind_test.cc"],
     deps = [
         ":warning_kind",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -706,7 +706,6 @@ cc_test(
     name = "shadow_builtin_test",
     srcs = ["shadow_builtin_test.cc"],
     deps = [
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:builtins_metadata",
@@ -714,6 +713,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -743,9 +743,9 @@ cc_test(
         ":default_dslx_stdlib_path",
         ":interp_value",
         ":interp_value_from_string",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -766,11 +766,11 @@ cc_test(
     srcs = ["error_test_utils_test.cc"],
     deps = [
         ":error_test_utils",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 

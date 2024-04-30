@@ -121,9 +121,9 @@ cc_test(
         ":make_tuple",
         ":wide_identity",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_utils",
+        "@com_google_googletest//:gtest",
     ],
 )

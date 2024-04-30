@@ -46,7 +46,6 @@ cc_test(
         ":wrap_io",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:source_location",
@@ -54,6 +53,7 @@ cc_test(
         "//xls/simulation:module_testbench_thread",
         "//xls/simulation:verilog_test_base",
         "@com_google_absl//absl/log",
+        "@com_google_googletest//:gtest",
     ],
 )
 

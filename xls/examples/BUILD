@@ -353,7 +353,6 @@ cc_test(
     deps = [
         ":proc_fir_filter",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -363,6 +362,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 

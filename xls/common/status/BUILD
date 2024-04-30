@@ -39,8 +39,8 @@ cc_test(
         ":error_code_to_status",
         ":matchers",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -69,9 +69,9 @@ cc_test(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:scoped_mock_log",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -114,9 +114,9 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:scoped_mock_log",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -141,8 +141,8 @@ cc_test(
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 

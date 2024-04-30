@@ -452,7 +452,6 @@ cc_test(
     srcs = ["mux3_opt_ir_test.cc"],
     data = [":mux3_opt_ir.opt.ir"],
     deps = [
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -460,6 +459,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -471,7 +471,6 @@ cc_test(
         ":mux3_stages_5_v.sv",
     ],
     deps = [
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -479,5 +478,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
     ],
 )

@@ -82,10 +82,10 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
+        "@com_google_googletest//:gtest",
         "@verible//common/lsp:lsp-protocol",
     ],
 )

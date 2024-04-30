@@ -196,11 +196,11 @@ cc_test(
     srcs = ["float32_add_jit_wrapper_test.cc"],
     deps = [
         ":float32_add_jit_wrapper",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -395,9 +395,9 @@ cc_test(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 

@@ -89,7 +89,6 @@ cc_test(
     shard_count = 4,
     deps = [
         ":booleanifier",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -108,6 +107,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -154,7 +154,6 @@ cc_test(
     srcs = ["remove_identifiers_test.cc"],
     deps = [
         ":remove_identifiers",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -165,6 +164,7 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -387,7 +387,6 @@ cc_test(
     srcs = ["proto_to_dslx_test.cc"],
     deps = [
         ":proto_to_dslx",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -396,6 +395,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:module",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -453,8 +453,8 @@ cc_test(
     srcs = ["testbench_builder_utils_test.cc"],
     deps = [
         ":testbench_builder_utils",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -609,12 +609,12 @@ cc_test(
     deps = [
         ":eval_utils",
         ":proc_channel_values_cc_proto",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:value",
         "@com_google_absl//absl/container:btree",
+        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -1323,12 +1323,12 @@ cc_test(
     data = ["testdata/bom.sig.textproto"],
     deps = [
         ":bom",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_googletest//:gtest",
     ],
 )
 

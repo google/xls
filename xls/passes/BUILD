@@ -101,7 +101,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/utility",
         "//xls/common:casts",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -111,6 +110,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:ram_rewrite_cc_proto",
         "//xls/ir:type",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -122,7 +122,6 @@ cc_test(
         ":identity_removal_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -130,6 +129,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -144,7 +144,6 @@ cc_test(
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:ir_interpreter",
@@ -157,6 +156,7 @@ cc_test(
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
         "//xls/solvers:z3_ir_translator",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -168,7 +168,6 @@ cc_test(
         ":optimization_pass_pipeline",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
@@ -177,6 +176,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -187,7 +187,6 @@ cc_test(
         ":canonicalization_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:ir_interpreter",
@@ -195,6 +194,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -220,11 +220,11 @@ cc_test(
         ":dce_pass",
         ":optimization_pass",
         ":unroll_pass",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -285,7 +285,6 @@ cc_test(
     deps = [
         ":map_inlining_pass",
         ":optimization_pass",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -293,6 +292,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1002,7 +1002,6 @@ cc_test(
     deps = [
         ":node_dependency_analysis",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -1011,6 +1010,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1124,7 +1124,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1136,6 +1135,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1179,7 +1179,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -1191,6 +1190,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
         "@com_googlesource_code_re2//:re2",
     ],
 )
@@ -1202,10 +1202,10 @@ cc_test(
         ":predicate_state",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:function_builder",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1310,12 +1310,12 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1486,11 +1486,11 @@ cc_test(
     srcs = ["unroll_proc_test.cc"],
     deps = [
         ":unroll_proc",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1604,7 +1604,6 @@ cc_test(
         ":proc_state_narrowing_pass",
         ":proc_state_optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -1614,6 +1613,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1714,7 +1714,6 @@ cc_test(
         ":ram_rewrite_pass",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1724,6 +1723,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1771,7 +1771,6 @@ cc_test(
         ":optimization_pass",
         ":receive_default_value_simplification_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1780,6 +1779,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value_utils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1795,7 +1795,6 @@ cc_test(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1805,6 +1804,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1818,7 +1818,6 @@ cc_test(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -1829,6 +1828,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1850,7 +1850,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -1868,6 +1867,7 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1880,7 +1880,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1888,6 +1887,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1898,11 +1898,11 @@ cc_test(
         ":literal_uncommoning_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1914,7 +1914,6 @@ cc_test(
         ":dce_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1922,6 +1921,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1933,7 +1933,6 @@ cc_test(
         ":dce_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1942,6 +1941,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1955,7 +1955,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1968,6 +1967,7 @@ cc_test(
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
         "//xls/solvers:z3_ir_translator",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1980,7 +1980,6 @@ cc_test(
         ":optimization_pass",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -1988,6 +1987,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2003,7 +2003,6 @@ cc_test(
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2014,6 +2013,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2024,7 +2024,6 @@ cc_test(
         ":optimization_pass",
         ":token_dependency_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2032,6 +2031,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2042,7 +2042,6 @@ cc_test(
         ":optimization_pass",
         ":token_simplification_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2050,6 +2049,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2062,7 +2062,6 @@ cc_test(
         ":pass_base",
         ":strength_reduction_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2074,6 +2073,7 @@ cc_test(
         "//xls/ir:op",
         "//xls/solvers:z3_ir_equivalence",
         "//xls/solvers:z3_ir_translator",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2092,7 +2092,6 @@ cc_test(
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -2108,6 +2107,7 @@ cc_test(
         "//xls/ir:value",
         "//xls/ir:value_builder",
         "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2117,13 +2117,13 @@ cc_test(
     deps = [
         ":stateless_query_engine",
         "@com_google_absl//absl/log",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2135,7 +2135,6 @@ cc_test(
         ":select_simplification_pass",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2146,6 +2145,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
         "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2158,11 +2158,11 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2174,13 +2174,13 @@ cc_test(
         ":optimization_pass",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2191,7 +2191,6 @@ cc_test(
         ":predicate_dominator_analysis",
         ":predicate_state",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2201,6 +2200,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2209,11 +2209,11 @@ cc_test(
     srcs = ["post_dominator_analysis_test.cc"],
     deps = [
         ":post_dominator_analysis",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2224,7 +2224,6 @@ cc_test(
         ":token_provenance_analysis",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/data_structures:leaf_type_tree",
@@ -2235,6 +2234,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2247,7 +2247,6 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":bdd_function",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:parse_and_typecheck",
@@ -2261,6 +2260,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2270,7 +2270,6 @@ cc_test(
     deps = [
         ":bdd_query_engine",
         "@com_google_absl//absl/container:inlined_vector",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/data_structures:binary_decision_diagram",
@@ -2278,6 +2277,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2293,7 +2293,6 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2304,6 +2303,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:ternary",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2319,7 +2319,6 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2331,6 +2330,7 @@ cc_test(
         "//xls/ir:interval_set",
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2343,7 +2343,6 @@ cc_test(
         ":dce_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2352,6 +2351,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2363,7 +2363,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -2373,6 +2372,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2385,7 +2385,6 @@ cc_test(
         ":pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2396,6 +2395,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2407,13 +2407,13 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2428,7 +2428,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2443,6 +2442,7 @@ cc_test(
         "//xls/ir:ternary",
         "//xls/ir:type",
         "@com_google_fuzztest//fuzztest",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2453,7 +2453,6 @@ cc_test(
         ":back_propagate_range_analysis",
         ":range_query_engine",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -2464,6 +2463,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2478,7 +2478,6 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/data_structures:leaf_type_tree",
@@ -2491,6 +2490,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2505,7 +2505,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -2515,6 +2514,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2527,7 +2527,6 @@ cc_test(
         ":dce_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2536,6 +2535,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2549,7 +2549,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:ir_interpreter",
@@ -2557,6 +2556,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2568,7 +2568,6 @@ cc_test(
         ":optimization_pass",
         ":useless_assert_removal_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2577,6 +2576,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_scanner",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2588,7 +2588,6 @@ cc_test(
         ":optimization_pass",
         ":useless_io_removal_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2601,6 +2600,7 @@ cc_test(
         "//xls/ir:ir_scanner",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2611,7 +2611,6 @@ cc_test(
         ":comparison_simplification_pass",
         ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -2619,6 +2618,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2630,7 +2630,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2638,6 +2637,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2650,7 +2650,6 @@ cc_test(
         ":pass_base",
         ":sparsify_select_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2660,6 +2659,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2675,7 +2675,6 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -2686,6 +2685,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2756,7 +2756,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -2766,6 +2765,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2784,7 +2784,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -2798,6 +2797,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/ir:verifier",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2859,7 +2859,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2870,6 +2869,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2882,7 +2882,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -2893,6 +2892,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_benchmark//:benchmark",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2933,7 +2933,6 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -2943,5 +2942,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_googletest//:gtest",
     ],
 )

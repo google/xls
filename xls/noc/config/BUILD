@@ -53,8 +53,8 @@ cc_test(
     srcs = ["link_config_proto_builder_test.cc"],
     deps = [
         ":link_config_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -74,8 +74,8 @@ cc_test(
     srcs = ["virtual_channel_config_proto_builder_test.cc"],
     deps = [
         ":virtual_channel_config_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -95,8 +95,8 @@ cc_test(
     srcs = ["port_config_proto_builder_test.cc"],
     deps = [
         ":port_config_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -116,8 +116,8 @@ cc_test(
     srcs = ["routing_scheme_config_proto_builder_test.cc"],
     deps = [
         ":routing_scheme_config_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -138,8 +138,8 @@ cc_test(
     srcs = ["arbiter_scheme_config_proto_builder_test.cc"],
     deps = [
         ":arbiter_scheme_config_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -162,8 +162,8 @@ cc_test(
     srcs = ["router_config_proto_builder_test.cc"],
     deps = [
         ":router_config_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -187,9 +187,9 @@ cc_test(
     srcs = ["network_config_proto_builder_test.cc"],
     deps = [
         ":network_config_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -224,8 +224,8 @@ cc_test(
     srcs = ["common_network_config_builder_options_proto_builder_test.cc"],
     deps = [
         ":common_network_config_builder_options_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -244,7 +244,7 @@ cc_test(
     srcs = ["custom_network_config_builder_options_proto_builder_test.cc"],
     deps = [
         ":custom_network_config_builder_options_proto_builder",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )

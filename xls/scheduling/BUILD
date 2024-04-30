@@ -58,12 +58,12 @@ cc_test(
         ":extract_stage",
         ":run_pipeline_schedule",
         ":scheduling_options",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -106,8 +106,8 @@ cc_test(
     srcs = ["min_cut_scheduler_test.cc"],
     deps = [
         ":min_cut_scheduler",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -213,7 +213,6 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
@@ -229,6 +228,7 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -238,12 +238,12 @@ cc_test(
     deps = [
         ":schedule_bounds",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -257,13 +257,13 @@ cc_test(
     deps = [
         ":function_partition",
         "@com_google_absl//absl/container:flat_hash_set",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -329,7 +329,6 @@ cc_test(
         ":scheduling_options",
         ":scheduling_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -342,6 +341,7 @@ cc_test(
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -396,7 +396,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -410,6 +409,7 @@ cc_test(
         "//xls/passes:inlining_pass",
         "//xls/passes:literal_uncommoning_pass",
         "//xls/passes:optimization_pass",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -503,7 +503,6 @@ cc_test(
         ":scheduling_pass",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -521,6 +520,7 @@ cc_test(
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -554,7 +554,6 @@ cc_test(
         ":scheduling_options",
         ":scheduling_pass",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
@@ -569,5 +568,6 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/tools:scheduling_options_flags",
+        "@com_google_googletest//:gtest",
     ],
 )

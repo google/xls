@@ -43,8 +43,8 @@ cc_test(
     srcs = ["pretty_print_test.cc"],
     deps = [
         ":pretty_print",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -86,7 +86,6 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -98,6 +97,7 @@ cc_test(
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -109,7 +109,6 @@ cc_test(
         ":ast_fmt",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -117,5 +116,6 @@ cc_test(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
         "//xls/fuzzer:ast_generator",
+        "@com_google_googletest//:gtest",
     ],
 )

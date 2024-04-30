@@ -94,7 +94,6 @@ cc_test(
         ":ir_evaluator_test_base",
         ":ir_interpreter",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -104,6 +103,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -140,9 +140,9 @@ cc_test(
         ":proc_evaluator",
         ":proc_evaluator_test_base",
         ":proc_interpreter",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/ir",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -155,7 +155,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -164,6 +163,7 @@ cc_test(
         "//xls/ir:channel_ops",
         "//xls/ir:elaboration",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -203,8 +203,8 @@ cc_test(
         ":block_evaluator_test_base",
         ":ir_interpreter",
         "//xls/codegen:module_signature_cc_proto",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -294,12 +294,12 @@ cc_test(
     deps = [
         ":random_value",
         "@com_google_absl//absl/container:flat_hash_set",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -418,7 +418,6 @@ cc_test(
         ":proc_runtime_test_base",
         ":serial_proc_runtime",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -427,6 +426,7 @@ cc_test(
         "//xls/jit:jit_channel_queue",
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:proc_jit",
+        "@com_google_googletest//:gtest",
     ],
 )
 

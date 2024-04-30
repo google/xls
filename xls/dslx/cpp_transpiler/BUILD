@@ -102,12 +102,12 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
         "//xls/common:source_location",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -146,10 +146,10 @@ cc_test(
     deps = [
         ":test_types_lib",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )

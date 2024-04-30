@@ -48,7 +48,6 @@ cc_test(
     deps = [
         ":ir_conversion_utils",
         "@com_google_absl//absl/container:flat_hash_map",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
@@ -58,6 +57,7 @@ cc_test(
         "//xls/dslx/type_system:type",
         "//xls/ir",
         "//xls/ir:type",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -103,7 +103,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:casts",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -117,6 +116,7 @@ cc_test(
         "//xls/ir:channel_cc_proto",
         "//xls/ir:channel_ops",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -132,13 +132,13 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
         "//xls/common:init_xls",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -214,7 +214,6 @@ cc_test(
     deps = [
         ":convert_options",
         ":function_converter",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -222,6 +221,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/ir",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -308,7 +308,6 @@ cc_test(
     deps = [
         ":extract_conversion_order",
         "@com_google_absl//absl/container:flat_hash_map",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -316,6 +315,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:proc",
         "//xls/dslx/type_system:parametric_env",
+        "@com_google_googletest//:gtest",
     ],
 )
 

@@ -41,12 +41,12 @@ cc_test(
     deps = [
         ":extract_nodes",
         "@com_google_absl//absl/container:flat_hash_set",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -92,7 +92,6 @@ cc_test(
         ":synthesizer",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:analyze_critical_path",
@@ -101,6 +100,7 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -139,12 +139,12 @@ cc_test(
     deps = [
         ":synthesizer",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -197,13 +197,13 @@ cc_test(
     deps = [
         ":delay_manager",
         "@com_google_absl//absl/container:flat_hash_map",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/scheduling:scheduling_options",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -231,13 +231,13 @@ cc_test(
     deps = [
         ":node_cut",
         "@com_google_absl//absl/container:flat_hash_set",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/scheduling:scheduling_options",
+        "@com_google_googletest//:gtest",
     ],
 )
 

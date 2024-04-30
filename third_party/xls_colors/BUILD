@@ -38,7 +38,6 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fast_hsv2rgb",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -51,6 +50,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 

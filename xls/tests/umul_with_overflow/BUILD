@@ -63,11 +63,11 @@ cc_test(
     deps = [
         ":umul_with_overflow_21_21_18_jit_wrapper",
         ":umul_with_overflow_35_32_18_jit_wrapper",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
         "@com_google_fuzztest//fuzztest",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -86,9 +86,9 @@ cc_test(
     deps = [
         ":umul_with_overflow_21_21_18_jit_wrapper",
         ":umul_with_overflow_35_32_18_jit_wrapper",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
+        "@com_google_googletest//:gtest",
     ],
 )

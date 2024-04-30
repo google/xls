@@ -130,7 +130,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:casts",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -142,6 +141,7 @@ cc_test(
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "@com_googlesource_code_re2//:re2",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -163,10 +163,10 @@ cc_test(
     deps = [
         ":interpreter_stack",
         "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -282,7 +282,6 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
@@ -300,5 +299,6 @@ cc_test(
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
+        "@com_google_googletest//:gtest",
     ],
 )

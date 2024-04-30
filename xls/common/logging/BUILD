@@ -54,8 +54,8 @@ cc_test(
     deps = [
         ":log_lines",
         ":scoped_mock_log",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 

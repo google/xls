@@ -36,10 +36,10 @@ cc_test(
     deps = [
         ":z3_op_translator",
         ":z3_utils",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "@z3//:api",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -85,8 +85,8 @@ cc_test(
         ":z3_ir_translator",
         ":z3_ir_translator_matchers",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -101,7 +101,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -109,6 +108,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -174,7 +174,6 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -185,6 +184,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "@z3//:api",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -223,7 +223,6 @@ cc_test(
     deps = [
         ":z3_lec",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:ir_parser",
@@ -231,6 +230,7 @@ cc_test(
         "//xls/netlist:cell_library",
         "//xls/netlist:fake_cell_library",
         "//xls/netlist:netlist_parser",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -269,7 +269,6 @@ cc_test(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -279,6 +278,7 @@ cc_test(
         "//xls/netlist:fake_cell_library",
         "//xls/netlist:netlist_parser",
         "@z3//:api",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -311,12 +311,12 @@ cc_test(
         ":z3_op_translator",
         ":z3_utils",
         "@com_google_absl//absl/container:flat_hash_set",
-        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:value",
         "@z3//:api",
+        "@com_google_googletest//:gtest",
     ],
 )
