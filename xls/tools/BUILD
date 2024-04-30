@@ -105,7 +105,6 @@ cc_test(
         "//xls/ir:value_builder",
         "//xls/ir:xls_type_cc_proto",
         "//xls/jit:function_jit",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",

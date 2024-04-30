@@ -21,6 +21,8 @@
 #include <string_view>
 #include <utility>
 
+#include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -28,19 +30,22 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/events.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_test_util.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/scheduling/pipeline_schedule.h"
-#include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
+#include "xls/simulation/module_simulator.h"
 
 namespace xls {
 
@@ -180,7 +185,7 @@ void IrTestBase::RunAndExpectEq(
   for (const auto& pair : args) {
     args_as_values[pair.first] = Value(pair.second);
   }
-  RunAndExpectEq(args_as_values, Value(expected), std::move(package),
+  RunAndExpectEq(args_as_values, Value(std::move(expected)), std::move(package),
                  run_optimized, simulate);
 }
 
