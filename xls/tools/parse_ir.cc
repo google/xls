@@ -17,6 +17,7 @@
 // failure and emits failing absl::Status message to stderr.
 
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <vector>
 

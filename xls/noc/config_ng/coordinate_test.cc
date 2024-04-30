@@ -15,6 +15,7 @@
 #include "xls/noc/config_ng/coordinate.h"
 
 #include <cstdint>
+#include <optional>
 
 #include "gtest/gtest.h"
 

@@ -15,6 +15,7 @@
 #include "xls/ir/bit_push_buffer.h"
 
 #include <cstdint>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

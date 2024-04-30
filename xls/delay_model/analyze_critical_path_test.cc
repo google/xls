@@ -14,6 +14,9 @@
 
 #include "xls/delay_model/analyze_critical_path.h"
 
+#include <optional>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"

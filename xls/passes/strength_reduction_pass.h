@@ -16,6 +16,7 @@
 #define XLS_PASSES_STRENGTH_REDUCTION_PASS_H_
 
 #include <cstdint>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"

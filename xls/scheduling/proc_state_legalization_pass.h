@@ -15,6 +15,8 @@
 #ifndef XLS_SCHEDULING_PROC_STATE_LEGALIZATION_PASS_H_
 #define XLS_SCHEDULING_PROC_STATE_LEGALIZATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/scheduling/scheduling_pass.h"

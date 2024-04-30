@@ -13,6 +13,7 @@
 // limitations under the License.
 #include <filesystem>  // NOLINT
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"

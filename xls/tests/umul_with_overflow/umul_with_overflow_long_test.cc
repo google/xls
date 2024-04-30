@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <tuple>
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

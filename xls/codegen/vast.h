@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <limits>
 #include <memory>
 #include <optional>
 #include <ostream>

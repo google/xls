@@ -15,6 +15,7 @@
 #include "xls/noc/simulation/noc_traffic_injector.h"
 
 #include <cstdint>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

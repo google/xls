@@ -16,6 +16,7 @@
 
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <optional>
 namespace xls {
 
 std::optional<std::filesystem::path> GetUndeclaredOutputDirectory() {

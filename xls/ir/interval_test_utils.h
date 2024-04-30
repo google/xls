@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <tuple>
 
 #include "fuzztest/fuzztest.h"
 #include "absl/log/check.h"

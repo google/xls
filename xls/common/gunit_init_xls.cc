@@ -14,6 +14,9 @@
 
 #include "xls/common/gunit_init_xls.h"
 
+#include <string_view>
+#include <vector>
+
 #include "gtest/gtest.h"
 #include "xls/common/init_xls.h"
 

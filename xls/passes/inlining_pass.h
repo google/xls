@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_INLINING_PASS_H_
 #define XLS_PASSES_INLINING_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/nodes.h"

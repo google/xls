@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_DATAFLOW_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_DATAFLOW_SIMPLIFICATION_PASS_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"

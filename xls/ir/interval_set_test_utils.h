@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <tuple>
 #include <vector>
 
 #include "fuzztest/fuzztest.h"

@@ -14,6 +14,8 @@
 
 #include "xls/contrib/integrator/integration_algorithms/basic_integration_algorithm.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

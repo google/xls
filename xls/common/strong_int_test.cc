@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <type_traits>
 

@@ -14,6 +14,8 @@
 
 #include "xls/passes/post_dominator_analysis.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

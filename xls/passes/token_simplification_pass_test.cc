@@ -14,6 +14,8 @@
 
 #include "xls/passes/token_simplification_pass.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

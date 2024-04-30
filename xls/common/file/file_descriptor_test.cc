@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <string>
 #include <utility>
 
 #include "gmock/gmock.h"

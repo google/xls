@@ -14,6 +14,9 @@
 
 #include "xls/ir/function_builder.h"
 
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"

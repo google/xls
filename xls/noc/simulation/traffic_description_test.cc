@@ -15,6 +15,7 @@
 #include "xls/noc/simulation/traffic_description.h"
 
 #include <cstdint>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
