@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 
 namespace xls {
 
@@ -99,7 +100,13 @@ class NameUniquer {
 
   // Map from name prefix to the generator data structure which tracks used
   // identifiers and generates new ones.
-  absl::flat_hash_map<std::string, SequentialIdGenerator> generated_names_;
+  struct PrefixTracker {
+    // Whether the bare prefix (no numeric suffix) is taken as a name.
+    bool bare_prefix_taken = false;
+    // Numeric suffix generator for guaranteeing uniqueness.
+    SequentialIdGenerator generator;
+  };
+  absl::flat_hash_map<std::string, PrefixTracker> generated_names_;
 };
 
 }  // namespace xls

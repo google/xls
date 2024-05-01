@@ -32,7 +32,15 @@ TEST(NameUniquerTest, SimpleUniquer) {
   EXPECT_EQ("qux", uniquer.GetSanitizedUniqueName("qux"));
 
   EXPECT_EQ("baz__42", uniquer.GetSanitizedUniqueName("baz__42"));
+  EXPECT_EQ("baz", uniquer.GetSanitizedUniqueName("baz"));
   EXPECT_EQ("baz__1", uniquer.GetSanitizedUniqueName("baz"));
+
+  EXPECT_EQ("abc__2", uniquer.GetSanitizedUniqueName("abc__2"));
+  EXPECT_EQ("abc__4", uniquer.GetSanitizedUniqueName("abc__4"));
+  EXPECT_EQ("abc", uniquer.GetSanitizedUniqueName("abc"));
+  EXPECT_EQ("abc__1", uniquer.GetSanitizedUniqueName("abc"));
+  EXPECT_EQ("abc__3", uniquer.GetSanitizedUniqueName("abc__2"));
+  EXPECT_EQ("abc__5", uniquer.GetSanitizedUniqueName("abc"));
 }
 
 TEST(NameUniquerTest, DifferentSeparator) {

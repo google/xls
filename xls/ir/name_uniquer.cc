@@ -84,25 +84,22 @@ std::string NameUniquer::GetSanitizedUniqueName(std::string_view prefix) {
   // If the root is empty after stripping off the suffix, use a generic name.
   root = root.empty() ? "name" : root;
 
-  if (generated_names_.contains(root)) {
-    // This root has been seen before.
-    SequentialIdGenerator& generator = generated_names_[root];
-    if (numeric_suffix.has_value()) {
-      return absl::StrCat(root, separator_,
-                          generator.RegisterId(numeric_suffix.value()));
-    }
-    return absl::StrCat(root, separator_, generator.NextId());
-  }
+  // This will create  a map entry if it does not already exist.
+  PrefixTracker& prefix_tracker = generated_names_[root];
 
-  // This is the first time that the name root has been seen. Create a
-  // SequentialIdGenerator to create future unique names based on this root.
-  SequentialIdGenerator& generator = generated_names_[root];
+  SequentialIdGenerator& generator = prefix_tracker.generator;
   if (numeric_suffix.has_value()) {
     return absl::StrCat(root, separator_,
                         generator.RegisterId(numeric_suffix.value()));
   }
+  if (prefix_tracker.bare_prefix_taken) {
+    // There already exists a node with the same root name (no suffix), add a
+    // suffix to uniquify the name.
+    return absl::StrCat(root, separator_, generator.NextId());
+  }
 
   // Root has not been seen before and there is no suffix. Just return it.
+  prefix_tracker.bare_prefix_taken = true;
   return root;
 }
 
