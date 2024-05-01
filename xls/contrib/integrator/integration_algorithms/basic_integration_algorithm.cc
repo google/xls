@@ -20,7 +20,6 @@
 #include <utility>
 
 #include "absl/status/status.h"
-#include "xls/ir/topo_sort.h"
 
 namespace xls {
 

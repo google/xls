@@ -14,7 +14,6 @@
 
 #include "xls/ir/name_uniquer.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace xls {

@@ -14,8 +14,6 @@
 
 #include "xls/common/strerror.h"
 
-#include <cstdio>
-#include <cstring>
 #include <string>
 #include <type_traits>
 

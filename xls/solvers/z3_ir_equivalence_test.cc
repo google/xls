@@ -34,7 +34,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
-#include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 
 namespace xls::solvers::z3 {

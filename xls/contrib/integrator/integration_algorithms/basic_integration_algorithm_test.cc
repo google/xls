@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/contrib/integrator/integration_algorithms/basic_integration_algorithm.h"
 
 #include <memory>
 
@@ -22,7 +21,6 @@
 #include "xls/contrib/integrator/integration_builder.h"
 #include "xls/contrib/integrator/ir_integrator.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/verifier.h"

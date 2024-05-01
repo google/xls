@@ -25,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
-#include "xls/ir/foreign_function.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/source_location.h"
 

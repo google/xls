@@ -18,12 +18,10 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
-#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"

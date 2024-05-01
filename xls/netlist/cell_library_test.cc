@@ -14,14 +14,12 @@
 
 #include "xls/netlist/cell_library.h"
 
-#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"

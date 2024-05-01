@@ -15,13 +15,11 @@
 #include "xls/codegen/register_legalization_pass.h"
 
 #include <algorithm>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"

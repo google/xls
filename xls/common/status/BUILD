@@ -53,7 +53,6 @@ cc_library(
         ":status_macros",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:source_location",
@@ -66,7 +65,6 @@ cc_test(
     deps = [
         ":matchers",
         ":ret_check",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
@@ -105,7 +103,6 @@ cc_test(
     deps = [
         ":status_builder",
         "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:log_entry",
         "@com_google_absl//absl/log:log_sink",
@@ -138,7 +135,6 @@ cc_test(
     deps = [
         ":status_builder",
         ":status_macros",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",

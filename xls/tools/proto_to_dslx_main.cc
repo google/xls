@@ -18,7 +18,6 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"

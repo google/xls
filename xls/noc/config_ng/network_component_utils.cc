@@ -14,7 +14,6 @@
 
 #include "xls/noc/config_ng/network_component_utils.h"
 
-#include <queue>
 #include <string>
 #include <string_view>
 #include <vector>

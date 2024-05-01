@@ -16,7 +16,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/simulation/noc_traffic_injector.h"
 #include "xls/noc/simulation/sample_network_graphs.h"

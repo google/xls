@@ -26,7 +26,6 @@
 #include "absl/random/distributions.h"
 #include "absl/random/mocking_bit_gen.h"
 #include "absl/random/random.h"
-#include "absl/random/uniform_int_distribution.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/random_util.h"

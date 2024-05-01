@@ -16,7 +16,6 @@
 
 #include "xls/dslx/stdlib/float32_add_jit_wrapper.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/value.h"

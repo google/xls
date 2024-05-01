@@ -15,7 +15,6 @@
 #include "xls/common/file/temp_file.h"
 
 #include <filesystem>  // NOLINT
-#include <iostream>
 #include <string>
 #include <system_error>
 #include <utility>

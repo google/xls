@@ -13,15 +13,11 @@
 // limitations under the License.
 
 #include <cstdint>
-#include <limits>
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/ir/function.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/package.h"
 
 namespace xls {
 namespace {

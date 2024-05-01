@@ -270,7 +270,6 @@ cc_test(
         ":interp_bindings",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
@@ -348,7 +347,6 @@ cc_library(
     srcs = ["mangle.cc"],
     hdrs = ["mangle.h"],
     deps = [
-        "//xls/common/status:ret_check",
         "//xls/dslx/type_system:parametric_env",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",

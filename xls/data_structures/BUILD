@@ -228,7 +228,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:strong_int",
-        "//xls/common/logging:log_lines",
     ],
 )
 
@@ -312,12 +311,7 @@ cc_test(
     srcs = ["algorithm_test.cc"],
     deps = [
         ":algorithm",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
-        "//xls/ir",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -327,12 +321,9 @@ cc_test(
     srcs = ["binary_decision_diagram_test.cc"],
     deps = [
         ":binary_decision_diagram",
-        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/ir:bits",
-        "//xls/ir:format_preference",
         "@com_google_googletest//:gtest",
     ],
 )

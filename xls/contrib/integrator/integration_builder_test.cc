@@ -22,7 +22,6 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/verifier.h"

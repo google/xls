@@ -23,7 +23,6 @@
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
 #include "absl/log/globals.h"
-#include "absl/log/log.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
 #include "absl/status/status.h"

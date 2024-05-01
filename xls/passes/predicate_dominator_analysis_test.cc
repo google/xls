@@ -14,17 +14,13 @@
 
 #include "xls/passes/predicate_dominator_analysis.h"
 
-#include <cstdint>
 #include <memory>
 
 #include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"

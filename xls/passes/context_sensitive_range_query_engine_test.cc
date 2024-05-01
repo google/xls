@@ -17,14 +17,12 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <ostream>
 #include <string>
 #include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"

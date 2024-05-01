@@ -14,7 +14,6 @@
 
 #include "xls/passes/back_propagate_range_analysis.h"
 
-#include <array>
 #include <cstdint>
 #include <optional>
 #include <tuple>

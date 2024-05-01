@@ -27,7 +27,6 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
         "@at_clifford_yosys//:json11",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",

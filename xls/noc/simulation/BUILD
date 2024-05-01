@@ -54,7 +54,6 @@ cc_test(
     deps = [
         ":units",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -80,7 +79,6 @@ cc_test(
         ":common",
         ":network_graph",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -125,7 +123,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
-        "//xls/common/status:ret_check",
         "//xls/noc/config:network_config_cc_proto",
     ],
 )
@@ -156,8 +153,6 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
@@ -321,7 +316,6 @@ cc_test(
         ":sample_network_graphs",
         ":sim_objects",
         "@com_google_absl//absl/log",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
@@ -366,7 +360,6 @@ cc_test(
     deps = [
         ":random_number_interface",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -461,7 +454,6 @@ cc_test(
         ":noc_traffic_injector",
         ":packetizer",
         ":sample_network_graphs",
-        ":sim_objects",
         ":traffic_description",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
@@ -482,7 +474,6 @@ cc_test(
         ":simulator_to_link_monitor_shim",
         ":simulator_to_traffic_injector_shim",
         ":traffic_description",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",

@@ -14,8 +14,8 @@
 
 #include "xls/public/function_builder.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/public/ir.h"
 #include "xls/public/status_matchers.h"
 
 namespace {

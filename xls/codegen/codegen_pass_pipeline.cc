@@ -39,7 +39,6 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 

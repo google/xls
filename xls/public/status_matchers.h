@@ -18,6 +18,6 @@
 #ifndef XLS_PUBLIC_STATUS_MATCHERS_H_
 #define XLS_PUBLIC_STATUS_MATCHERS_H_
 
-#include "xls/common/status/matchers.h"
+#include "xls/common/status/matchers.h"  // IWYU pragma: export
 
 #endif  // XLS_PUBLIC_STATUS_MATCHERS_H_

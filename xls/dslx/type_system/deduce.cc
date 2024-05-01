@@ -15,10 +15,7 @@
 #include "xls/dslx/type_system/deduce.h"
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
-#include <functional>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>

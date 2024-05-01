@@ -18,17 +18,12 @@
 #include <utility>
 #include <vector>
 
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
-#include "xls/interpreter/proc_interpreter.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"

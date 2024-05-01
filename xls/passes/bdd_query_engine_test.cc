@@ -14,13 +14,10 @@
 
 #include "xls/passes/bdd_query_engine.h"
 
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/inlined_vector.h"
 #include "xls/common/status/matchers.h"
-#include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"

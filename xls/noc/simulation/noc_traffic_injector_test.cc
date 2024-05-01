@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -25,7 +24,6 @@
 #include "xls/common/status/matchers.h"
 #include "xls/noc/simulation/packetizer.h"
 #include "xls/noc/simulation/sample_network_graphs.h"
-#include "xls/noc/simulation/sim_objects.h"
 #include "xls/noc/simulation/traffic_description.h"
 
 namespace xls::noc {

@@ -35,7 +35,6 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
-#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {

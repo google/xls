@@ -31,7 +31,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "../z3/src/api/z3.h"
 #include "../z3/src/api/z3_api.h"
 
 ABSL_FLAG(

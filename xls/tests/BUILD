@@ -42,7 +42,6 @@ cc_test(
     srcs = ["ir_types_test.cc"],
     deps = [
         "//xls/common:xls_gunit_main",
-        "//xls/ir",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],

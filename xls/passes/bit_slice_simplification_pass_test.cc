@@ -35,7 +35,6 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
-#include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
 

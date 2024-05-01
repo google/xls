@@ -17,7 +17,6 @@
 #include <memory>
 #include <string_view>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

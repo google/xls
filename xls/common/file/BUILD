@@ -136,7 +136,6 @@ cc_test(
         ":path",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "@com_google_googletest//:gtest",
     ],
 )

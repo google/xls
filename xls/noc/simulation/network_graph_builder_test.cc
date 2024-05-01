@@ -14,7 +14,6 @@
 
 #include "xls/noc/simulation/network_graph_builder.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "xls/common/status/matchers.h"

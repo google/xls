@@ -23,6 +23,7 @@ cc_test(
     srcs = ["function_builder_test.cc"],
     deps = [
         "//xls/public:function_builder",
+        "//xls/public:ir",
         "//xls/public:status_matchers",
         "//xls/public:xls_gunit_main",
         "@com_google_googletest//:gtest",

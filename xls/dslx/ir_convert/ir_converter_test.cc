@@ -30,7 +30,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/golden_files.h"
-#include "xls/common/init_xls.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"

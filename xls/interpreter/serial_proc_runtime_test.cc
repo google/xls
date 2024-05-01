@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
@@ -28,7 +27,6 @@
 #include "xls/interpreter/proc_interpreter.h"
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/interpreter/proc_runtime_test_base.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"

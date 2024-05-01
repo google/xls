@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <limits>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
 

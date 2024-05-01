@@ -16,7 +16,6 @@
 
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config_ng/fake_network_component.h"

@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/noc/config_ng/bidirectional_tree_options_proto_builder.h"
 #include "xls/noc/config_ng/unidirectional_tree_options_proto_builder.h"

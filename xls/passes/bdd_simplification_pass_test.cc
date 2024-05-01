@@ -28,8 +28,6 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
-#include "xls/passes/bdd_cse_pass.h"
-#include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;

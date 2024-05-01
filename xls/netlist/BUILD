@@ -134,7 +134,6 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
@@ -177,7 +176,6 @@ cc_test(
         ":netlist_cc_proto",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
@@ -230,7 +228,6 @@ cc_test(
         ":netlist_parser",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -259,7 +256,6 @@ cc_test(
         ":netlist_parser",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/memory",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -315,7 +311,6 @@ cc_binary(
     name = "function_extractor_main",
     srcs = ["function_extractor_main.cc"],
     deps = [
-        ":cell_library",
         ":function_extractor",
         ":netlist_cc_proto",
         "//xls/common:exit_status",

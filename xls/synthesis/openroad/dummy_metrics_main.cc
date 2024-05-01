@@ -24,7 +24,6 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/status/status_macros.h"
 
 static constexpr std::string_view kUsage = R"(
 A dummy JSON metrics script meant to mimic the behavior of an OpenROAD metrics

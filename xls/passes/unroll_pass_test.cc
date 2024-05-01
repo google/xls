@@ -22,7 +22,6 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;

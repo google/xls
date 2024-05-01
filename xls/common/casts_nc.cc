@@ -18,7 +18,7 @@
 //
 // See casts_test.cc for the normal "positive" tests on casts.h.
 
-#include "xls/common/casts.h"
+#include "xls/common/casts.h"  // IWYU pragma: keep
 
 // A base class.
 class Base {

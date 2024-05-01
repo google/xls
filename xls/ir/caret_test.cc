@@ -18,7 +18,6 @@
 #include <optional>
 #include <string>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"

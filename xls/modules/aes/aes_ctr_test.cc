@@ -14,7 +14,6 @@
 
 // Test to compare the outputs of a reference vs. XLS implementation of CTR
 // mode using the AES block cipher.
-#include <arpa/inet.h>
 
 #include <array>
 #include <cstdint>
@@ -30,7 +29,6 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "openssl/aes.h"
 #include "xls/common/exit_status.h"

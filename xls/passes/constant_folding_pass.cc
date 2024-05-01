@@ -14,14 +14,11 @@
 
 #include "xls/passes/constant_folding_pass.h"
 
-#include <algorithm>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"

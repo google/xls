@@ -14,7 +14,6 @@
 
 #include "xls/noc/config_ng/dimension_order_options_proto_builder.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/noc/config_ng/topology_endpoint_options_proto_builder.h"
 

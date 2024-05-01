@@ -14,26 +14,17 @@
 
 #include "xls/passes/post_dominator_analysis.h"
 
-#include <algorithm>
 #include <cstdint>
-#include <cstdio>
 #include <memory>
-#include <queue>
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/memory/memory.h"
-#include "absl/meta/type_traits.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
-#include "xls/ir/proc.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {

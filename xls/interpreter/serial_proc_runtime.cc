@@ -14,7 +14,6 @@
 
 #include "xls/interpreter/serial_proc_runtime.h"
 
-#include <algorithm>
 #include <deque>
 #include <memory>
 #include <utility>
@@ -28,7 +27,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 
 namespace xls {

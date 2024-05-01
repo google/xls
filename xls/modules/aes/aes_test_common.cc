@@ -13,11 +13,9 @@
 // limitations under the License.
 #include "xls/modules/aes/aes_test_common.h"
 
-#include <arpa/inet.h>
 
 #include <array>
 #include <cstdint>
-#include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>

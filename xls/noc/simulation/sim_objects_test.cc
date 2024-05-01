@@ -16,7 +16,6 @@
 
 #include <cstdint>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "xls/common/status/matchers.h"

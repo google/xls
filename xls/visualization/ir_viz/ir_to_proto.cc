@@ -35,7 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/block.h"
+#include "xls/ir/block.h"  // IWYU pragma: keep
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/op.h"

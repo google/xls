@@ -14,7 +14,6 @@
 
 #include "xls/dslx/lsp/language_server_adapter.h"
 
-#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
@@ -26,18 +25,15 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "external/verible/common/lsp/lsp-file-utils.h"
 #include "external/verible/common/lsp/lsp-protocol-enums.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
-#include "xls/common/indent.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/extract_module_name.h"
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"

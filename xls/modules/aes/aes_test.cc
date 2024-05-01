@@ -26,7 +26,6 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"

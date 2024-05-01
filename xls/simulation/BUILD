@@ -22,7 +22,6 @@ cc_test(
     srcs = ["verilog_simulator_test.cc"],
     deps = [
         ":verilog_simulator",
-        ":verilog_simulators",
         ":verilog_test_base",
         "//xls/codegen:vast",
         "//xls/common:xls_gunit_main",
@@ -89,7 +88,6 @@ cc_test(
     shard_count = 10,
     deps = [
         ":module_simulator",
-        ":module_testbench",
         ":verilog_test_base",
         "//xls/codegen:module_signature",
         "//xls/common:xls_gunit_main",
@@ -214,7 +212,6 @@ cc_library(
     deps = [
         ":verilog_simulator",
         "//xls/simulation/simulators:iverilog_simulator",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status:statusor",
     ],
 )

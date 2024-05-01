@@ -14,7 +14,6 @@
 
 #include "xls/codegen/block_conversion.h"
 
-#include <unistd.h>
 
 #include <algorithm>
 #include <cstdint>

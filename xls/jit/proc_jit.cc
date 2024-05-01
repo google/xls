@@ -37,7 +37,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"

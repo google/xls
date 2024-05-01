@@ -14,9 +14,7 @@
 
 #include "xls/noc/simulation/units.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
 
 namespace xls::noc {
 namespace {

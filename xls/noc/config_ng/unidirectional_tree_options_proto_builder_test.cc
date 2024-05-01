@@ -14,7 +14,6 @@
 
 #include "xls/noc/config_ng/unidirectional_tree_options_proto_builder.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace xls::noc {

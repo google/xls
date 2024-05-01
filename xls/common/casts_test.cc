@@ -14,7 +14,6 @@
 
 #include "xls/common/casts.h"
 
-#include <cstddef>
 
 #include "gtest/gtest.h"
 #include "absl/base/casts.h"

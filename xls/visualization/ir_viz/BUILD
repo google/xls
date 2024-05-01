@@ -174,7 +174,6 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/log",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
 )

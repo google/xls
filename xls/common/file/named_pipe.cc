@@ -15,7 +15,6 @@
 #include "xls/common/file/named_pipe.h"
 
 #include <sys/stat.h>
-#include <sys/types.h>
 
 #include <cerrno>
 #include <cstdio>

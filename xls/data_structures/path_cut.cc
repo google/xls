@@ -14,20 +14,12 @@
 
 #include "xls/data_structures/path_cut.h"
 
-#include <algorithm>
-#include <cstdint>
-#include <sstream>
 #include <string>
-#include <type_traits>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/span.h"
-#include "xls/common/logging/log_lines.h"
-#include "xls/common/strong_int.h"
 
 namespace xls {
 

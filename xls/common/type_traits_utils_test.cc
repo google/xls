@@ -25,7 +25,6 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
 

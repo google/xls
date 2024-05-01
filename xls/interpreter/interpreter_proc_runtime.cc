@@ -24,7 +24,6 @@
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/proc_interpreter.h"
 #include "xls/interpreter/serial_proc_runtime.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 

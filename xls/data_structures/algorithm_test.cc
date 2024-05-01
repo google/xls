@@ -14,15 +14,9 @@
 
 #include "xls/data_structures/algorithm.h"
 
-#include <memory>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
-#include "absl/strings/str_format.h"
-#include "xls/ir/function_builder.h"
-#include "xls/ir/ir_test_base.h"
-#include "xls/ir/package.h"
 
 namespace xls {
 namespace {

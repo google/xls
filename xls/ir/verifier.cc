@@ -25,7 +25,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -38,10 +37,8 @@
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/caret.h"
@@ -50,7 +47,6 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/elaborated_block_dfs_visitor.h"
 #include "xls/ir/fileno.h"
-#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"

@@ -32,7 +32,6 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"

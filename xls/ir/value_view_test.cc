@@ -18,7 +18,6 @@
 #include <memory>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/common/bits_util.h"

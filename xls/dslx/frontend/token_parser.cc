@@ -26,7 +26,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {

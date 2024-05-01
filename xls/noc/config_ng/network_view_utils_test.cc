@@ -14,7 +14,6 @@
 
 #include "xls/noc/config_ng/network_view_utils.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config_ng/network_view.h"

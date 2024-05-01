@@ -71,7 +71,6 @@ cc_library(
         "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -193,7 +192,6 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/flags:flag",
@@ -378,7 +376,6 @@ cc_binary(
         "//xls/dslx/frontend:module",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -392,9 +389,7 @@ cc_test(
         "//xls/common/file:temp_directory",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:module",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -917,7 +912,6 @@ cc_binary(
     # Only for the genrule and xls-stuff to generate protos.
     visibility = ["//xls:xls_internal"],
     deps = [
-        ":codegen",
         ":codegen_flags",
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags",
@@ -1018,7 +1012,6 @@ cc_library(
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_pass",
         "//xls/scheduling:scheduling_pass_pipeline",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

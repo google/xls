@@ -33,7 +33,6 @@
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 #include "xls/jit/jit_channel_queue.h"
 

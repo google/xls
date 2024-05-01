@@ -29,15 +29,12 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/examples/sample_packages.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/topo_sort.h"
-#include "xls/ir/type.h"
 
 namespace xls {
 namespace sched {

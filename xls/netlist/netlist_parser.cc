@@ -15,22 +15,16 @@
 #include "xls/netlist/netlist_parser.h"
 
 #include <string>
-#include <tuple>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/string_to_int.h"
-#include "xls/ir/bits.h"
-#include "xls/netlist/netlist.h"
 
 namespace xls {
 namespace netlist {

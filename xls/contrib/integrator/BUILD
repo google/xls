@@ -92,7 +92,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_matcher",
-        "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
         "@com_google_googletest//:gtest",

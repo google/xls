@@ -28,7 +28,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "xls/common/status/ret_check.h"
 
 namespace xls::dslx {
 namespace {

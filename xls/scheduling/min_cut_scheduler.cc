@@ -15,13 +15,10 @@
 #include "xls/scheduling/min_cut_scheduler.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <numeric>
 #include <optional>
-#include <random>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -30,12 +27,10 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/scheduling/function_partition.h"
 #include "xls/scheduling/schedule_bounds.h"

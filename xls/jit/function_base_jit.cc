@@ -61,7 +61,6 @@
 #include "xls/ir/type.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
-#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"

@@ -14,7 +14,6 @@
 
 #include "xls/passes/bit_slice_simplification_pass.h"
 
-#include <sys/stat.h>
 
 #include <algorithm>
 #include <cstdint>

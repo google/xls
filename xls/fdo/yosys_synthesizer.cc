@@ -16,20 +16,16 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/fdo/extract_nodes.h"
 #include "xls/fdo/synthesizer.h"
-#include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {

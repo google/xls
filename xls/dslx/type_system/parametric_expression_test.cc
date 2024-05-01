@@ -17,7 +17,6 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include <variant>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"

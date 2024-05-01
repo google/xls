@@ -14,7 +14,6 @@
 
 #include "xls/codegen/codegen_pass.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>

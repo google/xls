@@ -97,7 +97,6 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
-        "//xls/ir:node_util",
     ],
 )
 

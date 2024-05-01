@@ -654,9 +654,7 @@ cc_library(
         ":dimension_bounds",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "//xls/common/status:status_macros",
         "//xls/data_structures:inline_bitmap",
         "//xls/ir:bits",
     ],
@@ -730,7 +728,6 @@ cc_library(
     deps = [
         ":network_topology_component",
         ":network_view",
-        ":network_view_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",

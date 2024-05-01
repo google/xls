@@ -14,8 +14,6 @@
 
 #include "xls/contrib/xlscc/unit_tests/cc_generator.h"
 
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include <cstdint>
 #include <iostream>

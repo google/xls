@@ -18,12 +18,9 @@
 #include <tuple>
 
 #include "absl/flags/flag.h"
-#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/math_util.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/stdlib/float32_add_jit_wrapper.h"
 #include "xls/dslx/stdlib/float32_test_utils.h"
 #include "xls/tools/testbench.h"

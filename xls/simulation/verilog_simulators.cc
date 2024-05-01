@@ -16,7 +16,6 @@
 
 #include <string_view>
 
-#include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 
 namespace xls {

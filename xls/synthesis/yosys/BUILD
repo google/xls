@@ -141,7 +141,6 @@ cc_test(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
     ],

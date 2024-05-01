@@ -23,7 +23,6 @@
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/scheduling/pipeline_schedule.h"

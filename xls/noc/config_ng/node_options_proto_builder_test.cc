@@ -16,7 +16,6 @@
 
 #include <string_view>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/noc/config_ng/coordinate_options_proto_builder.h"
 
