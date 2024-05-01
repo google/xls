@@ -1160,10 +1160,6 @@ class Translator {
       int top_level_init_interval = 0,
       const ChannelOptions& channel_options = {});
 
-  // Ideally, this would be done using the opt_main tool, but for now
-  //  codegen is done by XLS[cc] for combinational blocks.
-  absl::Status InlineAllInvokes(xls::Package* package);
-
   // Generate some useful metadata after either GenerateIR_Top_Function() or
   //  GenerateIR_Block() has run.
   absl::StatusOr<xlscc_metadata::MetadataOutput> GenerateMetadata();

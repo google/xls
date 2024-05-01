@@ -141,8 +141,6 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
-        "//xls/passes:optimization_pass",
-        "//xls/passes:optimization_pass_pipeline",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
         "@z3//:api",

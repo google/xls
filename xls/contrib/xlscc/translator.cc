@@ -83,8 +83,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/solvers/z3_utils.h"
 #include "re2/re2.h"
 
@@ -5912,19 +5910,6 @@ absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
     return false;
   }
   return TypeIsChannel(object->getType(), loc);
-}
-
-absl::Status Translator::InlineAllInvokes(xls::Package* package) {
-  std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
-      xls::CreateOptimizationPassPipeline();
-  xls::OptimizationPassOptions options;
-  xls::PassResults results;
-
-  // This pass wants a delay estimator
-  options.skip_passes = {"bdd_cse"};
-
-  XLS_RETURN_IF_ERROR(pipeline->Run(package, options, &results).status());
-  return absl::OkStatus();
 }
 
 absl::StatusOr<xls::BValue> Translator::GenTypeConvert(

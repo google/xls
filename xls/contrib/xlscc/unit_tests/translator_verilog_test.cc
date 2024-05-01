@@ -20,16 +20,22 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_base.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_test_base.h"
 
@@ -45,10 +51,21 @@ constexpr char kTestdataPath[] = "xls/contrib/xlscc/unit_tests/testdata";
 
 class TranslatorVerilogTest : public xls::verilog::VerilogTestBase {};
 
-// What's being tested here is that the IR produced is generatable
-//  by the combinational generator. For example, it will fail without
-//  InlineAllInvokes(). Simulation tests already occur in the
-//  combinational_generator_test
+absl::Status SimplifyAndInline(xls::Package* package) {
+  std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
+      xls::CreateOptimizationPassPipeline();
+  xls::OptimizationPassOptions options;
+  xls::PassResults results;
+
+  // This pass wants a delay estimator
+  options.skip_passes = {"bdd_cse"};
+
+  return pipeline->Run(package, options, &results).status();
+}
+
+// What's being tested here is that the IR produced is generatable by the
+// combinational generator (after simplification). Simulation tests already
+// occur in the combinational_generator_test.
 TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   const std::string content = R"(
     #include "/xls_builtin.h"
@@ -115,7 +132,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
                            translator->GenerateIR_Block(&package, block_spec));
 
   VLOG(1) << "Simplifying IR..." << std::endl;
-  XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
+  XLS_ASSERT_OK(SimplifyAndInline(&package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::CodegenPassUnit unit,
@@ -255,7 +272,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
                            translator->GenerateIR_Block(&package, block_spec));
 
   VLOG(1) << "Simplifying IR..." << std::endl;
-  XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
+  XLS_ASSERT_OK(SimplifyAndInline(&package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::CodegenPassUnit unit,
