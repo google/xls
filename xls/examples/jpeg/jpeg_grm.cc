@@ -26,6 +26,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/jpeg/constants.h"
 #include "xls/examples/jpeg/idct_chen_jit_wrapper.h"

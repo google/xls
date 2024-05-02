@@ -16,6 +16,7 @@
 
 #include <string_view>
 
+#include "absl/types/span.h"
 #include "xls/common/proto_adaptor_utils.h"
 
 namespace xls::noc {

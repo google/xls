@@ -13,7 +13,6 @@
 
 #include "xls/examples/proc_fir_filter.h"
 
-
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
@@ -22,6 +21,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
 namespace xls {

@@ -29,6 +29,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/string_to_int.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls {

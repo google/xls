@@ -20,7 +20,10 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/types/span.h"
 #include "xls/common/proto_adaptor_utils.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/value.h"
 
 namespace xls::verilog {
 

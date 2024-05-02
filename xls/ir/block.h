@@ -15,7 +15,6 @@
 #ifndef XLS_IR_BLOCK_H_
 #define XLS_IR_BLOCK_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,13 +25,16 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/name_uniquer.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 
 namespace xls {

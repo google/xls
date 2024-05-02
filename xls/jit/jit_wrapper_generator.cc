@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/span.h"
 
 namespace xls {
 namespace {

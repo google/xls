@@ -33,6 +33,7 @@
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
 
 namespace xls {

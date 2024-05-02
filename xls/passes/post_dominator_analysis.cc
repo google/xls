@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"

@@ -402,6 +402,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
@@ -660,6 +661,7 @@ cc_library(
         "//xls/common:strong_int",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -690,6 +692,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -911,6 +914,7 @@ cc_library(
     srcs = ["value_utils.cc"],
     hdrs = ["value_utils.h"],
     deps = [
+        ":bits",
         ":type",
         ":value",
         "//xls/common/status:ret_check",
@@ -997,6 +1001,7 @@ cc_test(
     name = "value_test_util_test",
     srcs = ["value_test_util_test.cc"],
     deps = [
+        ":bits",
         ":value",
         ":value_test_util",
         "//xls/common:xls_gunit_main",
@@ -1047,6 +1052,7 @@ cc_library(
         ":format_preference",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -1273,6 +1279,7 @@ cc_test(
     name = "number_parser_test",
     srcs = ["number_parser_test.cc"],
     deps = [
+        ":bits",
         ":bits_ops",
         ":number_parser",
         "//xls/common:xls_gunit_main",
@@ -1493,6 +1500,7 @@ cc_library(
         "//xls/common:math_util",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -1558,6 +1566,7 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
+        ":value",
         ":value_utils",
         ":value_view",
         "//xls/common:bits_util",
@@ -1567,6 +1576,7 @@ cc_test(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -1940,6 +1950,7 @@ cc_test(
     name = "value_conversion_utils_test",
     srcs = ["value_conversion_utils_test.cc"],
     deps = [
+        ":bits",
         ":ir",
         ":type",
         ":value",

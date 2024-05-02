@@ -20,7 +20,9 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/contrib/integrator/integration_algorithms/basic_integration_algorithm.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 

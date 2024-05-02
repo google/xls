@@ -27,6 +27,7 @@
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/Support/Alignment.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"

@@ -37,7 +37,9 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/modules/aes/aes_test_common.h"
 

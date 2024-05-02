@@ -40,6 +40,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/cell_library.h"

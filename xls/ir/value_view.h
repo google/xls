@@ -32,6 +32,7 @@
 
 #include "absl/log/check.h"
 #include "absl/numeric/int128.h"
+#include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
 #include "xls/ir/package.h"

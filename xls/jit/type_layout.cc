@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
 namespace xls {

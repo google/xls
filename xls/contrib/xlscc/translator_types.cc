@@ -33,6 +33,7 @@
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
 using std::shared_ptr;

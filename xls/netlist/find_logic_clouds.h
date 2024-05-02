@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/types/span.h"
 #include "xls/netlist/netlist.h"
 
 namespace xls {

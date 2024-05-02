@@ -32,6 +32,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/pass_base.h"

@@ -24,6 +24,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/value.h"

@@ -24,6 +24,7 @@
 #include "absl/types/span.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"

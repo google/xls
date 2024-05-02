@@ -464,6 +464,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_utils",
         "//xls/ir:ir_parser",
+        "//xls/ir:value",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -767,6 +768,7 @@ cc_library(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -946,10 +948,12 @@ cc_library(
     hdrs = ["cpp_sample_runner.h"],
     deps = [
         "//xls/dslx:interp_value",
+        "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

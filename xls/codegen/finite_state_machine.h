@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/casts.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace verilog {

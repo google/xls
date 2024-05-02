@@ -16,6 +16,7 @@
 #define XLS_DSLX_IR_CONVERT_CONVERT_FORMAT_MACRO_H_
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"

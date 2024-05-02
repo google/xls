@@ -31,6 +31,7 @@
 #include "xls/common/file/path.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/sample_packages.inc.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"

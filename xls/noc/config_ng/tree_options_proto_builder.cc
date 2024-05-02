@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "absl/log/die_if_null.h"
+#include "absl/types/span.h"
 
 namespace xls::noc {
 

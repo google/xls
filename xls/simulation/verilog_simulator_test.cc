@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {

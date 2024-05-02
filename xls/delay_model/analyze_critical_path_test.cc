@@ -28,6 +28,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {

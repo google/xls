@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"

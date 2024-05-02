@@ -123,6 +123,8 @@ cc_test(
         "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:value",
         "//xls/ir:value_utils",
         "@com_google_googletest//:gtest",
     ],

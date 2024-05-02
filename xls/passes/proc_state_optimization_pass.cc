@@ -40,6 +40,7 @@
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/data_structures/union_find.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"

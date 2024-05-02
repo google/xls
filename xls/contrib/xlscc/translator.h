@@ -37,6 +37,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "clang/include/clang/AST/ASTContext.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
@@ -58,6 +59,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "../z3/src/api/z3_api.h"
 

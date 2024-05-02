@@ -29,6 +29,7 @@
 #include "absl/log/log_sink.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
@@ -37,6 +38,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/value.h"
 
 struct CapturedLogEntry {

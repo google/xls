@@ -28,6 +28,7 @@
 #include "xls/contrib/ice40/io_strategy.h"
 #include "xls/contrib/ice40/io_strategy_factory.h"
 #include "xls/contrib/ice40/wrap_io.h"
+#include "xls/ir/source_location.h"
 
 ABSL_FLAG(std::string, wrapped_module_name, "",
           "name of 'device function' module being wrapped");

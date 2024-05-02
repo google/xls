@@ -18,6 +18,7 @@
 #include <initializer_list>
 
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "xls/ir/bits.h"
 
 namespace xls::noc {

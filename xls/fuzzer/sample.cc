@@ -37,6 +37,7 @@
 #include "xls/fuzzer/sample.pb.h"
 #include "xls/fuzzer/scrub_crasher.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 

@@ -27,6 +27,7 @@ cc_library(
     hdrs = ["bits_util.h"],
     deps = [
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -423,6 +424,7 @@ cc_test(
         ":comparison_utils",
         ":xls_gunit_main",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )

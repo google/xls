@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/status/status.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 

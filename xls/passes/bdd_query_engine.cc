@@ -26,6 +26,7 @@
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/node.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {

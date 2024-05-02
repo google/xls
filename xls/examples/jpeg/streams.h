@@ -53,6 +53,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls::jpeg {

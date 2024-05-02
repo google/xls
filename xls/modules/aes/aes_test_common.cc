@@ -13,7 +13,6 @@
 // limitations under the License.
 #include "xls/modules/aes/aes_test_common.h"
 
-
 #include <array>
 #include <cstdint>
 #include <iostream>
@@ -25,6 +24,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/value.h"
 
 namespace xls::aes {
 

@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/span.h"
 #include "xls/codegen/flattening.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"

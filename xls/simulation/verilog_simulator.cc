@@ -35,6 +35,7 @@
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "re2/re2.h"
 
 namespace xls {

@@ -320,6 +320,7 @@ cc_library(
         "//xls/common/file:path",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:verifier",
@@ -339,6 +340,7 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:source_location",
+        "//xls/ir:value",
         "//xls/ir:value_utils",
     ],
 )
@@ -357,6 +359,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )

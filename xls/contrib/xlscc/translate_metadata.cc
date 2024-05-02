@@ -23,6 +23,7 @@
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/ir/source_location.h"
 
 namespace xlscc {
 

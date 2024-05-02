@@ -23,7 +23,9 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "xls/data_structures/min_cut.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 namespace sched {

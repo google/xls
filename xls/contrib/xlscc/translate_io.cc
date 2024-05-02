@@ -37,6 +37,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xlscc {
 

@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "absl/log/die_if_null.h"
+#include "absl/types/span.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder_utils.h"
 

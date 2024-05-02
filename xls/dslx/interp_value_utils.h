@@ -25,6 +25,7 @@
 #include "absl/types/span.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 

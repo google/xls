@@ -40,6 +40,8 @@ cc_library(
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:value",
         "//xls/jit:function_jit",
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",

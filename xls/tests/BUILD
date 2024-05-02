@@ -31,6 +31,7 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
@@ -42,7 +43,10 @@ cc_test(
     srcs = ["ir_types_test.cc"],
     deps = [
         "//xls/common:xls_gunit_main",
+        "//xls/ir:bits",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )

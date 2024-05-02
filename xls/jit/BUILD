@@ -91,6 +91,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:value",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -138,6 +139,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "//xls/ir",
     ],
 )
@@ -402,6 +404,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
@@ -671,16 +674,19 @@ cc_test(
         ":orc_jit",
         ":type_layout",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common:bits_util",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/data_structures:leaf_type_tree",
         "//xls/interpreter:random_value",
+        "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:number_parser",
         "//xls/ir:type",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -23,7 +23,9 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 namespace sched {

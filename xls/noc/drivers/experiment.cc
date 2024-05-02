@@ -24,6 +24,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/global_routing_table.h"

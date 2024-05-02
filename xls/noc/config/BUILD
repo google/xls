@@ -129,6 +129,7 @@ cc_library(
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
         "@com_google_absl//absl/log:die_if_null",
+        "@com_google_absl//absl/types:span",
         "//xls/common:proto_adaptor_utils",
     ],
 )

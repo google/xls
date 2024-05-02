@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/random/random.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/scanner.h"
 
