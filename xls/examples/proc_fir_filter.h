@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"

@@ -56,6 +56,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"

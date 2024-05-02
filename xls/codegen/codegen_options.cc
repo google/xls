@@ -23,6 +23,7 @@
 #include "absl/types/span.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/op.h"
 #include "xls/ir/value.h"
 
 namespace xls::verilog {

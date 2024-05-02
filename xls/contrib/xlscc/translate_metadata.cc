@@ -21,6 +21,7 @@
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceManager.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/source_location.h"

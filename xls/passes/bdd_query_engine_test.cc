@@ -14,7 +14,6 @@
 
 #include "xls/passes/bdd_query_engine.h"
 
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
@@ -22,6 +21,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 
 namespace xls {

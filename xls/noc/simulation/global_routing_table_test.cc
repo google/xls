@@ -22,11 +22,13 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder.h"
+#include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/network_graph_builder.h"
 #include "xls/noc/simulation/sample_network_graphs.h"
 

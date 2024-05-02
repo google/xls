@@ -22,6 +22,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/noc/config/network_config.pb.h"
+#include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/network_graph_builder.h"
 #include "xls/noc/simulation/sample_network_graphs.h"

@@ -26,6 +26,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls {
 namespace netlist {

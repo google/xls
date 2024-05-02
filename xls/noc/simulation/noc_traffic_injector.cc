@@ -29,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
 
 namespace xls::noc {

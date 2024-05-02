@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/random/bit_gen_ref.h"
+#include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"

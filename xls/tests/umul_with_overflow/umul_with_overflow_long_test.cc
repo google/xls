@@ -18,6 +18,7 @@
 #include <tuple>
 
 #include "gtest/gtest.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/value_view.h"
 #include "xls/tests/umul_with_overflow/umul_with_overflow_21_21_18_jit_wrapper.h"

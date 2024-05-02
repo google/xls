@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/status/status_macros.h"
 

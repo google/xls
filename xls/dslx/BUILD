@@ -295,6 +295,7 @@ cc_library(
         ":interp_bindings",
         ":warning_kind",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx/bytecode:bytecode_cache_interface",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",

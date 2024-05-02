@@ -50,6 +50,7 @@ cc_library(
         "//xls/ir:block_elaboration",
         "//xls/ir:events",
         "//xls/ir:keyword_args",
+        "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:value",
         "//xls/ir:value_utils",

@@ -424,6 +424,7 @@ cc_test(
         ":comparison_utils",
         ":xls_gunit_main",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],

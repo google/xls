@@ -24,6 +24,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"

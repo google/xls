@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"

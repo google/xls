@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/scheduling/function_partition.h"

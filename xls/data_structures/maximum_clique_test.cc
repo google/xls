@@ -24,6 +24,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/random/distributions.h"
+#include "absl/strings/str_format.h"
 
 namespace xls {
 namespace {

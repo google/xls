@@ -22,6 +22,7 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls::noc {
 

@@ -14,9 +14,9 @@
 
 #include "xls/noc/simulation/sample_network_graphs.h"
 
-
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/simulation/network_graph.h"
 #include "xls/noc/simulation/parameters.h"

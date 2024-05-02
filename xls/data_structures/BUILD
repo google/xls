@@ -108,6 +108,7 @@ cc_test(
         ":maximum_clique",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],

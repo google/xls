@@ -86,6 +86,7 @@ cc_test(
     deps = [
         ":umul_with_overflow_21_21_18_jit_wrapper",
         ":umul_with_overflow_35_32_18_jit_wrapper",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",

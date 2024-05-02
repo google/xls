@@ -20,7 +20,10 @@
 #include <utility>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 

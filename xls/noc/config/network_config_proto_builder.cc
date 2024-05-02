@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "xls/common/proto_adaptor_utils.h"
 
 namespace xls::noc {

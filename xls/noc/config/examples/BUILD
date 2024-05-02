@@ -23,6 +23,7 @@ cc_test(
     data = glob(["*.textproto"]),
     deps = [
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",

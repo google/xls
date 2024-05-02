@@ -20,6 +20,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/packetizer.h"
 #include "xls/noc/simulation/sample_network_graphs.h"
 #include "xls/noc/simulation/sim_objects.h"

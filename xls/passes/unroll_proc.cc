@@ -18,7 +18,9 @@
 #include <optional>
 #include <vector>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"

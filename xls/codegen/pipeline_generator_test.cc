@@ -31,6 +31,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/scheduling/pipeline_schedule.h"

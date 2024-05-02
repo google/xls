@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 
 namespace xls {
 namespace verilog {

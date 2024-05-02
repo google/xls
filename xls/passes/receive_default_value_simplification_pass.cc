@@ -16,6 +16,7 @@
 
 #include <optional>
 
+#include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"

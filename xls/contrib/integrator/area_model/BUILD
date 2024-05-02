@@ -47,6 +47,7 @@ cc_library(
     deps = [
         ":models",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
     ],

@@ -15,6 +15,7 @@
 #include "xls/noc/simulation/simulator_to_link_monitor_service_shim.h"
 
 #include "absl/status/status.h"
+#include "xls/noc/simulation/common.h"
 
 namespace xls::noc {
 

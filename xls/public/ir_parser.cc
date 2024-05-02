@@ -18,6 +18,7 @@
 #include <optional>
 #include <string_view>
 
+#include "absl/status/statusor.h"
 #include "xls/ir/ir_parser.h"
 
 namespace xls {

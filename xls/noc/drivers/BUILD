@@ -68,6 +68,7 @@ cc_test(
         ":experiment_factory",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",

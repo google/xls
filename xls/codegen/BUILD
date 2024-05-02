@@ -154,6 +154,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -288,6 +289,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -717,6 +719,7 @@ cc_library(
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -793,6 +796,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/ir:op",
         "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
@@ -1077,6 +1081,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/passes:dce_pass",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -1105,6 +1110,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
+        "//xls/ir:op",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1126,6 +1132,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
+        "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
@@ -1194,6 +1201,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_googlesource_code_re2//:re2",
     ],
@@ -1234,6 +1242,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )

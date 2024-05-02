@@ -35,6 +35,7 @@ cc_library(
         "//xls/contrib/integrator:integration_options",
         "//xls/contrib/integrator:ir_integrator",
         "//xls/ir",
+        "//xls/ir:op",
         "//xls/ir:verifier",
     ],
 )
