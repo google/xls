@@ -44,7 +44,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/ir/xls_type.pb.h"
-#include "xls/ir/xls_value.pb.h"
 #include "xls/jit/block_jit.h"
 #include "xls/public/ir_parser.h"
 #include "xls/tools/codegen.h"

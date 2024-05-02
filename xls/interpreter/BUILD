@@ -202,7 +202,6 @@ cc_test(
     deps = [
         ":block_evaluator_test_base",
         ":ir_interpreter",
-        "//xls/codegen:module_signature_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -316,7 +315,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
-        "//xls/ir:channel_cc_proto",
         "//xls/ir:channel_ops",
         "//xls/ir:elaboration",
         "//xls/ir:ir_test_base",

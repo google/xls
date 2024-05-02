@@ -21,11 +21,8 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/tools/codegen_flags.h"
-#include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
-#include "xls/tools/scheduling_options_flags.pb.h"
 
 static constexpr std::string_view kUsage = R"(
 Create a scheduling options and codegen options proto with values populated

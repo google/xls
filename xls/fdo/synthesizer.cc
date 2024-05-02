@@ -43,7 +43,6 @@
 #include "xls/ir/node.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "xls/synthesis/synthesis.pb.h"
 
 namespace xls {
 namespace synthesis {

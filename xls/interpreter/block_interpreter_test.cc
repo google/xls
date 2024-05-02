@@ -17,7 +17,6 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/interpreter/block_evaluator_test_base.h"
 
 namespace xls {

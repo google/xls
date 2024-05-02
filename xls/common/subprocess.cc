@@ -15,7 +15,7 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
-#include <poll.h>
+#include <poll.h>  // IWYU pragma: keep
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>

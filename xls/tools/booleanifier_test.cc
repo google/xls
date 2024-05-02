@@ -38,7 +38,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
-#include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_jit.h"
 
 namespace xls {

@@ -96,7 +96,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:hls_block_cc_proto",
-        "//xls/contrib/xlscc:metadata_output_cc_proto",
         "//xls/contrib/xlscc:translator",
         "//xls/ir:bits",
         "//xls/ir:value",
@@ -134,7 +133,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:hls_block_cc_proto",
-        "//xls/contrib/xlscc:metadata_output_cc_proto",
         "//xls/contrib/xlscc:translator",
         "//xls/ir",
         "//xls/ir:bits",
@@ -152,7 +150,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
-        "@llvm-project//clang:ast",
     ],
 )
 
@@ -217,7 +214,6 @@ cc_test(
         "//xls/codegen:signature_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:hls_block_cc_proto",
         "//xls/contrib/xlscc:translator",
         "//xls/ir",

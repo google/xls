@@ -26,7 +26,6 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"

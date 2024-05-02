@@ -129,7 +129,6 @@ cc_library(
         "//xls/ir",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
-        "//xls/synthesis:synthesis_cc_proto",
     ],
 )
 

@@ -29,7 +29,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
-#include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/network_graph.h"

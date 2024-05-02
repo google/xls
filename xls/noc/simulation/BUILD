@@ -213,7 +213,6 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/noc/config:network_config_cc_proto",
     ],
 )
 
@@ -273,7 +272,6 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
-        "//xls/noc/config:network_config_cc_proto",
     ],
 )
 
