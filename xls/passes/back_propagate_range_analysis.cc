@@ -193,7 +193,7 @@ class BackPropagate : public DfsVisitorWithDefault {
     }
     if (query_engine_.HasExplicitIntervals(node)) {
       // Try to avoid allocating LTTs needlessly.
-      return query_engine_.GetIntervalSetTreeView(node).value().Get({});
+      return query_engine_.GetIntervalSetTreeView(node)->Get({});
     }
     return query_engine_.GetIntervalSetTree(node).Get({});
   }
@@ -330,6 +330,10 @@ class BackPropagate : public DfsVisitorWithDefault {
                                    Op op) {
     CHECK(op == Op::kUGe || op == Op::kUGt || op == Op::kSGe || op == Op::kSGt)
         << op;
+    if (left_range.IsEmpty() || right_range.IsEmpty()) {
+      // We're already in an impossible case; don't try to do anything more.
+      return absl::OkStatus();
+    }
     // Perform the comparison for specifically unsigned operations.
     auto range_unsigned = [](Op op, const IntervalSet& left_range,
                              const IntervalSet& right_range)
