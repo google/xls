@@ -494,7 +494,7 @@ cc_xls_ir_jit_wrapper(
     name = "chaining_example_opt_ir_jit_wrapper_double_cc",
     src = ":chaining_example_double_opt_ir.opt.ir",
     jit_wrapper_args = {
-        "class_name": "chaining_example",
+        "class_name": "ChainingExample",
         "function": get_mangled_ir_symbol("chaining_example", "double"),
         "namespace": "not_xls::test",
     },

@@ -175,7 +175,7 @@ cc_xls_ir_jit_wrapper(
     name = "idct_chen_jit_wrapper",
     src = ":idct_chen.opt.ir",
     jit_wrapper_args = {
-        "class_name": "idct_chen",
+        "class_name": "IdctChen",
         "namespace": "xls::jpeg",
     },
 )

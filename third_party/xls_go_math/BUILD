@@ -63,7 +63,7 @@ cc_xls_ir_jit_wrapper(
     name = "fpexp_32_jit_wrapper",
     src = ":fpexp_32.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fpexp_32",
+        "class_name": "Fpexp32",
         "namespace": "xls::fp",
     },
 )
@@ -135,7 +135,7 @@ cc_xls_ir_jit_wrapper(
     name = "fp_sincos_32_jit_wrapper",
     src = ":fp_sincos_32.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fp_sincos_32",
+        "class_name": "FpSincos32",
         "namespace": "xls::fp",
     },
 )
@@ -200,7 +200,7 @@ cc_xls_ir_jit_wrapper(
     name = "fp_trig_reduce_jit_wrapper",
     src = ":fp_trig_reduce.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fp_trig_reduce",
+        "class_name": "FpTrigReduce",
         "namespace": "xls::fp",
     },
 )
@@ -262,7 +262,7 @@ cc_xls_ir_jit_wrapper(
     name = "fpsqrt_32_jit_wrapper",
     src = ":fpsqrt_32.opt.ir",
     jit_wrapper_args = {
-        "class_name": "fpsqrt_32",
+        "class_name": "Fpsqrt32",
         "namespace": "xls::fp",
     },
 )

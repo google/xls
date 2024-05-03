@@ -247,7 +247,7 @@ cc_xls_ir_jit_wrapper(
     name = "sha256_jit_wrapper",
     src = ":sha256.opt.ir",
     jit_wrapper_args = {
-        "class_name": "sha256",
+        "class_name": "Sha256",
         "function": "main",
         "namespace": "xls::examples",
     },

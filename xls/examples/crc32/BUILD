@@ -68,7 +68,7 @@ cc_xls_ir_jit_wrapper(
     name = "crc32_jit_wrapper",
     src = ":crc32.opt.ir",
     jit_wrapper_args = {
-        "class_name": "crc32",
+        "class_name": "Crc32",
         "namespace": "xls::examples",
     },
 )

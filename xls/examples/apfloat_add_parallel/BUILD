@@ -49,7 +49,7 @@ cc_xls_ir_jit_wrapper(
     name = "apfloat_add_parallel_jit_wrapper",
     src = ":apfloat_add_parallel.opt.ir",
     jit_wrapper_args = {
-        "class_name": "float32_add_se",
+        "class_name": "Float32AddSe",
         "namespace": "xls::examples",
     },
 )
