@@ -15,6 +15,7 @@
 # Common utilities shared among XLA subfolders.
 
 # pytype test and library
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -43,6 +44,39 @@ cc_library(
 cc_library(
     name = "proto_adaptor_utils",
     hdrs = ["proto_adaptor_utils.h"],
+)
+
+cc_library(
+    name = "proto_test_utils",
+    testonly = True,
+    hdrs = ["proto_test_utils.h"],
+    deps = [
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+proto_library(
+    name = "matcher_test_messages_proto",
+    srcs = ["testdata/matcher_test_messages.proto"],
+)
+
+cc_proto_library(
+    name = "matcher_test_messages_cc_proto",
+    deps = [":matcher_test_messages_proto"],
+)
+
+cc_test(
+    name = "proto_test_utils_test",
+    srcs = ["proto_test_utils_test.cc"],
+    deps = [
+        ":matcher_test_messages_cc_proto",
+        ":proto_test_utils",
+        ":xls_gunit_main",
+        "@com_google_googletest//:gtest",
+        "@com_google_protobuf//:protobuf",
+    ],
 )
 
 cc_test(
@@ -142,11 +176,11 @@ cc_library(
     linkstamp = "build_embed.cc",
     visibility = ["//xls:xls_utility_users"],
     deps = [
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/flags:config",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:flags",
         "@com_google_absl//absl/log:initialize",
     ],
 )
@@ -227,6 +261,10 @@ cc_library(
     deps = [
         ":strerror",
         ":thread",
+        "//xls/common/file:file_descriptor",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -237,10 +275,6 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "//xls/common/file:file_descriptor",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/logging:log_lines",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -250,10 +284,10 @@ cc_test(
     deps = [
         ":subprocess",
         ":xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -289,13 +323,13 @@ cc_library(
     srcs = ["string_to_int.cc"],
     hdrs = ["string_to_int.h"],
     deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -305,10 +339,10 @@ cc_test(
     deps = [
         ":string_to_int",
         ":xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -545,13 +579,13 @@ cc_library(
     deps = [
         ":source_location",
         ":update_golden_files_flag",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
     ],
 )
 

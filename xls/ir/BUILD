@@ -936,6 +936,7 @@ cc_test(
         ":ir_parser",
         ":value",
         ":xls_value_cc_proto",
+        "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",

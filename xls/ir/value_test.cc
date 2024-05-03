@@ -23,7 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
-#include "google/protobuf/util/message_differencer.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
@@ -32,11 +32,9 @@
 namespace xls {
 namespace {
 
+using proto_testing::EqualsProto;
 using status_testing::IsOkAndHolds;
 using testing::HasSubstr;
-MATCHER_P(EqualsProto, expected, "") {
-  return google::protobuf::util::MessageDifferencer::Equals(arg, expected);
-}
 
 TEST(ValueTest, ToHumanString) {
   Value bits_value(UBits(42, 33));

@@ -611,6 +611,7 @@ cc_test(
     deps = [
         ":eval_utils",
         ":proc_channel_values_cc_proto",
+        "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",

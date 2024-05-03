@@ -22,7 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/btree_map.h"
 #include "google/protobuf/text_format.h"
-#include "google/protobuf/util/message_differencer.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
@@ -34,9 +34,7 @@ using status_testing::IsOkAndHolds;
 using testing::ElementsAre;
 using testing::Pair;
 using testing::UnorderedElementsAre;
-MATCHER_P(EqualsProto, expected, "") {
-  return google::protobuf::util::MessageDifferencer::Equals(arg, expected);
-}
+using proto_testing::EqualsProto;
 
 TEST(EvalHelpersTest, ParseChannelValuesFromProto) {
   std::string_view proto = R"pb(
