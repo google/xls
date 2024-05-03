@@ -1,0 +1,84 @@
+// Copyright 2024 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+import "xls/ir/xls_type.proto";
+
+message PackageInterfaceProto {
+  // A generic thing with a name and a type.
+  message NamedValue {
+    optional string name = 1;
+    optional TypeProto type = 2;
+  }
+
+  message Channel {
+    enum Direction {
+      INVALID = 0;
+      // Only receives are valid.
+      IN = 1;
+      // Only sends are valid.
+      OUT = 2;
+      // Both sends and receives are valid.
+      INOUT = 3;
+    }
+    optional string name = 1;
+    optional TypeProto type = 2;
+    optional Direction direction = 3;
+  }
+
+  // Common fields to all types of executables.
+  message FunctionBase {
+    optional bool top = 1;
+    optional string name = 2;
+  }
+
+  message Function {
+    optional FunctionBase base = 1;
+    repeated NamedValue parameters = 2;
+    optional TypeProto result_type = 3;
+  }
+
+  message Proc {
+    optional FunctionBase base = 1;
+    repeated NamedValue state = 2;
+    // Names of channels which this particular proc sends on. Refers to entries
+    // in the channels list.
+    repeated string send_channels = 3;
+    // Names of channels which this particular proc receives on. Refers to
+    // entries in the channels list.
+    repeated string recv_channels = 4;
+  }
+
+  message Block {
+    optional FunctionBase base = 1;
+    repeated NamedValue registers = 2;
+    repeated NamedValue input_ports = 3;
+    repeated NamedValue output_ports = 4;
+  }
+
+  // Name of the overall package.
+  optional string name = 1;
+
+  // Files used to construct this package, not in any particular order.
+  repeated string files = 2;
+  // Channels defined on the top-level of the package.
+  repeated Channel channels = 3;
+
+  repeated Function functions = 4;
+  repeated Proc procs = 5;
+  repeated Block blocks = 6;
+}

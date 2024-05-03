@@ -109,6 +109,54 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "extract_interface",
+    srcs = ["extract_interface.cc"],
+    hdrs = ["extract_interface.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:register",
+        "//xls/ir:xls_ir_interface_cc_proto",
+    ],
+)
+
+cc_binary(
+    name = "extract_interface_main",
+    srcs = ["extract_interface_main.cc"],
+    deps = [
+        ":extract_interface",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "extract_interface_test",
+    srcs = ["extract_interface_test.cc"],
+    deps = [
+        ":extract_interface",
+        "//xls/common:proto_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_binary(
     name = "booleanify_main",
     srcs = ["booleanify_main.cc"],

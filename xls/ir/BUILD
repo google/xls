@@ -1379,6 +1379,22 @@ py_proto_library(
 )
 
 proto_library(
+    name = "xls_ir_interface_proto",
+    srcs = ["xls_ir_interface.proto"],
+    deps = [":xls_type_proto"],
+)
+
+cc_proto_library(
+    name = "xls_ir_interface_cc_proto",
+    deps = [":xls_ir_interface_proto"],
+)
+
+py_proto_library(
+    name = "xls_ir_interface_py_pb2",
+    deps = [":xls_ir_interface_proto"],
+)
+
+proto_library(
     name = "channel_proto",
     srcs = ["channel.proto"],
 )

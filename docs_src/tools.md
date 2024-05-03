@@ -499,3 +499,13 @@ reference file comparisons), run:
 ```
 dev_utils/rebuild_golden_files.sh
 ```
+
+## [`extract_interface_main`](https://github.com/google/xls/tree/main/xls/tools/extract_interface_main.cc)
+
+Reads an `ir` file and prints a protobuf describing the interfaces of the
+contained code. The interfaces consist of the names of the `procs`, `blocks`,
+and `functions` and the names and types of all of their inputs and outputs.
+Information about what `channels` are defined and other useful details is also
+included. Take a look at
+[`xls_ir_interface.proto`](https://github.com/google/xls/tree/main/xls/ir/xls_ir_interface.proto)
+for what the interface contains.
