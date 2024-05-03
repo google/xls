@@ -87,6 +87,9 @@ IntervalSet UMul(const IntervalSet& a, const IntervalSet& b,
                  int64_t output_bitwidth);
 IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b);
 
+// Shift
+IntervalSet Shrl(const IntervalSet& a, const IntervalSet& b);
+
 // Encode/decode
 IntervalSet Decode(const IntervalSet& a, int64_t width);
 
@@ -102,6 +105,7 @@ IntervalSet Concat(absl::Span<IntervalSet const> sets);
 IntervalSet SignExtend(const IntervalSet& a, int64_t width);
 IntervalSet ZeroExtend(const IntervalSet& a, int64_t width);
 IntervalSet Truncate(const IntervalSet& a, int64_t width);
+IntervalSet BitSlice(const IntervalSet& a, int64_t start, int64_t width);
 
 // Cmp
 IntervalSet Eq(const IntervalSet& a, const IntervalSet& b);

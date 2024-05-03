@@ -666,6 +666,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:interval",
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
         "//xls/ir:op",

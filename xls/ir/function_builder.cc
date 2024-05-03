@@ -785,6 +785,17 @@ BValue BuilderBase::And(BValue lhs, BValue rhs, const SourceInfo& loc,
                         std::string_view name) {
   return And({lhs, rhs}, loc, name);
 }
+BValue BuilderBase::Nand(absl::Span<const BValue> operands,
+                         const SourceInfo& loc, std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddNaryOp(Op::kNand, operands, loc, name);
+}
+BValue BuilderBase::Nand(BValue lhs, BValue rhs, const SourceInfo& loc,
+                         std::string_view name) {
+  return Nand({lhs, rhs}, loc, name);
+}
 
 BValue BuilderBase::AndReduce(BValue operand, const SourceInfo& loc,
                               std::string_view name) {

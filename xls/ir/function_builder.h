@@ -193,6 +193,12 @@ class BuilderBase {
   BValue And(absl::Span<const BValue> operands,
              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 
+  // Bitwise nand.
+  BValue Nand(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
+              std::string_view name = "");
+  BValue Nand(absl::Span<const BValue> operands,
+              const SourceInfo& loc = SourceInfo(), std::string_view name = "");
+
   // Unary and-reduction.
   BValue AndReduce(BValue operand, const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");

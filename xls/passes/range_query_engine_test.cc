@@ -527,6 +527,158 @@ FUZZ_TEST(RangeQueryEngineFuzzTest, ConcatIsCorrect)
                  NonemptyNormalizedIntervalSet(5),
                  NonemptyNormalizedIntervalSet(3));
 
+TEST_F(RangeQueryEngineTest, Decode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue expr = fb.Decode(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(2, 4), UBits(4, 4)),
+                                   Interval::Precise(UBits(9, 4))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(IntervalSetTreeView intervals_tree_1,
+                           engine.GetIntervalSetTreeView(expr.node()));
+  EXPECT_EQ(intervals_tree_1.Get({}),
+            IntervalSet::Of({Interval::Precise(Bits::PowerOfTwo(2, 16)),
+                             Interval::Precise(Bits::PowerOfTwo(3, 16)),
+                             Interval::Precise(Bits::PowerOfTwo(4, 16)),
+                             Interval::Precise(Bits::PowerOfTwo(9, 16))}));
+}
+
+TEST_F(RangeQueryEngineTest, DecodePrecise) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue expr = fb.Decode(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(9, 4))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b0000_0010_0000_0000", engine.ToString(expr.node()));
+}
+
+TEST_F(RangeQueryEngineTest, DecodePreciseOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue expr = fb.Decode(x, /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(10, 4))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b00_0000_0000", engine.ToString(expr.node()));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(13, 4))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b00_0000_0000", engine.ToString(expr.node()));
+}
+
+TEST_F(RangeQueryEngineTest, DecodeUnconstrained) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue expr = fb.Decode(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  // With an unconstrained input (and only 16 possible outputs), we get a full
+  // interval set.
+  RangeQueryEngine engine = RangeQueryEngine();
+  engine = RangeQueryEngine();
+  XLS_ASSERT_OK(engine.Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(IntervalSetTreeView intervals_tree,
+                           engine.GetIntervalSetTreeView(expr.node()));
+  EXPECT_EQ(intervals_tree.Get({}),
+            IntervalSet::Of({
+                Interval(Bits::PowerOfTwo(0, 16), Bits::PowerOfTwo(1, 16)),
+                Interval::Precise(Bits::PowerOfTwo(2, 16)),
+                Interval::Precise(Bits::PowerOfTwo(3, 16)),
+                Interval::Precise(Bits::PowerOfTwo(4, 16)),
+                Interval::Precise(Bits::PowerOfTwo(5, 16)),
+                Interval::Precise(Bits::PowerOfTwo(6, 16)),
+                Interval::Precise(Bits::PowerOfTwo(7, 16)),
+                Interval::Precise(Bits::PowerOfTwo(8, 16)),
+                Interval::Precise(Bits::PowerOfTwo(9, 16)),
+                Interval::Precise(Bits::PowerOfTwo(10, 16)),
+                Interval::Precise(Bits::PowerOfTwo(11, 16)),
+                Interval::Precise(Bits::PowerOfTwo(12, 16)),
+                Interval::Precise(Bits::PowerOfTwo(13, 16)),
+                Interval::Precise(Bits::PowerOfTwo(14, 16)),
+                Interval::Precise(Bits::PowerOfTwo(15, 16)),
+            }));
+}
+
+TEST_F(RangeQueryEngineTest, DecodeUnconstrainedOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(4));
+  BValue expr = fb.Decode(x, /*width=*/10);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  // With an unconstrained input (and only 10 possible outputs), we get a full
+  // interval set - including 0, since overflow is possible.
+  RangeQueryEngine engine = RangeQueryEngine();
+  engine = RangeQueryEngine();
+  XLS_ASSERT_OK(engine.Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(IntervalSetTreeView intervals_tree,
+                           engine.GetIntervalSetTreeView(expr.node()));
+  EXPECT_EQ(intervals_tree.Get({}),
+            IntervalSet::Of({
+                Interval(UBits(0, 10), Bits::PowerOfTwo(1, 10)),
+                Interval::Precise(Bits::PowerOfTwo(2, 10)),
+                Interval::Precise(Bits::PowerOfTwo(3, 10)),
+                Interval::Precise(Bits::PowerOfTwo(4, 10)),
+                Interval::Precise(Bits::PowerOfTwo(5, 10)),
+                Interval::Precise(Bits::PowerOfTwo(6, 10)),
+                Interval::Precise(Bits::PowerOfTwo(7, 10)),
+                Interval::Precise(Bits::PowerOfTwo(8, 10)),
+                Interval::Precise(Bits::PowerOfTwo(9, 10)),
+            }));
+}
+
+TEST_F(RangeQueryEngineTest, DecodeUnconstrainedWide) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(5));
+  BValue expr = fb.Decode(x);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  // With an unconstrained input (and 32 possible outputs), we get a minimized
+  // interval set, collapsing the first several intervals.
+  RangeQueryEngine engine = RangeQueryEngine();
+  engine = RangeQueryEngine();
+  XLS_ASSERT_OK(engine.Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(IntervalSetTreeView intervals_tree,
+                           engine.GetIntervalSetTreeView(expr.node()));
+  EXPECT_EQ(intervals_tree.Get({}),
+            IntervalSet::Of({
+                Interval(Bits::PowerOfTwo(0, 32), Bits::PowerOfTwo(16, 32)),
+                Interval::Precise(Bits::PowerOfTwo(17, 32)),
+                Interval::Precise(Bits::PowerOfTwo(18, 32)),
+                Interval::Precise(Bits::PowerOfTwo(19, 32)),
+                Interval::Precise(Bits::PowerOfTwo(20, 32)),
+                Interval::Precise(Bits::PowerOfTwo(21, 32)),
+                Interval::Precise(Bits::PowerOfTwo(22, 32)),
+                Interval::Precise(Bits::PowerOfTwo(23, 32)),
+                Interval::Precise(Bits::PowerOfTwo(24, 32)),
+                Interval::Precise(Bits::PowerOfTwo(25, 32)),
+                Interval::Precise(Bits::PowerOfTwo(26, 32)),
+                Interval::Precise(Bits::PowerOfTwo(27, 32)),
+                Interval::Precise(Bits::PowerOfTwo(28, 32)),
+                Interval::Precise(Bits::PowerOfTwo(29, 32)),
+                Interval::Precise(Bits::PowerOfTwo(30, 32)),
+                Interval::Precise(Bits::PowerOfTwo(31, 32)),
+            }));
+}
+
 TEST_F(RangeQueryEngineTest, Eq) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -712,6 +864,186 @@ TEST_F(RangeQueryEngineTest, LiteralNonBits) {
   expected.Set({2, 2}, IntervalSet::Precise(UBits(62, 10)));
 
   EXPECT_EQ(engine.GetIntervalSetTree(lit.node()), expected);
+}
+
+TEST_F(RangeQueryEngineTest, And) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  BValue expr = fb.And({x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  // When the interval sets are precise, we know the exact result.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(0b1111'0000, 8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b1000_0000", engine.ToString(expr.node()));
+
+  // With one imprecise interval, things are less certain.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b1111'0000, 8), Bits::AllOnes(8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b1000_X000", engine.ToString(expr.node()));
+}
+
+TEST_F(RangeQueryEngineTest, Nand) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  BValue expr = fb.Nand({x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  // When the interval sets are precise, we know the exact result.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(0b1111'0000, 8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b0111_1111", engine.ToString(expr.node()));
+
+  // With one imprecise interval, things are less certain.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b1111'0000, 8), Bits::AllOnes(8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b0111_X111", engine.ToString(expr.node()));
+}
+
+TEST_F(RangeQueryEngineTest, Nor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  BValue expr = fb.Nor({x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  // When the interval sets are precise, we know the exact result.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(0b1111'0000, 8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b0000_0001", engine.ToString(expr.node()));
+
+  // With one imprecise interval, things are less certain.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b1111'0000, 8), Bits::AllOnes(8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b0000_000X", engine.ToString(expr.node()));
+}
+
+TEST_F(RangeQueryEngineTest, Or) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  BValue expr = fb.Or({x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  // When the interval sets are precise, we know the exact result.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(0b1111'0000, 8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b1111_1110", engine.ToString(expr.node()));
+
+  // With one imprecise interval, things are less certain.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b1111'0000, 8), Bits::AllOnes(8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b1111_111X", engine.ToString(expr.node()));
+}
+
+TEST_F(RangeQueryEngineTest, Xor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  BValue expr = fb.Xor({x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  // When the interval sets are precise, we know the exact result.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval::Precise(UBits(0b1111'0000, 8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b1001_0110", engine.ToString(expr.node()));
+
+  // With one imprecise interval, things are less certain.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      x.node(),
+      BitsLTT(x.node(), {Interval(UBits(0b1111'0000, 8), Bits::AllOnes(8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval::Precise(UBits(0b1100'1100, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval::Precise(UBits(0b1010'1010, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ("0b1001_XXXX", engine.ToString(expr.node()));
 }
 
 TEST_F(RangeQueryEngineTest, Ne) {

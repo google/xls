@@ -18,6 +18,7 @@
 #include <compare>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -677,6 +678,42 @@ IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b) {
   results.Normalize();
   return results;
 }
+IntervalSet Shrl(const IntervalSet& a, const IntervalSet& b) {
+  return PerformBinOp(
+      [](const Bits& lhs, const Bits& rhs) -> OverflowResult {
+        absl::StatusOr<uint64_t> shift_amount = rhs.ToUint64();
+        if (!shift_amount.ok() ||
+            *shift_amount >
+                static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+          // We must be overshifting; the result is zero.
+          return {.result = Bits(lhs.bit_count())};
+        }
+        return {.result = bits_ops::ShiftRightLogical(lhs, *shift_amount)};
+      },
+      a, kMonotoneNonSizePreserving, b, kAntitoneNonSizePreserving,
+      a.BitCount());
+}
+IntervalSet Decode(const IntervalSet& a, int64_t width) {
+  IntervalSet result(width);
+  // We step through the possible values `i` in `a`, up to `width`, and generate
+  // the corresponding power-of-two as an interval. The good news is that we can
+  // (and do) stop as soon as we reach `width` or any larger value, since all of
+  // those encode the same point (0)... so this visits at most `width` elements.
+  a.ForEachElement([&](const Bits& b) {
+    uint64_t bit = b.ToUint64().value_or(width);
+    if (bit >= static_cast<uint64_t>(width)) {
+      // We're done; no need to check later elements.
+      result.AddInterval(Interval::Precise(UBits(0, width)));
+      return true;
+    }
+
+    result.AddInterval(
+        Interval::Precise(Bits::PowerOfTwo(static_cast<int64_t>(bit), width)));
+    return false;
+  });
+  result.Normalize();
+  return result;
+}
 IntervalSet SignExtend(const IntervalSet& a, int64_t width) {
   return PerformUnaryOp(
       [&](const Bits& b) -> Bits { return bits_ops::SignExtend(b, width); }, a,
@@ -703,6 +740,9 @@ IntervalSet Truncate(const IntervalSet& a, int64_t width) {
   }
   result.Normalize();
   return result;
+}
+IntervalSet BitSlice(const IntervalSet& a, int64_t start, int64_t width) {
+  return Truncate(Shrl(a, IntervalSet::Precise(UBits(start, 64))), width);
 }
 
 IntervalSet Concat(absl::Span<IntervalSet const> sets) {

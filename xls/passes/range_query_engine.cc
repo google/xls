@@ -75,6 +75,15 @@ IntervalSetTree EmptyIntervalSetTree(Type* type) {
       });
 }
 
+IntervalSetTree ZeroIntervalSetTree(Type* type) {
+  return *IntervalSetTree::CreateFromFunction(
+      type,
+      [](Type* leaf_type,
+         absl::Span<const int64_t> index) -> absl::StatusOr<IntervalSet> {
+        return IntervalSet::Precise(UBits(0, leaf_type->GetFlatBitCount()));
+      });
+}
+
 }  // namespace
 
 class RangeQueryVisitor : public DfsVisitor {
@@ -300,24 +309,10 @@ IntervalSetTree RangeQueryEngine::GetIntervalSetTree(Node* node) const {
   return UnconstrainedIntervalSetTree(node->GetType());
 }
 
-IntervalSetTree& RangeQueryEngine::GetOrCreateIntervalSetTree(Node* node) {
-  if (auto it = interval_sets_.find(node); it != interval_sets_.end()) {
-    return it->second;
-  }
-  auto [it, _] = interval_sets_.try_emplace(
-      node, UnconstrainedIntervalSetTree(node->GetType()));
-  return it->second;
-}
-
-MutableLeafTypeTreeView<IntervalSet>
-RangeQueryEngine::GetOrCreateMutableIntervalSetTreeView(Node* node) {
-  return GetOrCreateIntervalSetTree(node).AsMutableView();
-}
-
 void RangeQueryEngine::SetIntervalSetTree(
     Node* node, const IntervalSetTree& interval_sets) {
   auto [it, inserted] = interval_sets_.try_emplace(node, interval_sets);
-  MutableLeafTypeTreeView<IntervalSet> ist = it->second.AsMutableView();
+  MutableIntervalSetTreeView ist = it->second.AsMutableView();
 
   if (!inserted) {
     // We already had information for `node`; merge with `interval_sets`.
@@ -339,7 +334,7 @@ void RangeQueryEngine::SetIntervalSetTree(
 void RangeQueryEngine::SetIntervalSetTree(Node* node,
                                           IntervalSetTree&& interval_sets) {
   auto [it, inserted] = interval_sets_.try_emplace(node, interval_sets);
-  MutableLeafTypeTreeView<IntervalSet> ist = it->second.AsMutableView();
+  MutableIntervalSetTreeView ist = it->second.AsMutableView();
 
   if (!inserted) {
     // We already had information for `node`; merge with `interval_sets`.
@@ -477,12 +472,9 @@ absl::Status RangeQueryVisitor::HandleAssert(Assert* assert_op) {
 
 absl::Status RangeQueryVisitor::HandleBitSlice(BitSlice* bit_slice) {
   INITIALIZE_OR_SKIP(bit_slice);
-  if (bit_slice->start() == 0) {
-    ASSIGN_INTERVAL_SET_REF_OR_RETURN(a, bit_slice->operand(0));
-    return SetIntervalSet(bit_slice,
-                          interval_ops::Truncate(a, bit_slice->width()));
-  }
-  return absl::OkStatus();  // TODO(allight): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(a, bit_slice->operand(0));
+  return SetIntervalSet(bit_slice, interval_ops::BitSlice(a, bit_slice->start(),
+                                                          bit_slice->width()));
 }
 
 absl::Status RangeQueryVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
@@ -514,7 +506,12 @@ absl::Status RangeQueryVisitor::HandleCover(Cover* cover) {
 
 absl::Status RangeQueryVisitor::HandleDecode(Decode* decode) {
   INITIALIZE_OR_SKIP(decode);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(a, decode->operand(0));
+
+  return SetIntervalSet(decode,
+                        interval_ops::MinimizeIntervals(
+                            interval_ops::Decode(a, decode->BitCountOrDie()),
+                            kDefaultIntervalSize));
 }
 
 absl::Status RangeQueryVisitor::HandleDynamicBitSlice(
@@ -770,27 +767,54 @@ absl::Status RangeQueryVisitor::HandleArrayUpdate(ArrayUpdate* update) {
 
 absl::Status RangeQueryVisitor::HandleNaryAnd(NaryOp* and_op) {
   INITIALIZE_OR_SKIP(and_op);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet result =
+      IntervalSet::Precise(Bits::AllOnes(and_op->BitCountOrDie()));
+  for (Node* operand : and_op->operands()) {
+    ASSIGN_INTERVAL_SET_REF_OR_RETURN(operand_intervals, operand);
+    result = interval_ops::And(result, operand_intervals);
+  }
+  return SetIntervalSet(and_op, std::move(result));
 }
 
 absl::Status RangeQueryVisitor::HandleNaryNand(NaryOp* nand_op) {
   INITIALIZE_OR_SKIP(nand_op);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet result =
+      IntervalSet::Precise(Bits::AllOnes(nand_op->BitCountOrDie()));
+  for (Node* operand : nand_op->operands()) {
+    ASSIGN_INTERVAL_SET_REF_OR_RETURN(operand_intervals, operand);
+    result = interval_ops::And(result, operand_intervals);
+  }
+  return SetIntervalSet(nand_op, interval_ops::Not(result));
 }
 
 absl::Status RangeQueryVisitor::HandleNaryNor(NaryOp* nor_op) {
   INITIALIZE_OR_SKIP(nor_op);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet result = IntervalSet::Precise(Bits(nor_op->BitCountOrDie()));
+  for (Node* operand : nor_op->operands()) {
+    ASSIGN_INTERVAL_SET_REF_OR_RETURN(operand_intervals, operand);
+    result = interval_ops::Or(result, operand_intervals);
+  }
+  return SetIntervalSet(nor_op, interval_ops::Not(result));
 }
 
 absl::Status RangeQueryVisitor::HandleNaryOr(NaryOp* or_op) {
   INITIALIZE_OR_SKIP(or_op);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet result = IntervalSet::Precise(Bits(or_op->BitCountOrDie()));
+  for (Node* operand : or_op->operands()) {
+    ASSIGN_INTERVAL_SET_REF_OR_RETURN(operand_intervals, operand);
+    result = interval_ops::Or(result, operand_intervals);
+  }
+  return SetIntervalSet(or_op, std::move(result));
 }
 
 absl::Status RangeQueryVisitor::HandleNaryXor(NaryOp* xor_op) {
   INITIALIZE_OR_SKIP(xor_op);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  IntervalSet result = IntervalSet::Precise(Bits(xor_op->BitCountOrDie()));
+  for (Node* operand : xor_op->operands()) {
+    ASSIGN_INTERVAL_SET_REF_OR_RETURN(operand_intervals, operand);
+    result = interval_ops::Xor(result, operand_intervals);
+  }
+  return SetIntervalSet(xor_op, std::move(result));
 }
 
 absl::Status RangeQueryVisitor::HandleNe(CompareOp* ne) {
@@ -851,23 +875,12 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
   INITIALIZE_OR_SKIP(sel);
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(selector_intervals, sel->selector());
 
-  // Initialize all interval sets to empty
-  IntervalSetTree result = EmptyIntervalSetTree(sel->GetType());
+  // Initialize all interval sets to empty - or to precisely zero if the
+  // selector could be zero.
+  IntervalSetTree result = selector_intervals.CoversZero()
+                               ? ZeroIntervalSetTree(sel->GetType())
+                               : EmptyIntervalSetTree(sel->GetType());
 
-  if (selector_intervals.CoversZero()) {
-    // possible to see default
-    IntervalSetTree all_zero_default(sel->GetType());
-    for (int64_t i = 0; i < all_zero_default.elements().size(); ++i) {
-      // Set all intervals to zero, the default.
-      all_zero_default.elements()[i] = IntervalSet::Precise(
-          UBits(0, all_zero_default.leaf_types()[i]->GetFlatBitCount()));
-    }
-    leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
-        result.AsMutableView(), all_zero_default.AsView(),
-        [](IntervalSet& lhs, const IntervalSet& rhs) {
-          lhs = IntervalSet::Combine(lhs, rhs);
-        });
-  }
   TernaryVector case_pattern(sel->cases().size(), TernaryValue::kUnknown);
   for (int64_t i = 0; i < sel->cases().size(); ++i) {
     // TODO(vmirian): Make implementation more efficient by considering only the
@@ -948,22 +961,32 @@ absl::Status RangeQueryVisitor::HandleSDiv(BinOp* div) {
 
 absl::Status RangeQueryVisitor::HandleSGe(CompareOp* ge) {
   INITIALIZE_OR_SKIP(ge);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, ge->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, ge->operand(1));
+  return SetIntervalSet(
+      ge, interval_ops::Or(interval_ops::SGt(l, r), interval_ops::Eq(l, r)));
 }
 
 absl::Status RangeQueryVisitor::HandleSGt(CompareOp* gt) {
   INITIALIZE_OR_SKIP(gt);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, gt->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, gt->operand(1));
+  return SetIntervalSet(gt, interval_ops::SGt(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleSLe(CompareOp* le) {
   INITIALIZE_OR_SKIP(le);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, le->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, le->operand(1));
+  return SetIntervalSet(
+      le, interval_ops::Or(interval_ops::SLt(l, r), interval_ops::Eq(l, r)));
 }
 
 absl::Status RangeQueryVisitor::HandleSLt(CompareOp* lt) {
   INITIALIZE_OR_SKIP(lt);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, lt->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, lt->operand(1));
+  return SetIntervalSet(lt, interval_ops::SLt(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleSMod(BinOp* mod) {
@@ -1044,12 +1067,14 @@ absl::Status RangeQueryVisitor::HandleShll(BinOp* shll) {
 
 absl::Status RangeQueryVisitor::HandleShra(BinOp* shra) {
   INITIALIZE_OR_SKIP(shra);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
 absl::Status RangeQueryVisitor::HandleShrl(BinOp* shrl) {
   INITIALIZE_OR_SKIP(shrl);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(a, shrl->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(b, shrl->operand(1));
+  return SetIntervalSet(shrl, interval_ops::Shrl(a, b));
 }
 
 absl::Status RangeQueryVisitor::HandleSignExtend(ExtendOp* sign_ext) {

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -461,6 +462,44 @@ void UDivZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 FUZZ_TEST(IntervalOpsTest, UDivZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
 
+TEST(IntervalOpsTest, Shrl) {
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{1, 1}}, 16);
+    EXPECT_EQ(Shrl(lhs, rhs), FromRanges({{1, 5}, {50, 100}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 2}}, 16);
+    EXPECT_EQ(Shrl(lhs, rhs), FromRanges({{0, 11}, {25, 200}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{1, 2}}, 16);
+    EXPECT_EQ(Shrl(lhs, rhs), FromRanges({{0, 5}, {25, 100}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 0}}, 16);
+    EXPECT_EQ(Shrl(lhs, rhs), FromRanges({{0, 11}, {100, 200}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 1}, {3, 3}}, 16);
+    EXPECT_EQ(Shrl(lhs, rhs), FromRanges({{0, 25}, {50, 200}}, 16));
+  }
+}
+void ShrlZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "shrl",
+      [](FunctionBuilder& fb, BValue l, BValue r) { return fb.Shrl(l, r); },
+      [](const auto& l, const auto& r) { return Shrl(l, r); }, lhs, rhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, ShrlZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
 TEST(IntervalOpsTest, Concat) {
   {
     IntervalSet lhs = FromRanges({{2, 2}}, 2);
@@ -480,6 +519,42 @@ void ConcatZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 }
 FUZZ_TEST(IntervalOpsTest, ConcatZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+TEST(IntervalOpsTest, Decode) {
+  {
+    IntervalSet lhs = FromRanges({{2, 5}}, 4);
+    EXPECT_EQ(Decode(lhs, 16),
+              FromRanges({{4, 4}, {8, 8}, {16, 16}, {32, 32}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 5}}, 4);
+    EXPECT_EQ(Decode(lhs, 4), FromRanges({{0, 0}, {4, 4}, {8, 8}}, 4));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 3}, {5, 5}}, 4);
+    EXPECT_EQ(Decode(lhs, 4), FromRanges({{0, 0}, {4, 4}, {8, 8}}, 4));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 3}, {5, 5}}, 4);
+    EXPECT_EQ(Decode(lhs, 16), FromRanges({{4, 4}, {8, 8}, {32, 32}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0, 0}, {2, 3}}, 4);
+    EXPECT_EQ(Decode(lhs, 16), FromRanges({{1, 1}, {4, 4}, {8, 8}}, 16));
+  }
+}
+
+void DecodeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                  std::optional<int64_t> width) {
+  UnaryOpFuzz(
+      "decode",
+      [&](FunctionBuilder& fb, BValue l) { return fb.Decode(l, width); },
+      [&](const auto& l) { return Decode(l, width.value_or(8)); }, lhs,
+      /*bits=*/3);
+}
+FUZZ_TEST(IntervalOpsTest, DecodeZ3Fuzz)
+    .WithDomains(IntervalDomain(3),
+                 fuzztest::OptionalOf(fuzztest::InRange<int8_t>(1, 8)));
 
 TEST(IntervalOpsTest, SignExtend) {
   {
@@ -538,6 +613,15 @@ TEST(IntervalOpsTest, Truncate) {
     IntervalSet lhs = FromRanges({{0xa40, 0xb20}}, 12);
     EXPECT_EQ(Truncate(lhs, 8), FromRanges({{0, 0x20}, {0x40, 0xff}}, 8));
   }
+  {
+    IntervalSet lhs = FromRanges({{0xa30, 0xa40}, {0xb50, 0xb60}}, 12);
+    EXPECT_EQ(Truncate(lhs, 8), FromRanges({{0x30, 0x40}, {0x50, 0x60}}, 8));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0xa40, 0xb20}, {0xc25, 0xc35}}, 12);
+    EXPECT_EQ(Truncate(lhs, 8),
+              FromRanges({{0, 0x20}, {0x25, 0x35}, {0x40, 0xff}}, 8));
+  }
 }
 
 void TruncateZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
@@ -550,6 +634,48 @@ void TruncateZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 }
 FUZZ_TEST(IntervalOpsTest, TruncateZ3Fuzz)
     .WithDomains(IntervalDomain(8), fuzztest::InRange<int8_t>(1, 15));
+
+TEST(IntervalOpsTest, BitSlice) {
+  {
+    IntervalSet lhs = FromRanges({{0xafff, 0xfffa}}, 16);
+    EXPECT_EQ(BitSlice(lhs, 4, 8), FromRanges({{0, 0xff}}, 8));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0xa30f, 0xa40a}}, 16);
+    EXPECT_EQ(BitSlice(lhs, 4, 8), FromRanges({{0x30, 0x40}}, 8));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0xa40f, 0xb20a}}, 16);
+    EXPECT_EQ(BitSlice(lhs, 4, 8), FromRanges({{0, 0x20}, {0x40, 0xff}}, 8));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0xa30f, 0xa40a}, {0xb50c, 0xb60d}}, 16);
+    EXPECT_EQ(BitSlice(lhs, 4, 8), FromRanges({{0x30, 0x40}, {0x50, 0x60}}, 8));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0xa40f, 0xb20a}, {0xc250, 0xc35f}}, 16);
+    EXPECT_EQ(BitSlice(lhs, 4, 8),
+              FromRanges({{0, 0x20}, {0x25, 0x35}, {0x40, 0xff}}, 8));
+  }
+}
+
+void BitSliceZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                    int8_t start, int8_t bits) {
+  if (start + bits > 16) {
+    // Invalid slice
+    return;
+  }
+  UnaryOpFuzz(
+      "bit_slice",
+      [&](FunctionBuilder& fb, BValue l) {
+        return fb.BitSlice(l, start, bits);
+      },
+      [&](const auto& l) { return BitSlice(l, start, bits); }, lhs,
+      /*bits=*/16);
+}
+FUZZ_TEST(IntervalOpsTest, BitSliceZ3Fuzz)
+    .WithDomains(IntervalDomain(8), fuzztest::InRange<int8_t>(1, 15),
+                 fuzztest::InRange<int8_t>(1, 15));
 
 void EqZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
               absl::Span<std::pair<int64_t, int64_t> const> rhs) {

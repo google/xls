@@ -41,6 +41,7 @@ namespace xls {
 
 using IntervalSetTree = LeafTypeTree<IntervalSet>;
 using IntervalSetTreeView = LeafTypeTreeView<IntervalSet>;
+using MutableIntervalSetTreeView = MutableLeafTypeTreeView<IntervalSet>;
 
 class RangeQueryVisitor;
 
@@ -235,10 +236,6 @@ class RangeQueryEngine : public QueryEngine {
 
  private:
   friend class RangeQueryVisitor;
-
-  IntervalSetTree& GetOrCreateIntervalSetTree(Node* node);
-  MutableLeafTypeTreeView<IntervalSet> GetOrCreateMutableIntervalSetTreeView(
-      Node* node);
 
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;
