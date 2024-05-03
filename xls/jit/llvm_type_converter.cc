@@ -22,6 +22,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/Support/Alignment.h"
 #include "xls/common/status/status_macros.h"

@@ -503,6 +503,7 @@ cc_library(
     deps = [
         ":network_component_port",
         ":network_connection",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
@@ -546,6 +547,7 @@ cc_test(
         ":fake_network_component",
         ":network_component_utils",
         ":network_view",
+        "@com_google_absl//absl/container:flat_hash_map",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",

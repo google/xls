@@ -14,6 +14,7 @@
 
 #include <string>
 
+#include "xls/common/source_location.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
 namespace xlscc {

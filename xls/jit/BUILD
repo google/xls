@@ -137,6 +137,7 @@ cc_library(
     srcs = ["jit_wrapper_generator.cc"],
     hdrs = ["jit_wrapper_generator.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -152,6 +153,7 @@ cc_binary(
     deps = [
         ":jit_wrapper_generator",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:case_converters",
@@ -429,6 +431,7 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/ir:type",
         "//xls/ir:value",

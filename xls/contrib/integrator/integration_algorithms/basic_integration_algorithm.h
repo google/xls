@@ -20,6 +20,7 @@
 #include <list>
 #include <memory>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

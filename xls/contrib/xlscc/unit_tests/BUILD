@@ -161,6 +161,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
     ],
@@ -276,6 +277,7 @@ cc_test(
     ],
     deps = [
         ":unit_test",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
     ],
 )
@@ -294,6 +296,7 @@ cc_test(
     ],
     deps = [
         ":unit_test",
+        "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
     ],
 )

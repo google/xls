@@ -14,6 +14,7 @@
 
 #include "xls/noc/simulation/simulator_to_link_monitor_service_shim.h"
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/noc/simulation/common.h"
 

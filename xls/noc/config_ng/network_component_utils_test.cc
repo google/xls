@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config_ng/fake_network_component.h"
 #include "xls/noc/config_ng/network_view.h"

@@ -93,6 +93,7 @@ cc_test(
     deps = [
         ":ir_evaluator_test_base",
         ":ir_interpreter",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",

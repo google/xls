@@ -627,6 +627,7 @@ cc_library(
         ":deduce_ctx",
         ":parametric_expression",
         ":type",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",

@@ -18,12 +18,14 @@
 #include <string>
 #include <string_view>
 
+#include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/strip.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/update_golden_files_flag.inc"
 

@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/noc_traffic_injector.h"

@@ -30,6 +30,7 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "openssl/aead.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"

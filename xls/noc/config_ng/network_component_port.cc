@@ -14,6 +14,7 @@
 
 #include "xls/noc/config_ng/network_component_port.h"
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/die_if_null.h"
 
 namespace xls::noc {

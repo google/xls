@@ -85,6 +85,7 @@ cc_library(
     deps = [
         ":experiment_factory",
         "@com_google_absl//absl/status",
+        "//xls/common/status:ret_check",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/drivers/samples:aggregate_tree_experiment",
         "//xls/noc/drivers/samples:simple_vc_experiment",

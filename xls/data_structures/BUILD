@@ -322,6 +322,7 @@ cc_test(
     srcs = ["binary_decision_diagram_test.cc"],
     deps = [
         ":binary_decision_diagram",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

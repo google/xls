@@ -18,7 +18,9 @@
 #include <string>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/strip.h"
 #include "xls/common/case_converters.h"
 #include "xls/common/exit_status.h"
