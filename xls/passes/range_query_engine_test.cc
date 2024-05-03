@@ -39,6 +39,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/interval.h"
+#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/interval_set_test_utils.h"
 #include "xls/ir/ir_test_base.h"
@@ -48,6 +49,7 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_builder.h"
 
 namespace xls {
 namespace {
@@ -447,6 +449,183 @@ TEST_F(RangeQueryEngineTest, ArraySlice) {
               IntervalsAre(unbound_ist));
   EXPECT_THAT(engine.GetIntervalSetTree(slice_oob.node()),
               IntervalsAre(zz_ist));
+}
+
+TEST_F(RangeQueryEngineTest, ArrayUpdate1D) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue value = fb.Param("value", p->GetBitsType(10));
+  BValue array = fb.Array({x, y, z}, p->GetBitsType(10));
+  BValue update0 = fb.ArrayUpdate(array, value, {fb.Literal(UBits(0, 2))});
+  BValue update1 = fb.ArrayUpdate(array, value, {fb.Literal(UBits(1, 2))});
+  BValue update2 = fb.ArrayUpdate(array, value, {fb.Literal(UBits(2, 2))});
+  BValue oob_update = fb.ArrayUpdate(array, value, {fb.Literal(UBits(3, 2))});
+  BValue i = fb.Param("i", p->GetBitsType(2));
+  BValue update12 = fb.ArrayUpdate(array, value, {i});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(200, 10), UBits(250, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(z.node(), {Interval(UBits(300, 10), UBits(350, 10))});
+  IntervalSetTree value_ist =
+      BitsLTT(value.node(), {Interval(UBits(400, 10), UBits(450, 10))});
+  IntervalSetTree i_ist =
+      BitsLTT(i.node(), {Interval(UBits(1, 2), UBits(2, 2))});
+
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  engine.SetIntervalSetTree(value.node(), value_ist);
+  engine.SetIntervalSetTree(i.node(), i_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  auto array_ist = [array_type = array.GetType()](const IntervalSet& x,
+                                                  const IntervalSet& y,
+                                                  const IntervalSet& z) {
+    return IntervalSetTree(array_type, std::vector<IntervalSet>{x, y, z});
+  };
+
+  EXPECT_EQ(array_ist(value_ist.Get({}), y_ist.Get({}), z_ist.Get({})),
+            engine.GetIntervalSetTree(update0.node()));
+  EXPECT_EQ(array_ist(x_ist.Get({}), value_ist.Get({}), z_ist.Get({})),
+            engine.GetIntervalSetTree(update1.node()));
+  EXPECT_EQ(array_ist(x_ist.Get({}), y_ist.Get({}), value_ist.Get({})),
+            engine.GetIntervalSetTree(update2.node()));
+  // An out-of-bounds update leaves the array unchanged.
+  EXPECT_EQ(array_ist(x_ist.Get({}), y_ist.Get({}), z_ist.Get({})),
+            engine.GetIntervalSetTree(oob_update.node()));
+  // If multiple elements could be updated, we get the union of each element's
+  // initial value & the updated value.
+  EXPECT_EQ(array_ist(x_ist.Get({}),
+                      IntervalSet::Combine(y_ist.Get({}), value_ist.Get({})),
+                      IntervalSet::Combine(z_ist.Get({}), value_ist.Get({}))),
+            engine.GetIntervalSetTree(update12.node()));
+}
+
+TEST_F(RangeQueryEngineTest, ArrayUpdate3D) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Dimension = [5, 6, 3]
+  XLS_ASSERT_OK_AND_ASSIGN(Value array_value,
+                           ValueBuilder::Array({ValueBuilder::UBits2DArray(
+                                                    {
+                                                        {1, 2, 3},
+                                                        {4, 5, 6},
+                                                        {7, 8, 9},
+                                                        {10, 11, 12},
+                                                        {13, 14, 15},
+                                                        {16, 17, 18},
+                                                    },
+                                                    32),
+                                                ValueBuilder::UBits2DArray(
+                                                    {
+                                                        {19, 20, 21},
+                                                        {22, 23, 24},
+                                                        {25, 26, 27},
+                                                        {28, 29, 30},
+                                                        {31, 32, 33},
+                                                        {34, 35, 36},
+                                                    },
+                                                    32),
+                                                ValueBuilder::UBits2DArray(
+                                                    {
+                                                        {37, 38, 39},
+                                                        {40, 41, 42},
+                                                        {43, 44, 45},
+                                                        {46, 47, 48},
+                                                        {49, 50, 51},
+                                                        {52, 53, 54},
+                                                    },
+                                                    32),
+                                                ValueBuilder::UBits2DArray(
+                                                    {
+                                                        {55, 56, 57},
+                                                        {58, 59, 60},
+                                                        {61, 62, 63},
+                                                        {64, 65, 66},
+                                                        {67, 68, 69},
+                                                        {70, 71, 72},
+                                                    },
+                                                    32),
+                                                ValueBuilder::UBits2DArray(
+                                                    {
+                                                        {73, 74, 75},
+                                                        {76, 77, 78},
+                                                        {79, 80, 81},
+                                                        {82, 83, 84},
+                                                        {85, 86, 87},
+                                                        {88, 89, 90},
+                                                    },
+                                                    32)})
+                               .Build());
+
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue array = fb.Literal(array_value);
+  BValue value = fb.Param("value", p->GetBitsType(32));
+  BValue update = fb.ArrayUpdate(array, value, {x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(2, 10), UBits(3, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(2, 10), UBits(4, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(z.node(), {Interval(UBits(1, 10), UBits(1, 10))});
+  IntervalSetTree value_ist =
+      BitsLTT(value.node(), {Interval(UBits(500, 32), UBits(500, 32))});
+
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  engine.SetIntervalSetTree(value.node(), value_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Could update any of:
+  //   array[2, 2, 1],
+  //   array[2, 3, 1],
+  //   array[2, 4, 1],
+  //   array[3, 2, 1],
+  //   array[3, 3, 1], or
+  //   array[3, 4, 1].
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntervalSetTree expected,
+      IntervalSetTree::CreateFromFunction(
+          array.GetType(),
+          [&](Type*,
+              absl::Span<const int64_t> index) -> absl::StatusOr<IntervalSet> {
+            return IntervalSet::Precise(array_value.element(index[0])
+                                            .element(index[1])
+                                            .element(index[2])
+                                            .bits());
+          }));
+  expected.Set({2, 2, 1}, IntervalSet::Combine(expected.Get({2, 2, 1}),
+                                               value_ist.Get({})));
+  expected.Set({2, 3, 1}, IntervalSet::Combine(expected.Get({2, 3, 1}),
+                                               value_ist.Get({})));
+  expected.Set({2, 4, 1}, IntervalSet::Combine(expected.Get({2, 4, 1}),
+                                               value_ist.Get({})));
+  expected.Set({3, 2, 1}, IntervalSet::Combine(expected.Get({3, 2, 1}),
+                                               value_ist.Get({})));
+  expected.Set({3, 3, 1}, IntervalSet::Combine(expected.Get({3, 3, 1}),
+                                               value_ist.Get({})));
+  expected.Set({3, 4, 1}, IntervalSet::Combine(expected.Get({3, 4, 1}),
+                                               value_ist.Get({})));
+
+  EXPECT_EQ(expected, engine.GetIntervalSetTree(update.node()));
 }
 
 TEST_F(RangeQueryEngineTest, AndReduce) {
@@ -1209,6 +1388,101 @@ TEST_F(RangeQueryEngineTest, Sel) {
 
   // Test case where default is covered.
   EXPECT_EQ(IntervalSet::Combine(z_ist.Get({}), def_ist.Get({})),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+}
+
+TEST_F(RangeQueryEngineTest, OneHotSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(3));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue expr = fb.OneHotSelect(selector, {x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  // Usual test case where only part of the valid inputs are covered.
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(32, 10), UBits(33, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(64, 10), UBits(66, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(y.node(), {Interval(UBits(128, 10), UBits(135, 10))});
+
+  IntervalSet x_exactly = x_ist.Get({});
+  IntervalSet y_exactly = y_ist.Get({});
+  IntervalSet z_exactly = z_ist.Get({});
+  IntervalSet x_or_not =
+      IntervalSet::Combine(x_exactly, IntervalSet::Precise(UBits(0, 10)));
+  IntervalSet y_or_not =
+      IntervalSet::Combine(y_exactly, IntervalSet::Precise(UBits(0, 10)));
+  IntervalSet z_or_not =
+      IntervalSet::Combine(z_exactly, IntervalSet::Precise(UBits(0, 10)));
+
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(1, 3), UBits(3, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(interval_ops::Or(x_or_not, y_or_not),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  // Test case with non-overlapping bits for selector
+  // TODO(epastor): Fix test once this is better-supported by RQE.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(1, 3), UBits(2, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(interval_ops::Or(x_or_not, y_or_not),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(2, 3), UBits(6, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(interval_ops::Or(interval_ops::Or(x_or_not, y_or_not), z_or_not),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  // Test case where default is covered.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(0, 3), UBits(1, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(x_or_not, engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  // Test case where x is always selected, and y may or may not be.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(1, 3), UBits(1, 3)),
+                                Interval(UBits(3, 3), UBits(3, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(interval_ops::Or(x_exactly, y_or_not),
             engine.GetIntervalSetTree(expr.node()).Get({}));
 }
 

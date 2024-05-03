@@ -762,7 +762,107 @@ absl::Status RangeQueryVisitor::HandleArraySlice(ArraySlice* slice) {
 
 absl::Status RangeQueryVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   INITIALIZE_OR_SKIP(update);
-  return absl::OkStatus();  // TODO(taktoa): implement
+
+  // Record IntervalSets for all indices, and check if they are all precise, all
+  // unconstrained, or something else.
+  std::vector<std::optional<IntervalSet>> indices;
+  indices.reserve(update->indices().size());
+  bool all_indices_unconstrained = true;
+  bool all_indices_precise = true;
+  Type* indexed_type = update->array_to_update()->GetType();
+  for (Node* index : update->indices()) {
+    ASSIGN_INTERVAL_SET_REF_OR_RETURN(index_intervals, index);
+
+    if (index_intervals.IsMaximal()) {
+      all_indices_precise = false;
+      indices.push_back(std::nullopt);
+    } else {
+      if (absl::StatusOr<uint64_t> index_lb =
+              index_intervals.LowerBound()->ToUint64();
+          !index_lb.ok() ||
+          *index_lb >=
+              static_cast<uint64_t>(indexed_type->AsArrayOrDie()->size())) {
+        // Definitely an out-of-bounds access, so no change.
+        SetIntervalSetTree(update,
+                           GetIntervalSetTree(update->array_to_update()));
+        return absl::OkStatus();
+      }
+
+      all_indices_unconstrained = false;
+      if (!index_intervals.IsPrecise()) {
+        all_indices_precise = false;
+      }
+      indices.push_back(index_intervals);
+    }
+
+    indexed_type = indexed_type->AsArrayOrDie()->element_type();
+  }
+
+  std::optional<IntervalSetTreeView> update_value =
+      MaybeGetIntervalSetTreeView(update->update_value());
+  std::optional<IntervalSetTree> temp_update_value;
+  if (!update_value.has_value() && all_indices_unconstrained) {
+    // The update is fully unconstrained, so we can't tell what values could
+    // be in the array anymore.
+    SetIntervalSetTree(update, UnconstrainedIntervalSetTree(update->GetType()));
+    return absl::OkStatus();
+  }
+
+  IntervalSetTree result = GetIntervalSetTree(update->array_to_update());
+
+  if (all_indices_precise) {
+    // We know exactly which element is being updated, so we can just replace
+    // its possible values with the possible values from `update_value`.
+    std::vector<int64_t> precise_index;
+    precise_index.reserve(indices.size());
+    for (const std::optional<IntervalSet>& index : indices) {
+      precise_index.push_back(
+          static_cast<int64_t>(*index->GetPreciseValue()->ToUint64()));
+    }
+    if (update_value.has_value()) {
+      XLS_RETURN_IF_ERROR(leaf_type_tree::ReplaceElements(
+          result.AsMutableView(precise_index), update_value->AsView()));
+    } else {
+      // The update value is unconstrained, so remove all constraints on the
+      // updated element.
+      leaf_type_tree::ForEach(
+          result.AsMutableView(precise_index),
+          [&](IntervalSet& is) { is = IntervalSet::Maximal(is.BitCount()); });
+    }
+  } else {
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<IntervalSet>(
+        result.AsMutableView(), indices.size(),
+        [&](MutableIntervalSetTreeView element_tree,
+            absl::Span<const int64_t> index) {
+          for (int64_t i = 0; i < index.size(); ++i) {
+            if (indices[i].has_value() &&
+                !indices[i]->Covers(UBits(index[i], indices[i]->BitCount()))) {
+              // This isn't an index we could possibly be updating, so we make
+              // no changes.
+              return absl::OkStatus();
+            }
+          }
+
+          // We might be updating this element, so add the possible values from
+          // `update_value`.
+          if (update_value.has_value()) {
+            leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
+                element_tree, update_value->AsView(),
+                [](IntervalSet& lhs, const IntervalSet& rhs) {
+                  lhs = IntervalSet::Combine(lhs, rhs);
+                });
+          } else {
+            // The update value is unconstrained, so remove all constraints on
+            // this element.
+            leaf_type_tree::ForEach(element_tree, [&](IntervalSet& is) {
+              is = IntervalSet::Maximal(is.BitCount());
+            });
+          }
+          return absl::OkStatus();
+        }));
+  }
+  SetIntervalSetTree(update, std::move(result));
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleNaryAnd(NaryOp* and_op) {
@@ -868,7 +968,68 @@ absl::Status RangeQueryVisitor::HandleOneHot(OneHot* one_hot) {
 
 absl::Status RangeQueryVisitor::HandleOneHotSel(OneHotSelect* sel) {
   INITIALIZE_OR_SKIP(sel);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(selector_intervals, sel->selector());
+
+  // If the selector is always zero, then so is the result.
+  if (selector_intervals.IsPrecise() && selector_intervals.CoversZero()) {
+    SetIntervalSetTree(sel, ZeroIntervalSetTree(sel->GetType()));
+    return absl::OkStatus();
+  }
+
+  IntervalSetTree result = EmptyIntervalSetTree(sel->GetType());
+
+  for (int64_t i = 0; i < sel->cases().size(); ++i) {
+    TernaryVector case_pattern(sel->cases().size(), TernaryValue::kUnknown);
+    case_pattern[i] = TernaryValue::kKnownOne;
+    if (!interval_ops::CoversTernary(selector_intervals, case_pattern)) {
+      // This case isn't possible, so it won't contribute to the result.
+      continue;
+    }
+
+    case_pattern[i] = TernaryValue::kKnownZero;
+    const bool can_miss_case =
+        interval_ops::CoversTernary(selector_intervals, case_pattern);
+
+    std::optional<IntervalSetTreeView> case_i =
+        MaybeGetIntervalSetTreeView(sel->cases()[i]);
+    if (!case_i.has_value()) {
+      result = UnconstrainedIntervalSetTree(sel->GetType());
+      break;
+    }
+
+    // TODO(epastor): Make more precise by only or-ing cases that can actually
+    // occur together; independent cases should be added independently where
+    // possible.
+    leaf_type_tree::SimpleUpdateFrom<IntervalSet, IntervalSet>(
+        result.AsMutableView(), *case_i,
+        [can_miss_case](IntervalSet& lhs, const IntervalSet& rhs) {
+          if (can_miss_case) {
+            IntervalSet new_possibilities = rhs;
+            new_possibilities.AddInterval(
+                Interval::Precise(UBits(0, new_possibilities.BitCount())));
+            new_possibilities.Normalize();
+
+            if (lhs.IsEmpty()) {
+              lhs = std::move(new_possibilities);
+            } else {
+              lhs = interval_ops::Or(lhs, new_possibilities);
+            }
+          } else {
+            if (lhs.IsEmpty()) {
+              lhs = rhs;
+            } else {
+              lhs = interval_ops::Or(lhs, rhs);
+            }
+          }
+        });
+  }
+
+  for (IntervalSet& intervals : result.elements()) {
+    intervals =
+        interval_ops::MinimizeIntervals(intervals, kDefaultIntervalSize);
+  }
+  SetIntervalSetTree(sel, std::move(result));
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
