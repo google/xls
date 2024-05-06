@@ -52,7 +52,7 @@ def load_external_repositories():
         urls = [
             "https://github.com/madler/zlib/archive/v1.3.1.zip",
         ],
-        build_file = "@com_google_xls//dependency_support/zlib:bundled.BUILD.bazel",
+        build_file = "//dependency_support/zlib:bundled.BUILD.bazel",
     )
 
     # Released 2023-09-20, current as of 2024-03-14
@@ -171,10 +171,10 @@ def load_external_repositories():
         urls = ["https://github.com/Z3Prover/z3/archive/z3-4.12.2.tar.gz"],
         sha256 = "9f58f3710bd2094085951a75791550f547903d75fe7e2fcb373c5f03fc761b8f",
         strip_prefix = "z3-z3-4.12.2",
-        build_file = "@com_google_xls//dependency_support/z3:bundled.BUILD.bazel",
+        build_file = "//dependency_support/z3:bundled.BUILD.bazel",
         # Fix gcc 13.x build failure
         # https://github.com/Z3Prover/z3/issues/6722
-        patches = ["@com_google_xls//dependency_support/z3:6723.patch"],
+        patches = ["//dependency_support/z3:6723.patch"],
     )
 
     # Release 2024-02-23, current as of 2023-03-14
@@ -193,7 +193,7 @@ def load_external_repositories():
         sha256 = "839ed407fe0dfa5fd7dd103abfc695dee72fea2840df8d4250ad42b0e64839e8",
         strip_prefix = "linenoise-d895173d679be70bcd8b23041fff3e458e1a3506",
         urls = ["https://github.com/antirez/linenoise/archive/d895173d679be70bcd8b23041fff3e458e1a3506.tar.gz"],
-        build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
+        build_file = "//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
     # Commit from 2023-11-02
@@ -285,7 +285,7 @@ def load_external_repositories():
         urls = ["https://github.com/hlslibs/ac_types/archive/57d89634cb5034a241754f8f5347803213dabfca.tar.gz"],
         sha256 = "7ab5e2ee4c675ef6895fdd816c32349b3070dc8211b7d412242c66d0c6e8edca",
         strip_prefix = "ac_types-57d89634cb5034a241754f8f5347803213dabfca",
-        build_file = "@com_google_xls//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
+        build_file = "//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
     )
 
     # Released 2023-10-18, current as of 2024-03-14
@@ -310,8 +310,8 @@ def load_external_repositories():
         patch_args = ["-p1"],
         # Removes undesired dependencies like Eigen, BLISS, SCIP
         patches = [
-            "@com_google_xls//dependency_support/com_google_ortools:0001-Fix-GLPK-Eigen-and-SCIP-deps.patch",
-            "@com_google_xls//dependency_support/com_google_ortools:0002-Remove-duplicate-logtostderr-flag.patch",
+            "//dependency_support/com_google_ortools:0001-Fix-GLPK-Eigen-and-SCIP-deps.patch",
+            "//dependency_support/com_google_ortools:0002-Remove-duplicate-logtostderr-flag.patch",
         ],
     )
 
@@ -331,7 +331,7 @@ def load_external_repositories():
         url = "https://github.com/google/fuzztest/archive/" + FUZZTEST_COMMIT + ".zip",
         sha256 = "a0558ceb617d78ee93d7e6b62930b4aeebc02f1e5817d4d0dae53699f6f6c352",
         patch_args = ["-p1", "-R"],  # reverse patch until we upgrade bazel to 7.1; see: bazelbuild/bazel#19233.
-        patches = ["@com_google_xls//dependency_support/com_google_fuzztest:e317d5277e34948ae7048cb5e48309e0288e8df3.patch"],
+        patches = ["//dependency_support/com_google_fuzztest:e317d5277e34948ae7048cb5e48309e0288e8df3.patch"],
     )
 
     # Released 2024-01-24, current as of 2024-03-14
@@ -358,7 +358,7 @@ def load_external_repositories():
         strip_prefix = "verible-0.0-3498-g82ac5189",
         urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/v0.0-3498-g82ac5189.tar.gz"],
         patch_args = ["-p1"],
-        patches = ["@com_google_xls//dependency_support/verible:visibility.patch"],
+        patches = ["//dependency_support/verible:visibility.patch"],
     )
 
     # Same as Verible as of 2023-05-18
@@ -380,7 +380,7 @@ def load_external_repositories():
         sha256 = "192cbb1274a9672cbcceaf47b5c4e9e59691ca60a357f1d4a8b2dfa2c365d757",
         strip_prefix = "zstd-1.4.7",
         urls = ["https://github.com/facebook/zstd/releases/download/v1.4.7/zstd-1.4.7.tar.gz"],
-        build_file = "@//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
+        build_file = "//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
     )
 
     # 2024-02-09

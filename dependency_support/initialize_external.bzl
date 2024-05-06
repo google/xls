@@ -44,7 +44,7 @@ def initialize_external_repositories():
     py_repositories()
     pip_parse(
         name = "xls_pip_deps",
-        requirements_lock = "@com_google_xls//dependency_support:pip_requirements_lock.txt",
+        requirements_lock = "//dependency_support:pip_requirements_lock.txt",
         python_interpreter_target = python_interpreter_target,
         timeout = 600000,
     )
