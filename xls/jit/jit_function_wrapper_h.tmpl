@@ -1,0 +1,37 @@
+
+#ifndef {{ wrapped.header_guard }}
+#define {{ wrapped.header_guard }}
+#include <memory>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "xls/jit/base_jit_wrapper.h"
+#include "xls/public/value.h"
+
+namespace {{ wrapped.namespace }} {
+
+class {{ wrapped.class_name }} final : public xls::BaseFunctionJitWrapper {
+ public:
+  static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create();
+
+  absl::StatusOr<xls::Value> Run(
+    {{ wrapped.params | map(attribute="value_arg") | join(", ") }});
+  absl::Status Run(
+    {{ wrapped.params_and_result | map(attribute="packed_arg") | join(", ") }});
+  absl::Status Run(
+    {{ wrapped.params_and_result | map(attribute="unpacked_arg") | join(", ") }});
+{% if wrapped.can_be_specialized %}
+  absl::StatusOr<{{wrapped.result.specialized_type}}> Run(
+      {{ wrapped.params | map(attribute="specialized_arg") | join(", ") }});
+{% endif %}
+
+ private:
+  using xls::BaseFunctionJitWrapper::BaseFunctionJitWrapper;
+
+  // For constructor.
+  friend class xls::BaseFunctionJitWrapper;
+};
+
+}  // namespace {{ wrapped.namespace }}
+
+#endif  // {{ wrapped.header_guard }}

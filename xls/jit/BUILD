@@ -14,9 +14,11 @@
 
 # Build rules for the IR JIT - converts XLS IR into native host code.
 
+# pytype binary only
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "cc_xls_ir_jit_wrapper",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_ir_cc_library",
@@ -133,47 +135,58 @@ cc_library(
 )
 
 cc_library(
-    name = "jit_wrapper_generator",
-    srcs = ["jit_wrapper_generator.cc"],
-    hdrs = ["jit_wrapper_generator.h"],
+    name = "base_jit_wrapper",
+    hdrs = ["base_jit_wrapper.h"],
+    # Allow jit-wrapper users to see this.
+    visibility = ["//xls:xls_users"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
+        ":function_jit",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:value",
+        "//xls/ir:value_view",
+        "//xls/public:ir_parser",
     ],
 )
 
-cc_binary(
+py_binary(
     name = "jit_wrapper_generator_main",
-    srcs = ["jit_wrapper_generator_main.cc"],
+    srcs = ["jit_wrapper_generator_main.py"],
+    data = [
+        ":jit_function_wrapper_cc.tmpl",
+        ":jit_function_wrapper_h.tmpl",
+        "//xls/tools:extract_interface_main",
+    ],
     visibility = ["//xls:xls_users"],
     deps = [
-        ":jit_wrapper_generator",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "//xls/common:case_converters",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/ir:ir_parser",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        requirement("Jinja2"),
+        requirement("MarkupSafe"),
+        "//xls/common:runfiles",
+        "//xls/ir:xls_ir_interface_py_pb2",
+        "//xls/ir:xls_type_py_pb2",
     ],
 )
 
 cc_test(
-    name = "jit_wrapper_generator_test",
-    srcs = ["jit_wrapper_generator_test.cc"],
+    name = "jit_wrapper_test",
+    srcs = ["jit_wrapper_test.cc"],
     deps = [
-        ":jit_wrapper_generator",
+        ":compound_type_jit_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/dslx/stdlib:float32_mul_jit_wrapper",
+        "//xls/dslx/stdlib:float32_upcast_jit_wrapper",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "//xls/ir:value_builder",
+        "//xls/ir:value_view",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -767,4 +780,13 @@ xls_ir_cc_library(
     src = ":compound_type.ir",
     namespaces = "xls",
     top = "fun_test_function",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "compound_type_jit_wrapper",
+    src = ":compound_type.ir",
+    jit_wrapper_args = {
+        "class_name": "CompoundJitWrapper",
+        "namespace": "something::cool",
+    },
 )

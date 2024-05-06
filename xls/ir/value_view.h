@@ -513,6 +513,14 @@ class PackedTupleView {
   };
 };
 
+// Some common view types.
+using PackedFloat = PackedTupleView</* sign */ PackedBitsView<1>,
+                                    /* exponent */ PackedBitsView<8>,
+                                    /* mantissa */ PackedBitsView<23>>;
+using PackedDouble = PackedTupleView</* sign */ PackedBitsView<1>,
+                                     /* exponent */ PackedBitsView<11>,
+                                     /* mantissa */ PackedBitsView<52>>;
+
 }  // namespace xls
 
 #endif  // XLS_IR_VALUE_VIEW_H_

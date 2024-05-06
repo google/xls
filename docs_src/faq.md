@@ -37,7 +37,7 @@ The steps are:
 The
 [`cc_xls_ir_jit_wrapper` rule](https://google.github.io/xls/bazel_rules_macros/#cc_xls_ir_jit_wrapper)
 in the Bazel rule set invokes a tool (the
-[JIT wrapper generator](https://github.com/google/xls/tree/main/xls/jit/jit_wrapper_generator_main.cc))
+[JIT wrapper generator](https://github.com/google/xls/tree/main/xls/jit/jit_wrapper_generator_main.py))
 that makes a shim that helpfully JIT compiles the IR to native code (e.g. x64
 code), and provides an object that can be used as a C++ callable.
 

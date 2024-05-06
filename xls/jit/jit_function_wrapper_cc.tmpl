@@ -1,0 +1,61 @@
+#include "{{ wrapped.header_filename }}"
+
+#include <array>
+#include <string_view>
+
+#include "xls/common/status/status_macros.h"
+#include "xls/jit/base_jit_wrapper.h"
+
+namespace {{ wrapped.namespace }} {
+
+namespace {
+static constexpr std::string_view kFunctionName = "{{ wrapped.function_name }}";
+static constexpr std::string_view kIrText =
+    R"({{wrapped.ir_text}})";
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
+{{ wrapped.class_name }}::Create() {
+  return xls::BaseFunctionJitWrapper::Create<{{wrapped.class_name}}>(
+            kIrText, kFunctionName);
+}
+
+absl::StatusOr<xls::Value> {{ wrapped.class_name }}::Run(
+    {{ wrapped.params | map(attribute="value_arg") | join(", ") }}) {
+  std::array<xls::Value, {{ len(wrapped.params) }}> jit_wrapper_args{
+      {{ wrapped.params | map(attribute="name") | join(", ") }}
+  };
+  return xls::BaseFunctionJitWrapper::RunInternal(jit_wrapper_args);
+}
+
+absl::Status {{wrapped.class_name}}::Run(
+    {{ wrapped.params_and_result | map(attribute="packed_arg") | join(", ") }}) {
+  return xls::BaseFunctionJitWrapper::RunInternalPacked(
+      {{ wrapped.params_and_result | map(attribute="name") | join(", ") }});
+}
+
+absl::Status {{wrapped.class_name}}::Run(
+    {{ wrapped.params_and_result | map(attribute="unpacked_arg") | join(", ") }}) {
+  return xls::BaseFunctionJitWrapper::RunInternalUnpacked(
+      {{ wrapped.params_and_result | map(attribute="name") | join(", ") }});
+}
+
+{% if wrapped.can_be_specialized %}
+absl::StatusOr<{{wrapped.result.specialized_type}}>
+{{ wrapped.class_name }}::Run(
+      {{ wrapped.params | map(attribute="specialized_arg") | join(", ") }}) {
+  {% for p in wrapped.params %}
+  {{ p.packed_type }} {{ p.name }}_view(std::bit_cast<uint8_t*>(&{{ p.name }}), 0);
+  {% endfor %}
+  {{ wrapped.result.specialized_type }} result;
+  {{ wrapped.result.packed_type }} result_view(std::bit_cast<uint8_t*>(&result), 0);
+  XLS_RETURN_IF_ERROR(xls::BaseFunctionJitWrapper::RunInternalPacked(
+      {{ wrapped.params_and_result | map(attribute="name")
+                                   | append_each("_view")
+                                   | map("join")
+                                   | join(", ") }}));
+  return result;
+}
+{% endif %}
+
+}  // namespace {{ wrapped.namespace }}

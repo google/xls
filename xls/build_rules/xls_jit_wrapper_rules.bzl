@@ -306,6 +306,7 @@ def cc_xls_ir_jit_wrapper(
         srcs = [":" + source_filename],
         hdrs = [":" + header_filename],
         deps = [
+            "//xls/jit:base_jit_wrapper",
             "@com_google_absl//absl/status",
             "//xls/common/status:status_macros",
             "@com_google_absl//absl/status:statusor",

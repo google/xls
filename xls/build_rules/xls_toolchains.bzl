@@ -115,7 +115,7 @@ xls_toolchain_attrs = {
     "_xls_jit_wrapper_tool": attr.label(
         doc = "The target of the JIT wrapper executable.",
         default = Label(_DEFAULT_JIT_WRAPPER_TARGET),
-        allow_single_file = True,
+        allow_files = True,
         executable = True,
         cfg = "exec",
     ),
