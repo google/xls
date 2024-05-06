@@ -15,7 +15,6 @@
 #ifndef XLS_IR_TERNARY_H_
 #define XLS_IR_TERNARY_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -48,15 +47,18 @@ enum class TernaryValue : int8_t {
 using TernaryVector = std::vector<TernaryValue>;
 using TernarySpan = absl::Span<TernaryValue const>;
 
+std::string ToString(TernaryValue value);
+
 // Format of the ternary vector is, for example: 0b10XX1
 std::string ToString(TernarySpan value);
-std::string ToString(const TernaryValue& value);
-
+inline std::string ToString(const TernaryVector &value) {
+  return ToString(TernarySpan(value));
+}
 // Converts the given string to a TernaryVector. Expects string to be of form
 // emitted by ToString (for example, 0b01X0). Underscores are ignored.
 absl::StatusOr<TernaryVector> StringToTernaryVector(std::string_view s);
 
-inline std::ostream& operator<<(std::ostream& os, TernaryValue value) {
+inline std::ostream& operator<<(std::ostream& os, const TernaryValue& value) {
   os << ToString(value);
   return os;
 }

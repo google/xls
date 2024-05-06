@@ -29,6 +29,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/ternary.h"
 
 namespace xls {
 namespace {

@@ -59,7 +59,7 @@ std::string ToString(TernarySpan value) {
   return result;
 }
 
-std::string ToString(const TernaryValue& value) {
+std::string ToString(TernaryValue value) {
   switch (value) {
     case TernaryValue::kKnownZero:
       return "TernaryValue::kKnownZero";
