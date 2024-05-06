@@ -217,9 +217,6 @@ class IrTranslator : public DfsVisitorWithDefault {
   IrTranslator(Z3_context ctx, FunctionBase* source,
                std::optional<absl::Span<const Z3_ast>> imported_params);
 
-  // Returns the index with the proper bitwidth for the given array_type.
-  Z3_ast GetAsFormattedArrayIndex(Z3_ast index, ArrayType* array_type);
-
   // Gets the bit count associated with the bit-vector-sort Z3 node "arg".
   // (Arg must be known to be of bit-vector sort.)
   int64_t GetBvBitCount(Z3_ast arg);

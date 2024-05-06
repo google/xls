@@ -77,8 +77,8 @@ INSTANTIATE_TEST_SUITE_P(Z3BitVectorTestWidthSweep,
                          testing::Values(1, 2, 3, 8));
 
 TEST_F(Z3IrTranslatorTest, ZeroIsZero) {
-  auto p = CreatePackage();
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder b("f", package.get());
   auto x = b.Literal(UBits(0, /*bit_count=*/1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
@@ -88,8 +88,8 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZero) {
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
-  auto p = CreatePackage();
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder b("f", package.get());
   auto x = b.Literal(UBits(0, /*bit_count=*/1));
   auto y = b.Literal(UBits(1, /*bit_count=*/1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
@@ -104,9 +104,9 @@ TEST_F(Z3IrTranslatorTest, ZeroIsZeroAndOneIsOne) {
 }
 
 TEST_F(Z3IrTranslatorTest, ParamsEqualToSelfButUnequalToEachOther) {
-  auto p = CreatePackage();
-  Type* u32 = p->GetBitsType(32);
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  Type* u32 = package->GetBitsType(32);
+  FunctionBuilder b("f", package.get());
   auto x = b.Param("x", u32);
   auto y = b.Param("y", u32);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
@@ -123,9 +123,9 @@ TEST_F(Z3IrTranslatorTest, ParamsEqualToSelfButUnequalToEachOther) {
 }
 
 TEST_F(Z3IrTranslatorTest, ParamAddOneIsGeParam) {
-  auto p = CreatePackage();
-  Type* u32 = p->GetBitsType(32);
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  Type* u32 = package->GetBitsType(32);
+  FunctionBuilder b("f", package.get());
   auto x = b.Param("x", u32);
   auto one = b.Literal(UBits(1, /*bit_count=*/32));
   auto xp1 = b.Add(x, one);
@@ -143,8 +143,8 @@ TEST_F(Z3IrTranslatorTest, ParamAddOneIsGeParam) {
 }
 
 TEST_F(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
-  auto p = CreatePackage();
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder b("f", package.get());
   auto x = b.Literal(UBits(0, /*bit_count=*/2));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
@@ -154,8 +154,8 @@ TEST_F(Z3IrTranslatorTest, ZeroTwoBitsIsZero) {
 }
 
 TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZero) {
-  auto p = CreatePackage();
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder b("f", package.get());
   auto x = b.Literal(UBits(1, /*bit_count=*/1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
@@ -165,8 +165,8 @@ TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZero) {
 }
 
 TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZeroPredicate) {
-  auto p = CreatePackage();
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder b("f", package.get());
   auto x = b.Literal(UBits(1, /*bit_count=*/1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   XLS_ASSERT_OK_AND_ASSIGN(ProverResult proven,
@@ -176,9 +176,9 @@ TEST_F(Z3IrTranslatorTest, OneIsNotEqualToZeroPredicate) {
 }
 
 TEST_F(Z3IrTranslatorTest, ParamMinusSelfIsZero) {
-  auto p = CreatePackage();
-  Type* u32 = p->GetBitsType(32);
-  FunctionBuilder b("f", p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  Type* u32 = package->GetBitsType(32);
+  FunctionBuilder b("f", package.get());
   auto x = b.Param("x", u32);
   auto res = b.Subtract(x, x);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
@@ -195,8 +195,8 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret sub.2: bits[32] = sub(add.1, y)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(),
@@ -212,8 +212,8 @@ fn f(p: (bits[1], bits[32])) -> bits[32] {
   ret z: bits[32] = sub(x, x)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -229,8 +229,8 @@ fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
   ret c: bits[1] = eq(y, b)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -247,8 +247,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = eq(slice, dynamic_slice)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -266,8 +266,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = eq(out_of_bounds, zero)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -284,8 +284,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = eq(slice, zero)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -304,8 +304,8 @@ fn f(x: bits[8], v: bits[4]) -> bits[1] {
   ret result: bits[1] = eq(update, expected)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -321,8 +321,8 @@ fn f(x: bits[8], v: bits[4]) -> bits[1] {
   ret result: bits[1] = eq(update, x)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -339,8 +339,8 @@ fn f(x: bits[8], v: bits[16]) -> bits[1] {
   ret result: bits[1] = eq(update, expected)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -354,8 +354,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = ugt(p, p)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -369,8 +369,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = ult(p, p)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -385,8 +385,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret msb: bits[1] = bit_slice(x, start=4, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -407,8 +407,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret msb: bits[1] = bit_slice(result, start=4, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -426,8 +426,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = ugt(x, p)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -450,8 +450,8 @@ fn f(p: bits[2]) -> bits[1] {
   ret result: bits[1] = bit_slice(rev, start=0, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -468,8 +468,8 @@ fn f(p: bits[2]) -> bits[1] {
   ret result: bits[1] = eq(p0, rp1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -485,8 +485,8 @@ fn f(p: bits[2]) -> bits[1] {
   ret result: bits[1] = bit_slice(x, start=1, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -502,8 +502,8 @@ fn f(p: bits[2]) -> bits[1] {
   ret result: bits[1] = bit_slice(x, start=0, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -519,8 +519,8 @@ fn f(p: bits[2]) -> bits[1] {
   ret result: bits[1] = bit_slice(x, start=0, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -535,8 +535,8 @@ fn f(p: bits[1]) -> bits[1] {
   ret result: bits[1] = and(p, np)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -551,8 +551,8 @@ fn f(p: bits[1]) -> bits[1] {
   ret result: bits[1] = nand(p, np)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -567,8 +567,8 @@ fn f(p: bits[1]) -> bits[1] {
   ret result: bits[1] = or(p, np)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -591,8 +591,8 @@ fn f(p: bits[$0]) -> bits[1] {
 }
 )";
   const std::string program = absl::Substitute(program_template, BitWidth());
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -604,11 +604,11 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
        KnownNegativeSubIsNarrowable) {
   // Verify that a subtract that is known-negative is same as narrowed sub
   // extended with 1s
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
   auto full_width = BitWidth() + 4;
-  BValue x = fb.Param("x", p->GetBitsType(BitWidth()));
-  BValue y = fb.Param("y", p->GetBitsType(BitWidth()));
+  BValue x = fb.Param("x", package->GetBitsType(BitWidth()));
+  BValue y = fb.Param("y", package->GetBitsType(BitWidth()));
   auto x_wide = fb.ZeroExtend(x, full_width);
   // y_wide is always larger than x
   auto y_wide =
@@ -631,11 +631,11 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
        KnownPositiveSubIsNarrowable) {
   // Verify that a subtract that is known-positive is same as narrowed sub
   // zero-extended.
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
   auto full_width = BitWidth() + 4;
-  BValue x = fb.Param("x", p->GetBitsType(BitWidth()));
-  BValue y = fb.Param("y", p->GetBitsType(BitWidth()));
+  BValue x = fb.Param("x", package->GetBitsType(BitWidth()));
+  BValue y = fb.Param("y", package->GetBitsType(BitWidth()));
   auto x_wide = fb.ZeroExtend(x, full_width);
   // y_wide is always larger than x
   auto y_wide =
@@ -669,8 +669,8 @@ fn f(p: bits[1]) -> bits[1] {
 )";
   const std::string program =
       absl::Substitute(program_template, BitWidth(), BitWidth() + 1);
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -683,10 +683,10 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
   // Verify that we can transform a negation of a value with many known zero
   // bits into a negation of the non-zero bits with a single zero bit then
   // sign-extended to the correct length.
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
   auto full_width = BitWidth() + 3;
-  auto param = fb.Param("p", p->GetBitsType(3));
+  auto param = fb.Param("p", package->GetBitsType(3));
   auto conc_big = fb.Concat({fb.Literal(UBits(0, BitWidth())), param});
   auto neg_big = fb.Negate(conc_big);
   auto conc_small = fb.Concat({fb.Literal(UBits(0, 1)), param});
@@ -715,8 +715,8 @@ fn f(p: bits[$0]) -> bits[1] {
 }
 )";
   const std::string program = absl::Substitute(program_template, BitWidth());
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -738,8 +738,8 @@ fn f(p: bits[3]) -> bits[1] {
   ret eq: bits[1] = eq(impl, spec)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -756,8 +756,8 @@ fn f(p: bits[1]) -> bits[1] {
   ret eq: bits[1] = eq(b0, b1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -772,8 +772,8 @@ fn f(p: bits[4]) -> bits[4] {
   ret result: bits[4] = add(p, np)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -787,8 +787,8 @@ fn f(p: bits[4]) -> bits[1] {
   ret result: bits[1] = ne(p, p)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -802,8 +802,8 @@ fn f(p: bits[1]) -> bits[2] {
   ret result: bits[2] = one_hot(p, lsb_prio=true)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -818,8 +818,8 @@ fn f(x: bits[2]) -> bits[1] {
   ret result: bits[1] = decode(z, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -835,8 +835,8 @@ fn f(x: bits[2]) -> bits[1] {
   ret result: bits[1] = decode(or.2, width=1)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -851,8 +851,8 @@ fn f(x: bits[2]) -> bits[1] {
   ret result: bits[1] = encode(z)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -868,8 +868,8 @@ fn f(x: bits[2]) -> bits[1] {
   ret result: bits[1] = encode(or.2)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -885,8 +885,8 @@ fn f(x: bits[2]) -> bits[1] {
   ret sel.3: bits[1] = sel(x, cases=[literal.1], default=literal.2)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -907,8 +907,8 @@ fn f(x: bits[2], y: bits[2]) -> bits[1] {
   ret and: bits[1] = and(sge, slt)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_ez,
       TryProve(f, f->return_value(), Predicate::EqualToZero(),
@@ -926,8 +926,8 @@ fn f(x: bits[2]) -> bits[1] {
   ret result: bits[1] = sge(add, most_negative)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -945,8 +945,8 @@ fn f(x: bits[3]) -> bits[1] {
   ret result: bits[1] = slt(sel, most_positive)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -966,8 +966,8 @@ fn f(x: bits[2]) -> bits[1] {
   ret eq: bits[1] = eq(y, z)
 }
 )";
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -995,8 +995,9 @@ fn f() -> bits[1] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -1025,9 +1026,10 @@ fn f() -> bits[4] {
 }
   )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* to_compare = FindNode("literal.3", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* to_compare = FindNode("literal.3", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(to_compare),
@@ -1054,12 +1056,13 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   // Check that non-token logic is not affected.
   {
-    Node* eq_node = FindNode("literal.5", p.get());
+    Node* eq_node = FindNode("literal.5", package.get());
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
         TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1116,12 +1119,13 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   // Check that non-token logic is not affected.
   {
-    Node* eq_node = FindNode("literal.5", p.get());
+    Node* eq_node = FindNode("literal.5", package.get());
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
         TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1171,14 +1175,15 @@ fn f(empty_tuple: ()) -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
-  Node* token_node = FindNode("after_all.10", p.get());
-  Node* tuple_node = FindNode("empty_tuple", p.get());
+  Node* token_node = FindNode("after_all.10", package.get());
+  Node* tuple_node = FindNode("empty_tuple", package.get());
 
   // Even though we represent tokens as empty tuples as a convenient hack, we
-  // should not evaluate tokens == empty tuples.  Evaluation should fail becaue
+  // should not evaluate tokens == empty tuples.  Evaluation should fail because
   // an empty tuple is not a bit type.
   EXPECT_THAT(
       TryProve(f, token_node, Predicate::IsEqualTo(tuple_node),
@@ -1203,8 +1208,9 @@ fn f(arr1: token, arr2: token, arr3: token) -> token {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<Node*> token_nodes;
   for (Node* node : f->nodes()) {
@@ -1250,9 +1256,10 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* eq_node = FindNode("literal.5", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* eq_node = FindNode("literal.5", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1270,9 +1277,10 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* eq_node = FindNode("eight", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* eq_node = FindNode("eight", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1301,9 +1309,10 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* eq_node = FindNode("literal.4", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* eq_node = FindNode("literal.4", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1332,9 +1341,10 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* eq_node = FindNode("literal.4", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* eq_node = FindNode("literal.4", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1364,9 +1374,10 @@ fn f() -> bits[32] {
 }
   )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* eq_node = FindNode("literal.5", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* eq_node = FindNode("literal.5", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1401,9 +1412,10 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* eq_node = FindNode("literal.2", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* eq_node = FindNode("literal.2", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1426,9 +1438,10 @@ fn f() -> bits[32] {
 }
   )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
-  Node* eq_node = FindNode("literal.5", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
+  Node* eq_node = FindNode("literal.5", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_eq,
       TryProve(f, f->return_value(), Predicate::IsEqualTo(eq_node),
@@ -1452,8 +1465,9 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> expect = {"zero", "forty_two"};
   std::vector<std::string> observe = {"element_0", "element_1"};
@@ -1461,8 +1475,8 @@ fn f() -> bits[32] {
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
+        TryProve(f, FindNode(expect[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(observe[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenTrue());
   }
@@ -1483,8 +1497,9 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> expect = {"zero", "zero"};
   std::vector<std::string> observe = {"element_0", "element_1"};
@@ -1492,8 +1507,8 @@ fn f() -> bits[32] {
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
+        TryProve(f, FindNode(expect[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(observe[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenTrue());
   }
@@ -1510,13 +1525,15 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
-  EXPECT_THAT(TryProve(f, FindNode("result", p.get()),
-                       Predicate::IsEqualTo(FindNode("forty_two", p.get())),
-                       absl::InfiniteDuration()),
-              IsOkAndHolds(IsProvenTrue()));
+  EXPECT_THAT(
+      TryProve(f, FindNode("result", package.get()),
+               Predicate::IsEqualTo(FindNode("forty_two", package.get())),
+               absl::InfiniteDuration()),
+      IsOkAndHolds(IsProvenTrue()));
 }
 
 // UpdateArray test 2: Array of Arrays
@@ -1540,8 +1557,9 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> expect = {"literal.1", "literal.1", "literal.2",
                                      "literal.2"};
@@ -1551,8 +1569,8 @@ fn f() -> bits[32] {
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
+        TryProve(f, FindNode(expect[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(observe[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenTrue());
   }
@@ -1578,8 +1596,9 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> expect = {"zero", "zero", "forty_two", "zero"};
   std::vector<std::string> observe = {"element_0_0", "element_0_1",
@@ -1588,8 +1607,8 @@ fn f() -> bits[32] {
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
+        TryProve(f, FindNode(expect[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(observe[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenTrue());
   }
@@ -1616,8 +1635,9 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> expect = {"literal.1", "literal.2", "literal.2",
                                      "literal.1"};
@@ -1627,8 +1647,8 @@ fn f() -> bits[32] {
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
+        TryProve(f, FindNode(expect[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(observe[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenTrue());
   }
@@ -1665,8 +1685,9 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> expect = {"literal.1", "literal.2", "literal.2",
                                      "literal.1", "literal.2", "literal.1",
@@ -1678,8 +1699,8 @@ fn f() -> bits[32] {
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
+        TryProve(f, FindNode(expect[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(observe[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenTrue());
   }
@@ -1701,8 +1722,9 @@ fn f() -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> expect = {"literal.1", "literal.1"};
   std::vector<std::string> observe = {"element_0", "array_index.10"};
@@ -1710,8 +1732,8 @@ fn f() -> bits[32] {
   for (int idx = 0; idx < expect.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(expect[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(observe[idx], p.get())),
+        TryProve(f, FindNode(expect[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(observe[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenTrue());
   }
@@ -1733,8 +1755,9 @@ fn f(index: bits[32]) -> bits[32] {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
 
   std::vector<std::string> in_str = {"literal.1", "literal.2", "literal.1",
                                      "literal.2"};
@@ -1746,8 +1769,8 @@ fn f(index: bits[32]) -> bits[32] {
   for (int idx = 0; idx < in_str.size(); ++idx) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ProverResult proven_eq,
-        TryProve(f, FindNode(in_str[idx], p.get()),
-                 Predicate::IsEqualTo(FindNode(out_str[idx], p.get())),
+        TryProve(f, FindNode(in_str[idx], package.get()),
+                 Predicate::IsEqualTo(FindNode(out_str[idx], package.get())),
                  absl::InfiniteDuration()));
     EXPECT_THAT(proven_eq, IsProvenFalse());
   }
@@ -1775,8 +1798,8 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[4] {
 }
 )";
 
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   EXPECT_THAT(TryProve(f, f->return_value(), Predicate::EqualToZero(),
                        absl::InfiniteDuration()),
               IsOkAndHolds(IsProvenTrue()));
@@ -1808,8 +1831,8 @@ fn f(x: bits[4][1], y: bits[4][1]) -> bits[1] {
 }
 )";
 
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   EXPECT_THAT(TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
                        absl::InfiniteDuration()),
               IsOkAndHolds(IsProvenTrue()));
@@ -1879,8 +1902,9 @@ fn f(selector: bits[2]) -> bits[4] {
   ret one_hot_sel.3: bits[4] = one_hot_sel(selector, cases=[literal.1, literal.2])
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
   XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                            IrTranslator::CreateAndTranslate(f));
   Z3_context ctx = translator->ctx();
@@ -1904,8 +1928,8 @@ fn f(idx: bits[1]) -> bits[4] {
   ret priority_sel.3: bits[4] = priority_sel(one_hot.4, cases=[literal.1, literal.2])
 })";
 
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ProverResult proven_nez,
       TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
@@ -1935,9 +1959,9 @@ fn f() -> bits[6] {
   for (std::pair<int, int> test_case : test_cases) {
     std::string program =
         absl::Substitute(tmpl, test_case.first, test_case.second);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(program));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
     XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
@@ -1980,9 +2004,9 @@ fn f() -> bits[6] {
   for (std::pair<int, int> test_case : test_cases) {
     std::string program =
         absl::Substitute(tmpl, test_case.first, test_case.second);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(program));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
     XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
@@ -2027,9 +2051,9 @@ fn f() -> bits[64] {
   for (std::pair<int, int> test_case : test_cases) {
     std::string program =
         absl::Substitute(tmpl, test_case.first, test_case.second);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(program));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
     XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
@@ -2076,9 +2100,9 @@ fn f() -> bits[64] {
 
   for (auto [test_case_lhs, test_case_rhs] : test_cases) {
     std::string program = absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(program));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
     XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
@@ -2117,9 +2141,9 @@ fn f() -> bits[64] {
     for (int64_t test_case_rhs : values) {
       const std::string program =
           absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
-      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                                Parser::ParsePackage(program));
-      XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
       XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                                IrTranslator::CreateAndTranslate(f));
       Z3_context ctx = translator->ctx();
@@ -2162,9 +2186,9 @@ fn f() -> bits[1] {
 
   for (auto [test_case_lhs, test_case_rhs] : test_cases) {
     std::string program = absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(program));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
     XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                              IrTranslator::CreateAndTranslate(f));
     Z3_context ctx = translator->ctx();
@@ -2200,9 +2224,9 @@ fn f() -> bits[64] {
     for (uint64_t test_case_rhs : values) {
       const std::string program =
           absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
-      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                                Parser::ParsePackage(program));
-      XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
       XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                                IrTranslator::CreateAndTranslate(f));
       Z3_context ctx = translator->ctx();
@@ -2247,9 +2271,9 @@ fn f() -> bits[64] {
     for (int64_t test_case_rhs : values) {
       const std::string program =
           absl::Substitute(tmpl, test_case_lhs, test_case_rhs);
-      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+      XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                                Parser::ParsePackage(program));
-      XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("f"));
       XLS_ASSERT_OK_AND_ASSIGN(auto translator,
                                IrTranslator::CreateAndTranslate(f));
       Z3_context ctx = translator->ctx();
@@ -2272,6 +2296,64 @@ fn f() -> bits[64] {
       Z3_solver_dec_ref(ctx, solver);
     }
   }
+}
+
+TEST_F(Z3IrTranslatorTest, HandlesTupleEqAndNe) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  Type* u32 = package->GetBitsType(32);
+  Type* small_tuple_tpe = package->GetTupleType({u32, u32});
+  Type* tuple_tpe =
+      package->GetTupleType({u32, small_tuple_tpe, small_tuple_tpe});
+  BValue a = fb.Param("a", tuple_tpe);
+  BValue b = fb.Param("b", tuple_tpe);
+  BValue should_be_false = fb.And(fb.Eq(a, b), fb.Ne(a, b));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(should_be_false));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, should_be_false.node(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
+TEST_F(Z3IrTranslatorTest, HandlesArrayEqAndNe) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  Type* u32 = package->GetBitsType(32);
+  Type* small_array_tpe = package->GetArrayType(10, u32);
+  Type* array_tpe = package->GetArrayType(10, small_array_tpe);
+  BValue a = fb.Param("a", array_tpe);
+  BValue b = fb.Param("b", array_tpe);
+  BValue should_be_false = fb.And(fb.Eq(a, b), fb.Ne(a, b));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(should_be_false));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, should_be_false.node(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
+TEST_F(Z3IrTranslatorTest, HandlesComplexAggregateEqAndNe) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  Type* u32 = package->GetBitsType(32);
+  Type* small_array_tpe = package->GetArrayType(10, u32);
+  Type* small_tuple_tpe = package->GetTupleType({u32, small_array_tpe, u32});
+  Type* array_tpe = package->GetArrayType(10, small_tuple_tpe);
+  Type* tuple_tpe =
+      package->GetTupleType({u32, array_tpe, u32, small_tuple_tpe});
+  BValue a = fb.Param("a", tuple_tpe);
+  BValue b = fb.Param("b", tuple_tpe);
+  BValue should_be_false = fb.And(fb.Eq(a, b), fb.Ne(a, b));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(should_be_false));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, should_be_false.node(), Predicate::EqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
 }
 
 }  // namespace

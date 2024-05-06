@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -36,6 +37,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
@@ -117,6 +119,25 @@ class Z3AbstractEvaluator
  private:
   mutable Z3OpTranslator translator_;
 };
+
+// Returns the index with the proper bitwidth for the given array_type.
+Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, Z3_ast index,
+                                ArrayType* array_type) {
+  // In XLS, array indices can be of any sort, whereas in Z3, index types need
+  // to be declared w/the array (the "domain" argument - we declare that to be
+  // the smallest bit vector that covers all indices. Thus, we need to "cast"
+  // appropriately here.
+  uint32_t target_width = static_cast<uint32_t>(
+      Bits::MinBitCountUnsigned(static_cast<uint64_t>(array_type->size())));
+  int z3_width = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, index));
+  if (z3_width < target_width) {
+    index = Z3_mk_zero_ext(ctx, target_width - z3_width, index);
+  } else if (z3_width > target_width) {
+    index = Z3_mk_extract(ctx, target_width - 1, /*low=*/0, index);
+  }
+
+  return index;
+}
 
 }  // namespace
 
@@ -396,29 +417,99 @@ absl::Status IrTranslator::HandleSGe(CompareOp* sge) {
   return HandleBinary(sge, f);
 }
 
-absl::Status IrTranslator::HandleEq(CompareOp* eq) {
-  if (!eq->operand(0)->GetType()->IsBits()) {
-    // TODO(meheff): 2022/09/15 Support non-bits types.
-    return DefaultHandler(eq);
+namespace {
+// Returns the Z3 value addressed by the given indices.
+// If `indices` is not empty, it is expected that `type` (and the corresponding
+// sort of `value`) is an aggregate (tuple or array). For each index in
+// `indices`, this will check if the value is an array or tuple and perform the
+// appropriate Z3 operations to resolve the value at that index. Returns an
+// error if the value is not an array/or tuple and an index remains to resolve.
+// Also returns an error if the Z3 sort and XLS type being indexed are not
+// compatible (i.e. the type is a tuple but Z3 sort is a bitvector).
+absl::StatusOr<Z3_ast> GetValueAtIndices(Type* type, Z3_context ctx,
+                                         Z3_ast value,
+                                         absl::Span<int64_t const> indices) {
+  // Chase indices one at a time.
+  while (!indices.empty()) {
+    Z3_sort value_sort = Z3_get_sort(ctx, value);
+    Z3_sort_kind value_kind = Z3_get_sort_kind(ctx, value_sort);
+    switch (value_kind) {
+      case Z3_ARRAY_SORT: {
+        XLS_ASSIGN_OR_RETURN(ArrayType * array_type, type->AsArray());
+        // Need to take care to get the right sort/width for Z3 array indexing.
+        Z3_sort index_sort =
+            Z3_mk_bv_sort(ctx, static_cast<uint32_t>(Bits::MinBitCountUnsigned(
+                                   static_cast<uint64_t>(array_type->size()))));
+        Z3_ast index_z3 = Z3_mk_int64(ctx, indices.front(), index_sort);
+        index_z3 = GetAsFormattedArrayIndex(ctx, index_z3, array_type);
+        value = Z3_mk_select(ctx, value, index_z3);
+        type = array_type->element_type();
+        break;
+      }
+      case Z3_DATATYPE_SORT: {
+        XLS_ASSIGN_OR_RETURN(TupleType * tuple_type, type->AsTuple());
+        Z3_func_decl proj_fn = Z3_get_tuple_sort_field_decl(
+            ctx, value_sort, static_cast<unsigned int>(indices.front()));
+        value = Z3_mk_app(ctx, proj_fn, 1, &value);
+        type = tuple_type->element_type(indices.front());
+        break;
+      }
+      default:
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Z3 sort %s cannot be indexed",
+                            Z3_sort_to_string(ctx, value_sort)));
+    }
+    indices.remove_prefix(1);
   }
-  auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
-    Z3OpTranslator t(ctx);
-    return t.Not(t.ReduceOr(t.Xor(lhs, rhs)));
-  };
-  return HandleBinary(eq, f);
+  return value;
+}
+
+// Helper for computing Ne on potentially-aggregate-typed operands.
+// Shared by both Eq and Ne handlers.
+absl::StatusOr<Z3_ast> ComputeNe(Z3_context ctx, Z3_ast lhs, Z3_ast rhs,
+                                 Type* operand_type, Z3OpTranslator& t) {
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<Z3_ast> ltt,
+      LeafTypeTree<Z3_ast>::CreateFromFunction(
+          operand_type,
+          [&](Type* leaf_type,
+              absl::Span<int64_t const> indices) -> absl::StatusOr<Z3_ast> {
+            XLS_ASSIGN_OR_RETURN(
+                Z3_ast lhs_at_indices,
+                GetValueAtIndices(operand_type, ctx, lhs, indices));
+            XLS_ASSIGN_OR_RETURN(
+                Z3_ast rhs_at_indices,
+                GetValueAtIndices(operand_type, ctx, rhs, indices));
+            return t.Xor(lhs_at_indices, rhs_at_indices);
+          }));
+  XLS_RET_CHECK(!ltt.elements().empty());
+  Z3_ast concat = ltt.elements().front();
+  for (Z3_ast element : ltt.elements().subspan(1)) {
+    concat = Z3_mk_concat(ctx, concat, element);
+  }
+  return t.ReduceOr(concat);
+}
+}  // namespace
+
+absl::Status IrTranslator::HandleEq(CompareOp* eq) {
+  Z3OpTranslator t(ctx_);
+  ScopedErrorHandler seh(ctx_);
+  XLS_ASSIGN_OR_RETURN(Z3_ast result, ComputeNe(ctx_, GetValue(eq->operand(0)),
+                                                GetValue(eq->operand(1)),
+                                                eq->operand(0)->GetType(), t));
+  result = t.Not(result);
+  NoteTranslation(eq, result);
+  return seh.status();
 }
 
 absl::Status IrTranslator::HandleNe(CompareOp* ne) {
-  if (!ne->operand(0)->GetType()->IsBits()) {
-    // TODO(meheff): 2022/09/15 Support non-bits types.
-    return DefaultHandler(ne);
-  }
-
-  auto f = [](Z3_context ctx, Z3_ast a, Z3_ast b) {
-    Z3OpTranslator t(ctx);
-    return t.ReduceOr(t.Xor(a, b));
-  };
-  return HandleBinary(ne, f);
+  Z3OpTranslator t(ctx_);
+  ScopedErrorHandler seh(ctx_);
+  XLS_ASSIGN_OR_RETURN(Z3_ast result, ComputeNe(ctx_, GetValue(ne->operand(0)),
+                                                GetValue(ne->operand(1)),
+                                                ne->operand(0)->GetType(), t));
+  NoteTranslation(ne, result);
+  return seh.status();
 }
 
 template <typename FnT>
@@ -627,28 +718,9 @@ absl::Status IrTranslator::HandleTuple(Tuple* tuple) {
   return absl::OkStatus();
 }
 
-Z3_ast IrTranslator::GetAsFormattedArrayIndex(Z3_ast index,
-                                              ArrayType* array_type) {
-  // In XLS, array indices can be of any sort, whereas in Z3, index types need
-  // to be declared w/the array (the "domain" argument - we declare that to be
-  // the smallest bit vector that covers all indices. Thus, we need to "cast"
-  // appropriately here.
-  int target_width = Bits::MinBitCountUnsigned(array_type->size());
-  int z3_width = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, index));
-  if (z3_width < target_width) {
-    index = Z3_mk_zero_ext(ctx_, target_width - z3_width, index);
-  } else if (z3_width > target_width) {
-    index =
-        Z3_mk_extract(ctx_, Bits::MinBitCountUnsigned(array_type->size()) - 1,
-                      /*low=*/0, index);
-  }
-
-  return index;
-}
-
 Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
                                      Z3_ast index) {
-  index = GetAsFormattedArrayIndex(index, array_type);
+  index = GetAsFormattedArrayIndex(ctx_, index, array_type);
   // To follow XLS semantics, if the index exceeds the array size, then return
   // the element at the max index.
   Z3OpTranslator t(ctx_);
@@ -682,10 +754,10 @@ Z3_ast IrTranslator::UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value,
       Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
   std::vector<Z3_ast> elements;
   for (int64_t i = 0; i < array_type->size(); ++i) {
-    Z3_ast this_index =
-        GetAsFormattedArrayIndex(Z3_mk_int64(ctx_, i, index_sort), array_type);
+    Z3_ast this_index = GetAsFormattedArrayIndex(
+        ctx_, Z3_mk_int64(ctx_, i, index_sort), array_type);
     Z3_ast updated_index =
-        GetAsFormattedArrayIndex(indices.front(), array_type);
+        GetAsFormattedArrayIndex(ctx_, indices.front(), array_type);
     // In the recursive call, the condition is updated by whether the current
     // index matches.
     Z3_ast and_args[] = {cond, Z3_mk_eq(ctx_, this_index, updated_index)};
@@ -748,7 +820,8 @@ absl::Status IrTranslator::HandleArraySlice(ArraySlice* array_slice) {
   Z3_ast start_ast = GetValue(array_slice->start());
   ArrayType* input_type = array_slice->array()->GetType()->AsArrayOrDie();
   ArrayType result_type(array_slice->width(), input_type->element_type());
-  Z3_ast formatted_start_ast = GetAsFormattedArrayIndex(start_ast, input_type);
+  Z3_ast formatted_start_ast =
+      GetAsFormattedArrayIndex(ctx_, start_ast, input_type);
 
   std::vector<Z3_ast> elements;
   for (uint64_t i = 0; i < array_slice->width(); ++i) {
@@ -1173,9 +1246,8 @@ absl::Status IrTranslator::HandleSel(Select* sel) {
       default_value = FlattenValue(sel->default_value().value()->GetType(),
                                    GetValue(sel->default_value().value()));
     }
-    return evaluator.Select(selector,
-                            evaluator.SpanOfVectorsToVectorOfSpans(cases),
-                            default_value);
+    return evaluator.Select(
+        selector, evaluator.SpanOfVectorsToVectorOfSpans(cases), default_value);
   });
 }
 
