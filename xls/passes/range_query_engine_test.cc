@@ -1391,6 +1391,45 @@ TEST_F(RangeQueryEngineTest, Sel) {
             engine.GetIntervalSetTree(expr.node()).Get({}));
 }
 
+TEST_F(RangeQueryEngineTest, SelHugeSelector) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(100));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue def = fb.Param("def", p->GetBitsType(10));
+  BValue expr = fb.Select(selector, {x, y, z}, def);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(200, 10), UBits(250, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(y.node(), {Interval(UBits(300, 10), UBits(350, 10))});
+  IntervalSetTree def_ist =
+      BitsLTT(y.node(), {Interval(UBits(1023, 10), UBits(1023, 10))});
+
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(),
+              {Interval::Precise(bits_ops::Concat(
+                  {UBits(0, 10), UBits(1, 1), UBits(0, 89)}))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  engine.SetIntervalSetTree(def.node(), def_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Test case where default is covered.
+  EXPECT_EQ(def_ist.Get({}),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+}
+
 TEST_F(RangeQueryEngineTest, OneHotSelect) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

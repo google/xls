@@ -1174,7 +1174,8 @@ absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
   absl::Status status = absl::OkStatus();
   const uint64_t num_cases = sel->cases().size();
   selector_intervals.ForEachElement([&](const Bits& bits) -> bool {
-    uint64_t i = *bits.ToUint64();
+    // Selects can't have a cases size of more than uint64_MAX.
+    uint64_t i = bits.ToUint64().value_or(std::numeric_limits<uint64_t>::max());
     std::optional<IntervalSetTreeView> selected_case;
     bool finished = false;
     if (i < num_cases) {
