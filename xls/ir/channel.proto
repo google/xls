@@ -20,6 +20,8 @@ message FifoConfigProto {
   optional int64 width = 1;
   optional int64 depth = 2;
   optional bool bypass = 3;
+  optional bool register_push_outputs = 4;
+  optional bool register_pop_outputs = 5;
 }
 
 // Metadata for a channel which describes ports on a Verilog module.

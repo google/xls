@@ -23,7 +23,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <ostream>
 #include <regex>  // NOLINT
 #include <set>
 #include <sstream>
@@ -80,11 +79,13 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/solvers/z3_utils.h"
+#include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
 using std::list;
@@ -4710,7 +4711,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
       xls::Channel * xls_channel,
       package_->CreateStreamingChannel(
           ch_name, xls::ChannelOps::kSendReceive, item_type_xls,
-          /*initial_values=*/{}, /*fifo_config=*/xls::FifoConfig{.depth = 0},
+          /*initial_values=*/{}, /*fifo_config=*/
+          xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
+                          /*register_push_outputs=*/false,
+                          /*register_pop_outputs=*/false),
           xls::FlowControl::kReadyValid));
 
   unused_xls_channel_ops_.push_back({xls_channel, /*is_send=*/true});

@@ -1529,6 +1529,24 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
     return absl::OkStatus();
   };
 
+  std::optional<bool> register_push_outputs;
+  handlers["register_push_outputs"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token register_push_outputs_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(register_push_outputs,
+                         register_push_outputs_token.GetValueBool());
+    return absl::OkStatus();
+  };
+
+  std::optional<bool> register_pop_outputs;
+  handlers["register_pop_outputs"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token register_pop_outputs_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(register_pop_outputs,
+                         register_pop_outputs_token.GetValueBool());
+    return absl::OkStatus();
+  };
+
   std::optional<std::string> channel;
   handlers["channel"] = [&]() -> absl::Status {
     XLS_ASSIGN_OR_RETURN(Token channel_token,
@@ -1582,6 +1600,10 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
             Field::MustNotHave(data_type.has_value(), "data_type"),
             Field::MustNotHave(depth.has_value(), "depth"),
             Field::MustNotHave(bypass.has_value(), "bypass"),
+            Field::MustNotHave(register_push_outputs.has_value(),
+                               "register_push_outputs"),
+            Field::MustNotHave(register_pop_outputs.has_value(),
+                               "register_pop_outputs"),
             Field::MustNotHave(channel.has_value(), "channel"),
             Field::MustHave(instantiated_block.has_value(),
                             "instantiated_block"),
@@ -1598,11 +1620,18 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
             Field::MustHave(data_type.has_value(), "data_type"),
             Field::MustHave(depth.has_value(), "depth"),
             Field::MustHave(bypass.has_value(), "bypass"),
+            Field::MustHave(register_push_outputs.has_value(),
+                            "register_push_outputs"),
+            Field::MustHave(register_pop_outputs.has_value(),
+                            "register_pop_outputs"),
         },
         "fifo"));
     return block->AddFifoInstantiation(
         instantiation_name.value(),
-        FifoConfig{.depth = depth.value(), .bypass = bypass.value()},
+        FifoConfig(/*depth=*/*depth,
+                   /*bypass=*/*bypass,
+                   /*register_push_outputs=*/*register_push_outputs,
+                   /*register_pop_outputs=*/*register_pop_outputs),
         *data_type, channel);
   }
 
@@ -2250,6 +2279,8 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
   std::optional<ChannelStrictness> strictness;
   std::optional<int64_t> fifo_depth;
   std::optional<bool> bypass;
+  std::optional<bool> register_push_outputs;
+  std::optional<bool> register_pop_outputs;
 
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
@@ -2374,6 +2405,18 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
     XLS_ASSIGN_OR_RETURN(bypass, token_to_bool(token));
     return absl::OkStatus();
   };
+  handlers["register_push_outputs"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(register_push_outputs, token_to_bool(token));
+    return absl::OkStatus();
+  };
+  handlers["register_pop_outputs"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(register_pop_outputs, token_to_bool(token));
+    return absl::OkStatus();
+  };
 
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(
       handlers, /*mandatory_keywords=*/{"id", "ops", "metadata", "kind"}));
@@ -2404,9 +2447,10 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
     case ChannelKind::kStreaming: {
       std::optional<FifoConfig> fifo_config;
       if (fifo_depth.has_value()) {
-        fifo_config.emplace();
-        fifo_config->depth = *fifo_depth;
-        fifo_config->bypass = bypass.value_or(true);
+        fifo_config = FifoConfig(
+            /*depth=*/*fifo_depth, /*bypass=*/bypass.value_or(true),
+            /*register_push_outputs=*/register_push_outputs.value_or(false),
+            /*register_pop_outputs=*/register_pop_outputs.value_or(false));
       }
       if (proc == nullptr) {
         return package->CreateStreamingChannel(

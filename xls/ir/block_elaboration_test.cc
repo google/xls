@@ -230,10 +230,13 @@ absl::StatusOr<Block*> BlockWithFifoInstantiation(Package& p) {
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
 
-  XLS_ASSIGN_OR_RETURN(
-      FifoInstantiation * fifo_inst,
-      bb.block()->AddFifoInstantiation(
-          "fifo_inst", FifoConfig{.depth = 1, .bypass = true}, u32));
+  XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo_inst,
+                       bb.block()->AddFifoInstantiation(
+                           "fifo_inst",
+                           FifoConfig(/*depth=*/1, /*bypass=*/true,
+                                      /*register_push_outputs=*/true,
+                                      /*register_pop_outputs=*/false),
+                           u32));
 
   BValue lit1 = bb.Literal(UBits(1, 1));
   bb.InstantiationInput(fifo_inst, "push_data", a);

@@ -179,8 +179,10 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetTupleType({p.GetBitsType(32)}),
-      /*fifo_config=*/FifoConfig{.depth = 42}, "streaming_in_data",
-      "streaming_in_valid", "streaming_in_ready");
+      /*fifo_config=*/
+      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
+                 /*register_pop_outputs=*/false),
+      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
 
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
                         FlowControl::kNone, p.GetBitsType(32),
@@ -233,11 +235,13 @@ TEST(ModuleSignatureTest, GetByName) {
   b.AddDataInputAsBits("streaming_in_valid", 1);
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
-  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, p.GetBitsType(24),
-                        /*fifo_config=*/FifoConfig{.depth = 42},
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+  b.AddStreamingChannel(
+      "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
+      p.GetBitsType(24),
+      /*fifo_config=*/
+      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
+                 /*register_pop_outputs=*/false),
+      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
@@ -287,11 +291,13 @@ TEST(ModuleSignatureTest, GetChannels) {
   b.AddDataInputAsBits("streaming_in_valid", 1);
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
-  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, p.GetBitsType(24),
-                        /*fifo_config=*/FifoConfig{.depth = 42},
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+  b.AddStreamingChannel(
+      "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
+      p.GetBitsType(24),
+      /*fifo_config=*/
+      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
+                 /*register_pop_outputs=*/false),
+      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
@@ -319,11 +325,13 @@ TEST(ModuleSignatureTest, GetChannelNameWith) {
   b.AddDataInputAsBits("streaming_in_valid", 1);
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
-  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, p.GetBitsType(24),
-                        /*fifo_config=*/FifoConfig{.depth = 42},
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+  b.AddStreamingChannel(
+      "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
+      p.GetBitsType(24),
+      /*fifo_config=*/
+      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
+                 /*register_pop_outputs=*/false),
+      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
@@ -358,11 +366,13 @@ TEST(ModuleSignatureTest, RemoveStreamingChannel) {
 
   b.AddDataOutputAsBits("streaming_out_data", 16);
 
-  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, p.GetBitsType(24),
-                        /*fifo_config=*/FifoConfig{.depth = 42},
-                        "streaming_in_data", "streaming_in_valid",
-                        "streaming_in_ready");
+  b.AddStreamingChannel(
+      "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
+      p.GetBitsType(24),
+      /*fifo_config=*/
+      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
+                 /*register_pop_outputs=*/false),
+      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
 
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
                         FlowControl::kNone, p.GetBitsType(24),
@@ -568,11 +578,14 @@ TEST(ModuleSignatureTest, FifoInstantiation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * loopback_channel,
-      p.CreateStreamingChannel(
-          "loopback_channel", ChannelOps::kSendReceive,
-          p.GetTupleType({p.GetBitsType(32)}), /*initial_values=*/{},
-          /*fifo_config=*/FifoConfig{.depth = 10, .bypass = false},
-          /*flow_control=*/FlowControl::kReadyValid));
+      p.CreateStreamingChannel("loopback_channel", ChannelOps::kSendReceive,
+                               p.GetTupleType({p.GetBitsType(32)}),
+                               /*initial_values=*/{},
+                               /*fifo_config=*/
+                               FifoConfig(/*depth=*/10, /*bypass=*/false,
+                                          /*register_push_outputs=*/true,
+                                          /*register_pop_outputs=*/false),
+                               /*flow_control=*/FlowControl::kReadyValid));
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.

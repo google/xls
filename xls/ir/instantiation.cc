@@ -235,9 +235,12 @@ std::string FifoInstantiation::ToString() const {
   }
 
   return absl::StrFormat(
-      "instantiation %s(data_type=%s, depth=%d, bypass=%s, %skind=fifo)",
-      name(), data_type_->ToString(), fifo_config_.depth,
-      fifo_config_.bypass ? "true" : "false", channel_str);
+      "instantiation %s(data_type=%s, depth=%d, bypass=%s, "
+      "register_push_outputs=%s, register_pop_outputs=%s, %skind=fifo)",
+      name(), data_type_->ToString(), fifo_config_.depth(),
+      fifo_config_.bypass() ? "true" : "false",
+      fifo_config_.register_push_outputs() ? "true" : "false",
+      fifo_config_.register_pop_outputs() ? "true" : "false", channel_str);
 }
 
 }  // namespace xls

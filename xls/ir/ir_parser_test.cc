@@ -1797,7 +1797,7 @@ block my_block(x: bits[32]) {
 
 TEST(IrParserTest, ParseInstantiationWithChannel) {
   constexpr std::string_view input = R"(package test
-chan foo(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, metadata="""""")
+chan foo(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false, metadata="""""")
 
 proc placeholder_channel_user(tok: token, init={}) {
   recv_out: (token, bits[32]) = receive(tok, channel=foo, id=1)
@@ -1814,7 +1814,7 @@ block sub_block(in: bits[32], out: bits[32]) {
 }
 
 block my_block(x: bits[32], y: bits[32]) {
-  instantiation foo_inst(data_type=bits[32], depth=0, bypass=true, channel=foo, kind=fifo)
+  instantiation foo_inst(data_type=bits[32], depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false, channel=foo, kind=fifo)
   instantiation bar(block=sub_block, kind=block)
   x: bits[32] = input_port(name=x, id=8)
   x_in: () = instantiation_input(x, instantiation=bar, port_name=in, id=9)
@@ -1827,7 +1827,7 @@ block my_block(x: bits[32], y: bits[32]) {
 
 TEST(IrParserTest, ParseInstantiationWithNoBypassChannel) {
   constexpr std::string_view input = R"(package test
-chan foo(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=false, metadata="""""")
+chan foo(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=false, register_push_outputs=true, register_pop_outputs=true, metadata="""""")
 
 proc placeholder_channel_user(tok: token, init={}) {
   recv_out: (token, bits[32]) = receive(tok, channel=foo, id=1)
@@ -1844,7 +1844,7 @@ block sub_block(in: bits[32], out: bits[32]) {
 }
 
 block my_block(x: bits[32], y: bits[32]) {
-  instantiation foo_inst(data_type=bits[32], depth=1, bypass=false, channel=foo, kind=fifo)
+  instantiation foo_inst(data_type=bits[32], depth=1, bypass=false, register_push_outputs=true, register_pop_outputs=true, channel=foo, kind=fifo)
   instantiation bar(block=sub_block, kind=block)
   x: bits[32] = input_port(name=x, id=8)
   x_in: () = instantiation_input(x, instantiation=bar, port_name=in, id=9)
@@ -2785,8 +2785,8 @@ TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadata) {
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
   ASSERT_THAT(down_cast<StreamingChannel*>(ch)->fifo_config(),
               Not(Eq(std::nullopt)));
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->depth, 3);
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->bypass, false);
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->depth(), 3);
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->bypass(), false);
 }
 
 TEST(IrParserTest, ParseStreamingValueChannelWithBlockPortMapping) {
@@ -3693,7 +3693,7 @@ TEST(IrParserTest, ParseValidFifoInstantiation) {
 
 block my_block(in: bits[32], out: bits[32]) {
   in: bits[32] = input_port(name=in)
-  instantiation my_inst(data_type=bits[32], depth=3, bypass=true, kind=fifo)
+  instantiation my_inst(data_type=bits[32], depth=3, bypass=true, register_push_outputs=false, register_pop_outputs=false, kind=fifo)
   in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
   pop_data_inst_output: bits[32] = instantiation_output(instantiation=my_inst, port_name=pop_data)
   out_output_port: () = output_port(pop_data_inst_output, name=out)

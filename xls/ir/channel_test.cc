@@ -131,8 +131,11 @@ TEST(ChannelTest, StreamingChannelWithFifoDepth) {
   Package p("my_package");
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
-      /*fifo_config=*/FifoConfig{.depth = 123}, FlowControl::kNone,
-      ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
+      /*fifo_config=*/
+      FifoConfig(/*depth=*/123, /*bypass=*/true, /*register_push_outputs=*/true,
+                 /*register_pop_outputs=*/false),
+      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive,
+      ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);

@@ -360,7 +360,10 @@ absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
           /*initial_values=*/{},
           // This is an internal channel that may be inlined during proc
           // inlining, set FIFO depth to 1.
-          /*fifo_config=*/FifoConfig{.depth = 1}));
+          /*fifo_config=*/
+          FifoConfig(/*depth=*/1, /*bypass=*/true,
+                     /*register_push_outputs=*/true,
+                     /*register_pop_outputs=*/false)));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> predicate,
@@ -419,7 +422,10 @@ absl::StatusOr<StreamingChannel*> MakeCompletionChannel(Node* operation) {
           /*initial_values=*/{},
           // This is an internal channel that may be inlined during proc
           // inlining, set FIFO depth to 1.
-          /*fifo_config=*/FifoConfig{.depth = 1}));
+          /*fifo_config=*/
+          FifoConfig(/*depth=*/1, /*bypass=*/true,
+                     /*register_push_outputs=*/true,
+                     /*register_pop_outputs=*/false)));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> predicate,
@@ -494,12 +500,10 @@ struct ActivationState {
   BValue next_state;
 
   struct CompareByStateIdx {
-    inline bool operator()(const ActivationState& a,
-                           const ActivationState& b) const {
+    bool operator()(const ActivationState& a, const ActivationState& b) const {
       return a.state_idx < b.state_idx;
     }
-    inline bool operator()(const ActivationState* a,
-                           const ActivationState* b) const {
+    bool operator()(const ActivationState* a, const ActivationState* b) const {
       return operator()(*a, *b);
     }
   };
@@ -895,7 +899,10 @@ absl::Status AddAdapterForMultipleReceives(
               channel, absl::StrCat(channel->name(), "_", send_tokens.size()),
               Package::CloneChannelOverrides()
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
-                  .OverrideFifoDepth(1)));
+                  .OverrideFifoConfig(
+                      FifoConfig(/*depth=*/1, /*bypass=*/true,
+                                 /*register_push_outputs=*/true,
+                                 /*register_push_inputs=*/false))));
       XLS_RETURN_IF_ERROR(
           ReplaceChannelUsedByNode(node, new_data_channel->name()));
       BValue send_token = pb.AfterAll({activation.pred_recv_token, recv_token});
@@ -945,7 +952,10 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
               channel, absl::StrCat(channel->name(), "_", recv_tokens.size()),
               Package::CloneChannelOverrides()
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
-                  .OverrideFifoDepth(1)));
+                  .OverrideFifoConfig(
+                      FifoConfig(/*depth=*/1, /*bypass=*/true,
+                                 /*register_push_outputs=*/true,
+                                 /*register_pop_outputs=*/false))));
       XLS_RETURN_IF_ERROR(
           ReplaceChannelUsedByNode(node, new_data_channel->name()));
       BValue recv = pb.ReceiveIf(new_data_channel, activation.pred_recv_token,

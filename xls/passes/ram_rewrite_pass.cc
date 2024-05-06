@@ -105,7 +105,10 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_req"),
                                     ChannelOps::kSendOnly, read_req_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
 
@@ -114,7 +117,10 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_resp"),
                                     ChannelOps::kReceiveOnly, read_resp_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
@@ -122,17 +128,23 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_req"),
                                     ChannelOps::kSendOnly, write_req_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
-      XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kWriteCompletion],
-          p->CreateStreamingChannel(
-              absl::StrCat(name_prefix, "_write_completion"),
-              ChannelOps::kReceiveOnly, p->GetTupleType({}),
-              /*initial_values=*/{}, /*fifo_config=*/FifoConfig{.depth = 0},
-              /*flow_control=*/FlowControl::kReadyValid,
-              /*strictness=*/strictness));
+      XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kWriteCompletion],
+                           p->CreateStreamingChannel(
+                               absl::StrCat(name_prefix, "_write_completion"),
+                               ChannelOps::kReceiveOnly, p->GetTupleType({}),
+                               /*initial_values=*/{},
+                               /*fifo_config=*/
+                               FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                          /*register_push_outputs=*/false,
+                                          /*register_pop_outputs=*/false),
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/strictness));
       break;
     }
     case RamKind::k1RW: {
@@ -147,7 +159,10 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_req"),
                                     ChannelOps::kSendOnly, req_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
@@ -155,18 +170,24 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_resp"),
                                     ChannelOps::kReceiveOnly, resp_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
 
-      XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kWriteCompletion],
-          p->CreateStreamingChannel(
-              absl::StrCat(name_prefix, "_write_completion"),
-              ChannelOps::kReceiveOnly, empty_tuple_type,
-              /*initial_values=*/{}, /*fifo_config=*/FifoConfig{.depth = 0},
-              /*flow_control=*/FlowControl::kReadyValid,
-              /*strictness=*/strictness));
+      XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kWriteCompletion],
+                           p->CreateStreamingChannel(
+                               absl::StrCat(name_prefix, "_write_completion"),
+                               ChannelOps::kReceiveOnly, empty_tuple_type,
+                               /*initial_values=*/{},
+                               /*fifo_config=*/
+                               FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                          /*register_push_outputs=*/false,
+                                          /*register_pop_outputs=*/false),
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/strictness));
       break;
     }
     case RamKind::k1R1W: {
@@ -180,7 +201,10 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_req"),
                                     ChannelOps::kSendOnly, read_req_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
@@ -188,7 +212,10 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_resp"),
                                     ChannelOps::kReceiveOnly, read_resp_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
@@ -196,17 +223,23 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_req"),
                                     ChannelOps::kSendOnly, write_req_type,
                                     /*initial_values=*/{},
-                                    /*fifo_config=*/FifoConfig{.depth = 0},
+                                    /*fifo_config=*/
+                                    FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                     /*flow_control=*/FlowControl::kReadyValid,
                                     /*strictness=*/strictness));
-      XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kWriteCompletion],
-          p->CreateStreamingChannel(
-              absl::StrCat(name_prefix, "_write_completion"),
-              ChannelOps::kReceiveOnly, empty_tuple_type,
-              /*initial_values=*/{}, /*fifo_config=*/FifoConfig{.depth = 0},
-              /*flow_control=*/FlowControl::kReadyValid,
-              /*strictness=*/strictness));
+      XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kWriteCompletion],
+                           p->CreateStreamingChannel(
+                               absl::StrCat(name_prefix, "_write_completion"),
+                               ChannelOps::kReceiveOnly, empty_tuple_type,
+                               /*initial_values=*/{},
+                               /*fifo_config=*/
+                               FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                          /*register_push_outputs=*/false,
+                                          /*register_pop_outputs=*/false),
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/strictness));
       break;
     }
     default: {

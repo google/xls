@@ -596,7 +596,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
           package_->CreateStreamingChannel(
               ch_name, xls::ChannelOps::kSendReceive, context_out_xls_type,
               /*initial_values=*/{},
-              /*fifo_config=*/xls::FifoConfig{.depth = 0},
+              /*fifo_config=*/
+              xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
+                              /*register_push_outputs=*/false,
+                              /*register_pop_outputs=*/false),
               xls::FlowControl::kReadyValid));
     }
     IOChannel new_channel;
@@ -615,7 +618,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
                                ch_name, xls::ChannelOps::kSendReceive,
                                context_in_struct_xls_type,
                                /*initial_values=*/{},
-                               /*fifo_config=*/xls::FifoConfig{.depth = 0},
+                               /*fifo_config=*/
+                               xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                               /*register_push_outputs=*/false,
+                                               /*register_pop_outputs=*/false),
                                xls::FlowControl::kReadyValid));
     }
     IOChannel new_channel;

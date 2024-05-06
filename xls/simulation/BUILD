@@ -89,6 +89,7 @@ cc_test(
     shard_count = 10,
     deps = [
         ":module_simulator",
+        ":testbench_signal_capture",
         ":verilog_test_base",
         "//xls/codegen:module_signature",
         "//xls/common:xls_gunit_main",

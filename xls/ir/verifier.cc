@@ -859,10 +859,10 @@ static absl::Status VerifyExternInstantiation(
 
 static absl::Status VerifyFifoInstantiation(Package* package,
                                             FifoInstantiation* instantiation) {
-  if (instantiation->fifo_config().depth < 0) {
+  if (instantiation->fifo_config().depth() < 0) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected fifo depth >= 0, got %d",
-                        instantiation->fifo_config().depth));
+                        instantiation->fifo_config().depth()));
   }
   if (instantiation->channel_name().has_value()) {
     XLS_ASSIGN_OR_RETURN(Channel * channel,

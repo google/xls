@@ -597,7 +597,7 @@ TEST_F(VerifierTest, BlockWithFifoInstantiation) {
 block my_block(push_valid: bits[1], push_data: bits[1], push_ready: bits[1], out:bits[32]) {
   push_valid: bits[1] = input_port(name=push_valid)
   push_data: bits[1] = input_port(name=push_data)
-  instantiation my_inst(data_type=bits[32], depth=$0, bypass=true, kind=fifo)
+  instantiation my_inst(data_type=bits[32], depth=$0, bypass=true, register_push_outputs=false, register_pop_outputs=false, kind=fifo)
   push_valid_inst_input: () = instantiation_input(push_valid, instantiation=my_inst, port_name=push_valid)
   push_data_inst_input: () = instantiation_input(push_data, instantiation=my_inst, port_name=push_data)
   push_ready_inst_output: bits[1] = instantiation_output(instantiation=my_inst, port_name=push_ready)

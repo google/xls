@@ -977,7 +977,7 @@ absl::StatusOr<Channel*> Package::CloneChannel(
   switch (channel->kind()) {
     case ChannelKind::kSingleValue: {
       if (overrides.initial_values().has_value() ||
-          overrides.fifo_depth().has_value() ||
+          overrides.fifo_config().has_value() ||
           overrides.flow_control().has_value()) {
         return absl::InvalidArgumentError(
             "Cannot clone single value channel with streaming channel "
@@ -1001,16 +1001,10 @@ absl::StatusOr<Channel*> Package::CloneChannel(
                             channel->name()));
       }
       std::optional<FifoConfig> fifo_config;
-      if (!overrides.fifo_depth().has_value()) {
+      if (overrides.fifo_config().has_value()) {
+        fifo_config = *overrides.fifo_config();
+      } else {
         fifo_config = streaming_channel->fifo_config();
-      }
-      if (overrides.fifo_depth().has_value() &&
-          overrides.fifo_depth()->has_value()) {
-        fifo_config = streaming_channel->fifo_config();
-        if (!fifo_config.has_value()) {
-          fifo_config.emplace();
-        }
-        fifo_config->depth = **overrides.fifo_depth();
       }
       XLS_ASSIGN_OR_RETURN(
           auto new_channel,

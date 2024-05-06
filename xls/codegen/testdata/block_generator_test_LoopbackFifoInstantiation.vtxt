@@ -128,7 +128,9 @@ module running_sum(
   xls_fifo_wrapper #(
     .Width(32'd32),
     .Depth(32'd1),
-    .EnableBypass(1'd0)
+    .EnableBypass(1'd0),
+    .RegisterPushOutputs(1'd0),
+    .RegisterPopOutputs(1'd0)
   ) fifo_loopback (
     .clk(clk),
     .rst(rst),

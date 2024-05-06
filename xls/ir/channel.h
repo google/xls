@@ -46,28 +46,28 @@ enum class ChannelKind : uint8_t {
   kSingleValue,
 };
 
-struct FifoConfig {
-  int64_t depth;
-  bool bypass = true;
+class FifoConfig {
+ public:
+  FifoConfig(int64_t depth, bool bypass, bool register_push_outputs,
+             bool register_pop_outputs);
 
-  bool operator==(const FifoConfig& other) const {
-    return depth == other.depth && bypass == other.bypass;
-  }
+  int64_t depth() const { return depth_; }
+  bool bypass() const { return bypass_; }
+  bool register_push_outputs() const { return register_push_outputs_; }
+  bool register_pop_outputs() const { return register_pop_outputs_; }
 
-  bool operator!=(const FifoConfig& other) const { return !(*this == other); }
+  friend bool operator==(const FifoConfig& a, const FifoConfig& b) = default;
+  friend bool operator<=>(const FifoConfig& a, const FifoConfig& b) = default;
 
-  FifoConfigProto ToProto(int64_t width) const {
-    FifoConfigProto proto;
-    proto.set_width(width);
-    proto.set_depth(depth);
-    proto.set_bypass(bypass);
-    return proto;
-  }
+  FifoConfigProto ToProto(int64_t width) const;
 
-  std::string ToString() const {
-    return absl::StrFormat("FifoConfig{ depth: %d, bypass: %d }", depth,
-                           bypass);
-  }
+  std::string ToString() const;
+
+ private:
+  int64_t depth_;
+  bool bypass_;
+  bool register_push_outputs_;
+  bool register_pop_outputs_;
 };
 
 std::string ChannelKindToString(ChannelKind kind);
@@ -289,7 +289,7 @@ class StreamingChannel final : public Channel {
 
   std::optional<int64_t> GetFifoDepth() const {
     if (fifo_config_.has_value()) {
-      return fifo_config_->depth;
+      return fifo_config_->depth();
     }
     return std::nullopt;
   }

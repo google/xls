@@ -144,8 +144,11 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
     // as they avoid many issues, especially wrt combo-loops and scheduling.
     // TODO: google/xls#1391 - we should have a better way to specify fifo
     // configuration.
-    fifo_config.emplace(
-        FifoConfig{.depth = *fifo_depth, .bypass = *fifo_depth == 0});
+    fifo_config.emplace(FifoConfig(
+        /*depth=*/*fifo_depth,
+        /*bypass=*/true,
+        /*register_push_outputs=*/*fifo_depth == 0,
+        /*register_pop_outputs=*/false));
   }
   XLS_ASSIGN_OR_RETURN(
       StreamingChannel * channel,

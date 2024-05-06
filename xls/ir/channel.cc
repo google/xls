@@ -34,6 +34,29 @@
 #include "xls/ir/value_utils.h"
 
 namespace xls {
+FifoConfig::FifoConfig(int64_t depth, bool bypass, bool register_push_outputs,
+                       bool register_pop_outputs)
+    : depth_(depth),
+      bypass_(bypass),
+      register_push_outputs_(register_push_outputs),
+      register_pop_outputs_(register_pop_outputs) {}
+
+FifoConfigProto FifoConfig::ToProto(int64_t width) const {
+  FifoConfigProto proto;
+  proto.set_width(width);
+  proto.set_depth(depth_);
+  proto.set_bypass(bypass_);
+  proto.set_register_push_outputs(register_push_outputs_);
+  proto.set_register_pop_outputs(register_pop_outputs_);
+  return proto;
+}
+
+std::string FifoConfig::ToString() const {
+  return absl::StrFormat(
+      "FifoConfig{ depth: %d, bypass: %d, register_push_outputs: %d, "
+      "register_pop_outputs: %d }",
+      depth_, bypass_, register_push_outputs_, register_pop_outputs_);
+}
 
 std::string ChannelKindToString(ChannelKind kind) {
   switch (kind) {
@@ -83,9 +106,13 @@ std::string Channel::ToString() const {
     const std::optional<FifoConfig>& fifo_config =
         streaming_channel->fifo_config();
     if (fifo_config.has_value()) {
-      absl::StrAppendFormat(&result, "fifo_depth=%d, bypass=%s, ",
-                            fifo_config->depth,
-                            fifo_config->bypass ? "true" : "false");
+      absl::StrAppendFormat(
+          &result,
+          "fifo_depth=%d, bypass=%s, "
+          "register_push_outputs=%s, register_pop_outputs=%s, ",
+          fifo_config->depth(), fifo_config->bypass() ? "true" : "false",
+          fifo_config->register_pop_outputs() ? "true" : "false",
+          fifo_config->register_push_outputs() ? "true" : "false");
     }
   }
 

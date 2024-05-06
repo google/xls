@@ -348,8 +348,9 @@ class Package {
       return *this;
     }
 
-    CloneChannelOverrides& OverrideFifoDepth(std::optional<int64_t> depth) {
-      fifo_depth_ = depth;
+    CloneChannelOverrides& OverrideFifoConfig(
+        std::optional<FifoConfig> fifo_config) {
+      fifo_config_ = fifo_config;
       return *this;
     }
 
@@ -372,8 +373,8 @@ class Package {
     std::optional<absl::Span<const Value>> initial_values() const {
       return initial_values_;
     }
-    std::optional<std::optional<int64_t>> fifo_depth() const {
-      return fifo_depth_;
+    std::optional<std::optional<FifoConfig>> fifo_config() const {
+      return fifo_config_;
     }
     std::optional<FlowControl> flow_control() const { return flow_control_; }
     std::optional<ChannelStrictness> strictness() const { return strictness_; }
@@ -382,9 +383,9 @@ class Package {
    private:
     std::optional<ChannelOps> supported_ops_;
     std::optional<absl::Span<const Value>> initial_values_;
-    // Nested optionals are strange, but used here to differentiate between
-    // "use the original channel's FIFO depth" and "do not set FIFO depth".
-    std::optional<std::optional<int64_t>> fifo_depth_;
+    // Nested optionals are strange, but used here to differentiate between "use
+    // the original channel's FIFO config" and "do not set FIFO config".
+    std::optional<std::optional<FifoConfig>> fifo_config_;
     std::optional<FlowControl> flow_control_;
     std::optional<ChannelStrictness> strictness_;
     std::optional<ChannelMetadataProto> metadata_;

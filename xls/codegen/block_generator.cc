@@ -794,21 +794,41 @@ class BlockGenerator {
                      dynamic_cast<FifoInstantiation*>(instantiation)) {
         std::initializer_list<Connection> parameters{
             Connection{
-                "Width",
-                mb_.file()->Literal(
+                .port_name = "Width",
+                .expression = mb_.file()->Literal(
                     UBits(fifo_instantiation->data_type()->GetFlatBitCount(),
                           32),
                     SourceInfo(),
                     /*format=*/FormatPreference::kUnsignedDecimal)},
-            Connection{"Depth",
-                       mb_.file()->Literal(
-                           UBits(fifo_instantiation->fifo_config().depth, 32),
+            Connection{.port_name = "Depth",
+                       .expression = mb_.file()->Literal(
+                           UBits(fifo_instantiation->fifo_config().depth(), 32),
                            SourceInfo(),
                            /*format=*/FormatPreference::kUnsignedDecimal)},
             Connection{
-                "EnableBypass",
-                mb_.file()->Literal(
-                    UBits(fifo_instantiation->fifo_config().bypass ? 1 : 0, 1),
+                .port_name = "EnableBypass",
+                .expression = mb_.file()->Literal(
+                    UBits(fifo_instantiation->fifo_config().bypass() ? 1 : 0,
+                          1),
+                    SourceInfo(),
+                    /*format=*/FormatPreference::kUnsignedDecimal)},
+            Connection{.port_name = "RegisterPushOutputs",
+                       .expression = mb_.file()->Literal(
+                           UBits(fifo_instantiation->fifo_config()
+                                         .register_push_outputs()
+                                     ? 1
+                                     : 0,
+                                 1),
+                           SourceInfo(),
+                           /*format=*/FormatPreference::kUnsignedDecimal)},
+            Connection{
+                .port_name = "RegisterPopOutputs",
+                .expression = mb_.file()->Literal(
+                    UBits(
+                        fifo_instantiation->fifo_config().register_pop_outputs()
+                            ? 1
+                            : 0,
+                        1),
                     SourceInfo(),
                     /*format=*/FormatPreference::kUnsignedDecimal)},
         };
@@ -816,8 +836,8 @@ class BlockGenerator {
         // Append clock and reset to the front of connections.
         XLS_RET_CHECK(mb_.reset().has_value());
         std::vector<Connection> appended_connections{
-            Connection{"clk", mb_.clock()},
-            Connection{"rst", mb_.reset()->signal},
+            Connection{.port_name = "clk", .expression = mb_.clock()},
+            Connection{.port_name = "rst", .expression = mb_.reset()->signal},
         };
         appended_connections.reserve(connections.size() + 2);
         std::move(connections.begin(), connections.end(),

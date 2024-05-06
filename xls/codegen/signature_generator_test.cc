@@ -354,11 +354,11 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
 }
 
 TEST(SignatureGeneratorTest, BlockWithFifoInstantiationNoChannel) {
-  constexpr std::string_view ir_text =R"(package test
+  constexpr std::string_view ir_text = R"(package test
 
 block my_block(in: bits[32], out: (bits[32])) {
   in: bits[32] = input_port(name=in)
-  instantiation my_inst(data_type=(bits[32]), depth=3, bypass=false, kind=fifo)
+  instantiation my_inst(data_type=(bits[32]), depth=3, bypass=false, register_push_outputs=false, register_pop_outputs=false, kind=fifo)
   in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
   pop_data_inst_output: (bits[32]) = instantiation_output(instantiation=my_inst, port_name=pop_data)
   out_output_port: () = output_port(pop_data_inst_output, name=out)
@@ -393,7 +393,7 @@ block my_block(in: bits[32], out: (bits[32])) {
 
 TEST(SignatureGeneratorTest, BlockWithFifoInstantiationWithChannel) {
   constexpr std::string_view ir_text = R"(package test
-chan a(bits[32], id=0, ops=send_only, fifo_depth=3, bypass=false, kind=streaming, flow_control=ready_valid, metadata="")
+chan a(bits[32], id=0, ops=send_only, fifo_depth=3, bypass=false, register_push_outputs=false, register_pop_outputs=false, kind=streaming, flow_control=ready_valid, metadata="")
 
 proc needed_to_verify(tok: token, state: (), init={()}) {
   literal0: bits[32] = literal(value=32)
@@ -403,7 +403,7 @@ proc needed_to_verify(tok: token, state: (), init={()}) {
 
 block my_block(in: bits[32], out: (bits[32])) {
   in: bits[32] = input_port(name=in)
-  instantiation my_inst(data_type=(bits[32]), depth=3, bypass=false, channel=a, kind=fifo)
+  instantiation my_inst(data_type=(bits[32]), depth=3, bypass=false, register_push_outputs=false, register_pop_outputs=false, channel=a, kind=fifo)
   in_inst_input: () = instantiation_input(in, instantiation=my_inst, port_name=push_data)
   pop_data_inst_output: (bits[32]) = instantiation_output(instantiation=my_inst, port_name=pop_data)
   out_output_port: () = output_port(pop_data_inst_output, name=out)

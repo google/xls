@@ -89,7 +89,9 @@ push_ready, push_data, push_valid,
 pop_ready,  pop_data,  pop_valid);
   parameter Width = 32,
             Depth = 32,
-            EnableBypass = 0;
+            EnableBypass = 0,
+            RegisterPushOutputs = 0,
+            RegisterPopOutputs = 0;
   localparam AddrWidth = $clog2(Depth) + 1;
   input  wire             clk;
   input  wire             rst;
@@ -102,7 +104,8 @@ pop_ready,  pop_data,  pop_valid);
 
   // Require depth be 1 and bypass disabled.
   initial begin
-    if (EnableBypass || Depth != 1) begin
+    if (EnableBypass || Depth != 1 || RegisterPushOutputs ||
+        RegisterPopOutputs) begin
       $fatal("FIFO configuration not supported.");
     end
   end
