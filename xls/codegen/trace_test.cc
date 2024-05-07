@@ -16,11 +16,14 @@
 #include <optional>
 
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/common/status/matchers.h"
+#include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
@@ -103,9 +106,8 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
 }
 
 // This is just a basic test to ensure that traces in clocked modules generate
-// output.
-// TODO(amfv): 2021-09-27 Figure out the rules for how traces should be
-// distributed across pipeline stages and add more complex tests of that.
+// output. See side_effect_condition_pass_test.cc for coverage of more
+// interesting scenarios.
 TEST_P(TraceTest, ClockedSimpleTraceTest) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(kSimpleTraceText));

@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -912,24 +913,34 @@ absl::StatusOr<Display*> ModuleBuilder::EmitTrace(
     xls::Trace* trace, Expression* condition,
     absl::Span<Expression* const> trace_args) {
   StructuredProcedure* trace_always;
-  if (clk_ == nullptr) {
-    // Make a fresh always_comb or always @* block for combinational traces
-    // so that each trace only fires when its own inputs change.
-    if (options_.use_system_verilog()) {
-      trace_always = trace_section_->Add<AlwaysComb>(trace->loc());
+  std::vector<SensitivityListElement> sensitivity_list;
+  if (options_.use_system_verilog()) {
+    if (clk_ != nullptr) {
+      // Even though this is purely behavioral and not synthesizable, use
+      // always_ff as a stylistic choice.
+      trace_always = trace_section_->Add<AlwaysFf>(
+          trace->loc(), std::initializer_list<SensitivityListElement>{
+                            file_->Make<PosEdge>(trace->loc(), clk_)});
+
     } else {
-      std::vector<SensitivityListElement> sensitivity_list = {
-          ImplicitEventExpression{}};
-      trace_always =
-          trace_section_->Add<Always>(trace->loc(), sensitivity_list);
+      // When targeting SystemVerilog with no clock, we use `always_comb` and
+      // have no need for a sensitivity list.
+      trace_always = trace_section_->Add<AlwaysComb>(trace->loc());
     }
   } else {
-    // Trigger the trace at every clock if we have one.
-    std::vector<SensitivityListElement> sensitivity_list = {
-        file_->Make<PosEdge>(trace->loc(), clk_)};
-    // Use an ordinary always block instead of always_ff when targeting
-    // SystemVerilog because this is behavioral (not synthesizable) code.
-    trace_always = trace_section_->Add<Always>(trace->loc(), sensitivity_list);
+    if (clk_ != nullptr) {
+      // When targeting Verilog with a clock, we use `always` triggered on the
+      // posedge.
+      trace_always = trace_section_->Add<Always>(
+          trace->loc(), std::initializer_list<SensitivityListElement>{
+                            file_->Make<PosEdge>(trace->loc(), clk_)});
+    } else {
+      // When targeting Verilog with no clock, we use `always` and need to
+      // populate the sensitivity list with the implicit event expression.
+      trace_always = trace_section_->Add<Always>(
+          trace->loc(), std::initializer_list<SensitivityListElement>{
+                            ImplicitEventExpression{}});
+    }
   }
 
   Conditional* trace_if =

@@ -11,7 +11,7 @@ module main(
   end
 
   // ===== Pipe stage 1:
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (p0_cond) begin
       $display("This is a simple trace.");
     end

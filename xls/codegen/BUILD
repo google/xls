@@ -93,9 +93,11 @@ cc_test(
     deps = [
         ":codegen_options",
         ":combinational_generator",
+        ":module_signature",
         ":pipeline_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:function_builder",
