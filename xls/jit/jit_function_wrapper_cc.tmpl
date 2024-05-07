@@ -11,7 +11,7 @@ namespace {{ wrapped.namespace }} {
 namespace {
 static constexpr std::string_view kFunctionName = "{{ wrapped.function_name }}";
 static constexpr std::string_view kIrText =
-    R"({{wrapped.ir_text}})";
+    R"original_ir({{wrapped.ir_text}})original_ir";
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
