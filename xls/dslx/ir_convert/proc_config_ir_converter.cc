@@ -139,15 +139,16 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
 
   std::optional<FifoConfig> fifo_config;
   if (fifo_depth.has_value()) {
-    // We choose bypass=true for zero-depth FIFOs (bypass=false does not make
-    // sense), and false otherwise. No-bypass FIFOs as a default seem reasonable
-    // as they avoid many issues, especially wrt combo-loops and scheduling.
+    // We choose bypass=true FIFOs by default and register push outputs (ready).
+    // The idea is to avoid combo loops introduced by pop->push ready
+    // combinational paths. For depth zero FIFOs, we do not register push
+    // outputs as for now we think of these FIFOs as direct connections.
     // TODO: google/xls#1391 - we should have a better way to specify fifo
     // configuration.
     fifo_config.emplace(FifoConfig(
         /*depth=*/*fifo_depth,
         /*bypass=*/true,
-        /*register_push_outputs=*/*fifo_depth == 0,
+        /*register_push_outputs=*/*fifo_depth != 0,
         /*register_pop_outputs=*/false));
   }
   XLS_ASSIGN_OR_RETURN(
