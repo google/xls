@@ -29,14 +29,15 @@ exports_files(
     visibility = ["//xls:xls_internal"],
 )
 
+# All files that have a ```dslx ... in them.
 filegroup(
-    name = "dslx_reference_md",
-    srcs = ["dslx_reference.md"],
-)
-
-filegroup(
-    name = "dslx_type_system_md",
-    srcs = ["dslx_type_system.md"],
+    name = "dslx_documentation_files",
+    srcs = [
+        "dslx_reference.md",
+        "dslx_std.md",
+        "dslx_type_system.md",
+        "floating_point.md",
+    ],
 )
 
 filegroup(
