@@ -587,7 +587,7 @@ xls_ir_verilog(
         "reset": "rst",
         "reset_data_path": "true",
         "reset_active_low": "false",
-        "reset_asynchronous": "true",
+        "reset_asynchronous": "false",
         "flop_inputs": "false",
         "flop_single_value_channels": "false",
         "flop_outputs": "false",

@@ -306,6 +306,7 @@ xls_ir_verilog(
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
+        "module_name": "delay_top",
         "ram_configurations": "ram:1RW:{req}:{resp}:{wr_comp}".format(
             req = "memory__req",
             resp = "memory__resp",
@@ -314,7 +315,7 @@ xls_ir_verilog(
         "reset": "rst",
         "reset_data_path": "true",
         "reset_active_low": "false",
-        "reset_asynchronous": "true",
+        "reset_asynchronous": "false",
         "flop_inputs": "false",
         "flop_outputs": "false",
         "streaming_channel_data_suffix": "_data",
@@ -332,6 +333,7 @@ xls_ir_verilog(
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
+        "module_name": "delay_top",
         "ram_configurations": "ram:1RW:{req}:{resp}:{wr_comp}".format(
             req = "memory__req",
             resp = "memory__resp",
@@ -340,7 +342,7 @@ xls_ir_verilog(
         "reset": "rst",
         "reset_data_path": "true",
         "reset_active_low": "false",
-        "reset_asynchronous": "true",
+        "reset_asynchronous": "false",
         "flop_inputs": "true",
         "flop_inputs_kind": "flop",
         "streaming_channel_data_suffix": "_data",
@@ -358,6 +360,7 @@ xls_ir_verilog(
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
+        "module_name": "delay_top",
         "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_comp}".format(
             rd_req = "memory__read_req",
             rd_resp = "memory__read_resp",
@@ -367,7 +370,7 @@ xls_ir_verilog(
         "reset": "rst",
         "reset_data_path": "true",
         "reset_active_low": "false",
-        "reset_asynchronous": "true",
+        "reset_asynchronous": "false",
         "flop_inputs": "false",
         "streaming_channel_data_suffix": "_data",
         "streaming_channel_ready_suffix": "_ready",
@@ -384,6 +387,7 @@ xls_ir_verilog(
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
+        "module_name": "delay_top",
         "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_comp}".format(
             rd_req = "memory__read_req",
             rd_resp = "memory__read_resp",
@@ -393,7 +397,7 @@ xls_ir_verilog(
         "reset": "rst",
         "reset_data_path": "true",
         "reset_active_low": "false",
-        "reset_asynchronous": "true",
+        "reset_asynchronous": "false",
         "flop_inputs": "true",
         "flop_inputs_kind": "zerolatency",
         "streaming_channel_data_suffix": "_data",
