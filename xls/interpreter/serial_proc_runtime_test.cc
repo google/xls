@@ -15,11 +15,15 @@
 #include "xls/interpreter/serial_proc_runtime.h"
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
+#include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
@@ -27,6 +31,7 @@
 #include "xls/interpreter/proc_interpreter.h"
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/interpreter/proc_runtime_test_base.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -35,6 +40,8 @@
 
 namespace xls {
 namespace {
+
+constexpr const char kIrAssertPath[] = "xls/interpreter/force_assert.ir";
 
 // Create a SerialProcRuntime composed of a mix of ProcInterpreters and
 // ProcJits.
@@ -94,6 +101,39 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
   return CreateMixedSerialProcRuntime(std::move(elaboration));
+}
+
+
+// Negative test - can we handle asserts
+// when using JitSerialProcRuntime?
+TEST(SerialProcRuntimeTest, JitAsserts) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
+                           GetXlsRunfilePath(kIrAssertPath));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
+                           CreateJitSerialProcRuntime(package.get()));
+
+  EXPECT_THAT(interpreter->Tick(), status_testing::StatusIs(
+                                   absl::StatusCode::kAborted,
+                                   ::testing::HasSubstr(
+                                     "Assertion failure via fail!")));
+}
+
+// Negative test - can we handle asserts
+// when using InterpreterSerialProcRuntime?
+TEST(SerialProcRuntimeTest, InterpreterAsserts) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path ir_path,
+                           GetXlsRunfilePath(kIrAssertPath));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
+                           CreateInterpreterSerialProcRuntime(package.get()));
+
+  EXPECT_THAT(interpreter->Tick(), status_testing::StatusIs(
+                                   absl::StatusCode::kAborted,
+                                   ::testing::HasSubstr(
+                                     "Assertion failure via fail!")));
 }
 
 // Instantiate and run all the tests in proc_runtime_test_base.cc using
