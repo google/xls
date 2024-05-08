@@ -162,7 +162,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/scheduling:scheduling_options",
-        "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis/yosys:yosys_synthesis_service",
     ],
     alwayslink = True,  # Always link because it has a module-level initialization that registers the synthesizer.
