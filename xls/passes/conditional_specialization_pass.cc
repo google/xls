@@ -341,6 +341,14 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
                                   set.ToString());
 
+    if (node->Is<Invoke>()) {
+      // The contents of an invoke may be side-effecting (e.g., the invoked
+      // function might contain an assert), so don't assume any conditions for
+      // this node or its predecessors.
+      VLOG(4) << absl::StreamFormat(
+          "Node %s is an invoke and could be side-effecting", node->GetName());
+      continue;
+    }
     if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
         !node->Is<Next>()) {
       // Inputs to side-effecting operations should not change so don't assume
