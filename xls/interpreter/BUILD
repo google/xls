@@ -401,12 +401,14 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:elaboration",
+        "//xls/ir:events",
     ],
 )
 
 cc_test(
     name = "serial_proc_runtime_test",
     srcs = ["serial_proc_runtime_test.cc"],
+    data = ["force_assert.ir"],
     deps = [
         ":channel_queue",
         ":interpreter_proc_runtime",
@@ -417,8 +419,12 @@ cc_test(
         ":serial_proc_runtime",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:jit_proc_runtime",

@@ -27,6 +27,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
+#include "xls/ir/events.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -90,6 +91,9 @@ SerialProcRuntime::TickInternal() {
                                   element.instance->GetName());
     XLS_ASSIGN_OR_RETURN(TickResult tick_result,
                          element.evaluator->Tick(*element.continuation));
+    const InterpreterEvents& events =
+        this->GetInterpreterEvents(element.instance);
+    XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(events));
     VLOG(3) << "Tick result: " << tick_result;
 
     progress_made |= tick_result.progress_made;
