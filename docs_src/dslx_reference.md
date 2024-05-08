@@ -207,7 +207,7 @@ fn add_one<E:u32, F:u32, G:u32 = E+F>(lhs: bits[E]) -> bits[G] { ... }
 ```
 
 For this call to instantiable, both `E` and `F` must be specified. Since `F`
-can't be inferred from an argument, we must rely on _explicit parametrics_:
+can't be inferred from an argument, we must rely on *explicit parametrics*:
 
 ```dslx-snippet
   add_one<u32:1, {u32:2 + u32:3}>(u1:1);
@@ -215,7 +215,7 @@ can't be inferred from an argument, we must rely on _explicit parametrics_:
 
 This invocation will bind `1` to `E`, `5` to `F`, and `6` to `G`. Note the curly
 braces around the expression-defined parametric: simple literals and constant
-references do not need braces (but they _can_ have them), but any other
+references do not need braces (but they *can* have them), but any other
 expression requires them.
 
 ##### Expression ambiguity
@@ -228,9 +228,9 @@ consider the following, slightly changed from the previous example:
 ```
 
 Is the statement above computing `add_one<1, (2 > 3)>(1)`, or is it computing
-`(add_one<1, 2>(3)) > 1)`? Without additional (and subtle and perhaps surprising)
-contextual precedence rules, this would be ambiguous and could lead to a parse
-error or, even worse, unexpected behavior.
+`(add_one<1, 2>(3)) > 1)`? Without additional (and subtle and perhaps
+surprising) contextual precedence rules, this would be ambiguous and could lead
+to a parse error or, even worse, unexpected behavior.
 
 Fortunately, we can look to Rust for inspiration. Rust's const generics RPF
 introduced the `{ }` syntax for disambiguating just this case in generic
@@ -339,7 +339,8 @@ fn test_main() {
 ```
 
 DSLX character constants support the
-[full Rust set of escape sequences](https://doc.rust-lang.org/reference/tokens.html) with the exception of unicode.
+[full Rust set of escape sequences](https://doc.rust-lang.org/reference/tokens.html)
+with the exception of unicode.
 
 ### Enum Types
 
@@ -1192,14 +1193,15 @@ and the fact that DSLX considers this valid may change in the
 
 ### Grouping Expression
 
-As in mathematical notation and many programming languages, an expression can be surrounded
-with an opening and closing parenthesis to make it the highest precedence (or simply for
-readability). For example, this expression evaluates to `u32:9`: `(u32:1 + u32:2) * u32:3`.
+As in mathematical notation and many programming languages, an expression can be
+surrounded with an opening and closing parenthesis to make it the highest
+precedence (or simply for readability). For example, this expression evaluates
+to `u32:9`: `(u32:1 + u32:2) * u32:3`.
 
 ### Unary Expressions
 
-DSLX supports two types of unary expressions with type signature
-`(xN[N]) -> xN[N]`:
+DSLX supports two types of unary expressions with type signature `(xN[N]) ->
+xN[N]`:
 
 *   bit-wise not (the `!` operator)
 *   negate (the `-` operator, computes the two's complement negation)
@@ -1223,8 +1225,8 @@ The following expressions have type signature `(xN[N], xN[N]) -> xN[N]`.
 *   multiply (`*`)
 
 Things like
-[`std::smul`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+smul%22) are
-convenient helpers when you are working with mixed widths. Because these
+[`std::smul`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+smul%22)
+are convenient helpers when you are working with mixed widths. Because these
 expressions return the same type as the operands, if you want a carry you need
 to widen the inputs (e.g.
 [`std::uadd_with_overflow`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+uadd_with_overflow%22)
@@ -1320,12 +1322,13 @@ let a = { let b = u32:1; };
 
 In the above case, `a` is equal to `()`.
 
-Since DSLX does not currently have the concept of lifetimes, and since names can be rebound
-(i.e., this is valid: `let a = u32:0; let a = u32:1;`), blocks have the following uses:
+Since DSLX does not currently have the concept of lifetimes, and since names can
+be rebound (i.e., this is valid: `let a = u32:0; let a = u32:1;`), blocks have
+the following uses:
 
-* to syntactically form the body of functions and loops
-* to limit the scope of variables
-* to increase readability
+*   to syntactically form the body of functions and loops
+*   to limit the scope of variables
+*   to increase readability
 
 ### Match Expression
 
@@ -1396,7 +1399,7 @@ fn test_f() {
 
 #### Redundant Patterns
 
-`match` will flag an error if a _syntactically identical_ pattern is typed
+`match` will flag an error if a *syntactically identical* pattern is typed
 twice; e.g.
 
 ```dslx-bad
@@ -1411,8 +1414,8 @@ fn f(x: u32) -> u2 {
 ```
 
 Only the first pattern will ever match, so it is fully redundant (and therefore
-likely a user error they'd like to be informed of). Note that _equivalent_ but
-not _syntactically identical_ patterns will not be flagged in this way.
+likely a user error they'd like to be informed of). Note that *equivalent* but
+not *syntactically identical* patterns will not be flagged in this way.
 
 ```dslx
 const FOO = u32:42;
@@ -1501,8 +1504,8 @@ let result_exponent = if wide_exponent < u9:255 { wide_exponent as u8 } else { u
 Iterable expressions are used in counted for loops. DSLX currently supports two
 types of iterable expressions, `range` and `enumerate`.
 
-The range expression `m..n` represents a range of values from m to n-1.
-This example will run from 0 to 4 (exclusive):
+The range expression `m..n` represents a range of values from m to n-1. This
+example will run from 0 to 4 (exclusive):
 
 ```
 for (i, accum): (u32, u32) in u32:0..u32:4 {
@@ -1885,7 +1888,7 @@ descending precedence order. Binary operators at the same level share the same
 associativity and will be grouped accordingly.
 
 Operator                    | Associativity
-----------------------------| -------------
+--------------------------- | -------------
 `(...)`                     | n/a
 unary `-` `!`               | n/a
 `as`                        | Left to right
@@ -1894,10 +1897,10 @@ unary `-` `!`               | n/a
 `<<` `>>`                   | Left to right
 `&`                         | Left to right
 `^`                         | Left to right
-`|`                         | Left to right
+`\|`                        | Left to right
 `==` `!=` `<` `>` `<=` `>=` | Left to right
 `&&`                        | Left to right
-`||`                        | Left to right
+`\|\|`                      | Left to right
 
 ## Testing and Debugging
 
@@ -2078,6 +2081,33 @@ where channels are connected and the communicating process hierarchy is created.
 A proc can create a sub-proc via the `spawn` keyword, and this "spawning"
 happens at configuration time, whereas `next` reflects the "runtime" execution;
 e.g.
+
+> WARNING: Though DSLX organizes procs into a tree based on `spawn`s the
+> underlying IR does not (yet) do so. This will be added with
+> [proc-scoped channels](./design_docs/proc_scoped_channels.md)
+> but until then a proc is only considered to be connected to another proc if
+> there is some path of channel `recv`s and `send`s through which the two procs
+> communicate within their respective `next`s.
+>
+> This means that 'spawner-procs' - procs which exist only to `spawn` a network
+> of other procs with no channels of their own - have somewhat strange
+> interactions with optimization. This most often causes spawned procs
+> to be removed from opt-ir outputs. This can be worked around by manually
+> setting top to a spawned procs. See below for more information.
+
+NOTE: If one wishes to spawn procs one may use an empty proc with only spawns in
+the `config`, however one must manually set the `dslx_top` to the mangled name
+of the spawned proc and have a separate `xls_ir_opt_ir` target for each spawned
+proc independent group of procs. This can be used to instantiate a proc with
+template parameters. For example see the
+[proc_iota.x](https://github.com/google/xls/tree/main/xls/examples/proc_iota.x) program and
+the
+[associated build targets](https://github.com/google/xls/tree/main/xls/examples/BUILD;l=377).
+Note how the procs `spawn`ed by main are manually `opt_ir`d using the mangled
+identifiers in the build-files instead of simply using the existing 'main' proc
+to spawn them both. In almost all cases simply picking any random proc
+instantiated in the proc-tree of the true `top` to act as `dslx_top` is
+sufficient.
 
 ```dslx-snippet
 proc Top {
