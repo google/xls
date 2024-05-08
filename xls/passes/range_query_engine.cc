@@ -775,7 +775,15 @@ absl::Status RangeQueryVisitor::HandleArrayUpdate(ArrayUpdate* update) {
 
     if (index_intervals.IsMaximal()) {
       all_indices_precise = false;
-      indices.push_back(std::nullopt);
+      if (index_intervals.BitCount() <
+          Bits::MinBitCountUnsigned(indexed_type->AsArrayOrDie()->size() - 1)) {
+        // Since the interval can only address 2**bit_count items and the array
+        // is more than that long the index is constrained.
+        all_indices_unconstrained = false;
+        indices.push_back(index_intervals);
+      } else {
+        indices.push_back(std::nullopt);
+      }
     } else {
       if (absl::StatusOr<uint64_t> index_lb =
               index_intervals.LowerBound()->ToUint64();
