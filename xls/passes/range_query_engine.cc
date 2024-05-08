@@ -836,7 +836,10 @@ absl::Status RangeQueryVisitor::HandleArrayUpdate(ArrayUpdate* update) {
             absl::Span<const int64_t> index) {
           for (int64_t i = 0; i < index.size(); ++i) {
             if (indices[i].has_value() &&
-                !indices[i]->Covers(UBits(index[i], indices[i]->BitCount()))) {
+                (!UBits(index[i], 64)
+                      .FitsInNBitsUnsigned(indices[i]->BitCount()) ||
+                 !indices[i]->Covers(
+                     UBits(index[i], indices[i]->BitCount())))) {
               // This isn't an index we could possibly be updating, so we make
               // no changes.
               return absl::OkStatus();

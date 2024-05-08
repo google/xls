@@ -511,6 +511,41 @@ TEST_F(RangeQueryEngineTest, ArrayUpdate1D) {
             engine.GetIntervalSetTree(update12.node()));
 }
 
+TEST_F(RangeQueryEngineTest, ArrayUpdateBigArray) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  constexpr int64_t kMaxX = 3;
+  constexpr int64_t kSetValue = 100;
+  BValue x = fb.Param("x", p->GetBitsType(2));
+  BValue idx = fb.ZeroExtend(x, 3);
+  BValue y = fb.Literal(UBits(kSetValue, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value arr, ValueBuilder::UBitsArray(
+                     {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, 8)
+                     .Build());
+  BValue target = fb.Literal(arr);
+  BValue update = fb.ArrayUpdate(target, y, {idx});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IntervalSetTree ist,
+      IntervalSetTree::CreateFromFunction(
+          update.GetType(),
+          [&](Type* t, absl::Span<const int64_t> idx) -> IntervalSet {
+            Interval existing = Interval::Precise(arr.element(idx[0]).bits());
+            if (idx[0] <= kMaxX) {
+              return IntervalSet::Of(
+                  {Interval::Precise(UBits(kSetValue, 8)), existing});
+            }
+            return IntervalSet::Of({existing});
+          }));
+
+  EXPECT_THAT(engine.GetIntervalSetTree(update.node()), IntervalsAre(ist));
+}
+
 TEST_F(RangeQueryEngineTest, ArrayUpdate3D) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -1426,8 +1461,7 @@ TEST_F(RangeQueryEngineTest, SelHugeSelector) {
   XLS_ASSERT_OK(engine.Populate(f));
 
   // Test case where default is covered.
-  EXPECT_EQ(def_ist.Get({}),
-            engine.GetIntervalSetTree(expr.node()).Get({}));
+  EXPECT_EQ(def_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({}));
 }
 
 TEST_F(RangeQueryEngineTest, OneHotSelect) {
