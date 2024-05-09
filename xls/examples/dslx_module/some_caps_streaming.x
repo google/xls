@@ -14,108 +14,121 @@
 
 import xls.examples.dslx_module.some_caps;
 
-pub proc some_caps_streaming<N:u32> {
-  bytes_src: chan<u8[N]> in;
-  bytes_result: chan<u8[N]> out;
+pub proc some_caps_streaming<N: u32> {
+    bytes_src: chan<u8[N]> in;
+    bytes_result: chan<u8[N]> out;
 
-  config(bytes_src: chan<u8[N]> in, bytes_result: chan<u8[N]> out) {
-    (bytes_src, bytes_result)
-  }
+    config(bytes_src: chan<u8[N]> in, bytes_result: chan<u8[N]> out) { (bytes_src, bytes_result) }
 
-  init {
-    some_caps::Choice::CAPITALIZE
-  }
+    init { some_caps::Choice::CAPITALIZE }
 
-  next(tok: token, state: some_caps::Choice) {
-    trace_fmt!("state={}", state);
-    let (tok, val) = recv(tok, bytes_src);
-    let ns = match state {
-      some_caps::Choice::CAPITALIZE => some_caps::Choice::NOTHING,
-      some_caps::Choice::NOTHING    => some_caps::Choice::SPONGE,
-      some_caps::Choice::SPONGE     => some_caps::Choice::CAPITALIZE,
-    };
-    let tok = send(tok, bytes_result, some_caps::maybe_capitalize(val, state));
-    ns
-  }
+    next(tok: token, state: some_caps::Choice) {
+        trace_fmt!("state={}", state);
+        let (tok, val) = recv(tok, bytes_src);
+        let ns = match state {
+            some_caps::Choice::CAPITALIZE => some_caps::Choice::NOTHING,
+            some_caps::Choice::NOTHING => some_caps::Choice::SPONGE,
+            some_caps::Choice::SPONGE => some_caps::Choice::CAPITALIZE,
+            _ => state,
+        };
+        let tok = send(tok, bytes_result, some_caps::maybe_capitalize(val, state));
+        ns
+    }
 }
 
 const TEST_SIZE = u32:6;
+
 #[test_proc]
 proc test_streaming_somecaps {
-  bytes_to_proc: chan<u8[TEST_SIZE]> out;
-  bytes_from_proc: chan<u8[TEST_SIZE]> in;
-  terminator: chan<bool> out;
+    bytes_to_proc: chan<u8[TEST_SIZE]> out;
+    bytes_from_proc: chan<u8[TEST_SIZE]> in;
+    terminator: chan<bool> out;
 
-  init { () }
+    config(terminator: chan<bool> out) {
+        let (send_to_proc_in, send_to_proc_out) = chan<u8[TEST_SIZE]>("send_to_proc");
+        let (recv_from_proc_in, recv_from_proc_out) = chan<u8[TEST_SIZE]>("recv_from_proc");
+        spawn some_caps_streaming<TEST_SIZE>(send_to_proc_out, recv_from_proc_in);
+        (send_to_proc_in, recv_from_proc_out, terminator)
+    }
 
-  config(terminator: chan<bool> out) {
-    let (send_to_proc_in, send_to_proc_out) = chan<u8[TEST_SIZE]>("send_to_proc");
-    let (recv_from_proc_in, recv_from_proc_out) = chan<u8[TEST_SIZE]>("recv_from_proc");
-    spawn some_caps_streaming<TEST_SIZE>(send_to_proc_out, recv_from_proc_in);
-    (send_to_proc_in, recv_from_proc_out, terminator)
-  }
+    init { () }
 
-  next(tok: token, st:()) {
-    // cap
-    let tok = send(tok, bytes_to_proc, "foobar");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FOOBAR");
+    next(tok: token, st: ()) {
+        // cap
+        let tok = send(tok, bytes_to_proc, "foobar");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FOOBAR");
 
-    // nothing
-    let tok = send(tok, bytes_to_proc, "foobar");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "foobar");
+        // nothing
+        let tok = send(tok, bytes_to_proc, "foobar");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "foobar");
 
-    // sponge
-    let tok = send(tok, bytes_to_proc, "foobar");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FoObAr");
+        // sponge
+        let tok = send(tok, bytes_to_proc, "foobar");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FoObAr");
 
-    // cap
-    let tok = send(tok, bytes_to_proc, "123456");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "123456");
+        // cap
+        let tok = send(tok, bytes_to_proc, "123456");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "123456");
 
-    // nothing
-    let tok = send(tok, bytes_to_proc, "123456");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "123456");
+        // nothing
+        let tok = send(tok, bytes_to_proc, "123456");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "123456");
 
-    // sponge
-    let tok = send(tok, bytes_to_proc, "123456");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "123456");
+        // sponge
+        let tok = send(tok, bytes_to_proc, "123456");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "123456");
 
-    // cap
-    let tok = send(tok, bytes_to_proc, "FOOBAR");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FOOBAR");
+        // cap
+        let tok = send(tok, bytes_to_proc, "FOOBAR");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FOOBAR");
 
-    // nothing
-    let tok = send(tok, bytes_to_proc, "FOOBAR");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FOOBAR");
+        // nothing
+        let tok = send(tok, bytes_to_proc, "FOOBAR");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FOOBAR");
 
-    // sponge
-    let tok = send(tok, bytes_to_proc, "FOOBAR");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FoObAr");
+        // sponge
+        let tok = send(tok, bytes_to_proc, "FOOBAR");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FoObAr");
 
-    // cap
-    let tok = send(tok, bytes_to_proc, "fOoBaR");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FOOBAR");
+        // cap
+        let tok = send(tok, bytes_to_proc, "fOoBaR");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FOOBAR");
 
-    // nothing
-    let tok = send(tok, bytes_to_proc, "fOoBaR");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "fOoBaR");
+        // nothing
+        let tok = send(tok, bytes_to_proc, "fOoBaR");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "fOoBaR");
 
-    // sponge
-    let tok = send(tok, bytes_to_proc, "fOoBaR");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FoObAr");
+        // sponge
+        let tok = send(tok, bytes_to_proc, "fOoBaR");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FoObAr");
 
-    // cap
-    let tok = send(tok, bytes_to_proc, "FoObAr");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FOOBAR");
+        // cap
+        let tok = send(tok, bytes_to_proc, "FoObAr");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FOOBAR");
 
-    // nothing
-    let tok = send(tok, bytes_to_proc, "FoObAr");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FoObAr");
+        // nothing
+        let tok = send(tok, bytes_to_proc, "FoObAr");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FoObAr");
 
-    // sponge
-    let tok = send(tok, bytes_to_proc, "FoObAr");
-    let (tok, v) = recv(tok, bytes_from_proc); assert_eq(v, "FoObAr");
+        // sponge
+        let tok = send(tok, bytes_to_proc, "FoObAr");
+        let (tok, v) = recv(tok, bytes_from_proc);
+        assert_eq(v, "FoObAr");
 
-    send(tok, terminator, true);
-  }
+        send(tok, terminator, true);
+    }
 }

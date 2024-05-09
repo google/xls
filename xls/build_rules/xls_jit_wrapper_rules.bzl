@@ -312,6 +312,7 @@ def cc_xls_ir_jit_wrapper(
             "@com_google_absl//absl/status:statusor",
             "//xls/public:ir_parser",
             "//xls/public:ir",
+            "@com_google_absl//absl/container:flat_hash_map",
             "//xls/public:function_builder",
             "//xls/public:value",
             "//xls/jit:function_jit",

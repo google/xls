@@ -1,0 +1,23 @@
+#include "{{ wrapped.header_filename }}"
+
+#include <array>
+#include <string_view>
+
+#include "xls/common/status/status_macros.h"
+#include "xls/jit/base_jit_wrapper.h"
+
+namespace {{ wrapped.namespace }} {
+
+namespace {
+static constexpr std::string_view kProcName = "{{ wrapped.function_name }}";
+static constexpr std::string_view kIrText =
+    R"original_ir({{wrapped.ir_text}})original_ir";
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
+{{ wrapped.class_name }}::Create() {
+  return xls::BaseProcJitWrapper::Create<{{wrapped.class_name}}>(
+            kIrText, kProcName);
+}
+
+}  // namespace {{ wrapped.namespace }}
