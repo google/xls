@@ -10,7 +10,10 @@ namespace {{ wrapped.namespace }} {
 
 namespace {
 static constexpr std::string_view kFunctionName = "{{ wrapped.function_name }}";
-static constexpr std::string_view kIrText =
+
+// Note: This is a plain array as the content can be so large that it exceeds
+// compiler constexpr limits if attempting to assign to std::string_view
+static constexpr char kIrText[] =
     R"original_ir({{wrapped.ir_text}})original_ir";
 }  // namespace
 
