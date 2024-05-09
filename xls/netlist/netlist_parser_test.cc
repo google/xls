@@ -28,7 +28,9 @@
 #include "absl/status/status.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/fake_cell_library.h"
+#include "xls/netlist/netlist.h"
 
 namespace xls {
 namespace netlist {

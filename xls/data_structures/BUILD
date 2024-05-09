@@ -59,6 +59,7 @@ cc_test(
         ":graph_contraction",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:variant",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
