@@ -114,15 +114,15 @@ file_number 0 "/tmp/testit.x"
 
 chan testit__output(bits[32], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
-top proc __testit__main_0_next(__token: token, __state: bits[32], init={3}) {
+top proc __testit__main_0_next(__state: bits[32], init={3}) {
+  __token: token = literal(value=token, id=1)
   literal.4: bits[32] = literal(value=3, id=4, pos=[(0,9,46)])
   umul.5: bits[32] = umul(__state, literal.4, id=5, pos=[(0,9,40)])
   literal.7: bits[32] = literal(value=1, id=7, pos=[(0,10,18)])
   tok: token = send(__token, umul.5, channel=testit__output, id=6)
   literal.3: bits[1] = literal(value=1, id=3)
   add.8: bits[32] = add(__state, literal.7, id=8, pos=[(0,10,12)])
-  after_all.9: token = after_all(__token, tok, id=9)
-  next (after_all.9, add.8)
+  next (add.8)
 }
 '''
 
@@ -367,13 +367,13 @@ top fn foo() -> bits[32][3] {
 chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tkn, baz, channel=output)
-  after_all.5: token = after_all(tuple_index.2, send.4)
-  next (after_all.5, tuple_index.3, foo, bar)
+  next (tuple_index.3, foo, bar)
 }
 '''
     ir_file = self.create_tempfile(content=input_ir)
@@ -396,13 +396,13 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
 chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tkn, baz, channel=output)
-  after_all.5: token = after_all(tuple_index.2, send.4)
-  next (after_all.5, tuple_index.3, foo, bar)
+  next (tuple_index.3, foo, bar)
 }
 '''
     ir_file = self.create_tempfile(content=input_ir)
@@ -427,13 +427,13 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
 chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tkn, baz, channel=output)
-  after_all.5: token = after_all(tuple_index.2, send.4)
-  next (after_all.5, tuple_index.3, foo, bar)
+  next (tuple_index.3, foo, bar)
 }
 '''
     ir_file = self.create_tempfile(content=input_ir)
@@ -458,13 +458,13 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
 chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tkn, baz, channel=output)
-  after_all.5: token = after_all(tuple_index.2, send.4)
-  next (after_all.5, tuple_index.3, foo, bar)
+  next (tuple_index.3, foo, bar)
 }
 '''
     ir_file = self.create_tempfile(content=input_ir)
@@ -490,13 +490,13 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
 chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tkn, baz, channel=output)
-  after_all.5: token = after_all(tuple_index.2, send.4)
-  next (after_all.5, tuple_index.3, foo, bar)
+  next (tuple_index.3, foo, bar)
 }
 '''
     ir_file = self.create_tempfile(content=input_ir)
@@ -520,13 +520,13 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
   def test_new_style_proc(self):
     input_ir = """package foo
 
-top proc foo<input: bits[32] streaming in, output:bits[32] streaming out>(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+top proc foo<input: bits[32] streaming in, output:bits[32] streaming out>(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(tkn, baz, channel=output)
-  after_all.5: token = after_all(tuple_index.2, send.4)
-  next (after_all.5, tuple_index.3, foo, bar)
+  next (tuple_index.3, foo, bar)
 }
 """
     ir_file = self.create_tempfile(content=input_ir)

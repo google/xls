@@ -1126,7 +1126,8 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 chan loopback(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, bypass=false, metadata="")
 
-proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
+proc running_sum(first_cycle: bits[1], init={1}) {
+  tkn: token = literal(value=token, id=1000)
   in_recv: (token, bits[32]) = receive(tkn, channel=in)
   in_tkn: token = tuple_index(in_recv, index=0)
   in_data: bits[32] = tuple_index(in_recv, index=1)
@@ -1141,7 +1142,6 @@ proc running_sum(tkn: token, first_cycle: bits[1], init={1}) {
   loopback_send: token = send(out_send, sum, channel=loopback)
   lit0: bits[1] = literal(value=0)
   next_first_cycle: () = next_value(param=first_cycle, value=lit0)
-  next (loopback_send)
 }
 )";
 
@@ -1317,7 +1317,8 @@ TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithNonUpdateCase) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+  tkn: token = literal(value=token, id=1000)
   lit1: bits[32] = literal(value=1)
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
@@ -1325,7 +1326,6 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
   next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
   next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
-  next (send.1)
 }
 )";
 
@@ -1375,7 +1375,8 @@ TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithOnlyUpdateCases) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc bad_alternator(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+  tkn: token = literal(value=token, id=1000)
   lit1: bits[32] = literal(value=1)
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
@@ -1383,7 +1384,6 @@ proc bad_alternator(tkn: token, counter: bits[32], odd_iteration: bits[1], init=
   next_counter_odd: () = next_value(param=counter, value=lit1, predicate=odd_iteration)
   next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
   next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
-  next (send.1)
 }
 )";
 
@@ -1433,7 +1433,8 @@ TEST_P(BlockGeneratorTest, TruncatedArrayIndices) {
   const std::string ir_text = R"(package test
 chan out(bits[7], id=10, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
-proc lookup_proc(tkn: token, x: bits[1], z: bits[1], init={0, 0}) {
+proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
+  tkn: token = literal(value=token, id=1000)
   literal.1: bits[33] = literal(value=1, id=1)
   literal.2: bits[33] = literal(value=2, id=2)
   sel.3: bits[33] = sel(x, cases=[literal.1], default=literal.2, id=3)
@@ -1445,7 +1446,6 @@ proc lookup_proc(tkn: token, x: bits[1], z: bits[1], init={0, 0}) {
   send.9: token = send(tkn, entry, channel=out, id=9)
   next_value.10: () = next_value(param=x, value=x, id=10)
   next_value.11: () = next_value(param=z, value=z, id=11)
-  next (send.9)
 }
 )";
 

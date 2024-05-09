@@ -1117,7 +1117,8 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 #[initiation_interval(2)]
-proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
+proc ii_greater_than_one(st: bits[32], init={0}) {
+  tkn: token = literal(value=token, id=1000)
   send.1: token = send(tkn, st, channel=out, id=1)
   min_delay.2: token = min_delay(send.1, delay=1, id=2)
   receive.3: (token, bits[32]) = receive(min_delay.2, channel=in, id=3)
@@ -1125,7 +1126,6 @@ proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
   next_st: () = next_value(param=st, value=tuple_index.5)
-  next (send.6)
 }
 )",
                                                TestBaseName());

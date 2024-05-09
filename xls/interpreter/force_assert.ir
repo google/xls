@@ -14,9 +14,8 @@
 
 package force_assert
 
-proc tile_0_0(my_token: token, state: (), init={()}) {
-  literal.1: bits[1] = literal(value=0)
-  assert.2: token = assert(my_token, literal.1, message="Assertion failure via fail!", label="forced_assert")
-
-  next (assert.2, state)
+proc tile_0_0() {
+  literal.1: bits[1] = literal(value=0, id=1)
+  my_token: token = literal(value=token, id=2)
+  assert.3: token = assert(my_token, literal.1, message="Assertion failure via fail!", label="forced_assert", id=3)
 }

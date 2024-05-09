@@ -23,8 +23,10 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
@@ -34,6 +36,7 @@ namespace m = ::xls::op_matchers;
 
 namespace xls {
 
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
@@ -490,31 +493,34 @@ TEST(FunctionBuilderTest, SendAndReceive) {
       Channel * ch3, p.CreateStreamingChannel("ch3", ChannelOps::kSendReceive,
                                               p.GetBitsType(32)));
 
-  ProcBuilder b("sending_receiving", /*token_name=*/"my_token", &p);
+  ProcBuilder b("sending_receiving", &p);
+  BValue my_token = b.StateElement("my_token", Value::Token());
   BValue state = b.StateElement("my_state", Value(UBits(42, 32)));
-  BValue send = b.Send(ch0, b.GetTokenParam(), state);
-  BValue receive = b.Receive(ch1, b.GetTokenParam());
+  BValue send = b.Send(ch0, my_token, state);
+  BValue receive = b.Receive(ch1, my_token);
   BValue pred = b.Literal(UBits(1, 1));
-  BValue send_if = b.SendIf(ch2, b.GetTokenParam(), pred, state);
-  BValue receive_if = b.ReceiveIf(ch3, b.GetTokenParam(), pred);
+  BValue send_if = b.SendIf(ch2, my_token, pred, state);
+  BValue receive_if = b.ReceiveIf(ch3, my_token, pred);
   BValue after_all = b.AfterAll(
       {send, b.TupleIndex(receive, 0), send_if, b.TupleIndex(receive_if, 0)});
   BValue next_state =
       b.Add(b.TupleIndex(receive, 1), b.TupleIndex(receive_if, 1));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(after_all, {next_state}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({after_all, next_state}));
 
-  EXPECT_THAT(proc->NextToken(),
+  EXPECT_THAT(proc->GetNextStateElement(0),
               m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
                           m::Send(m::Param(), m::Param(), m::Literal(1)),
                           m::TupleIndex(m::Receive())));
-  EXPECT_THAT(proc->GetNextStateElement(0),
+  EXPECT_THAT(proc->GetNextStateElement(1),
               m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::Receive())));
 
-  EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(42, 32)));
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "my_state");
-  EXPECT_EQ(proc->TokenParam()->GetName(), "my_token");
-  EXPECT_EQ(proc->GetStateElementType(0), p.GetBitsType(32));
+  EXPECT_EQ(proc->GetInitValueElement(0), Value::Token());
+  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "my_token");
+  EXPECT_EQ(proc->GetStateElementType(0), p.GetTokenType());
+  EXPECT_EQ(proc->GetInitValueElement(1), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "my_state");
+  EXPECT_EQ(proc->GetStateElementType(1), p.GetBitsType(32));
 
   EXPECT_EQ(send.node()->GetType(), p.GetTokenType());
   EXPECT_EQ(send_if.node()->GetType(), p.GetTokenType());
@@ -816,11 +822,11 @@ TEST(FunctionBuilderTest, DynamicCountedForTest) {
 
 TEST(FunctionBuilderTest, AddParamToProc) {
   Package p("p");
-  ProcBuilder b("param_proc", /*token_name=*/"my_token", &p);
+  ProcBuilder b("param_proc", &p);
   BValue state = b.StateElement("my_state", Value(UBits(42, 32)));
   b.Param("x", p.GetBitsType(32));
   EXPECT_THAT(
-      b.Build(b.GetTokenParam(), {state}).status(),
+      b.Build({state}).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Use StateElement to add state parameters to procs")));
 }
@@ -841,12 +847,14 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
   BValue state = pb.StateElement("st", Value(UBits(42, 16)));
   BValue a_plus_b = pb.Add(pb.Receive(a_ch), pb.Receive(b_ch));
   pb.MinDelay(5);
-  pb.Send(out_ch, pb.Add(state, a_plus_b));
+  pb.Send(out_ch, pb.Add(state, a_plus_b), SourceInfo(), "final_send");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({a_plus_b}));
 
-  EXPECT_THAT(proc->NextToken(), m::Send(m::MinDelay(m::TupleIndex(m::Receive(
-                                             m::TupleIndex(m::Receive())))),
-                                         m::Add()));
+  EXPECT_THAT(
+      proc->GetNode("final_send"),
+      IsOkAndHolds(m::Send(
+          m::MinDelay(m::TupleIndex(m::Receive(m::TupleIndex(m::Receive())))),
+          m::Add())));
 
   EXPECT_THAT(proc->GetNextStateElement(0),
               m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),
@@ -855,60 +863,63 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
 
 TEST(FunctionBuilderTest, StatelessProcBuilder) {
   Package p("p");
-  ProcBuilder pb("the_proc", "tkn", &p);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {}));
+  ProcBuilder pb("the_proc", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
   EXPECT_TRUE(proc->StateParams().empty());
 }
 
 TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
   Package p("p");
-  ProcBuilder pb("the_proc", "tkn", &p);
+  ProcBuilder pb("the_proc", &p);
+  BValue tkn = pb.StateElement("tkn", Value::Token());
   BValue x = pb.StateElement("x", Value(UBits(1, 32)));
   BValue y = pb.StateElement("y", Value(UBits(2, 32)));
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
 
-  EXPECT_EQ(pb.GetStateParam(0).node()->GetName(), "x");
-  EXPECT_EQ(pb.GetStateParam(1).node()->GetName(), "y");
-  EXPECT_EQ(pb.GetStateParam(2).node()->GetName(), "z");
+  EXPECT_EQ(pb.GetStateParam(0).node()->GetName(), "tkn");
+  EXPECT_EQ(pb.GetStateParam(1).node()->GetName(), "x");
+  EXPECT_EQ(pb.GetStateParam(2).node()->GetName(), "y");
+  EXPECT_EQ(pb.GetStateParam(3).node()->GetName(), "z");
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.GetTokenParam(), /*next_state=*/{
-                                x, pb.Add(x, y, SourceInfo(), "x_plus_y"), z}));
-  EXPECT_EQ(proc->GetStateElementCount(), 3);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "y");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
+      Proc * proc, pb.Build(/*next_state=*/{
+                       tkn, x, pb.Add(x, y, SourceInfo(), "x_plus_y"), z}));
+  EXPECT_EQ(proc->GetStateElementCount(), 4);
+  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "tkn");
+  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
+  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "y");
+  EXPECT_EQ(proc->GetStateParam(3)->GetName(), "z");
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc the_proc(tkn: token, x: bits[32], y: bits[32], "
-                        "z: bits[32], init={1, 2, 3})"));
-  EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "x");
-  EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "x_plus_y");
-  EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "z");
+                        "z: bits[32], init={token, 1, 2, 3})"));
+  EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "tkn");
+  EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "x");
+  EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "x_plus_y");
+  EXPECT_EQ(proc->GetNextStateElement(3)->GetName(), "z");
 }
 
 TEST(FunctionBuilderTest, ProcWithNextStateElement) {
   Package p("p");
-  ProcBuilder pb("the_proc", "tkn", &p);
+  ProcBuilder pb("the_proc", &p);
   BValue x = pb.StateElement("x", Value(UBits(1, 1)));
   BValue y = pb.StateElement("y", Value(UBits(2, 32)));
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
   BValue next = pb.Next(/*param=*/y, /*value=*/z, /*pred=*/x);
 
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), /*next_state=*/{x, y, z}));
+  XLS_ASSERT_OK(pb.Build(/*next_state=*/{x, y, z}));
   EXPECT_THAT(next.node(), m::Next(m::Param("y"), /*value=*/m::Param("z"),
                                    /*predicate=*/m::Param("x")));
 }
 
 TEST(FunctionBuilderTest, ProcWithNextStateElementBadPredicate) {
   Package p("p");
-  ProcBuilder pb("the_proc", "tkn", &p);
+  ProcBuilder pb("the_proc", &p);
   BValue x = pb.StateElement("x", Value(UBits(1, 32)));
   BValue y = pb.StateElement("y", Value(UBits(2, 32)));
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
   pb.Next(/*param=*/y, /*value=*/z, /*pred=*/x);
 
-  EXPECT_THAT(pb.Build(pb.GetTokenParam(),
-                       /*next_state=*/{x, y, z}),
+  EXPECT_THAT(pb.Build(/*next_state=*/{x, y, z}),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        AllOf(HasSubstr("Predicate operand"),
                              HasSubstr("must be of bits type of width 1"),
@@ -921,7 +932,6 @@ TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   BValue state = pb.StateElement("st", Value(UBits(42, 16)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({state}));
 
-  EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
   EXPECT_THAT(proc->GetNextStateElement(0), m::Param("st"));
 }
 

@@ -88,7 +88,7 @@ chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_co
 chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc add(__token: token, init={}) {
+top proc add(__token: token, init={token}) {
   receive.4: (token, bits[32]) = receive(__token, channel=sample__operand_0, id=4)
   receive.7: (token, bits[32]) = receive(__token, channel=sample__operand_1, id=7)
   tok_operand_0_val: token = tuple_index(receive.4, index=0, id=5, pos=[(0,14,9)])

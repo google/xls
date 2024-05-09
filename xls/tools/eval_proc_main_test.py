@@ -31,7 +31,8 @@ chan in_ch_2(bits[64], id=2, kind=streaming, ops=receive_only, flow_control=read
 chan out_ch(bits[64], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 chan out_ch_2(bits[64], id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 
-proc test_proc(tkn: token, st: (bits[64]), init={(10)}) {
+proc test_proc(st: (bits[64]), init={(10)}) {
+  tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[64]) = receive(tkn, channel=in_ch, id=1)
 
   literal.21: bits[64] = literal(value=10, id=21)
@@ -54,7 +55,7 @@ proc test_proc(tkn: token, st: (bits[64]), init={(10)}) {
 
   tuple.22: (bits[64]) = tuple(add.20, id=22)
 
-  next(send.12, tuple.22)
+  next(tuple.22)
 }
 """
 
@@ -65,15 +66,14 @@ file_number 0 "fake_file.x"
 chan input(bits[8], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 chan output(bits[8], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 
-proc test_proc(__token: token, init={}) {
+proc test_proc(init={}) {
+  __token: token = literal(value=token, id=1000)
   receive.4: (token, bits[8]) = receive(__token, channel=input, id=4)
   recv_val: bits[8] = tuple_index(receive.4, index=1, id=7, pos=[(0,7,19)])
   literal.8: bits[8] = literal(value=42, id=8, pos=[(0,8,39)])
   recv_tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,7,9)])
   do_send: bits[1] = ne(recv_val, literal.8, id=9, pos=[(0,8,33)])
   send_tok: token = send(recv_tok, recv_val, predicate=do_send, channel=output, id=10)
-  after_all.12: token = after_all(__token, recv_tok, send_tok, id=12)
-  next (after_all.12)
 }
 """
 

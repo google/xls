@@ -17,22 +17,30 @@
 #include <optional>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
+namespace m = ::xls::op_matchers;
+
 namespace xls {
 namespace {
+
+using ::testing::_;
+using ::testing::ElementsAre;
+using ::testing::FieldsAre;
 
 class AnalyzeCriticalPathTest : public IrTestBase {
  protected:
@@ -145,13 +153,12 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithSendReceive) {
       std::vector<CriticalPathEntry> cp,
       AnalyzeCriticalPath(proc, /*clock_period_ps=*/std::nullopt,
                           *delay_estimator_));
-  ASSERT_EQ(cp.size(), 6);
-  EXPECT_EQ(cp[0].node, send.node());
-  EXPECT_EQ(cp[1].node, rev.node());
-  EXPECT_EQ(cp[2].node, neg.node());
-  EXPECT_EQ(cp[3].node->op(), Op::kTupleIndex);
-  EXPECT_EQ(cp[4].node->op(), Op::kReceive);
-  EXPECT_EQ(cp[5].node, proc->TokenParam());
+  EXPECT_THAT(cp, ElementsAre(FieldsAre(send.node(), _, _, _),
+                              FieldsAre(rev.node(), _, _, _),
+                              FieldsAre(neg.node(), _, _, _),
+                              FieldsAre(m::TupleIndex(), _, _, _),
+                              FieldsAre(m::Receive(), _, _, _),
+                              FieldsAre(m::Literal(Value::Token()), _, _, _)));
 }
 
 }  // namespace

@@ -64,18 +64,17 @@ class NextValueOptimizationPassTest : public IrTestBase {
 
 TEST_F(NextValueOptimizationPassTest, StatelessProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK(pb.Build().status());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 TEST_F(NextValueOptimizationPassTest, LegacyNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   pb.StateElement("x", Value(UBits(0, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.GetTokenParam(), {pb.Literal(UBits(5, 32))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(5, 32))}));
   ASSERT_THAT(proc->GetStateParam(0), m::Param("x"));
   ASSERT_THAT(proc->GetNextStateElement(0), m::Literal(5));
 
@@ -87,11 +86,11 @@ TEST_F(NextValueOptimizationPassTest, LegacyNextValue) {
 
 TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(5, 32)),
           /*pred=*/pb.Literal(UBits(0, 1)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(), IsEmpty());
@@ -99,13 +98,13 @@ TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
 
 TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(5, 32)),
           /*pred=*/pb.Literal(UBits(0, 1)));
   pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(3, 32)),
           /*pred=*/pb.Literal(UBits(1, 1)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
@@ -116,13 +115,13 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
 
 TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 3)));
   BValue priority_select = pb.PrioritySelect(
       x, std::vector{pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
                      pb.Literal(UBits(2, 3))});
   pb.Next(/*param=*/x, /*value=*/priority_select);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
@@ -144,13 +143,12 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
 
 TEST_F(NextValueOptimizationPassTest, PrioritySelectLegacyNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 3)));
   BValue priority_select = pb.PrioritySelect(
       x, std::vector{pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
                      pb.Literal(UBits(2, 3))});
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.GetTokenParam(), {priority_select}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({priority_select}));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
@@ -169,14 +167,14 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectLegacyNextValue) {
 
 TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 3)));
   BValue one_hot_x = pb.OneHot(x, LsbOrMsb::kMsb);
   BValue one_hot_select = pb.OneHotSelect(
       one_hot_x, std::vector{pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
                              pb.Literal(UBits(2, 3)), pb.Literal(UBits(3, 3))});
   pb.Next(/*param=*/x, /*value=*/one_hot_select);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
@@ -196,13 +194,13 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
 
 TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 2)));
   BValue select = pb.Select(
       x, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   pb.Next(/*param=*/x, /*value=*/select);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
@@ -220,7 +218,7 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
 
 TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 2)));
   BValue select =
       pb.Select(x,
@@ -228,7 +226,7 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
                             pb.Literal(UBits(2, 2))},
                 /*default_value=*/pb.Literal(UBits(3, 2)));
   pb.Next(/*param=*/x, /*value=*/select);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
@@ -245,13 +243,13 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
 
 TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 2)));
   BValue select = pb.Select(
       x, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   pb.Next(/*param=*/x, /*value=*/select);
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam()).status());
+  XLS_ASSERT_OK(pb.Build().status());
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/3),
               IsOkAndHolds(false));
@@ -259,7 +257,7 @@ TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
 
 TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 2)));
   BValue a = pb.StateElement("a", Value(UBits(0, 1)));
   BValue b = pb.StateElement("b", Value(UBits(0, 1)));
@@ -269,7 +267,7 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
       b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   BValue select_a = pb.Select(a, std::vector{select_b_1, select_b_2});
   pb.Next(/*param=*/x, /*value=*/select_a);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   // TODO: https://github.com/google/xls/issues/1374 - State elements a & b
   // removed so can't use z3 proving.
 
@@ -293,7 +291,7 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
 TEST_F(NextValueOptimizationPassTest,
        DepthLimitedCascadingSmallSelectsNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 2)));
   BValue a = pb.StateElement("a", Value(UBits(0, 1)));
   BValue b = pb.StateElement("b", Value(UBits(0, 1)));
@@ -303,7 +301,7 @@ TEST_F(NextValueOptimizationPassTest,
       b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   BValue select_a = pb.Select(a, std::vector{select_b_1, select_b_2});
   pb.Next(/*param=*/x, /*value=*/select_a);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   // State elements a & b removed so can't use z3 proving.
 
   EXPECT_THAT(

@@ -1048,8 +1048,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   IOChannel* context_in_channel = pipelined_loop_proc.context_in_channel;
   const xls::SourceInfo& loc = pipelined_loop_proc.loc;
 
-  xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix),
-                      /*token_name=*/"tkn", package_);
+  xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix), package_);
 
   auto temp_sf = std::make_unique<GeneratedFunction>();
 
@@ -1060,7 +1059,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   context().in_pipelined_for_body = true;
   context().sf = temp_sf.get();
 
-  xls::BValue token = pb.GetTokenParam();
+  xls::BValue token = pb.Literal(xls::Value::Token());
 
   xls::BValue placeholder_cond = pb.Literal(xls::UBits(1, 1));
 
@@ -1295,7 +1294,8 @@ Translator::GenerateIR_PipelinedLoopContents(
   prepared.args.push_back(selected_context);
   prepared.args.push_back(lvalue_conditions_tuple);
   prepared.args.push_back(on_reset_bval);
-  prepared.token = token;
+  prepared.orig_token = token;
+  prepared.token = prepared.orig_token;
 
   xls::BValue save_full_condition = context().full_condition;
 

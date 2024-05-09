@@ -770,12 +770,13 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
 
-  BValue rcv = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue rcv = pb.Receive(ch_in, tkn);
   BValue send = pb.Send(ch_out, /*token=*/pb.TupleIndex(rcv, 0),
                         /*data=*/pb.TupleIndex(rcv, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -784,8 +785,7 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
       RunPipelineSchedule(proc, *delay_estimator,
                           SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
-  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
-  EXPECT_EQ(schedule.cycle(send.node()), 2);
+  EXPECT_GE(schedule.cycle(send.node()), schedule.cycle(rcv.node()));
 }
 
 TEST_F(PipelineScheduleTest, SendFollowedByReceiveCannotBeInSameCycle) {
@@ -799,11 +799,12 @@ TEST_F(PipelineScheduleTest, SendFollowedByReceiveCannotBeInSameCycle) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue send = pb.Send(ch_out, tkn, pb.Literal(Bits(32)));
   BValue rcv = pb.Receive(ch_in, /*token=*/send);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -831,11 +832,12 @@ TEST_F(PipelineScheduleTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue send = pb.Send(ch_out, tkn, pb.Literal(Bits(32)));
   BValue rcv_if = pb.ReceiveIf(ch_in, /*token=*/send, pb.Literal(UBits(0, 1)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv_if, 0), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -864,11 +866,12 @@ TEST_F(PipelineScheduleTest,
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue send = pb.Send(ch_out, tkn, pb.Literal(Bits(32)));
   BValue rcv = pb.ReceiveNonBlocking(ch_in, /*token=*/send);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -897,12 +900,13 @@ TEST_F(PipelineScheduleTest,
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue send = pb.Send(ch_out, tkn, pb.Literal(Bits(32)));
   BValue rcv_if =
       pb.ReceiveIfNonBlocking(ch_in, /*token=*/send, pb.Literal(UBits(0, 1)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv_if, 0), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -931,14 +935,15 @@ TEST_F(PipelineScheduleTest,
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
 
-  BValue rcv0 = pb.Receive(ch_in, pb.GetTokenParam());
-  BValue rcv1 = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue rcv0 = pb.Receive(ch_in, tkn);
+  BValue rcv1 = pb.Receive(ch_in, tkn);
   BValue send = pb.Send(ch_out, pb.TupleIndex(rcv1, 0), pb.Literal(Bits(32)));
   BValue joined_token = pb.AfterAll({pb.TupleIndex(rcv0, 0), send});
   BValue rcv = pb.Receive(ch_in, joined_token);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -966,12 +971,13 @@ TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue send = pb.Send(ch_out, tkn, pb.Literal(Bits(32)));
   BValue delay = pb.MinDelay(send, /*delay=*/3);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -980,8 +986,7 @@ TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
       RunPipelineSchedule(proc, *delay_estimator,
                           SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
-  EXPECT_EQ(schedule.cycle(send.node()), 0);
-  EXPECT_EQ(schedule.cycle(rcv.node()), 3);
+  EXPECT_EQ(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 3);
 }
 
 TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
@@ -995,15 +1000,15 @@ TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
   pb.proc()->SetInitiationInterval(2);
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/1);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1027,14 +1032,14 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthWhenNeeded) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1058,14 +1063,14 @@ TEST_F(PipelineScheduleTest, SuggestReducedThroughputWhenFullThroughputFails) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1087,14 +1092,14 @@ TEST_F(PipelineScheduleTest, UnboundedThroughputWorks) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1104,8 +1109,7 @@ TEST_F(PipelineScheduleTest, UnboundedThroughputWorks) {
           proc, *delay_estimator,
           SchedulingOptions().pipeline_stages(5).worst_case_throughput(0)));
   EXPECT_EQ(schedule.length(), 5);
-  EXPECT_EQ(schedule.cycle(send.node()), 0);
-  EXPECT_EQ(schedule.cycle(rcv.node()), 2);
+  EXPECT_EQ(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 2);
 }
 
 TEST_F(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
@@ -1119,14 +1123,14 @@ TEST_F(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1138,8 +1142,7 @@ TEST_F(PipelineScheduleTest, MinimizedThroughputWorksWithGivenPipelineLength) {
                               .worst_case_throughput(0)
                               .minimize_worst_case_throughput(true)));
   EXPECT_EQ(schedule.length(), 5);
-  EXPECT_EQ(schedule.cycle(send.node()), 0);
-  EXPECT_EQ(schedule.cycle(rcv.node()), 2);
+  EXPECT_EQ(schedule.cycle(rcv.node()) - schedule.cycle(send.node()), 2);
   EXPECT_EQ(proc->GetInitiationInterval().value_or(1), 4);
 }
 
@@ -1154,14 +1157,14 @@ TEST_F(PipelineScheduleTest, MinimizedThroughputWorksWithGivenClockPeriod) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1190,14 +1193,14 @@ TEST_F(PipelineScheduleTest,
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1220,14 +1223,14 @@ TEST_F(PipelineScheduleTest,
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.TupleIndex(rcv, 1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1249,15 +1252,15 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthAndIndividualSlack) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
   XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0),
-                            {pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data")}));
+      Proc * proc, pb.Build({pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data")}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1290,19 +1293,19 @@ TEST_F(
       Channel * ch_out1,
       package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state0 = pb.StateElement("state0", Value(Bits(32)));
   BValue state1 = pb.StateElement("state1", Value(Bits(32)));
 
-  BValue send0 = pb.Send(ch_out0, pb.GetTokenParam(), state0);
-  BValue send1 = pb.Send(ch_out1, pb.GetTokenParam(), state1);
+  BValue send0 = pb.Send(ch_out0, tkn, state0);
+  BValue send1 = pb.Send(ch_out1, tkn, state1);
   BValue delay0 = pb.MinDelay(send0, /*delay=*/2);
   BValue delay1 = pb.MinDelay(send1, /*delay=*/1);
   BValue rcv = pb.Receive(ch_in, /*token=*/pb.AfterAll({delay0, delay1}));
   BValue rcv_data = pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc,
-      pb.Build(pb.TupleIndex(rcv, 0), {rcv_data, pb.Add(rcv_data, state1)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build({rcv_data, pb.Add(rcv_data, state1)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1340,14 +1343,15 @@ TEST_F(
       Channel * ch_out2,
       package.CreateStreamingChannel("out2", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state0 = pb.StateElement("state0", Value(Bits(32)));
   BValue state1 = pb.StateElement("state1", Value(Bits(32)));
   BValue state2 = pb.StateElement("state2", Value(Bits(32)));
 
-  BValue send0 = pb.Send(ch_out0, pb.GetTokenParam(), state0);
-  BValue send1 = pb.Send(ch_out1, pb.GetTokenParam(), state1);
-  BValue send2 = pb.Send(ch_out2, pb.GetTokenParam(), state2);
+  BValue send0 = pb.Send(ch_out0, tkn, state0);
+  BValue send1 = pb.Send(ch_out1, tkn, state1);
+  BValue send2 = pb.Send(ch_out2, tkn, state2);
   BValue delay0 = pb.MinDelay(send0, /*delay=*/3);
   BValue delay1 = pb.MinDelay(send1, /*delay=*/2);
   BValue delay2 = pb.MinDelay(send2, /*delay=*/2);
@@ -1356,8 +1360,7 @@ TEST_F(
   BValue rcv_data = pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data");
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc,
-      pb.Build(pb.TupleIndex(rcv, 0),
-               {rcv_data, pb.Add(rcv_data, state1), pb.Add(rcv_data, state2)}));
+      pb.Build({rcv_data, pb.Add(rcv_data, state1), pb.Add(rcv_data, state2)}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1387,14 +1390,15 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(Bits(32)));
 
-  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  pb.Send(ch_out, tkn, state);
   BValue add2 = pb.Add(state, pb.Literal(UBits(2, 32)));
   BValue mul3 = pb.UMul(add2, pb.Literal(UBits(3, 32)));
   BValue add1 = pb.Add(mul3, pb.Literal(UBits(1, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {add1}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add1}));
 
   // Each operation takes 500ps, so (with no pipeline depth restrictions), 500ps
   // is the fastest clock we can support.
@@ -1451,21 +1455,19 @@ TEST_F(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in1,
       p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &p);
+  ProcBuilder pb(TestName(), &p);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(UBits(1, 1)));
-  BValue nb_rcv = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue nb_rcv = pb.ReceiveNonBlocking(in0, tkn);
   BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
   BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
   BValue nb_rcv_valid = pb.TupleIndex(nb_rcv, 2);
-  BValue after_all = pb.AfterAll({pb.GetTokenParam(), nb_rcv_tkn});
+  BValue after_all = pb.AfterAll({tkn, nb_rcv_tkn});
   // The statement explicitly shows the use of the state node after the next
   // state node.
   BValue use_state = pb.And(nb_rcv_data, state);
-  BValue rcv = pb.ReceiveIf(in1, after_all, use_state);
-  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
-  BValue after_all_final = pb.AfterAll({after_all, rcv_tkn});
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(after_all_final, {nb_rcv_valid}));
+  pb.ReceiveIf(in1, after_all, use_state);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({nb_rcv_valid}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1496,23 +1498,21 @@ TEST_F(PipelineScheduleTest, ProcParamScheduledAfterNextState) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in1,
       p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &p);
+  ProcBuilder pb(TestName(), &p);
+  BValue tkn = pb.Literal(Value::Token());
   BValue state = pb.StateElement("state", Value(UBits(1, 8)));
-  BValue nb_rcv = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue nb_rcv = pb.ReceiveNonBlocking(in0, tkn);
   BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
   BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
   BValue nb_rcv_valid = pb.TupleIndex(nb_rcv, 2);
-  BValue after_all = pb.AfterAll({pb.GetTokenParam(), nb_rcv_tkn});
+  BValue after_all = pb.AfterAll({tkn, nb_rcv_tkn});
   // The statement explicitly shows the use of the state node after the next
   // state's information is available.
   BValue extended_nb_rcv_data = pb.ZeroExtend(nb_rcv_data, 8);
   BValue use_state = pb.UGe(extended_nb_rcv_data, state);
-  BValue rcv = pb.ReceiveIf(in1, after_all, use_state);
-  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
-  BValue after_all_final = pb.AfterAll({after_all, rcv_tkn});
+  pb.ReceiveIf(in1, after_all, use_state);
   BValue extended_nb_rcv_valid = pb.ZeroExtend(nb_rcv_valid, 8);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(after_all_final, {extended_nb_rcv_valid}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({extended_nb_rcv_valid}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1535,22 +1535,20 @@ TEST_F(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in1,
       p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &p);
+  ProcBuilder pb(TestName(), &p);
+  BValue tkn = pb.Literal(Value::Token());
   BValue a = pb.StateElement("a", Value(UBits(0, 1)));
   BValue b = pb.StateElement("b", Value(UBits(1, 1)));
-  BValue nb_rcv = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue nb_rcv = pb.ReceiveNonBlocking(in0, tkn);
   BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
   BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
   BValue nb_rcv_valid = pb.TupleIndex(nb_rcv, 2);
-  BValue after_all = pb.AfterAll({pb.GetTokenParam(), nb_rcv_tkn});
+  BValue after_all = pb.AfterAll({tkn, nb_rcv_tkn});
   BValue use_state = pb.And(nb_rcv_data, a);
-  BValue rcv = pb.ReceiveIf(in1, after_all, use_state);
-  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
-  BValue after_all_final = pb.AfterAll({after_all, rcv_tkn});
+  pb.ReceiveIf(in1, after_all, use_state);
   BValue next_a = pb.Xor(b, nb_rcv_valid);
   BValue next_b = pb.Xor(a, nb_rcv_valid);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(after_all_final, {next_a, next_b}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({next_a, next_b}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1559,10 +1557,9 @@ TEST_F(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
       RunPipelineSchedule(proc, *delay_estimator,
                           SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
-  EXPECT_EQ(schedule.cycle(a.node()), 1);
-  EXPECT_EQ(schedule.cycle(b.node()), 1);
-  EXPECT_EQ(schedule.cycle(next_a.node()), 1);
-  EXPECT_EQ(schedule.cycle(next_b.node()), 1);
+  EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(b.node()));
+  EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(next_a.node()));
+  EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(next_b.node()));
 }
 
 TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {

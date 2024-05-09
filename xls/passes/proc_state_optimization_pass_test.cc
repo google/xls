@@ -61,18 +61,18 @@ class ProcStateOptimizationPassTest
  protected:
   ProcStateOptimizationPassTest() = default;
 
-  absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb, BValue token,
+  absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb,
                                   absl::Span<const BValue> next_state) {
     switch (GetParam()) {
       case NextValueType::kNextStateElements:
-        return pb.Build(token, next_state);
+        return pb.Build(next_state);
       case NextValueType::kNextValueNodes: {
         for (int64_t index = 0; index < next_state.size(); ++index) {
           BValue param = pb.GetStateParam(index);
           BValue next_value = next_state[index];
           pb.Next(param, next_value);
         }
-        return pb.Build(token);
+        return pb.Build();
       }
     }
     ABSL_UNREACHABLE();
@@ -103,9 +103,8 @@ class ProcStateOptimizationPassTest
 
 TEST_P(ProcStateOptimizationPassTest, StatelessProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
-  XLS_ASSERT_OK(
-      BuildProc(pb, pb.GetTokenParam(), std::vector<BValue>()).status());
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK(BuildProc(pb, {}).status());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
@@ -204,7 +203,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
 
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "y");
   EXPECT_THAT(send.node(),
-              m::Send(m::Param("tkn"),
+              m::Send(m::Literal(Value::Token()),
                       m::Concat(m::Literal(UBits(0, 0)), m::Param("y"))));
 }
 
@@ -375,7 +374,7 @@ TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
 
   EXPECT_THAT(
       send.node(),
-      m::Send(m::Param("tkn"), m::Select(m::Param("state_machine_x"),
+      m::Send(m::Literal(Value::Token()), m::Select(m::Param("state_machine_x"),
                                          /*cases=*/{m::Literal(100)},
                                          /*default_value=*/m::Literal(200))));
 }

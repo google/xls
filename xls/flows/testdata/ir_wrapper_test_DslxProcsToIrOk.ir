@@ -6,7 +6,8 @@ chan test_package__in_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_c
 chan test_package__in_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 chan test_package__output(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
-proc __top__foo_0_next(__token: token, init={}) {
+proc __top__foo_0_next() {
+  __token: token = literal(value=token, id=1)
   receive.4: (token, bits[32]) = receive(__token, channel=test_package__in_0, id=4)
   tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,11,13)])
   receive.8: (token, bits[32]) = receive(tok, channel=test_package__in_1, id=8)
@@ -15,5 +16,4 @@ proc __top__foo_0_next(__token: token, init={}) {
   tok__1: token = tuple_index(receive.8, index=0, id=10, pos=[(0,12,13)])
   add.12: bits[32] = add(a, b, id=12, pos=[(0,13,38)])
   tok__2: token = send(tok__1, add.12, channel=test_package__output, id=13)
-  next (tok__2)
 }

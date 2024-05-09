@@ -166,7 +166,11 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
   // then `minimal_io_to_receive[C]` will only include `recv3`.
   NodeRelation minimal_io_to_receive = io_to_receive;
   for (const auto& [io, receives] : io_to_receive) {
-    for (Node* downstream_of_io : token_deps_closure.at(io)) {
+    auto it = token_deps_closure.find(io);
+    if (it == token_deps_closure.end()) {
+      continue;
+    }
+    for (Node* downstream_of_io : it->second) {
       if (downstream_of_io == io) {
         continue;
       }

@@ -36,6 +36,8 @@ namespace xls {
 
 namespace {
 
+using status_testing::IsOkAndHolds;
+
 class UselessIORemovalPassTest : public IrTestBase {
  protected:
   UselessIORemovalPassTest() = default;
@@ -63,20 +65,19 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySend) {
       StreamingChannel * channel,
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
   pb.StateElement("state", Value(UBits(0, 0)));
-  BValue token = pb.SendIf(channel, pb.GetTokenParam(), pb.Literal(UBits(0, 1)),
-                           pb.Literal(UBits(1, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(token, {pb.Literal(UBits(0, 0))}));
+  pb.SendIf(channel, pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)),
+            pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
   EXPECT_EQ(proc->node_count(), 6);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(proc->node_count(), 6);
 }
 
 TEST_F(UselessIORemovalPassTest, DontRemoveOnlySendNewStyle) {
   auto p = CreatePackage();
-  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "token", p.get());
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       SendChannelReference * channel,
       pb.AddOutputChannel("test_channel", p->GetBitsType(32)));
@@ -84,7 +85,7 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySendNewStyle) {
   pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
   EXPECT_EQ(proc->node_count(), 6);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(proc->node_count(), 6);
 }
 
@@ -94,36 +95,40 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
       StreamingChannel * channel,
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
   pb.StateElement("state", Value(UBits(0, 0)));
-  BValue token = pb.SendIf(channel, pb.GetTokenParam(), pb.Literal(UBits(0, 1)),
-                           pb.Literal(UBits(1, 32)));
+  token = pb.SendIf(channel, token, pb.Literal(UBits(0, 1)),
+                    pb.Literal(UBits(1, 32)));
   // Extra send so that this does something
   token = pb.Send(channel, token, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(token, {pb.Literal(UBits(0, 0))}));
+                           pb.Build({token, pb.Literal(UBits(0, 0))}));
   EXPECT_EQ(proc->node_count(), 8);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
-  EXPECT_THAT(proc->NextToken(), m::Send(proc->TokenParam(), m::Literal(1)));
+  EXPECT_THAT(proc->GetNextStateElement(0),
+              m::Send(proc->GetStateParam(0), m::Literal(1)));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
   auto p = CreatePackage();
-  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "token", p.get());
+  TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       SendChannelReference * channel,
       pb.AddOutputChannel("test_channel", p->GetBitsType(32)));
   pb.StateElement("state", Value(UBits(0, 0)));
   pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
   // Extra send so that this does something
-  pb.Send(channel, pb.Literal(UBits(1, 32)));
+  pb.Send(channel, pb.Literal(UBits(1, 32)), SourceInfo(),
+          /*name=*/"actual_send");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
 
   EXPECT_EQ(proc->node_count(), 8);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
-  EXPECT_THAT(proc->NextToken(), m::Send(proc->TokenParam(), m::Literal(1)));
+  EXPECT_THAT(proc->GetNode("actual_send"),
+              IsOkAndHolds(m::Send(m::Literal(Value::Token()), m::Literal(1))));
 }
 
 TEST_F(UselessIORemovalPassTest, DontRemoveOnlyReceive) {
@@ -132,15 +137,16 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlyReceive) {
       StreamingChannel * channel,
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
   pb.StateElement("state", Value(UBits(0, 32)));
   BValue token_and_result =
-      pb.ReceiveIf(channel, pb.GetTokenParam(), pb.Literal(UBits(0, 1)));
-  BValue token = pb.TupleIndex(token_and_result, 0);
+      pb.ReceiveIf(channel, token, pb.Literal(UBits(0, 1)));
+  token = pb.TupleIndex(token_and_result, 0);
   BValue result = pb.TupleIndex(token_and_result, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, {result}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({token, result}));
   EXPECT_EQ(proc->node_count(), 6);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(proc->node_count(), 6);
 }
 
@@ -150,21 +156,22 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
       StreamingChannel * channel,
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
   pb.StateElement("state", Value(UBits(0, 32)));
-  BValue token = pb.TupleIndex(pb.Receive(channel, pb.GetTokenParam()), 0);
+  token = pb.TupleIndex(pb.Receive(channel, token), 0);
   BValue token_and_result =
       pb.ReceiveIf(channel, token, pb.Literal(UBits(0, 1)));
   token = pb.TupleIndex(token_and_result, 0);
   BValue result = pb.TupleIndex(token_and_result, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, {result}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({token, result}));
   EXPECT_EQ(proc->node_count(), 8);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 8);
-  auto tuple = m::Tuple(
-      m::TupleIndex(m::Receive(proc->TokenParam(), channel), 0), m::Literal(0));
-  EXPECT_THAT(proc->NextToken(), m::TupleIndex(tuple, 0));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 1));
+  auto tuple = m::Tuple(m::TupleIndex(m::Receive(m::Param("tkn"), channel), 0),
+                        m::Literal(0));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
+  EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
@@ -173,17 +180,19 @@ TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
       StreamingChannel * channel,
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendOnly,
                                 p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
   pb.StateElement("state", Value(UBits(0, 0)));
-  BValue token = pb.SendIf(channel, pb.GetTokenParam(), pb.Literal(UBits(1, 1)),
-                           pb.Literal(UBits(1, 32)));
+  token = pb.SendIf(channel, token, pb.Literal(UBits(1, 1)),
+                    pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(token, {pb.Literal(UBits(0, 0))}));
+                           pb.Build({token, pb.Literal(UBits(0, 0))}));
   EXPECT_EQ(proc->node_count(), 6);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
-  EXPECT_THAT(proc->NextToken(), m::Send(proc->TokenParam(), m::Literal(1)));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::Literal(0));
+  EXPECT_THAT(proc->GetNextStateElement(0),
+              m::Send(m::Param("tkn"), m::Literal(1)));
+  EXPECT_THAT(proc->GetNextStateElement(1), m::Literal(0));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
@@ -192,19 +201,20 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
       StreamingChannel * channel,
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("tkn", Value::Token());
   pb.StateElement("state", Value(UBits(0, 32)));
   BValue token_and_result =
-      pb.ReceiveIf(channel, pb.GetTokenParam(), pb.Literal(UBits(1, 1)));
-  BValue token = pb.TupleIndex(token_and_result, 0);
+      pb.ReceiveIf(channel, token, pb.Literal(UBits(1, 1)));
+  token = pb.TupleIndex(token_and_result, 0);
   BValue result = pb.TupleIndex(token_and_result, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, {result}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({token, result}));
   EXPECT_EQ(proc->node_count(), 6);
-  EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
-  auto tuple = m::Receive(proc->TokenParam(), channel);
-  EXPECT_THAT(proc->NextToken(), m::TupleIndex(tuple, 0));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 1));
+  auto tuple = m::Receive(m::Param("tkn"), channel);
+  EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
+  EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
 }
 
 }  // namespace

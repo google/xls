@@ -817,10 +817,6 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
     }
   } else if (function_base()->IsProc()) {
     Proc* proc = function_base()->AsProcOrDie();
-    if (this == proc->NextToken()) {
-      XLS_RETURN_IF_ERROR(proc->SetNextToken(replacement));
-      changed = true;
-    }
     for (int64_t index : proc->GetNextStateIndices(this)) {
       XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, replacement));
       changed = true;

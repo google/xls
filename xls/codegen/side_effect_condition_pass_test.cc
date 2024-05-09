@@ -200,7 +200,8 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-top proc g(tok: token, x: (), init={()}) {
+top proc g(x: (), init={()}) {
+  tok: token = literal(value=token)
   recv_tuple: (token, bits[32]) = receive(tok, channel=in)
   recv_token: token = tuple_index(recv_tuple, index=0)
   recv_data: bits[32] = tuple_index(recv_tuple, index=1)
@@ -211,7 +212,7 @@ top proc g(tok: token, x: (), init={()}) {
   literal4: bits[32] = literal(value=4)
   xy_plus_1_gt_4: bits[1] = ugt(xy_plus_1, literal4)
   assertion: token = assert(send, xy_plus_1_gt_4, label="foo", message="bar")
-  next (assertion, x)
+  next (x)
 }
     )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -426,7 +427,8 @@ TEST_P(SideEffectConditionPassTest, SingleStageProc) {
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-top proc f(tkn: token, x: bits[32], init={0}) {
+top proc f(x: bits[32], init={0}) {
+  tkn: token = literal(value=token)
   y_recv: (token, bits[32]) = receive(tkn, channel=in)
   y_token: token = tuple_index(y_recv, index=0)
   y: bits[32] = tuple_index(y_recv, index=1)
@@ -434,7 +436,7 @@ top proc f(tkn: token, x: bits[32], init={0}) {
   assertion: token = assert(y_token, x_lt_y, label="foo", message="bar")
   sum: bits[32] = add(x, y)
   send_tok: token = send(assertion, sum, channel=out)
-  next (send_tok, sum)
+  next (sum)
 }
     )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -550,7 +552,8 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfProc) {
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc g(tok: token, x: bits[32], init={4}) {
+proc g(x: bits[32], init={4}) {
+  tok: token = literal(value=token)
   recv_tuple: (token, bits[32]) = receive(tok, channel=in)
   recv_token: token = tuple_index(recv_tuple, index=0)
   recv_data: bits[32] = tuple_index(recv_tuple, index=1)
@@ -561,7 +564,7 @@ proc g(tok: token, x: bits[32], init={4}) {
   literal4: bits[32] = literal(value=4)
   xy_plus_1_gt_4: bits[1] = ugt(xy_plus_1, literal4)
   assertion: token = assert(send, xy_plus_1_gt_4, label="foo", message="bar")
-  next (assertion, literal1)
+  next (literal1)
 }
     )";
   // Now test proc 'g'.
@@ -615,7 +618,8 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 #[initiation_interval(2)]
-top proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
+top proc ii_greater_than_one(st: bits[32], init={0}) {
+  tkn: token = literal(value=token)
   send0_token: token = send(tkn, st, channel=out)
   min_delay_token: token = min_delay(send0_token, delay=1)
   receive_tuple: (token, bits[32]) = receive(min_delay_token, channel=in)
@@ -625,7 +629,7 @@ top proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
   receive_data_lt_5: bits[1] = ult(receive_data, literal5)
   assertion: token = assert(receive_token, receive_data_lt_5, label="foo", message="bar")
   send1_token: token = send(assertion, receive_data, channel=in_out)
-  next (send1_token, receive_data)
+  next (receive_data)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,

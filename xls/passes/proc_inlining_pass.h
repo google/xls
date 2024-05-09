@@ -25,6 +25,8 @@
 namespace xls {
 
 // Pass which inlines all procs into the top-level proc.
+//
+// Only supports procs without token-typed state.
 class ProcInliningPass : public OptimizationPass {
  public:
   static constexpr std::string_view kName = "proc_inlining";

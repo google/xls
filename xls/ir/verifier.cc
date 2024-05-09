@@ -629,20 +629,14 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
     XLS_RETURN_IF_ERROR(VerifyProcInstantiations(proc));
   }
 
-  // A Proc has a single token parameter and zero or more state parameters.
-  XLS_RET_CHECK_EQ(proc->params().size(), proc->GetStateElementCount() + 1);
-
-  XLS_RET_CHECK_EQ(proc->param(0), proc->TokenParam());
-  XLS_RET_CHECK_EQ(proc->param(0)->GetType(), proc->package()->GetTokenType())
-      << absl::StreamFormat("Parameter 0 of a proc %s is not token type, is %s",
-                            proc->name(),
-                            proc->param(1)->GetType()->ToString());
+  // A Proc has zero or more state parameters, which may be tokens.
+  XLS_RET_CHECK_EQ(proc->params().size(), proc->GetStateElementCount());
 
   XLS_RET_CHECK_EQ(proc->GetStateElementCount(), proc->InitValues().size());
   XLS_RET_CHECK_EQ(proc->GetStateElementCount(), proc->NextState().size());
   for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
     // Verify that the order of parameters matches the state element order.
-    XLS_RET_CHECK_EQ(proc->param(i + 1), proc->GetStateParam(i));
+    XLS_RET_CHECK_EQ(proc->param(i), proc->GetStateParam(i));
 
     Param* param = proc->GetStateParam(i);
     Node* next_state = proc->GetNextStateElement(i);
@@ -672,14 +666,6 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
     XLS_RET_CHECK(ValueConformsToType(proc->GetInitValueElement(i),
                                       proc->GetStateParam(i)->GetType()));
   }
-
-  // Next token must be token type.
-  XLS_RET_CHECK(proc->NextToken()->GetType()->IsToken());
-
-  // Verify that all side-effecting operations which produce tokens are
-  // connected to the token parameter and the return value via paths of tokens.
-  XLS_RETURN_IF_ERROR(
-      VerifyTokenConnectivity(proc->TokenParam(), proc->NextToken(), proc));
 
   return absl::OkStatus();
 }

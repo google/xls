@@ -125,14 +125,15 @@ package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
+top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=in)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   next_x: bits[32] = add(x, rcv_data)
   not_y: bits[64] = not(y)
   send: token = send(rcv_token, next_x, channel=out)
-  next (send, next_x, not_y)
+  next (next_x, not_y)
 }
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
@@ -153,7 +154,8 @@ package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
+top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=in)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
@@ -163,7 +165,6 @@ top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
   one: bits[1] = literal(value=1)
   next_value_x: () = next_value(param=x, value=next_x, predicate=one)
   next_value_y: () = next_value(param=y, value=not_y, predicate=one)
-  next (send)
 }
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,

@@ -179,11 +179,7 @@ class ProcIrInterpreter : public IrInterpreter {
   absl::Status HandleParam(Param* param) override {
     XLS_ASSIGN_OR_RETURN(int64_t index,
                          param->function_base()->GetParamIndex(param));
-    if (index == 0) {
-      return SetValueResult(param, Value::Token());
-    }
-    // Params from 1 on are state.
-    return SetValueResult(param, state_[index - 1]);
+    return SetValueResult(param, state_[index]);
   }
 
   absl::Status HandleNext(Next* next) override {

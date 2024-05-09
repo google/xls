@@ -648,7 +648,8 @@ chan req((bits[32], bits[32], (), (), bits[1], bits[1]), id=0, kind=streaming, o
 chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_comp((), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   empty_tuple: () = literal(value=())
   true_lit: bits[1] = literal(value=1)
   false_lit: bits[1] = literal(value=0)
@@ -657,11 +658,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv: (token, (bits[32])) = receive(send_token, channel=resp)
   rcv_token: token = tuple_index(rcv, index=0)
   wr_comp_rcv: (token, ()) = receive(rcv_token, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 2,
@@ -674,7 +673,8 @@ chan req((bits[32], bits[32], bits[4], bits[4], bits[1], bits[1]), id=0, kind=st
 chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_comp((), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   empty_tuple: () = literal(value=())
   true_lit: bits[1] = literal(value=1)
   false_lit: bits[1] = literal(value=0)
@@ -684,11 +684,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv: (token, (bits[32])) = receive(send_token, channel=resp)
   rcv_token: token = tuple_index(rcv, index=0)
   wr_comp_rcv: (token, ()) = receive(rcv_token, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 2,
@@ -705,7 +703,8 @@ chan wr_comp((), id=4, kind=streaming, ops=receive_only, flow_control=ready_vali
 chan extra0(bits[1], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan extra1(bits[1], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   true_lit: bits[1] = literal(value=1)
   false_lit: bits[1] = literal(value=0)
   empty_tuple: () = literal(value=())
@@ -719,10 +718,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   extra1_rcv: (token, bits[1]) = receive(extra0_token, channel=extra1)
   extra1_token: token = tuple_index(extra1_rcv, index=0)
   wr_comp_rcv: (token, ()) = receive(extra1_token, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 4,
@@ -741,7 +738,8 @@ chan req2((bits[32], bits[32], (), (), bits[1], bits[1]), id=4, kind=streaming, 
 chan resp2((bits[32]), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_comp2((), id=8, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: (), init={()}) {
+proc my_proc(__state: (), init={()}) {
+  __token: token = literal(value=token)
   true_lit: bits[1] = literal(value=1)
   false_lit: bits[1] = literal(value=0)
   empty_lit: bits[32] = literal(value=0)
@@ -749,31 +747,23 @@ proc my_proc(__token: token, __state: (), init={()}) {
   to_send0: (bits[32], bits[32], (), (), bits[1], bits[1]) = tuple(empty_lit, empty_lit, empty_tuple, empty_tuple, false_lit, true_lit)
   send0_token: token = send(__token, to_send0, channel=req0)
   rcv0: (token, (bits[32])) = receive(send0_token, channel=resp0)
-  rcv0_token: token = tuple_index(rcv0, index=0)
   rcv0_tuple: (bits[32]) = tuple_index(rcv0, index=1)
   rcv0_data: bits[32] = tuple_index(rcv0_tuple, index=0)
   to_send1: (bits[32], bits[32], (), (), bits[1], bits[1]) = tuple(rcv0_data, empty_lit, empty_tuple, empty_tuple, false_lit, true_lit)
   send1_token: token = send(__token, to_send1, channel=req1)
   rcv1: (token, (bits[32])) = receive(send1_token, channel=resp1)
-  rcv1_token: token = tuple_index(rcv1, index=0)
   rcv1_tuple: (bits[32]) = tuple_index(rcv1, index=1)
   rcv1_data: bits[32] = tuple_index(rcv1_tuple, index=0)
   to_send2: (bits[32], bits[32], (), (), bits[1], bits[1]) = tuple(rcv1_data, empty_lit, empty_tuple, empty_tuple, false_lit, true_lit)
   send2_token: token = send(__token, to_send2, channel=req2)
   rcv2: (token, (bits[32])) = receive(send2_token, channel=resp2)
-  rcv2_token: token = tuple_index(rcv2, index=0)
   rcv2_tuple: (bits[32]) = tuple_index(rcv2, index=1)
   rcv2_data: bits[32] = tuple_index(rcv2_tuple, index=0)
   wr_comp0_rcv: (token, ()) = receive(send0_token, channel=wr_comp0)
-  wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
   wr_comp1_rcv: (token, ()) = receive(send1_token, channel=wr_comp1)
-  wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
   wr_comp2_rcv: (token, ()) = receive(send2_token, channel=wr_comp2)
-  wr_comp2_token: token = tuple_index(wr_comp2_rcv, index=0)
-  after_all_token: token = after_all(rcv0_token, rcv1_token, rcv2_token, wr_comp0_token, wr_comp1_token, wr_comp2_token)
   next_state: () = tuple()
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (after_all_token)
 }
   )",
         .pipeline_stages = 20,
@@ -787,7 +777,8 @@ chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=re
 chan wr_req((bits[32], bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   empty_tuple: () = literal(value=())
   to_send0: (bits[32], ()) = tuple(__state, empty_tuple)
   send_token0: token = send(__token, to_send0, channel=rd_req)
@@ -796,11 +787,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   to_send1: (bits[32], bits[32], ()) = tuple(__state, __state, empty_tuple)
   send_token1: token = send(rcv_token, to_send1, channel=wr_req)
   wr_comp_rcv: (token, ()) = receive(send_token1, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 3,
@@ -814,7 +803,8 @@ chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=re
 chan wr_req((bits[32], bits[32], bits[4]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   all_mask: bits[4] = literal(value=0xf)
   empty_tuple: () = literal(value=())
   to_send0: (bits[32], bits[4]) = tuple(__state, all_mask)
@@ -824,11 +814,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   to_send1: (bits[32], bits[32], bits[4]) = tuple(__state, __state, all_mask)
   send_token1: token = send(rcv_token, to_send1, channel=wr_req)
   wr_comp_rcv: (token, ()) = receive(send_token1, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 3,
@@ -846,7 +834,8 @@ chan wr_comp((), id=5, kind=streaming, ops=receive_only, flow_control=ready_vali
 chan extra0(bits[1], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan extra1(bits[1], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   empty_tuple: () = literal(value=())
   to_send0: (bits[32], ()) = tuple(__state, empty_tuple)
   send_token0: token = send(__token, to_send0, channel=rd_req)
@@ -859,11 +848,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   extra1_rcv: (token, bits[1]) = receive(extra0_token, channel=extra1)
   extra1_token: token = tuple_index(extra1_rcv, index=0)
   wr_comp_rcv: (token, ()) = receive(extra1_token, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
         .pipeline_stages = 3,
@@ -885,7 +872,8 @@ chan rd_resp2((bits[32]), id=7, kind=streaming, ops=receive_only, flow_control=r
 chan wr_req2((bits[32], bits[32], ()), id=8, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan wr_comp2((), id=11, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   empty_tuple: () = literal(value=())
   to_send0: (bits[32], ()) = tuple(__state, empty_tuple)
   send_token0: token = send(__token, to_send0, channel=rd_req0)
@@ -904,16 +892,11 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   to_send3: (bits[32], bits[32], ()) = tuple(__state, __state, empty_tuple)
   send_token5: token = send(rcv_token2, to_send2, channel=wr_req2)
   wr_comp0_rcv: (token, ()) = receive(send_token1, channel=wr_comp0)
-  wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
   wr_comp1_rcv: (token, ()) = receive(send_token3, channel=wr_comp1)
-  wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
   wr_comp2_rcv: (token, ()) = receive(send_token5, channel=wr_comp2)
-  wr_comp2_token: token = tuple_index(wr_comp2_rcv, index=0)
-  next_token: token = after_all(rcv_token2, wr_comp0_token, wr_comp1_token, wr_comp2_token)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (next_token)
 }
   )",
         .pipeline_stages = 20,
@@ -931,7 +914,8 @@ chan wr_req1((bits[32], bits[32], ()), id=4, kind=streaming, ops=send_only, flow
 chan wr_comp1((), id=6, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   empty_tuple: () = literal(value=())
   true_lit: bits[1] = literal(value=1)
   false_lit: bits[1] = literal(value=0)
@@ -947,13 +931,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   to_send2: (bits[32], bits[32], ()) = tuple(__state, __state, empty_tuple)
   send_token2: token = send(rcv_token1, to_send2, channel=wr_req1)
   wr_comp0_rcv: (token, ()) = receive(send_token0, channel=wr_comp0)
-  wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
   wr_comp1_rcv: (token, ()) = receive(send_token2, channel=wr_comp1)
-  wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
-  next_token: token = after_all(send_token2, wr_comp0_token, wr_comp1_token)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (next_token)
 }
   )",
         .pipeline_stages = 4,
@@ -1052,7 +1032,8 @@ chan req($req_type, id=0, $req_chan_params, metadata="""""")
 chan resp($resp_type, id=1, $resp_chan_params, metadata="""""")
 chan wr_comp($wr_comp_type, id=2, $wr_comp_chan_params, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   all_mask: bits[4] = literal(value=0xf)
   true_lit: bits[1] = literal(value=1)
   false_lit: bits[1] = literal(value=0)
@@ -1062,11 +1043,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv: (token, $resp_type) = receive(send_token, channel=resp)
   rcv_token: token = tuple_index(rcv, index=0)
   wr_comp_rcv: (token, $wr_comp_type) = receive(rcv_token, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
       {
@@ -1112,7 +1091,8 @@ chan rd_resp($rd_resp_type, id=1, $rd_resp_chan_params, metadata="""""")
 chan wr_req($wr_req_type, id=2, $wr_req_chan_params, metadata="""""")
 chan wr_comp($wr_comp_type, id=3, $wr_comp_chan_params, metadata="""""")
 
-proc my_proc(__token: token, __state: bits[32], init={0}) {
+proc my_proc(__state: bits[32], init={0}) {
+  __token: token = literal(value=token)
   true_lit: bits[1] = literal(value=1)
   false_lit: bits[1] = literal(value=0)
   all_mask: bits[4] = literal(value=0xf)
@@ -1124,11 +1104,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   to_send1: $wr_req_type = $wr_send_value
   send_token1: token = send(rcv_token, to_send1, channel=wr_req)
   wr_comp_recv: (token, $wr_comp_type) = receive(send_token1, channel=wr_comp)
-  wr_comp_token: token = tuple_index(wr_comp_recv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
   next_state_value: () = next_value(param=__state, value=next_state)
-  next (wr_comp_token)
 }
   )",
       {

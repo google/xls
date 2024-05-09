@@ -146,9 +146,16 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
   for (const std::optional<StateRegister>& state_register :
        streaming_io.state_registers) {
     if (state_register.has_value()) {
-      XLS_RET_CHECK(registers.contains(state_register->reg));
-      XLS_RET_CHECK(nodes.contains(state_register->reg_read));
-      XLS_RET_CHECK(nodes.contains(state_register->reg_write));
+      if (state_register->reg != nullptr) {
+        XLS_RET_CHECK(registers.contains(state_register->reg));
+        XLS_RET_CHECK(nodes.contains(state_register->reg_read));
+        XLS_RET_CHECK(nodes.contains(state_register->reg_write));
+      }
+      if (state_register->reg_full != nullptr) {
+        XLS_RET_CHECK(registers.contains(state_register->reg_full));
+        XLS_RET_CHECK(nodes.contains(state_register->reg_full_read));
+        XLS_RET_CHECK(nodes.contains(state_register->reg_full_write));
+      }
     }
   }
   if (streaming_io.idle_port.has_value()) {

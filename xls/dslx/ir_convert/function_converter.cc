@@ -2358,11 +2358,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     initial_element = proc_data_->id_to_initial_value.at(proc_id);
   }
 
-  auto builder =
-      std::make_unique<ProcBuilder>(mangled_name, token_name, package());
+  auto builder = std::make_unique<ProcBuilder>(mangled_name, package());
+  auto entry_token = builder->Literal(Value::Token(), SourceInfo(), token_name);
   builder->StateElement(state_name, initial_element);
-  tokens_.push_back(builder->GetTokenParam());
-  SetNodeToIr(f->params()[0]->name_def(), builder->GetTokenParam());
+  tokens_.push_back(entry_token);
+  SetNodeToIr(f->params()[0]->name_def(), entry_token);
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
   // Proc is a top entity.
@@ -2374,7 +2374,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   // hook into the implicit token stuff in case any downstream functions need
   // it.
   implicit_token_data_ = ImplicitTokenData{
-      .entry_token = builder_ptr->GetTokenParam(),
+      .entry_token = entry_token,
       .activated = builder_ptr->Literal(Value::Bool(true)),
       .create_control_predicate =
           [this]() { return implicit_token_data_->activated; },
@@ -2428,15 +2428,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   BValue result = std::get<BValue>(node_to_ir_[f->body()]);
 
-  // Join all explicit and implicit tokens for the final token.
-  std::vector<BValue> explicit_and_implicit_tokens = tokens_;
-  for (BValue t : implicit_token_data_->control_tokens) {
-    explicit_and_implicit_tokens.push_back(t);
-  }
-  BValue final_token = builder_ptr->AfterAll(explicit_and_implicit_tokens);
-
-  XLS_ASSIGN_OR_RETURN(xls::Proc * p,
-                       builder_ptr->Build(final_token, {result}));
+  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build({result}));
   package_data_.ir_to_dslx[p] = f;
   return absl::OkStatus();
 }

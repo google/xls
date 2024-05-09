@@ -55,7 +55,7 @@ TEST(Mux3IrTest, BasicSignaturePresent) {
   EXPECT_THAT(ir_text,
               ContainsRegex(R"(chan mux_out\(\(bits\[8\]\),.*)"
                             R"(ops=send_only,.*flow_control=ready_valid)"));
-  EXPECT_THAT(ir_text, HasSubstr(R"(proc Mux3_proc(tkn: token)"));
+  EXPECT_THAT(ir_text, HasSubstr(R"(proc Mux3_proc())"));
 }
 
 }  // namespace

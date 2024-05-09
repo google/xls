@@ -224,12 +224,16 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         LeafTypeTree<Value> v_ltt,
         ValueToLeafTypeTree(literal->value(), literal->GetType()));
-    XLS_RET_CHECK(absl::c_all_of(v_ltt.elements(),
-                                 [](const Value& v) { return v.IsBits(); }))
-        << literal << " has non-bits leaf.";
+    XLS_RET_CHECK(absl::c_all_of(
+        v_ltt.elements(),
+        [](const Value& v) { return v.IsBits() || v.IsToken(); }))
+        << literal << " has non-bits and non-token leaf.";
     LeafTypeTree<LeafValueT> result =
         leaf_type_tree::Map<typename AbstractEvaluatorT::Vector, Value>(
             v_ltt.AsView(), [&](const Value& value) {
+              if (value.IsToken()) {
+                return evaluator_.BitsToVector(Bits());
+              }
               return evaluator_.BitsToVector(value.bits());
             });
     return SetValue(literal, std::move(result));

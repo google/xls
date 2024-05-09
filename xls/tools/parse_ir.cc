@@ -32,9 +32,11 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/verifier.h"
 
 ABSL_FLAG(bool, dump_ir, false,
           "If true, then dump the IR to stdout after parsing.");
+ABSL_FLAG(bool, verify_ir, false, "If true, then verify the IR after parsing.");
 
 namespace xls {
 namespace tools {
@@ -53,6 +55,9 @@ static absl::Status RealMain(absl::Span<const std::string_view> args) {
                          Parser::ParsePackage(contents));
     if (absl::GetFlag(FLAGS_dump_ir)) {
       std::cout << p->DumpIr();
+    }
+    if (absl::GetFlag(FLAGS_verify_ir)) {
+      XLS_RETURN_IF_ERROR(VerifyPackage(p.get()));
     }
   }
   return absl::OkStatus();

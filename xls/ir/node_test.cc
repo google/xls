@@ -33,6 +33,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/ir/verify_node.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -235,15 +236,15 @@ TEST_F(NodeTest, ReplaceSendChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1, p->CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                                p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue tok = pb.StateElement("tok", Value::Token());
   BValue send_on_c1 =
       pb.StateElement("send_on_c1", Value(UBits(0, /*bit_count=*/1)));
-  BValue send0_tok =
-      pb.Send(ch0, pb.GetTokenParam(), pb.Literal(UBits(123, 32)));
+  BValue send0_tok = pb.Send(ch0, tok, pb.Literal(UBits(123, 32)));
   BValue send1_tok =
       pb.SendIf(ch1, send0_tok, send_on_c1, pb.Literal(UBits(456, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(send1_tok, {pb.Not(send_on_c1)}));
+                           pb.Build({send1_tok, pb.Not(send_on_c1)}));
   Send* send0 = send0_tok.node()->As<Send>();
   Send* send1 = send1_tok.node()->As<Send>();
   EXPECT_NE(send0->channel_name(), ch1->name());
@@ -271,12 +272,13 @@ TEST_F(NodeTest, ReplaceReceiveChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch3, p->CreateStreamingChannel("ch3", ChannelOps::kReceiveOnly,
                                                p->GetBitsType(32)));
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue tok = pb.StateElement("tok", Value::Token());
   BValue recv_on_c1 =
       pb.StateElement("recv_on_c1", Value(UBits(0, /*bit_count=*/1)));
   BValue recv_on_c2 =
       pb.StateElement("recv_on_c1", Value(UBits(1, /*bit_count=*/1)));
-  BValue recv0 = pb.Receive(ch0, pb.GetTokenParam());
+  BValue recv0 = pb.Receive(ch0, tok);
   BValue recv0_tok = pb.TupleIndex(recv0, /*idx=*/0);
   BValue recv1 = pb.ReceiveIf(ch1, recv0_tok, recv_on_c1);
   BValue recv1_tok = pb.TupleIndex(recv1, /*idx=*/0);
@@ -284,9 +286,8 @@ TEST_F(NodeTest, ReplaceReceiveChannel) {
   BValue recv2_tok = pb.TupleIndex(recv2, /*idx=*/0);
   BValue recv3 = pb.ReceiveNonBlocking(ch3, recv2_tok);
   BValue recv3_tok = pb.TupleIndex(recv3, /*idx=*/0);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc,
-      pb.Build(recv3_tok, {pb.Not(recv_on_c1), pb.Not(recv_on_c2)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({recv3_tok, pb.Not(recv_on_c1),
+                                                  pb.Not(recv_on_c2)}));
   Receive* recv0_node = recv0.node()->As<Receive>();
   Receive* recv1_node = recv1.node()->As<Receive>();
   Receive* recv2_node = recv2.node()->As<Receive>();

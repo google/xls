@@ -51,7 +51,7 @@ TEST_F(TokenSimplificationPassTest, SingleArgument) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        after_all.1: token = after_all(tok)
        tuple.2: () = tuple()
        next (after_all.1, tuple.2)
@@ -59,14 +59,14 @@ TEST_F(TokenSimplificationPassTest, SingleArgument) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(), proc->TokenParam());
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("tok"));
 }
 
 TEST_F(TokenSimplificationPassTest, DuplicatedArgument) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        after_all.1: token = after_all(tok, tok, tok)
        tuple.2: () = tuple()
        next (after_all.1, tuple.2)
@@ -74,14 +74,14 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(), proc->TokenParam());
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("tok"));
 }
 
 TEST_F(TokenSimplificationPassTest, NestedAfterAll) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        after_all.1: token = after_all(tok, tok, tok)
        after_all.2: token = after_all(after_all.1, tok, tok)
        tuple.3: () = tuple()
@@ -90,14 +90,14 @@ TEST_F(TokenSimplificationPassTest, NestedAfterAll) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(), proc->TokenParam());
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("tok"));
 }
 
 TEST_F(TokenSimplificationPassTest, DelayZero) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        min_delay.1: token = min_delay(tok, delay=0)
        tuple.3: () = tuple()
        next (min_delay.1, tuple.3)
@@ -105,14 +105,14 @@ TEST_F(TokenSimplificationPassTest, DelayZero) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(), proc->TokenParam());
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("tok"));
 }
 
 TEST_F(TokenSimplificationPassTest, NestedDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        min_delay.1: token = min_delay(tok, delay=1)
        min_delay.2: token = min_delay(min_delay.1, delay=2)
        tuple.3: () = tuple()
@@ -121,14 +121,15 @@ TEST_F(TokenSimplificationPassTest, NestedDelay) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(), m::MinDelay(proc->TokenParam(), /*delay=*/3));
+  EXPECT_THAT(proc->GetNextStateElement(0),
+              m::MinDelay(m::Param("tok"), /*delay=*/3));
 }
 
 TEST_F(TokenSimplificationPassTest, AfterAllWithCommonDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        min_delay.1: token = min_delay(tok, delay=1)
        min_delay.2: token = min_delay(tok, delay=2)
        after_all.3: token = after_all(min_delay.1, min_delay.2)
@@ -139,7 +140,8 @@ TEST_F(TokenSimplificationPassTest, AfterAllWithCommonDelay) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(), m::MinDelay(proc->TokenParam(), /*delay=*/6));
+  EXPECT_THAT(proc->GetNextStateElement(0),
+              m::MinDelay(m::Param("tok"), /*delay=*/6));
 }
 
 TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
@@ -150,7 +152,7 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
        bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        literal.1: bits[32] = literal(value=10)
        send.2: token = send(tok, literal.1, channel=test_channel)
        send.3: token = send(send.2, literal.1, channel=test_channel)
@@ -162,10 +164,10 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(),
-              m::AfterAll(m::Send(m::Send(proc->TokenParam(), m::Literal()),
-                                  m::Literal()),
-                          m::Send(proc->TokenParam(), m::Literal())));
+  EXPECT_THAT(
+      proc->GetNextStateElement(0),
+      m::AfterAll(m::Send(m::Send(m::Param("tok"), m::Literal()), m::Literal()),
+                  m::Send(m::Param("tok"), m::Literal())));
 }
 
 TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
@@ -176,7 +178,7 @@ TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
        bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        literal.1: bits[32] = literal(value=10)
        send.2: token = send(tok, literal.1, channel=test_channel)
        send.3: token = send(tok, literal.1, channel=test_channel)
@@ -188,10 +190,10 @@ TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
-  EXPECT_THAT(proc->NextToken(),
-              m::AfterAll(m::Send(proc->TokenParam(), m::Literal()),
-                          m::Send(proc->TokenParam(), m::Literal()),
-                          m::Send(proc->TokenParam(), m::Literal())));
+  EXPECT_THAT(proc->GetNextStateElement(0),
+              m::AfterAll(m::Send(m::Param("tok"), m::Literal()),
+                          m::Send(m::Param("tok"), m::Literal()),
+                          m::Send(m::Param("tok"), m::Literal())));
 }
 
 TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
@@ -202,7 +204,7 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
        bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        literal.1: bits[32] = literal(value=10)
        send.2: token = send(tok, literal.1, channel=test_channel)
        send.3: token = send(send.2, literal.1, channel=test_channel)
@@ -213,7 +215,7 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(), m::Send());
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Send());
 }
 
 TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
@@ -228,7 +230,7 @@ TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
        ret tok: token = param(name=tok2)
      }
 
-     top proc main(tok: token, state: (), init={()}) {
+     top proc main(tok: token, state: (), init={token, ()}) {
        literal.1: bits[32] = literal(value=10)
        send.2: token = send(tok, literal.1, channel=test_channel)
        send.3: token = send(tok, literal.1, channel=test_channel)
@@ -240,7 +242,7 @@ TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(),
+  EXPECT_THAT(proc->GetNextStateElement(0),
               m::AfterAll(m::Send(), m::Send(), m::Invoke()));
 }
 

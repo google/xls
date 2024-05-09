@@ -7,9 +7,9 @@ chan main_chandecl_test_module_x_6_52_6_60(bits[64], id=1, kind=streaming, ops=s
 chan main_chandecl_test_module_x_7_84_7_108((bits[64], (bits[64], (bits[64]))), id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 chan main_chandecl_test_module_x_8_20_8_45((bits[64], (bits[64], bits[64][4])), id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
-top proc __test_module__main_0_next(__token: token, __state: (), init={()}) {
+top proc __test_module__main_0_next(__state: (), init={()}) {
+  __token: token = literal(value=token, id=1)
   literal.3: bits[1] = literal(value=1, id=3)
   tuple.4: () = tuple(id=4)
-  after_all.5: token = after_all(__token, id=5)
-  next (after_all.5, tuple.4)
+  next (tuple.4)
 }

@@ -309,37 +309,40 @@ chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, 
 chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-top proc test_proc0(tkn: token, state:(), init={()}) {
+top proc test_proc0(state:(), init={()}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=a)
-  rcv_token: token = tuple_index(rcv, index=0)
-  next (rcv_token, state)
+  next (state)
 }
 
-proc test_proc1(tkn: token, state:(), init={()}) {
+proc test_proc1(state:(), init={()}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=a)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_token: token = send(rcv_token, rcv_data, channel=b)
-  next (send_token, state)
+  next (state)
 }
 
 fn negate(in: bits[32]) -> bits[32] {
   ret negate: bits[32] = neg(in)
 }
 
-proc test_proc2(tkn: token, state:(), init={()}) {
+proc test_proc2(state:(), init={()}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=c)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_data: bits[32] = invoke(rcv_data, to_apply=negate)
   send_token: token = send(rcv_token, rcv_data, channel=b)
-  next (send_token, state)
+  next (state)
 }
 
-proc test_proc3(tkn: token, state:(), init={()}) {
+proc test_proc3(state:(), init={()}) {
+  tkn: token = literal(value=token)
   literal0: bits[32] = literal(value=0)
   send_token: token = send(tkn, literal0, channel=d)
-  next (send_token, state)
+  next (state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(ir_text));
@@ -364,35 +367,38 @@ chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, 
 chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-top proc test_proc0(tkn: token, state:(), init={()}) {
-  next (tkn, state)
+top proc test_proc0(state:(), init={()}) {
+  next (state)
 }
 
-proc test_proc1(tkn: token, state:(), init={()}) {
+proc test_proc1(state:(), init={()}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=a)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_token: token = send(rcv_token, rcv_data, channel=b)
-  next (send_token, state)
+  next (state)
 }
 
 fn negate(in: bits[32]) -> bits[32] {
   ret negate: bits[32] = neg(in)
 }
 
-proc test_proc2(tkn: token, state:(), init={()}) {
+proc test_proc2(state:(), init={()}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=c)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_data: bits[32] = invoke(rcv_data, to_apply=negate)
   send_token: token = send(rcv_token, rcv_data, channel=b)
-  next (send_token, state)
+  next (state)
 }
 
-proc test_proc3(tkn: token, state:(), init={()}) {
+proc test_proc3(state:(), init={()}) {
+  tkn: token = literal(value=token)
   literal0: bits[32] = literal(value=0)
   send_token: token = send(tkn, literal0, channel=d)
-  next (send_token, state)
+  next (state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(ir_text));
@@ -411,35 +417,38 @@ chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, 
 chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc test_proc0(tkn: token, state:(), init={()}) {
-  next (tkn, state)
+proc test_proc0(state:(), init={()}) {
+  next (state)
 }
 
-proc test_proc1(tkn: token, state:(), init={()}) {
+proc test_proc1(state:(), init={()}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=a)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_token: token = send(rcv_token, rcv_data, channel=b)
-  next (send_token, state)
+  next (state)
 }
 
 top fn negate(in: bits[32]) -> bits[32] {
   ret negate: bits[32] = neg(in)
 }
 
-proc test_proc2(tkn: token, state:(), init={()}) {
+proc test_proc2(state:(), init={()}) {
+  tkn: token = literal(value=token)
   rcv: (token, bits[32]) = receive(tkn, channel=c)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_data: bits[32] = invoke(rcv_data, to_apply=negate)
   send_token: token = send(rcv_token, rcv_data, channel=b)
-  next (send_token, state)
+  next (state)
 }
 
-proc test_proc3(tkn: token, state:(), init={()}) {
+proc test_proc3(state:(), init={()}) {
+  tkn: token = literal(value=token)
   literal0: bits[32] = literal(value=0)
   send_token: token = send(tkn, literal0, channel=d)
-  next (send_token, state)
+  next (state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(ir_text));

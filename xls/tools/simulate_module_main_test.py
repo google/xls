@@ -37,7 +37,8 @@ chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_co
 chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc add(__token: token, init={}) {
+top proc add(init={}) {
+  __token: token = literal(value=token, id=1000)
   receive.4: (token, bits[32]) = receive(__token, channel=sample__operand_0, id=4)
   receive.7: (token, bits[32]) = receive(__token, channel=sample__operand_1, id=7)
   tok_operand_0_val: token = tuple_index(receive.4, index=0, id=5, pos=[(0,14,9)])
@@ -47,8 +48,6 @@ top proc add(__token: token, init={}) {
   tok_recv: token = after_all(tok_operand_0_val, tok_operand_1_val, id=10)
   result_val: bits[32] = add(operand_0_val, operand_1_val, id=11, pos=[(0,18,35)])
   tok_send: token = send(tok_recv, result_val, channel=sample__result, id=12)
-  after_all.14: token = after_all(__token, tok_operand_0_val, tok_operand_1_val, tok_recv, tok_send, id=14)
-  next (after_all.14)
 }
 '''
 
@@ -59,13 +58,11 @@ file_number 0 "fake_file.x"
 chan in0(bits[12], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan in1(bits[42], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
-top proc no_output_channels(__token: token, init={}) {
+top proc no_output_channels(init={}) {
+  __token: token = literal(value=token, id=1000)
   recv0: (token, bits[12]) = receive(__token, channel=in0, id=4)
   recv0_token: token = tuple_index(recv0, index=0, id=11, pos=[(0,15,22)])
   recv1: (token, bits[42], bits[1]) = receive(recv0_token, channel=in1, blocking=false, id=36)
-  recv1_token: token = tuple_index(recv1, index=0, id=37)
-  after_all_token: token = after_all(__token, recv0_token, recv1_token, id=45)
-  next (after_all_token)
 }
 '''
 

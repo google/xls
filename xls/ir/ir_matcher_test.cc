@@ -352,13 +352,12 @@ TEST(IrMatchersTest, SendOps) {
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           123));
 
-  ProcBuilder b("test_proc", "my_token", &p);
+  ProcBuilder b("test_proc", &p);
+  auto my_token = b.StateElement("my_token", Value::Token());
   auto state = b.StateElement("my_state", Value(UBits(333, 32)));
-  auto send = b.Send(ch42, b.GetTokenParam(), state);
-  auto send_if =
-      b.SendIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)), {state});
-  XLS_ASSERT_OK(
-      b.Build(b.AfterAll({send, send_if}), {b.GetStateParam(0)}).status());
+  auto send = b.Send(ch42, my_token, state);
+  auto send_if = b.SendIf(ch123, my_token, b.Literal(UBits(1, 1)), {state});
+  XLS_ASSERT_OK(b.Build({b.AfterAll({send, send_if}), state}).status());
 
   EXPECT_THAT(send.node(), m::Send());
   EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
@@ -390,14 +389,14 @@ TEST(IrMatchersTest, ReceiveOps) {
           ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
           123));
 
-  ProcBuilder b("test_proc", "my_token", &p);
+  ProcBuilder b("test_proc", &p);
+  auto my_token = b.StateElement("my_token", Value::Token());
   auto state = b.StateElement("my_state", Value(UBits(333, 32)));
-  auto receive = b.Receive(ch42, b.GetTokenParam());
-  auto receive_if =
-      b.ReceiveIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)));
-  XLS_ASSERT_OK(b.Build(b.AfterAll({b.TupleIndex(receive, 0),
-                                    b.TupleIndex(receive_if, 0)}),
-                        {state})
+  auto receive = b.Receive(ch42, my_token);
+  auto receive_if = b.ReceiveIf(ch123, my_token, b.Literal(UBits(1, 1)));
+  XLS_ASSERT_OK(b.Build({b.AfterAll({b.TupleIndex(receive, 0),
+                                     b.TupleIndex(receive_if, 0)}),
+                         state})
                     .status());
 
   EXPECT_THAT(receive.node(), m::Receive());
@@ -527,13 +526,14 @@ TEST(IrMatchersTest, FunctionBaseMatcher) {
       StreamingChannel * ch1,
       p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                p.GetBitsType(32)));
-  ProcBuilder pb("test_proc", "tok", &p);
-  BValue rcv = pb.Receive(ch0, pb.GetTokenParam());
+  ProcBuilder pb("test_proc", &p);
+  BValue tok = pb.StateElement("tok", Value::Token());
+  BValue rcv = pb.Receive(ch0, tok);
   BValue rcv_token = pb.TupleIndex(rcv, 0);
   BValue rcv_data = pb.TupleIndex(rcv, 1);
   BValue f_of_data = pb.Invoke({rcv_data, rcv_data}, f);
   BValue send_token = pb.Send(ch1, rcv_token, f_of_data);
-  XLS_ASSERT_OK(pb.Build(send_token, {}).status());
+  XLS_ASSERT_OK(pb.Build({send_token}).status());
 
   BlockBuilder bb("test_block", &p);
   BValue a = bb.InputPort("x", p.GetBitsType(32));

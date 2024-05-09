@@ -216,18 +216,19 @@ TEST_F(NodeUtilTest, NonReductiveEquivalents) {
 TEST_F(NodeUtilTest, NewStyleChannelNodes) {
   auto package = CreatePackage();
 
-  ProcBuilder pb(NewStyleProc(), "top_proc", "tkn", package.get());
+  ProcBuilder pb(NewStyleProc(), "top_proc", package.get());
+  BValue tkn = pb.Literal(Value::Token());
   XLS_ASSERT_OK_AND_ASSIGN(
       ReceiveChannelReference * in_channel,
       pb.AddInputChannel("in_ch", package->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       SendChannelReference * out_channel,
       pb.AddOutputChannel("out_ch", package->GetBitsType(32)));
-  BValue rcv = pb.Receive(in_channel, pb.GetTokenParam());
+  BValue rcv = pb.Receive(in_channel, tkn);
   BValue recv_token = pb.TupleIndex(rcv, 0);
   BValue input = pb.TupleIndex(rcv, 1);
   BValue send = pb.Send(out_channel, recv_token, input);
-  XLS_ASSERT_OK(pb.Build(send, {}).status());
+  XLS_ASSERT_OK(pb.Build({}).status());
 
   EXPECT_TRUE(IsChannelNode(rcv.node()));
   EXPECT_TRUE(IsChannelNode(send.node()));
@@ -256,12 +257,13 @@ TEST_F(NodeUtilTest, ChannelNodes) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                               p.GetBitsType(32)));
-  ProcBuilder b(TestName(), "tkn", &p);
+  ProcBuilder b(TestName(), &p);
+  BValue tkn = b.StateElement("tkn", Value::Token());
   BValue state = b.StateElement("st", Value(UBits(0, 0)));
-  BValue rcv = b.Receive(ch0, b.GetTokenParam());
-  BValue send = b.Send(ch1, b.GetTokenParam(), b.Literal(Value(UBits(42, 32))));
+  BValue rcv = b.Receive(ch0, tkn);
+  BValue send = b.Send(ch1, tkn, b.Literal(Value(UBits(42, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, b.Build(b.AfterAll({b.TupleIndex(rcv, 0), send}), {state}));
+      Proc * proc, b.Build({b.AfterAll({b.TupleIndex(rcv, 0), send}), state}));
 
   EXPECT_TRUE(IsChannelNode(rcv.node()));
   EXPECT_TRUE(IsChannelNode(send.node()));
@@ -300,7 +302,8 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithFunction) {
 
 TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithToken) {
   Package p("my_package");
-  ProcBuilder b(TestName(), "tkn", &p);
+  ProcBuilder b(TestName(), &p);
+  BValue tkn = b.StateElement("tkn", Value::Token());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
                                               p.GetBitsType(32)));
@@ -308,12 +311,12 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithToken) {
       Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                               p.GetBitsType(32)));
 
-  BValue receive = b.Receive(ch0, b.GetTokenParam(), SourceInfo(), "receive");
+  BValue receive = b.Receive(ch0, tkn, SourceInfo(), "receive");
   BValue rcv_token = b.TupleIndex(receive, 0);
   BValue rcv_data = b.TupleIndex(receive, 1);
   BValue send = b.Send(ch1, rcv_token, rcv_data);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send, {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({send}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Node* receive_node, proc->GetNode("receive"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -324,8 +327,8 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithToken) {
   // receive from the token chain of the next token. To make something that
   // works, we'd need to make an after_all and add the receive's output token to
   // it after calling ReplaceTupleElementsWith().
-  XLS_EXPECT_OK(ReplaceTupleElementsWith(receive_node,
-                                         {{0, proc->TokenParam()}, {1, lit0}}));
+  XLS_EXPECT_OK(ReplaceTupleElementsWith(
+      receive_node, {{0, proc->GetStateParam(0)}, {1, lit0}}));
 
   ExpectIr(proc->DumpIr(), TestName());
 }

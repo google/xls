@@ -1718,30 +1718,26 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
       }
 
       // Parse 'next' statement:
-      //  next (tkn, next_state0, next_state1, ...)
+      //  next (next_state0, next_state1, ...)
       XLS_RETURN_IF_ERROR(
           scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
-      XLS_ASSIGN_OR_RETURN(Token next_token_name,
-                           scanner_.PopTokenOrError(LexicalTokenType::kIdent,
-                                                    "proc next token name"));
-      if (!name_to_value->contains(next_token_name.value())) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Proc next token name @ %s  was not previously defined: \"%s\"",
-            next_token_name.pos().ToHumanString(), next_token_name.value()));
-      }
 
       // TODO: Remove this once fully transitioned over to `next_value` nodes.
       std::vector<BValue> next_state;
-      while (scanner_.TryDropToken(LexicalTokenType::kComma)) {
-        XLS_ASSIGN_OR_RETURN(Token next_state_name,
-                             scanner_.PopTokenOrError(LexicalTokenType::kIdent,
-                                                      "proc next state name"));
-        if (!name_to_value->contains(next_state_name.value())) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Proc next state name @ %s  was not previously defined: \"%s\"",
-              next_state_name.pos().ToHumanString(), next_state_name.value()));
-        }
-        next_state.push_back(name_to_value->at(next_state_name.value()));
+      if (!scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
+        do {
+          XLS_ASSIGN_OR_RETURN(
+              Token next_state_name,
+              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                       "proc next state name"));
+          if (!name_to_value->contains(next_state_name.value())) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Proc next state name @ %s  was not previously defined: \"%s\"",
+                next_state_name.pos().ToHumanString(),
+                next_state_name.value()));
+          }
+          next_state.push_back(name_to_value->at(next_state_name.value()));
+        } while (scanner_.TryDropToken(LexicalTokenType::kComma));
       }
       if (Proc* proc = fb->function()->AsProcOrDie();
           !next_state.empty() && !proc->next_values().empty()) {
@@ -1753,9 +1749,7 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
 
       XLS_RETURN_IF_ERROR(
           scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
-      result =
-          ProcNext{.next_token = name_to_value->at(next_token_name.value()),
-                   .next_state = next_state};
+      result = ProcNext{.next_state = next_state};
       continue;
     }
 
@@ -1781,8 +1775,10 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
         absl::StrFormat("Expected 'ret' in function."));
   }
   if (fb->function()->IsProc()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected 'next' in proc."));
+    // This proc uses explicit next_value nodes, so we return an empty ProcNext.
+    // TODO(epastor): Remove this once fully transitioned over to `next_value`
+    // nodes.
+    return ProcNext{.next_state = {}};
   }
   // Return an empty BValue for blocks as no ret or next is supported.
   XLS_RET_CHECK(fb->function()->IsBlock());
@@ -1901,23 +1897,8 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
                        scanner_.PopTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in proc parameters"));
 
-  // Parse the token parameter.
-  XLS_ASSIGN_OR_RETURN(std::vector<TypedArgument> params,
+  XLS_ASSIGN_OR_RETURN(std::vector<TypedArgument> state_params,
                        Parser::ParseTypedArguments(package));
-  if (params.empty()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected proc to have at least one parameter @ %s",
-                        open_paren.pos().ToHumanString()));
-  }
-  TypedArgument token_param = params.front();
-  if (!token_param.type->IsToken()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Expected first argument of proc to be token type, is: %s @ %s",
-        token_param.type->ToString(), token_param.token.pos().ToHumanString()));
-  }
-
-  absl::Span<const TypedArgument> state_params =
-      absl::MakeSpan(params).subspan(1);
 
   absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
   std::vector<Value> init_values;
@@ -1943,7 +1924,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   };
 
   std::vector<std::string> mandatory_keywords;
-  if (params.size() > 1) {
+  if (!state_params.empty()) {
     // If the proc has a state element then an init field is required.
     mandatory_keywords.push_back("init");
   }
@@ -1965,9 +1946,9 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   // enables the parser to parse and construct malformed IR for tests.
   std::unique_ptr<ProcBuilder> builder;
   if (is_new_style_proc) {
-    builder = std::make_unique<ProcBuilder>(NewStyleProc(), name.value(),
-                                            token_param.name, package,
-                                            /*should_verify=*/false);
+    builder =
+        std::make_unique<ProcBuilder>(NewStyleProc(), name.value(), package,
+                                      /*should_verify=*/false);
     for (const std::unique_ptr<ChannelReference>& channel_ref :
          interface_channels) {
       if (channel_ref->direction() == Direction::kReceive) {
@@ -1985,11 +1966,9 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
       }
     }
   } else {
-    builder =
-        std::make_unique<ProcBuilder>(name.value(), token_param.name, package,
-                                      /*should_verify=*/false);
+    builder = std::make_unique<ProcBuilder>(name.value(), package,
+                                            /*should_verify=*/false);
   }
-  (*name_to_value)[token_param.name] = builder->GetTokenParam();
   for (int64_t i = 0; i < state_params.size(); ++i) {
     (*name_to_value)[state_params[i].name] =
         builder->StateElement(state_params[i].name, init_values[i]);
@@ -2149,8 +2128,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package,
   XLS_RET_CHECK(std::holds_alternative<ProcNext>(body_result));
   ProcNext proc_next = std::get<ProcNext>(body_result);
 
-  XLS_ASSIGN_OR_RETURN(Proc * result,
-                       pb->Build(proc_next.next_token, proc_next.next_state));
+  XLS_ASSIGN_OR_RETURN(Proc * result, pb->Build(proc_next.next_state));
 
   for (const auto& [attribute, literal] : attributes) {
     if (attribute == "initiation_interval") {

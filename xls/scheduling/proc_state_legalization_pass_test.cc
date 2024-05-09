@@ -66,19 +66,18 @@ class ProcStateLegalizationPassTest : public IrTestBase {
 
 TEST_F(ProcStateLegalizationPassTest, StatelessProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.GetTokenParam(), std::vector<BValue>()));
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {x, y}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, y}));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -89,10 +88,10 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {y, x}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({y, x}));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -103,23 +102,23 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   pb.Next(x, incremented);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -131,20 +130,20 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
   pb.Next(x, x, pb.Not(predicate));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue decremented = pb.Subtract(x, pb.Literal(UBits(1, 32)));
@@ -152,7 +151,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
   BValue predicate2 = pb.Eq(x, pb.Literal(UBits(1, 32)));
   pb.Next(x, incremented, predicate1);
   pb.Next(x, decremented, predicate2);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -167,7 +166,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
 TEST_F(ProcStateLegalizationPassTest,
        ProcWithMultiplePredicatedNextValuesAndDefault) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue decremented = pb.Subtract(x, pb.Literal(UBits(1, 32)));
@@ -176,7 +175,7 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(x, x, pb.Nor({predicate2, predicate1, predicate2}));
   pb.Next(x, incremented, predicate1);
   pb.Next(x, decremented, predicate2);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
@@ -184,14 +183,14 @@ TEST_F(ProcStateLegalizationPassTest,
 TEST_F(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededAndZ3Enabled) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, x, positive_predicate);
   BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, incremented, negative_predicate);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(
       Run(proc, {.scheduling_options =
@@ -202,14 +201,14 @@ TEST_F(ProcStateLegalizationPassTest,
 TEST_F(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededButZ3Disabled) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, x, positive_predicate);
   BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, incremented, negative_predicate);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
@@ -226,12 +225,12 @@ TEST_F(ProcStateLegalizationPassTest,
 TEST_F(ProcStateLegalizationPassTest,
        ProcWithPredicatedNextValueAndSmallRlimit) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue predicate = pb.Eq(x, pb.Literal(UBits(0, 32)));
   pb.Next(x, incremented, predicate);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(
       Run(proc, {.scheduling_options =
@@ -247,14 +246,14 @@ TEST_F(ProcStateLegalizationPassTest,
 TEST_F(ProcStateLegalizationPassTest,
        ProcWithNoExplicitDefaultNeededButSmallRlimit) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue incremented = pb.Add(x, pb.Literal(UBits(1, 32)));
   BValue positive_predicate = pb.Eq(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, x, positive_predicate);
   BValue negative_predicate = pb.Ne(x, pb.Literal(UBits(5, 32)));
   pb.Next(x, incremented, negative_predicate);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ASSERT_THAT(
       Run(proc, {.scheduling_options =

@@ -528,6 +528,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/ir:verifier",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",

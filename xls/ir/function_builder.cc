@@ -1049,22 +1049,17 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   return f;
 }
 
-ProcBuilder::ProcBuilder(std::string_view name, std::string_view token_name,
-                         Package* package, bool should_verify)
-    : BuilderBase(std::make_unique<Proc>(name, token_name, package),
-                  should_verify),
-      token_param_(proc()->TokenParam(), this) {}
+ProcBuilder::ProcBuilder(std::string_view name, Package* package,
+                         bool should_verify)
+    : BuilderBase(std::make_unique<Proc>(name, package), should_verify) {}
 
 ProcBuilder::ProcBuilder(NewStyleProc tag, std::string_view name,
-                         std::string_view token_name, Package* package,
-                         bool should_verify)
+                         Package* package, bool should_verify)
     : BuilderBase(std::make_unique<Proc>(
                       name,
                       /*interface_channels=*/
-                      absl::Span<std::unique_ptr<ChannelReference>>(),
-                      token_name, package),
-                  should_verify),
-      token_param_(proc()->TokenParam(), this) {}
+                      absl::Span<std::unique_ptr<ChannelReference>>(), package),
+                  should_verify) {}
 
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 
@@ -1143,15 +1138,9 @@ absl::Status ProcBuilder::InstantiateProc(
       .status();
 }
 
-absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
-                                         absl::Span<const BValue> next_state) {
+absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
   if (ErrorPending()) {
     return GetError();
-  }
-  if (!GetType(token)->IsToken()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Recurrent token of proc must be token type, is: %s.",
-                        GetType(token)->ToString()));
   }
 
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
@@ -1177,7 +1166,6 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
   // function_ is always a Proc.
   Proc* proc = package()->AddProc(
       absl::WrapUnique(down_cast<Proc*>(function_.release())));
-  XLS_RETURN_IF_ERROR(proc->SetNextToken(token.node()));
   for (int64_t i = 0; i < next_state.size(); ++i) {
     XLS_RETURN_IF_ERROR(proc->SetNextStateElement(i, next_state[i].node()));
   }
@@ -1727,11 +1715,6 @@ BValue TokenlessProcBuilder::Assert(BValue condition, std::string_view message,
   last_token_ =
       BuilderBase::Assert(last_token_, condition, message, label, loc, name);
   return last_token_;
-}
-
-absl::StatusOr<Proc*> TokenlessProcBuilder::Build(
-    absl::Span<const BValue> next_state) {
-  return ProcBuilder::Build(last_token_, next_state);
 }
 
 BValue BlockBuilder::Param(std::string_view name, Type* type,

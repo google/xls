@@ -57,13 +57,14 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only,
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
         flow_control=ready_valid, metadata="")
 
-proc neg_proc(my_token: token, my_state: (), init={()}) {
+proc neg_proc(my_state: (), init={()}) {
+  my_token: token = literal(value=token)
   rcv: (token, bits[32]) = receive(my_token, channel=in)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
   send: token = send(rcv_token, negate, channel=out)
-  next (send, my_state)
+  next (my_state)
 }
 """
 
@@ -92,22 +93,24 @@ chan internal(bits[32], id=1, kind=streaming, ops=send_receive,
 chan out(bits[32], id=2, kind=streaming, ops=send_only,
         flow_control=ready_valid, metadata="")
 
-proc proc0(my_token: token, my_state: (), init={()}) {
+proc proc0(my_state: (), init={()}) {
+  my_token: token = literal(value=token)
   rcv: (token, bits[32]) = receive(my_token, channel=in)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
   send: token = send(rcv_token, negate, channel=internal)
-  next (send, my_state)
+  next (my_state)
 }
 
-proc proc1(my_token: token, my_state: (), init={()}) {
+proc proc1(my_state: (), init={()}) {
+  my_token: token = literal(value=token)
   rcv: (token, bits[32]) = receive(my_token, channel=internal)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
   send: token = send(rcv_token, negate, channel=out)
-  next (send, my_state)
+  next (my_state)
 }
 """
 
@@ -117,13 +120,13 @@ HIGH_II_PROC_IR = """package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-top proc foobar_next(my_token: token, my_state: bits[32], init={0x1}) {
+top proc foobar_next(my_state: bits[32], init={0x1}) {
+    my_token: token = literal(value=token, id=1)
     snd: token = send(my_token, my_state, channel=out, id=4)
     recv: (token, bits[32]) = receive(snd, channel=in, id=5)
-    bts: bits[32] = tuple_index(recv, index=1, id = 6)
-    ntok : token = tuple_index(recv, index=0, id=7)
+    bts: bits[32] = tuple_index(recv, index=1, id=6)
     addit: bits[32] = add(my_state, bts, id=8)
-    next(ntok, addit)
+    next(addit)
 }
 """
 

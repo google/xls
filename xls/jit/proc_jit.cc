@@ -180,8 +180,7 @@ absl::Status ProcJitContinuation::NextTick() {
     // be unchanged by default.
     for (int64_t state_index = 0; state_index < proc()->GetStateElementCount();
          ++state_index) {
-      int64_t param_index = state_index + 1;
-      memcpy(output_.pointers()[param_index], input_.pointers()[param_index],
+      memcpy(output_.pointers()[state_index], input_.pointers()[state_index],
              jit_runtime_->GetTypeByteSize(
                  proc()->GetStateElementType(state_index)));
     }

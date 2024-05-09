@@ -702,10 +702,10 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init={42}) {
+proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (tkn, add.4)
+  next (add.4)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -787,10 +787,10 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init={42}) {
+proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (tkn, add.4)
+  next (add.4)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -804,10 +804,10 @@ fn my_function2(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.9: bits[32] = add(x, y)
 }
 
-proc my_proc2(tkn: token, st: bits[32], init={42}) {
+proc my_proc2(st: bits[32], init={42}) {
   literal.10: bits[32] = literal(value=1, id=10)
   add.11: bits[32] = add(literal.10, st, id=11)
-  next (tkn, add.11)
+  next (add.11)
 }
 
 block my_block2(a: bits[32], b: bits[32], out: bits[32]) {
@@ -819,9 +819,9 @@ block my_block2(a: bits[32], b: bits[32], out: bits[32]) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
-  EXPECT_EQ(pkg->GetNodeCount(), 22);
+  EXPECT_EQ(pkg->GetNodeCount(), 20);
   EXPECT_EQ(pkg->GetFunctionNodeCount(), 6);
-  EXPECT_EQ(pkg->GetProcNodeCount(), 8);
+  EXPECT_EQ(pkg->GetProcNodeCount(), 6);
   EXPECT_EQ(pkg->GetBlockNodeCount(), 8);
 }
 
@@ -833,10 +833,10 @@ top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init={42}) {
+proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (tkn, add.4)
+  next (add.4)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -864,10 +864,10 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-top proc my_proc(tkn: token, st: bits[32], init={42}) {
+top proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (tkn, add.4)
+  next (add.4)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -895,10 +895,10 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init={42}) {
+proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (tkn, add.4)
+  next (add.4)
 }
 
 top block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -926,10 +926,10 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init={42}) {
+proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (tkn, add.4)
+  next (add.4)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
@@ -1018,14 +1018,14 @@ chan test_channel(
   bits[32], id=0, kind=streaming, ops=send_receive,
   flow_control=ready_valid, metadata="""""")
 
-top proc main(__token: token, __state: (), init={()}) {
+top proc main(__state: (), init={()}) {
+  __token: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(__token, tuple_index.3, channel=test_channel)
-  after_all.5: token = after_all(send.4, tuple_index.2)
-  tuple.6: () = tuple()
-  next (after_all.5, tuple.6)
+  tuple.5: () = tuple()
+  next (tuple.5)
 }
   )";
   constexpr std::string_view text2 = R"(
@@ -1036,14 +1036,14 @@ chan another_test_channel(
   flow_control=ready_valid, metadata="""""")
 
 
-top proc another_main(__token: token, __state: (), init={()}) {
+top proc another_main(__state: (), init={()}) {
+  __token: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(__token, channel=another_test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   send.4: token = send(__token, tuple_index.3, channel=another_test_channel)
-  after_all.5: token = after_all(send.4, tuple_index.2)
-  tuple.6: () = tuple()
-  next (after_all.5, tuple.6)
+  tuple.5: () = tuple()
+  next (tuple.5)
 }
   )";
 
@@ -1070,15 +1070,15 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.15: bits[32] = add(x, y)
 }
 
-top proc main(__token: token, __state: (), init={()}) {
+top proc main(__state: (), init={()}) {
+  __token: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   invoke.4: bits[32] = invoke(tuple_index.3, tuple_index.3, to_apply=f)
   send.5: token = send(__token, invoke.4, channel=test_channel)
-  after_all.6: token = after_all(send.5, tuple_index.2)
-  tuple.7: () = tuple()
-  next (after_all.6, tuple.7)
+  tuple.6: () = tuple()
+  next (tuple.6)
 }
   )";
   constexpr std::string_view text2 = R"(
@@ -1092,15 +1092,15 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret sub.15: bits[32] = sub(x, y)
 }
 
-top proc another_main(__token: token, __state: (), init={()}) {
+top proc another_main(__state: (), init={()}) {
+  __token: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(__token, channel=another_test_channel)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
   invoke.4: bits[32] = invoke(tuple_index.3, tuple_index.3, to_apply=f)
   send.5: token = send(__token, invoke.4, channel=another_test_channel)
-  after_all.6: token = after_all(send.5, tuple_index.2)
-  tuple.7: () = tuple()
-  next (after_all.6, tuple.7)
+  tuple.6: () = tuple()
+  next (tuple.6)
 }
   )";
 

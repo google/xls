@@ -232,8 +232,8 @@ TEST_F(VerifierTest, WellFormedProc) {
   std::string input = R"(
 package test_package
 
-proc my_proc(t: token, s: bits[42], init={45}) {
-  next (t, s)
+proc my_proc(s: bits[42], init={45}) {
+  next (s)
 }
 
 )";
@@ -248,7 +248,7 @@ package test_package
 
 chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, metadata="""module_port { flopped: true }""")
 
-proc my_proc(t: token, s: bits[32], init={45}) {
+proc my_proc(t: token, s: bits[32], init={token, 45}) {
   send.1: token = send(t, s, channel=ch)
   next (send.1, s)
 }
@@ -268,7 +268,7 @@ package test_package
 
 chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
-proc my_proc(t: token, s: bits[32], init={45}) {
+proc my_proc(t: token, s: bits[32], init={token, 45}) {
   send.1: token = send(t, s, channel=ch)
   send.2: token = send(send.1, s, channel=ch)
   next (send.2, s)
@@ -283,88 +283,13 @@ proc my_proc(t: token, s: bits[32], init={45}) {
           HasSubstr("Multiple sends associated with the same channel 'ch'")));
 }
 
-TEST_F(VerifierTest, DisconnectedSendNode) {
-  std::string input = R"(
-package test_package
-
-chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none, metadata="""module_port { flopped: true }""")
-
-proc my_proc(t: token, s: bits[32], init={45}) {
-  after_all.1: token = after_all()
-  send.2: token = send(after_all.1, s, channel=ch)
-  next (send.2, s)
-}
-
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(
-      VerifyPackage(p.get()),
-      StatusIs(
-          absl::StatusCode::kInternal,
-          HasSubstr("Side-effecting token-typed nodes must be connected to the "
-                    "sink token value via a path of tokens")));
-}
-
-TEST_F(VerifierTest, DisconnectedReceiveNode) {
-  std::string input = R"(
-package test_package
-
-chan ch(bits[32], id=42, kind=streaming, ops=receive_only, flow_control=none, metadata="""module_port { flopped: true }""")
-
-proc my_proc(t: token, s: bits[42], init={45}) {
-  receive.1: (token, bits[32]) = receive(t, channel=ch)
-  next (t, s)
-}
-
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(
-      VerifyPackage(p.get()),
-      StatusIs(
-          absl::StatusCode::kInternal,
-          HasSubstr("Side-effecting token-typed nodes must be connected to the "
-                    "sink token value via a path of tokens")));
-}
-
-TEST_F(VerifierTest, DisconnectedReturnValueInProc) {
-  std::string input = R"(
-package test_package
-
-proc my_proc(t: token, s: bits[42], init={45}) {
-  after_all.1: token = after_all()
-  next (after_all.1, s)
-}
-
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(
-      VerifyPackage(p.get()),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Side-effecting token-typed nodes must be connected "
-                         "to the sink token value via a path of tokens")));
-}
-
-TEST_F(VerifierTest, DisconnectedNonSideEffectingTokenOperation) {
-  std::string input = R"(
-package test_package
-
-proc my_proc(t: token, s: bits[42], init={45}) {
-  token_tuple: (token) = tuple(t)
-  next (t, s)
-}
-
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  XLS_EXPECT_OK(VerifyPackage(p.get()));
-}
-
 TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
   std::string input = R"(
 package test_package
 
 chan ch(bits[32], id=42, kind=streaming, ops=receive_only, flow_control=none, metadata="""module_port { flopped: true }""")
 
-proc my_proc(t: token, s: bits[42], init={45}) {
+proc my_proc(t: token, s: bits[42], init={token, 45}) {
   send.1: token = send(t, s, channel=ch)
   receive.2: (token, bits[32]) = receive(send.1, channel=ch)
   tuple_index.3: token = tuple_index(receive.2, index=0)

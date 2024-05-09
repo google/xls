@@ -36,15 +36,16 @@ namespace xls {
 namespace {
 
 using status_testing::StatusIs;
-using testing::AllOf;
-using testing::Contains;
-using testing::ElementsAre;
-using testing::HasSubstr;
-using testing::IsEmpty;
-using testing::Key;
-using testing::Not;
-using testing::Pair;
-using testing::SizeIs;
+using ::testing::AllOf;
+using ::testing::Contains;
+using ::testing::ElementsAre;
+using ::testing::FieldsAre;
+using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Key;
+using ::testing::Not;
+using ::testing::Pair;
+using ::testing::SizeIs;
 
 class TokenProvenanceAnalysisTest : public IrTestBase {};
 
@@ -56,9 +57,10 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendReceive,
                                 p->GetBitsType(32)));
 
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
   pb.StateElement("state", Value(UBits(0, 0)));
-  BValue recv = pb.Receive(channel, pb.GetTokenParam());
+  BValue token = pb.Literal(Value::Token());
+  BValue recv = pb.Receive(channel, token);
   BValue t1 = pb.TupleIndex(recv, 0);
   BValue t2 = pb.Send(channel, t1, pb.Literal(UBits(50, 32)));
   BValue tuple = pb.Tuple(
@@ -72,13 +74,11 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   BValue t6 = pb.AfterAll({t3, t4, t5});
   BValue t7 = pb.MinDelay(t6, 42);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(t7, {pb.Literal(UBits(0, 0))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
                            TokenProvenanceAnalysis(proc));
 
-  EXPECT_EQ(provenance.at(pb.GetTokenParam().node()).Get({}),
-            pb.GetTokenParam().node());
+  EXPECT_EQ(provenance.at(token.node()).Get({}), token.node());
   EXPECT_EQ(provenance.at(recv.node()).Get({0}), recv.node());
   EXPECT_EQ(provenance.at(recv.node()).Get({1}), nullptr);
   EXPECT_EQ(provenance.at(tuple.node()).Get({0}), recv.node());
@@ -95,19 +95,20 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
 
 TEST_F(TokenProvenanceAnalysisTest, VeryLongChain) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "token", p.get());
-  BValue token = pb.GetTokenParam();
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.Literal(Value::Token());
+  BValue t = token;
   for (int i = 0; i < 1000; ++i) {
-    token = pb.Identity(token);
+    t = pb.Identity(t);
   }
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, std::vector<BValue>()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
                            TokenProvenanceAnalysis(proc));
 
   // The proc only consists of a token param and token-typed identity
   // operations.
   for (Node* node : proc->nodes()) {
-    EXPECT_EQ(provenance.at(node).Get({}), proc->TokenParam());
+    EXPECT_EQ(provenance.at(node).Get({}), token.node());
   }
 }
 
@@ -119,9 +120,10 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGSimple) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendReceive,
                                 p->GetBitsType(32)));
 
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("token", Value::Token());
   pb.StateElement("state", Value(UBits(0, 0)));
-  BValue recv = pb.Receive(channel, pb.GetTokenParam());
+  BValue recv = pb.Receive(channel, token);
   BValue t1 = pb.TupleIndex(recv, 0);
   BValue t2 = pb.Send(channel, t1, pb.Literal(UBits(50, 32)));
   BValue tuple = pb.Tuple(
@@ -135,14 +137,14 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGSimple) {
   BValue t6 = pb.AfterAll({t3, t4, t5});
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(t6, {pb.Literal(UBits(0, 0))}));
+                           pb.Build({t6, pb.Literal(UBits(0, 0))}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenDAG dag, ComputeTokenDAG(proc));
 
-  EXPECT_THAT(dag, Not(Contains(Key(proc->TokenParam()))));
+  EXPECT_THAT(dag, Not(Contains(Key(token.node()))));
   EXPECT_THAT(dag, AllOf(Contains(Key(recv.node())), Contains(Key(t2.node())),
                          Contains(Key(t3.node())), Contains(Key(t4.node())),
                          Contains(Key(t5.node())), Contains(Key(t6.node()))));
-  EXPECT_THAT(dag.at(recv.node()), ElementsAre(proc->TokenParam()));
+  EXPECT_THAT(dag.at(recv.node()), ElementsAre(token.node()));
   EXPECT_THAT(dag.at(t2.node()), ElementsAre(recv.node()));
   EXPECT_THAT(dag.at(t3.node()), ElementsAre(t2.node()));
   EXPECT_THAT(dag.at(t4.node()), ElementsAre(t3.node()));
@@ -154,18 +156,18 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGSimple) {
 
 TEST_F(TokenProvenanceAnalysisTest, TokenDAGVeryLongChain) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "token", p.get());
-  BValue token = pb.GetTokenParam();
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("token", Value::Token());
+  BValue t = token;
   for (int i = 0; i < 1000; ++i) {
-    token = pb.Identity(token);
+    t = pb.Identity(t);
   }
   BValue assertion =
-      pb.Assert(token, pb.Literal(UBits(1, 1)), {}, "assertion failed");
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(assertion, std::vector<BValue>()));
+      pb.Assert(t, pb.Literal(UBits(1, 1)), {}, "assertion failed");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({assertion}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenDAG dag, ComputeTokenDAG(proc));
-  EXPECT_THAT(dag, ElementsAre(Pair(assertion.node(),
-                                    ElementsAre(proc->TokenParam()))));
+  EXPECT_THAT(dag,
+              ElementsAre(Pair(assertion.node(), ElementsAre(token.node()))));
 }
 
 TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
@@ -176,9 +178,10 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendReceive,
                                 p->GetBitsType(32)));
 
-  ProcBuilder pb(TestName(), "token", p.get());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.StateElement("token", Value::Token());
   pb.StateElement("state", Value(UBits(0, 0)));
-  BValue recv = pb.Receive(channel, pb.GetTokenParam());
+  BValue recv = pb.Receive(channel, token);
   BValue t1 = pb.TupleIndex(recv, 0);
   BValue t2 = pb.Send(channel, t1, pb.Literal(UBits(50, 32)));
   BValue tuple = pb.Tuple(
@@ -192,16 +195,16 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
   BValue t6 = pb.AfterAll({t3, t4, t5});
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(t6, {pb.Literal(UBits(0, 0))}));
+                           pb.Build({t6, pb.Literal(UBits(0, 0))}));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<NodeAndPredecessors> topo_dag,
                            ComputeTopoSortedTokenDAG(proc));
 
   EXPECT_EQ(topo_dag.size(), 7);
-  EXPECT_EQ(topo_dag[0].node, proc->TokenParam());
+  EXPECT_EQ(topo_dag[0].node, token.node());
   EXPECT_THAT(topo_dag[0].predecessors, IsEmpty());
   EXPECT_EQ(topo_dag[1].node, recv.node());
-  EXPECT_THAT(topo_dag[1].predecessors, ElementsAre(proc->TokenParam()));
+  EXPECT_THAT(topo_dag[1].predecessors, ElementsAre(token.node()));
   EXPECT_EQ(topo_dag[2].node, t2.node());
   EXPECT_THAT(topo_dag[2].predecessors, ElementsAre(recv.node()));
   EXPECT_EQ(topo_dag[3].node, t3.node());
@@ -224,36 +227,33 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGNestedTuples) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
                                 p->GetBitsType(32)));
 
-  ProcBuilder pb(TestName(), "token", p.get());
-  BValue recv = pb.Receive(channel, pb.GetTokenParam());
+  ProcBuilder pb(TestName(), p.get());
+  BValue token = pb.Literal(Value::Token());
+  BValue recv = pb.Receive(channel, token);
   BValue nested_tuple = pb.Tuple({pb.Literal(UBits(10, 32)), recv});
   BValue indexed_original_tuple = pb.TupleIndex(nested_tuple, 1);
   BValue recv_token = pb.TupleIndex(indexed_original_tuple, 0);
   BValue recv2 = pb.Receive(channel, recv_token);
-  BValue recv2_token = pb.TupleIndex(recv2, 0);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(recv2_token, {}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<NodeAndPredecessors> topo_dag,
                            ComputeTopoSortedTokenDAG(proc));
 
-  EXPECT_EQ(topo_dag.size(), 3);
-  EXPECT_EQ(topo_dag[0].node, proc->TokenParam());
-  EXPECT_THAT(topo_dag[0].predecessors, IsEmpty());
-  EXPECT_EQ(topo_dag[1].node, recv.node());
-  EXPECT_THAT(topo_dag[1].predecessors, ElementsAre(proc->TokenParam()));
-  EXPECT_EQ(topo_dag[2].node, recv2.node());
-  EXPECT_THAT(topo_dag[2].predecessors, ElementsAre(recv.node()));
+  EXPECT_THAT(topo_dag,
+              ElementsAre(FieldsAre(token.node(), IsEmpty()),
+                          FieldsAre(recv.node(), ElementsAre(token.node())),
+                          FieldsAre(recv2.node(), ElementsAre(recv.node()))));
 }
 
 TEST_F(TokenProvenanceAnalysisTest, SelectOfTokens) {
   auto p = std::make_unique<Package>(TestName());
   // Turn off verification because a select of tokens is generally invalid.
-  ProcBuilder pb(TestName(), "token", p.get(), /*should_verify=*/false);
-  BValue token = pb.GetTokenParam();
+  ProcBuilder pb(TestName(), p.get(), /*should_verify=*/false);
+  BValue token = pb.StateElement("token", Value::Token());
   BValue selector = pb.StateElement("selector", Value(UBits(0, 1)));
   BValue select = pb.Select(selector, {token, token});
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(select, {selector}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({select, selector}));
   EXPECT_THAT(TokenProvenanceAnalysis(proc),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Node type should not contain a token")));

@@ -24,6 +24,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -36,15 +37,14 @@ TEST_F(UnrollProcTest, UnrollSimple) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
      package test_module
 
-     top proc main(__token: token, __state: bits[10], init={0}) {
+     top proc main(__state: bits[10], init={0}) {
        literal.1: bits[10] = literal(value=1)
        add.2: bits[10] = add(literal.1, __state)
-       next (__token, add.2)
+       next (add.2)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   XLS_ASSERT_OK_AND_ASSIGN(ProcUnrollInfo unroll_info, UnrollProc(proc, 3));
-  EXPECT_THAT(proc->NextToken(), m::Param("__token"));
   EXPECT_EQ(proc->NextState().size(), 1);
   EXPECT_THAT(
       proc->NextState().front(),
@@ -79,7 +79,7 @@ TEST_F(UnrollProcTest, UnrollWithIO) {
        bits[10], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[10], init={0}) {
+     top proc main(__token: token, __state: bits[10], init={token, 0}) {
        literal.1: bits[10] = literal(value=1)
        add.2: bits[10] = add(literal.1, __state)
        send.3: token = send(__token, add.2, channel=test_channel)
@@ -88,12 +88,12 @@ TEST_F(UnrollProcTest, UnrollWithIO) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   XLS_ASSERT_OK_AND_ASSIGN(ProcUnrollInfo unroll_info, UnrollProc(proc, 3));
-  EXPECT_THAT(proc->NextToken(),
+  EXPECT_EQ(proc->NextState().size(), 2);
+  EXPECT_THAT(proc->GetNextStateElement(0),
               m::Send(m::Send(m::Send(m::Param("__token"), m::Add()), m::Add()),
                       m::Add()));
-  EXPECT_EQ(proc->NextState().size(), 1);
   EXPECT_THAT(
-      proc->NextState().front(),
+      proc->GetNextStateElement(1),
       m::Add(m::Literal(UBits(1, 10)),
              m::Add(m::Literal(UBits(1, 10)),
                     m::Add(m::Literal(UBits(1, 10)), m::Param("__state")))));

@@ -171,9 +171,6 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
   }
 
   absl::Status HandleParam(Param* param) override {
-    if (param == proc_->TokenParam()) {
-      return DefaultHandler(param);
-    }
     // A state parameter is only dependent upon itself.
     XLS_ASSIGN_OR_RETURN(int64_t index, proc_->GetStateParamIndex(param));
     InlineBitmap bitmap(proc_->GetStateElementCount());

@@ -62,15 +62,17 @@ std::string Proc::DumpIr() const {
                         absl::StrAppend(s, channel_ref->ToString());
                       }));
   }
-  absl::StrAppendFormat(&res, "(%s: %s", TokenParam()->GetName(),
-                        TokenParam()->GetType()->ToString());
-  for (Param* param : StateParams()) {
-    absl::StrAppendFormat(&res, ", %s: %s", param->GetName(),
-                          param->GetType()->ToString());
+  auto param_formatter = [](std::string* s, Param* param) {
+    absl::StrAppend(s, param->GetName(), ": ", param->GetType()->ToString());
+  };
+  absl::StrAppend(&res, "(",
+                  absl::StrJoin(StateParams(), ", ", param_formatter));
+  if (!InitValues().empty()) {
+    absl::StrAppendFormat(
+        &res, ", init={%s}",
+        absl::StrJoin(InitValues(), ", ", UntypedValueFormatter));
   }
-  absl::StrAppendFormat(
-      &res, ", init={%s}) {\n",
-      absl::StrJoin(InitValues(), ", ", UntypedValueFormatter));
+  absl::StrAppend(&res, ") {\n");
 
   if (is_new_style_proc()) {
     for (Channel* channel : channels()) {
@@ -88,14 +90,15 @@ std::string Proc::DumpIr() const {
     absl::StrAppend(&res, "  ", node->ToString(), "\n");
   }
 
-  absl::StrAppend(&res, "  next (", NextToken()->GetName());
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  if (next_values_.empty()) {
-    for (Node* node : next_state_) {
-      absl::StrAppend(&res, ", ", node->GetName());
-    }
+  if (next_values_.empty() && !params_.empty()) {
+    auto node_formatter = [](std::string* s, Node* node) {
+      absl::StrAppend(s, node->GetName());
+    };
+    absl::StrAppend(&res, "  next (",
+                    absl::StrJoin(next_state_, ", ", node_formatter), ")\n");
   }
-  absl::StrAppend(&res, ")\n}\n");
+  absl::StrAppend(&res, "}\n");
   return res;
 }
 
@@ -128,38 +131,6 @@ absl::btree_set<int64_t> Proc::GetNextStateIndices(Node* node) const {
 absl::StatusOr<Value> Proc::GetInitValue(Param* p) {
   XLS_ASSIGN_OR_RETURN(int64_t off, GetStateParamIndex(p));
   return GetInitValueElement(off);
-}
-
-absl::Status Proc::SetNextToken(Node* next) {
-  if (!next->GetType()->IsToken()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot set next token to \"%s\", expected token type but has type %s",
-        next->GetName(), next->GetType()->ToString()));
-  }
-  next_token_ = next;
-  return absl::OkStatus();
-}
-
-absl::Status Proc::JoinNextTokenWith(absl::Span<Node* const> tokens) {
-  std::vector<Node*> operands;
-  if (NextToken()->Is<AfterAll>()) {
-    operands.insert(operands.end(), NextToken()->operands().begin(),
-                    NextToken()->operands().end());
-  } else {
-    operands.push_back(NextToken());
-  }
-  operands.insert(operands.end(), tokens.begin(), tokens.end());
-  if (operands.size() == 1) {
-    return SetNextToken(operands.front());
-  }
-  XLS_ASSIGN_OR_RETURN(Node * next,
-                       MakeNode<AfterAll>(NextToken()->loc(), operands));
-  Node* old_next = NextToken();
-  XLS_RETURN_IF_ERROR(SetNextToken(next));
-  if (old_next->Is<AfterAll>() && old_next->users().empty()) {
-    XLS_RETURN_IF_ERROR(RemoveNode(old_next));
-  }
-  return absl::OkStatus();
 }
 
 absl::Status Proc::SetNextStateElement(int64_t index, Node* next) {
@@ -245,9 +216,7 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
       Param * param,
       MakeNodeWithName<Param>(SourceInfo(),
                               package()->GetTypeForValue(init_value), s));
-  // Move the param into place (not forgetting the offset for state params,
-  // since the token param is always at index 0).
-  XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index + 1));
+  XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index));
   if (next_state.has_value() &&
       !ValueConformsToType(init_value, next_state.value()->GetType())) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -312,7 +281,7 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
                        MakeNodeWithName<Param>(
                            SourceInfo(), package()->GetTypeForValue(init_value),
                            state_param_name));
-  XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index + 1));
+  XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index));
 
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
   if (next_state.has_value()) {
@@ -343,10 +312,6 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
 }
 
 bool Proc::HasImplicitUse(Node* node) const {
-  if (node == NextToken()) {
-    return true;
-  }
-
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
   if (auto it = next_state_indices_.find(node);
       it != next_state_indices_.end() && !it->second.empty()) {
@@ -378,12 +343,11 @@ absl::StatusOr<Proc*> Proc::Clone(
   if (is_new_style_proc()) {
     cloned_proc = target_package->AddProc(std::make_unique<Proc>(
         new_name, /*interface=*/absl::Span<std::unique_ptr<ChannelReference>>(),
-        TokenParam()->GetName(), target_package));
+        target_package));
   } else {
-    cloned_proc = target_package->AddProc(std::make_unique<Proc>(
-        new_name, TokenParam()->GetName(), target_package));
+    cloned_proc = target_package->AddProc(
+        std::make_unique<Proc>(new_name, target_package));
   }
-  original_to_clone[TokenParam()] = cloned_proc->TokenParam();
   auto remap_state_name = [&](std::string_view orig) -> std::string_view {
     if (!state_name_remapping.contains(orig)) {
       return orig;
@@ -569,8 +533,6 @@ absl::StatusOr<Proc*> Proc::Clone(
       }
     }
   }
-  XLS_RETURN_IF_ERROR(
-      cloned_proc->SetNextToken(original_to_clone.at(NextToken())));
 
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
   for (int64_t i = 0; i < GetStateElementCount(); ++i) {

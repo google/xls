@@ -731,7 +731,6 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   // The outputs of a proc are the next state values.
   Proc* proc = function_base->AsProcOrDie();
   std::vector<Node*> outputs;
-  outputs.push_back(proc->NextToken());
   if (proc->next_values().empty()) {
     // TODO(epastor): Remove this when we no longer support the old-style `next
     // (...)` line with next-state values.

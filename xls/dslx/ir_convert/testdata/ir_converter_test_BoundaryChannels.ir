@@ -6,7 +6,8 @@ chan test_module__in_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_co
 chan test_module__in_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 chan test_module__output(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
-top proc __test_module__foo_0_next(__token: token, __state: (), init={()}) {
+top proc __test_module__foo_0_next(__state: (), init={()}) {
+  __token: token = literal(value=token, id=1)
   receive.4: (token, bits[32]) = receive(__token, channel=test_module__in_0, id=4)
   tok: token = tuple_index(receive.4, index=0, id=6)
   receive.8: (token, bits[32]) = receive(tok, channel=test_module__in_1, id=8)
@@ -14,11 +15,10 @@ top proc __test_module__foo_0_next(__token: token, __state: (), init={()}) {
   b: bits[32] = tuple_index(receive.8, index=1, id=11)
   tok__1: token = tuple_index(receive.8, index=0, id=10)
   add.12: bits[32] = add(a, b, id=12)
+  literal.3: bits[1] = literal(value=1, id=3)
   tuple_index.5: token = tuple_index(receive.4, index=0, id=5)
   tuple_index.9: token = tuple_index(receive.8, index=0, id=9)
   tok__2: token = send(tok__1, add.12, channel=test_module__output, id=13)
-  literal.3: bits[1] = literal(value=1, id=3)
   tuple.14: () = tuple(id=14)
-  after_all.15: token = after_all(__token, tuple_index.5, tuple_index.9, tok__2, id=15)
-  next (after_all.15, tuple.14)
+  next (tuple.14)
 }

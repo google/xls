@@ -80,7 +80,7 @@ class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
         "Node type should not contain a token: %s", node->ToString()));
   }
 
-  // Returns true if all leaf elements of each LeafTypeTeee in `trees` is null.
+  // Returns true if all leaf elements of each LeafTypeTree in `trees` is null.
   static bool AreAllElementsNull(
       absl::Span<const LeafTypeTreeView<Node*>> trees) {
     for (const LeafTypeTreeView<Node*> tree : trees) {
@@ -113,12 +113,13 @@ class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
 class TokenProvenanceWithTopoSortVisitor : public TokenProvenanceVisitor {
  public:
   absl::Status DefaultHandler(Node* node) override {
-    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll ||
-        node->op() == Op::kMinDelay) {
-      if (!(node->op() == Op::kParam && !TypeHasToken(node->GetType()))) {
-        // Don't include normal state, just the proc token param.
-        topo_sorted_token_nodes_.push_back(node);
+    const bool result_contains_token = TypeHasToken(node->GetType());
+    if (result_contains_token || OpIsSideEffecting(node->op())) {
+      if (node->op() == Op::kParam && !result_contains_token) {
+        // Don't include non-token-containing state params.
+        return TokenProvenanceVisitor::DefaultHandler(node);
       }
+      topo_sorted_token_nodes_.push_back(node);
     }
     return TokenProvenanceVisitor::DefaultHandler(node);
   }

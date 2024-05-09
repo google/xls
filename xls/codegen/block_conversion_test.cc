@@ -427,18 +427,16 @@ class ProcConversionTestFixture : public BlockConversionTest {
     XLS_ASSIGN_OR_RETURN(
         Channel * ch_out,
         p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
-    ProcBuilder pb0("proc0", "tok", p.get());
-    BValue rcv0 = pb0.Receive(ch_in, pb0.GetTokenParam());
-    BValue send0 =
-        pb0.Send(ch_internal, pb0.TupleIndex(rcv0, 0), pb0.TupleIndex(rcv0, 1));
-    XLS_ASSIGN_OR_RETURN(Proc * proc0, pb0.Build(send0, {}));
+    ProcBuilder pb0("proc0", p.get());
+    BValue rcv0 = pb0.Receive(ch_in, pb0.Literal(Value::Token()));
+    pb0.Send(ch_internal, pb0.TupleIndex(rcv0, 0), pb0.TupleIndex(rcv0, 1));
+    XLS_ASSIGN_OR_RETURN(Proc * proc0, pb0.Build());
     XLS_RETURN_IF_ERROR(p->SetTop(proc0));
 
-    ProcBuilder pb1("proc1", "tok", p.get());
-    BValue rcv1 = pb1.Receive(ch_internal, pb1.GetTokenParam());
-    BValue send1 =
-        pb1.Send(ch_out, pb1.TupleIndex(rcv1, 0), pb1.TupleIndex(rcv1, 1));
-    XLS_RET_CHECK_OK(pb1.Build(send1, {}).status());
+    ProcBuilder pb1("proc1", p.get());
+    BValue rcv1 = pb1.Receive(ch_internal, pb1.Literal(Value::Token()));
+    pb1.Send(ch_out, pb1.TupleIndex(rcv1, 0), pb1.TupleIndex(rcv1, 1));
+    XLS_RET_CHECK_OK(pb1.Build().status());
 
     return p;
   }
@@ -656,14 +654,14 @@ chan in(bits[32], id=0, kind=single_value, ops=receive_only,
 chan out(bits[32], id=1, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
-proc my_proc(my_token: token, my_state: (), init={()}) {
+proc my_proc(my_state: (), init={()}) {
+  my_token: token = literal(value=token, id=1)
   rcv: (token, bits[32]) = receive(my_token, channel=in)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
   rcv_token: token = tuple_index(rcv, index=0)
   send: token = send(rcv_token, negate, channel=out)
   next_my_state: () = next_value(param=my_state, value=my_state)
-  next (send)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -784,8 +782,8 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
       Channel * in_out,
       p->CreateStreamingChannel("in_out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder b(TestName(), "tkn", p.get());
-  BValue tkn = b.GetTokenParam();
+  ProcBuilder b(TestName(), p.get());
+  BValue tkn = b.Literal(Value::Token());
   BValue q = b.StateElement("q", Value(UBits(0, 32)));
 
   BValue received_pair = b.Receive(in, tkn);
@@ -796,7 +794,7 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
   BValue send_q = b.Send(q_out, min_delay, q);
 
   BValue next_q = b.Next(/*param=*/q, /*value=*/received_data);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send_q));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
 
   PipelineSchedule schedule(proc,
                             ScheduleCycleMap({{tkn.node(), 0},
@@ -856,7 +854,8 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only,
 chan in2(bits[32], id=2, kind=single_value, ops=receive_only, metadata="")
 chan out2(bits[32], id=3, kind=single_value, ops=send_only, metadata="")
 
-proc my_proc(my_token: token, my_state: (), init={()}) {
+proc my_proc(my_state: (), init={()}) {
+  my_token: token = literal(value=token)
   rcv: (token, bits[32]) = receive(my_token, channel=in)
   rcv2: (token, bits[32]) = receive(my_token, channel=in2)
 
@@ -872,7 +871,6 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   send2: token = send(rcv2_token, negate2, channel=out2)
   fin: token = after_all(send, send2)
   next_my_state: () = next_value(param=my_state, value=my_state)
-  next (fin)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -943,7 +941,8 @@ chan in2(bits[32], id=2, kind=single_value, ops=receive_only,
 chan out(bits[32], id=3, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
-proc my_proc(my_token: token, my_state: (), init={()}) {
+proc my_proc(my_state: (), init={()}) {
+  my_token: token = literal(value=token, id=1)
   rcv0: (token, bits[32]) = receive(my_token, channel=in0)
   rcv0_token: token = tuple_index(rcv0, index=0)
   rcv1: (token, bits[32]) = receive(rcv0_token, channel=in1)
@@ -960,7 +959,6 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   sum: bits[32] = add(tmp, data0)
   send: token = send(rcv2_token, sum, channel=out)
   next_my_state: () = next_value(param=my_state, value=my_state)
-  next (send)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -982,14 +980,14 @@ TEST_F(BlockConversionTest, OnlyFIFOOutProc) {
 chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc my_proc(tkn: token, st: (), init={()}) {
+proc my_proc(st: (), init={()}) {
+  tkn: token = literal(value=token, id=1)
   receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15, predicate=literal.21, channel=out, id=20, pos=[(1,5,1)])
   next_st: () = next_value(param=st, value=st)
-  next (send.20)
 }
 
 )";
@@ -1014,7 +1012,8 @@ port_order: 0 }""")
 chan out(bits[32], id=1, kind=single_value,
 ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
-proc my_proc(tkn: token, st: (), init={()}) {
+proc my_proc(st: (), init={()}) {
+  tkn: token = literal(value=token, id=1)
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
   receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
@@ -1022,7 +1021,6 @@ proc my_proc(tkn: token, st: (), init={()}) {
   send.20: token = send(tuple_index.14, tuple_index.15,
                         channel=out, id=20, pos=[(1,5,1)])
   next_st: () = next_value(param=st, value=st)
-  next (send.20)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -1051,7 +1049,8 @@ port_order: 0 }""")
 chan out(bits[32], id=1, kind=single_value,
 ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
-proc my_proc(tkn: token, st: (), init={()}) {
+proc my_proc(st: (), init={()}) {
+  tkn: token = literal(value=token, id=1)
   literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
   receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
@@ -1059,7 +1058,6 @@ proc my_proc(tkn: token, st: (), init={()}) {
   send.20: token = send(tuple_index.14, tuple_index.15,
                         channel=out, id=20, pos=[(1,5,1)])
   next_st: () = next_value(param=st, value=st)
-  next (send.20)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -1084,13 +1082,13 @@ TEST_F(BlockConversionTest, UnconditionalSendRdyVldProc) {
 chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc my_proc(tkn: token, st: (), init={()}) {
+proc my_proc(st: (), init={()}) {
+  tkn: token = literal(value=token, id=1)
   receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20)
   next_st: () = next_value(param=st, value=st)
-  next (send.20)
 }
 )";
 
@@ -1204,12 +1202,12 @@ TEST_F(BlockConversionTest, NonblockingReceiveIsZeroWhenDataInvalid) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
-  BValue in = pb.ReceiveNonBlocking(ch_in, pb.GetTokenParam());
+  ProcBuilder pb(TestName(), &package);
+  BValue in = pb.ReceiveNonBlocking(ch_in, pb.Literal(Value::Token()));
   BValue in_tkn = pb.TupleIndex(in, 0);
   BValue in_data = pb.TupleIndex(in, 1);
-  BValue tok_fin = pb.Send(ch_out, in_tkn, in_data);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
+  pb.Send(ch_out, in_tkn, in_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                            ProcToCombinationalBlock(proc, codegen_options()));
@@ -1241,12 +1239,12 @@ TEST_F(BlockConversionTest, NonblockingReceiveIsPassthroughWhenDataInvalid) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
-  BValue in = pb.ReceiveNonBlocking(ch_in, pb.GetTokenParam());
+  ProcBuilder pb(TestName(), &package);
+  BValue in = pb.ReceiveNonBlocking(ch_in, pb.Literal(Value::Token()));
   BValue in_tkn = pb.TupleIndex(in, 0);
   BValue in_data = pb.TupleIndex(in, 1);
-  BValue tok_fin = pb.Send(ch_out, in_tkn, in_data);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
+  pb.Send(ch_out, in_tkn, in_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   CodegenOptions options = codegen_options();
   options.gate_recvs(false);
@@ -1283,16 +1281,16 @@ TEST_F(BlockConversionTest, NonblockingReceiveIsZeroWhenPredicateIsFalse) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
-  BValue ch_pred_response = pb.Receive(ch_pred, pb.GetTokenParam());
+  ProcBuilder pb(TestName(), &package);
+  BValue ch_pred_response = pb.Receive(ch_pred, pb.Literal(Value::Token()));
   BValue ch_pred_tkn = pb.TupleIndex(ch_pred_response, 0);
   BValue ch_pred_value = pb.TupleIndex(ch_pred_response, 1);
   BValue in_response =
       pb.ReceiveIfNonBlocking(ch_in, ch_pred_tkn, ch_pred_value);
   BValue in_tkn = pb.TupleIndex(in_response, 0);
   BValue in_data = pb.TupleIndex(in_response, 1);
-  BValue tok_fin = pb.Send(ch_out, in_tkn, in_data);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
+  pb.Send(ch_out, in_tkn, in_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                            ProcToCombinationalBlock(proc, codegen_options()));
@@ -1330,16 +1328,16 @@ TEST_F(BlockConversionTest,
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
-  BValue ch_pred_response = pb.Receive(ch_pred, pb.GetTokenParam());
+  ProcBuilder pb(TestName(), &package);
+  BValue ch_pred_response = pb.Receive(ch_pred, pb.Literal(Value::Token()));
   BValue ch_pred_tkn = pb.TupleIndex(ch_pred_response, 0);
   BValue ch_pred_value = pb.TupleIndex(ch_pred_response, 1);
   BValue in_response =
       pb.ReceiveIfNonBlocking(ch_in, ch_pred_tkn, ch_pred_value);
   BValue in_tkn = pb.TupleIndex(in_response, 0);
   BValue in_data = pb.TupleIndex(in_response, 1);
-  BValue tok_fin = pb.Send(ch_out, in_tkn, in_data);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
+  pb.Send(ch_out, in_tkn, in_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   CodegenOptions options = codegen_options();
   options.gate_recvs(false);
@@ -1508,13 +1506,13 @@ TEST_F(BlockConversionTest, FlopSingleValueChannelProc) {
 chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="")
 
-proc my_proc(tkn: token, st: (), init={()}) {
+proc my_proc(tkn: token, st: (), init={token, ()}) {
   receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
   send.20: token = send(tuple_index.14, tuple_index.15, channel=out, id=20)
   next_st: () = next_value(param=st, value=st)
-  next (send.20)
+  next_tkn: () = next_value(param=tkn, value=send.20)
 }
 )";
 
@@ -3437,10 +3435,10 @@ TEST_F(ProcConversionTestFixture, ProcSendDuringReset) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
+proc pipelined_proc(tkn: token, st: bits[32], init={token, 1}) {
   send.1: token = send(tkn, st, channel=out, id=1)
   next_st: () = next_value(param=st, value=st)
-  next (send.1)
+  next_tkn: () = next_value(param=tkn, value=send.1)
 }
 )";
 
@@ -3500,7 +3498,7 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 #[initiation_interval(2)]
-proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
+proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
   send.1: token = send(tkn, st, channel=out, id=1)
   min_delay.2: token = min_delay(send.1, delay=1, id=2)
   receive.3: (token, bits[32]) = receive(min_delay.2, channel=in, id=3)
@@ -3508,7 +3506,7 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
   next_st: () = next_value(param=st, value=tuple_index.5)
-  next (send.6)
+  next_tkn: () = next_value(param=tkn, value=send.6)
 }
 )";
 
@@ -3581,7 +3579,7 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid
 chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 #[initiation_interval(2)]
-proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
+proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
   send.1: token = send(tkn, st, channel=out, id=1)
   min_delay.2: token = min_delay(send.1, delay=1, id=2)
   receive.3: (token, bits[32]) = receive(min_delay.2, channel=in, id=3)
@@ -3589,7 +3587,7 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
   send.6: token = send(tuple_index.4, tuple_index.5, channel=in_out, id=6)
   next_st: () = next_value(param=st, value=tuple_index.5)
-  next (send.6)
+  next_tkn: () = next_value(param=tkn, value=send.6)
 }
 )";
 
@@ -3993,11 +3991,12 @@ class NonblockingReceivesProcTest : public ProcConversionTestFixture {
         Channel * out0,
         package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-    ProcBuilder pb(TestName(), /*token_name=*/"tok", &package);
+    ProcBuilder pb(TestName(), &package);
+    BValue tok = pb.Literal(Value::Token());
 
-    BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
-    BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, pb.GetTokenParam());
-    BValue in2_data_and_valid = pb.ReceiveNonBlocking(in2, pb.GetTokenParam());
+    BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, tok);
+    BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, tok);
+    BValue in2_data_and_valid = pb.ReceiveNonBlocking(in2, tok);
 
     BValue sum = pb.Literal(UBits(0, 32));
 
@@ -4020,9 +4019,9 @@ class NonblockingReceivesProcTest : public ProcConversionTestFixture {
     BValue sum2 = pb.Select(in2_valid, {sum1, add_sum1_in2});
 
     BValue after_in_tok = pb.AfterAll({in0_tok, in1_tok, in2_tok});
-    BValue tok_fin = pb.Send(out0, after_in_tok, sum2);
+    pb.Send(out0, after_in_tok, sum2);
 
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(tok_fin, {}));
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     VLOG(2) << "Non-blocking proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -4244,7 +4243,8 @@ class ProcWithStateTest : public BlockConversionTest {
   chan c_in(bits[32], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
   chan c_out(bits[32], id=5, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-  top proc test_proc(tkn: token, st_0: bits[32], st_1: bits[32], st_2: bits[32], init={3, 5, 9}) {
+  top proc test_proc(st_0: bits[32], st_1: bits[32], st_2: bits[32], init={3, 5, 9}) {
+    tkn: token = literal(value=token)
     receive.107: (token, bits[32]) = receive(tkn, channel=a_in, id=107)
     receive.108: (token, bits[32]) = receive(tkn, channel=b_in, id=108)
     receive.109: (token, bits[32]) = receive(tkn, channel=c_in, id=109)
@@ -4264,7 +4264,6 @@ class ProcWithStateTest : public BlockConversionTest {
     next_st_0: () = next_value(param=st_0, value=add.100)
     next_st_1: () = next_value(param=st_1, value=add.101)
     next_st_2: () = next_value(param=st_2, value=add.102)
-    next (after_all.59)
   }
   )";
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -4523,7 +4522,7 @@ TEST_F(ProcConversionTestFixture, SingleLoopbackChannel) {
 chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc loopback_proc(tkn: token, st: bits[32], init={1}) {
+proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   lit1: bits[32] = literal(value=1)
   not_first_cycle: bits[1] = ne(st, lit1)
   loopback_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel=loopback)
@@ -4533,7 +4532,7 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   out_send: token = send(loopback_tkn, sum, channel=out)
   loopback_send: token = send(out_send, sum, channel=loopback)
   next_st: () = next_value(param=st, value=sum)
-  next (loopback_send)
+  next_tkn: () = next_value(param=tkn, value=loopback_send)
 }
 )";
 
@@ -4572,7 +4571,7 @@ chan loopback0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=re
 chan loopback1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc loopback_proc(tkn: token, st: bits[32], init={1}) {
+proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   lit1: bits[32] = literal(value=1)
   not_first_cycle: bits[1] = ne(st, lit1)
   loopback0_recv: (token, bits[32]) = receive(tkn, predicate=not_first_cycle, channel=loopback0)
@@ -4588,7 +4587,7 @@ proc loopback_proc(tkn: token, st: bits[32], init={1}) {
   loopback1_send: token = send(out_send, sum, channel=loopback1)
   loopback_send: token = after_all(loopback0_send, loopback1_send)
   next_st: () = next_value(param=st, value=sum)
-  next (loopback_send)
+  next_tkn: () = next_value(param=tkn, value=loopback_send)
 }
 )";
 
@@ -4627,12 +4626,12 @@ TEST_F(ProcConversionTestFixture, ProcIdleWithoutInputChannels) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc proc_ut(tkn: token, st: bits[32], init={0}) {
+proc proc_ut(tkn: token, st: bits[32], init={token, 0}) {
   lit1: bits[32] = literal(value=1)
   next_state: bits[32] = add(st, lit1)
   send.1: token = send(tkn, st, channel=out, id=1)
   next_st: () = next_value(param=st, value=next_state)
-  next (send.1)
+  next_tkn: () = next_value(param=tkn, value=send.1)
 }
 )";
 
@@ -4727,7 +4726,8 @@ TEST_F(ProcConversionTestFixture, ProcIdleWithStageZeroRecvIfs) {
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc proc_ut(tkn: token, st: bits[32], init={0}) {
+proc proc_ut(st: bits[32], init={0}) {
+  tkn: token = literal(value=token)
   lit1: bits[32] = literal(value=1)
   lit5: bits[32] = literal(value=5)
   lit10: bits[32] = literal(value=10)
@@ -4745,9 +4745,7 @@ proc proc_ut(tkn: token, st: bits[32], init={0}) {
 
   send_token: token = send(tkn, st, channel=out, id=1)
 
-  next_token: token = after_all(recv_token, send_token)
   next_st: () = next_value(param=st, value=next_state)
-  next (next_token)
 }
 )";
 
@@ -4865,12 +4863,12 @@ TEST_F(ProcConversionTestFixture, b315378547) {
 
 chan out(bits[8], id=0, kind=single_value, ops=send_only, metadata="""""")
 
-top proc proc_ut(tkn: token, _ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
+top proc proc_ut(_ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
+  tkn: token = literal(value=token)
   literal.35: bits[8] = literal(value=1, id=35, pos=[(1,2,1)])
   add.37: bits[8] = add(_ZZN4Test4mainEvE1i__1, literal.35, id=37, pos=[(1,10,3)])
   send.41: token = send(tkn, _ZZN4Test4mainEvE1i__1, channel=out, id=41, pos=[(1,9,6)])
   next_st: () = next_value(param=_ZZN4Test4mainEvE1i__1, value=add.37)
-  next (send.41)
 }
 )";
 
@@ -4919,13 +4917,59 @@ MATCHER_P(RegFoundInBlock, block, "") {
   return true;
 }
 
+MATCHER_P(StateRegFoundInBlock, block, "") {
+  absl::flat_hash_set<Node*> nodes(block->nodes().begin(),
+                                   block->nodes().end());
+  absl::Span<Register* const> registers = block->GetRegisters();
+  bool has_reg = (arg.reg != nullptr || arg.reg_read != nullptr ||
+                  arg.reg_write != nullptr);
+  bool has_reg_full =
+      (arg.reg_full != nullptr || arg.reg_full_read != nullptr ||
+       arg.reg_full_write != nullptr);
+  if (has_reg) {
+    if (absl::c_find(registers, arg.reg) == registers.end()) {
+      *result_listener << absl::StreamFormat("reg for %s not in %s", arg.name,
+                                             block->name());
+      return false;
+    }
+    if (absl::c_find(nodes, arg.reg_read) == nodes.end()) {
+      *result_listener << absl::StreamFormat("reg_read for %s not in %s",
+                                             arg.name, block->name());
+      return false;
+    }
+    if (absl::c_find(nodes, arg.reg_write) == nodes.end()) {
+      *result_listener << absl::StreamFormat("reg_write for %s not in %s",
+                                             arg.name, block->name());
+      return false;
+    }
+  }
+  if (has_reg_full) {
+    if (absl::c_find(registers, arg.reg_full) == registers.end()) {
+      *result_listener << absl::StreamFormat("reg_full for %s not in %s",
+                                             arg.name, block->name());
+      return false;
+    }
+    if (absl::c_find(nodes, arg.reg_full_read) == nodes.end()) {
+      *result_listener << absl::StreamFormat("reg_full_read for %s not in %s",
+                                             arg.name, block->name());
+      return false;
+    }
+    if (absl::c_find(nodes, arg.reg_full_write) == nodes.end()) {
+      *result_listener << absl::StreamFormat("reg_full_write for %s not in %s",
+                                             arg.name, block->name());
+      return false;
+    }
+  }
+  return true;
+}
+
 TEST_F(BlockConversionTest, NoDanglingPipelinePointers) {
   constexpr std::string_view kIrText = R"(
 package subrosa
 
 chan chan_0(bits[3], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
-top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={0, 0}) {
+top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={token, 0, 0}) {
   literal.4: bits[18] = literal(value=0, id=4)
   eq.5: bits[1] = eq(param__1, literal.4, id=5)
   receive.6: (token, bits[3]) = receive(param, predicate=eq.5, channel=chan_0, id=6)
@@ -4934,7 +4978,7 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={0, 0}
   sel.11: bits[3] = sel(eq.5, cases=[param__2, tuple_index.9], id=11)
   next_value.12: () = next_value(param=param__1, value=literal.4, id=12)
   next_value.13: () = next_value(param=param__2, value=sel.11, id=13)
-  next (tuple_index.10)
+  next_value.14: () = next_value(param=param, value=tuple_index.10, id=14)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -4958,14 +5002,14 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={0, 0}
               Each(Each(RegFoundInBlock(unit.top_block))));
   EXPECT_THAT(
       unit.metadata[unit.top_block].streaming_io_and_pipeline.state_registers,
-      Each(Optional(RegFoundInBlock(unit.top_block))));
+      Each(Optional(StateRegFoundInBlock(unit.top_block))));
 }
 
 TEST_F(ProcConversionTestFixture, ProcWithConditionalNextValues) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={token, 0, 0}) {
   lit1: bits[32] = literal(value=1)
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
@@ -4973,7 +5017,7 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
   next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
   next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
-  next (send.1)
+  next_value.3: () = next_value(param=tkn, value=send.1, id=3)
 }
 )";
 
@@ -5048,7 +5092,8 @@ TEST_F(ProcConversionTestFixture, ProcWithDynamicStateFeedback) {
   const std::string ir_text = R"(package test
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
+  tkn: token = literal(value=token)
   lit1: bits[32] = literal(value=1)
   incremented_counter: bits[32] = add(counter, lit1)
   even_iteration: bits[1] = not(odd_iteration)
@@ -5056,7 +5101,6 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
   next_counter_odd: () = next_value(param=counter, value=counter, predicate=odd_iteration)
   next_counter_even: () = next_value(param=counter, value=incremented_counter, predicate=even_iteration)
   next_value.2: () = next_value(param=odd_iteration, value=even_iteration, id=2)
-  next (send.1)
 }
 )";
 
@@ -5138,31 +5182,32 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={0
 
 TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * chan_out,
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(1)));
+  auto tok = pb.Literal(Value::Token());
   auto a = pb.StateElement("a", UBits(0, 1));
   auto b = pb.StateElement("b", UBits(0, 1));
   auto c = pb.StateElement("c", UBits(0, 1));
   auto sv = pb.Or({a, b, c});
-  auto tok = pb.Send(chan_out, pb.GetTokenParam(), sv);
+  auto send = pb.Send(chan_out, tok, sv);
   auto na = pb.Not(a);
   auto nb = pb.Not(b);
   auto nc = pb.Not(c);
   auto nxt_a = pb.Next(a, na);
   auto nxt_b = pb.Next(b, nb);
   auto nxt_c = pb.Next(c, nc);
-  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
   PipelineSchedule ps(proc,
-                      {{pb.GetTokenParam().node(), 0},
+                      {{tok.node(), 0},
                        {a.node(), 0},
                        {b.node(), 0},
                        {c.node(), 0},
                        {sv.node(), 1},
-                       {tok.node(), 1},
+                       {send.node(), 1},
                        {na.node(), 2},
                        {nb.node(), 2},
                        {nc.node(), 2},
@@ -5197,7 +5242,7 @@ TEST_F(BlockConversionTest, NodeToStageMapSimple) {
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
   PipelineSchedule ps(proc,
-                      {{pb.GetTokenParam().node(), 0},
+                      {{pb.InitialToken().node(), 0},
                        {a.node(), 0},
                        {na.node(), 1},
                        {nxt_a.node(), 1}},  // stage 0 can activate again
@@ -5228,11 +5273,12 @@ TEST_F(BlockConversionTest, NodeToStageMapSimple) {
 
 TEST_F(BlockConversionTest, NodeToStageMapMulti) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * chan_out,
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(2)));
+  auto tok = pb.Literal(Value::Token());
   auto a = pb.StateElement("a", UBits(0, 2));
   auto b = pb.StateElement("b", UBits(0, 2));
   auto c = pb.StateElement("c", UBits(0, 2));
@@ -5243,12 +5289,11 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
   auto nxt_a = pb.Next(a, na);
   auto nxt_b = pb.Next(b, nb);
   auto nxt_c = pb.Next(c, nc);
-  auto tok =
-      pb.Send(chan_out, pb.GetTokenParam(), sv, SourceInfo(), "send_inst");
-  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+  auto send = pb.Send(chan_out, tok, sv, SourceInfo(), "send_inst");
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
   PipelineSchedule ps(proc,
-                      {{pb.GetTokenParam().node(), 0},
+                      {{tok.node(), 0},
                        {a.node(), 0},
                        {na.node(), 1},
                        {nxt_a.node(), 1},  // stage 0 can activate again
@@ -5259,7 +5304,7 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
                        {nc.node(), 3},
                        {nxt_c.node(), 3},  // stage 2 can activate again
                        {sv.node(), 4},
-                       {tok.node(), 4}},
+                       {send.node(), 4}},
                       5);
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5290,26 +5335,27 @@ TEST_F(BlockConversionTest, NodeToStageMapMulti) {
 
 TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * chan_out,
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(1)));
+  auto tok = pb.Literal(Value::Token());
   auto a = pb.StateElement("a", UBits(0, 1));
   auto b = pb.StateElement("b", UBits(0, 1));
   auto c = pb.StateElement("c", UBits(0, 1));
   auto sv = pb.Or({a, b, c});
-  auto tok = pb.Send(chan_out, pb.GetTokenParam(), sv);
+  auto send = pb.Send(chan_out, tok, sv);
   auto na = pb.Not(a);
   auto nb = pb.Not(b);
   auto nc = pb.Not(c);
   auto nxt_a = pb.Next(a, na);
   auto nxt_b = pb.Next(b, nb);
   auto nxt_c = pb.Next(c, nc);
-  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
   PipelineSchedule ps(proc,
-                      {{pb.GetTokenParam().node(), 0},
+                      {{tok.node(), 0},
                        {a.node(), 0},
                        {b.node(), 0},
                        {c.node(), 0},
@@ -5320,7 +5366,7 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
                        {nxt_b.node(), 1},
                        {nxt_c.node(), 1},
                        {sv.node(), 2},
-                       {tok.node(), 2}},
+                       {send.node(), 2}},
                       3);
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5340,26 +5386,27 @@ TEST_F(BlockConversionTest, SimpleMutualExclusiveAndConcurrentRegions) {
 
 TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * chan_out,
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(1)));
+  auto tok = pb.Literal(Value::Token());
   auto a = pb.StateElement("a", UBits(0, 1));
   auto b = pb.StateElement("b", UBits(0, 1));
   auto c = pb.StateElement("c", UBits(0, 1));
   auto sv = pb.Or({a, b, c});
-  auto tok = pb.Send(chan_out, pb.GetTokenParam(), sv);
+  auto send = pb.Send(chan_out, tok, sv);
   auto na = pb.Not(a);
   auto nb = pb.Not(b);
   auto nc = pb.Not(c);
   auto nxt_a = pb.Next(a, na);
   auto nxt_b = pb.Next(b, nb);
   auto nxt_c = pb.Next(c, nc);
-  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
   PipelineSchedule ps(proc,
-                      {{pb.GetTokenParam().node(), 0},
+                      {{tok.node(), 0},
                        {a.node(), 0},
                        {b.node(), 0},
                        {c.node(), 0},
@@ -5370,7 +5417,7 @@ TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
                        {nxt_b.node(), 0},
                        {nxt_c.node(), 0},
                        {sv.node(), 1},
-                       {tok.node(), 2}},
+                       {send.node(), 2}},
                       3);
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5389,11 +5436,12 @@ TEST_F(BlockConversionTest, SimpleConcurrentRegions) {
 
 TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * chan_out,
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(2)));
+  auto tok = pb.Literal(Value::Token());
   auto a = pb.StateElement("a", UBits(0, 2));
   auto b = pb.StateElement("b", UBits(0, 2));
   auto c = pb.StateElement("c", UBits(0, 2));
@@ -5401,15 +5449,14 @@ TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
   auto nb = pb.Not(b, SourceInfo(), "not_b");
   auto nc = pb.Not(c, SourceInfo(), "not_c");
   auto sv = pb.Or({a, b, c}, SourceInfo(), "send_val");
-  auto tok =
-      pb.Send(chan_out, pb.GetTokenParam(), sv, SourceInfo(), "send_inst");
+  auto send = pb.Send(chan_out, tok, sv, SourceInfo(), "send_inst");
   auto nxt_a = pb.Next(a, na);
   auto nxt_b = pb.Next(b, nb);
   auto nxt_c = pb.Next(c, nc);
-  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
   PipelineSchedule ps(proc,
-                      {{pb.GetTokenParam().node(), 0},
+                      {{tok.node(), 0},
                        {a.node(), 0},
                        {na.node(), 1},
                        {nxt_a.node(), 1},  // stage 0 can activate again
@@ -5420,7 +5467,7 @@ TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
                        {nc.node(), 3},
                        {nxt_c.node(), 3},  // stage 2 can activate again
                        {sv.node(), 4},
-                       {tok.node(), 4}},
+                       {send.node(), 4}},
                       5);
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5462,11 +5509,12 @@ TEST_F(BlockConversionTest, MultipleConcurrentRegions) {
 
 TEST_F(BlockConversionTest, CoveringRegions) {
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * chan_out,
       p->CreateStreamingChannel("chan", ChannelOps::kSendOnly,
                                 p->GetBitsType(2)));
+  auto tok = pb.Literal(Value::Token());
   auto a = pb.StateElement("a", UBits(0, 2));
   auto b = pb.StateElement("b", UBits(0, 2));
   auto c = pb.StateElement("c", UBits(0, 2));
@@ -5474,19 +5522,18 @@ TEST_F(BlockConversionTest, CoveringRegions) {
   auto nb = pb.Not(b, SourceInfo(), "not_b");
   auto nc = pb.Not(c, SourceInfo(), "not_c");
   auto sv = pb.Or({a, b, c}, SourceInfo(), "send_val");
-  auto tok =
-      pb.Send(chan_out, pb.GetTokenParam(), sv, SourceInfo(), "send_inst");
+  auto send = pb.Send(chan_out, tok, sv, SourceInfo(), "send_inst");
   auto nxt_a = pb.Next(a, na);
   auto nxt_b = pb.Next(b, nb);
   auto nxt_c = pb.Next(c, nc);
-  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build(tok));
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
   // One region entierly covers the others.
   // A is live [0, 3]
   // B is live [2, 3]
   // C is live [1, 2]
   PipelineSchedule ps(proc,
-                      {{pb.GetTokenParam().node(), 0},
+                      {{tok.node(), 0},
                        {a.node(), 0},
                        {na.node(), 3},
                        {nxt_a.node(), 3},
@@ -5497,7 +5544,7 @@ TEST_F(BlockConversionTest, CoveringRegions) {
                        {nc.node(), 2},
                        {nxt_c.node(), 2},
                        {sv.node(), 4},
-                       {tok.node(), 4}},
+                       {send.node(), 4}},
                       5);
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -5553,7 +5600,7 @@ TEST_F(BlockConversionTest, PipelineRegisterStagesKnown) {
   auto send = pb.Send(x_out, na_plus_one);
   auto next = pb.Next(a, na);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
-  PipelineSchedule ps(proc, {{pb.GetTokenParam().node(), 0},
+  PipelineSchedule ps(proc, {{pb.InitialToken().node(), 0},
                              {a.node(), 0},
                              {na.node(), 1},
                              {lit_one.node(), 2},

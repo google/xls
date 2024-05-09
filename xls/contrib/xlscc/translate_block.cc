@@ -355,9 +355,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                               force_static, member_references_become_channels,
                               top_level_init_interval));
 
-  xls::ProcBuilder pb(block.name() + "_proc", /*token_name=*/"tkn", package);
+  xls::ProcBuilder pb(block.name() + "_proc", package);
 
-  prepared.token = pb.GetTokenParam();
+  prepared.orig_token = pb.Literal(xls::Value::Token());
+  prepared.token = prepared.orig_token;
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<GeneratedFunction> proc_func_generated_ownership,
@@ -579,9 +580,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 }
 
 absl::Status Translator::GenerateDefaultIOOp(
-    xls::Channel* channel, bool is_send, std::vector<xls::BValue>& final_tokens,
-    xls::ProcBuilder& pb, const xls::SourceInfo& loc) {
-  xls::BValue token;
+    xls::Channel* channel, bool is_send, xls::BValue token,
+    std::vector<xls::BValue>& final_tokens, xls::ProcBuilder& pb,
+    const xls::SourceInfo& loc) {
+  xls::BValue final_token;
 
   xls::BValue pred_0 = pb.Literal(xls::UBits(0, 1), loc);
 
@@ -591,15 +593,15 @@ absl::Status Translator::GenerateDefaultIOOp(
   if (!is_send) {
     XLSCC_CHECK(channel->CanReceive(), loc);
     xls::BValue tup = pb.ReceiveIf(
-        channel, pb.GetTokenParam(), pred_0, loc,
+        channel, token, pred_0, loc,
         /*name=*/absl::StrFormat("%s_default_op", channel->name()));
-    token = pb.TupleIndex(
+    final_token = pb.TupleIndex(
         tup, 0, loc,
         /*name=*/absl::StrFormat("%s_default_op_token", channel->name()));
   } else if (is_send) {
     XLSCC_CHECK(channel->CanSend(), loc);
-    token =
-        pb.SendIf(channel, pb.GetTokenParam(), pred_0, data_0, loc,
+    final_token =
+        pb.SendIf(channel, token, pred_0, data_0, loc,
                   /*name=*/absl::StrFormat("%s_default_op", channel->name()));
   } else {
     return absl::UnimplementedError(ErrorMessage(
@@ -620,8 +622,8 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
   std::vector<xls::BValue> final_tokens = {prepared.token};
 
   for (const auto& [channel, is_send] : unused_xls_channel_ops_) {
-    XLS_RETURN_IF_ERROR(
-        GenerateDefaultIOOp(channel, is_send, final_tokens, pb, body_loc));
+    XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(
+        channel, is_send, prepared.orig_token, final_tokens, pb, body_loc));
   }
 
   prepared.token =
@@ -923,7 +925,8 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     // Set all op tokens from previous states to the input of this state
     absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens_prev = op_tokens;
     for (auto [op, _] : op_tokens_prev) {
-      op_tokens[op] = pb.GetTokenParam();
+      CHECK_NE(prepared.orig_token.node(), nullptr);
+      op_tokens[op] = prepared.orig_token;
     }
 
     // If generating state machine, add extra predicates to IO ops
@@ -2207,7 +2210,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
     }
   }
 
-  return pb.Build(token, next_state_values_list);
+  return pb.Build(next_state_values_list);
 }
 
 }  // namespace xlscc

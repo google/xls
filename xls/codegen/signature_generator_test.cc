@@ -395,10 +395,11 @@ TEST(SignatureGeneratorTest, BlockWithFifoInstantiationWithChannel) {
   constexpr std::string_view ir_text = R"(package test
 chan a(bits[32], id=0, ops=send_only, fifo_depth=3, bypass=false, register_push_outputs=false, register_pop_outputs=false, kind=streaming, flow_control=ready_valid, metadata="")
 
-proc needed_to_verify(tok: token, state: (), init={()}) {
+proc needed_to_verify(state: (), init={()}) {
+  tok: token = literal(value=token)
   literal0: bits[32] = literal(value=32)
   send_tok: token = send(tok, literal0, channel=a)
-  next(send_tok, state)
+  next (state)
 }
 
 block my_block(in: bits[32], out: (bits[32])) {

@@ -50,21 +50,14 @@ namespace xls {
 class Proc : public FunctionBase {
  public:
   // Creates a proc with no state elements.
-  Proc(std::string_view name, std::string_view token_param_name,
-       Package* package)
-      : FunctionBase(name, package),
-        next_token_(AddNode(std::make_unique<Param>(
-            SourceInfo(), package->GetTokenType(), token_param_name, this))),
-        is_new_style_proc_(false) {}
+  Proc(std::string_view name, Package* package)
+      : FunctionBase(name, package), is_new_style_proc_(false) {}
 
   // Creates a new-style proc which supports proc-scoped channels.
   Proc(std::string_view name,
        absl::Span<std::unique_ptr<ChannelReference>> interface,
-       std::string_view token_param_name, Package* package)
-      : FunctionBase(name, package),
-        next_token_(AddNode(std::make_unique<Param>(
-            SourceInfo(), package->GetTokenType(), token_param_name, this))),
-        is_new_style_proc_(true) {
+       Package* package)
+      : FunctionBase(name, package), is_new_style_proc_(true) {
     for (std::unique_ptr<ChannelReference>& channel_reference : interface) {
       channel_references_.push_back(std::move(channel_reference));
       interface_.push_back(channel_references_.back().get());
@@ -80,24 +73,18 @@ class Proc : public FunctionBase {
     return init_values_.at(index);
   }
 
-  // Returns the token parameter node.
-  Param* TokenParam() const { return params().at(0); }
-
   int64_t GetStateElementCount() const { return StateParams().size(); }
 
   // Returns the total number of bits in the proc state.
   int64_t GetStateFlatBitCount() const;
 
   // Returns the state parameter node(s).
-  absl::Span<Param* const> StateParams() const { return params().subspan(1); }
+  absl::Span<Param* const> StateParams() const { return params(); }
   Param* GetStateParam(int64_t index) const { return StateParams().at(index); }
 
   // Returns the element index (in the vector of state parameters) of the given
   // state parameter.
   absl::StatusOr<int64_t> GetStateParamIndex(Param* param) const;
-
-  // Returns the node holding the next recurrent token value.
-  Node* NextToken() const { return next_token_; }
 
   // Returns the nodes holding the next recurrent state value.
   //
@@ -117,13 +104,6 @@ class Proc : public FunctionBase {
   Type* GetStateElementType(int64_t index) const {
     return StateParams().at(index)->GetType();
   }
-
-  // Sets the next token value.
-  absl::Status SetNextToken(Node* next);
-
-  // Sets the next token value of the proc to the existing next token value
-  // joined with `tokens` using an after all node.
-  absl::Status JoinNextTokenWith(absl::Span<Node* const> tokens);
 
   // Sets the next recurrent state value for the state element of the given
   // index. Node type must match the type of the state element.
@@ -320,9 +300,6 @@ class Proc : public FunctionBase {
  private:
   std::vector<Value> init_values_;
 
-  // The nodes representing the token/state values for the next iteration of the
-  // proc.
-  Node* next_token_;
   bool is_new_style_proc_;
 
   // TODO: Remove this once fully transitioned over to `next_value` nodes.

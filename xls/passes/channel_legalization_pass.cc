@@ -265,9 +265,14 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
     XLS_ASSIGN_OR_RETURN(std::vector<NodeAndPredecessors> fbs_result,
                          ComputeTopoSortedTokenDAG(fb));
     // Resolve side-effecting nodes and after_alls.
-    absl::flat_hash_map<Node* const, absl::flat_hash_set<Node*>> resolved_ops =
-        // Initialize with proc token param having no predecessors.
-        {{fb->AsProcOrDie()->TokenParam(), {}}};
+    absl::flat_hash_map<Node* const, absl::flat_hash_set<Node*>> resolved_ops;
+    // Initialize with all token-typed params & literals having no predecessors.
+    for (Node* node : fb->nodes()) {
+      if (node->GetType()->IsToken() &&
+          node->OpIn({Op::kParam, Op::kLiteral})) {
+        resolved_ops[node] = {};
+      }
+    }
     // Keep track of prev_node which will be used if we choose a stricter order.
     std::optional<Node*> prev_node = std::nullopt;
     for (NodeAndPredecessors& fb_result : fbs_result) {
@@ -440,10 +445,12 @@ absl::StatusOr<StreamingChannel*> MakeCompletionChannel(Node* operation) {
             SourceInfo(), Value(UBits(1, /*bit_count=*/1)),
             absl::StrFormat("true_predicate_for_chan_%s", channel->name())));
   }
+  XLS_ASSIGN_OR_RETURN(Node * free_token,
+                       proc->MakeNode<Literal>(SourceInfo(), Value::Token()));
   XLS_ASSIGN_OR_RETURN(
       Receive * recv_completion,
       proc->MakeNodeWithName<Receive>(
-          SourceInfo(), proc->TokenParam(), predicate.value(),
+          SourceInfo(), free_token, predicate.value(),
           completion_channel->name(), /*is_blocking=*/true,
           absl::StrFormat("recv_completion_for_chan_%s", channel->name())));
   XLS_ASSIGN_OR_RETURN(Node * recv_completion_token,
@@ -570,7 +577,7 @@ BValue PredRecvTokensForActivations(const ActivationNetwork& activations,
     pred_tokens.push_back(activations.at(node).pred_recv_token);
   }
   if (pred_tokens.empty()) {
-    return pb.GetTokenParam();
+    return pb.Literal(Value::Token());
   }
   if (pred_tokens.size() == 1) {
     return pred_tokens[0];
@@ -859,7 +866,7 @@ absl::Status AddAdapterForMultipleReceives(
   VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.", channel->name(),
                                 absl::StrJoin(token_dags, ", "));
 
-  ProcBuilder pb(adapter_name, "tok", p);
+  ProcBuilder pb(adapter_name, p);
 
   XLS_ASSIGN_OR_RETURN(
       ActivationNetwork activations,
@@ -885,33 +892,27 @@ absl::Status AddAdapterForMultipleReceives(
   BValue recv_data =
       pb.TupleIndex(recv, 1, SourceInfo(), "external_receive_data");
 
-  BValue send_after_all;
-  {
-    std::vector<BValue> send_tokens{recv_token};
-    send_tokens.reserve(token_dags.size() + 1);
+  int64_t send_token_idx = 0;
+  for (const auto& [node, _] : token_dags) {
+    const ActivationNode& activation = activations.at(node);
 
-    for (const auto& [node, _] : token_dags) {
-      const ActivationNode& activation = activations.at(node);
-
-      XLS_ASSIGN_OR_RETURN(
-          Channel * new_data_channel,
-          p->CloneChannel(
-              channel, absl::StrCat(channel->name(), "_", send_tokens.size()),
-              Package::CloneChannelOverrides()
-                  .OverrideSupportedOps(ChannelOps::kSendReceive)
-                  .OverrideFifoConfig(
-                      FifoConfig(/*depth=*/1, /*bypass=*/true,
-                                 /*register_push_outputs=*/true,
-                                 /*register_push_inputs=*/false))));
-      XLS_RETURN_IF_ERROR(
-          ReplaceChannelUsedByNode(node, new_data_channel->name()));
-      BValue send_token = pb.AfterAll({activation.pred_recv_token, recv_token});
-      send_tokens.push_back(pb.SendIf(new_data_channel, send_token,
-                                      activation.activate, recv_data));
-    }
-    send_after_all = pb.AfterAll(send_tokens);
+    XLS_ASSIGN_OR_RETURN(
+        Channel * new_data_channel,
+        p->CloneChannel(channel,
+                        absl::StrCat(channel->name(), "_", send_token_idx++),
+                        Package::CloneChannelOverrides()
+                            .OverrideSupportedOps(ChannelOps::kSendReceive)
+                            .OverrideFifoConfig(
+                                FifoConfig(/*depth=*/1, /*bypass=*/true,
+                                           /*register_push_outputs=*/true,
+                                           /*register_push_inputs=*/false))));
+    XLS_RETURN_IF_ERROR(
+        ReplaceChannelUsedByNode(node, new_data_channel->name()));
+    BValue send_token = pb.AfterAll({activation.pred_recv_token, recv_token});
+    pb.SendIf(new_data_channel, send_token, activation.activate, recv_data);
   }
-  return pb.Build(send_after_all, NextState(activations)).status();
+
+  return pb.Build(NextState(activations)).status();
 }
 
 absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
@@ -927,7 +928,7 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
   VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.", channel->name(),
                                 absl::StrJoin(token_dags, ", "));
 
-  ProcBuilder pb(adapter_name, "tok", p);
+  ProcBuilder pb(adapter_name, p);
 
   XLS_ASSIGN_OR_RETURN(
       ActivationNetwork activations,
@@ -973,24 +974,16 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
 
   BValue send_token = pb.SendIf(channel, recv_after_all, recv_data_valid,
                                 recv_data, SourceInfo(), "external_send");
-  BValue completion_after_all;
-  {
-    std::vector<BValue> completion_tokens;
-    completion_tokens.reserve(token_dags.size());
-    BValue empty_tuple_literal = pb.Literal(Value::Tuple({}));
+  BValue empty_tuple_literal = pb.Literal(Value::Tuple({}));
 
-    for (const auto& [node, _] : token_dags) {
-      XLS_ASSIGN_OR_RETURN(StreamingChannel * completion_channel,
-                           MakeCompletionChannel(node));
-      BValue completion_send =
-          pb.SendIf(completion_channel, send_token,
-                    activations.at(node).activate, empty_tuple_literal);
-      completion_tokens.push_back(completion_send);
-    }
-    completion_after_all = pb.AfterAll(completion_tokens);
+  for (const auto& [node, _] : token_dags) {
+    XLS_ASSIGN_OR_RETURN(StreamingChannel * completion_channel,
+                         MakeCompletionChannel(node));
+    pb.SendIf(completion_channel, send_token, activations.at(node).activate,
+              empty_tuple_literal);
   }
 
-  return pb.Build(completion_after_all, NextState(activations)).status();
+  return pb.Build(NextState(activations)).status();
 }
 }  // namespace
 

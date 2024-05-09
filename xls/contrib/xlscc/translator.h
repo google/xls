@@ -1596,6 +1596,7 @@ class Translator {
         return_index_for_static;
     absl::flat_hash_map<const clang::NamedDecl*, xls::Param*>
         state_element_for_variable;
+    xls::BValue orig_token;
     xls::BValue token;
     bool contains_fsm = false;
   };
@@ -1654,6 +1655,7 @@ class Translator {
                                     xls::ProcBuilder& pb,
                                     const xls::SourceInfo& body_loc);
   absl::Status GenerateDefaultIOOp(xls::Channel* channel, bool is_send,
+                                   xls::BValue token,
                                    std::vector<xls::BValue>& final_tokens,
                                    xls::ProcBuilder& pb,
                                    const xls::SourceInfo& loc);

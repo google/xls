@@ -704,11 +704,10 @@ class ProcBuilder : public BuilderBase {
   // Builder for xls::Procs. 'should_verify' is a test-only argument which can
   // be set to false in tests that wish to build malformed IR. Proc starts with
   // no state elements.
-  ProcBuilder(std::string_view name, std::string_view token_name,
-              Package* package, bool should_verify = true);
+  ProcBuilder(std::string_view name, Package* package,
+              bool should_verify = true);
   // Constructor for new-style procs which have proc-scoped channels.
-  ProcBuilder(NewStyleProc tag, std::string_view name,
-              std::string_view token_name, Package* package,
+  ProcBuilder(NewStyleProc tag, std::string_view name, Package* package,
               bool should_verify = true);
 
   ~ProcBuilder() override = default;
@@ -761,19 +760,18 @@ class ProcBuilder : public BuilderBase {
       std::string_view name, Proc* instantiated_proc,
       absl::Span<ChannelReference* const> channel_references);
 
-  // Returns the Param BValue for the state or token parameters. Unlike
-  // BuilderBase::Param this does add a Param node to the Proc. Rather the
-  // state and token parameters are added to the Proc at construction time
-  // and these methods return references to these parameters.
-  BValue GetTokenParam() const { return token_param_; }
-  BValue GetStateParam(int64_t index) const { return state_params_.at(index); }
+  // Returns the Param BValue for the state parameters. Unlike
+  // BuilderBase::Param this doesn't add a Param node to the Proc. Rather the
+  // state parameters are added to the Proc at construction time and these
+  // methods return references to these parameters.
+  virtual BValue GetStateParam(int64_t index) const {
+    return state_params_.at(index);
+  }
 
-  // Build the proc using the given BValues as the recurrent token and next
-  // state values respectively. If `next_state` is not empty, the number of
-  // recurrent state elements in `next_state` must match the number of state
-  // parameters.
-  absl::StatusOr<Proc*> Build(BValue token,
-                              absl::Span<const BValue> next_state = {});
+  // Build the proc using the given BValues as the next state values. If
+  // `next_state` is not empty, the number of recurrent state elements in
+  // `next_state` must match the number of state parameters.
+  absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state = {});
 
   // Adds a state element to the proc with the given initial value. Returns the
   // newly added state parameter.
@@ -837,10 +835,7 @@ class ProcBuilder : public BuilderBase {
   std::string_view GetChannelName(ReceiveChannelRef channel) const;
   std::string_view GetChannelName(SendChannelRef channel) const;
 
-  // The BValue of the token parameter (parameter 0).
-  BValue token_param_;
-
-  // The BValues of the state parameters (parameter 1 and up).
+  // The BValues of the state parameters.
   std::vector<BValue> state_params_;
 };
 
@@ -849,7 +844,9 @@ class ProcBuilder : public BuilderBase {
 // token-using operations. In the TokenlessProcBuilder, token-using
 // operations are totally ordered by threading of a single token. The limitation
 // of the TokenlessProcBuilder is that it cannot be used if non-trivial ordering
-// of these operations is required (enforced via token data dependencies).
+// of these operations is required, or if there are requirements on
+// cross-activation ordering between nodes (enforced via token data
+// dependencies).
 //
 // Note: a proc built with the TokenlessProcBuilder still has token types
 // internally. "Tokenless" refers to the fact that token values are hidden from
@@ -861,22 +858,22 @@ class TokenlessProcBuilder : public ProcBuilder {
   // no state elements.
   TokenlessProcBuilder(std::string_view name, std::string_view token_name,
                        Package* package, bool should_verify = true)
-      : ProcBuilder(name, token_name, package, should_verify),
-        last_token_(GetTokenParam()) {}
+      : ProcBuilder(name, package, should_verify),
+        orig_token_(Literal(Value::Token(), SourceInfo(), token_name)),
+        last_token_(orig_token_) {}
   // Constructor for new-style procs which have proc-scoped channels.
   TokenlessProcBuilder(NewStyleProc tag, std::string_view name,
                        std::string_view token_name, Package* package,
                        bool should_verify = true)
-      : ProcBuilder(tag, name, token_name, package, should_verify),
-        last_token_(GetTokenParam()) {}
+      : ProcBuilder(tag, name, package, should_verify),
+        orig_token_(Literal(Value::Token(), SourceInfo(), token_name)),
+        last_token_(orig_token_) {}
 
   ~TokenlessProcBuilder() override = default;
 
-  // Build the proc using the given BValues as the recurrent state. The
-  // recurrent token value is a constructed as an AfterAll operation whose
-  // operands are all of the tokens from the send(if)/receive(if) operations in
-  // the proc.
-  absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state = {});
+  BValue InitialToken() const { return orig_token_; }
+
+  BValue CurrentToken() const { return last_token_; }
 
   // Add a MinDelay constraint operation.
   using ProcBuilder::MinDelay;
@@ -939,6 +936,9 @@ class TokenlessProcBuilder : public ProcBuilder {
                 std::string_view name = "");
 
  private:
+  // The token created at the start of each activation.
+  BValue orig_token_;
+
   // The token of the most recently added token-producing operation (send,
   // receive, etc).
   BValue last_token_;

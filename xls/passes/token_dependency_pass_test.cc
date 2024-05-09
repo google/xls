@@ -25,6 +25,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
@@ -55,23 +56,25 @@ TEST_F(TokenDependencyPassTest, Simple) {
        bits[32], id=0, kind=streaming, ops=send_receive,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: (), init={()}) {
+     top proc main(__state: (), init={()}) {
+       __token: token = literal(value=token, id=1000)
        receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
        tuple_index.2: token = tuple_index(receive.1, index=0)
        tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
        send.4: token = send(__token, tuple_index.3, channel=test_channel)
        after_all.5: token = after_all(send.4, tuple_index.2)
        tuple.6: () = tuple()
-       next (after_all.5, tuple.6)
+       next (tuple.6)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(),
-              m::AfterAll(m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
-                                              proc->TokenParam()),
-                                  m::TupleIndex()),
-                          m::TupleIndex()));
+  EXPECT_THAT(proc->GetNode("after_all.5"),
+              IsOkAndHolds(m::AfterAll(
+                  m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                                      m::Literal(Value::Token())),
+                          m::TupleIndex()),
+                  m::TupleIndex())));
 }
 
 TEST_F(TokenDependencyPassTest, MultipleSends) {
@@ -82,7 +85,8 @@ TEST_F(TokenDependencyPassTest, MultipleSends) {
        bits[32], id=0, kind=streaming, ops=send_receive,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: (), init={()}) {
+     top proc main(__state: (), init={()}) {
+       __token: token = literal(value=token, id=1000)
        receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
        tuple_index.2: token = tuple_index(receive.1, index=0)
        tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
@@ -91,22 +95,23 @@ TEST_F(TokenDependencyPassTest, MultipleSends) {
        send.6: token = send(__token, tuple_index.3, channel=test_channel)
        after_all.7: token = after_all(send.4, send.5, send.6, tuple_index.2)
        tuple.8: () = tuple()
-       next (after_all.7, tuple.8)
+       next (tuple.8)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(),
-              m::AfterAll(m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
-                                              proc->TokenParam()),
-                                  m::TupleIndex()),
-                          m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
-                                              proc->TokenParam()),
-                                  m::TupleIndex()),
-                          m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
-                                              proc->TokenParam()),
-                                  m::TupleIndex()),
-                          m::TupleIndex()));
+  EXPECT_THAT(proc->GetNode("after_all.7"),
+              IsOkAndHolds(m::AfterAll(
+                  m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                                      m::Literal(Value::Token())),
+                          m::TupleIndex()),
+                  m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                                      m::Literal(Value::Token())),
+                          m::TupleIndex()),
+                  m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                                      m::Literal(Value::Token())),
+                          m::TupleIndex()),
+                  m::TupleIndex())));
 }
 
 TEST_F(TokenDependencyPassTest, DependentSends) {
@@ -117,7 +122,8 @@ TEST_F(TokenDependencyPassTest, DependentSends) {
        bits[32], id=0, kind=streaming, ops=send_receive,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: (), init={()}) {
+     top proc main(__state: (), init={()}) {
+       __token: token = literal(value=token, id=1000)
        receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
        tuple_index.2: token = tuple_index(receive.1, index=0)
        tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
@@ -126,20 +132,21 @@ TEST_F(TokenDependencyPassTest, DependentSends) {
        send.6: token = send(__token, tuple_index.3, channel=test_channel)
        after_all.7: token = after_all(send.4, send.5, send.6, tuple_index.2)
        tuple.8: () = tuple()
-       next (after_all.7, tuple.8)
+       next (tuple.8)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->NextToken(),
-              m::AfterAll(m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
-                                              proc->TokenParam()),
-                                  m::TupleIndex()),
-                          m::Send(m::Send(), m::TupleIndex()),
-                          m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
-                                              proc->TokenParam()),
-                                  m::TupleIndex()),
-                          m::TupleIndex()));
+  EXPECT_THAT(proc->GetNode("after_all.7"),
+              IsOkAndHolds(m::AfterAll(
+                  m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                                      m::Literal(Value::Token())),
+                          m::TupleIndex()),
+                  m::Send(m::Send(), m::TupleIndex()),
+                  m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                                      m::Literal(Value::Token())),
+                          m::TupleIndex()),
+                  m::TupleIndex())));
 }
 
 TEST_F(TokenDependencyPassTest, DependentSendsMultipleReceives) {
@@ -150,7 +157,8 @@ TEST_F(TokenDependencyPassTest, DependentSendsMultipleReceives) {
        bits[32], id=0, kind=streaming, ops=send_receive,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: (), init={()}) {
+     top proc main(__state: (), init={()}) {
+       __token: token = literal(value=token, id=1000)
        receive.1: (token, bits[32]) = receive(__token, channel=test_channel)
        tuple_index.2: token = tuple_index(receive.1, index=0)
        tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
@@ -162,20 +170,20 @@ TEST_F(TokenDependencyPassTest, DependentSendsMultipleReceives) {
        send.9: token = send(send.7, add.8, channel=test_channel)
        after_all.10: token = after_all(send.7, send.9, tuple_index.2, tuple_index.5)
        tuple.11: () = tuple()
-       next (after_all.10, tuple.11)
+       next (tuple.11)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_THAT(
-      proc->NextToken(),
-      m::AfterAll(
-          m::Send(
-              m::AfterAll(m::TupleIndex(m::Receive(), 0), proc->TokenParam()),
-              m::TupleIndex(m::Receive(), 1)),
+      proc->GetNode("after_all.10"),
+      IsOkAndHolds(m::AfterAll(
+          m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0),
+                              m::Literal(Value::Token())),
+                  m::TupleIndex(m::Receive(), 1)),
           m::Send(m::AfterAll(m::TupleIndex(m::Receive(), 0), m::Send()),
                   m::Add()),
-          m::TupleIndex(m::Receive(), 0), m::TupleIndex(m::Receive(), 0)));
+          m::TupleIndex(m::Receive(), 0), m::TupleIndex(m::Receive(), 0))));
 }
 
 TEST_F(TokenDependencyPassTest, SideEffectingNontokenOps) {
@@ -187,13 +195,13 @@ TEST_F(TokenDependencyPassTest, SideEffectingNontokenOps) {
        bits[32], id=0, kind=streaming, ops=receive_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, init={}) {
+     top proc main(init={}) {
+       __token: token = literal(value=token, id=1000)
        rcv: (token, bits[32]) = receive(__token, channel=test_channel)
        tkn: token = tuple_index(rcv, index=0)
        data: bits[32] = tuple_index(rcv, index=1)
        one: bits[1] = literal(value=1)
        g: bits[32] = gate(one, data)
-       next (tkn)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());

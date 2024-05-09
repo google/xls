@@ -524,10 +524,6 @@ absl::StatusOr<SimplificationResult> ReplaceImplicitUse(Node* node,
     if (!node->GetType()->IsEqualTo(replacement->GetType())) {
       return SimplificationResult::kDidNotChange;
     }
-    if (p->NextToken() == node) {
-      XLS_RETURN_IF_ERROR(p->SetNextToken(replacement));
-      changed = SimplificationResult::kDidChange;
-    }
     for (int64_t i = 0; i < p->GetStateElementCount(); ++i) {
       if (p->GetNextStateElement(i) == node) {
         XLS_RETURN_IF_ERROR(p->SetNextStateElement(i, replacement));
@@ -546,9 +542,8 @@ std::vector<Node*> ImplicitlyUsed(FunctionBase* fb) {
   }
   if (fb->IsProc()) {
     Proc* p = fb->AsProcOrDie();
-    std::vector<Node*> result(p->NextState().begin(), p->NextState().end());
-    result.push_back(p->NextToken());
-    return result;
+    absl::Span<Node* const> next_state = p->NextState();
+    return std::vector<Node*>(next_state.begin(), next_state.end());
   }
   LOG(FATAL) << "ImplicitlyUsed only supports functions and procs";
 }
@@ -591,6 +586,9 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   Node* orig = nullptr;
   {
     std::vector<Node*> implicitly_used = ImplicitlyUsed(f);
+    if (implicitly_used.empty()) {
+      return SimplificationResult::kCannotChange;
+    }
     int64_t i = absl::Uniform<int64_t>(rng, 0, implicitly_used.size());
     orig = implicitly_used.at(i);
   }
@@ -1273,8 +1271,21 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
       std::vector<FunctionBase*> bases = package->GetFunctionBases();
       std::vector<int64_t> node_counts;
       node_counts.reserve(bases.size());
-      absl::c_transform(bases, std::back_inserter(node_counts),
-                        [](FunctionBase* f) { return f->node_count(); });
+      for (auto it = bases.begin(); it != bases.end();) {
+        FunctionBase* f = *it;
+        int64_t node_count = f->node_count();
+        if (node_count == 0) {
+          // This is an empty function.
+          it = bases.erase(it);
+          continue;
+        }
+        node_counts.push_back(node_count);
+        it++;
+      }
+      if (bases.empty()) {
+        LOG(INFO) << "Nothing left to simplify";
+        break;
+      }
       absl::discrete_distribution<size_t> distribution(node_counts.cbegin(),
                                                        node_counts.cend());
       candidate = bases[distribution(rng)];

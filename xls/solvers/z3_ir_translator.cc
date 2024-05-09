@@ -1044,6 +1044,12 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
     return CreateTuple(&tuple_type, {});
   }
 
+  // Tokens are essentially opaque empty tuples.
+  if (value.IsToken()) {
+    TupleType tuple_type({});
+    return CreateTuple(&tuple_type, {});
+  }
+
   if (value.IsArray()) {
     ArrayType* array_type = value_type->AsArrayOrDie();
     int64_t num_elements = array_type->size();

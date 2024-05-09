@@ -36,6 +36,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -52,12 +53,12 @@ using ::testing::Optional;
 absl::StatusOr<Proc*> CreateIotaProc(std::string_view proc_name,
                                      int64_t starting_value, int64_t step,
                                      Channel* channel, Package* package) {
-  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
+  ProcBuilder pb(proc_name, package);
   BValue st = pb.StateElement("st", Value(UBits(starting_value, 32)));
-  BValue send_token = pb.Send(channel, pb.GetTokenParam(), st);
+  pb.Send(channel, pb.Literal(Value::Token()), st);
 
   BValue new_value = pb.Add(st, pb.Literal(UBits(step, 32)));
-  return pb.Build(send_token, {new_value});
+  return pb.Build({new_value});
 }
 
 // Creates a proc which keeps a running sum of all values read through the input
@@ -65,14 +66,14 @@ absl::StatusOr<Proc*> CreateIotaProc(std::string_view proc_name,
 absl::StatusOr<Proc*> CreateAccumProc(std::string_view proc_name,
                                       Channel* in_channel, Channel* out_channel,
                                       Package* package) {
-  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
+  ProcBuilder pb(proc_name, package);
   BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
-  BValue token_input = pb.Receive(in_channel, pb.GetTokenParam());
+  BValue token_input = pb.Receive(in_channel, pb.Literal(Value::Token()));
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
   BValue next_accum = pb.Add(accum, input);
-  BValue send_token = pb.Send(out_channel, recv_token, next_accum);
-  return pb.Build(send_token, {next_accum});
+  pb.Send(out_channel, recv_token, next_accum);
+  return pb.Build({next_accum});
 }
 
 absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
@@ -96,12 +97,12 @@ absl::StatusOr<Proc*> CreatePassThroughProc(std::string_view proc_name,
                                             Channel* in_channel,
                                             Channel* out_channel,
                                             Package* package) {
-  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
-  BValue token_input = pb.Receive(in_channel, pb.GetTokenParam());
+  ProcBuilder pb(proc_name, package);
+  BValue token_input = pb.Receive(in_channel, pb.Literal(Value::Token()));
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
-  BValue send_token = pb.Send(out_channel, recv_token, input);
-  return pb.Build(send_token, {});
+  pb.Send(out_channel, recv_token, input);
+  return pb.Build();
 }
 
 // Create a proc which reads tuples of (count: u32, char: u8) from in_channel,
@@ -113,12 +114,12 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(std::string_view proc_name,
                                                  Package* package) {
   // Proc state is a two-tuple containing: character to write and remaining
   // number of times to write the character.
-  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
+  ProcBuilder pb(proc_name, package);
+  BValue tok = pb.StateElement("tok", Value::Token());
   BValue last_char = pb.StateElement("last_char", Value(UBits(0, 8)));
   BValue num_remaining = pb.StateElement("num_remaining", Value(UBits(0, 32)));
   BValue receive_next = pb.Eq(num_remaining, pb.Literal(UBits(0, 32)));
-  BValue receive_if =
-      pb.ReceiveIf(in_channel, pb.GetTokenParam(), receive_next);
+  BValue receive_if = pb.ReceiveIf(in_channel, tok, receive_next);
   BValue receive_if_data = pb.TupleIndex(receive_if, 1);
   BValue run_length =
       pb.Select(receive_next,
@@ -133,14 +134,14 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(std::string_view proc_name,
                 /*cases=*/{pb.Literal(UBits(0, 32)),
                            pb.Subtract(run_length, pb.Literal(UBits(1, 32)))});
 
-  return pb.Build(send, {this_char, next_num_remaining});
+  return pb.Build({send, this_char, next_num_remaining});
 }
 
 TEST_P(ProcRuntimeTestBase, EmptyProc) {
   auto package = CreatePackage();
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
+  ProcBuilder pb(TestName(), package.get());
+  XLS_ASSERT_OK(pb.Build());
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -173,8 +174,8 @@ TEST_P(ProcRuntimeTestBase, EmptyProcAndPassThroughProc) {
                     .status());
 
   // Create the empty proc in same package.
-  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
+  ProcBuilder pb(TestName(), package.get());
+  XLS_ASSERT_OK(pb.Build());
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -305,10 +306,10 @@ TEST_P(ProcRuntimeTestBase, IotaFeedingAccumulator) {
 }
 
 TEST_P(ProcRuntimeTestBase, DegenerateProc) {
-  // Tests interpreting a proc with no send of receive nodes.
+  // Tests interpreting a proc with no send or receive nodes.
   auto package = CreatePackage();
-  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
+  ProcBuilder pb(TestName(), package.get());
+  XLS_ASSERT_OK(pb.Build({pb.StateElement("tok", Value::Token())}));
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -340,16 +341,15 @@ TEST_P(ProcRuntimeTestBase, WrappedProc) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
-  BValue recv_input = pb.Receive(in_channel, pb.GetTokenParam());
+  ProcBuilder pb(TestName(), package.get());
+  BValue recv_input = pb.Receive(in_channel, pb.Literal(Value::Token()));
   BValue send_to_accum =
       pb.Send(in_accum_channel, /*token=*/pb.TupleIndex(recv_input, 0),
               /*data=*/{pb.TupleIndex(recv_input, 1)});
   BValue recv_from_accum = pb.Receive(out_accum_channel, send_to_accum);
-  BValue send_output =
-      pb.Send(out_channel, /*token=*/pb.TupleIndex(recv_from_accum, 0),
-              /*data=*/{pb.TupleIndex(recv_from_accum, 1)});
-  XLS_ASSERT_OK(pb.Build(send_output, {}));
+  pb.Send(out_channel, /*token=*/pb.TupleIndex(recv_from_accum, 0),
+          /*data=*/{pb.TupleIndex(recv_from_accum, 1)});
+  XLS_ASSERT_OK(pb.Build());
 
   XLS_ASSERT_OK(CreateAccumProc("accum", /*in_channel=*/in_accum_channel,
                                 /*out_channel=*/out_accum_channel,
@@ -463,14 +463,14 @@ TEST_P(ProcRuntimeTestBase, RunLengthDecodingFilter) {
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            decoded_channel, package.get())
                     .status());
-  ProcBuilder pb("filter", /*token_name=*/"tok", package.get());
-  BValue receive = pb.Receive(decoded_channel, pb.GetTokenParam());
+  ProcBuilder pb("filter", package.get());
+  BValue receive = pb.Receive(decoded_channel, pb.Literal(Value::Token()));
   BValue rx_token = pb.TupleIndex(receive, 0);
   BValue rx_value = pb.TupleIndex(receive, 1);
   BValue rx_value_even =
       pb.Not(pb.BitSlice(rx_value, /*start=*/0, /*width=*/1));
-  BValue send_if = pb.SendIf(output_channel, rx_token, rx_value_even, rx_value);
-  XLS_ASSERT_OK(pb.Build(send_if, {}));
+  pb.SendIf(output_channel, rx_token, rx_value_even, rx_value);
+  XLS_ASSERT_OK(pb.Build());
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -501,7 +501,7 @@ TEST_P(ProcRuntimeTestBase, IotaWithChannelBackedge) {
   // using the explicit proc state. The state channel has an initial value, just
   // like a proc's state.
   auto package = CreatePackage();
-  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  ProcBuilder pb(TestName(), package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       package->CreateStreamingChannel(
@@ -512,13 +512,13 @@ TEST_P(ProcRuntimeTestBase, IotaWithChannelBackedge) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
+  BValue state_receive = pb.Receive(state_channel, pb.Literal(Value::Token()));
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
   BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
-  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
-  BValue state_send = pb.Send(state_channel, receive_token, next_state);
-  XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
+  pb.Send(output_channel, pb.Literal(Value::Token()), state);
+  pb.Send(state_channel, receive_token, next_state);
+  XLS_ASSERT_OK(pb.Build().status());
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -540,7 +540,7 @@ TEST_P(ProcRuntimeTestBase, IotaWithChannelBackedgeAndTwoInitialValues) {
   // using the explicit proc state. However, the state channel has multiple
   // initial values which results in interleaving of difference sequences of
   // iota values.
-  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  ProcBuilder pb(TestName(), package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       package->CreateStreamingChannel(
@@ -554,13 +554,13 @@ TEST_P(ProcRuntimeTestBase, IotaWithChannelBackedgeAndTwoInitialValues) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
+  BValue state_receive = pb.Receive(state_channel, pb.Literal(Value::Token()));
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
   BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
-  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
-  BValue state_send = pb.Send(state_channel, receive_token, next_state);
-  XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
+  pb.Send(output_channel, pb.Literal(Value::Token()), state);
+  pb.Send(state_channel, receive_token, next_state);
+  XLS_ASSERT_OK(pb.Build().status());
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -605,7 +605,7 @@ chan c_e(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=none, me
 chan d_o(bits[32], id=6, kind=streaming, ops=send_only, flow_control=none, metadata="")
 chan e_o(bits[32], id=7, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc a(my_token: token, state: (), init={()}) {
+proc a(my_token: token, state: (), init={token, ()}) {
   literal.1: bits[32] = literal(value=1)
   receive.2: (token, bits[32]) = receive(my_token, channel=i_a)
   tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -615,7 +615,7 @@ proc a(my_token: token, state: (), init={()}) {
   next (send.6, state)
 }
 
-proc b(my_token: token, state: (), init={()}) {
+proc b(my_token: token, state: (), init={token, ()}) {
   literal.101: bits[32] = literal(value=2)
   receive.102: (token, bits[32]) = receive(my_token, channel=i_b)
   tuple_index.103: token = tuple_index(receive.102, index=0)
@@ -625,7 +625,7 @@ proc b(my_token: token, state: (), init={()}) {
   next (send.106, state)
 }
 
-proc c(my_token: token, state: (), init={()}) {
+proc c(my_token: token, state: (), init={token, ()}) {
   literal.201: bits[32] = literal(value=3)
   receive.202: (token, bits[32]) = receive(my_token, channel=a_c)
   tuple_index.203: token = tuple_index(receive.202, index=0)
@@ -640,7 +640,7 @@ proc c(my_token: token, state: (), init={()}) {
   next (send.211, state)
 }
 
-proc d(my_token: token, state: (), init={()}) {
+proc d(my_token: token, state: (), init={token, ()}) {
   literal.301: bits[32] = literal(value=4)
   receive.302: (token, bits[32]) = receive(my_token, channel=c_d)
   tuple_index.303: token = tuple_index(receive.302, index=0)
@@ -650,7 +650,7 @@ proc d(my_token: token, state: (), init={()}) {
   next (send.306, state)
 }
 
-proc e(my_token: token, state: (), init={()}) {
+proc e(my_token: token, state: (), init={token, ()}) {
   literal.401: bits[32] = literal(value=5)
   receive.402: (token, bits[32]) = receive(my_token, channel=c_e)
   tuple_index.403: token = tuple_index(receive.402, index=0)
@@ -691,7 +691,7 @@ TEST_P(ProcRuntimeTestBase, ChannelInitValues) {
   // using the explicit proc state. However, the state channel has multiple
   // initial values which results in interleaving of difference sequences of
   // iota values.
-  ProcBuilder pb("backedge_proc", /*token_name=*/"tok", package.get());
+  ProcBuilder pb("backedge_proc", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       package->CreateStreamingChannel(
@@ -705,13 +705,13 @@ TEST_P(ProcRuntimeTestBase, ChannelInitValues) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  BValue state_receive = pb.Receive(state_channel, pb.GetTokenParam());
+  BValue state_receive = pb.Receive(state_channel, pb.Literal(Value::Token()));
   BValue receive_token = pb.TupleIndex(state_receive, /*idx=*/0);
   BValue state = pb.TupleIndex(state_receive, /*idx=*/1);
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
-  BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
-  BValue state_send = pb.Send(state_channel, receive_token, next_state);
-  XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
+  pb.Send(output_channel, pb.Literal(Value::Token()), state);
+  pb.Send(state_channel, receive_token, next_state);
+  XLS_ASSERT_OK(pb.Build().status());
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -741,12 +741,12 @@ TEST_P(ProcRuntimeTestBase, StateReset) {
       Channel * ch_out,
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb("state_reset", /*token_name=*/"tkn", package.get());
+  ProcBuilder pb("state_reset", package.get());
   BValue st = pb.StateElement("st", Value(UBits(11, 32)));
-  BValue send_token = pb.Send(ch_out, pb.GetTokenParam(), st);
+  pb.Send(ch_out, pb.Literal(Value::Token()), st);
   BValue add_lit = pb.Literal(SBits(3, 32));
   BValue next_int = pb.Add(st, add_lit);
-  XLS_ASSERT_OK(pb.Build(send_token, {next_int}));
+  XLS_ASSERT_OK(pb.Build({next_int}));
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());
@@ -780,11 +780,12 @@ TEST_P(ProcRuntimeTestBase, NonBlockingReceivesProc) {
                                                "out0", ChannelOps::kSendOnly,
                                                package->GetBitsType(32)));
 
-  ProcBuilder pb("nb_recv", /*token_name=*/"tok", package.get());
+  ProcBuilder pb("nb_recv", package.get());
+  BValue tok = pb.StateElement("tok", Value::Token());
 
-  BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
-  BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, pb.GetTokenParam());
-  BValue in2_data_and_valid = pb.ReceiveNonBlocking(in2, pb.GetTokenParam());
+  BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, tok);
+  BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, tok);
+  BValue in2_data_and_valid = pb.ReceiveNonBlocking(in2, tok);
 
   BValue sum = pb.Literal(UBits(0, 32));
 
@@ -809,7 +810,7 @@ TEST_P(ProcRuntimeTestBase, NonBlockingReceivesProc) {
   BValue after_in_tok = pb.AfterAll({in0_tok, in1_tok, in2_tok});
   BValue tok_fin = pb.Send(out0, after_in_tok, sum2);
 
-  XLS_ASSERT_OK(pb.Build(tok_fin, {}));
+  XLS_ASSERT_OK(pb.Build({tok_fin}));
 
   std::unique_ptr<ProcRuntime> runtime =
       GetParam().CreateRuntime(package.get());

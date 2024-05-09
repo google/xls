@@ -45,8 +45,8 @@ using ::testing::Optional;
 TEST_P(ProcEvaluatorTestBase, EmptyProc) {
   auto package = CreatePackage();
 
-  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {}));
+  ProcBuilder pb(TestName(), package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
@@ -77,11 +77,11 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
                                       package->GetBitsType(32)));
 
   // Create an output-only proc which counts up by 7 starting at 42.
-  ProcBuilder pb("iota", /*token_name=*/"tok", package.get());
+  ProcBuilder pb("iota", package.get());
   BValue counter = pb.StateElement("cnt", Value(UBits(42, 32)));
-  BValue send_token = pb.Send(channel, pb.GetTokenParam(), counter);
+  pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_token, {new_value}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
@@ -167,7 +167,7 @@ TEST_P(ProcEvaluatorTestBase, ProcIota) {
 
 TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
   Package package(TestName());
-  ProcBuilder pb("prev", /*token_name=*/"tok", &package);
+  ProcBuilder pb("prev", &package);
   BValue prev_input = pb.StateElement("prev_in", Value(UBits(55, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
                                                 "in", ChannelOps::kSendReceive,
@@ -178,11 +178,12 @@ TEST_P(ProcEvaluatorTestBase, ProcWhichReturnsPreviousResults) {
 
   // Build a proc which receives a value and saves it, and sends the value
   // received in the previous iteration.
-  BValue token_input = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue tok = pb.Literal(Value::Token());
+  BValue token_input = pb.Receive(ch_in, tok);
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
-  BValue send_token = pb.Send(ch_out, recv_token, prev_input);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_token, {input}));
+  pb.Send(ch_out, recv_token, prev_input);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({input}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -380,7 +381,7 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
   // iteration. Receive_if value is unconditionally sent over a different
   // channel.
   Package package(TestName());
-  ProcBuilder pb("conditional_send", /*token_name=*/"tok", &package);
+  ProcBuilder pb("conditional_send", &package);
   BValue st = pb.StateElement("st", Value(UBits(1, 1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_in, package.CreateStreamingChannel(
@@ -390,13 +391,14 @@ TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {
                                                  "out", ChannelOps::kSendOnly,
                                                  package.GetBitsType(32)));
 
-  BValue receive_if = pb.ReceiveIf(ch_in, /*token=*/pb.GetTokenParam(),
+  BValue tok = pb.Literal(Value::Token());
+  BValue receive_if = pb.ReceiveIf(ch_in, /*token=*/tok,
                                    /*pred=*/st);
   BValue rx_token = pb.TupleIndex(receive_if, 0);
   BValue rx_data = pb.TupleIndex(receive_if, 1);
-  BValue send = pb.Send(ch_out, rx_token, {rx_data});
+  pb.Send(ch_out, rx_token, {rx_data});
   // Next state value is the inverse of the current state value.
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {pb.Not(st)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(st)}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -474,13 +476,13 @@ TEST_P(ProcEvaluatorTestBase, ConditionalSendProc) {
       package.CreateStreamingChannel("even_out", ChannelOps::kSendOnly,
                                      package.GetBitsType(32)));
 
-  ProcBuilder pb("even", /*token_name=*/"tok", &package);
+  ProcBuilder pb("even", &package);
   BValue prev = pb.StateElement("prev", Value(UBits(0, 32)));
   BValue is_even = pb.Eq(pb.BitSlice(prev, /*start=*/0, /*width=*/1),
                          pb.Literal(UBits(0, 1)));
-  BValue send_if = pb.SendIf(channel, pb.GetTokenParam(), is_even, prev);
+  pb.SendIf(channel, pb.Literal(Value::Token()), is_even, prev);
   BValue new_value = pb.Add(prev, pb.Literal(UBits(1, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_if, {new_value}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -555,12 +557,12 @@ TEST_P(ProcEvaluatorTestBase, UnconditionalNextProc) {
       package.CreateStreamingChannel("counter_out", ChannelOps::kSendOnly,
                                      package.GetBitsType(32)));
 
-  ProcBuilder pb("counter", /*token_name=*/"tok", &package);
+  ProcBuilder pb("counter", &package);
   BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
-  BValue send = pb.Send(channel, pb.GetTokenParam(), counter);
+  pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   pb.Next(/*param=*/counter, /*value=*/incremented_counter);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -624,10 +626,10 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
       package.CreateStreamingChannel("slow_counter_out", ChannelOps::kSendOnly,
                                      package.GetBitsType(32)));
 
-  ProcBuilder pb("slow_counter", /*token_name=*/"tok", &package);
+  ProcBuilder pb("slow_counter", &package);
   BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
   BValue iteration = pb.StateElement("iteration", Value(UBits(0, 32)));
-  BValue send = pb.Send(channel, pb.GetTokenParam(), counter);
+  pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
                                pb.Literal(UBits(1, 1)));
@@ -635,7 +637,7 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
           /*pred=*/odd_iteration);
   pb.Next(/*param=*/iteration,
           /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -725,10 +727,10 @@ TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
       package.CreateStreamingChannel("slow_counter_out", ChannelOps::kSendOnly,
                                      package.GetBitsType(32)));
 
-  ProcBuilder pb("slow_counter", /*token_name=*/"tok", &package);
+  ProcBuilder pb("slow_counter", &package);
   BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
   BValue iteration = pb.StateElement("iteration", Value(UBits(0, 32)));
-  BValue send = pb.Send(channel, pb.GetTokenParam(), counter);
+  pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
                                pb.Literal(UBits(1, 1)));
@@ -737,7 +739,7 @@ TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
   pb.Next(/*param=*/counter, /*value=*/pb.Literal(UBits(0, 32)));
   pb.Next(/*param=*/iteration,
           /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(&package);
@@ -908,12 +910,11 @@ TEST_P(ProcEvaluatorTestBase, StatelessProc) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  ProcBuilder pb("stateless", /*token_name=*/"tok", package.get());
-  BValue receive = pb.Receive(channel_in, pb.GetTokenParam());
-  BValue send =
-      pb.Send(channel_out, pb.TupleIndex(receive, 0),
-              pb.Add(pb.TupleIndex(receive, 1), pb.Literal(UBits(42, 32))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, std::vector<BValue>()));
+  ProcBuilder pb("stateless", package.get());
+  BValue receive = pb.Receive(channel_in, pb.Literal(Value::Token()));
+  pb.Send(channel_out, pb.TupleIndex(receive, 0),
+          pb.Add(pb.TupleIndex(receive, 1), pb.Literal(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
       GetParam().CreateQueueManager(package.get());
@@ -957,13 +958,12 @@ TEST_P(ProcEvaluatorTestBase, MultiStateElementProc) {
   // Proc has two state elements:
   //  a: accumulator starting at 0
   //  b: de-cumulator starting at 100
-  ProcBuilder pb("multistate", /*token_name=*/"tok", package.get());
+  ProcBuilder pb("multistate", package.get());
   BValue a_state = pb.StateElement("a", Value(UBits(0, 32)));
   BValue b_state = pb.StateElement("b", Value(UBits(100, 32)));
-  BValue receive = pb.Receive(channel_in, pb.GetTokenParam());
+  BValue receive = pb.Receive(channel_in, pb.Literal(Value::Token()));
   BValue data = pb.TupleIndex(receive, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(receive, 0),
-                                                 {pb.Add(a_state, data),
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Add(a_state, data),
                                                   pb.Subtract(b_state, data)}));
 
   std::unique_ptr<ChannelQueueManager> queue_manager =

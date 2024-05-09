@@ -453,6 +453,7 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "//xls/ir:proc_elaboration",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],

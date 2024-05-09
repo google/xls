@@ -260,7 +260,6 @@ class Parser {
   absl::StatusOr<ProcInstantiation*> ParseProcInstantiation(Proc* proc);
 
   struct ProcNext {
-    BValue next_token;
     std::vector<BValue> next_state;
   };
   using BodyResult = std::variant<BValue, ProcNext>;

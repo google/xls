@@ -125,14 +125,15 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
   auto p = CreatePackage();
   auto make_proc = [p = p.get()](std::string_view name,
                                  Channel* channel) -> absl::StatusOr<Proc*> {
-    ProcBuilder pb(name, "tok", p);
+    ProcBuilder pb(name, p);
+    BValue tok = pb.Literal(Value::Token());
     BValue st = pb.StateElement("st", Value(UBits(0, 1)));
     BValue not_st = pb.Not(st);
     BValue lit50 = pb.Literal(UBits(50, 32));
     BValue lit60 = pb.Literal(UBits(60, 32));
-    BValue send0 = pb.SendIf(channel, pb.GetTokenParam(), st, lit50);
-    BValue send1 = pb.SendIf(channel, pb.GetTokenParam(), not_st, lit60);
-    return pb.Build(pb.AfterAll({send0, send1}), {not_st});
+    pb.SendIf(channel, tok, st, lit50);
+    pb.SendIf(channel, tok, not_st, lit60);
+    return pb.Build({not_st});
   };
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -156,9 +157,8 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
                 HasDumpIr(AllOf(
                     HasSubstr("// Pipeline Schedule"), HasSubstr("// Cycle 0:"),
                     HasSubstr("//   st: bits[1] = param(st, id=2)"),
-                    HasSubstr("proc proc0(tok: token, st: bits[1], init={0})"),
-                    HasSubstr(
-                        "proc proc1(tok: token, st: bits[1], init={0})")))))));
+                    HasSubstr("proc proc0(st: bits[1], init={0})"),
+                    HasSubstr("proc proc1(st: bits[1], init={0})")))))));
 }
 
 TEST_F(PipelineSchedulingPassTest, MixedFunctionAndProcScheduling) {
@@ -171,11 +171,12 @@ TEST_F(PipelineSchedulingPassTest, MixedFunctionAndProcScheduling) {
   fb.Add(fb.Param("x", p->GetBitsType(32)), fb.Param("y", p->GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  ProcBuilder pb("pr", "tok", p.get());
+  ProcBuilder pb("pr", p.get());
+  BValue tok = pb.Literal(Value::Token());
   BValue st = pb.StateElement("st", Value(UBits(0, 1)));
   BValue not_st = pb.Not(st);
-  BValue send = pb.Send(ch, pb.GetTokenParam(), st);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {not_st}));
+  pb.Send(ch, tok, st);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({not_st}));
 
   EXPECT_THAT(
       RunPipelineSchedulingPass(p.get(),
@@ -190,16 +191,15 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcsWithIOConstraint) {
   auto make_proc = [p = p.get()](
                        std::string_view name, Channel* channel_in,
                        Channel* channel_out) -> absl::StatusOr<Proc*> {
-    ProcBuilder pb(name, "tok", p);
+    ProcBuilder pb(name, p);
+    BValue tok = pb.Literal(Value::Token());
     BValue st = pb.StateElement("st", Value(UBits(0, 1)));
     BValue not_st = pb.Not(st);
-    BValue recv =
-        pb.ReceiveIf(channel_in, pb.GetTokenParam(), st, SourceInfo(), "recv");
+    BValue recv = pb.ReceiveIf(channel_in, tok, st, SourceInfo(), "recv");
     BValue recv_tok = pb.TupleIndex(recv, 0);
     BValue recv_data = pb.TupleIndex(recv, 1);
-    BValue send =
-        pb.SendIf(channel_out, recv_tok, st, recv_data, SourceInfo(), "send");
-    return pb.Build(send, {not_st});
+    pb.SendIf(channel_out, recv_tok, st, recv_data, SourceInfo(), "send");
+    return pb.Build({not_st});
   };
 
   XLS_ASSERT_OK_AND_ASSIGN(

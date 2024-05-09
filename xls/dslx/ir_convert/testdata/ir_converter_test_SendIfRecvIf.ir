@@ -12,33 +12,33 @@ fn __test_module__consumer.init() -> bits[1] {
   ret literal.2: bits[1] = literal(value=0, id=2)
 }
 
-top proc __test_module__main_0_next(__token: token, __state: (), init={()}) {
+top proc __test_module__main_0_next(__state: (), init={()}) {
+  __token: token = literal(value=token, id=3)
   literal.5: bits[1] = literal(value=1, id=5)
   tuple.6: () = tuple(id=6)
-  after_all.7: token = after_all(__token, id=7)
-  next (after_all.7, tuple.6)
+  next (tuple.6)
 }
 
-proc __test_module__main__producer_0_next(__token: token, __state: bits[1], init={0}) {
-  zero_ext.11: bits[32] = zero_ext(__state, new_bit_count=32, id=11)
-  send.12: token = send(__token, zero_ext.11, predicate=__state, channel=main_chandecl_test_module_x_38_18_38_26, id=12)
-  literal.10: bits[1] = literal(value=1, id=10)
-  not.13: bits[1] = not(__state, id=13)
-  after_all.14: token = after_all(__token, send.12, id=14)
-  next (after_all.14, not.13)
+proc __test_module__main__producer_0_next(__state: bits[1], init={0}) {
+  __token: token = literal(value=token, id=7)
+  zero_ext.10: bits[32] = zero_ext(__state, new_bit_count=32, id=10)
+  literal.9: bits[1] = literal(value=1, id=9)
+  send.11: token = send(__token, zero_ext.10, predicate=__state, channel=main_chandecl_test_module_x_38_18_38_26, id=11)
+  not.12: bits[1] = not(__state, id=12)
+  next (not.12)
 }
 
-proc __test_module__main__consumer_0_next(__token: token, __state: bits[1], init={0}) {
-  receive.19: (token, bits[32]) = receive(__token, predicate=__state, channel=main_chandecl_test_module_x_38_18_38_26, id=19)
-  literal.18: bits[32] = literal(value=42, id=18)
-  tuple_index.21: bits[32] = tuple_index(receive.19, index=1, id=21)
-  tuple_index.20: token = tuple_index(receive.19, index=0, id=20)
-  sel.22: bits[32] = sel(__state, cases=[literal.18, tuple_index.21], id=22)
-  tuple.23: (token, bits[32]) = tuple(tuple_index.20, sel.22, id=23)
-  literal.17: bits[1] = literal(value=1, id=17)
-  tuple_index.24: token = tuple_index(tuple.23, index=0, id=24)
-  foo: bits[32] = tuple_index(tuple.23, index=1, id=25)
-  not.26: bits[1] = not(__state, id=26)
-  after_all.27: token = after_all(__token, tuple_index.20, id=27)
-  next (after_all.27, not.26)
+proc __test_module__main__consumer_0_next(__state: bits[1], init={0}) {
+  __token: token = literal(value=token, id=13)
+  receive.17: (token, bits[32]) = receive(__token, predicate=__state, channel=main_chandecl_test_module_x_38_18_38_26, id=17)
+  literal.16: bits[32] = literal(value=42, id=16)
+  tuple_index.19: bits[32] = tuple_index(receive.17, index=1, id=19)
+  tuple_index.18: token = tuple_index(receive.17, index=0, id=18)
+  sel.20: bits[32] = sel(__state, cases=[literal.16, tuple_index.19], id=20)
+  tuple.21: (token, bits[32]) = tuple(tuple_index.18, sel.20, id=21)
+  literal.15: bits[1] = literal(value=1, id=15)
+  tuple_index.22: token = tuple_index(tuple.21, index=0, id=22)
+  foo: bits[32] = tuple_index(tuple.21, index=1, id=23)
+  not.24: bits[1] = not(__state, id=24)
+  next (not.24)
 }

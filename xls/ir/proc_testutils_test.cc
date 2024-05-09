@@ -32,6 +32,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
@@ -49,19 +50,21 @@ class UnrollProcTest : public IrTestBase {};
 TEST_F(UnrollProcTest, BasicProcEquivalence) {
   auto p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
-  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), "tok", p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto foo_ch, p->CreateStreamingChannel("foo_ch", ChannelOps::kReceiveOnly,
                                              p->GetBitsType(4)));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
                                              p->GetBitsType(4)));
+  auto tok = pb.StateElement("tok", Value::Token());
   auto state = pb.StateElement("cnt", UBits(1, 4));
-  auto recv = pb.Receive(foo_ch, pb.GetTokenParam());
+  auto recv = pb.Receive(foo_ch, tok);
   auto nxt_val = pb.Add(state, pb.TupleIndex(recv, 1));
   auto final_tok = pb.Send(ret_ch, pb.TupleIndex(recv, 0), nxt_val);
   pb.Next(state, nxt_val);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(final_tok));
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   auto read_1 = fb.Param("foo_ch_act0_read", p->GetBitsType(4));
   auto read_2 = fb.Param("foo_ch_act1_read", p->GetBitsType(4));
@@ -89,17 +92,21 @@ TEST_F(UnrollProcTest, StateOnlyProcs) {
       auto ch1, p->CreateStreamingChannel("in_chan1", ChannelOps::kReceiveOnly,
                                           p->GetBitsType(4)));
 
-  ProcBuilder pb(absl::StrCat(TestName(), "_add_left"), "Tok", p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_add_left"), p.get());
+  auto tok = pb.StateElement("Tok", Value::Token());
   auto st = pb.StateElement("foo", UBits(0, 10));
-  auto rd = pb.Receive(ch1, pb.GetTokenParam());
+  auto rd = pb.Receive(ch1, tok);
   pb.Next(st, pb.Add(st, pb.ZeroExtend(pb.TupleIndex(rd, 1), 10)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * left, pb.Build(pb.TupleIndex(rd, 0)));
+  pb.Next(tok, pb.TupleIndex(rd, 0));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * left, pb.Build());
 
-  ProcBuilder pb2(absl::StrCat(TestName(), "_add_right"), "Tok", p.get());
+  ProcBuilder pb2(absl::StrCat(TestName(), "_add_right"), p.get());
+  auto tok2 = pb2.StateElement("Tok", Value::Token());
   auto st2 = pb2.StateElement("foo", UBits(0, 10));
-  auto rd2 = pb2.Receive(ch1, pb2.GetTokenParam());
+  auto rd2 = pb2.Receive(ch1, tok2);
   pb2.Next(st2, pb2.Add(pb2.ZeroExtend(pb2.TupleIndex(rd2, 1), 10), st2));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * right, pb2.Build(pb2.TupleIndex(rd2, 0)));
+  pb2.Next(tok2, pb2.TupleIndex(rd2, 0));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * right, pb2.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * l,
                            UnrollProcToFunction(left, /*activation_count=*/5,
@@ -118,19 +125,23 @@ TEST_F(UnrollProcTest, DetectChangesProcs) {
       auto ch1, p->CreateStreamingChannel("in_chan1", ChannelOps::kReceiveOnly,
                                           p->GetBitsType(4)));
 
-  ProcBuilder pb(absl::StrCat(TestName(), "_add_left"), "Tok", p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_add_left"), p.get());
+  auto tok = pb.StateElement("Tok", Value::Token());
   auto st = pb.StateElement("foo", UBits(0, 10));
-  auto rd = pb.Receive(ch1, pb.GetTokenParam());
+  auto rd = pb.Receive(ch1, tok);
   pb.Next(st, pb.Add(st, pb.ZeroExtend(pb.TupleIndex(rd, 1), 10)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * left, pb.Build(pb.TupleIndex(rd, 0)));
+  pb.Next(tok, pb.TupleIndex(rd, 0));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * left, pb.Build());
 
-  ProcBuilder pb2(absl::StrCat(TestName(), "_add_right"), "Tok", p.get());
+  ProcBuilder pb2(absl::StrCat(TestName(), "_add_right"), p.get());
+  auto tok2 = pb2.StateElement("Tok", Value::Token());
   auto st2 = pb2.StateElement("foo", UBits(0, 10));
-  auto rd2 = pb2.Receive(ch1, pb2.GetTokenParam());
+  auto rd2 = pb2.Receive(ch1, tok2);
   pb2.Next(st2,
            pb2.Add(pb2.Literal(UBits(1, 10)),
                    pb2.Add(pb2.ZeroExtend(pb2.TupleIndex(rd2, 1), 10), st2)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * right, pb2.Build(pb2.TupleIndex(rd2, 0)));
+  pb2.Next(tok2, pb2.TupleIndex(rd2, 0));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * right, pb2.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * l,
                            UnrollProcToFunction(left, /*activation_count=*/5,
@@ -154,14 +165,14 @@ TEST_F(UnrollProcTest, UnrollDetectsImpossibleProcs) {
       auto ch2, p->CreateStreamingChannel("in_chan2", ChannelOps::kReceiveOnly,
                                           p->GetBitsType(4)));
 
-  ProcBuilder pb(absl::StrCat(TestName(), "_add_left"), "Tok", p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_add_left"), p.get());
+  auto tok = pb.StateElement("Tok", Value::Token());
   auto st = pb.StateElement("st", UBits(0, 4));
-  auto rd1 = pb.Receive(ch1, pb.GetTokenParam());
-  auto rd2 = pb.Receive(ch2, pb.GetTokenParam());
+  auto rd1 = pb.Receive(ch1, tok);
+  auto rd2 = pb.Receive(ch2, tok);
   pb.Next(st, pb.Add(pb.TupleIndex(rd1, 1), pb.TupleIndex(rd2, 1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * left,
-      pb.Build(pb.AfterAll({pb.TupleIndex(rd1, 0), pb.TupleIndex(rd2, 0)})));
+  pb.Next(tok, pb.AfterAll({pb.TupleIndex(rd1, 0), pb.TupleIndex(rd2, 0)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * left, pb.Build());
 
   EXPECT_THAT(
       UnrollProcToFunction(left, /*activation_count=*/4,
@@ -175,7 +186,7 @@ TEST_F(UnrollProcTest, UnrollDetectsImpossibleProcs) {
 TEST_F(UnrollProcTest, MultiProcs) {
   // A proc that does stuff and does bit-slice-zero-extend in a dumb way.
   auto p = CreatePackage();
-  ProcBuilder pb(TestName(), "tok", p.get());
+  ProcBuilder pb(TestName(), p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto ch1, p->CreateStreamingChannel("in_chan1", ChannelOps::kReceiveOnly,
                                           p->GetBitsType(4)));
@@ -188,6 +199,7 @@ TEST_F(UnrollProcTest, MultiProcs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto out2, p->CreateStreamingChannel("out_chan2", ChannelOps::kSendOnly,
                                            p->GetBitsType(4)));
+  auto tok = pb.StateElement("tok", Value::Token());
   auto st1 = pb.StateElement("st1", UBits(0, 4));
   auto st2 = pb.StateElement("st2", UBits(1, 4));
   auto off = pb.Literal(UBits(0b11, 4));
@@ -195,8 +207,8 @@ TEST_F(UnrollProcTest, MultiProcs) {
     // Just do some random stuff before the bit-slice
     return pb.BitSlice(pb.Subtract(pb.Add(in, off), off), st, 2);
   };
-  auto ch1_read = pb.Receive(ch1, pb.GetTokenParam());
-  auto ch2_read = pb.Receive(ch2, pb.GetTokenParam());
+  auto ch1_read = pb.Receive(ch1, tok);
+  auto ch2_read = pb.Receive(ch2, tok);
   auto ch1_val = pb.TupleIndex(ch1_read, 1);
   auto ch2_val = pb.TupleIndex(ch2_read, 1);
   auto ch1_top = fancy_bitslice(ch1_val, 0);
@@ -217,7 +229,8 @@ TEST_F(UnrollProcTest, MultiProcs) {
   pb.Next(st2, ch2_val, pb.BitSlice(st2, 1, 1));
   pb.Next(st2, pb.Add(st2, pb.Literal(UBits(1, 4))), pb.BitSlice(st2, 2, 1));
   pb.Next(st2, st1, pb.BitSlice(st2, 3, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * orig_proc, pb.Build(out_tok));
+  pb.Next(tok, out_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * orig_proc, pb.Build());
 
   ScopedVerifyProcEquivalence svpe(orig_proc, /*activation_count=*/3,
                                    /*include_state_=*/true);
@@ -250,11 +263,12 @@ TEST_F(UnrollProcTest, MultiProcsDifferentSizedState) {
                                            p->GetBitsType(4)));
   auto make_test_proc_with_state_bits =
       [&](std::string_view name, int64_t bits) -> absl::StatusOr<Proc*> {
-    ProcBuilder pb(absl::StrCat(TestName(), "_", name), "tok", p.get());
+    ProcBuilder pb(absl::StrCat(TestName(), "_", name), p.get());
+    auto tok = pb.StateElement("tok", Value::Token());
     auto st1 = pb.StateElement("st1", UBits(0, bits));
     auto st2 = pb.StateElement("st2", UBits(1, bits));
-    auto ch1_read = pb.Receive(ch1, pb.GetTokenParam());
-    auto ch2_read = pb.Receive(ch2, pb.GetTokenParam());
+    auto ch1_read = pb.Receive(ch1, tok);
+    auto ch2_read = pb.Receive(ch2, tok);
     auto ch1_val = pb.TupleIndex(ch1_read, 1);
     auto ch2_val = pb.TupleIndex(ch2_read, 1);
     auto ch1_top = pb.BitSlice(ch1_val, 0, 2);
@@ -281,7 +295,8 @@ TEST_F(UnrollProcTest, MultiProcsDifferentSizedState) {
                 pb.Add(pb.BitSlice(st2, 0, 4), pb.Literal(UBits(1, 4))), bits),
             pb.BitSlice(st2, 2, 1));
     pb.Next(st2, st1, pb.BitSlice(st2, 3, 1));
-    return pb.Build(out_tok);
+    pb.Next(tok, out_tok);
+    return pb.Build();
   };
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1,
                            make_test_proc_with_state_bits("big", 8));

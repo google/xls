@@ -40,6 +40,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using ::testing::A;
 
 class ConditionalSpecializationPassTest : public IrTestBase {
  protected:
@@ -562,13 +563,14 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {
       package my_package
       chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+      top proc Delay_proc(value1: bits[32], value2: bits[32], init={1, 2}) {
+        tkn: token = literal(value=token, id=1000)
         literal.2: bits[1] = literal(value=1, id=2)
         literal.5: bits[32] = literal(value=400, id=5)
         eq.3: bits[1] = eq(value1, literal.5, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=literal.2, channel=out, id=1)
-        next (send.1, value1, value2)
+        next (value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -580,7 +582,8 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeUnprovable) {
       package my_package
       chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+      top proc Delay_proc(value1: bits[32], value2: bits[32], init={1, 2}) {
+        tkn: token = literal(value=token, id=1000)
         literal.2: bits[1] = literal(value=1, id=2)
         literal.5: bits[32] = literal(value=400, id=5)
         literal.6: bits[32] = literal(value=55, id=6)
@@ -588,7 +591,7 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeUnprovable) {
         ugt.4: bits[1] = ugt(value1, literal.6, id=4)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=ugt.4, channel=out, id=1)
-        next (send.1, value1, value2)
+        next (value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -600,23 +603,23 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
       package my_package
       chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+      top proc Delay_proc(value1: bits[32], value2: bits[32], init={1, 2}) {
+        tkn: token = literal(value=token, id=1000)
         literal.2: bits[1] = literal(value=1, id=2)
         literal.5: bits[32] = literal(value=400, id=5)
         eq.3: bits[1] = eq(value1, literal.5, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=eq.3, channel=out, id=1)
-        next (send.1, value1, value2)
+        next (value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
-  Node* next_token = f->NextToken();
-  ASSERT_TRUE(next_token->Is<Send>());
-  Send* send = next_token->As<Send>();
-
-  EXPECT_THAT(send->data(), m::Param("value2"));
+  EXPECT_THAT(f->GetNode("send.1"),
+              IsOkAndHolds(m::Send(
+                  /*token=*/A<const Node*>(), /*data=*/m::Param("value2"),
+                  /*predicate=*/A<const Node*>())));
 }
 
 TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeLiteralPred) {
@@ -624,13 +627,13 @@ TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeLiteralPred) {
                            ParsePackageNoVerify(R"(
       package my_package
 
-      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+      top proc Delay_proc(value1: bits[32], value2: bits[32], init={1, 2}) {
+        tkn: token = literal(value=token, id=1000)
         literal.1: bits[1] = literal(value=1, id=1)
         literal.2: bits[32] = literal(value=400, id=2)
         eq.3: bits[1] = eq(value1, literal.2, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.2, value2], id=4)
         next_value.5: () = next_value(param=value1, value=sel.4, predicate=literal.1, id=5)
-        next (tkn)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -641,14 +644,14 @@ TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeUnprovable) {
                            ParsePackageNoVerify(R"(
       package my_package
 
-      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+      top proc Delay_proc(value1: bits[32], value2: bits[32], init={1, 2}) {
+        tkn: token = literal(value=token, id=1000)
         literal.1: bits[32] = literal(value=400, id=1)
         literal.2: bits[32] = literal(value=55, id=2)
         eq.3: bits[1] = eq(value1, literal.1, id=3)
         ugt.4: bits[1] = ugt(value1, literal.2, id=4)
         sel.5: bits[32] = sel(eq.3, cases=[literal.1, value2], id=5)
         next_value.6: () = next_value(param=value1, value=sel.5, predicate=ugt.4, id=6)
-        next (tkn)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -659,12 +662,12 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
                            ParsePackageNoVerify(R"(
       package my_package
 
-      top proc Delay_proc(tkn: token, value1: bits[32], value2: bits[32], init={1, 2}) {
+      top proc Delay_proc(value1: bits[32], value2: bits[32], init={1, 2}) {
+        tkn: token = literal(value=token, id=1000)
         literal.1: bits[32] = literal(value=400, id=1)
         eq.2: bits[1] = eq(value1, literal.1, id=2)
         sel.3: bits[32] = sel(eq.2, cases=[literal.1, value2], id=3)
         next_value.4: () = next_value(param=value1, value=sel.3, predicate=eq.2, id=4)
-        next (tkn)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));

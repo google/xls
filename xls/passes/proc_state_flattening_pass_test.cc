@@ -62,18 +62,18 @@ class ProcStateFlatteningPassTest
  protected:
   ProcStateFlatteningPassTest() = default;
 
-  absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb, BValue token,
+  absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb,
                                   absl::Span<const BValue> next_state) {
     switch (GetParam()) {
       case NextValueType::kNextStateElements:
-        return pb.Build(token, next_state);
+        return pb.Build(next_state);
       case NextValueType::kNextValueNodes: {
         for (int64_t index = 0; index < next_state.size(); ++index) {
           BValue param = pb.GetStateParam(index);
           BValue next_value = next_state[index];
           pb.Next(param, next_value);
         }
-        return pb.Build(token);
+        return pb.Build();
       }
     }
     ABSL_UNREACHABLE();
@@ -113,29 +113,28 @@ class ProcStateFlatteningPassTest
 
 TEST_P(ProcStateFlatteningPassTest, StatelessProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
-  XLS_ASSERT_OK(
-      BuildProc(pb, pb.GetTokenParam(), std::vector<BValue>()).status());
+  ProcBuilder pb("p", p.get());
+  XLS_ASSERT_OK(BuildProc(pb, {}).status());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 TEST_P(ProcStateFlatteningPassTest, NontupleStateProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 64)));
   BValue a = pb.StateElement("a", Value::UBitsArray({1, 2, 3}, 16).value());
-  XLS_ASSERT_OK(BuildProc(pb, pb.GetTokenParam(), {x, y, a}));
+  XLS_ASSERT_OK(BuildProc(pb, {x, y, a}));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 TEST_P(ProcStateFlatteningPassTest, EmptyTupleState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value::Tuple({}));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, pb.GetTokenParam(), {x}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
@@ -148,13 +147,12 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleState) {
 
 TEST_P(ProcStateFlatteningPassTest, MultipleEmptyTupleState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value::Tuple({}));
   BValue y = pb.StateElement("y", Value::Tuple({}));
   BValue z =
       pb.StateElement("z", Value::Tuple({Value::Tuple({}), Value::Tuple({})}));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           BuildProc(pb, pb.GetTokenParam(), {x, y, z}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x, y, z}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 3);
 
@@ -167,14 +165,13 @@ TEST_P(ProcStateFlatteningPassTest, MultipleEmptyTupleState) {
 
 TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value::Tuple({}));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   BValue z = pb.StateElement("z", Value::Tuple({}));
   BValue q = pb.StateElement("q", Value(UBits(0, 64)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, BuildProc(pb, pb.GetTokenParam(), {x, y, z, pb.Add(q, q)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x, y, z, pb.Add(q, q)}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 4);
 
@@ -211,9 +208,9 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
 
 TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value::Tuple({Value(UBits(42, 32))}));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, pb.GetTokenParam(), {x}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {x}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
@@ -234,11 +231,10 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
 
 TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value::Tuple({Value(UBits(42, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, BuildProc(pb, pb.GetTokenParam(),
-                             {pb.Tuple({pb.Not(pb.TupleIndex(x, 0))})}));
+      Proc * proc, BuildProc(pb, {pb.Tuple({pb.Not(pb.TupleIndex(x, 0))})}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
@@ -259,7 +255,7 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
 
 TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue a = pb.StateElement(
       "a",
       Value::Tuple({Value(UBits(1, 32)),
@@ -271,8 +267,8 @@ TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
   BValue next_a = pb.Tuple({b, c});
   BValue next_b = pb.TupleIndex(a, 0);
   BValue next_c = pb.TupleIndex(a, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, BuildProc(pb, pb.GetTokenParam(), {next_a, next_b, next_c}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           BuildProc(pb, {next_a, next_b, next_c}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 3);
 

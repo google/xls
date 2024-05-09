@@ -40,18 +40,18 @@ namespace {
 static constexpr std::string_view kUninteresting = "uninteresting";
 class RemoveIdentifersTest : public IrTestBase {};
 TEST_F(RemoveIdentifersTest, BasicProc) {
-  static constexpr std::array<std::string_view, 9> kSecrets{
-      "the_answer_proc", "secret_handshake", "secret_tunnel",
-      "astounding",      "Unbelievable",     "surprising",
-      "revealing",       "nxt_val",          "nxt_tok"};
+  static constexpr std::array<std::string_view, 10> kSecrets{
+      "the_answer_proc", "secret_handshake", "secret_tunnel", "astounding",
+      "Unbelievable",    "surprising",       "revealing",     "nxt_val",
+      "nxt_tok",         "nxt_tok_val"};
   auto p = CreatePackage();
-  ProcBuilder pb(NewStyleProc{}, "the_answer_proc", "secret_handshake",
-                 p.get());
+  ProcBuilder pb(NewStyleProc{}, "the_answer_proc", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(auto orig_chan,
                            pb.AddChannel("secret_tunnel", p->GetBitsType(32)));
+  auto tok = pb.StateElement("secret_handshake", Value::Token());
   auto start_param = pb.StateElement("astounding", Value(UBits(42, 32)));
-  auto recv = pb.Receive(orig_chan.receive_ref, pb.GetTokenParam(),
-                         SourceInfo(), "Unbelievable");
+  auto recv =
+      pb.Receive(orig_chan.receive_ref, tok, SourceInfo(), "Unbelievable");
   auto next_param =
       pb.Add(start_param, pb.TupleIndex(recv, 1, SourceInfo(), "nxt_val"));
   auto out_tok = pb.Send(orig_chan.send_ref,
@@ -59,7 +59,8 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
                          next_param, SourceInfo(), "surprising");
   pb.Next(start_param, next_param, /*pred=*/std::nullopt, SourceInfo(),
           "Revealing");
-  XLS_ASSERT_OK_AND_ASSIGN(auto* orig_proc, pb.Build(out_tok));
+  pb.Next(tok, out_tok, /*pred=*/std::nullopt, SourceInfo(), "nxt_tok_val");
+  XLS_ASSERT_OK_AND_ASSIGN(auto* orig_proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       auto stripped,

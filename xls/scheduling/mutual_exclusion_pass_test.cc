@@ -111,14 +111,15 @@ absl::StatusOr<bool> RunMutualExclusionPass(FunctionBase* f,
 absl::StatusOr<Proc*> CreateTwoParallelSendsProc(Package* p,
                                                  std::string_view name,
                                                  Channel* channel) {
-  ProcBuilder pb(name, "__token", p);
+  ProcBuilder pb(name, p);
+  BValue tok = pb.StateElement("__token", Value::Token());
   BValue st = pb.StateElement("__state", Value(UBits(0, 1)));
   BValue not_st = pb.Not(st);
   BValue lit50 = pb.Literal(UBits(50, 32));
   BValue lit60 = pb.Literal(UBits(60, 32));
-  BValue send0 = pb.SendIf(channel, pb.GetTokenParam(), st, lit50);
-  BValue send1 = pb.SendIf(channel, pb.GetTokenParam(), not_st, lit60);
-  return pb.Build(pb.AfterAll({send0, send1}), {not_st});
+  BValue send0 = pb.SendIf(channel, tok, st, lit50);
+  BValue send1 = pb.SendIf(channel, tok, not_st, lit60);
+  return pb.Build({pb.AfterAll({send0, send1}), not_st});
 }
 
 absl::StatusOr<Node*> FindOp(FunctionBase* f, Op op) {
@@ -200,7 +201,7 @@ TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
        bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[2], init={0}) {
+     top proc main(__state: bits[2], init={0}) {
        literal.1: bits[2] = literal(value=1)
        add.2: bits[2] = add(literal.1, __state)
        zero_ext.3: bits[32] = zero_ext(add.2, new_bit_count=32)
@@ -210,11 +211,11 @@ TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
        eq.7: bits[1] = eq(zero_ext.3, literal.4)
        eq.8: bits[1] = eq(zero_ext.3, literal.5)
        eq.9: bits[1] = eq(zero_ext.3, literal.6)
+       __token: token = literal(value=token, id=1000)
        send.10: token = send(__token, literal.4, predicate=eq.7, channel=test_channel)
        send.11: token = send(__token, literal.5, predicate=eq.8, channel=test_channel)
        send.12: token = send(__token, literal.6, predicate=eq.9, channel=test_channel)
-       after_all.13: token = after_all(send.10, send.11, send.12)
-       next (after_all.13, add.2)
+       next (add.2)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -241,13 +242,14 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
        bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[1], init={0}) {
+     top proc main(__state: bits[1], init={0}) {
        not.1: bits[1] = not(__state)
        literal.2: bits[32] = literal(value=50)
        literal.3: bits[32] = literal(value=60)
+       __token: token = literal(value=token, id=1000)
        send.4: token = send(__token, literal.2, predicate=__state, channel=test_channel)
        send.5: token = send(send.4, literal.3, predicate=not.1, channel=test_channel)
-       next (send.5, not.1)
+       next (not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -267,14 +269,15 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
        bits[32], id=1, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[1], init={0}) {
+     top proc main(__state: bits[1], init={0}) {
        not.1: bits[1] = not(__state)
        literal.2: bits[32] = literal(value=50)
        literal.3: bits[32] = literal(value=60)
+       __token: token = literal(value=token, id=1000)
        send.4: token = send(__token, literal.2, predicate=__state, channel=test_channel)
        send.5: token = send(send.4, literal.2, channel=other_channel)
        send.6: token = send(send.5, literal.3, predicate=not.1, channel=test_channel)
-       next (send.6, not.1)
+       next (not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -294,7 +297,7 @@ TEST_F(MutualExclusionPassTest, Complex) {
        bits[2], id=1, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[2], init={0}) {
+     top proc main(__state: bits[2], init={0}) {
        literal.1: bits[2] = literal(value=1)
        add.2: bits[2] = add(__state, literal.1)
        literal.3: bits[2] = literal(value=0)
@@ -303,12 +306,12 @@ TEST_F(MutualExclusionPassTest, Complex) {
        eq.6: bits[1] = eq(__state, literal.3)
        eq.7: bits[1] = eq(__state, literal.4)
        eq.8: bits[1] = eq(__state, literal.5)
+       __token: token = literal(value=token, id=1000)
        send.9: token = send(__token, literal.3, predicate=eq.6, channel=test_channel)
        send.10: token = send(send.9, literal.3, channel=other_channel)
        send.11: token = send(send.10, literal.4, predicate=eq.7, channel=test_channel)
        send.12: token = send(__token, literal.5, predicate=eq.8, channel=test_channel)
-       after_all.13: token = after_all(send.11, send.12)
-       next (after_all.13, add.2)
+       next (add.2)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -324,7 +327,8 @@ TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
        bits[32], id=0, kind=streaming, ops=send_receive,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[1], init={0}) {
+     top proc main(__state: bits[1], init={0}) {
+       __token: token = literal(value=token, id=1000)
        not.1: bits[1] = not(__state)
        receive.2: (token, bits[32]) = receive(__token, predicate=__state, channel=test_channel)
        tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -335,7 +339,7 @@ TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
        add.8: bits[32] = add(tuple_index.4, tuple_index.7)
        after_all.9: token = after_all(tuple_index.3, tuple_index.6)
        send.10: token = send(after_all.9, add.8, channel=test_channel)
-       next (send.10, not.1)
+       next (not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -352,7 +356,8 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
        bits[32], id=0, kind=streaming, ops=send_receive,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[1], init={0}) {
+     top proc main(__state: bits[1], init={0}) {
+       __token: token = literal(value=token, id=1000)
        not.1: bits[1] = not(__state)
        receive.2: (token, bits[32]) = receive(__token, predicate=__state, channel=test_channel)
        tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -363,7 +368,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
        add.8: bits[32] = add(tuple_index.4, tuple_index.7)
        after_all.9: token = after_all(tuple_index.3, tuple_index.6)
        send.10: token = send(after_all.9, add.8, channel=test_channel)
-       next (send.10, not.1)
+       next (not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -383,7 +388,8 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
        bits[32], id=1, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[1], init={0}) {
+     top proc main(__state: bits[1], init={0}) {
+       __token: token = literal(value=token, id=1000)
        not.1: bits[1] = not(__state)
        receive.2: (token, bits[32]) = receive(__token, predicate=__state, channel=test_channel)
        tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -395,7 +401,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
        add.9: bits[32] = add(tuple_index.4, tuple_index.8)
        after_all.10: token = after_all(tuple_index.3, tuple_index.7)
        send.11: token = send(after_all.10, add.9, channel=test_channel)
-       next (send.11, not.1)
+       next (not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -411,7 +417,8 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
        bits[1], id=0, kind=streaming, ops=send_receive,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[1], init={0}) {
+     top proc main(__state: bits[1], init={0}) {
+       __token: token = literal(value=token, id=1000)
        not.1: bits[1] = not(__state)
        receive.2: (token, bits[1]) = receive(__token, predicate=__state, channel=test_channel)
        tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -423,7 +430,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
        add.8: bits[1] = add(tuple_index.4, tuple_index.7)
        after_all.9: token = after_all(tuple_index.3, tuple_index.6)
        send.10: token = send(after_all.9, add.8, channel=test_channel)
-       next (send.10, not.1)
+       next (not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -443,7 +450,8 @@ TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
        bits[32], id=1, kind=streaming, ops=receive_only,
        flow_control=ready_valid, metadata="""""")
 
-     top proc main(__token: token, __state: bits[1], init={0}) {
+     top proc main(__state: bits[1], init={0}) {
+       __token: token = literal(value=token, id=1000)
        not.1: bits[1] = not(__state)
        receive.2: (token, bits[32]) = receive(__token, channel=other_channel)
        tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -458,7 +466,7 @@ TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
        add.13: bits[32] = add(add.12, tuple_index.11)
        after_all.14: token = after_all(tuple_index.7, tuple_index.10)
        send.15: token = send(after_all.14, add.13, channel=test_channel)
-       next (send.15, not.1)
+       next (not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -471,7 +479,6 @@ TEST_F(MutualExclusionPassTest, SelectPredicates) {
      package test_module
 
      top proc main(
-       tok: token,
        selector1: bits[1],
        selector2: bits[1],
        input1: bits[1],
@@ -485,7 +492,7 @@ TEST_F(MutualExclusionPassTest, SelectPredicates) {
        select1: bits[1] = sel(selector1, cases=[not_input1, not_input2])
        select2: bits[1] = sel(selector2, cases=[select1, not_input3])
        zero: bits[1] = literal(value=0)
-       next (tok, zero, zero, zero, zero, select2)
+       next (zero, zero, zero, zero, select2)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -521,7 +528,6 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesCaseFanout) {
      package test_module
 
      top proc main(
-       tok: token,
        selector1: bits[1],
        selector2: bits[1],
        input1: bits[1],
@@ -536,7 +542,7 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesCaseFanout) {
        select2: bits[1] = sel(selector2, cases=[select1, not_input3])
        anded: bits[1] = and(select2, not_input3)
        zero: bits[1] = literal(value=0)
-       next (tok, zero, zero, zero, zero, anded)
+       next (zero, zero, zero, zero, anded)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
@@ -571,7 +577,6 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesImplicitUses) {
      package test_module
 
      top proc main(
-       tok: token,
        selector1: bits[1],
        selector2: bits[1],
        input1: bits[1],
@@ -585,7 +590,7 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesImplicitUses) {
        select1: bits[1] = sel(selector1, cases=[not_input1, not_input2])
        select2: bits[1] = sel(selector2, cases=[select1, not_input3])
        zero: bits[1] = literal(value=0)
-       next (tok, zero, zero, zero, input2, select2)
+       next (zero, zero, zero, input2, select2)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());

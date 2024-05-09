@@ -108,6 +108,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   // too. Just use the proc-builder and block-converter instead.
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  auto tok = pb.InitialToken();
   auto st = pb.StateElement("foo", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32));
   auto lit_2 = pb.Literal(UBits(2, 32));
@@ -118,7 +119,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
   PipelineSchedule sched(proc,
                          {
-                             {proc->TokenParam(), 0},
+                             {tok.node(), 0},
                              {st.node(), 0},
                              {lit_1.node(), 4},
                              {add_1.node(), 4},
@@ -176,6 +177,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
 TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  auto tok = pb.InitialToken();
   auto st1 = pb.StateElement("foo", UBits(1, 32));
   auto st2 = pb.StateElement("bar", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32), SourceInfo(), "lit_1");
@@ -192,7 +194,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
   PipelineSchedule sched(proc,
                          {
-                             {proc->TokenParam(), 0},
+                             {tok.node(), 0},
                              {st1.node(), 0},
                              {lit_1.node(), 3},
                              {add_1.node(), 3},
@@ -264,6 +266,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
 TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  auto tok = pb.InitialToken();
   auto st1 = pb.StateElement("foo", UBits(1, 32));
   auto st2 = pb.StateElement("bar", UBits(1, 32));
   auto lit_1 = pb.Literal(UBits(1, 32), SourceInfo(), "lit_1");
@@ -281,7 +284,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
   PipelineSchedule sched(proc,
                          {
-                             {proc->TokenParam(), 0},
+                             {tok.node(), 0},
                              {st1.node(), 0},
                              {lit_1.node(), 3},
                              {add_1.node(), 3},

@@ -226,11 +226,11 @@ TEST_F(PostDominatorAnalysisTest, DisconnectedNode) {
 
 TEST_F(PostDominatorAnalysisTest, MultipleOutputs) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", "tkn", p.get());
+  ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 1)));
   BValue y = pb.StateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {x, z}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, z}));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<PostDominatorAnalysis> analysis,
                            PostDominatorAnalysis::Run(proc));
 

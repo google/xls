@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -43,6 +44,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
@@ -827,17 +829,44 @@ class ProcThread {
         AllocateState(absl::StrFormat("%s_activation", inlined_proc_->name()),
                       Value(UBits(1, 1))));
 
+    XLS_ASSIGN_OR_RETURN(
+        source_activation_node_,
+        AllocateActivationNode(
+            absl::StrFormat("%s_activation_source", inlined_proc_->name()),
+            /*activations_in=*/{activation_state_->GetState()}, std::nullopt));
+
+    struct OriginalNodeIdLessThan {
+      bool operator()(ActivationNode* a, ActivationNode* b) const {
+        if (!a->original_node.has_value()) {
+          return false;
+        }
+        if (!b->original_node.has_value()) {
+          return true;
+        }
+        return Node::NodeIdLessThan()(*a->original_node, *b->original_node);
+      }
+    };
+    absl::btree_set<ActivationNode*, OriginalNodeIdLessThan>
+        terminal_activation_nodes;
     for (const NodeAndPredecessors& token_node : token_graph) {
       ActivationNode* activation_node;
       if (token_node.node->Is<Param>()) {
-        XLS_RET_CHECK_EQ(token_node.node, inlined_proc_->TokenParam());
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Proc %s has a token-typed state element, which is "
+                            "not supported by proc inlining",
+                            inlined_proc_->name()));
+      }
+      if (token_node.node->Is<Literal>()) {
+        // Literal tokens are activated by the proc activation.
+        XLS_RET_CHECK(TypeHasToken(token_node.node->GetType()));
+        XLS_RET_CHECK(token_node.predecessors.empty());
+        XLS_ASSIGN_OR_RETURN(std::string name,
+                             GetActivationNodeName(token_node.node));
         XLS_ASSIGN_OR_RETURN(
             activation_node,
-            AllocateActivationNode(
-                absl::StrFormat("%s_activation_source", inlined_proc_->name()),
-                /*activations_in=*/{activation_state_->GetState()},
-                token_node.node));
-        source_activation_node_ = activation_node;
+            AllocateActivationNode(name,
+                                   {source_activation_node_->activation_out},
+                                   token_node.node));
       } else if (token_node.node->Is<Gate>()) {
         // Gate ops are weird, they're side-effecting to prevent optimizations
         // from removing them, but they have no token. They can be data
@@ -849,9 +878,7 @@ class ProcThread {
         XLS_ASSIGN_OR_RETURN(
             activation_node,
             AllocateActivationNode(name,
-                                   {original_node_to_activation_node_
-                                        .at(inlined_proc_->TokenParam())
-                                        ->activation_out},
+                                   {source_activation_node_->activation_out},
                                    token_node.node));
       } else {
         XLS_ASSIGN_OR_RETURN(std::string name,
@@ -859,24 +886,29 @@ class ProcThread {
         std::vector<Node*> activation_preds;
         activation_preds.reserve(token_node.predecessors.size());
         for (Node* token_pred : token_node.predecessors) {
-          activation_preds.push_back(
-              original_node_to_activation_node_.at(token_pred)->activation_out);
+          ActivationNode* activation_pred =
+              original_node_to_activation_node_.at(token_pred);
+          terminal_activation_nodes.erase(activation_pred);
+          activation_preds.push_back(activation_pred->activation_out);
         }
         XLS_ASSIGN_OR_RETURN(
             activation_node,
             AllocateActivationNode(name, activation_preds, token_node.node));
       }
       original_node_to_activation_node_[token_node.node] = activation_node;
+      terminal_activation_nodes.insert(activation_node);
     }
 
-    ActivationNode* final_activation_node =
-        original_node_to_activation_node_.at(token_graph.back().node);
+    std::vector<Node*> activation_sink_inputs;
+    for (ActivationNode* terminal_activation_node : terminal_activation_nodes) {
+      activation_sink_inputs.push_back(
+          terminal_activation_node->activation_out);
+    }
     XLS_ASSIGN_OR_RETURN(
         sink_activation_node_,
         AllocateActivationNode(
             absl::StrFormat("%s_activation_sink", inlined_proc_->name()),
-            /*activations_in=*/{final_activation_node->activation_out},
-            std::nullopt));
+            /*activations_in=*/activation_sink_inputs, std::nullopt));
     XLS_RETURN_IF_ERROR(
         activation_state_->SetNext(sink_activation_node_->activation_out));
 
@@ -1649,22 +1681,16 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
     return node->CloneInNewFunction(new_operands, container_proc);
   };
 
+  std::vector<Node*> converted_clones;
   for (Node* node : topo_sort) {
     VLOG(3) << absl::StreamFormat("Inlining node %s", node->GetName());
     if (node->Is<Param>()) {
-      if (node == proc_to_inline->TokenParam()) {
-        // Connect the inlined token network from `proc` to the token parameter
-        // of `container_proc`.
-        XLS_RET_CHECK_EQ(node, proc_to_inline->TokenParam());
-        node_map[node] = container_proc->TokenParam();
-      } else {
-        // The dummy state value will later be replaced with an element from the
-        // container proc state.
-        XLS_ASSIGN_OR_RETURN(
-            int64_t state_index,
-            proc_to_inline->GetStateParamIndex(node->As<Param>()));
-        node_map[node] = proc_thread.GetDummyState(state_index);
-      }
+      // The dummy state value will later be replaced with an element from the
+      // container proc state.
+      XLS_ASSIGN_OR_RETURN(
+          int64_t state_index,
+          proc_to_inline->GetStateParamIndex(node->As<Param>()));
+      node_map[node] = proc_thread.GetDummyState(state_index);
       continue;
     }
 
@@ -1693,6 +1719,19 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
     } else {
       node_map[node] = cloned_node;
     }
+
+    if (node_map[node] != cloned_node) {
+      converted_clones.push_back(cloned_node);
+    }
+  }
+  for (auto it = converted_clones.rbegin(); it != converted_clones.rend();
+       ++it) {
+    Node* converted_clone = *it;
+    // This clone is dead *unless* the converted node deliberately still
+    // references it (e.g., for our virtual I/O operations).
+    if (converted_clone->IsDead()) {
+      XLS_RETURN_IF_ERROR(container_proc->RemoveNode(converted_clone));
+    }
   }
 
   std::vector<Node*> next_state;
@@ -1701,10 +1740,6 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   }
   XLS_RETURN_IF_ERROR(proc_thread.SetNextState(next_state));
 
-  // Wire in the next-token value from the inlined proc into the next-token of
-  // the container proc.
-  XLS_RETURN_IF_ERROR(container_proc->JoinNextTokenWith(
-      {node_map.at(proc_to_inline->NextToken())}));
   return std::move(proc_thread);
 }
 
@@ -1778,8 +1813,10 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
     }
   }
 
-  Proc* container_proc =
-      p->AddProc(std::make_unique<Proc>("__container", "tkn", p));
+  Proc* container_proc = p->AddProc(std::make_unique<Proc>("__container", p));
+  XLS_ASSIGN_OR_RETURN(Node * container_token,
+                       container_proc->MakeNodeWithName<Literal>(
+                           SourceInfo(), Value::Token(), "__container_tkn"));
 
   // Gather all inlined proc state and proc thread book-keeping bits and add to
   // the top-level proc state.
@@ -1847,17 +1884,12 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
   }
 
   // For each virtual channel, add an assertion which fires if data is dropped.
-  std::vector<Node*> assertion_tokens;
   for (Channel* ch : p->channels()) {
     if (virtual_channels.contains(ch)) {
-      XLS_ASSIGN_OR_RETURN(Node * assertion_token,
-                           virtual_channels.at(ch).AddDataLossAssertion(
-                               container_proc->TokenParam()));
-      assertion_tokens.push_back(assertion_token);
+      XLS_RETURN_IF_ERROR(virtual_channels.at(ch)
+                              .AddDataLossAssertion(container_token)
+                              .status());
     }
-  }
-  if (!assertion_tokens.empty()) {
-    XLS_RETURN_IF_ERROR(container_proc->JoinNextTokenWith(assertion_tokens));
   }
 
   XLS_RETURN_IF_ERROR(SetProcState(container_proc, state_elements));
@@ -1872,6 +1904,8 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
   }
   container_proc->SetName(top_proc_name);
 
+  VLOG(3) << "After deleting inlined procs:\n" << p->DumpIr();
+
   // Delete send and receive nodes in top which were used for communicating with
   // the inlined procs.
   std::vector<Node*> to_remove;
@@ -1880,7 +1914,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
       continue;
     }
     XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(node));
-    if (ch->supported_ops() == ChannelOps::kSendReceive || node->IsDead()) {
+    if (ch->supported_ops() == ChannelOps::kSendReceive) {
       to_remove.push_back(node);
     }
   }
@@ -1896,7 +1930,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
     }
   }
 
-  VLOG(3) << "After deleting inlined procs:\n" << p->DumpIr();
+  VLOG(3) << "After deleting inlined I/O:\n" << p->DumpIr();
 
   return true;
 }

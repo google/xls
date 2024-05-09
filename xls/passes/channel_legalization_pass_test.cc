@@ -24,12 +24,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
@@ -45,7 +43,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -65,48 +62,13 @@ using ::testing::ValuesIn;
 using ::testing::TestPartResult;
 using ::testing::TestWithParam;
 
-OptimizationPass* StandardPipelinePass() {
-  static absl::NoDestructor<std::unique_ptr<OptimizationPass>> singleton(
-      CreateOptimizationPassPipeline(3));
-  return singleton->get();
-}
-
-OptimizationPass* ChannelLegalizationPassOnly() {
-  static absl::NoDestructor<ChannelLegalizationPass> singleton;
-  return singleton.get();
-}
-
-enum class PassVariant {
-  RunStandardPipelineNoInlineProcs,
-  RunStandardPipelineInlineProcs,
-  RunChannelLegalizationPassOnly,
-};
-
-std::string_view PassVariantName(PassVariant pass_variant) {
-  switch (pass_variant) {
-    case PassVariant::RunStandardPipelineNoInlineProcs:
-      return "RunStandardPipelineNoInlineProcs";
-    case PassVariant::RunStandardPipelineInlineProcs:
-      return "RunStandardPipelineInlineProcs";
-    case PassVariant::RunChannelLegalizationPassOnly:
-      return "RunChannelLegalizationPassOnly";
-  }
-  LOG(ERROR) << absl::StreamFormat("Unexpected value for PassVariant: %d",
-                                   static_cast<int>(pass_variant));
-  return "<unknown>";
-}
-
-bool PassVariantInlinesProcs(PassVariant pass_variant) {
-  return pass_variant == PassVariant::RunStandardPipelineInlineProcs;
-}
-
 struct TestParam {
   using evaluation_function = std::function<absl::Status(
       SerialProcRuntime*, std::optional<ChannelStrictness>)>;
   std::string_view test_name;
   std::string_view ir_text;
   absl::flat_hash_map<ChannelStrictness, Matcher<absl::StatusOr<bool>>>
-      builder_matcher = {};
+      builder_matcher;
   evaluation_function evaluate =
       [](SerialProcRuntime* interpreter,
          std::optional<ChannelStrictness> strictness) -> absl::Status {
@@ -117,28 +79,11 @@ struct TestParam {
 };
 
 class ChannelLegalizationPassTest
-    : public TestWithParam<
-          std::tuple<TestParam, PassVariant, ChannelStrictness>> {
+    : public TestWithParam<std::tuple<TestParam, ChannelStrictness>> {
  protected:
   absl::StatusOr<bool> Run(Package* package) {
-    PassVariant pass_variant = std::get<1>(GetParam());
-    OptimizationPass* pass;
-    switch (pass_variant) {
-      case PassVariant::RunStandardPipelineNoInlineProcs:
-      case PassVariant::RunStandardPipelineInlineProcs: {
-        pass = StandardPipelinePass();
-        break;
-      }
-      case PassVariant::RunChannelLegalizationPassOnly: {
-        pass = ChannelLegalizationPassOnly();
-        break;
-      }
-    }
-
-    OptimizationPassOptions options;
-    options.inline_procs = PassVariantInlinesProcs(pass_variant);
     PassResults results;
-    return pass->Run(package, options, &results);
+    return ChannelLegalizationPass().Run(package, {}, &results);
   }
 };
 
@@ -150,7 +95,8 @@ TestParam kTestParameters[] = {
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
-top proc my_proc(tok: token, init={}) {
+top proc my_proc() {
+  tok: token = literal(value=token)
   recv0: (token, bits[32]) = receive(tok, channel=in)
   recv0_tok: token = tuple_index(recv0, index=0)
   recv0_data: bits[32] = tuple_index(recv0, index=1)
@@ -159,7 +105,6 @@ top proc my_proc(tok: token, init={}) {
   recv1_data: bits[32] = tuple_index(recv1, index=1)
   send0: token = send(recv1_tok, recv1_data, channel=out)
   send1: token = send(send0, recv0_data, channel=out)
-  next(send1)
 }
     )",
         .builder_matcher =
@@ -227,22 +172,24 @@ top proc my_proc(tok: token, init={}) {
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
-top proc proc_a(tok: token, pred: bits[1], init={1}) {
+top proc proc_a(pred: bits[1], init={1}) {
+  tok: token = literal(value=token)
   recv: (token, bits[32]) = receive(tok, predicate=pred, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   send: token = send(recv_tok, recv_data, predicate=pred, channel=out)
   next_pred: bits[1] = not(pred)
-  next(send, next_pred)
+  next (next_pred)
 }
 
-proc proc_b(tok: token, pred: bits[1], init={0}) {
+proc proc_b(pred: bits[1], init={0}) {
+  tok: token = literal(value=token)
   recv: (token, bits[32]) = receive(tok, predicate=pred, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   send: token = send(recv_tok, recv_data, predicate=pred, channel=out)
   next_pred: bits[1] = not(pred)
-  next(send, next_pred)
+  next (next_pred)
 }
       )",
         .builder_matcher =
@@ -291,20 +238,20 @@ proc proc_b(tok: token, pred: bits[1], init={0}) {
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
-top proc proc_a(tok: token, init={}) {
+top proc proc_a() {
+  tok: token = literal(value=token)
   recv: (token, bits[32]) = receive(tok, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   send: token = send(recv_tok, recv_data, channel=out)
-  next(send)
 }
 
-proc proc_b(tok: token, init={}) {
+proc proc_b() {
+  tok: token = literal(value=token)
   recv: (token, bits[32]) = receive(tok, channel=in)
   recv_tok: token = tuple_index(recv, index=0)
   recv_data: bits[32] = tuple_index(recv, index=1)
   send: token = send(recv_tok, recv_data, channel=out)
-  next(send)
 }
       )",
         .builder_matcher =
@@ -367,7 +314,8 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 chan pred(bits[2], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
-top proc my_proc(tok: token, init={}) {
+top proc my_proc() {
+  tok: token = literal(value=token)
   pred_recv: (token, bits[2]) = receive(tok, channel=pred)
   pred_token: token = tuple_index(pred_recv, index=0)
   pred_data: bits[2] = tuple_index(pred_recv, index=1)
@@ -386,8 +334,6 @@ top proc my_proc(tok: token, init={}) {
   send0: token = send(all_recv_tok, recv0_data, channel=out)
   send1: token = send(send0, recv1_data, predicate=pred0, channel=out)
   send2: token = send(send0, recv2_data, predicate=pred1, channel=out)
-  all_send_tok: token = after_all(send0, send1, send2)
-  next(all_send_tok)
 }
       )",
         .builder_matcher =
@@ -526,7 +472,8 @@ chan pred_recv(bits[1], id=0, kind=streaming, ops=receive_only, flow_control=rea
 chan in(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 
-top proc test_proc(tkn: token, state:(), init={()}) {
+top proc test_proc(state:(), init={()}) {
+  tkn: token = literal(value=token)
   data_to_send: bits[32] = literal(value=5)
   pred_recv: (token, bits[1]) = receive(tkn, channel=pred_recv)
   pred_recv_token: token = tuple_index(pred_recv, index=0)
@@ -537,7 +484,7 @@ top proc test_proc(tkn: token, state:(), init={()}) {
   in_recv1_token: token = tuple_index(in_recv1, index=0)
   out_send0: token = send(in_recv1_token, data_to_send, channel=out)
   out_send1: token = send(out_send0, data_to_send, channel=out)
-  next (out_send1, state)
+  next (state)
 }
         )",
         .builder_matcher =
@@ -607,7 +554,8 @@ top proc test_proc(tkn: token, state:(), init={()}) {
 chan in(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 
-top proc test_proc(tkn: token, state:(), init={()}) {
+top proc test_proc(state:(), init={()}) {
+  tkn: token = literal(value=token)
   in_recv0: (token, bits[32]) = receive(tkn, channel=in)
   in_recv0_token: token = tuple_index(in_recv0, index=0)
   in_recv0_data: bits[32] = tuple_index(in_recv0, index=1)
@@ -619,7 +567,7 @@ top proc test_proc(tkn: token, state:(), init={()}) {
   data_to_send: bits[32] = add(in_recv0_data, in_recv1_data)
   out_send0: token = send(in_recv1_token, data_to_send, channel=out)
   out_send1: token = send(out_send0, data_to_send, predicate=in_recv1_pred, channel=out)
-  next (out_send1, state)
+  next (state)
 }
         )",
         .builder_matcher =
@@ -699,7 +647,8 @@ chan in(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_val
 chan out0(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 chan out1(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 
-top proc test_proc(tkn: token, state:(), init={()}) {
+top proc test_proc(state:(), init={()}) {
+  tkn: token = literal(value=token)
   in_recv0: (token, bits[32]) = receive(tkn, channel=in)
   in_recv0_token: token = tuple_index(in_recv0, index=0)
   in_recv0_data: bits[32] = tuple_index(in_recv0, index=1)
@@ -711,7 +660,7 @@ top proc test_proc(tkn: token, state:(), init={()}) {
   data_to_send: bits[32] = add(in_recv0_data, in_recv1_data)
   out_send0: token = send(in_recv1_token, data_to_send, channel=out0)
   out_send1: token = send(out_send0, data_to_send, predicate=in_recv1_pred, channel=out1)
-  next (out_send1, state)
+  next (state)
 }
         )",
         .builder_matcher =
@@ -806,7 +755,8 @@ chan pred0(bits[1], id=0, kind=streaming, ops=receive_only, flow_control=ready_v
 chan pred1(bits[1], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="")
 
-top proc test_proc(tkn: token, state:(), init={()}) {
+top proc test_proc(state:(), init={()}) {
+  tkn: token = literal(value=token)
   pred1_recv: (token, bits[1]) = receive(tkn, channel=pred1)
   pred1_recv_token: token = tuple_index(pred1_recv, index=0)
   pred1_recv_data: bits[1] = tuple_index(pred1_recv, index=1)
@@ -818,7 +768,7 @@ top proc test_proc(tkn: token, state:(), init={()}) {
   out_send0: token = send(pred0_recv_token, literal0, predicate=pred0_recv_data, channel=out)
   after_all_tok: token = after_all(out_send0, pred1_recv_token)
   out_send1: token = send(after_all_tok, literal1, predicate=pred1_recv_data, channel=out)
-  next (out_send1, state)
+  next (state)
 }
         )",
         .builder_matcher =
@@ -907,7 +857,7 @@ top proc test_proc(tkn: token, state:(), init={()}) {
 };
 
 TEST_P(ChannelLegalizationPassTest, PassRuns) {
-  ChannelStrictness strictness = std::get<2>(GetParam());
+  ChannelStrictness strictness = std::get<1>(GetParam());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            Parser::ParsePackage(absl::Substitute(
                                std::get<0>(GetParam()).ir_text,
@@ -921,15 +871,14 @@ TEST_P(ChannelLegalizationPassTest, PassRuns) {
   }
   Matcher<absl::StatusOr<bool>> matcher = itr->second;
   EXPECT_THAT((run_status = Run(p.get())), matcher);
-  // If we expect the pass to complete, the result should be codegen'able.
-  bool inline_procs = PassVariantInlinesProcs(std::get<1>(GetParam()));
+  // If we expect the pass to complete, the result should be verifiable.
   if (run_status.ok()) {
-    EXPECT_THAT(VerifyPackage(p.get(), /*codegen=*/inline_procs), IsOk());
+    EXPECT_THAT(VerifyPackage(p.get()), IsOk());
   }
 }
 
 TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
-  ChannelStrictness strictness = std::get<2>(GetParam());
+  ChannelStrictness strictness = std::get<1>(GetParam());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            Parser::ParsePackage(absl::Substitute(
                                std::get<0>(GetParam()).ir_text,
@@ -949,27 +898,20 @@ TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
   XLS_ASSERT_OK_AND_ASSIGN(interpreter,
                            CreateInterpreterSerialProcRuntime(p.get()));
   XLS_EXPECT_OK(std::get<0>(GetParam())
-                    .evaluate(interpreter.get(), std::get<2>(GetParam())));
+                    .evaluate(interpreter.get(), std::get<1>(GetParam())));
 }
 
 INSTANTIATE_TEST_SUITE_P(
     ChannelLegalizationPassTestInstantiation, ChannelLegalizationPassTest,
     Combine(ValuesIn(kTestParameters),
-            Values(
-                // TODO(google/xls#1018): Enable proc inlining variant when
-                // cycle problems are solved.
-                // PassVariant::RunStandardPipelineInlineProcs,
-                PassVariant::RunStandardPipelineNoInlineProcs,
-                PassVariant::RunChannelLegalizationPassOnly),
             Values(ChannelStrictness::kProvenMutuallyExclusive,
-                            ChannelStrictness::kRuntimeMutuallyExclusive,
-                            ChannelStrictness::kTotalOrder,
-                            ChannelStrictness::kRuntimeOrdered,
-                            ChannelStrictness::kArbitraryStaticOrder)),
+                   ChannelStrictness::kRuntimeMutuallyExclusive,
+                   ChannelStrictness::kTotalOrder,
+                   ChannelStrictness::kRuntimeOrdered,
+                   ChannelStrictness::kArbitraryStaticOrder)),
     [](const auto& info) {
       return absl::StrCat(std::get<0>(info.param).test_name, "_",
-                          PassVariantName(std::get<1>(info.param)), "_",
-                          ChannelStrictnessToString(std::get<2>(info.param)));
+                          ChannelStrictnessToString(std::get<1>(info.param)));
     });
 
 // Test that runs the channel legalization pass (only, not the whole pass
@@ -985,9 +927,8 @@ class MutuallyExclusiveChannelLegalizationPassTest
             GetParam().ir_text,
             ChannelStrictnessToString(
                 ChannelStrictness::kProvenMutuallyExclusive))));
-    OptimizationPassOptions options;
     PassResults results;
-    return ChannelLegalizationPassOnly()->Run(p.get(), options, &results);
+    return ChannelLegalizationPass().Run(p.get(), {}, &results);
   }
 };
 
@@ -1022,9 +963,8 @@ class SingleValueChannelLegalizationPassTest : public TestWithParam<TestParam> {
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                          Parser::ParsePackage(substituted_ir_text));
-    OptimizationPassOptions options;
     PassResults results;
-    return ChannelLegalizationPassOnly()->Run(p.get(), options, &results);
+    return ChannelLegalizationPass().Run(p.get(), {}, &results);
   }
 };
 
