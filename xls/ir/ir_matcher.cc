@@ -77,9 +77,8 @@ bool ChannelMatcher::MatchAndExplain(
     return false;
   }
 
-  if (name_.has_value() && channel->name() != name_.value()) {
-    *listener << absl::StreamFormat(" has incorrect name (%s), expected: %s",
-                                    channel->name(), name_.value());
+  if (name_.has_value() &&
+      !name_->MatchAndExplain(std::string{channel->name()}, listener)) {
     return false;
   }
 
@@ -105,7 +104,11 @@ void ChannelMatcher::DescribeTo(::std::ostream* os) const {
     pieces.push_back(absl::StrFormat("id=%d", id_.value()));
   }
   if (name_.has_value()) {
-    pieces.push_back(absl::StrFormat("name=%s", name_.value()));
+    std::stringstream ss;
+    ss << "name=\"";
+    name_->DescribeTo(&ss);
+    ss << '"';
+    pieces.push_back(ss.str());
   }
   if (kind_.has_value()) {
     pieces.push_back(

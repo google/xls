@@ -419,7 +419,7 @@ TEST(IrMatchersTest, ReceiveOps) {
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel(444))),
               HasSubstr("has incorrect id (42), expected: 444"));
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel("foobar"))),
-              HasSubstr("has incorrect name (ch42), expected: foobar"));
+              HasSubstr("ch42 has incorrect name, expected: foobar."));
   EXPECT_THAT(
       Explain(receive.node(),
               m::Receive(m::Channel(ChannelKind::kSingleValue))),

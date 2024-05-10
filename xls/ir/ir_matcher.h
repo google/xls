@@ -658,7 +658,8 @@ inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
 class ChannelMatcher
     : public ::testing::MatcherInterface<const ::xls::Channel*> {
  public:
-  ChannelMatcher(std::optional<int64_t> id, std::optional<std::string> name,
+  ChannelMatcher(std::optional<int64_t> id,
+                 std::optional<::testing::Matcher<std::string>> name,
                  std::optional<ChannelKind> kind,
                  std::optional<std::string_view> type_string)
       : id_(id),
@@ -673,7 +674,7 @@ class ChannelMatcher
 
  protected:
   std::optional<int64_t> id_;
-  std::optional<std::string> name_;
+  std::optional<::testing::Matcher<std::string>> name_;
   std::optional<ChannelKind> kind_;
   std::optional<std::string> type_string_;
 };
@@ -702,10 +703,19 @@ inline ::testing::Matcher<const ::xls::Channel*> Channel(
                         : std::nullopt));
 }
 
-inline ::testing::Matcher<const ::xls::Channel*> Channel(
-    std::string_view name) {
+template <typename T>
+inline ::testing::Matcher<const ::xls::Channel*> Channel(T name)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::nullopt, std::string{name}, std::nullopt, std::nullopt));
+      std::nullopt, internal::NameMatcherInternal(std::string_view{name}),
+      std::nullopt, std::nullopt));
+}
+
+inline ::testing::Matcher<const ::xls::Channel*> Channel(
+    const ::testing::Matcher<std::string>& matcher) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
+      std::nullopt, matcher, std::nullopt, std::nullopt));
 }
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel(ChannelKind kind) {
