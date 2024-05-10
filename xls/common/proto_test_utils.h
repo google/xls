@@ -97,7 +97,7 @@ class EqualsProtoMatcher {
     static_assert(false, "bad call!");
     return false;
   }
-  template <>
+
   bool MatchAndExplain(RealProto test_message,
                        testing::MatchResultListener* listener) const {
     google::protobuf::util::MessageDifferencer diff;
