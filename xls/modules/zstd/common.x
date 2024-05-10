@@ -26,6 +26,7 @@ pub const BUFFER_WIDTH = u32:128;
 pub const MAX_BLOCK_SIZE_KB = u32:64;
 
 pub const BLOCK_PACKET_WIDTH = u32:32;
+pub const SYMBOLS_IN_PACKET = DATA_WIDTH/SYMBOL_WIDTH;
 
 pub type BlockData = bits[DATA_WIDTH];
 pub type BlockPacketLength = bits[BLOCK_PACKET_WIDTH];
@@ -59,10 +60,10 @@ pub struct ExtendedBlockDataPacket {
     packet: BlockDataPacket,
 }
 
-pub struct SequenceExecutorPacket {
+pub struct SequenceExecutorPacket<DATA_W: u32> {
     msg_type: SequenceExecutorMessageType,
     length: CopyOrMatchLength, // Literal length or match length
-    content: CopyOrMatchContent, // Literal data or match offset
+    content: uN[DATA_W * u32:8], // Literal data or match offset
     last: bool, // Last packet in frame
 }
 
@@ -73,7 +74,7 @@ pub struct BlockSyncData {
 
 pub struct CommandConstructorData {
     sync: BlockSyncData,
-    data: SequenceExecutorPacket,
+    data: SequenceExecutorPacket<SYMBOLS_IN_PACKET>,
 }
 
 // Defines output format of the ZSTD Decoder
@@ -238,3 +239,67 @@ pub type SeqDecShiftBufferInput = shift_buffer::ShiftBufferPacket<SEQDEC_SHIFT_B
 pub type SeqDecShiftBufferOutput = shift_buffer::ShiftBufferOutput<SEQDEC_SHIFT_BUFFER_DATA_WIDTH, SEQDEC_SHIFT_BUFFER_LENGTH_WIDTH>;
 pub type SeqDecShiftBufferPacket = shift_buffer::ShiftBufferPacket<SEQDEC_SHIFT_BUFFER_DATA_WIDTH, SEQDEC_SHIFT_BUFFER_LENGTH_WIDTH>;
 pub type SeqDecShiftBufferStatus = shift_buffer::ShiftBufferStatus;
+
+// Literals decoding
+
+pub const RLE_LITERALS_DATA_WIDTH = u32:8;
+pub const RLE_LITERALS_REPEAT_WIDTH = u32:20;
+pub const LITERALS_DATA_WIDTH = u32:64;
+pub const LITERALS_LENGTH_WIDTH = std::clog2(
+    std::ceil_div(LITERALS_DATA_WIDTH, RLE_LITERALS_DATA_WIDTH) + u32:1
+);
+
+pub type RleLitData = uN[RLE_LITERALS_DATA_WIDTH];
+pub type RleLitRepeat = uN[RLE_LITERALS_REPEAT_WIDTH];
+pub type LitData = uN[LITERALS_DATA_WIDTH];
+pub type LitLength = uN[LITERALS_LENGTH_WIDTH];
+pub type LitID = u32;
+
+pub type DecompressedSize = u20;
+
+pub enum LiteralType: u3 {
+    RAW        = 0,
+    RLE        = 1,
+    COMP       = 2,
+    COMP_4     = 3,
+    TREELESS   = 4,
+    TREELESS_4 = 5,
+}
+
+pub struct Streams {
+    count: bits[2],
+    stream_lengths: bits[20][4],
+}
+
+pub struct LiteralsPathCtrl {
+    data_conf: Streams,
+    decompressed_size: DecompressedSize,
+    literals_type: LiteralType,
+}
+
+pub struct RleLiteralsData {
+    data: RleLitData,
+    repeat: RleLitRepeat,
+    last: bool,
+    id: LitID,
+}
+
+pub struct LiteralsData {
+    data: LitData,
+    length: LitLength,
+    last: bool,
+}
+
+pub struct LiteralsDataWithSync {
+    data: LitData,
+    length: LitLength,
+    last: bool,
+    id: LitID,
+    literals_last: bool,
+}
+
+pub struct LiteralsBufferCtrl {
+    length: u32,
+    last: bool,
+}
+
