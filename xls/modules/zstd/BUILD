@@ -1065,3 +1065,85 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "literals_dispatcher_dslx",
+    srcs = [
+        "literals_dispatcher.x",
+    ],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "literals_dispatcher_dslx_test",
+    library = ":literals_dispatcher_dslx",
+)
+
+xls_dslx_verilog(
+    name = "literals_dispatcher_verilog",
+    codegen_args = {
+        "module_name": "LiteralsDispatcher",
+        "delay_model": "asap7",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "worst_case_throughput": "1",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "LiteralsDispatcher",
+    library = ":literals_dispatcher_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__literals_dispatcher__LiteralsDispatcher_0_next",
+    },
+    verilog_file = "literals_dispatcher.v",
+)
+
+xls_benchmark_ir(
+    name = "literals_dispatcher_opt_ir_benchmark",
+    src = ":literals_dispatcher_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "1",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "literals_dispatcher_verilog_benchmark",
+    verilog_target = "literals_dispatcher_verilog",
+)
+
+verilog_library(
+    name = "literals_dispatcher_verilog_lib",
+    srcs = [
+        ":literals_dispatcher.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "literals_dispatcher_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "LiteralsDispatcher",
+    deps = [
+        ":literals_dispatcher_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "literals_dispatcher_benchmark_synth",
+    synth_target = ":literals_dispatcher_synth_asap7",
+)
+
+place_and_route(
+    name = "literals_dispatcher_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    die_height_microns = 50,
+    die_width_microns = 50,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":literals_dispatcher_synth_asap7",
+    target_die_utilization_percentage = "10",
+)

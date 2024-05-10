@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import std;
+
 pub const DATA_WIDTH = u32:64;
 pub const MAX_ID = u32::MAX;
 pub const SYMBOL_WIDTH = u32:8;
@@ -64,4 +66,50 @@ pub struct ZstdDecodedPacket {
     data: BlockData,
     length: BlockPacketLength, // valid bits in data
     last: bool, // Last decoded packet in frame
+}
+
+// Literals decoding
+
+pub const RLE_LITERALS_DATA_WIDTH = u32:8;
+pub const RLE_LITERALS_REPEAT_WIDTH = u32:20;
+pub const LITERALS_DATA_WIDTH = u32:64;
+pub const LITERALS_LENGTH_WIDTH = std::clog2(
+    std::ceil_div(LITERALS_DATA_WIDTH, RLE_LITERALS_DATA_WIDTH) + u32:1
+);
+
+pub type RleLitData = uN[RLE_LITERALS_DATA_WIDTH];
+pub type RleLitRepeat = uN[RLE_LITERALS_REPEAT_WIDTH];
+pub type LitData = uN[LITERALS_DATA_WIDTH];
+pub type LitLength = uN[LITERALS_LENGTH_WIDTH];
+
+pub enum LiteralType: u3 {
+    RAW        = 0,
+    RLE        = 1,
+    COMP       = 2,
+    COMP_4     = 3,
+    TREELESS   = 4,
+    TREELESS_4 = 5,
+}
+
+pub struct Streams {
+    count: bits[2],
+    stream_lengths: bits[20][4],
+}
+
+pub struct LiteralsPathCtrl {
+    data_conf: Streams,
+    decompressed_size: u20,
+    literals_type: LiteralType,
+}
+
+pub struct RleLiteralsData {
+    data: RleLitData,
+    repeat: RleLitRepeat,
+    last: bool,
+}
+
+pub struct LiteralsData {
+    data: LitData,
+    length: LitLength,
+    last: bool,
 }
