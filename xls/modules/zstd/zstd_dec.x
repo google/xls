@@ -908,7 +908,7 @@ pub proc ZstdDecoder<
     type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq<AXI_ADDR_W>;
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
 
-    type SequenceExecutorPacket = common::SequenceExecutorPacket;
+    type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
     type ZstdDecodedPacket = common::ZstdDecodedPacket;
 
     type RamRdReq = ram::ReadReq<HB_ADDR_W, HB_NUM_PARTITIONS>;
