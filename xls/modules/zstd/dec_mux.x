@@ -26,7 +26,7 @@ type BlockPacketLength = common::BlockPacketLength;
 type CopyOrMatchContent = common::CopyOrMatchContent;
 type CopyOrMatchLength = common::CopyOrMatchLength;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
-type SequenceExecutorPacket = common::SequenceExecutorPacket;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
 
 const MAX_ID = common::DATA_WIDTH;
 const DATA_WIDTH = common::DATA_WIDTH;
