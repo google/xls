@@ -268,6 +268,8 @@ def load_external_repositories():
 
     # Released on 2023-11-28, current as of 2024-02-01.
     # https://github.com/grpc/grpc/releases/tag/v1.60.0
+    # Can be updated to latest once https://github.com/grpc/grpc/issues/36132
+    # is fixed and made it into a grpc release.
     http_archive(
         name = "com_github_grpc_grpc",
         urls = ["https://github.com/grpc/grpc/archive/v1.60.0.tar.gz"],
