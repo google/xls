@@ -20,6 +20,7 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_ir_cc_library",
@@ -71,6 +72,8 @@ cc_test(
     # The XLS AOT compiler does not currently support cross-compilation.
     deps = [
         ":compound_type_cc",
+        ":multi_function_one_cc",
+        ":multi_function_two_cc",
         ":null_function_cc",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -774,6 +777,31 @@ xls_ir_cc_library(
     src = ":null_function.ir",
     namespaces = "xls,foo,bar",
     top = "null_function",
+)
+
+xls_dslx_library(
+    name = "multi_function_dslx",
+    srcs = ["multi_func.x"],
+)
+
+xls_dslx_ir(
+    name = "multi_function",
+    dslx_top = "multi_function_one",
+    library = ":multi_function_dslx",
+)
+
+xls_ir_cc_library(
+    name = "multi_function_one_cc",
+    src = ":multi_function.ir",
+    namespaces = "xls,foo,bar",
+    top = "multi_function_one",
+)
+
+xls_ir_cc_library(
+    name = "multi_function_two_cc",
+    src = ":multi_function.ir",
+    namespaces = "xls,foo,bar",
+    top = "multi_function_two",
 )
 
 xls_dslx_library(

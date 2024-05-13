@@ -1118,6 +1118,7 @@ def _xls_ir_cc_library_impl(ctx):
     aot_compiler_args.add("-output_object", object_file.path)
     aot_compiler_args.add("-output_source", unformatted_source_file.path)
     aot_compiler_args.add("-header_include_path", header_file.short_path)
+    aot_compiler_args.add("-top", ctx.attr.top)
 
     if ctx.attr.with_msan:
         aot_compiler_args.add("-include_msan")

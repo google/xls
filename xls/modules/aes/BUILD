@@ -103,7 +103,6 @@ xls_ir_cc_library_macro(
     name = "aes_decrypt_cc",
     src = ":aes_decrypt.ir",
     namespaces = "xls,aes",
-    top = "aes_decrypt",
 )
 
 xls_dslx_library(
@@ -125,7 +124,6 @@ xls_ir_cc_library_macro(
     name = "aes_encrypt_cc",
     src = ":aes_encrypt.ir",
     namespaces = "xls,aes",
-    top = "aes_encrypt",
 )
 
 xls_dslx_library(

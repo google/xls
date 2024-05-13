@@ -23,6 +23,8 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/jit/compound_type_cc.h"
+#include "xls/jit/multi_function_one_cc.h"
+#include "xls/jit/multi_function_two_cc.h"
 #include "xls/jit/null_function_cc.h"
 
 // Rather than do a pattern-matching unit test of aot_compile.cc's output, this
@@ -82,6 +84,18 @@ TEST(AotCompileTest, InvalidTypes) {
                    "Value `()` is not of type `(bits[1], bits[8], bits[23])`"));
 }
 #endif
+
+TEST(AotCompileTest, TopFunction) {
+  Value a = Value(UBits(2, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(Value v, xls::foo::bar::multi_function_one(a));
+  EXPECT_EQ(v.bits().ToInt64().value(), 10);
+}
+
+TEST(AotCompileTest, NonTopFunction) {
+  Value a = Value(UBits(2, 8));
+  XLS_ASSERT_OK_AND_ASSIGN(Value v, xls::foo::bar::multi_function_two(a));
+  EXPECT_EQ(v.bits().ToInt64().value(), 4);
+}
 
 }  // namespace
 }  // namespace xls

@@ -167,7 +167,6 @@ xls_ir_cc_library(
     name = "float32_add_cc",
     src = ":float32_add.opt.ir",
     namespaces = "xls,fp",
-    top = "float32_add",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
@@ -434,7 +433,6 @@ xls_ir_cc_library(
     name = "float32_fma_cc",
     src = ":float32_fma.opt.ir",
     namespaces = "xls,fp",
-    top = "float32_fma_cc",
 )
 
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add

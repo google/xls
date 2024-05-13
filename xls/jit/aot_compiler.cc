@@ -299,7 +299,13 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
   if (top.empty()) {
     XLS_ASSIGN_OR_RETURN(f, package->GetTopAsFunction());
   } else {
-    XLS_ASSIGN_OR_RETURN(f, package->GetFunction(top));
+    absl::StatusOr<Function*> maybe_f = package->GetFunction(top);
+    if (maybe_f.ok()) {
+      f = *maybe_f;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          f, package->GetFunction(absl::StrCat(package_prefix, top)));
+    }
   }
   XLS_ASSIGN_OR_RETURN(JitObjectCode object_code,
                        FunctionJit::CreateObjectCode(f));
