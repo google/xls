@@ -45,6 +45,7 @@ nav:
     - Floating Point: 'floating_point.md'
     - Fuzzer: 'fuzzer.md'
     - Interpreter: 'dslx_bytecode_interpreter.md'
+    - FFI: 'dslx_ffi.md'
     - Language Server: 'dslx_language_server.md'
     - Type System: 'dslx_type_system.md'
   - Code Generation:

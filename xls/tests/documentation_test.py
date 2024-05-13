@@ -31,6 +31,7 @@ _DSLX_RE = re.compile('^```dslx$(.*?)^```$', re.MULTILINE | re.DOTALL)
 _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
 _INPUT_FILES = [
+    'docs_src/dslx_ffi.md',
     'docs_src/dslx_reference.md',
     # 'docs_src/dslx_std.md',                  # has examples that need fixing
     'docs_src/dslx_type_system.md',

@@ -33,6 +33,7 @@ exports_files(
 filegroup(
     name = "dslx_documentation_files",
     srcs = [
+        "dslx_ffi.md",
         "dslx_reference.md",
         "dslx_std.md",
         "dslx_type_system.md",
