@@ -103,3 +103,4 @@ plugins:
   - exclude:
       glob: BUILD
   - search
+  - print-site

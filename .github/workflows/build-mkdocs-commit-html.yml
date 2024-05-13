@@ -21,7 +21,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         pip install --upgrade pip
-        pip install mkdocs mkdocs-gen-files mkdocs-material mkdocs-exclude mdx_truly_sane_lists
+        pip install mkdocs mkdocs-gen-files mkdocs-material mkdocs-exclude mkdocs-print-site-plugin mdx_truly_sane_lists
     - name: Build MkDocs And Commit HTML
       run: |
         mkdocs build
