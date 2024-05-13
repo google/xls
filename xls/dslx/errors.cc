@@ -43,6 +43,13 @@ absl::Status FailureErrorStatus(const Span& span, std::string_view message) {
       message.empty() || message[0] == '\n' ? "" : " ", message));
 }
 
+absl::Status ProofErrorStatus(const Span& span, std::string_view message) {
+  return absl::InternalError(absl::StrFormat(
+      "ProofError: %s Failed to prove the property!%s%s",
+      span.ToString(),
+      message.empty() || message[0] == '\n' ? "" : " ", message));
+}
+
 absl::Status InvalidIdentifierErrorStatus(const Span& span,
                                           std::string_view message) {
   return absl::InvalidArgumentError(absl::StrFormat(

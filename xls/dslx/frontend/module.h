@@ -215,6 +215,10 @@ class Module : public AstNode {
   // which they are defined).
   std::vector<std::string> GetTestNames() const;
 
+  // Returns the identifiers for all QuickChecks within this module (in the
+  // order in which they are defined).
+  std::vector<std::string> GetQuickCheckNames() const;
+
   const std::string& name() const { return name_; }
   const std::optional<std::filesystem::path>& fs_path() const {
     return fs_path_;

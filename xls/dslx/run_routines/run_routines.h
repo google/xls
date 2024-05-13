@@ -18,8 +18,6 @@
 #ifndef XLS_DSLX_RUN_ROUTINES_H_
 #define XLS_DSLX_RUN_ROUTINES_H_
 
-#include <algorithm>
-#include <any>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <optional>
@@ -29,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
@@ -112,6 +111,7 @@ struct ParseAndTestOptions {
 struct ParseAndProveOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths;
+  const RE2* test_filter = nullptr;
   bool warnings_as_errors = true;
   WarningKindSet warnings = kDefaultWarningsSet;
 };
@@ -196,7 +196,7 @@ absl::StatusOr<TestResultData> ParseAndTest(std::string_view program,
 
 struct ParseAndProveResult {
   TestResultData test_result_data;
-  std::optional<std::vector<Value>> counterexample;
+  absl::flat_hash_map<std::string, std::vector<Value>> counterexamples;
 };
 
 // Parses program and attempts to prove the given quickcheck property.
@@ -204,8 +204,7 @@ struct ParseAndProveResult {
 // Note that this call can only prove a single quickcheck function.
 absl::StatusOr<ParseAndProveResult> ParseAndProve(
     std::string_view program, std::string_view module_name,
-    std::string_view filename, std::string_view quickcheck_name,
-    const ParseAndProveOptions& options);
+    std::string_view filename, const ParseAndProveOptions& options);
 
 struct QuickCheckResults {
   std::vector<std::vector<Value>> arg_sets;

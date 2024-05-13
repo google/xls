@@ -15,7 +15,7 @@
 """Tests the prove_quickcheck_main command line utility."""
 
 import subprocess as subp
-from typing import Tuple
+from typing import Optional, Tuple
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -29,14 +29,16 @@ class ProveQuickcheckMainTest(test_base.TestCase):
   def _prove_quickcheck(
       self,
       program: str,
-      quickcheck_name: str,
       *,
+      test_filter: Optional[str] = None,
       want_error: bool = False,
       alsologtostderr: bool = False,
       extra_flags: Tuple[str, ...] = (),
   ) -> Tuple[str, str]:
     temp_file = self.create_tempfile(content=program)
-    cmd = [_BINARY, temp_file.full_path, quickcheck_name] + list(extra_flags)
+    cmd = [_BINARY, temp_file.full_path] + list(extra_flags)
+    if test_filter is not None:
+      cmd.append(f'--test_filter={test_filter}')
     if alsologtostderr:
       cmd.append('--alsologtostderr')
     p = subp.run(
@@ -58,43 +60,61 @@ class ProveQuickcheckMainTest(test_base.TestCase):
     #[quickcheck]
     fn qc_always_true() -> bool { true }
     """
-    self._prove_quickcheck(program, 'qc_always_true')
+    self._prove_quickcheck(program)
 
   def test_trivially_false(self):
     program = """
     #[quickcheck]
     fn qc_always_false() -> bool { false }
     """
-    self._prove_quickcheck(program, 'qc_always_false', want_error=True)
+    self._prove_quickcheck(program, want_error=True)
 
   def test_arithmetic_property(self):
     program = """
     #[quickcheck]
     fn qc_add_one(x: u4) -> bool { (x as u5 + u5:1) > (x as u5) }
     """
-    self._prove_quickcheck(program, 'qc_add_one')
+    self._prove_quickcheck(program)
 
   def test_never_42(self):
     program = """
     #[quickcheck]
     fn qc_never_42(x: u8) -> bool { x != u8:42 }
     """
-    _, stderr = self._prove_quickcheck(program, 'qc_never_42', want_error=True)
+    _, stderr = self._prove_quickcheck(program, want_error=True)
     self.assertIn('counterexample: bits[8]:42', stderr)
 
-  def test_never_42_counterexamples_only(self):
+  def test_multiple_all_true(self):
     program = """
+    #[quickcheck]
+    fn qc_always_true() -> bool { true }
+    #[quickcheck]
+    fn qc_add_one(x: u4) -> bool { (x as u5 + u5:1) > (x as u5) }
+    """
+    self._prove_quickcheck(program)
+
+  def test_multiple_one_false(self):
+    program = """
+    #[quickcheck]
+    fn qc_always_true() -> bool { true }
+    #[quickcheck]
+    fn qc_add_one(x: u4) -> bool { (x as u5 + u5:1) > (x as u5) }
     #[quickcheck]
     fn qc_never_42(x: u8) -> bool { x != u8:42 }
     """
-    stdout, stderr = self._prove_quickcheck(
-        program,
-        'qc_never_42',
-        want_error=True,
-        extra_flags=('--counterexamples_only',),
-    )
-    self.assertEqual('bits[8]:42\n', stdout)
-    self.assertEmpty(stderr)
+    _, stderr = self._prove_quickcheck(program, want_error=True)
+    self.assertIn('counterexample: bits[8]:42', stderr)
+
+  def test_multiple_one_false_filtered_out(self):
+    program = """
+    #[quickcheck]
+    fn qc_always_true() -> bool { true }
+    #[quickcheck]
+    fn qc_add_one(x: u4) -> bool { (x as u5 + u5:1) > (x as u5) }
+    #[quickcheck]
+    fn qc_never_42(x: u8) -> bool { x != u8:42 }
+    """
+    self._prove_quickcheck(program, test_filter='qc_a*')
 
 
 if __name__ == '__main__':

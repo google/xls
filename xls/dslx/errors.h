@@ -36,6 +36,9 @@ absl::Status ArgCountMismatchErrorStatus(const Span& span,
 // Returned when interpretation of a design fails.
 absl::Status FailureErrorStatus(const Span& span, std::string_view message);
 
+// Returned when proof of a property fails.
+absl::Status ProofErrorStatus(const Span& span, std::string_view message);
+
 // Returned when an invalid identifier (invalid at some position in the
 // compilation chain, DSLX, IR, or Verilog) is encountered.
 absl::Status InvalidIdentifierErrorStatus(const Span& span,

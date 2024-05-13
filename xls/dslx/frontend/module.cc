@@ -171,6 +171,17 @@ std::vector<std::string> Module::GetTestNames() const {
   return result;
 }
 
+std::vector<std::string> Module::GetQuickCheckNames() const {
+  std::vector<std::string> result;
+  for (auto& member : top_) {
+    if (std::holds_alternative<QuickCheck*>(member)) {
+      QuickCheck* q = std::get<QuickCheck*>(member);
+      result.push_back(q->identifier());
+    }
+  }
+  return result;
+}
+
 std::vector<std::string> Module::GetFunctionNames() const {
   std::vector<std::string> result;
   for (auto& member : top_) {
