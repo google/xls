@@ -18,6 +18,8 @@ This module contains internal build definitions for XLS.
 This is only for OSS use.
 """
 
+visibility("private")
+
 # Should the AOT code consider us as being MSANd.
 # TODO(allight): 2023-12-18: Make this be set automatically somehow?
 XLS_IS_MSAN_BUILD = False
