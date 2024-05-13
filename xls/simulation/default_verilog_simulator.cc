@@ -12,18 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/simulation/verilog_simulators.h"
+#include "xls/simulation/default_verilog_simulator.h"
 
-#include <string_view>
+#include <string>
 
+#include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "xls/simulation/verilog_simulator.h"
+#include "xls/simulation/verilog_simulators.h"
+
+ABSL_FLAG(std::string, verilog_simulator, "iverilog",
+          "The Verilog simulator to use. If not specified, the default "
+          "simulator is used.");
 
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(std::string_view name) {
-  return GetVerilogSimulatorManagerSingleton().GetVerilogSimulator(name);
+const VerilogSimulator& GetDefaultVerilogSimulator() {
+  const std::string simulator_name = absl::GetFlag(FLAGS_verilog_simulator);
+  auto simulator = GetVerilogSimulator(simulator_name);
+  QCHECK_OK(simulator) << "Unknown simulator --verilog_simulator="
+                       << simulator_name;
+  return *simulator.value();
 }
 
 }  // namespace verilog

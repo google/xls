@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/simulation/verilog_simulators.h"
+#ifndef XLS_SIMULATION_DEFAULT_VERILOG_SIMULATOR_H_
+#define XLS_SIMULATION_DEFAULT_VERILOG_SIMULATOR_H_
 
 #include <string_view>
 
@@ -22,9 +23,11 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(std::string_view name) {
-  return GetVerilogSimulatorManagerSingleton().GetVerilogSimulator(name);
-}
+// Returns a reference to a default verilog simulator named by
+// the --verilog_simulator flag.
+const VerilogSimulator& GetDefaultVerilogSimulator();
 
 }  // namespace verilog
 }  // namespace xls
+
+#endif  // XLS_SIMULATION_DEFAULT_VERILOG_SIMULATOR_H_

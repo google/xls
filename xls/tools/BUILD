@@ -1115,6 +1115,7 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
+        "//xls/simulation:verilog_simulator",
         "//xls/simulation:verilog_simulators",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",

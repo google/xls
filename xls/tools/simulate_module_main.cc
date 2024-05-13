@@ -32,7 +32,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
@@ -44,6 +43,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/module_simulator.h"
+#include "xls/simulation/verilog_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
 #include "xls/tools/eval_utils.h"
 
@@ -92,7 +92,7 @@ ABSL_FLAG(std::vector<std::string>, output_channel_counts, {},
           "channel name, and 'count' is an integer representing the number of "
           "values expected from the given channel during simulation. Must be "
           "specified with 'channel_values_file'.");
-ABSL_FLAG(std::string, verilog_simulator, "",
+ABSL_FLAG(std::string, verilog_simulator, "iverilog",
           "The Verilog simulator to use. If not specified, the default "
           "simulator is used.");
 ABSL_FLAG(std::string, file_type, "",
@@ -116,7 +116,7 @@ using InputType = std::variant<FunctionInput, ProcInput>;
 
 absl::Status RunProc(const verilog::ModuleSimulator& simulator,
                      const verilog::ModuleSignature& signature,
-                     ProcInput proc_input) {
+                     const ProcInput& proc_input) {
   using MapT = absl::flat_hash_map<std::string, std::vector<Value>>;
   XLS_ASSIGN_OR_RETURN(
       MapT channel_outputs,
@@ -128,7 +128,7 @@ absl::Status RunProc(const verilog::ModuleSimulator& simulator,
 
 absl::Status RunFunction(const verilog::ModuleSimulator& simulator,
                          const verilog::ModuleSignature& signature,
-                         FunctionInput function_input) {
+                         const FunctionInput& function_input) {
   std::vector<absl::flat_hash_map<std::string, Value>> args_sets;
   for (std::string_view args_string : function_input.args_strings) {
     std::vector<Value> arg_values;
@@ -171,20 +171,12 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
-  const xls::verilog::VerilogSimulator* verilog_simulator;
-  if (absl::GetFlag(FLAGS_verilog_simulator).empty()) {
-    verilog_simulator = &xls::verilog::GetDefaultVerilogSimulator();
-  } else {
-    absl::StatusOr<const xls::verilog::VerilogSimulator*>
-        verilog_simulator_status = xls::verilog::GetVerilogSimulator(
-            absl::GetFlag(FLAGS_verilog_simulator));
-    std::string verilog_simulator_names = absl::StrJoin(
-        xls::verilog::GetVerilogSimulatorManagerSingleton().simulator_names(),
-        ", ");
-    QCHECK_OK(verilog_simulator_status.status())
-        << "Available simulators: " << verilog_simulator_names;
-    verilog_simulator = verilog_simulator_status.value();
-  }
+  using xls::verilog::GetVerilogSimulator;
+  auto simulator = GetVerilogSimulator(absl::GetFlag(FLAGS_verilog_simulator));
+  QCHECK_OK(simulator) << "Unknown simulator --verilog_simulator";
+
+  const xls::verilog::VerilogSimulator* verilog_simulator = simulator.value();
+
   QCHECK_EQ(positional_arguments.size(), 1)
       << "Expected single Verilog file argument.";
   std::filesystem::path verilog_path(positional_arguments.at(0));

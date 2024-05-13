@@ -15,10 +15,7 @@
 #ifndef XLS_SIMULATION_VERILOG_SIMULATORS_H_
 #define XLS_SIMULATION_VERILOG_SIMULATORS_H_
 
-#include <memory>
-#include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/simulation/verilog_simulator.h"
@@ -28,9 +25,6 @@ namespace verilog {
 
 // Returns the registered Verilog simulator with the given name.
 absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(std::string_view name);
-
-// Returns a reference to a default verilog simulator.
-const VerilogSimulator& GetDefaultVerilogSimulator();
 
 }  // namespace verilog
 }  // namespace xls
