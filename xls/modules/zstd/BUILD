@@ -1224,3 +1224,76 @@ place_and_route(
     synthesized_rtl = ":rle_literals_dec_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "raw_literals_dec_dslx",
+    srcs = ["raw_literals_dec.x"],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "raw_literals_dec_dslx_test",
+    library = ":raw_literals_dec_dslx",
+)
+
+xls_dslx_verilog(
+    name = "raw_literals_dec_verilog",
+    codegen_args = {
+        "module_name": "RawLiteralsDecoder",
+        "delay_model": "asap7",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "RawLiteralsDecoder",
+    library = ":raw_literals_dec_dslx",
+    verilog_file = "raw_literals_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "raw_literals_dec_opt_ir_benchmark",
+    src = ":raw_literals_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "raw_literals_dec_verilog_benchmark",
+    verilog_target = "raw_literals_dec_verilog",
+)
+
+verilog_library(
+    name = "raw_literals_dec_lib",
+    srcs = [
+        ":raw_literals_dec.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "raw_literals_dec_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "RawLiteralsDecoder",
+    deps = [
+        ":raw_literals_dec_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "raw_literals_dec_benchmark_synth",
+    synth_target = ":raw_literals_dec_asap7",
+)
+
+place_and_route(
+    name = "raw_literals_dec_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.09",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":raw_literals_dec_asap7",
+    target_die_utilization_percentage = "10",
+)
