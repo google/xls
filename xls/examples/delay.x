@@ -184,7 +184,7 @@ pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
         ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>> out,
         ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in,
         ram_wr_comp: chan<()> in) {
-        let (internal_data_s, internal_data_r) = chan<bits[DATA_WIDTH]>("internal_data");
+        let (internal_data_s, internal_data_r) = chan<bits[DATA_WIDTH]>("even_delay");
         spawn DelayInternal<DATA_WIDTH, DELAY, INIT_DATA, ADDR_WIDTH,
                             DOUBLE_DATA_WIDTH, HALF_FLOOR_DELAY>(
             data_in, internal_data_s, ram_req, ram_resp, ram_wr_comp);

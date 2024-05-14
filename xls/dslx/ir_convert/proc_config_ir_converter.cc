@@ -34,6 +34,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -65,11 +66,16 @@ ProcConfigIrConverter::ProcConfigIrConverter(Package* package, Function* f,
       f_(f),
       type_info_(type_info),
       import_data_(import_data),
+      channel_name_uniquer_(/*separator=*/"__"),
       proc_data_(proc_data),
       bindings_(bindings),
       proc_id_(proc_id),
       final_tuple_(nullptr) {
   proc_data->id_to_members[proc_id_] = {};
+  // Populate channel name uniquer with pre-existing channel names.
+  for (Channel* channel : package_->channels()) {
+    channel_name_uniquer_.GetSanitizedUniqueName(channel->name());
+  }
 }
 
 absl::Status ProcConfigIrConverter::Finalize() {
@@ -106,14 +112,15 @@ absl::Status ProcConfigIrConverter::HandleStatement(const Statement* node) {
 absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleChannelDecl: " << node->ToString()
           << " : " << node->span().ToString();
-  std::string name = absl::StrCat(ProcStackToId(proc_id_.proc_stack),
-                                  "_chandecl_", node->span().ToString());
-  name = absl::StrReplaceAll(name, {{":", "_"},
-                                    {".", "_"},
-                                    {"-", "_"},
-                                    {"/", "_"},
-                                    {"\\", "_"},
-                                    {">", "_"}});
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue name_interp_value,
+      ConstexprEvaluator::EvaluateToValue(
+          import_data_, type_info_, /*warning_collector=*/nullptr, bindings_,
+          &node->channel_name_expr()));
+  XLS_ASSIGN_OR_RETURN(std::string channel_name,
+                       InterpValueAsString(name_interp_value));
+  channel_name = channel_name_uniquer_.GetSanitizedUniqueName(
+      absl::StrCat(package_->name(), "__", channel_name));
   auto maybe_type = type_info_->GetItem(node->type());
   XLS_RET_CHECK(maybe_type.has_value());
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
@@ -151,11 +158,11 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
         /*register_push_outputs=*/*fifo_depth != 0,
         /*register_pop_outputs=*/false));
   }
-  XLS_ASSIGN_OR_RETURN(
-      StreamingChannel * channel,
-      package_->CreateStreamingChannel(name, ChannelOps::kSendReceive, type,
-                                       /*initial_values=*/{},
-                                       /*fifo_config=*/fifo_config));
+  XLS_ASSIGN_OR_RETURN(StreamingChannel * channel,
+                       package_->CreateStreamingChannel(
+                           channel_name, ChannelOps::kSendReceive, type,
+                           /*initial_values=*/{},
+                           /*fifo_config=*/fifo_config));
   node_to_ir_[node] = channel;
   return absl::OkStatus();
 }

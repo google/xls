@@ -80,6 +80,7 @@ cc_library(
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_utils",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:parametric_env",
@@ -87,6 +88,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
+        "//xls/ir:name_uniquer",
         "//xls/ir:value",
     ],
 )
@@ -115,6 +117,7 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:channel_cc_proto",
         "//xls/ir:channel_ops",
+        "//xls/ir:ir_matcher",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],

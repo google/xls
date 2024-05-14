@@ -23,8 +23,10 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 
@@ -81,6 +83,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   Function* f_;
   TypeInfo* type_info_;
   ImportData* import_data_;
+  NameUniquer channel_name_uniquer_;
 
   ProcConversionData* proc_data_;
   absl::flat_hash_map<std::vector<Proc*>, int> instances_;

@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-chan main_chandecl_test_module_x_33_18_33_26(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan test_module__my_chan(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
 fn __test_module__producer.init() -> bits[32] {
   ret literal.1: bits[32] = literal(value=0, id=1)
@@ -23,14 +23,14 @@ proc __test_module__main__producer_0_next(__state: bits[32], init={0}) {
   __token: token = literal(value=token, id=7)
   literal.11: bits[32] = literal(value=1, id=11)
   literal.9: bits[1] = literal(value=1, id=9)
-  tok: token = send(__token, __state, channel=main_chandecl_test_module_x_33_18_33_26, id=10)
+  tok: token = send(__token, __state, channel=test_module__my_chan, id=10)
   add.12: bits[32] = add(__state, literal.11, id=12)
   next (add.12)
 }
 
 proc __test_module__main__consumer_0_next(__state: bits[32], init={0}) {
   __token: token = literal(value=token, id=13)
-  receive.16: (token, bits[32]) = receive(__token, channel=main_chandecl_test_module_x_33_18_33_26, id=16)
+  receive.16: (token, bits[32]) = receive(__token, channel=test_module__my_chan, id=16)
   i: bits[32] = tuple_index(receive.16, index=1, id=19)
   literal.15: bits[1] = literal(value=1, id=15)
   tuple_index.17: token = tuple_index(receive.16, index=0, id=17)
