@@ -17,10 +17,12 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -48,25 +50,28 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
                         observer);
 }
 
+namespace {
+int64_t JitObjectCodeFunctionUse(const uint8_t* const* inputs,
+                                 uint8_t* const* outputs, void* temp_buffer,
+                                 InterpreterEvents* events,
+                                 InstanceContext* instance_context,
+                                 JitRuntime* jit_runtime,
+                                 int64_t continuation_point) {
+  static_assert(
+      std::is_same_v<decltype(&JitObjectCodeFunctionUse), JitFunctionType>);
+  LOG(FATAL) << "Attempt to call function point in JitObjectCode structure!";
+}
+}  // namespace
+
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
     Function* xls_function, int64_t opt_level, JitObserver* observer) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
                        CreateInternal(xls_function, opt_level,
                                       /*emit_object_code=*/true, observer));
   return JitObjectCode{
-      .function_name = std::string{jit->GetJittedFunctionName()},
       .object_code = jit->orc_jit_->GetObjectCode(),
-      .parameter_buffer_sizes = std::vector<int64_t>(
-          jit->jitted_function_base_.input_buffer_sizes().cbegin(),
-          jit->jitted_function_base_.input_buffer_sizes().cend()),
-      .parameter_alignments = std::vector<int64_t>(
-          jit->jitted_function_base_.input_buffer_abi_alignments().cbegin(),
-          jit->jitted_function_base_.input_buffer_abi_alignments().cend()),
-      .return_buffer_size = jit->jitted_function_base_.output_buffer_sizes()[0],
-      .return_buffer_alignment =
-          jit->jitted_function_base_.output_buffer_abi_alignments()[0],
-      .temp_buffer_size = jit->GetTempBufferSize(),
-      .temp_buffer_alignment = jit->GetTempBufferAlignment(),
+      .function_base = jit->jitted_function_base().WithCodePointers(
+          JitObjectCodeFunctionUse, JitObjectCodeFunctionUse),
   };
 }
 

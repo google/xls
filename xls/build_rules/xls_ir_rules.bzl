@@ -35,6 +35,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_providers.bzl",
+    "AotCompileInfo",
     "CODEGEN_FIELDS",
     "ConvIRInfo",
     "DslxInfo",
@@ -1101,46 +1102,39 @@ def _xls_ir_cc_library_impl(ctx):
 
     # Source files (.h and .cc) files are first generated unformatted, then
     # formatted with clangformat.
-    object_file = ctx.actions.declare_file(ctx.outputs.object_file.basename)
+    header_file = ctx.actions.declare_file(ctx.attr.file_basename + ".h")
+    source_file = ctx.actions.declare_file(ctx.attr.file_basename + ".cc")
     unformatted_header_file = ctx.actions.declare_file(
-        ctx.outputs.header_file.basename + ".unformatted",
+        header_file.basename + ".unformatted",
     )
     unformatted_source_file = ctx.actions.declare_file(
-        ctx.outputs.source_file.basename + ".unformatted",
+        source_file.basename + ".unformatted",
     )
 
-    header_file = ctx.actions.declare_file(ctx.outputs.header_file.basename)
-    source_file = ctx.actions.declare_file(ctx.outputs.source_file.basename)
-
-    aot_compiler_args = ctx.actions.args()
-    aot_compiler_args.add("-input", src)
-    aot_compiler_args.add("-output_header", unformatted_header_file.path)
-    aot_compiler_args.add("-output_object", object_file.path)
-    aot_compiler_args.add("-output_source", unformatted_source_file.path)
-    aot_compiler_args.add("-header_include_path", header_file.short_path)
-    aot_compiler_args.add("-top", ctx.attr.top)
-
-    if ctx.attr.with_msan:
-        aot_compiler_args.add("-include_msan")
-    else:
-        aot_compiler_args.add("-noinclude_msan")
+    aot_basic_function_args = ctx.actions.args()
+    aot_basic_function_args.add("-output_header", unformatted_header_file.path)
+    aot_basic_function_args.add("-output_source", unformatted_source_file.path)
+    aot_basic_function_args.add("-header_include_path", header_file.short_path)
 
     if ctx.attr.namespaces:
-        aot_compiler_args.add("-namespaces", ctx.attr.namespaces)
+        aot_basic_function_args.add("-namespaces", ctx.attr.namespaces)
+    aot_basic_function_args.add(ctx.attr.aot_info[AotCompileInfo].proto_file.path)
 
-    aot_compiler_tool = ctx.executable._xls_aot_compiler_tool
-
-    aot_compiler_tool_runfiles = ctx.attr._xls_aot_compiler_tool[DefaultInfo].default_runfiles
-    runfiles = get_runfiles_for_xls(ctx, [aot_compiler_tool_runfiles], [src])
+    aot_basic_function_tool = ctx.executable._xls_aot_basic_function_tool
+    runfiles = get_runfiles_for_xls(
+        ctx,
+        [],
+        [ctx.attr.aot_info[AotCompileInfo].proto_file],
+    )
 
     ctx.actions.run(
-        outputs = [object_file, unformatted_header_file, unformatted_source_file],
-        tools = [aot_compiler_tool],
+        outputs = [unformatted_header_file, unformatted_source_file],
+        tools = [aot_basic_function_tool],
         inputs = runfiles.files,
-        arguments = [aot_compiler_args],
-        executable = aot_compiler_tool.path,
-        mnemonic = "AOTCompile",
-        progress_message = "AOT compiling %s" % src.path,
+        arguments = [aot_basic_function_args],
+        executable = aot_basic_function_tool.path,
+        mnemonic = "GenerateAotWrapper",
+        progress_message = "AOT Wrapping %s" % src.path,
         toolchain = None,
     )
 
@@ -1173,7 +1167,7 @@ def _xls_ir_cc_library_impl(ctx):
     return [
         DefaultInfo(
             files = depset(
-                direct = [object_file, header_file, source_file],
+                direct = [header_file, source_file],
                 transitive = get_transitive_built_files_for_xls(
                     ctx,
                     [ctx.attr.src],
@@ -1181,10 +1175,15 @@ def _xls_ir_cc_library_impl(ctx):
             ),
             runfiles = runfiles,
         ),
+        CcInfo(
+            compilation_context = cc_common.create_compilation_context(
+                direct_public_headers = [header_file],
+            ),
+        ),
     ]
 
 xls_ir_cc_library = rule(
-    doc = """Creates a native cc_library from an IR file.
+    doc = """Creates a native cc_library wrapper from an aot description proto file.
 
     Not meant to be directly instantiated; use xls_ir_cc_library_macro (in
     xls_ir_macros.bzl) instead.
@@ -1192,19 +1191,14 @@ xls_ir_cc_library = rule(
     implementation = _xls_ir_cc_library_impl,
     attrs = dicts.add(
         xls_ir_common_attrs,
-        xls_ir_top_attrs,
         xls_toolchain_attrs,
         {
-            "header_file": attr.output(
-                doc = "Name of the generated header file.",
+            "aot_info": attr.label(
+                doc = "Rule which generated the AOT artifacts and information",
                 mandatory = True,
             ),
-            "object_file": attr.output(
-                doc = "Name of the generated object file.",
-                mandatory = True,
-            ),
-            "source_file": attr.output(
-                doc = "Name of the generated source file.",
+            "file_basename": attr.string(
+                doc = "base-name of the generated header&src file.",
                 mandatory = True,
             ),
             "namespaces": attr.string(
@@ -1216,10 +1210,6 @@ xls_ir_cc_library = rule(
                 allow_files = True,
                 cfg = "exec",
                 default = Label("@llvm_toolchain//:clang-format"),
-            ),
-            "with_msan": attr.bool(
-                doc = "if the jit code should be compiled with msan",
-                mandatory = True,
             ),
         },
     ),

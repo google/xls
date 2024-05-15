@@ -18,6 +18,8 @@ This module contains toolchains for XLS.
 
 _DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler"
 
+_DEFAULT_AOT_BASIC_FUNCTION_TARGET = "//xls/jit:aot_basic_function_entrypoint_main"
+
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
 # Note: exported so we can use it in our macro implementation (which does not
@@ -48,6 +50,12 @@ xls_toolchain_attrs = {
         allow_single_file = True,
         executable = True,
         cfg = "exec",
+    ),
+    "_xls_aot_basic_function_tool": attr.label(
+        default = Label(_DEFAULT_AOT_BASIC_FUNCTION_TARGET),
+        executable = True,
+        cfg = "exec",
+        allow_files = True,
     ),
     "_xls_dslx_interpreter_tool": attr.label(
         doc = "The target of the DSLX interpreter executable.",
@@ -124,6 +132,7 @@ xls_toolchain_attrs = {
 def _xls_toolchain_impl(ctx):
     targets = [
         ctx.attr._xls_aot_compiler_tool,
+        ctx.attr._xls_aot_basic_function_tool,
         ctx.attr._xls_benchmark_ir_tool,
         ctx.attr._xls_benchmark_codegen_tool,
         ctx.attr._xls_codegen_tool,

@@ -42,19 +42,9 @@ namespace xls {
 // Data structure containing jitted object code and metadata about how to call
 // it.
 struct JitObjectCode {
-  // Name of the top-level jitted function in the object code.
-  std::string function_name;
   std::vector<uint8_t> object_code;
 
-  // Size of the buffers for the parameters and result.
-  std::vector<int64_t> parameter_buffer_sizes;
-  std::vector<int64_t> parameter_alignments;
-  int64_t return_buffer_size;
-  int64_t return_buffer_alignment;
-
-  // Minimum size of the temporary buffer passed to the jitted function.
-  int64_t temp_buffer_size;
-  int64_t temp_buffer_alignment;
+  JittedFunctionBase function_base;
 };
 
 // This class provides a facility to execute XLS functions (on the host) by

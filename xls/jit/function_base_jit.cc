@@ -27,6 +27,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -59,6 +60,7 @@
 #include "xls/ir/register.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"
@@ -1342,6 +1344,69 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(Block* block,
   JitBuilderContext jit_context(jit);
   return JittedFunctionBase::BuildInternal(block, jit_context,
                                            /*build_packed_wrapper=*/false);
+}
+
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildFromAot(
+    FunctionBase* function, const AotEntrypointProto& abi,
+    JitFunctionType entrypoint,
+    std::optional<JitFunctionType> packed_entrypoint) {
+  XLS_RET_CHECK_EQ(function->package()->name(), abi.xls_package_name());
+  XLS_RET_CHECK_EQ(function->name(), abi.xls_function_identifier());
+  XLS_RET_CHECK(abi.has_function_symbol());
+  XLS_RET_CHECK_EQ(abi.input_buffer_sizes().size(),
+                   abi.input_buffer_alignments().size());
+  XLS_RET_CHECK_EQ(abi.input_buffer_sizes().size(),
+                   abi.input_buffer_abi_alignments().size());
+  XLS_RET_CHECK_EQ(abi.output_buffer_sizes().size(),
+                   abi.output_buffer_alignments().size());
+  XLS_RET_CHECK_EQ(abi.output_buffer_sizes().size(),
+                   abi.output_buffer_abi_alignments().size());
+  std::optional<std::string> packed_name;
+  if (packed_entrypoint) {
+    XLS_RET_CHECK(abi.has_packed_function_symbol());
+    XLS_RET_CHECK_EQ(abi.packed_input_buffer_sizes().size(),
+                     abi.input_buffer_sizes().size());
+    XLS_RET_CHECK_EQ(abi.packed_output_buffer_sizes().size(),
+                     abi.output_buffer_sizes().size());
+    packed_name = abi.packed_function_symbol();
+  }
+  XLS_RET_CHECK(abi.has_temp_buffer_size());
+  XLS_RET_CHECK(abi.has_temp_buffer_alignment());
+  absl::flat_hash_map<int64_t, Node*> continuation_points;
+  absl::btree_map<std::string, int64_t> queue_indices;
+  if (function->IsProc()) {
+    continuation_points.reserve(abi.continuation_point_node_ids_size());
+    auto all_nodes = function->nodes();
+    for (const auto& [cont_point, node_id] :
+         abi.continuation_point_node_ids()) {
+      auto it = absl::c_find_if(all_nodes,
+                                [&](Node* n) { return n->id() == node_id; });
+      XLS_RET_CHECK(it != all_nodes.end());
+      continuation_points[cont_point] = *it;
+    }
+    for (auto* chan : function->package()->channels()) {
+      XLS_RET_CHECK(abi.channel_queue_indices().contains(chan->name()));
+      queue_indices[chan->name()] =
+          abi.channel_queue_indices().at(chan->name());
+    }
+  } else {
+    XLS_RET_CHECK_EQ(abi.continuation_point_node_ids_size(), 0);
+    XLS_RET_CHECK_EQ(abi.channel_queue_indices_size(), 0);
+  }
+  auto to_vec = [](auto vec_like) {
+    return std::vector<int64_t>(vec_like.begin(), vec_like.end());
+  };
+  return JittedFunctionBase(
+      abi.function_symbol(), entrypoint, packed_name, packed_entrypoint,
+      to_vec(abi.input_buffer_sizes()), to_vec(abi.output_buffer_sizes()),
+      to_vec(abi.input_buffer_alignments()),
+      to_vec(abi.output_buffer_alignments()),
+      to_vec(abi.input_buffer_abi_alignments()),
+      to_vec(abi.output_buffer_abi_alignments()),
+      to_vec(abi.packed_input_buffer_sizes()),
+      to_vec(abi.packed_output_buffer_sizes()), abi.temp_buffer_size(),
+      abi.temp_buffer_alignment(), std::move(continuation_points),
+      std::move(queue_indices));
 }
 
 int64_t JittedFunctionBase::RunJittedFunction(

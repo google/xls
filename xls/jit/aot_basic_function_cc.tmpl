@@ -1,0 +1,77 @@
+#include "{{ aot.header_filename }}"
+
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/ir/events.h"
+#include "xls/ir/value.h"
+#include "xls/jit/aot_runtime.h"
+#include "xls/jit/type_layout.h"
+
+extern "C" {
+void {{aot.extern_fn}}(const uint8_t* const* inputs,
+                       uint8_t* const* outputs,
+                       uint8_t* temp_buffer,
+                       ::xls::InterpreterEvents* events,
+                       void* unused,
+                       int64_t continuation_point);
+}
+
+{%if aot.namespace %}
+namespace {{ aot.namespace }} {
+{% endif %}
+
+namespace {
+
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr bool kTargetHasSanitizer = true;
+#else
+static constexpr bool kTargetHasSanitizer = false;
+#endif
+static constexpr bool kExternHasSanitizer = {{ "true" if aot.extern_sanitizer else "false" }};
+
+static_assert(kTargetHasSanitizer == kExternHasSanitizer,
+              "sanitizer states do not match!");
+
+std::string_view kArgLayouts = R"|({{MessageToString(aot.arg_layout)}})|";
+std::string_view kResultLayout = R"|({{MessageToString(aot.result_layout.layouts[0])}})|";
+
+const ::xls::aot_compile::FunctionTypeLayout& GetFunctionTypeLayout() {
+  static std::unique_ptr<xls::aot_compile::FunctionTypeLayout> function_layout =
+    ::xls::aot_compile::FunctionTypeLayout::Create(
+        kArgLayouts, kResultLayout).value();
+  return *function_layout;
+}
+
+}  // namespace
+
+absl::StatusOr<::xls::Value> {{aot.wrapper_function_name}}(
+    {{aot.arguments | map(attribute="param") | join(", ")}}) {
+  {% for p in aot.arguments %}
+  alignas ({{p.preferred_alignment}}) uint8_t {{p.name}}_buffer[{{p.size}}];
+  {% endfor %}
+  uint8_t* arg_buffers[] = {
+      {{ aot.arguments | map(attribute="name")
+                       | append_each("_buffer")
+                       | join(", ") }}
+  };
+  alignas({{aot.result_buffer_align}}) uint8_t result_buffer[{{aot.result_buffer_size}}];
+  GetFunctionTypeLayout().ArgValuesToNativeLayout(
+    { {{aot.arguments | map(attribute="name") | join(", ") }} },
+    absl::MakeSpan(arg_buffers, {{ len(aot.arguments) }}));
+
+  uint8_t* output_buffers[1] = {result_buffer};
+  alignas({{aot.temp_buffer_align}}) uint8_t temp_buffer[{{aot.temp_buffer_size}}];
+  ::xls::InterpreterEvents events;
+  {{aot.extern_fn}}(arg_buffers, output_buffers, temp_buffer,
+                    &events, /*unused=*/nullptr, /*continuation_point=*/0);
+
+  return GetFunctionTypeLayout().NativeLayoutResultToValue(result_buffer);
+}
+
+{% if aot.namespace %}
+}  // namespace {{ aot.namespace }}
+{% endif%}

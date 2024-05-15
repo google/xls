@@ -1,0 +1,15 @@
+#pragma once
+
+#include "absl/status/statusor.h"
+#include "xls/ir/value.h"
+
+{%if aot.namespace %}
+namespace {{ aot.namespace }} {
+{% endif %}
+
+absl::StatusOr<::xls::Value> {{aot.wrapper_function_name}}(
+    {{aot.arguments| map(attribute="param") | join(", ")}});
+
+{%if aot.namespace %}
+}  // namespace {{ aot.namespace }}
+{% endif %}

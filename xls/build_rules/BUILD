@@ -131,6 +131,7 @@ bzl_library(
     srcs = ["xls_ir_macros.bzl"],
     deps = [
         ":xls_config_rules_bzl",
+        ":xls_internal_aot_rules_bzl",
         ":xls_internal_build_defs_bzl",
         ":xls_ir_rules_bzl",
         ":xls_type_check_utils_bzl",
@@ -247,6 +248,20 @@ bzl_library(
 bzl_library(
     name = "xls_toolchains_bzl",
     srcs = ["xls_toolchains.bzl"],
+)
+
+bzl_library(
+    name = "xls_internal_aot_rules_bzl",
+    srcs = ["xls_internal_aot_rules.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_common_rules_bzl",
+        ":xls_config_rules_bzl",
+        ":xls_ir_rules_bzl",
+        ":xls_providers_bzl",
+        ":xls_toolchains_bzl",
+        "@bazel_skylib//lib:dicts",
+    ],
 )
 
 xls_toolchain(

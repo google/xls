@@ -14,8 +14,10 @@
 
 # Build rules for the IR JIT - converts XLS IR into native host code.
 
-# pytype binary only
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+# pytype binary only
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
@@ -48,21 +50,45 @@ cc_binary(
     name = "aot_compiler",
     srcs = ["aot_compiler.cc"],
     deps = [
+        ":aot_entrypoint_cc_proto",
         ":function_jit",
         ":llvm_type_converter",
         ":orc_jit",
+        ":type_layout_cc_proto",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
+        "@llvm-project//llvm:ir_headers",
+    ],
+)
+
+py_binary(
+    name = "aot_basic_function_entrypoint_main",
+    srcs = ["aot_basic_function_entrypoint_main.py"],
+    data = [
+        ":aot_basic_function_cc.tmpl",
+        ":aot_basic_function_h.tmpl",
+    ],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":aot_entrypoint_py_pb2",
+        ":type_layout_py_pb2",
+        requirement("Jinja2"),
+        requirement("MarkupSafe"),
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
     ],
 )
 
@@ -320,7 +346,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -604,6 +630,7 @@ cc_library(
     srcs = ["function_base_jit.cc"],
     hdrs = ["function_base_jit.h"],
     deps = [
+        ":aot_entrypoint_cc_proto",
         ":ir_builder_visitor",
         ":jit_buffer",
         ":jit_channel_queue",
@@ -752,12 +779,33 @@ build_test(
 )
 
 proto_library(
+    name = "aot_entrypoint_proto",
+    srcs = ["aot_entrypoint.proto"],
+    deps = [":type_layout_proto"],
+)
+
+cc_proto_library(
+    name = "aot_entrypoint_cc_proto",
+    deps = [":aot_entrypoint_proto"],
+)
+
+py_proto_library(
+    name = "aot_entrypoint_py_pb2",
+    deps = [":aot_entrypoint_proto"],
+)
+
+proto_library(
     name = "type_layout_proto",
     srcs = ["type_layout.proto"],
 )
 
 cc_proto_library(
     name = "type_layout_cc_proto",
+    deps = [":type_layout_proto"],
+)
+
+py_proto_library(
+    name = "type_layout_py_pb2",
     deps = [":type_layout_proto"],
 )
 

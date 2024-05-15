@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -30,6 +31,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"
@@ -72,6 +74,7 @@ using JitFunctionType = int64_t (*)(const uint8_t* const* inputs,
 // implementing a XLS Function, Proc, etc.
 class JittedFunctionBase {
  public:
+  JittedFunctionBase() = default;
   // Builds and returns an LLVM IR function implementing the given XLS
   // function.
   static absl::StatusOr<JittedFunctionBase> Build(Function* xls_function,
@@ -84,6 +87,13 @@ class JittedFunctionBase {
   // Builds and returns an LLVM IR function implementing the given XLS
   // block.
   static absl::StatusOr<JittedFunctionBase> Build(Block* block, OrcJit& jit);
+
+  // Builds and returns a JittedFunctionBase using code and ABIs provided by an
+  // earlier AOT compile.
+  static absl::StatusOr<JittedFunctionBase> BuildFromAot(
+      FunctionBase* function, const AotEntrypointProto& abi,
+      JitFunctionType entrypoint,
+      std::optional<JitFunctionType> packed_entrypoint = std::nullopt);
 
   // Create a buffer with space for all inputs, correctly aligned.
   JitArgumentSet CreateInputBuffer() const;
@@ -135,6 +145,11 @@ class JittedFunctionBase {
 
   // Checks if we have a packed version of the function.
   bool HasPackedFunction() const { return packed_function_.has_value(); }
+  std::optional<std::string_view> packed_function_name() const {
+    return HasPackedFunction()
+               ? std::make_optional<std::string_view>(*packed_function_name_)
+               : std::nullopt;
+  }
 
   std::string_view function_name() const { return function_name_; }
 
@@ -184,7 +199,49 @@ class JittedFunctionBase {
     return queue_indices_;
   }
 
+  JittedFunctionBase WithCodePointers(
+      JitFunctionType entrypoint,
+      std::optional<JitFunctionType> packed_entrypoint = std::nullopt) const {
+    JittedFunctionBase res = *this;
+    res.function_ = entrypoint;
+    res.packed_function_ = packed_entrypoint;
+    return res;
+  }
+
  private:
+  JittedFunctionBase(std::string function_name, JitFunctionType function,
+                     std::optional<std::string> packed_function_name,
+                     std::optional<JitFunctionType> packed_function,
+                     std::vector<int64_t> input_buffer_sizes,
+                     std::vector<int64_t> output_buffer_sizes,
+                     std::vector<int64_t> input_buffer_prefered_alignments,
+                     std::vector<int64_t> output_buffer_prefered_alignments,
+                     std::vector<int64_t> input_buffer_abi_alignments,
+                     std::vector<int64_t> output_buffer_abi_alignments,
+                     std::vector<int64_t> packed_input_buffer_sizes,
+                     std::vector<int64_t> packed_output_buffer_sizes,
+                     int64_t temp_buffer_size, int64_t temp_buffer_alignment,
+                     absl::flat_hash_map<int64_t, Node*> continuation_points,
+                     absl::btree_map<std::string, int64_t> queue_indices)
+      : function_name_(std::move(function_name)),
+        function_(function),
+        packed_function_name_(std::move(packed_function_name)),
+        packed_function_(packed_function),
+        input_buffer_sizes_(std::move(input_buffer_sizes)),
+        output_buffer_sizes_(std::move(output_buffer_sizes)),
+        input_buffer_prefered_alignments_(
+            std::move(input_buffer_prefered_alignments)),
+        output_buffer_prefered_alignments_(
+            std::move(output_buffer_prefered_alignments)),
+        input_buffer_abi_alignments_(std::move(input_buffer_abi_alignments)),
+        output_buffer_abi_alignments_(std::move(output_buffer_abi_alignments)),
+        packed_input_buffer_sizes_(std::move(packed_input_buffer_sizes)),
+        packed_output_buffer_sizes_(std::move(packed_output_buffer_sizes)),
+        temp_buffer_size_(temp_buffer_size),
+        temp_buffer_alignment_(temp_buffer_alignment),
+        continuation_points_(std::move(continuation_points)),
+        queue_indices_(std::move(queue_indices)) {}
+
   static absl::StatusOr<JittedFunctionBase> BuildInternal(
       FunctionBase* function, JitBuilderContext& jit_context,
       bool build_packed_wrapper);

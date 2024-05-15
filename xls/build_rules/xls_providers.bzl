@@ -197,3 +197,12 @@ JitWrapperInfo = provider(
         "source_file": "File: The source file.",
     },
 )
+
+AotCompileInfo = provider(
+    doc = "A provider containing the object code for a compiled function " +
+          "and the proto describing the compiled code.",
+    fields = {
+        "object_file": "File: The object code file",
+        "proto_file": "File: The protobuf AotEntrypointProto message.",
+    },
+)
