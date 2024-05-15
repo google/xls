@@ -28,9 +28,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -257,10 +255,8 @@ absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto() {
         absl::GetFlag(FLAGS_scheduling_options_proto), &proto));
   }
   if (absl::GetFlag(FLAGS_scheduling_options_used_textproto_file)) {
-    std::string out;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(proto, &out));
-    XLS_RETURN_IF_ERROR(SetFileContents(
-        *absl::GetFlag(FLAGS_scheduling_options_used_textproto_file), out));
+    XLS_RETURN_IF_ERROR(SetTextProtoFile(
+        *absl::GetFlag(FLAGS_scheduling_options_used_textproto_file), proto));
   }
   return proto;
 }

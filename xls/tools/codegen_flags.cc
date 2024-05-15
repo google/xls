@@ -24,9 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/tools/codegen_flags.pb.h"
 
@@ -276,10 +274,8 @@ absl::StatusOr<CodegenFlagsProto> GetCodegenFlags() {
         absl::GetFlag(FLAGS_codegen_options_proto), &proto));
   }
   if (absl::GetFlag(FLAGS_codegen_options_used_textproto_file)) {
-    std::string out;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(proto, &out));
-    XLS_RETURN_IF_ERROR(SetFileContents(
-        *absl::GetFlag(FLAGS_codegen_options_used_textproto_file), out));
+    XLS_RETURN_IF_ERROR(SetTextProtoFile(
+        *absl::GetFlag(FLAGS_codegen_options_used_textproto_file), proto));
   }
   return proto;
 }

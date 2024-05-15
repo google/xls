@@ -984,7 +984,6 @@ cc_library(
     deps = [
         ":scheduling_options_flags_cc_proto",
         "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
@@ -996,7 +995,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -1025,13 +1023,11 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 
