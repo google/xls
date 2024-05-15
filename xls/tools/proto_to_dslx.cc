@@ -240,12 +240,39 @@ std::string GetParentPrefixedName(const std::string& top_package,
 // SourceTreeDescriptorDatabase.
 class DbErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {
  public:
-  void AddError(const std::string& filename, int line, int column,
-                const std::string& message) override {
+  // Compatiblity: new interface is Record*(), old interface is Add*().
+  // For a transition period, be compatible with both, but note, we can't
+  // put 'override' on any of these depending on what version we're on.
+
+  // New interface.
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, add 'override'.
+  // NOLINTNEXTLINE(modernize-use-override)
+  void RecordError(std::string_view filename, int line, int column,
+                   std::string_view message) /* override */ {
     LOG(ERROR) << message;
   }
+
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, add 'override'.
+  // NOLINTNEXTLINE(modernize-use-override)
+  void RecordWarning(std::string_view filename, int line, int column,
+                     std::string_view message) /* override */ {
+    LOG(WARNING) << message;
+  }
+
+  // Deprecated interface, compatible with older proto.
+  // Remove, once we're solidly on latest protobuf.
+
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, remove this method.
+  // NOLINTNEXTLINE(modernize-use-override)
+  void AddError(const std::string& filename, int line, int column,
+                const std::string& message) /* override */ {
+    LOG(ERROR) << message;
+  }
+
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, remove this method.
+  // NOLINTNEXTLINE(modernize-use-override)
   void AddWarning(const std::string& filename, int line, int column,
-                  const std::string& message) override {
+                  const std::string& message) /* override */ {
     LOG(WARNING) << message;
   }
 };
@@ -253,15 +280,41 @@ class DbErrorCollector : public google::protobuf::compiler::MultiFileErrorCollec
 // Simple output logger for any errors coming from a DescriptorPool.
 class PoolErrorCollector : public DescriptorPool::ErrorCollector {
  public:
-  void AddError(const std::string& filename, const std::string& element_name,
-                const Message* descriptor, ErrorLocation location,
-                const std::string& message) override {
+  // Compatiblity: new interface is Record*(), old interface is Add*().
+  // For a transition period, be compatible with both, but note, we can't
+  // put 'override' on any of these depending on what version we're on.
+
+  // New interface.
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, add 'override'.
+  // NOLINTNEXTLINE(modernize-use-override)
+  void RecordError(std::string_view filename, std::string_view element_name,
+                   const Message* descriptor, ErrorLocation location,
+                   std::string_view message) /* override */ {
     LOG(ERROR) << message;
   }
 
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, add 'override'.
+  // NOLINTNEXTLINE(modernize-use-override)
+  void RecordWarning(std::string_view filename, std::string_view element_name,
+                     const Message* descriptor, ErrorLocation location,
+                     std::string_view message) /* override */ {
+    LOG(WARNING) << message;
+  }
+
+  // Deprecated interface, compatible with older proto.
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, remove this method.
+  // NOLINTNEXTLINE(modernize-use-override)
+  void AddError(const std::string& filename, const std::string& element_name,
+                const Message* descriptor, ErrorLocation location,
+                const std::string& message) /* override */ {
+    LOG(ERROR) << message;
+  }
+
+  // TODO(google/xls#1408) Once grpc/protobuf is updated, remove this method.
+  // NOLINTNEXTLINE(modernize-use-override)
   void AddWarning(const std::string& filename, const std::string& element_name,
                   const Message* descriptor, ErrorLocation location,
-                  const std::string& message) override {
+                  const std::string& message) /* override */ {
     LOG(WARNING) << message;
   }
 };

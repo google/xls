@@ -270,6 +270,7 @@ def load_external_repositories():
     # https://github.com/grpc/grpc/releases/tag/v1.60.0
     # Can be updated to latest once https://github.com/grpc/grpc/issues/36132
     # is fixed and made it into a grpc release.
+    # TODO(google/xls#1408) Once updated, fix related TODOs.
     http_archive(
         name = "com_github_grpc_grpc",
         urls = ["https://github.com/grpc/grpc/archive/v1.60.0.tar.gz"],
