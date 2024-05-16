@@ -936,6 +936,77 @@ place_and_route(
 )
 
 xls_dslx_library(
+    name = "ram_wr_handler_dslx",
+    srcs = ["ram_wr_handler.x"],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "ram_wr_handler_dslx_test",
+    library = ":ram_wr_handler_dslx",
+)
+
+xls_dslx_verilog(
+    name = "ram_rw_handler_verilog",
+    codegen_args = {
+        "module_name": "RamWrRespHandler",
+        "delay_model": "asap7",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "RamWrRespHandlerInst",
+    library = ":ram_wr_handler_dslx",
+    opt_ir_args = {
+        "top": "__ram_wr_handler__RamWrRespHandlerInst__RamWrRespHandler_0__32_next",
+    },
+    verilog_file = "ram_rw_handler.v",
+)
+
+xls_benchmark_ir(
+    name = "ram_rw_handler_opt_ir_benchmark",
+    src = ":ram_rw_handler_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+    },
+)
+
+verilog_library(
+    name = "ram_rw_handler_verilog_lib",
+    srcs = [
+        ":ram_rw_handler.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "ram_rw_handler_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "RamWrRespHandler",
+    deps = [
+        ":ram_rw_handler_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "ram_rw_handler_benchmark_synth",
+    synth_target = ":ram_rw_handler_synth_asap7",
+)
+
+place_and_route(
+    name = "ram_rw_handler_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":ram_rw_handler_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
     name = "fse_proba_freq_dec_dslx",
     srcs = ["fse_proba_freq_dec.x"],
     deps = [
