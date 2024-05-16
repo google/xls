@@ -27,6 +27,7 @@ load(
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
+    "xls_dslx_prove_quickcheck_test",
     "xls_dslx_test",
     "xls_dslx_verilog",
     "xls_eval_ir_test",
@@ -700,6 +701,11 @@ xls_dslx_test(
     dslx_test_args = {
         "compare": "jit",
     },
+    library = ":quickcheck_dslx",
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = "quickcheck_prove_test",
     library = ":quickcheck_dslx",
 )
 

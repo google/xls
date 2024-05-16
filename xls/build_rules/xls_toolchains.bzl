@@ -22,6 +22,8 @@ _DEFAULT_AOT_BASIC_FUNCTION_TARGET = "//xls/jit:aot_basic_function_entrypoint_ma
 
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
+_DEFAULT_PROVE_QUICKCHECK_TARGET = "//xls/dslx:prove_quickcheck_main"
+
 # Note: exported so we can use it in our macro implementation (which does not
 # get a toolchain ctx).
 _DEFAULT_DSLX_FMT_TARGET = "//xls/dslx:dslx_fmt"
@@ -60,6 +62,13 @@ xls_toolchain_attrs = {
     "_xls_dslx_interpreter_tool": attr.label(
         doc = "The target of the DSLX interpreter executable.",
         default = Label(_DEFAULT_INTERPRETER_TARGET),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+    "_xls_dslx_prove_quickcheck_tool": attr.label(
+        doc = "The target of the DSLX prove quickcheck executable.",
+        default = Label(_DEFAULT_PROVE_QUICKCHECK_TARGET),
         allow_single_file = True,
         executable = True,
         cfg = "exec",

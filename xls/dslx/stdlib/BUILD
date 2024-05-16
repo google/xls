@@ -20,6 +20,7 @@ load(
     "xls_dslx_fmt_test",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
+    "xls_dslx_prove_quickcheck_test",
     "xls_dslx_test",
     "xls_eval_ir_test",
     "xls_ir_cc_library",
@@ -47,6 +48,11 @@ xls_dslx_test(
     srcs = ["std.x"],
 )
 
+xls_dslx_prove_quickcheck_test(
+    name = "std_dslx_prove_quickcheck_test",
+    srcs = ["std.x"],
+)
+
 xls_dslx_test(
     name = "acm_random_dslx_test",
     srcs = ["acm_random.x"],
@@ -66,6 +72,12 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "apfloat_dslx_test",
+    srcs = ["apfloat.x"],
+    deps = [":apfloat_dslx"],
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = "apfloat_dslx_prove_quickcheck_test",
     srcs = ["apfloat.x"],
     deps = [":apfloat_dslx"],
 )
