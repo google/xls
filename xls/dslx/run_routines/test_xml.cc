@@ -57,22 +57,22 @@ std::string_view ToXmlString(RunResult rr) {
 
 template <typename T>
 static void TimesToAttrs(XmlNode& node, const T& item, absl::TimeZone tz) {
-  node.attrs["time"] =
+  node.attrs()["time"] =
       absl::StrFormat("%.03f", absl::ToDoubleSeconds(item.time));
-  node.attrs["timestamp"] = absl::FormatTime(item.timestamp, tz);
+  node.attrs()["timestamp"] = absl::FormatTime(item.timestamp, tz);
 }
 
 static void CountsToAttrs(XmlNode& node, const TestCounts& counts) {
-  node.attrs["tests"] = absl::StrCat(counts.tests);
-  node.attrs["failures"] = absl::StrCat(counts.failures);
-  node.attrs["disabled"] = absl::StrCat(counts.disabled);
-  node.attrs["skipped"] = absl::StrCat(counts.skipped);
-  node.attrs["errors"] = absl::StrCat(counts.errors);
+  node.attrs()["tests"] = absl::StrCat(counts.tests);
+  node.attrs()["failures"] = absl::StrCat(counts.failures);
+  node.attrs()["disabled"] = absl::StrCat(counts.disabled);
+  node.attrs()["skipped"] = absl::StrCat(counts.skipped);
+  node.attrs()["errors"] = absl::StrCat(counts.errors);
 }
 
 static std::unique_ptr<XmlNode> ToXml(const Failure& failure) {
   auto node = std::make_unique<XmlNode>("failure");
-  node->attrs["message"] = failure.message;
+  node->attrs()["message"] = failure.message;
 
   // TODO(leary): 2024-02-08 Handle expected/actual value reporting.
 
@@ -81,14 +81,14 @@ static std::unique_ptr<XmlNode> ToXml(const Failure& failure) {
 
 std::unique_ptr<XmlNode> ToXml(const TestCase& test_case, absl::TimeZone tz) {
   auto node = std::make_unique<XmlNode>("testcase");
-  node->attrs["name"] = test_case.name;
-  node->attrs["file"] = test_case.file;
-  node->attrs["line"] = absl::StrCat(test_case.line);
-  node->attrs["status"] = std::string(ToXmlString(test_case.status));
-  node->attrs["result"] = std::string(ToXmlString(test_case.result));
+  node->attrs()["name"] = test_case.name;
+  node->attrs()["file"] = test_case.file;
+  node->attrs()["line"] = absl::StrCat(test_case.line);
+  node->attrs()["status"] = std::string(ToXmlString(test_case.status));
+  node->attrs()["result"] = std::string(ToXmlString(test_case.result));
 
   if (test_case.failure.has_value()) {
-    node->children.push_back(ToXml(test_case.failure.value()));
+    node->children().push_back(ToXml(test_case.failure.value()));
   }
 
   TimesToAttrs(*node, test_case, tz);
@@ -97,11 +97,11 @@ std::unique_ptr<XmlNode> ToXml(const TestCase& test_case, absl::TimeZone tz) {
 
 std::unique_ptr<XmlNode> ToXml(const TestSuite& suite, absl::TimeZone tz) {
   auto node = std::make_unique<XmlNode>("testsuite");
-  node->attrs["name"] = suite.name;
+  node->attrs()["name"] = suite.name;
   CountsToAttrs(*node, suite.counts);
   TimesToAttrs(*node, suite, tz);
   for (const TestCase& test_case : suite.test_cases) {
-    node->children.push_back(ToXml(test_case, tz));
+    node->children().push_back(ToXml(test_case, tz));
   }
   return node;
 }
@@ -109,13 +109,13 @@ std::unique_ptr<XmlNode> ToXml(const TestSuite& suite, absl::TimeZone tz) {
 std::unique_ptr<XmlNode> ToXml(const TestSuites& suites, absl::TimeZone tz) {
   auto node = std::make_unique<XmlNode>("testsuites");
 
-  node->attrs["name"] = "all tests";
+  node->attrs()["name"] = "all tests";
 
   CountsToAttrs(*node, suites.counts);
   TimesToAttrs(*node, suites, tz);
 
   for (const TestSuite& suite : suites.test_suites) {
-    node->children.push_back(ToXml(suite, tz));
+    node->children().push_back(ToXml(suite, tz));
   }
   return node;
 }
@@ -134,19 +134,19 @@ static std::string SimpleXmlEscape(std::string_view value) {
 
 std::string XmlNodeToString(const XmlNode& root) {
   std::string attrs =
-      absl::StrJoin(root.attrs, " ", [](std::string* out, const auto& kv) {
+      absl::StrJoin(root.attrs(), " ", [](std::string* out, const auto& kv) {
         const auto& [key, value] = kv;
         absl::StrAppendFormat(out, "%s=\"%s\"", key, SimpleXmlEscape(value));
       });
-  if (root.children.empty()) {
-    return absl::StrFormat("<%s %s />", root.tag, attrs);
+  if (root.children().empty()) {
+    return absl::StrFormat("<%s %s />", root.tag(), attrs);
   }
   std::string children = absl::StrJoin(
-      root.children, "\n  ", [](std::string* out, const auto& child_node) {
+      root.children(), "\n  ", [](std::string* out, const auto& child_node) {
         absl::StrAppend(out, xls::Indent(XmlNodeToString(*child_node)));
       });
-  return absl::StrFormat("<%s %s>\n  %s\n</%s>", root.tag, attrs, children,
-                         root.tag);
+  return absl::StrFormat("<%s %s>\n  %s\n</%s>", root.tag(), attrs, children,
+                         root.tag());
 }
 
 std::string XmlRootToString(const XmlNode& root) {
