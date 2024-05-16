@@ -935,6 +935,105 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+xls_dslx_library(
+    name = "fse_proba_freq_dec_dslx",
+    srcs = ["fse_proba_freq_dec.x"],
+    deps = [
+        ":common_dslx",
+        ":ram_wr_handler_dslx",
+        ":shift_buffer_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "fse_proba_freq_dec_dslx_test",
+    library = ":fse_proba_freq_dec_dslx",
+)
+
+xls_dslx_verilog(
+    name = "fse_proba_freq_dec_verilog",
+    codegen_args = {
+        "module_name": "FseProbaFreqDec",
+        "generator": "pipeline",
+        "delay_model": "asap7",
+        # FIXME: update ram rewrite
+        #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+        #    latency = 5,
+        #    rd_req = "fse_proba_freq_dec__rd_req_s",
+        #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
+        #    wr_req = "fse_proba_freq_dec__wr_req_s",
+        #    wr_resp = "fse_proba_freq_dec__wr_resp_r",
+        #),
+        "pipeline_stages": "6",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "FseProbaFreqDecoderInst",
+    library = ":fse_proba_freq_dec_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__fse_proba_freq_dec__FseProbaFreqDecoderInst__FseProbaFreqDecoder_0__64_7_8_10_1_next",
+    },
+    verilog_file = "fse_proba_freq_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "fse_proba_freq_dec_opt_ir_benchmark",
+    src = ":fse_proba_freq_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+        "inline_procs": "true",
+        "reset": "rst",
+        # FIXME: update ram rewrite
+        #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+        #    latency = 5,
+        #    rd_req = "fse_proba_freq_dec__rd_req_s",
+        #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
+        #    wr_req = "fse_proba_freq_dec__wr_req_s",
+        #    wr_resp = "fse_proba_freq_dec__wr_resp_r",
+        #),
+    },
+)
+
+xls_benchmark_verilog(
+    name = "fse_proba_freq_dec_verilog_benchmark",
+    verilog_target = "fse_proba_freq_dec_verilog",
+)
+
+verilog_library(
+    name = "fse_proba_freq_dec_lib",
+    srcs = [
+        ":fse_proba_freq_dec.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "fse_proba_freq_dec_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "FseProbaFreqDec",
+    deps = [
+        ":fse_proba_freq_dec_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "fse_proba_freq_dec_benchmark_synth",
+    synth_target = ":fse_proba_freq_dec_asap7",
+)
+
+place_and_route(
+    name = "fse_proba_freq_dec_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "detailed_routing",
+    synthesized_rtl = ":fse_proba_freq_dec_asap7",
+    target_die_utilization_percentage = "10",
+)
+
 zstd_dec_deps = [
     ":axi_csr_accessor_dslx",
     ":block_header_dec_dslx",
