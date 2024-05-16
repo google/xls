@@ -63,7 +63,8 @@ namespace {
 absl::StatusOr<bool> RemoveZeroWidthStateElements(Proc* proc) {
   std::vector<int64_t> to_remove;
   for (int64_t i = proc->GetStateElementCount() - 1; i >= 0; --i) {
-    if (proc->GetStateElementType(i)->GetFlatBitCount() == 0) {
+    if (proc->GetStateElementType(i)->GetFlatBitCount() == 0 &&
+        !TypeHasToken(proc->GetStateElementType(i))) {
       to_remove.push_back(i);
     }
   }

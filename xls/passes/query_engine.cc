@@ -37,6 +37,7 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/predicate_state.h"
@@ -238,7 +239,7 @@ bool QueryEngine::IsAllOnes(Node* node) const {
 }
 
 bool QueryEngine::IsFullyKnown(Node* node) const {
-  if (!IsTracked(node)) {
+  if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return false;
   }
 

@@ -28,6 +28,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_evaluator.h"
 
@@ -75,7 +76,7 @@ class TernaryQueryEngine : public QueryEngine {
   }
 
   bool IsFullyKnown(Node* n) const override {
-    if (!IsTracked(n)) {
+    if (!IsTracked(n) || TypeHasToken(n->GetType())) {
       return false;
     }
     return absl::c_all_of(values_.at(n).AsView().elements(),

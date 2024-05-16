@@ -1036,6 +1036,7 @@ cc_library(
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
         "//xls/ir:ternary",
+        "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
     ],
