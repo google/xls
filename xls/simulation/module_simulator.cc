@@ -38,6 +38,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_type.pb.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/tools/eval_utils.h"

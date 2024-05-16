@@ -22,10 +22,8 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/value.h"

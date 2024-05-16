@@ -333,6 +333,7 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":function_base_jit",
+        ":ir_builder_visitor",
         ":jit_buffer",
         ":jit_runtime",
         ":observer",
@@ -388,6 +389,7 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_view",
+        "//xls/ir:xls_type_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

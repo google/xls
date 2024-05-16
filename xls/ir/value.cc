@@ -36,6 +36,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/xls_type.pb.h"
 #include "xls/ir/xls_value.pb.h"
 
 namespace xls {
