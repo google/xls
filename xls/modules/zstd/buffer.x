@@ -119,6 +119,27 @@ fn test_buffer_append() {
     assert_eq(buffer, Buffer { content: u32:0xDEADBEEF, length: u32:32 });
 }
 
+pub fn buffer_append_with_length<CAPACITY: u32> (buffer: Buffer<CAPACITY>, data: bits[CAPACITY], length: u32) -> Buffer<CAPACITY> {
+    if buffer.length + length > CAPACITY {
+        fail!("not_enough_space", buffer)
+    } else {
+        let mask = (bits[CAPACITY]:1 << length) - bits[CAPACITY]:1;
+        Buffer {
+            content: ((data & mask) << buffer.length) | buffer.content,
+            length: length + buffer.length
+        }
+    }
+}
+
+#[test]
+fn test_buffer_append_with_length() {
+    let buffer = Buffer { content: u32:0, length: u32:0 };
+    let buffer = buffer_append_with_length(buffer, u32:0xBEEF, u32:8);
+    assert_eq(buffer, Buffer { content: u32:0xEF, length: u32:8 });
+    let buffer = buffer_append_with_length(buffer, u32:0xDEAD, u32:8);
+    assert_eq(buffer, Buffer { content: u32:0xADEF, length: u32:16 });
+}
+
 // Returns a new buffer with the `data` appended to the original `buffer` if
 // the buffer has enough space. Otherwise, it returns an unmodified buffer
 // along with an error. The results are stored in the BufferResult structure.
