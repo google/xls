@@ -866,6 +866,78 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+xls_dslx_library(
+    name = "shift_buffer_dslx",
+    srcs = ["shift_buffer.x"],
+    deps = [
+        ":buffer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "shift_buffer_dslx_test",
+    library = ":shift_buffer_dslx",
+)
+
+xls_dslx_verilog(
+    name = "shift_buffer_verilog",
+    codegen_args = {
+        "module_name": "ShiftBuffer",
+        "delay_model": "asap7",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "ShiftBufferInst",
+    library = ":shift_buffer_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__shift_buffer__ShiftBufferInst__ShiftBuffer_0__128_64_7_next",
+    },
+    verilog_file = "shift_buffer.v",
+)
+
+xls_benchmark_ir(
+    name = "shift_buffer_opt_ir_benchmark",
+    src = ":shift_buffer_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "asap7",
+    },
+)
+
+verilog_library(
+    name = "shift_buffer_verilog_lib",
+    srcs = [
+        ":shift_buffer.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "shift_buffer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "ShiftBuffer",
+    deps = [
+        ":shift_buffer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "shift_buffer_benchmark_synth",
+    synth_target = ":shift_buffer_synth_asap7",
+)
+
+place_and_route(
+    name = "shift_buffer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":shift_buffer_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
+
 py_binary(
     name = "zstd_test_frames_generator",
     srcs = ["zstd_frame_dslx.py"],
