@@ -169,6 +169,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
+        "//xls/ir:format_preference",
         "//xls/ir:number_parser",
         "//xls/ir:source_location",
         "@com_google_absl//absl/status",

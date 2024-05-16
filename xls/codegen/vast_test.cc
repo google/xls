@@ -26,6 +26,7 @@
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/source_location.h"
 
@@ -63,52 +64,141 @@ TEST_P(VastTest, DataTypes) {
 
   LineInfo line_info;
   DataType* scalar = f.ScalarType(SourceInfo());
-  EXPECT_EQ(scalar->EmitWithIdentifier(&line_info, "foo"), " foo");
+  EXPECT_FALSE(scalar->IsUserDefined());
   EXPECT_THAT(scalar->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(scalar->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_EQ(scalar->width(), std::nullopt);
   EXPECT_FALSE(scalar->is_signed());
+  EXPECT_EQ(scalar->EmitWithIdentifier(&line_info, "foo"), " foo");
   EXPECT_EQ(line_info.LookupNode(scalar),
             std::make_optional(std::vector<LineSpan>{LineSpan(0, 0)}));
+  EXPECT_EQ(scalar->Emit(&line_info), "");
 
   // A width 1 data type returned from BitVectorType should be a scalar.
   DataType* u1 = f.BitVectorType(1, SourceInfo());
-  EXPECT_EQ(u1->EmitWithIdentifier(nullptr, "foo"), " foo");
+  EXPECT_FALSE(u1->IsUserDefined());
   EXPECT_THAT(u1->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(u1->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_EQ(u1->width(), std::nullopt);
   EXPECT_FALSE(u1->is_signed());
+  EXPECT_EQ(u1->EmitWithIdentifier(nullptr, "foo"), " foo");
+  EXPECT_EQ(u1->Emit(nullptr), "");
 
   DataType* s1 = f.BitVectorType(1, SourceInfo(), /*is_signed=*/true);
+  EXPECT_FALSE(s1->IsUserDefined());
   EXPECT_EQ(s1->EmitWithIdentifier(nullptr, "foo"), " signed [0:0] foo");
   EXPECT_THAT(s1->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(s1->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_TRUE(s1->is_signed());
 
   DataType* u2 = f.BitVectorType(2, SourceInfo());
+  EXPECT_FALSE(u2->IsUserDefined());
   EXPECT_EQ(u2->EmitWithIdentifier(nullptr, "foo"), " [1:0] foo");
   EXPECT_THAT(u2->WidthAsInt64(), IsOkAndHolds(2));
   EXPECT_THAT(u2->FlatBitCountAsInt64(), IsOkAndHolds(2));
   EXPECT_FALSE(u2->is_signed());
 
   DataType* u32 = f.BitVectorType(32, SourceInfo());
+  EXPECT_FALSE(u32->IsUserDefined());
   EXPECT_EQ(u32->EmitWithIdentifier(nullptr, "foo"), " [31:0] foo");
   EXPECT_THAT(u32->WidthAsInt64(), IsOkAndHolds(32));
   EXPECT_THAT(u32->FlatBitCountAsInt64(), IsOkAndHolds(32));
   EXPECT_FALSE(u32->is_signed());
 
   DataType* s32 = f.BitVectorType(32, SourceInfo(), /*is_signed=*/true);
+  EXPECT_FALSE(s32->IsUserDefined());
   EXPECT_EQ(s32->EmitWithIdentifier(nullptr, "foo"), " signed [31:0] foo");
   EXPECT_THAT(s32->WidthAsInt64(), IsOkAndHolds(32));
   EXPECT_THAT(s32->FlatBitCountAsInt64(), IsOkAndHolds(32));
   EXPECT_TRUE(s32->is_signed());
 
   DataType* packed_array = f.PackedArrayType(10, {3, 2}, SourceInfo());
+  EXPECT_FALSE(packed_array->IsUserDefined());
   EXPECT_EQ(packed_array->EmitWithIdentifier(nullptr, "foo"),
             " [9:0][2:0][1:0] foo");
   EXPECT_THAT(packed_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(packed_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_FALSE(packed_array->is_signed());
+  EXPECT_EQ(packed_array->Emit(nullptr), " [9:0][2:0][1:0]");
+
+  Enum* enum_def = f.Make<Enum>(SourceInfo(), DataKind::kLogic,
+                                f.BitVectorType(32, SourceInfo()));
+  EXPECT_TRUE(enum_def->IsUserDefined());
+  EnumMemberRef* foo_ref =
+      enum_def->AddMember("foo", f.PlainLiteral(3, SourceInfo()), SourceInfo());
+  EnumMemberRef* bar_ref =
+      enum_def->AddMember("bar", f.PlainLiteral(1, SourceInfo()), SourceInfo());
+  EXPECT_EQ(enum_def->Emit(nullptr), R"(enum logic [31:0] {
+  foo = 3,
+  bar = 1
+})");
+  EXPECT_EQ(enum_def->EmitWithIdentifier(nullptr, "var"), R"(enum logic [31:0] {
+  foo = 3,
+  bar = 1
+} var)");
+  EXPECT_EQ(foo_ref->Emit(nullptr), "foo");
+  EXPECT_EQ(bar_ref->Emit(nullptr), "bar");
+
+  Enum* untyped_enum_def = f.Make<Enum>(SourceInfo(), DataKind::kUntypedEnum,
+                                        f.IntegerType(SourceInfo()));
+  untyped_enum_def->AddMember("a", f.PlainLiteral(3, SourceInfo()),
+                              SourceInfo());
+  EXPECT_EQ(untyped_enum_def->Emit(nullptr), R"(enum {
+  a = 3
+})");
+
+  Typedef* type_def = f.Make<Typedef>(
+      SourceInfo(),
+      f.Make<Def>(SourceInfo(), "my_enum_t", DataKind::kUser, enum_def));
+  EXPECT_EQ(type_def->Emit(nullptr), R"(typedef enum logic [31:0] {
+  foo = 3,
+  bar = 1
+} my_enum_t;)");
+  TypedefType* type_def_type = f.Make<TypedefType>(SourceInfo(), type_def);
+  EXPECT_TRUE(type_def_type->IsUserDefined());
+  EXPECT_EQ(type_def_type->Emit(nullptr), "my_enum_t");
+  EXPECT_EQ(type_def_type->EmitWithIdentifier(nullptr, "x"), "my_enum_t x");
+
+  std::vector<Def*> struct_members = {
+      f.Make<Def>(SourceInfo(), "elem1", DataKind::kLogic,
+                  f.ScalarType(SourceInfo())),
+      f.Make<Def>(SourceInfo(), "foo_bar", DataKind::kInteger,
+                  f.IntegerType(SourceInfo())),
+      f.Make<Def>(SourceInfo(), "Bv", DataKind::kLogic,
+                  f.BitVectorType(16, SourceInfo()))};
+  DataType* struct_type = f.Make<Struct>(SourceInfo(), struct_members);
+  EXPECT_TRUE(struct_type->IsUserDefined());
+  EXPECT_EQ(struct_type->Emit(nullptr), R"(struct packed {
+  logic elem1;
+  integer foo_bar;
+  logic [15:0] Bv;
+})");
+
+  std::vector<Expression*> dims = {f.PlainLiteral(5, SourceInfo()),
+                                   f.PlainLiteral(2, SourceInfo())};
+  DataType* packed_array_of_structs_with_dims_as_max = f.Make<PackedArrayType>(
+      SourceInfo(), struct_type, dims, /*dims_are_max=*/true);
+  EXPECT_EQ(packed_array_of_structs_with_dims_as_max->Emit(nullptr),
+            R"(struct packed {
+  logic elem1;
+  integer foo_bar;
+  logic [15:0] Bv;
+} [5:0][2:0])");
+  EXPECT_TRUE(packed_array_of_structs_with_dims_as_max->IsUserDefined());
+  EXPECT_EQ(packed_array_of_structs_with_dims_as_max->EmitWithIdentifier(
+                nullptr, "foo"),
+            R"(struct packed {
+  logic elem1;
+  integer foo_bar;
+  logic [15:0] Bv;
+} [5:0][2:0] foo)");
+
+  EXPECT_EQ(packed_array->EmitWithIdentifier(nullptr, "foo"),
+            " [9:0][2:0][1:0] foo");
+  EXPECT_THAT(packed_array->WidthAsInt64(), IsOkAndHolds(10));
+  EXPECT_THAT(packed_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
+  EXPECT_FALSE(packed_array->is_signed());
+  EXPECT_EQ(packed_array->Emit(nullptr), " [9:0][2:0][1:0]");
 
   DataType* spacked_array =
       f.PackedArrayType(10, {3, 2}, SourceInfo(), /*is_signed=*/true);
@@ -117,7 +207,7 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_THAT(spacked_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(spacked_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_TRUE(spacked_array->is_signed());
-
+  EXPECT_EQ(spacked_array->Emit(nullptr), " signed [9:0][2:0][1:0]");
   DataType* unpacked_array = f.UnpackedArrayType(10, {3, 2}, SourceInfo());
   if (f.use_system_verilog()) {
     EXPECT_EQ(unpacked_array->EmitWithIdentifier(nullptr, "foo"),
@@ -145,6 +235,15 @@ TEST_P(VastTest, DataTypes) {
               StatusIs(absl::StatusCode::kFailedPrecondition,
                        HasSubstr("Width is not a literal")));
   EXPECT_FALSE(bv->is_signed());
+
+  // Bit vector with max as size expr.
+  DataType* bv_max = f.Make<BitVectorType>(
+      SourceInfo(),
+      /*size_expr=*/
+      f.Mul(f.PlainLiteral(10, SourceInfo()), f.PlainLiteral(5, SourceInfo()),
+            SourceInfo()),
+      /*is_signed=*/false, /*size_expr_is_max=*/true);
+  EXPECT_EQ(bv_max->EmitWithIdentifier(nullptr, "foo"), " [10 * 5:0] foo");
 }
 
 TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
@@ -417,6 +516,27 @@ TEST_P(VastTest, Literals) {
   EXPECT_FALSE(all_ones->IsLiteralWithValue(0));
   EXPECT_TRUE(all_ones->IsLiteralWithValue(15));
   EXPECT_FALSE(all_ones->IsLiteralWithValue(-1));
+
+  // Literals with the precise controls used when originating from SystemVerilog
+  // source code.
+  EXPECT_EQ(
+      f.Make<Literal>(SourceInfo(), UBits(15, 4), FormatPreference::kHex,
+                      /*declared_bit_count=*/32,
+                      /*emit_bit_count=*/true, /*declared_as_signed=*/false)
+          ->Emit(nullptr),
+      "32'hf");
+  EXPECT_EQ(
+      f.Make<Literal>(SourceInfo(), UBits(15, 4), FormatPreference::kHex,
+                      /*declared_bit_count=*/32,
+                      /*emit_bit_count=*/true, /*declared_as_signed=*/true)
+          ->Emit(nullptr),
+      "32'shf");
+  EXPECT_EQ(f.Make<Literal>(
+                 SourceInfo(), UBits(15, 4), FormatPreference::kUnsignedDecimal,
+                 /*declared_bit_count=*/32,
+                 /*emit_bit_count=*/false, /*declared_as_signed=*/false)
+                ->Emit(nullptr),
+            "15");
 }
 
 TEST_P(VastTest, Precedence) {
@@ -445,6 +565,8 @@ TEST_P(VastTest, Precedence) {
             f.Add(a, f.Mul(b, c, SourceInfo()), SourceInfo())->Emit(nullptr));
   EXPECT_EQ("a * (b + c)",
             f.Mul(a, f.Add(b, c, SourceInfo()), SourceInfo())->Emit(nullptr));
+  EXPECT_EQ("a ** (b * c)",
+            f.Power(a, f.Mul(b, c, SourceInfo()), SourceInfo())->Emit(nullptr));
 
   EXPECT_EQ(
       "a | (a + b || b)",
@@ -495,6 +617,16 @@ TEST_P(VastTest, NestedUnaryOps) {
                      SourceInfo()),
             b, SourceInfo())
           ->Emit(nullptr));
+}
+
+TEST_P(VastTest, ReturnStatement) {
+  VerilogFile f(GetFileType());
+  EXPECT_EQ(
+      f.Make<ReturnStatement>(
+           SourceInfo(), f.Mul(f.PlainLiteral(2, SourceInfo()),
+                               f.PlainLiteral(10, SourceInfo()), SourceInfo()))
+          ->Emit(nullptr),
+      "return 2 * 10;");
 }
 
 TEST_P(VastTest, Case) {
@@ -556,7 +688,6 @@ TEST_P(VastTest, Casez) {
 endcase)");
 }
 
-
 TEST_P(VastTest, CaseWithHighZ) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
@@ -570,13 +701,11 @@ TEST_P(VastTest, CaseWithHighZ) {
   Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), my_state);
   FourValueBinaryLiteral* msb_set = f.Make<FourValueBinaryLiteral>(
       SourceInfo(), std::vector({FourValueBit::kOne, FourValueBit::kHighZ}));
-  StatementBlock* one_block =
-      case_statement->AddCaseArm(msb_set);
+  StatementBlock* one_block = case_statement->AddCaseArm(msb_set);
   one_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
   FourValueBinaryLiteral* lsb_unset = f.Make<FourValueBinaryLiteral>(
       SourceInfo(), std::vector({FourValueBit::kUnknown, FourValueBit::kZero}));
-  StatementBlock* zero_block =
-      case_statement->AddCaseArm(lsb_unset);
+  StatementBlock* zero_block = case_statement->AddCaseArm(lsb_unset);
   zero_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
   StatementBlock* default_block = case_statement->AddCaseArm(DefaultSentinel());
   default_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
@@ -644,7 +773,8 @@ TEST_P(VastTest, AlwaysFlopTestSyncReset) {
       m->AddReg("b_next", f.BitVectorType(8, SourceInfo()), SourceInfo());
 
   AlwaysFlop* af = m->Add<AlwaysFlop>(
-      SourceInfo(), clk, Reset{rst, /*async*/ false, /*active_low*/ false});
+      SourceInfo(), clk,
+      Reset{.signal = rst, .asynchronous = false, .active_low = false});
   af->AddRegister(a, a_next, SourceInfo(),
                   /*reset_value=*/f.Literal(42, 8, SourceInfo()));
   af->AddRegister(b, b_next, SourceInfo());
@@ -676,7 +806,8 @@ TEST_P(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
       m->AddReg("b_next", f.BitVectorType(8, SourceInfo()), SourceInfo());
 
   AlwaysFlop* af = m->Add<AlwaysFlop>(
-      SourceInfo(), clk, Reset{rst, /*async*/ true, /*active_low*/ true});
+      SourceInfo(), clk,
+      Reset{.signal = rst, .asynchronous = true, .active_low = true});
   af->AddRegister(a, a_next, SourceInfo(),
                   /*reset_value=*/f.Literal(42, 8, SourceInfo()));
   af->AddRegister(b, b_next, SourceInfo());
@@ -819,19 +950,19 @@ TEST_P(VastTest, InstantiationTest) {
   auto* tx_byte_def = f.Make<WireDef>(SourceInfo(), "my_tx_byte",
                                       f.BitVectorType(8, SourceInfo()));
   auto* tx_byte_ref = f.Make<LogicRef>(SourceInfo(), tx_byte_def);
-  auto* instantiation =
-      f.Make<Instantiation>(SourceInfo(),
-                            /*module_name=*/"uart_transmitter",
-                            /*instance_name=*/"tx",
-                            /*parameters=*/
-                            std::vector<Connection>{
-                                {"ClocksPerBaud", default_clocks_per_baud},
-                            },
-                            /*connections=*/
-                            std::vector<Connection>{
-                                {"clk", clk_ref},
-                                {"tx_byte", tx_byte_ref},
-                            });
+  auto* instantiation = f.Make<Instantiation>(
+      SourceInfo(),
+      /*module_name=*/"uart_transmitter",
+      /*instance_name=*/"tx",
+      /*parameters=*/
+      std::vector<Connection>{
+          {.port_name = "ClocksPerBaud", .expression = default_clocks_per_baud},
+      },
+      /*connections=*/
+      std::vector<Connection>{
+          {.port_name = "clk", .expression = clk_ref},
+          {.port_name = "tx_byte", .expression = tx_byte_ref},
+      });
 
   EXPECT_EQ(instantiation->Emit(nullptr),
             R"(uart_transmitter #(
@@ -854,15 +985,15 @@ TEST_P(VastTest, TemplateInstantiationTest) {
 
   const std::string_view code_template = "foo {fn} (.x({a}), .out({return}))";
 
-  auto* instantiation =
-      f.Make<TemplateInstantiation>(SourceInfo(),
-                                    /*instance_name=*/"template_inst_42",
-                                    /*code_template=*/code_template,
-                                    /*connections=*/
-                                    std::vector<Connection>{
-                                        {"a", a_ref},
-                                        {"return", ret_ref},
-                                    });
+  auto* instantiation = f.Make<TemplateInstantiation>(
+      SourceInfo(),
+      /*instance_name=*/"template_inst_42",
+      /*code_template=*/code_template,
+      /*connections=*/
+      std::vector<Connection>{
+          {.port_name = "a", .expression = a_ref},
+          {.port_name = "return", .expression = ret_ref},
+      });
 
   EXPECT_EQ(instantiation->Emit(nullptr),
             "foo template_inst_42 (.x(i_a), .out(o_ret));");
@@ -891,6 +1022,9 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   m->AddParameter("ClocksPerBaud",
                   f.Make<MacroRef>(SourceInfo(), "DEFAULT_CLOCKS_PER_BAUD"),
                   SourceInfo());
+  m->AddParameter(f.Make<Def>(SourceInfo(), "ParamWithDef", DataKind::kLogic,
+                              f.BitVectorType(16, SourceInfo())),
+                  f.PlainLiteral(5, SourceInfo()), SourceInfo());
   LocalParam* p = m->Add<LocalParam>(SourceInfo());
   LocalParamItemRef* idle =
       p->AddItem("StateIdle", f.Literal(0, 2, SourceInfo()), SourceInfo());
@@ -908,6 +1042,7 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top;
   parameter ClocksPerBaud = `DEFAULT_CLOCKS_PER_BAUD;
+  parameter logic [15:0] ParamWithDef = 5;
   localparam
     StateIdle = 2'h0,
     StateGotByte = 2'h1,
@@ -1255,6 +1390,9 @@ TEST_P(VastTest, VerilogFunction) {
       func->AddArgument("foo", f.BitVectorType(32, SourceInfo()), SourceInfo());
   LogicRef* bar =
       func->AddArgument("bar", f.BitVectorType(3, SourceInfo()), SourceInfo());
+  func->AddArgument(f.Make<Def>(SourceInfo(), "baz", DataKind::kInteger,
+                                f.IntegerType(SourceInfo())),
+                    SourceInfo());
   func->AddStatement<BlockingAssignment>(SourceInfo(), func->return_value_ref(),
                                          f.Shll(foo, bar, SourceInfo()));
 
@@ -1268,7 +1406,7 @@ TEST_P(VastTest, VerilogFunction) {
                                    f.Literal(UBits(2, 3), SourceInfo())}));
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top;
-  function automatic [41:0] func (input reg [31:0] foo, input reg [2:0] bar);
+  function automatic [41:0] func (input reg [31:0] foo, input reg [2:0] bar, input integer baz);
     begin
       func = foo << bar;
     end

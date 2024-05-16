@@ -75,6 +75,31 @@ void LineInfoIncrease(LineInfo* line_info, int64_t delta) {
   }
 }
 
+// Converts a `DataKind` to its SystemVerilog name, if any. Emitting a data type
+// in most contexts requires the containing entity to emit both the `DataKind`
+// and the `DataType`, at least one of which should emit as nonempty.
+std::string DataKindToString(DataKind kind) {
+  switch (kind) {
+    case DataKind::kReg:
+      return "reg";
+    case DataKind::kWire:
+      return "wire";
+    case DataKind::kLogic:
+      return "logic";
+    case DataKind::kInteger:
+      return "integer";
+    default:
+      // For any other type, the `DataType->Emit()` output is sufficient.
+      return "";
+  }
+}
+
+std::string EmitNothing(const VastNode* node, LineInfo* line_info) {
+  LineInfoStart(line_info, node);
+  LineInfoEnd(line_info, node);
+  return "";
+}
+
 }  // namespace
 
 std::string PartialLineSpans::ToString() const {
@@ -149,6 +174,16 @@ std::string ToString(Direction direction) {
     default:
       return "<invalid direction>";
   }
+}
+
+std::string ScalarType::Emit(LineInfo* line_info) const {
+  // The `DataKind` preceding the type is enough.
+  return EmitNothing(this, line_info);
+}
+
+std::string IntegerType::Emit(LineInfo* line_info) const {
+  // The `DataKind` preceding the type is enough.
+  return EmitNothing(this, line_info);
 }
 
 std::string MacroRef::Emit(LineInfo* line_info) const {
@@ -229,8 +264,7 @@ std::string VerilogFile::Emit(LineInfo* line_info) const {
   return out;
 }
 
-LocalParamItemRef* LocalParam::AddItem(std::string_view name,
-                                       Expression* value,
+LocalParamItemRef* LocalParam::AddItem(std::string_view name, Expression* value,
                                        const SourceInfo& loc) {
   items_.push_back(file()->Make<LocalParamItem>(loc, name, value));
   return file()->Make<LocalParamItemRef>(loc, items_.back());
@@ -308,6 +342,11 @@ LogicRef* VerilogFunction::AddArgument(std::string_view name, DataType* type,
   return file()->Make<LogicRef>(loc, argument_defs_.back());
 }
 
+LogicRef* VerilogFunction::AddArgument(Def* def, const SourceInfo& loc) {
+  argument_defs_.push_back(def);
+  return file()->Make<LogicRef>(loc, argument_defs_.back());
+}
+
 LogicRef* VerilogFunction::return_value_ref() {
   return file()->Make<LogicRef>(return_value_def_->loc(), return_value_def_);
 }
@@ -317,7 +356,7 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
   std::string return_type =
       return_value_def_->data_type()->EmitWithIdentifier(line_info, name());
   std::string parameters =
-      absl::StrJoin(argument_defs_, ", ", [=](std::string* out, RegDef* d) {
+      absl::StrJoin(argument_defs_, ", ", [=](std::string* out, Def* d) {
         absl::StrAppend(out, "input ", d->EmitNoSemi(line_info));
       });
   LineInfoIncrease(line_info, 1);
@@ -405,6 +444,16 @@ ParameterRef* Module::AddParameter(std::string_view name, Expression* rhs,
   return file()->Make<ParameterRef>(loc, param);
 }
 
+ParameterRef* Module::AddParameter(Def* def, Expression* rhs,
+                                   const SourceInfo& loc) {
+  Parameter* param = AddModuleMember(file()->Make<Parameter>(loc, def, rhs));
+  return file()->Make<ParameterRef>(loc, param);
+}
+
+Typedef* Module::AddTypedef(Def* def, const SourceInfo& loc) {
+  return AddModuleMember(file()->Make<Typedef>(loc, def));
+}
+
 Literal* Expression::AsLiteralOrDie() {
   CHECK(IsLiteral());
   return static_cast<Literal*>(this);
@@ -470,46 +519,42 @@ static std::string WidthToLimit(LineInfo* line_info, Expression* expr) {
   return width_minus_one->Emit(line_info);
 }
 
-std::string ScalarType::EmitWithIdentifier(LineInfo* line_info,
-                                           std::string_view identifier) const {
-  LineInfoStart(line_info, this);
-  LineInfoEnd(line_info, this);
-  return absl::StrFormat(" %s", identifier);
-}
-
-std::string IntegerType::EmitWithIdentifier(LineInfo* line_info,
-                                            std::string_view identifier) const {
-  LineInfoStart(line_info, this);
-  LineInfoEnd(line_info, this);
-  return absl::StrFormat(" %s", identifier);
-}
-
 BitVectorType::BitVectorType(int64_t width, bool is_signed, VerilogFile* file,
                              const SourceInfo& loc)
     : DataType(file, loc),
-      width_(file->PlainLiteral(static_cast<int32_t>(width), loc)),
+      size_expr_(file->PlainLiteral(static_cast<int32_t>(width), loc)),
       is_signed_(is_signed) {}
 
 absl::StatusOr<int64_t> BitVectorType::WidthAsInt64() const {
-  if (!width_->IsLiteral()) {
+  if (!size_expr_->IsLiteral() || size_expr_is_max_) {
     return absl::FailedPreconditionError("Width is not a literal: " +
-                                         width_->Emit(nullptr));
+                                         size_expr_->Emit(nullptr));
   }
-  return width_->AsLiteralOrDie()->bits().ToUint64();
+  return size_expr_->AsLiteralOrDie()->bits().ToUint64();
 }
 
 absl::StatusOr<int64_t> BitVectorType::FlatBitCountAsInt64() const {
   return WidthAsInt64();
 }
 
-std::string BitVectorType::EmitWithIdentifier(
-    LineInfo* line_info, std::string_view identifier) const {
+std::string BitVectorType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result = absl::StrFormat("%s [%s:0]", is_signed_ ? " signed" : "",
-                                       WidthToLimit(line_info, width_));
-  absl::StrAppend(&result, " ", identifier);
+  std::string result =
+      absl::StrFormat("%s [%s:0]", is_signed_ ? " signed" : "",
+                      size_expr_is_max_ ? size_expr_->Emit(line_info)
+                                        : WidthToLimit(line_info, size_expr_));
   LineInfoEnd(line_info, this);
   return result;
+}
+
+PackedArrayType::PackedArrayType(Expression* width,
+                                 absl::Span<Expression* const> packed_dims,
+                                 bool is_signed, VerilogFile* file,
+                                 const SourceInfo& loc)
+    : DataType(file, loc),
+      element_type_(file->Make<BitVectorType>(loc, width, is_signed)),
+      packed_dims_(packed_dims.begin(), packed_dims.end()) {
+  CHECK(!packed_dims.empty());
 }
 
 PackedArrayType::PackedArrayType(int64_t width,
@@ -517,20 +562,12 @@ PackedArrayType::PackedArrayType(int64_t width,
                                  bool is_signed, VerilogFile* file,
                                  const SourceInfo& loc)
     : DataType(file, loc),
-      width_(file->PlainLiteral(static_cast<int32_t>(width), loc)),
-      is_signed_(is_signed) {
+      element_type_(file->Make<BitVectorType>(loc, static_cast<int32_t>(width),
+                                              is_signed)) {
   CHECK(!packed_dims.empty());
   for (int64_t dim : packed_dims) {
     packed_dims_.push_back(file->PlainLiteral(static_cast<int32_t>(dim), loc));
   }
-}
-
-absl::StatusOr<int64_t> PackedArrayType::WidthAsInt64() const {
-  if (!width_->IsLiteral()) {
-    return absl::FailedPreconditionError("Width is not a literal: " +
-                                         width_->Emit(nullptr));
-  }
-  return width_->AsLiteralOrDie()->bits().ToUint64();
 }
 
 absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
@@ -547,15 +584,19 @@ absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
   return bit_count;
 }
 
-std::string PackedArrayType::EmitWithIdentifier(
-    LineInfo* line_info, std::string_view identifier) const {
+std::string PackedArrayType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result = is_signed_ ? " signed" : "";
-  absl::StrAppendFormat(&result, " [%s:0]", WidthToLimit(line_info, width_));
-  for (Expression* dim : packed_dims()) {
-    absl::StrAppendFormat(&result, "[%s:0]", WidthToLimit(line_info, dim));
+  std::string result = element_type_->Emit(line_info);
+  if (element_type_->IsUserDefined()) {
+    // Imitate the space that a bit vector emits between the kind and innermost
+    // dimension.
+    absl::StrAppend(&result, " ");
   }
-  absl::StrAppend(&result, " ", identifier);
+  for (Expression* dim : packed_dims()) {
+    absl::StrAppendFormat(
+        &result, "[%s:0]",
+        dims_are_max_ ? dim->Emit(line_info) : WidthToLimit(line_info, dim));
+  }
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -613,21 +654,7 @@ std::string Def::Emit(LineInfo* line_info) const {
 
 std::string Def::EmitNoSemi(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string kind_str;
-  switch (data_kind()) {
-    case DataKind::kReg:
-      kind_str = "reg";
-      break;
-    case DataKind::kWire:
-      kind_str = "wire";
-      break;
-    case DataKind::kLogic:
-      kind_str = "logic";
-      break;
-    case DataKind::kInteger:
-      kind_str = "integer";
-      break;
-  }
+  std::string kind_str = DataKindToString(data_kind());
   std::string result = absl::StrCat(
       kind_str, data_type()->EmitWithIdentifier(line_info, GetName()));
   LineInfoEnd(line_info, this);
@@ -653,6 +680,15 @@ std::string RegDef::Emit(LineInfo* line_info) const {
 }
 
 std::string LogicDef::Emit(LineInfo* line_info) const {
+  std::string result = Def::EmitNoSemi(line_info);
+  if (init_ != nullptr) {
+    absl::StrAppend(&result, " = ", init_->Emit(line_info));
+  }
+  absl::StrAppend(&result, ";");
+  return result;
+}
+
+std::string UserDef::Emit(LineInfo* line_info) const {
   std::string result = Def::EmitNoSemi(line_info);
   if (init_ != nullptr) {
     absl::StrAppend(&result, " = ", init_->Emit(line_info));
@@ -689,6 +725,8 @@ std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
       Visitor{[=](Def* d) { return d->Emit(line_info); },
               [=](LocalParam* p) { return p->Emit(line_info); },
               [=](Parameter* p) { return p->Emit(line_info); },
+              [=](Typedef* d) { return d->Emit(line_info); },
+              [=](Enum* e) { return e->Emit(line_info); },
               [=](Instantiation* i) { return i->Emit(line_info); },
               [=](ContinuousAssignment* c) { return c->Emit(line_info); },
               [=](Comment* c) { return c->Emit(line_info); },
@@ -864,7 +902,7 @@ std::string Literal::Emit(LineInfo* line_info) const {
   if (format_ == FormatPreference::kUnsignedDecimal) {
     std::string prefix;
     if (emit_bit_count_) {
-      prefix = absl::StrFormat("%d'd", bits_.bit_count());
+      prefix = absl::StrFormat("%d'd", effective_bit_count_);
     }
     return absl::StrFormat(
         "%s%s", prefix,
@@ -872,13 +910,15 @@ std::string Literal::Emit(LineInfo* line_info) const {
   }
   if (format_ == FormatPreference::kBinary) {
     return absl::StrFormat(
-        "%d'b%s", bits_.bit_count(),
+        "%d'b%s", effective_bit_count_,
         BitsToRawDigits(bits_, format_, /*emit_leading_zeros=*/true));
   }
   CHECK_EQ(format_, FormatPreference::kHex);
-  return absl::StrFormat("%d'h%s", bits_.bit_count(),
-                         BitsToRawDigits(bits_, FormatPreference::kHex,
-                                         /*emit_leading_zeros=*/true));
+  const std::string raw_digits = BitsToRawDigits(bits_, FormatPreference::kHex,
+                                                 /*emit_leading_zeros=*/true);
+  return declared_as_signed_
+             ? absl::StrFormat("%d'sh%s", effective_bit_count_, raw_digits)
+             : absl::StrFormat("%d'h%s", effective_bit_count_, raw_digits);
 }
 
 bool Literal::IsLiteralWithValue(int64_t target) const {
@@ -977,8 +1017,84 @@ std::string Ternary::Emit(LineInfo* line_info) const {
 std::string Parameter::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   LineInfoIncrease(line_info, NumberOfNewlines(name_));
-  std::string result =
-      absl::StrFormat("parameter %s = %s;", name_, rhs_->Emit(line_info));
+  std::string result = absl::StrFormat(
+      "parameter %s = %s;", def_ ? def_->EmitNoSemi(line_info) : name_,
+      rhs_->Emit(line_info));
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string Typedef::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  LineInfoIncrease(line_info, NumberOfNewlines(def_->GetName()));
+  std::string result = absl::StrFormat("typedef %s", def_->Emit(line_info));
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string TypedefType::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = type_def_->GetName();
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string Enum::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = "enum {\n";
+  if (kind_ != DataKind::kUntypedEnum) {
+    result = absl::StrFormat("enum %s%s {\n", DataKindToString(kind_),
+                             BaseType()->Emit(line_info));
+  }
+  LineInfoIncrease(line_info, 1);
+  for (int i = 0; i < members_.size(); i++) {
+    LineInfoIncrease(line_info, 1);
+    std::string member_str = members_[i]->Emit(line_info);
+    if (i == members_.size() - 1) {
+      absl::StrAppend(&member_str, "\n");
+    } else {
+      absl::StrAppend(&member_str, ",\n");
+    }
+    absl::StrAppend(&result, Indent(member_str));
+  }
+  absl::StrAppend(&result, "}");
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+EnumMemberRef* Enum::AddMember(std::string_view name, Expression* rhs,
+                               const SourceInfo& loc) {
+  members_.push_back(file()->Make<EnumMember>(loc, name, rhs));
+  return file()->Make<EnumMemberRef>(loc, members_.back());
+}
+
+std::string EnumMember::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = absl::StrFormat("%s = %s", name_, rhs_->Emit(line_info));
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+absl::StatusOr<int64_t> Struct::FlatBitCountAsInt64() const {
+  int64_t result = 0;
+  for (const Def* next : members_) {
+    XLS_ASSIGN_OR_RETURN(int64_t def_bit_count,
+                         next->data_type()->FlatBitCountAsInt64());
+    result += def_bit_count;
+  }
+  return result;
+}
+
+std::string Struct::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = "struct packed {\n";
+  LineInfoIncrease(line_info, 1);
+  for (const Def* next : members_) {
+    LineInfoIncrease(line_info, 1);
+    absl::StrAppend(&result, Indent(next->Emit(line_info)), "\n");
+  }
+  absl::StrAppend(&result, "}");
+  LineInfoIncrease(line_info, 1);
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -1260,6 +1376,13 @@ std::string NonblockingAssignment::Emit(LineInfo* line_info) const {
   std::string rhs = rhs_->Emit(line_info);
   LineInfoEnd(line_info, this);
   return absl::StrFormat("%s <= %s;", lhs, rhs);
+}
+
+std::string ReturnStatement::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string expr = expr_->Emit(line_info);
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat("return %s;", expr);
 }
 
 StructuredProcedure::StructuredProcedure(VerilogFile* file,

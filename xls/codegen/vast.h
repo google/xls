@@ -37,6 +37,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/ir/bits.h"
@@ -197,6 +198,10 @@ class DataType : public VastNode {
   // Returns whether this is a scalar signal type (for example, "wire foo").
   virtual bool IsScalar() const { return false; }
 
+  // Returns whether this type represents to a typedef, struct, enum, or an
+  // array of a user-defined type.
+  virtual bool IsUserDefined() const { return false; }
+
   // Returns the width of the def (not counting packed or unpacked dimensions)
   // as an int64_t. Returns an error if this is not possible because the width
   // is not a literal. For example, the width of the following def is 8:
@@ -217,10 +222,6 @@ class DataType : public VastNode {
 
   virtual bool is_signed() const { return false; }
 
-  std::string Emit(LineInfo* line_info) const override {
-    LOG(FATAL) << "EmitWithIdentifier should be called rather than emit";
-  }
-
   // Returns a string which denotes this type along with an identifier for use
   // in definitions, arguments, etc. Example output if identifier is 'foo':
   //
@@ -231,7 +232,9 @@ class DataType : public VastNode {
   // This method is required rather than simply Emit because an identifier
   // string is nested within the string describing the type.
   virtual std::string EmitWithIdentifier(LineInfo* line_info,
-                                         std::string_view identifier) const = 0;
+                                         std::string_view identifier) const {
+    return absl::StrFormat("%s %s", Emit(line_info), identifier);
+  }
 };
 
 // Represents a scalar type. Example:
@@ -244,8 +247,7 @@ class ScalarType : public DataType {
   absl::StatusOr<int64_t> WidthAsInt64() const override { return 1; }
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override { return 1; }
   std::optional<Expression*> width() const override { return std::nullopt; }
-  std::string EmitWithIdentifier(LineInfo* line_info,
-                                 std::string_view identifier) const override;
+  std::string Emit(LineInfo* line_info) const override;
 };
 
 // Represents an integer type. Example:
@@ -263,30 +265,42 @@ class IntegerType : public DataType {
         "Cannot get flat bit count of integer types");
   }
   std::optional<Expression*> width() const override { return std::nullopt; }
-  std::string EmitWithIdentifier(LineInfo* line_info,
-                                 std::string_view identifier) const override;
+  std::string Emit(LineInfo* line_info) const override;
 };
 
 // Represents a bit-vector type. Example:
 //   reg[7:0] foo;
 class BitVectorType : public DataType {
  public:
-  BitVectorType(Expression* width, bool is_signed, VerilogFile* file,
+  BitVectorType(Expression* size_expr, bool is_signed, bool size_expr_is_max,
+                VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc),
+        size_expr_(size_expr),
+        size_expr_is_max_(size_expr_is_max),
+        is_signed_(is_signed) {}
+
+  BitVectorType(Expression* size_expr, bool is_signed, VerilogFile* file,
                 const SourceInfo& loc)
-      : DataType(file, loc), width_(width), is_signed_(is_signed) {}
+      : BitVectorType(size_expr, is_signed, /*size_expr_is_max=*/false, file,
+                      loc) {}
   BitVectorType(int64_t width, bool is_signed, VerilogFile* file,
                 const SourceInfo& loc);
 
   bool IsScalar() const override { return false; }
   absl::StatusOr<int64_t> WidthAsInt64() const override;
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
-  std::optional<Expression*> width() const override { return width_; }
+  std::optional<Expression*> width() const override {
+    return size_expr_is_max_ ? nullptr : size_expr_;
+  }
   bool is_signed() const override { return is_signed_; }
-  std::string EmitWithIdentifier(LineInfo* line_info,
-                                 std::string_view identifier) const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
-  Expression* width_;
+  Expression* size_expr_;
+  // Whether the `size_expr_` represents the max index as opposed to the width.
+  // Currently this is only true for vectors originating from SystemVerilog
+  // source code.
+  bool size_expr_is_max_ = false;
   bool is_signed_;
 };
 
@@ -295,23 +309,37 @@ class BitVectorType : public DataType {
 class PackedArrayType : public DataType {
  public:
   PackedArrayType(Expression* width, absl::Span<Expression* const> packed_dims,
-                  bool is_signed, VerilogFile* file, const SourceInfo& loc)
-      : DataType(file, loc),
-        width_(width),
-        is_signed_(is_signed),
-        packed_dims_(packed_dims.begin(), packed_dims.end()) {
-    CHECK(!packed_dims.empty());
-  }
+                  bool is_signed, VerilogFile* file, const SourceInfo& loc);
+
   PackedArrayType(int64_t width, absl::Span<const int64_t> packed_dims,
                   bool is_signed, VerilogFile* file, const SourceInfo& loc);
 
+  PackedArrayType(DataType* element_type,
+                  absl::Span<Expression* const> packed_dims, bool dims_are_max,
+                  VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc),
+        element_type_(element_type),
+        packed_dims_(packed_dims.begin(), packed_dims.end()),
+        dims_are_max_(dims_are_max) {
+    CHECK(!packed_dims.empty());
+  }
+
   bool IsScalar() const override { return false; }
-  absl::StatusOr<int64_t> WidthAsInt64() const override;
+
+  bool IsUserDefined() const override { return element_type_->IsUserDefined(); }
+
+  absl::StatusOr<int64_t> WidthAsInt64() const override {
+    return element_type_->WidthAsInt64();
+  }
+
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
-  std::optional<Expression*> width() const override { return width_; }
-  bool is_signed() const override { return is_signed_; }
-  std::string EmitWithIdentifier(LineInfo* line_info,
-                                 std::string_view identifier) const override;
+
+  std::optional<Expression*> width() const override {
+    return element_type_->width();
+  }
+
+  bool is_signed() const override { return element_type_->is_signed(); }
+  std::string Emit(LineInfo* line_info) const override;
 
   // Returns the packed dimensions for the type. For example, the net type for
   // "wire [7:0][42:0][3:0] foo;" has {43, 4} as the packed dimensions. The
@@ -322,9 +350,12 @@ class PackedArrayType : public DataType {
   absl::Span<Expression* const> packed_dims() const { return packed_dims_; }
 
  private:
-  Expression* width_;
-  bool is_signed_;
+  DataType* element_type_;
   std::vector<Expression*> packed_dims_;
+  // Whether the `packed_dims_` represent max indices as opposed to widths.
+  // Currently this is only the case in arrays originating from SystemVerilog
+  // source code.
+  bool dims_are_max_ = false;
 };
 
 // Represents an unpacked array of bit-vectors or packed array types. Example:
@@ -346,12 +377,18 @@ class UnpackedArrayType : public DataType {
                     const SourceInfo& loc);
 
   bool IsScalar() const override { return false; }
+  bool IsUserDefined() const override { return element_type_->IsUserDefined(); }
   absl::StatusOr<int64_t> WidthAsInt64() const override;
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
   std::optional<Expression*> width() const override {
     return element_type_->width();
   }
   bool is_signed() const override { return element_type_->is_signed(); }
+
+  std::string Emit(LineInfo* line_info) const override {
+    LOG(FATAL) << "EmitWithIdentifier should be called rather than emit";
+  }
+
   std::string EmitWithIdentifier(LineInfo* line_info,
                                  std::string_view identifier) const override;
 
@@ -367,7 +404,17 @@ class UnpackedArrayType : public DataType {
 
 // The kind of a net/variable. kReg, kWire, kLogic can be arbitrarily
 // typed. kInteger definitions can only be of IntegerType.
-enum class DataKind : int8_t { kReg, kWire, kLogic, kInteger };
+enum class DataKind : int8_t {
+  kReg,
+  kWire,
+  kLogic,
+  kInteger,
+  // Any user-defined type, such as a typedef, struct, or enum.
+  kUser,
+  // The data kind of an enum definition itself that has no specified kind, i.e.
+  // "enum { elements }" as opposed to "enum int { elements }" or similar.
+  kUntypedEnum
+};
 
 // Represents the definition of a variable or net.
 class Def : public Statement {
@@ -381,7 +428,7 @@ class Def : public Statement {
       : Statement(file, loc),
         name_(name),
         data_kind_(data_kind),
-        data_type_(std::move(data_type)) {}
+        data_type_(data_type) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -441,6 +488,23 @@ class LogicDef : public Def {
   LogicDef(std::string_view name, DataType* data_type, Expression* init,
            VerilogFile* file, const SourceInfo& loc)
       : Def(name, DataKind::kLogic, data_type, file, loc), init_(init) {}
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ protected:
+  Expression* init_;
+};
+
+// Variable definition with a type that is a user-defined name. Example:
+//   foo_t [41:0] foo;
+class UserDef : public Def {
+ public:
+  UserDef(std::string_view name, DataType* data_type, VerilogFile* file,
+          const SourceInfo& loc)
+      : Def(name, DataKind::kUser, data_type, file, loc), init_(nullptr) {}
+  UserDef(std::string_view name, DataType* data_type, Expression* init,
+          VerilogFile* file, const SourceInfo& loc)
+      : Def(name, DataKind::kUser, data_type, file, loc), init_(init) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -537,6 +601,21 @@ class NonblockingAssignment : public Statement {
  private:
   Expression* lhs_;
   Expression* rhs_;
+};
+
+// Represents an explicit SystemVerilog function return statement. The
+// alternative construct for this is an assignment to the function name.
+// Currently an explicit return statement is only modeled in VAST trees coming
+// from parsed SystemVerilog.
+class ReturnStatement : public Statement {
+ public:
+  ReturnStatement(Expression* expr, VerilogFile* file, const SourceInfo& loc)
+      : Statement(file, loc), expr_(expr) {}
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  Expression* expr_;
 };
 
 // An abstraction representing a sequence of statements within a structured
@@ -876,9 +955,13 @@ class MacroRef : public Expression {
   std::string name_;
 };
 
-// Defines a module parameter.
+// Defines a module parameter. A parameter must be assigned to an expression,
+// and may have an explicit type def.
 class Parameter : public NamedTrait {
  public:
+  Parameter(Def* def, Expression* rhs, VerilogFile* file, const SourceInfo& loc)
+      : NamedTrait(file, loc), name_(def->GetName()), def_(def), rhs_(rhs) {}
+
   Parameter(std::string_view name, Expression* rhs, VerilogFile* file,
             const SourceInfo& loc)
       : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
@@ -887,8 +970,150 @@ class Parameter : public NamedTrait {
   std::string GetName() const override { return name_; }
 
  private:
+  // Agrees with `def_` in all cases where `def_` is non-null.
+  std::string name_;
+  // Currently this is only used for parameters originating from SystemVerilog
+  // source code.
+  Def* def_ = nullptr;
+  Expression* rhs_;
+};
+
+// A user-defined type that gives a new name to another type, perhaps with some
+// value set constraints, e.g. an enum or typedef.
+class UserDefinedAliasType : public DataType {
+ public:
+  UserDefinedAliasType(DataType* base_type, VerilogFile* file,
+                       const SourceInfo& loc)
+      : DataType(file, loc), base_type_(base_type) {}
+
+  DataType* BaseType() const { return base_type_; }
+
+  bool IsScalar() const override { return base_type_->IsScalar(); }
+
+  bool IsUserDefined() const override { return true; }
+
+  absl::StatusOr<int64_t> WidthAsInt64() const override {
+    return base_type_->WidthAsInt64();
+  }
+
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override {
+    return base_type_->FlatBitCountAsInt64();
+  }
+
+  std::optional<Expression*> width() const override {
+    return base_type_->width();
+  }
+
+  bool is_signed() const override { return base_type_->is_signed(); }
+
+ private:
+  DataType* base_type_;
+};
+
+// The declaration of a typedef. This emits "typedef actual_type name;".
+class Typedef : public VastNode {
+ public:
+  Typedef(Def* def, VerilogFile* file, const SourceInfo& loc)
+      : VastNode(file, loc), def_(def) {}
+
+  std::string Emit(LineInfo* line_info) const override;
+
+  std::string GetName() const { return def_->GetName(); }
+
+  DataType* data_type() const { return def_->data_type(); }
+
+ private:
+  Def* def_;
+};
+
+// The type of an entity when its type is a typedef. This emits just the name of
+// the typedef.
+class TypedefType : public UserDefinedAliasType {
+ public:
+  explicit TypedefType(Typedef* type_def, VerilogFile* file,
+                       const SourceInfo& loc)
+      : UserDefinedAliasType(type_def->data_type(), file, loc),
+        type_def_(type_def) {}
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  Typedef* type_def_;
+};
+
+// Represents the definition of a member of an enum.
+class EnumMember : public NamedTrait {
+ public:
+  EnumMember(std::string_view name, Expression* rhs, VerilogFile* file,
+             const SourceInfo& loc)
+      : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
+
+  std::string GetName() const override { return name_; }
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
   std::string name_;
   Expression* rhs_;
+};
+
+// Refers to an enum item for use in expressions.
+class EnumMemberRef : public Expression {
+ public:
+  EnumMemberRef(EnumMember* member, VerilogFile* file, const SourceInfo& loc)
+      : Expression(file, loc), member_(member) {}
+
+  std::string Emit(LineInfo* line_info) const override {
+    return member_->GetName();
+  }
+
+ private:
+  EnumMember* member_;
+};
+
+// Represents an enum definition.
+class Enum : public UserDefinedAliasType {
+ public:
+  Enum(DataKind kind, DataType* data_type, VerilogFile* file,
+       const SourceInfo& loc)
+      : UserDefinedAliasType(data_type, file, loc), kind_(kind) {}
+
+  EnumMemberRef* AddMember(std::string_view name, Expression* rhs,
+                           const SourceInfo& loc);
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  DataKind kind_;
+  std::vector<EnumMember*> members_;
+};
+
+// Represents a struct type. Currently assumes packed and unsigned.
+class Struct : public DataType {
+ public:
+  Struct(absl::Span<Def* const> members, VerilogFile* file,
+         const SourceInfo& loc)
+      : DataType(file, loc), members_(members.begin(), members.end()) {}
+
+  bool IsScalar() const override { return false; }
+
+  bool IsUserDefined() const override { return true; }
+
+  absl::StatusOr<int64_t> WidthAsInt64() const override {
+    return absl::UnimplementedError(
+        "WidthAsInt64 is not implemented for structs.");
+  }
+
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
+
+  std::optional<Expression*> width() const override { return std::nullopt; }
+
+  bool is_signed() const override { return false; }
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  std::vector<Def*> members_;
 };
 
 // Defines an item in a localparam.
@@ -1172,17 +1397,32 @@ class Literal : public Expression {
   Literal(Bits bits, FormatPreference format, VerilogFile* file,
           const SourceInfo& loc)
       : Expression(file, loc),
-        bits_(bits),
+        bits_(std::move(bits)),
         format_(format),
-        emit_bit_count_(true) {}
+        emit_bit_count_(true),
+        effective_bit_count_(bits_.bit_count()) {}
 
   Literal(Bits bits, FormatPreference format, bool emit_bit_count,
           VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc),
-        bits_(bits),
+        bits_(std::move(bits)),
         format_(format),
-        emit_bit_count_(emit_bit_count) {
-    CHECK(emit_bit_count_ || bits.bit_count() == 32);
+        emit_bit_count_(emit_bit_count),
+        effective_bit_count_(bits_.bit_count()) {
+    CHECK(emit_bit_count_ || bits_.bit_count() == 32);
+  }
+
+  Literal(Bits bits, FormatPreference format, int64_t declared_bit_count,
+          bool emit_bit_count, bool declared_as_signed, VerilogFile* file,
+          const SourceInfo& loc)
+      : Expression(file, loc),
+        bits_(std::move(bits)),
+        format_(format),
+        emit_bit_count_(emit_bit_count),
+        declared_as_signed_(declared_as_signed),
+        effective_bit_count_(declared_bit_count) {
+    CHECK(declared_bit_count >= bits_.bit_count());
+    CHECK(emit_bit_count_ || effective_bit_count_ == 32);
   }
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1192,6 +1432,8 @@ class Literal : public Expression {
   bool IsLiteral() const override { return true; }
   bool IsLiteralWithValue(int64_t target) const override;
 
+  FormatPreference format() const { return format_; }
+
  private:
   Bits bits_;
   FormatPreference format_;
@@ -1199,6 +1441,12 @@ class Literal : public Expression {
   // false if the width of bits_ is 32 as the width of an undecorated number
   // literal in Verilog is 32.
   bool emit_bit_count_;
+  // Currently only true for literals originating in SystemVerilog source code
+  // that are marked by their prefix as signed.
+  bool declared_as_signed_ = false;
+  // Usually the same as `bits_.bit_count()`, but if created from a declaration
+  // with specified bit count in SV source code, it is that specified count.
+  int64_t effective_bit_count_;
 };
 
 // Represents a quoted literal string.
@@ -1514,6 +1762,8 @@ class VerilogFunction : public VastNode {
   LogicRef* AddArgument(std::string_view name, DataType* type,
                         const SourceInfo& loc);
 
+  LogicRef* AddArgument(Def* def, const SourceInfo& loc);
+
   // Adds a RegDef to the function and returns a LogicRef to it. This should be
   // used for adding RegDefs to the function instead of AddStatement because
   // the RegDefs need to appear outside the statement block (begin/end block).
@@ -1546,7 +1796,7 @@ class VerilogFunction : public VastNode {
   // least common denominator.
   StatementBlock* statement_block_;
 
-  std::vector<RegDef*> argument_defs_;
+  std::vector<Def*> argument_defs_;
 
   // The RegDefs of reg's defined in the function. These are emitted before the
   // statement block.
@@ -1574,7 +1824,7 @@ using ModuleMember =
     std::variant<Def*,                     // Logic definition.
                  LocalParam*,              // Module-local parameter.
                  Parameter*,               // Module parameter.
-                 Instantiation*,           // module instantiaion.
+                 Instantiation*,           // module instantiation.
                  ContinuousAssignment*,    // Continuous assignment.
                  StructuredProcedure*,     // Initial or always comb block.
                  AlwaysComb*,              // An always_comb block.
@@ -1584,7 +1834,7 @@ using ModuleMember =
                  BlankLine*,               // Blank line.
                  InlineVerilogStatement*,  // InlineVerilog string statement.
                  VerilogFunction*,         // Function definition
-                 Cover*, ConcurrentAssertion*, ModuleSection*>;
+                 Typedef*, Enum*, Cover*, ConcurrentAssertion*, ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may
@@ -1654,8 +1904,8 @@ class Module : public VastNode {
 
   // Adds a reg/wire definition to the module with the given type and, for regs,
   // initialized with the given value. Returns a reference to the definition.
-  LogicRef* AddReg(std::string_view name, DataType* type,
-                   const SourceInfo& loc, Expression* init = nullptr,
+  LogicRef* AddReg(std::string_view name, DataType* type, const SourceInfo& loc,
+                   Expression* init = nullptr,
                    ModuleSection* section = nullptr);
   LogicRef* AddWire(std::string_view name, DataType* type,
                     const SourceInfo& loc, ModuleSection* section = nullptr);
@@ -1666,6 +1916,9 @@ class Module : public VastNode {
 
   ParameterRef* AddParameter(std::string_view name, Expression* rhs,
                              const SourceInfo& loc);
+  ParameterRef* AddParameter(Def* def, Expression* rhs, const SourceInfo& loc);
+
+  Typedef* AddTypedef(Def* def, const SourceInfo& loc);
 
   // Adds a previously constructed VAST construct to the module.
   template <typename T>
@@ -1853,6 +2106,9 @@ class VerilogFile {
   }
   BinaryInfix* Mul(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "*", rhs, /*precedence=*/10);
+  }
+  BinaryInfix* Power(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
+    return Make<BinaryInfix>(loc, lhs, "**", rhs, /*precedence=*/11);
   }
   BinaryInfix* BitwiseOr(Expression* lhs, Expression* rhs,
                          const SourceInfo& loc) {
