@@ -112,7 +112,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
 
   XLS_RETURN_IF_ERROR(
       DeduceInstantiation(ctx, down_cast<Invocation*>(node->next()->args()[0]),
-                          /*args=*/{}, /*resolve_fn=*/resolve_init,
+                          /*resolve_fn=*/resolve_init,
                           /*constexpr_env=*/{})
           .status());
 
@@ -156,9 +156,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
       down_cast<Invocation*>(node->next()->args()[0]),
       /*type=*/nullptr));
 
-  XLS_RETURN_IF_ERROR(DeduceInstantiation(ctx, node->config(), config_args,
-                                          resolve_config, constexpr_env)
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      DeduceInstantiation(ctx, node->config(), resolve_config, constexpr_env)
+          .status());
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * config_ti,
                        ctx->type_info()->GetInvocationTypeInfoOrError(
@@ -206,9 +206,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
 
   // With all the proc members placed in the constexpr env, now we can deduce
   // the instantiation of `next()`, which accesses these members.
-  XLS_RETURN_IF_ERROR(DeduceInstantiation(ctx, node->next(), next_args,
-                                          resolve_next, constexpr_env)
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      DeduceInstantiation(ctx, node->next(), resolve_next, constexpr_env)
+          .status());
 
   return Type::MakeUnit();
 }

@@ -161,7 +161,6 @@ static absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(
 
 absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     DeduceCtx* ctx, const Invocation* invocation,
-    const std::vector<InstantiateArg>& args,
     const std::function<absl::StatusOr<Function*>(const Instantiation*,
                                                   DeduceCtx*)>& resolve_fn,
     const AstEnv& constexpr_env) {
@@ -273,7 +272,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,
-      DeduceInstantiation(ctx, node, args, resolve_fn, /*constexpr_env=*/{}));
+      DeduceInstantiation(ctx, node, resolve_fn, /*constexpr_env=*/{}));
 
   Type* ct = ctx->type_info()->GetItem(node->callee()).value();
   FunctionType* ft = dynamic_cast<FunctionType*>(ct);

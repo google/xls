@@ -45,7 +45,6 @@ absl::Status AppendArgsForInstantiation(
 // Invocation or Spawn's constituent functions.
 absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     DeduceCtx* ctx, const Invocation* invocation,
-    const std::vector<InstantiateArg>& args,
     const std::function<absl::StatusOr<Function*>(const Instantiation*,
                                                   DeduceCtx*)>& resolve_fn,
     const AstEnv& constexpr_env);
