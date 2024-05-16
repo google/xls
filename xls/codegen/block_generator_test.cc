@@ -90,8 +90,8 @@ pop_ready,  pop_data,  pop_valid);
   parameter Width = 32,
             Depth = 32,
             EnableBypass = 0,
-            RegisterPushOutputs = 0,
-            RegisterPopOutputs = 0;
+            RegisterPushOutputs = 1,
+            RegisterPopOutputs = 1;
   localparam AddrWidth = $clog2(Depth) + 1;
   input  wire             clk;
   input  wire             rst;
@@ -104,9 +104,9 @@ pop_ready,  pop_data,  pop_valid);
 
   // Require depth be 1 and bypass disabled.
   initial begin
-    if (EnableBypass || Depth != 1 || RegisterPushOutputs ||
-        RegisterPopOutputs) begin
-      $fatal("FIFO configuration not supported.");
+    if (EnableBypass || Depth != 1 || !RegisterPushOutputs) begin
+      // FIFO configuration not supported.
+      $fatal(1);
     end
   end
 
@@ -1124,7 +1124,7 @@ TEST_P(BlockGeneratorTest, LoopbackFifoInstantiation) {
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan loopback(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, bypass=false, metadata="")
+chan loopback(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, bypass=false, register_push_outputs=true, metadata="")
 
 proc running_sum(first_cycle: bits[1], init={1}) {
   tkn: token = literal(value=token, id=1000)

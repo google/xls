@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -142,11 +143,14 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
     if (current_instance_->parent_instance().has_value()) {
       BlockInstance* parent_instance = *current_instance_->parent_instance();
-      std::optional<ElaboratedNode> predecessor = InterInstancePredecessor(
-          ElaboratedNode{.node = input_port, .instance = instance});
+      XLS_ASSIGN_OR_RETURN(std::vector<ElaboratedNode> predecessors,
+                           InterInstancePredecessors(ElaboratedNode{
+                               .node = input_port, .instance = instance}));
 
-      XLS_RET_CHECK(predecessor.has_value() &&
-                    predecessor->node->Is<InstantiationInput>());
+      XLS_RET_CHECK(predecessors.size() == 1 &&
+                    predecessors.front().node->Is<InstantiationInput>());
+      InstantiationInput* instantiation_input =
+          predecessors.front().node->As<InstantiationInput>();
 
       auto parent_interpreter_iter = interpreters_.find(parent_instance);
       if (parent_interpreter_iter == interpreters_.end()) {
@@ -157,8 +161,8 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
       const BlockInterpreter& parent_interpreter =
           parent_interpreter_iter->second;
       return current_interpreter_->SetValueResult(
-          input_port, parent_interpreter.ResolveAsValue(
-                          predecessor->node->As<InstantiationInput>()->data()));
+          input_port,
+          parent_interpreter.ResolveAsValue(instantiation_input->data()));
     }
     auto port_iter = inputs_.find(input_port->GetName());
     if (port_iter == inputs_.end()) {
@@ -180,11 +184,14 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
     BlockInstance* child_instance = instance->instantiation_to_instance().at(
         instantiation_output->instantiation());
-    std::optional<ElaboratedNode> predecessor = InterInstancePredecessor(
-        ElaboratedNode{.node = instantiation_output, .instance = instance});
-    XLS_RET_CHECK(predecessor.has_value() &&
-                  predecessor->node->Is<OutputPort>());
-    Node* child_output_data = predecessor->node->As<OutputPort>()->operand(0);
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<ElaboratedNode> predecessors,
+        InterInstancePredecessors(ElaboratedNode{.node = instantiation_output,
+                                                 .instance = instance}));
+    XLS_RET_CHECK(predecessors.size() == 1 &&
+                  predecessors.front().node->Is<OutputPort>());
+    Node* child_output_data =
+        predecessors.front().node->As<OutputPort>()->operand(0);
     auto child_interpreter_iter = interpreters_.find(child_instance);
     if (child_interpreter_iter == interpreters_.end()) {
       return absl::InvalidArgumentError(

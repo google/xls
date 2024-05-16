@@ -4519,7 +4519,7 @@ TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
 
 TEST_F(ProcConversionTestFixture, SingleLoopbackChannel) {
   constexpr std::string_view ir_text = R"(package test
-chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
+chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_pop_outputs=true, register_push_outputs=true, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
@@ -4567,8 +4567,8 @@ proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
 
 TEST_F(ProcConversionTestFixture, MultipleLoopbackChannel) {
   constexpr std::string_view ir_text = R"(package test
-chan loopback0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
-chan loopback1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
+chan loopback0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true, metadata="")
+chan loopback1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {

@@ -67,17 +67,19 @@ H AbslHashValue(H h, const ElaboratedNode& node_and_instance) {
 //
 // If the input node is an InputPort, this returns the InstantiationInput in the
 // parent instance. If the input node is an InstantiationOutput, this returns
-// the OutputPort in the child instance.
-std::optional<ElaboratedNode> InterInstancePredecessor(
+// the OutputPort in the child instance. For FifoInstantiations, this includes
+// the combinationally coupled signals as dictated by the fifo configuration.
+absl::StatusOr<std::vector<ElaboratedNode>> InterInstancePredecessors(
     const ElaboratedNode& node_and_instance);
 
-// Returns the successor of `node_and_instance` that exists in a different
-// instance, if it exists.
+// Returns the successors of `node_and_instance` that exist in a different
+// instance (if any).
 //
 // If the input node is an OutputPort, this returns the InstantiationOutput in
 // the parent instance. If the input node is an InstantiationInput, this returns
-// the InputPort in the child instance.
-std::optional<ElaboratedNode> InterInstanceSuccessor(
+// the InputPort in the child instance. For FifoInstantiations, this includes
+// the combinationally coupled signals as dictated by the fifo configuration.
+absl::StatusOr<std::vector<ElaboratedNode>> InterInstanceSuccessors(
     const ElaboratedNode& node_and_instance);
 
 // Representation of an instance of a block. This is a recursive data structure

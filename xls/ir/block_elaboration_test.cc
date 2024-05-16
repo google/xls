@@ -29,6 +29,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/elaborated_block_dfs_visitor.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
@@ -45,6 +46,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Each;
 using ::testing::ElementsAre;
@@ -224,19 +226,21 @@ TEST_F(ElaborationTest, ElaborateMultipleBlockInstantiations) {
                           "instance count: 3")));
 }
 
-absl::StatusOr<Block*> BlockWithFifoInstantiation(Package& p) {
-  Type* u32 = p.GetBitsType(32);
-  BlockBuilder bb("adder_with_fifo", &p);
+TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
+  auto p = CreatePackage();
+
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("adder_with_fifo", p.get());
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
 
-  XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo_inst,
-                       bb.block()->AddFifoInstantiation(
-                           "fifo_inst",
-                           FifoConfig(/*depth=*/1, /*bypass=*/true,
-                                      /*register_push_outputs=*/true,
-                                      /*register_pop_outputs=*/false),
-                           u32));
+  XLS_ASSERT_OK_AND_ASSIGN(FifoInstantiation * fifo_inst,
+                           bb.block()->AddFifoInstantiation(
+                               "fifo_inst",
+                               FifoConfig(/*depth=*/1, /*bypass=*/true,
+                                          /*register_push_outputs=*/true,
+                                          /*register_pop_outputs=*/false),
+                               u32));
 
   BValue lit1 = bb.Literal(UBits(1, 1));
   bb.InstantiationInput(fifo_inst, "push_data", a);
@@ -244,13 +248,7 @@ absl::StatusOr<Block*> BlockWithFifoInstantiation(Package& p) {
   bb.InstantiationInput(fifo_inst, "pop_ready", lit1);
   BValue pop_data = bb.InstantiationOutput(fifo_inst, "pop_data");
   bb.OutputPort("out", bb.Add(pop_data, b));
-  return bb.Build();
-}
-
-TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
-  auto p = CreatePackage();
-
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block, BlockWithFifoInstantiation(*p));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
                            BlockElaboration::Elaborate(block));
@@ -283,6 +281,140 @@ TEST_F(ElaborationTest, ElaborateFifoInstantiation) {
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("is not a block and has no instantiation `some_inst`")));
+}
+
+class RecordingVisitor : public ElaboratedBlockDfsVisitorWithDefault {
+ public:
+  absl::Status DefaultHandler(
+      const ElaboratedNode& node_and_instance) override {
+    ordered_.push_back(node_and_instance);
+    return absl::OkStatus();
+  }
+  absl::Span<ElaboratedNode const> ordered() const { return ordered_; }
+
+ private:
+  std::vector<ElaboratedNode> ordered_;
+};
+
+TEST_F(ElaborationTest, ElaborateFifoInstantiationNoBypassImposesNoOrder) {
+  auto p = CreatePackage();
+
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("adder_with_fifo", p.get());
+  FifoConfig fifo_config(/*depth=*/1, /*bypass=*/false,
+                         /*register_push_outputs=*/true,
+                         /*register_pop_outputs=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
+
+  // Make pop side of FIFO before the push side. No-bypass FIFO will not impose
+  // an order wrt to the FIFO, so the pop side will come out before the inputs.
+  BValue pop_data = bb.InstantiationOutput(fifo_inst, "pop_data");
+  BValue pop_valid = bb.InstantiationOutput(fifo_inst, "pop_valid");
+  BValue push_ready = bb.InstantiationOutput(fifo_inst, "push_ready");
+  bb.OutputPort("out", pop_data);
+  bb.OutputPort("out_valid", pop_valid);
+  bb.OutputPort("in_ready", push_ready);
+
+  // Make push side.
+  BValue a = bb.InputPort("a", u32);
+  BValue lit1 = bb.Literal(UBits(1, 1));
+  bb.InstantiationInput(fifo_inst, "push_data", a);
+  bb.InstantiationInput(fifo_inst, "push_valid", lit1);
+  bb.InstantiationInput(fifo_inst, "pop_ready", lit1);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(block));
+
+  RecordingVisitor visitor;
+  XLS_ASSERT_OK(elab.Accept(visitor));
+
+  EXPECT_THAT(
+      visitor.ordered(),
+      ElementsAre(NodeIs(m::InstantiationOutput("pop_data")),
+                  NodeIs(m::OutputPort("out")),
+                  NodeIs(m::InstantiationOutput("pop_valid")),
+                  NodeIs(m::OutputPort("out_valid")),
+                  NodeIs(m::InstantiationOutput("push_ready")),
+                  NodeIs(m::OutputPort("in_ready")), NodeIs(m::InputPort("a")),
+                  NodeIs(m::InstantiationInput(_, "push_data")),
+                  NodeIs(m::Literal()),
+                  NodeIs(m::InstantiationInput(_, "push_valid")),
+                  NodeIs(m::InstantiationInput(_, "pop_ready"))));
+  EXPECT_THAT(ElaboratedTopoSort(elab),
+              ElementsAre(NodeIs(m::InstantiationOutput("pop_data")),
+                          NodeIs(m::InstantiationOutput("pop_valid")),
+                          NodeIs(m::InstantiationOutput("push_ready")),
+                          NodeIs(m::InputPort("a")), NodeIs(m::Literal()),
+                          NodeIs(m::OutputPort("out")),
+                          NodeIs(m::OutputPort("out_valid")),
+                          NodeIs(m::OutputPort("in_ready")),
+                          NodeIs(m::InstantiationInput(_, "push_data")),
+                          NodeIs(m::InstantiationInput(_, "push_valid")),
+                          NodeIs(m::InstantiationInput(_, "pop_ready"))));
+}
+
+TEST_F(ElaborationTest, ElaborateFifoInstantiationBypassImposesOrder) {
+  auto p = CreatePackage();
+
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("adder_with_fifo", p.get());
+  FifoConfig fifo_config(/*depth=*/1, /*bypass=*/true,
+                         /*register_push_outputs=*/false,
+                         /*register_pop_outputs=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
+
+  // Make pop side of FIFO before the push side. No-bypass FIFO will not impose
+  // an order wrt to the FIFO, so the pop side will come out before the inputs.
+  BValue pop_data = bb.InstantiationOutput(fifo_inst, "pop_data");
+  BValue pop_valid = bb.InstantiationOutput(fifo_inst, "pop_valid");
+  BValue push_ready = bb.InstantiationOutput(fifo_inst, "push_ready");
+  bb.OutputPort("out", pop_data);
+  bb.OutputPort("out_valid", pop_valid);
+  bb.OutputPort("in_ready", push_ready);
+
+  // Make push side.
+  BValue a = bb.InputPort("a", u32);
+  BValue lit1 = bb.Literal(UBits(1, 1));
+  bb.InstantiationInput(fifo_inst, "push_data", a);
+  bb.InstantiationInput(fifo_inst, "push_valid", lit1);
+  bb.InstantiationInput(fifo_inst, "pop_ready", lit1);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elab,
+                           BlockElaboration::Elaborate(block));
+
+  RecordingVisitor visitor;
+  XLS_ASSERT_OK(elab.Accept(visitor));
+
+  EXPECT_THAT(visitor.ordered(),
+              ElementsAre(NodeIs(m::InputPort("a")),
+                          NodeIs(m::InstantiationInput(_, "push_data")),
+                          NodeIs(m::Literal()),
+                          NodeIs(m::InstantiationInput(_, "push_valid")),
+                          NodeIs(m::InstantiationOutput("pop_data")),
+                          NodeIs(m::OutputPort("out")),
+                          NodeIs(m::InstantiationOutput("pop_valid")),
+                          NodeIs(m::OutputPort("out_valid")),
+                          NodeIs(m::InstantiationInput(_, "pop_ready")),
+                          NodeIs(m::InstantiationOutput("push_ready")),
+                          NodeIs(m::OutputPort("in_ready"))));
+
+  EXPECT_THAT(ElaboratedTopoSort(elab),
+              ElementsAre(NodeIs(m::Literal()), NodeIs(m::InputPort("a")),
+                          NodeIs(m::InstantiationInput(_, "push_valid")),
+                          NodeIs(m::InstantiationInput(_, "push_data")),
+                          NodeIs(m::InstantiationInput(_, "pop_ready")),
+                          NodeIs(m::InstantiationOutput("pop_data")),
+                          NodeIs(m::InstantiationOutput("pop_valid")),
+                          NodeIs(m::InstantiationOutput("push_ready")),
+                          NodeIs(m::OutputPort("out")),
+                          NodeIs(m::OutputPort("out_valid")),
+                          NodeIs(m::OutputPort("in_ready"))));
 }
 
 TEST_F(ElaborationTest, TopoSortSingleInstantiation) {

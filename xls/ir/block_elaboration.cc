@@ -41,6 +41,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/elaborated_block_dfs_visitor.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/instantiation.h"
@@ -62,89 +63,257 @@ std::string MakeRegisterPrefix(const BlockInstantiationPath& path) {
       "::");
 }
 
+absl::StatusOr<std::optional<ElaboratedNode>> InputPortPredecessor(
+    InputPort* input_port, BlockInstance* instance) {
+  if (!instance->instantiation().has_value()) {
+    // We're the top block, no predecessor for input ports here.
+    return std::nullopt;
+  }
+  // We're not the top block, an input port has the parent InstantiationInput as
+  // a predecessor.
+  Instantiation* instantiation = *instance->instantiation();
+  XLS_RET_CHECK(instance->parent_instance().has_value() &&
+                instance->parent_instance().value()->block().has_value());
+  Block* parent_block = *instance->parent_instance().value()->block();
+
+  absl::Span<InstantiationInput* const> inputs =
+      parent_block->GetInstantiationInputs(instantiation);
+  auto iter =
+      absl::c_find_if(inputs, [&input_port](const InstantiationInput* input) {
+        return input->port_name() == input_port->name();
+      });
+  if (iter == inputs.end()) {
+    return std::nullopt;
+  }
+  return ElaboratedNode{.node = *iter,
+                        .instance = *instance->parent_instance()};
+}
+
+absl::StatusOr<std::optional<ElaboratedNode>> OutputPortSuccessor(
+    OutputPort* output_port, BlockInstance* instance) {
+  if (!instance->instantiation().has_value()) {
+    // We're the top block, no successor for output ports here.
+    return std::nullopt;
+  }
+  // We're not the top block, an output port has the parent InstantiationOutput
+  // as a successor.
+  Instantiation* instantiation = *instance->instantiation();
+  XLS_RET_CHECK(instance->parent_instance().has_value() &&
+                instance->parent_instance().value()->block().has_value());
+  Block* parent_block = *instance->parent_instance().value()->block();
+
+  absl::Span<InstantiationOutput* const> outputs =
+      parent_block->GetInstantiationOutputs(instantiation);
+  auto iter = absl::c_find_if(
+      outputs, [&output_port](const InstantiationOutput* output) {
+        return output->port_name() == output_port->name();
+      });
+  if (iter == outputs.end()) {
+    return std::nullopt;
+  }
+  return ElaboratedNode{.node = *iter,
+                        .instance = *instance->parent_instance()};
+}
+
+absl::StatusOr<std::vector<ElaboratedNode>> FifoInstantiationPredecessors(
+    BlockInstance* parent_instance, FifoInstantiation* fifo_instantiation,
+    std::string_view fifo_port_name) {
+  XLS_RET_CHECK(parent_instance->block().has_value());
+  Block* parent_block = *parent_instance->block();
+  const FifoConfig& fifo_config = fifo_instantiation->fifo_config();
+  bool push_to_pop_combo_paths =
+      fifo_config.bypass() && !fifo_config.register_pop_outputs();
+  bool pop_to_push_combo_paths = !fifo_config.register_push_outputs();
+  absl::flat_hash_set<std::string_view> predecessor_names;
+  if (push_to_pop_combo_paths &&
+      fifo_port_name == FifoInstantiation::kPopDataPortName) {
+    predecessor_names.insert(FifoInstantiation::kPushDataPortName);
+    if (fifo_config.depth() > 0) {
+      // depth=0 FIFOs are direct connect, do not couple data->valid
+      predecessor_names.insert(FifoInstantiation::kPushValidPortName);
+    }
+  } else if (push_to_pop_combo_paths &&
+             fifo_port_name == FifoInstantiation::kPopValidPortName) {
+    if (fifo_config.depth() > 0) {
+      // depth=0 FIFOs are direct connect, do not couple valid->data
+      predecessor_names.insert(FifoInstantiation::kPushDataPortName);
+    }
+    predecessor_names.insert(FifoInstantiation::kPushValidPortName);
+  } else if (pop_to_push_combo_paths &&
+             fifo_port_name == FifoInstantiation::kPushReadyPortName) {
+    predecessor_names.insert(FifoInstantiation::kPopReadyPortName);
+  }
+  std::vector<ElaboratedNode> predecessors;
+  predecessors.reserve(predecessor_names.size());
+  for (InstantiationInput* inst_input :
+       parent_block->GetInstantiationInputs(fifo_instantiation)) {
+    if (predecessor_names.contains(inst_input->port_name())) {
+      predecessors.push_back(
+          ElaboratedNode{.node = inst_input, .instance = parent_instance});
+    }
+  }
+  return predecessors;
+}
+
+absl::StatusOr<std::vector<ElaboratedNode>> FifoInstantiationSuccessors(
+    BlockInstance* parent_instance, FifoInstantiation* fifo_instantiation,
+    std::string_view fifo_port_name) {
+  const FifoConfig& fifo_config = fifo_instantiation->fifo_config();
+  bool push_to_pop_combo_paths =
+      fifo_config.bypass() && !fifo_config.register_pop_outputs();
+  bool pop_to_push_combo_paths = !fifo_config.register_push_outputs();
+  XLS_RET_CHECK(parent_instance->block().has_value());
+  Block* block = *parent_instance->block();
+  absl::flat_hash_set<std::string_view> successor_names;
+  if (push_to_pop_combo_paths &&
+      fifo_port_name == FifoInstantiation::kPushDataPortName) {
+    successor_names.insert(FifoInstantiation::kPopDataPortName);
+    if (fifo_config.depth() > 0) {
+      // depth=0 FIFOs are direct connect, do not couple valid->data
+      successor_names.insert(FifoInstantiation::kPopValidPortName);
+    }
+  } else if (push_to_pop_combo_paths &&
+             fifo_port_name == FifoInstantiation::kPushValidPortName) {
+    if (fifo_config.depth() > 0) {
+      // depth=0 FIFOs are direct connect, do not couple valid->data
+      successor_names.insert(FifoInstantiation::kPopDataPortName);
+    }
+    successor_names.insert(FifoInstantiation::kPopValidPortName);
+  } else if (pop_to_push_combo_paths &&
+             fifo_port_name == FifoInstantiation::kPopReadyPortName) {
+    successor_names.insert(FifoInstantiation::kPushReadyPortName);
+  }
+  std::vector<ElaboratedNode> successors;
+  successors.reserve(successor_names.size());
+  for (InstantiationOutput* const inst_output :
+       block->GetInstantiationOutputs(fifo_instantiation)) {
+    if (successor_names.contains(inst_output->port_name())) {
+      successors.push_back(
+          ElaboratedNode{.node = inst_output, .instance = parent_instance});
+    }
+  }
+  return successors;
+}
+
+absl::StatusOr<std::vector<ElaboratedNode>> InstantiationOutputPredecessor(
+    InstantiationOutput* instantiation_output, BlockInstance* child_instance) {
+  XLS_RET_CHECK(child_instance->instantiation().has_value());
+  Instantiation* child_instantiation = *child_instance->instantiation();
+  switch (child_instantiation->kind()) {
+    case InstantiationKind::kBlock: {
+      absl::StatusOr<OutputPort*> output_port =
+          down_cast<BlockInstantiation*>(child_instantiation)
+              ->instantiated_block()
+              ->GetOutputPort(instantiation_output->port_name());
+      if (output_port.ok()) {
+        return std::vector<ElaboratedNode>{
+            ElaboratedNode{.node = *output_port, .instance = child_instance}};
+      }
+      // Don't return an error- this is the verifier's problem to catch. Still,
+      // log it in case something goes really wrong.
+      LOG(WARNING) << "Failed to get predecessor output port with error: "
+                   << output_port.status();
+      return std::vector<ElaboratedNode>{};
+    }
+    case InstantiationKind::kFifo: {
+      XLS_RET_CHECK(child_instance->parent_instance().has_value());
+      return FifoInstantiationPredecessors(
+          *child_instance->parent_instance(),
+          down_cast<FifoInstantiation*>(child_instantiation),
+          instantiation_output->port_name());
+    }
+    case InstantiationKind::kExtern: {
+      // Unimplemented for now, assume no connections.
+      return std::vector<ElaboratedNode>{};
+    }
+  }
+}
+
+absl::StatusOr<std::vector<ElaboratedNode>> InstantiationInputSuccessor(
+    InstantiationInput* instantiation_input, BlockInstance* child_instance) {
+  XLS_RET_CHECK(child_instance->instantiation().has_value());
+  Instantiation* child_instantiation = *child_instance->instantiation();
+  switch (child_instantiation->kind()) {
+    case InstantiationKind::kBlock: {
+      absl::StatusOr<InputPort*> input_port =
+          down_cast<BlockInstantiation*>(child_instantiation)
+              ->instantiated_block()
+              ->GetInputPort(instantiation_input->port_name());
+      if (input_port.ok()) {
+        return std::vector<ElaboratedNode>{
+            ElaboratedNode{.node = *input_port, .instance = child_instance}};
+      }
+      // Don't return an error- this is the verifier's problem to catch. Still,
+      // log it in case something goes really wrong.
+      LOG(WARNING) << "Failed to get successor input port with error: "
+                   << input_port.status();
+      return std::vector<ElaboratedNode>{};
+    }
+    case InstantiationKind::kFifo: {
+      XLS_RET_CHECK(child_instance->parent_instance().has_value());
+      return FifoInstantiationSuccessors(
+          *child_instance->parent_instance(),
+          down_cast<FifoInstantiation*>(child_instantiation),
+          instantiation_input->port_name());
+    }
+    case InstantiationKind::kExtern: {
+      // Unimplemented for now, assume no connections.
+      return std::vector<ElaboratedNode>{};
+    }
+  }
+}
+
 }  // namespace
 
-std::optional<ElaboratedNode> InterInstancePredecessor(
+absl::StatusOr<std::vector<ElaboratedNode>> InterInstancePredecessors(
     const ElaboratedNode& node_and_instance) {
   Node* node = node_and_instance.node;
   BlockInstance* instance = node_and_instance.instance;
 
-  if (node->Is<InputPort>() && instance->instantiation().has_value()) {
-    Instantiation* instantiation = *instance->instantiation();
-    CHECK(instance->parent_instance().has_value() &&
-          instance->parent_instance().value()->block().has_value());
-    Block* parent_block = *instance->parent_instance().value()->block();
+  // If we are not the top block, an input port has the parent
+  // InstantiationInput as a predecessor.
+  if (node->Is<InputPort>()) {
+    XLS_ASSIGN_OR_RETURN(std::optional<ElaboratedNode> predecessor,
+                         InputPortPredecessor(node->As<InputPort>(), instance));
 
-    absl::Span<InstantiationInput* const> inputs =
-        parent_block->GetInstantiationInputs(instantiation);
-    auto iter =
-        absl::c_find_if(inputs, [&node](const InstantiationInput* input) {
-          return input->port_name() == node->As<InputPort>()->name();
-        });
-    if (iter != inputs.end()) {
-      return ElaboratedNode{.node = *iter,
-                            .instance = *instance->parent_instance()};
+    std::vector<ElaboratedNode> predecessors;
+    if (predecessor.has_value()) {
+      predecessors.push_back(*predecessor);
     }
+    return predecessors;
   }
   if (node->Is<InstantiationOutput>()) {
     InstantiationOutput* instantiation_output = node->As<InstantiationOutput>();
     BlockInstance* child_instance = instance->instantiation_to_instance().at(
         instantiation_output->instantiation());
-    if (child_instance->block().has_value()) {
-      Block* child_block = *child_instance->block();
-      absl::StatusOr<OutputPort*> port =
-          child_block->GetOutputPort(instantiation_output->port_name());
-      if (port.ok()) {
-        return ElaboratedNode{.node = *port, .instance = child_instance};
-      }
-    }
+    return InstantiationOutputPredecessor(instantiation_output, child_instance);
   }
 
-  return std::nullopt;
+  return std::vector<ElaboratedNode>{};
 }
 
-std::optional<ElaboratedNode> InterInstanceSuccessor(
+absl::StatusOr<std::vector<ElaboratedNode>> InterInstanceSuccessors(
     const ElaboratedNode& node_and_instance) {
   Node* node = node_and_instance.node;
   BlockInstance* instance = node_and_instance.instance;
 
-  if (node->Is<OutputPort>() && instance->parent_instance().has_value()) {
-    CHECK(instance->instantiation().has_value());
-    Instantiation* instantiation = *instance->instantiation();
-    switch (instantiation->kind()) {
-      case InstantiationKind::kBlock: {
-        CHECK(instance->parent_instance().value()->block().has_value());
-        Block* parent_block = *instance->parent_instance().value()->block();
-        absl::Span<InstantiationOutput* const> outputs =
-            parent_block->GetInstantiationOutputs(instantiation);
-        auto iter = absl::c_find_if(
-            outputs, [&node](const InstantiationOutput* output) {
-              return output->port_name() == node->As<OutputPort>()->name();
-            });
-        if (iter != outputs.end()) {
-          return ElaboratedNode{.node = *iter,
-                                .instance = *instance->parent_instance()};
-        }
-        return std::nullopt;
-      }
-      default:
-        return std::nullopt;
+  if (node->Is<OutputPort>()) {
+    XLS_ASSIGN_OR_RETURN(std::optional<ElaboratedNode> successor,
+                         OutputPortSuccessor(node->As<OutputPort>(), instance));
+    std::vector<ElaboratedNode> successors;
+    if (successor.has_value()) {
+      successors.push_back(*successor);
     }
+    return successors;
   }
   if (node->Is<InstantiationInput>()) {
     InstantiationInput* instantiation_input = node->As<InstantiationInput>();
     BlockInstance* child_instance = instance->instantiation_to_instance().at(
         instantiation_input->instantiation());
-    if (child_instance->block().has_value()) {
-      Block* child_block = *child_instance->block();
-      absl::StatusOr<InputPort*> port =
-          child_block->GetInputPort(instantiation_input->port_name());
-      if (port.ok()) {
-        return ElaboratedNode{.node = *port, .instance = child_instance};
-      }
-    }
+    return InstantiationInputSuccessor(node->As<InstantiationInput>(),
+                                       child_instance);
   }
-  return std::nullopt;
+  return std::vector<ElaboratedNode>{};
 }
 
 std::string ElaboratedNode::ToString() const {
@@ -157,8 +326,8 @@ absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) const {
   }
   if (visitor.IsTraversing(*this)) {
     std::vector<std::string> cycle_names = {ToString()};
-    auto first_traversing_node =
-        [&](ElaboratedNode node) -> std::optional<ElaboratedNode> {
+    auto first_traversing_node = [&](ElaboratedNode node)
+        -> absl::StatusOr<std::optional<ElaboratedNode>> {
       ElaboratedNode to_check;
       for (Node* operand : node.node->operands()) {
         to_check.node = operand;
@@ -167,17 +336,19 @@ absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) const {
           return to_check;
         }
       }
-      std::optional<ElaboratedNode> predecessor =
-          InterInstancePredecessor(node);
-      if (predecessor.has_value() && visitor.IsTraversing(*predecessor)) {
-        return predecessor;
+      XLS_ASSIGN_OR_RETURN(std::vector<ElaboratedNode> predecessors,
+                           InterInstancePredecessors(node));
+      for (const ElaboratedNode& predecessor : predecessors) {
+        if (visitor.IsTraversing(predecessor)) {
+          return predecessor;
+        }
       }
       return std::nullopt;
     };
     ElaboratedNode current_node = *this;
     do {
-      std::optional<ElaboratedNode> first_traversing =
-          first_traversing_node(current_node);
+      XLS_ASSIGN_OR_RETURN(std::optional<ElaboratedNode> first_traversing,
+                           first_traversing_node(current_node));
       bool broke = first_traversing.has_value();
       CHECK(broke);
       current_node = *first_traversing;
@@ -192,9 +363,10 @@ absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) const {
     ElaboratedNode operand_node{.node = operand, .instance = instance};
     XLS_RETURN_IF_ERROR(operand_node.Accept(visitor));
   }
-  std::optional<ElaboratedNode> predecessor = InterInstancePredecessor(*this);
-  if (predecessor.has_value()) {
-    XLS_RETURN_IF_ERROR(predecessor->Accept(visitor));
+  XLS_ASSIGN_OR_RETURN(std::vector<ElaboratedNode> predecessors,
+                       InterInstancePredecessors(*this));
+  for (const ElaboratedNode& predecessor : predecessors) {
+    XLS_RETURN_IF_ERROR(predecessor.Accept(visitor));
   }
 
   visitor.UnsetTraversing(*this);
@@ -670,7 +842,9 @@ absl::Status BlockElaboration::Accept(
     node_count += block->node_count();
     for (Node* node : block->nodes()) {
       ElaboratedNode en = {.node = node, .instance = instance};
-      if (node->users().empty() && !InterInstanceSuccessor(en).has_value()) {
+      XLS_ASSIGN_OR_RETURN(std::vector<ElaboratedNode> inter_instance_users,
+                           InterInstanceSuccessors(en));
+      if (node->users().empty() && inter_instance_users.empty()) {
         XLS_RETURN_IF_ERROR(en.Accept(visitor));
       }
     }
@@ -751,10 +925,11 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
     for (Node* node : block->nodes()) {
       ++node_count;
       ElaboratedNode elaborated_node{.node = node, .instance = inst};
-      std::optional<ElaboratedNode> inter_instance_user =
-          InterInstanceSuccessor(elaborated_node);
+      absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users_or =
+          InterInstanceSuccessors(elaborated_node);
+      CHECK_OK(inter_instance_users_or.status());
 
-      if (!inter_instance_user.has_value() && node->users().empty()) {
+      if (inter_instance_users_or.value().empty() && node->users().empty()) {
         VLOG(5) << "At start node was ready: " << node;
         seed_ready(elaborated_node);
       }
@@ -764,10 +939,12 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
   ordered.reserve(node_count);
 
   auto all_successors_scheduled = [&](const ElaboratedNode& n) {
-    if (std::optional<ElaboratedNode> inter_instance_user =
-            InterInstanceSuccessor(n);
-        inter_instance_user.has_value()) {
-      auto it = pending_to_remaining_successors.find(*inter_instance_user);
+    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users_or =
+        InterInstanceSuccessors(n);
+    CHECK_OK(inter_instance_users_or.status());
+    for (const ElaboratedNode& inter_instance_user :
+         inter_instance_users_or.value()) {
+      auto it = pending_to_remaining_successors.find(inter_instance_user);
       if (it == pending_to_remaining_successors.end() || it->second >= 0) {
         return false;
       }
@@ -782,13 +959,16 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
     });
   };
   auto bump_down_remaining_successors = [&](const ElaboratedNode& n) {
-    CHECK(!n.node->users().empty() || InterInstanceSuccessor(n).has_value());
+    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users_or =
+        InterInstanceSuccessors(n);
+    CHECK_OK(inter_instance_users_or.status());
+    CHECK(!n.node->users().empty() || !inter_instance_users_or.value().empty());
     auto [it, inserted] =
         pending_to_remaining_successors.insert({n, n.node->users().size()});
     int64_t& remaining_successors = it->second;
-    // If we inserted, check if there's an inter-instance user.
-    if (inserted && InterInstanceSuccessor(n).has_value()) {
-      ++remaining_successors;
+    // If we inserted, add inter-instance users.
+    if (inserted) {
+      remaining_successors += inter_instance_users_or.value().size();
     }
     CHECK_GT(remaining_successors, 0);
     remaining_successors -= 1;
@@ -806,11 +986,13 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
     DCHECK(all_successors_scheduled(r)) << r;
     ordered.push_back(r);
 
-    if (std::optional<ElaboratedNode> inter_instance_predecessor =
-            InterInstancePredecessor(r);
-        inter_instance_predecessor.has_value()) {
-      // No need to put in seen_operands, we won't see this again.
-      bump_down_remaining_successors(*inter_instance_predecessor);
+    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_predecessors_or =
+        InterInstancePredecessors(r);
+    CHECK_OK(inter_instance_predecessors_or.status());
+    // No need to put in seen_operands, we won't see this again.
+    for (const ElaboratedNode& inter_instance_predecessor :
+         *inter_instance_predecessors_or) {
+      bump_down_remaining_successors(inter_instance_predecessor);
     }
     // We want to be careful to only bump down our operands once, since we're a
     // single user, even though we may refer to them multiple times in our

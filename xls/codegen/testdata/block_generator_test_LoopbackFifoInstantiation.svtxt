@@ -129,7 +129,7 @@ module running_sum(
     .Width(32'd32),
     .Depth(32'd1),
     .EnableBypass(1'd0),
-    .RegisterPushOutputs(1'd0),
+    .RegisterPushOutputs(1'd1),
     .RegisterPopOutputs(1'd0)
   ) fifo_loopback (
     .clk(clk),

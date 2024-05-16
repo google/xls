@@ -1802,6 +1802,7 @@ cc_library(
         "elaborated_block_dfs_visitor.h",
     ],
     deps = [
+        ":channel",
         ":elaboration",
         ":ir",
         ":op",
@@ -1810,6 +1811,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
