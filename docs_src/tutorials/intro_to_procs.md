@@ -7,8 +7,9 @@ to venture into the exciting land of procs!
 **Procs**, short for "communicating sequential processes", are the means by
 which DSLX models sequential and stateful modules. A proc contains:
 
-*   A *`config`* function that initializes constant proc state and spawns any
-    other dependent/child procs needed for execution.
+*   A *`init`* function that initializes the proc state.
+*   A *`config`* function that spawns any other dependent/child procs needed for
+    execution.
 *   A recurrent (i.e., infinitely looping) *`next`* function that contains the
     actual logic to be executed by the proc.
 
@@ -35,6 +36,10 @@ proc Fmac {
   input_b_consumer: chan<F32> in;
   output_producer: chan<F32> out;
 
+  init {
+    float32::zero(false)
+  }
+
   config(input_a_consumer: chan<F32> in, input_b_consumer: chan<F32> in,
          output_producer: chan<F32> out) {
     (input_a_consumer, input_b_consumer, output_producer)
@@ -46,7 +51,7 @@ proc Fmac {
     let result = float32::fma(input_a, input_b, state);
     let tok = join(tok_a, tok_b);
     let tok = send(tok, output_producer, result);
-    (result,)
+    result
   }
 }
 ```
@@ -57,18 +62,20 @@ for simplicity.)
 There's a lot to unpack here, so we'll walk through the example.
 
 The first part of interest is the declaration of the proc member values: the
-three channels. Procs can have "member" state, similar to class data members in
-software. In DSLX, proc members are constant values, and are set by the output
-of the `config` function. Member values can be referred to inside the `next`
-function in the same way as locally-declared data.
+three channels. These are similar to class data members in software. In DSLX,
+proc members are constant values, and are set by the output of the `config`
+function. Member values can be referred to inside the `next` function in the
+same way as locally-declared data.
 
-Next up is the `config` function itself. When a proc is "spawned", its given two
-sets of values: one set for the `config` function and one set to initialize
-`next` (following this example, we'll show how procs are spawned). Inside a
-`config` function, any constant values can be computed, any necessary procs can
-be spawned, and finally member values are set by the return value. Member values
-are assigned in declaration order: the first element of the return tuple
-corresponds to the first-declared member, and so on.
+Next up is the `init` function, defining the initial value for the proc state.
+
+Following is the `config` function itself. When a proc is "spawned", its given a
+sets of values that get passed to the `config` function (following this example,
+we'll show how procs are spawned). Inside a `config` function, any constant
+values can be computed, any necessary procs can be spawned, and finally member
+values are set by the return value. Member values are assigned in declaration
+order: the first element of the return tuple corresponds to the first-declared
+member, and so on.
 
 After that, we encounter `next`. This function serves as the real "body" of the
 Proc. The `next` function maintains and evolves the proc's recurrent state and
@@ -103,37 +110,40 @@ part of statically configuring the hardware network to construct.
 
 As an example, spawning a couple of our procs above would look as follows:
 
-```dslx
+```dslx-snippet
 proc Spawner {
-  fmac_1_a_producer = chan<F32> out;
-  fmac_1_b_producer = chan<F32> out;
-  fmac_1_output_consumer = chan<F32> in;
-  fmac_2_a_producer = chan<F32> out;
-  fmac_2_b_producer = chan<F32> out;
-  fmac_2_output_consumer = chan<F32> in;
+  fmac_1_a_producer: chan<F32> out;
+  fmac_1_b_producer: chan<F32> out;
+  fmac_1_output_consumer: chan<F32> in;
+  fmac_2_a_producer: chan<F32> out;
+  fmac_2_b_producer: chan<F32> out;
+  fmac_2_output_consumer: chan<F32> in;
+
+  // ...
 
   config() {
     let (fmac_1_a_p, fmac_1_a_c) = chan<F32>("fmac_1_a");
     let (fmac_1_b_p, fmac_1_b_c) = chan<F32>("fmac_1_b");
     let (fmac_1_output_p, fmac_1_output_c) = chan<F32>("fmac_1_output");
-    spawn fmac(fmac_1_a_c, fmac_1_b_c, fmac_1_output_p)(float32::zero(false));
+    spawn Fmac(fmac_1_a_c, fmac_1_b_c, fmac_1_output_p);
 
     let (fmac_2_a_p, fmac_2_a_c) = chan<F32>("fmac_2_a");
     let (fmac_2_b_p, fmac_2_b_c) = chan<F32>("fmac_2_b");
     let (fmac_2_output_p, fmac_2_output_c) = chan<F32>("fmac_2_output");
-    spawn fmac(fmac_2_a_c, fmac_2_b_c, fmac_2_output_p)(float32::zero(false));
+    spawn Fmac(fmac_2_a_c, fmac_2_b_c, fmac_2_output_p);
 
     (fmac_1_a_p, fmac_1_b_p, fmac_1_output_c,
      fmac_2_a_p, fmac_2_b_p, fmac_2_output_c)
   }
+
+  // ...
 }
 ```
 
 For each child proc, we first declare the necessary channels (each channel
 declaration produces a producer and consumer channel, respectively), then we
 actually spawn it. The first set of arguments is passed to the child's config
-function and the second is the initial state for the child proc. A spawn
-produces no value, hence no `let` on the left-hand side.
+function. A spawn produces no value, hence no `let` on the left-hand side.
 
 ## Advanced features
 
@@ -143,27 +153,31 @@ produces no value, hence no `let` on the left-hand side.
 
 Many hardware layouts have regular arrays of components, such as systolic
 arrays, vector units, etc. Individually specifying these quickly grows
-cumbersome, so users can instead declare channels of arrays and spawn procs
+cumbersome, so users can instead declare arrays of channels and spawn procs
 inside `for` loops. This looks as follows:
 
 ```dslx-snippet
 proc Spawner4x4 {
-  input_producers: chan<F32> out[4][4];
-  output_consumers: chan<F32> out[4][4];
+  input_producers: chan<F32>[4][4] out;
+  output_consumers: chan<F32>[4][4] in;
+
+  // ...
 
   config() {
-    let (input_producers, input_consumers) = chan[4][4] F32;
-    let (output_producers, output_consumers) = chan[4][4] F32;
+    let (input_producers, input_consumers) = chan<F32>[4][4]("node_input");
+    let (output_producers, output_consumers) = chan<F32>[4][4]("node_output");
 
-    for (i) : (u32) in range(0, 4) {
-      for (j) : (u32) in range(0, 4) {
+    for (i, _) : (u32, ()) in range(u32:0, u32:4) {
+      for (j, _) : (u32, ()) in range(u32:0, u32:4) {
         spawn Node(input_consumers[i][j],
-                   output_producers[i][j])(float32::zero(false))
-      }()
-    }()
+                   output_producers[i][j]);
+      }(());
+    }(());
 
     (input_producers, output_consumers)
   }
+
+  // ...
 }
 ```
 
@@ -176,22 +190,26 @@ follows:
 
 ```dslx-snippet
 proc Parametric<N: u32, M: u32> {
-  input_producers: chan<F32> out[N][M];
-  output_consumers: chan<F32> out[N][M];
+  input_producers: chan<F32>[N][M] out;
+  output_consumers: chan<F32>[N][M] in;
+
+  // ...
 
   config() {
-    let (input_producers, input_consumers) = chan[N][M] F32;
-    let (output_producers, output_consumers) = chan[N][M] F32;
+    let (input_producers, input_consumers) = chan<F32>[N][M]("node_input");
+    let (output_producers, output_consumers) = chan<F32>[N][M]("node_output");
 
-    for (i) : (u32) in range(0, N) {
-      for (j) : (u32) in range(0, M) {
+    for (i, _) : (u32, ()) in range(u32:0, N) {
+      for (j, _) : (u32, ()) in range(u32:0, M) {
         spawn Node(input_consumers[i][j],
-                   output_producers[i][j])(float32::zero(false))
-      }()
-    }()
+                   output_producers[i][j]);
+      }(());
+    }(());
 
     (input_producers, output_consumers)
   }
+
+  // ...
 }
 ```
 
@@ -203,10 +221,9 @@ of designs simply by adjusting a few parametric values.
 The DSLX interpreter supports testing procs via the *test_proc* construct. A
 test proc is very similar to a normal proc with the following changes:
 
-*   A test proc is preceded by the `#[test_proc()]` directive. This directive,
-    as one might expect, notifies the interpreter that the following proc is a
-    test proc. Any initial state needed by the test proc should go inside the
-    parentheses.
+*   A test proc is preceded by the `#[test_proc]` directive. This directive, as
+    one might expect, notifies the interpreter that the following proc is a test
+    proc.
 *   A test proc's `config` function must accept a single argument: a boolean
     input channel for terminating interpretation. When the test is complete, the
     proc should send the test's status (`true` on success, `false` on failure)
@@ -215,18 +232,22 @@ test proc is very similar to a normal proc with the following changes:
 A skeletal example:
 
 ```dslx-snippet
-#[test_proc(u32:0)]
+#[test_proc]
 proc Tester {
   terminator: chan<bool> out;
 
+  // ...
+
   config(terminator: chan<bool> out) {
-    spawn proc_under_test(...)(...);
+    spawn proc_under_test(...);
     (terminator,)
   }
 
-  next(tok: token, state: u32) {
-    new_state = ...
-    (new_state,)
+  next(tok: token, state: ()) {
+    // send and recv message to the proc under test.
+    // ...
+    // terminate the test interpretation.
+    send(tok, terminator, true);
   }
 }
 ```
@@ -274,6 +295,6 @@ differences.
 
 For more details on `--io_constraints`, check out
 [the docs](https://google.github.io/xls/codegen_options/#pipelining-and-scheduling-options).
-For a complete example, see
-`//xls/examples:constraint_sv` and associated build targets; the
-target you'd build to get the mangled channel names is `:constraint_ir`.
+For a complete example, see `//xls/examples:constraint_sv` and
+associated build targets; the target you'd build to get the mangled channel
+names is `:constraint_ir`.
