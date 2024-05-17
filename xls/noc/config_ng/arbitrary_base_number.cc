@@ -20,6 +20,7 @@
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "xls/ir/bits.h"
 
 namespace xls::noc {
 

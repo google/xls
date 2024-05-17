@@ -88,6 +88,7 @@ cc_test(
     srcs = ["topology_endpoint_options_proto_builder_test.cc"],
     deps = [
         ":topology_endpoint_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -108,6 +109,7 @@ cc_test(
     srcs = ["dimension_order_entry_options_proto_builder_test.cc"],
     deps = [
         ":dimension_order_entry_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -129,8 +131,10 @@ cc_test(
     name = "dimension_order_options_proto_builder_test",
     srcs = ["dimension_order_options_proto_builder_test.cc"],
     deps = [
+        ":dimension_order_entry_options_proto_builder",
         ":dimension_order_options_proto_builder",
         ":topology_endpoint_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -150,6 +154,7 @@ cc_test(
     name = "unidirectional_butterfly_options_proto_builder_test",
     srcs = ["unidirectional_butterfly_options_proto_builder_test.cc"],
     deps = [
+        ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_butterfly_options_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -171,6 +176,7 @@ cc_test(
     srcs = ["bidirectional_butterfly_options_proto_builder_test.cc"],
     deps = [
         ":bidirectional_butterfly_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -194,6 +200,7 @@ cc_test(
     deps = [
         ":bidirectional_butterfly_options_proto_builder",
         ":butterfly_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_butterfly_options_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -215,6 +222,7 @@ cc_test(
     srcs = ["level_options_proto_builder_test.cc"],
     deps = [
         ":level_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -234,6 +242,7 @@ cc_test(
     name = "unidirectional_tree_options_proto_builder_test",
     srcs = ["unidirectional_tree_options_proto_builder_test.cc"],
     deps = [
+        ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_tree_options_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -255,6 +264,7 @@ cc_test(
     srcs = ["bidirectional_tree_options_proto_builder_test.cc"],
     deps = [
         ":bidirectional_tree_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -279,6 +289,8 @@ cc_test(
     srcs = ["tree_options_proto_builder_test.cc"],
     deps = [
         ":bidirectional_tree_options_proto_builder",
+        ":level_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         ":tree_options_proto_builder",
         ":unidirectional_tree_options_proto_builder",
         "//xls/common:xls_gunit_main",
@@ -303,6 +315,7 @@ cc_test(
     deps = [
         ":fully_connected_options_proto_builder",
         ":topology_endpoint_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -323,6 +336,7 @@ cc_test(
     srcs = ["coordinate_options_proto_builder_test.cc"],
     deps = [
         ":coordinate_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -335,8 +349,8 @@ cc_library(
     deps = [
         ":coordinate_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
+        "@com_google_absl//absl/log:die_if_null",
     ],
 )
 
@@ -346,6 +360,7 @@ cc_test(
     deps = [
         ":coordinate_options_proto_builder",
         ":node_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -357,8 +372,8 @@ cc_library(
     hdrs = ["channel_options_proto_builder.h"],
     deps = [
         ":topology_options_network_config_builder_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
+        "@com_google_absl//absl/log:die_if_null",
     ],
 )
 
@@ -367,6 +382,7 @@ cc_test(
     srcs = ["channel_options_proto_builder_test.cc"],
     deps = [
         ":channel_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -391,6 +407,7 @@ cc_test(
         ":channel_options_proto_builder",
         ":custom_topology_options_proto_builder",
         ":node_options_proto_builder",
+        ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -424,10 +441,11 @@ cc_library(
     hdrs = ["network_component.h"],
     deps = [
         ":network_component_port",
-        "@com_google_absl//absl/log:die_if_null",
-        "@com_google_absl//absl/status",
         "//xls/common:iterator_range",
         "//xls/ir:unwrapping_iterator",
+        "@com_google_absl//absl/log:die_if_null",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -436,6 +454,7 @@ cc_test(
     srcs = ["network_component_test.cc"],
     deps = [
         ":fake_network_component",
+        ":network_component_port",
         ":network_view",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -472,6 +491,9 @@ cc_library(
     deps = [
         ":network_component",
         ":network_connection",
+        "//xls/common:iterator_range",
+        "//xls/ir:unwrapping_iterator",
+        "@com_google_absl//absl/memory",
     ],
 )
 
@@ -480,6 +502,7 @@ cc_test(
     srcs = ["network_view_test.cc"],
     deps = [
         ":fake_network_component",
+        ":network_connection",
         ":network_view",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -503,11 +526,11 @@ cc_library(
     deps = [
         ":network_component_port",
         ":network_connection",
+        "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
-        "//xls/common/status:ret_check",
     ],
 )
 
@@ -533,10 +556,10 @@ cc_library(
         ":network_component",
         ":network_component_port_utils",
         ":network_connection",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -545,11 +568,12 @@ cc_test(
     srcs = ["network_component_utils_test.cc"],
     deps = [
         ":fake_network_component",
+        ":network_component_port",
         ":network_component_utils",
         ":network_view",
-        "@com_google_absl//absl/container:flat_hash_map",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -570,6 +594,8 @@ cc_test(
     srcs = ["network_connection_utils_test.cc"],
     deps = [
         ":fake_network_component",
+        ":network_component",
+        ":network_component_port",
         ":network_connection_utils",
         ":network_view",
         "//xls/common:xls_gunit_main",
@@ -586,8 +612,8 @@ cc_library(
         ":network_component_utils",
         ":network_connection_utils",
         ":network_view",
-        "@com_google_absl//absl/status",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -608,10 +634,10 @@ cc_library(
     srcs = ["arbitrary_base_number.cc"],
     hdrs = ["arbitrary_base_number.h"],
     deps = [
+        "//xls/ir:bits",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/ir:bits",
     ],
 )
 
@@ -620,9 +646,9 @@ cc_test(
     srcs = ["arbitrary_base_number_test.cc"],
     deps = [
         ":arbitrary_base_number",
-        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -632,9 +658,9 @@ cc_library(
     srcs = ["dimension_bounds.cc"],
     hdrs = ["dimension_bounds.h"],
     deps = [
+        "//xls/ir:bits",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
-        "//xls/ir:bits",
     ],
 )
 
@@ -654,11 +680,11 @@ cc_library(
     hdrs = ["coordinate.h"],
     deps = [
         ":dimension_bounds",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir:bits",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "//xls/data_structures:inline_bitmap",
-        "//xls/ir:bits",
     ],
 )
 
@@ -667,7 +693,9 @@ cc_test(
     srcs = ["coordinate_test.cc"],
     deps = [
         ":coordinate",
+        ":dimension_bounds",
         "//xls/common:xls_gunit_main",
+        "//xls/data_structures:inline_bitmap",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -716,6 +744,7 @@ cc_test(
     name = "network_topology_component_test",
     srcs = ["network_topology_component_test.cc"],
     deps = [
+        ":coordinate",
         ":network_topology_component",
         ":network_topology_view",
         "//xls/common:xls_gunit_main",
@@ -728,11 +757,13 @@ cc_library(
     srcs = ["network_topology_view.cc"],
     hdrs = ["network_topology_view.h"],
     deps = [
+        ":network_component",
+        ":network_component_port",
         ":network_topology_component",
         ":network_view",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -740,6 +771,7 @@ cc_test(
     name = "network_topology_view_test",
     srcs = ["network_topology_view_test.cc"],
     deps = [
+        ":network_component",
         ":network_topology_view",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

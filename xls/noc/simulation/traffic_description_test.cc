@@ -19,6 +19,7 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/noc/simulation/common.h"
 
 namespace xls::noc {
 namespace {

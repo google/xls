@@ -17,6 +17,7 @@
 #include "gtest/gtest.h"
 #include "xls/noc/config_ng/channel_options_proto_builder.h"
 #include "xls/noc/config_ng/node_options_proto_builder.h"
+#include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {
 namespace {

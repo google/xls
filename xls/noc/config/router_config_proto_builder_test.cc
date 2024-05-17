@@ -21,6 +21,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/noc/config/arbiter_scheme_config_proto_builder.h"
+#include "xls/noc/config/network_config.pb.h"
+#include "xls/noc/config/network_config_proto_builder_utils.h"
+#include "xls/noc/config/port_config_proto_builder.h"
+#include "xls/noc/config/routing_scheme_config_proto_builder.h"
 
 namespace xls::noc {
 

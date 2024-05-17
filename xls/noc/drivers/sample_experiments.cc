@@ -16,6 +16,7 @@
 
 #include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/noc/drivers/experiment_factory.h"
 #include "xls/noc/drivers/samples/aggregate_tree_experiment.h"
 #include "xls/noc/drivers/samples/simple_vc_experiment.h"
 

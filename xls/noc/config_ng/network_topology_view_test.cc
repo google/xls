@@ -16,6 +16,7 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/noc/config_ng/network_component.h"
 
 namespace xls::noc {
 namespace {

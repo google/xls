@@ -16,11 +16,12 @@
 
 #include <string>
 
-#include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/noc/simulation/flit.h"
 
 namespace xls::noc {
 namespace {

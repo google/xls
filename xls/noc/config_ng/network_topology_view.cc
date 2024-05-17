@@ -19,6 +19,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/noc/config_ng/network_component.h"
+#include "xls/noc/config_ng/network_component_port.h"
+#include "xls/noc/config_ng/network_topology_component.h"
 
 namespace xls::noc {
 

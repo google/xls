@@ -31,8 +31,11 @@
 #include "xls/ir/bits.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/global_routing_table.h"
+#include "xls/noc/simulation/indexer.h"
 #include "xls/noc/simulation/network_graph.h"
 #include "xls/noc/simulation/parameters.h"
+#include "xls/noc/simulation/simulator_shims.h"
 
 namespace xls {
 namespace noc {

@@ -17,6 +17,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/sim_objects.h"
 
 namespace xls::noc {
 

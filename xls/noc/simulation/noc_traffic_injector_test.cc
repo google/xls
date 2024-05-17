@@ -17,16 +17,25 @@
 #include <cstdint>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/global_routing_table.h"
+#include "xls/noc/simulation/network_graph.h"
+#include "xls/noc/simulation/network_graph_builder.h"
 #include "xls/noc/simulation/packetizer.h"
+#include "xls/noc/simulation/parameters.h"
+#include "xls/noc/simulation/random_number_interface.h"
 #include "xls/noc/simulation/sample_network_graphs.h"
+#include "xls/noc/simulation/simulator_shims.h"
 #include "xls/noc/simulation/traffic_description.h"
+#include "xls/noc/simulation/traffic_models.h"
 
 namespace xls::noc {
 namespace {

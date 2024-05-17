@@ -43,8 +43,8 @@ cc_library(
     hdrs = ["link_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
+        "@com_google_absl//absl/log:die_if_null",
     ],
 )
 
@@ -53,6 +53,7 @@ cc_test(
     srcs = ["link_config_proto_builder_test.cc"],
     deps = [
         ":link_config_proto_builder",
+        ":network_config_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -64,8 +65,8 @@ cc_library(
     hdrs = ["virtual_channel_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
+        "@com_google_absl//absl/log:die_if_null",
     ],
 )
 
@@ -73,6 +74,7 @@ cc_test(
     name = "virtual_channel_config_proto_builder_test",
     srcs = ["virtual_channel_config_proto_builder_test.cc"],
     deps = [
+        ":network_config_cc_proto",
         ":virtual_channel_config_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -85,8 +87,8 @@ cc_library(
     hdrs = ["port_config_proto_builder.h"],
     deps = [
         ":network_config_cc_proto",
-        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
+        "@com_google_absl//absl/log:die_if_null",
     ],
 )
 
@@ -94,6 +96,7 @@ cc_test(
     name = "port_config_proto_builder_test",
     srcs = ["port_config_proto_builder_test.cc"],
     deps = [
+        ":network_config_cc_proto",
         ":port_config_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -115,6 +118,7 @@ cc_test(
     name = "routing_scheme_config_proto_builder_test",
     srcs = ["routing_scheme_config_proto_builder_test.cc"],
     deps = [
+        ":network_config_cc_proto",
         ":routing_scheme_config_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
@@ -128,9 +132,9 @@ cc_library(
     deps = [
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
+        "//xls/common:proto_adaptor_utils",
         "@com_google_absl//absl/log:die_if_null",
         "@com_google_absl//absl/types:span",
-        "//xls/common:proto_adaptor_utils",
     ],
 )
 
@@ -139,6 +143,8 @@ cc_test(
     srcs = ["arbiter_scheme_config_proto_builder_test.cc"],
     deps = [
         ":arbiter_scheme_config_proto_builder",
+        ":network_config_cc_proto",
+        ":network_config_proto_builder_utils",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -153,8 +159,8 @@ cc_library(
         ":network_config_cc_proto",
         ":port_config_proto_builder",
         ":routing_scheme_config_proto_builder",
-        "@com_google_absl//absl/log:die_if_null",
         "//xls/common:proto_adaptor_utils",
+        "@com_google_absl//absl/log:die_if_null",
     ],
 )
 
@@ -162,7 +168,12 @@ cc_test(
     name = "router_config_proto_builder_test",
     srcs = ["router_config_proto_builder_test.cc"],
     deps = [
+        ":arbiter_scheme_config_proto_builder",
+        ":network_config_cc_proto",
+        ":network_config_proto_builder_utils",
+        ":port_config_proto_builder",
         ":router_config_proto_builder",
+        ":routing_scheme_config_proto_builder",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -178,8 +189,8 @@ cc_library(
         ":port_config_proto_builder",
         ":router_config_proto_builder",
         ":virtual_channel_config_proto_builder",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:proto_adaptor_utils",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -187,7 +198,11 @@ cc_test(
     name = "network_config_proto_builder_test",
     srcs = ["network_config_proto_builder_test.cc"],
     deps = [
+        ":link_config_proto_builder",
+        ":network_config_cc_proto",
         ":network_config_proto_builder",
+        ":router_config_proto_builder",
+        ":virtual_channel_config_proto_builder",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
@@ -225,6 +240,8 @@ cc_test(
     srcs = ["common_network_config_builder_options_proto_builder_test.cc"],
     deps = [
         ":common_network_config_builder_options_proto_builder",
+        ":network_config_builder_options_cc_proto",
+        ":network_config_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -245,6 +262,7 @@ cc_test(
     srcs = ["custom_network_config_builder_options_proto_builder_test.cc"],
     deps = [
         ":custom_network_config_builder_options_proto_builder",
+        ":network_config_builder_options_cc_proto",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],

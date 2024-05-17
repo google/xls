@@ -18,12 +18,16 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include "absl/container/btree_map.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/noc/drivers/experiment.h"
 #include "xls/noc/drivers/experiment_factory.h"
+#include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/flit.h"
 
 namespace xls::noc {
 namespace {

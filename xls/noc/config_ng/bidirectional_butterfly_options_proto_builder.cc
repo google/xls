@@ -15,6 +15,7 @@
 #include "xls/noc/config_ng/bidirectional_butterfly_options_proto_builder.h"
 
 #include "absl/log/die_if_null.h"
+#include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {
 

@@ -15,6 +15,7 @@
 #include "xls/noc/config_ng/unidirectional_tree_options_proto_builder.h"
 
 #include "gtest/gtest.h"
+#include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {
 namespace {

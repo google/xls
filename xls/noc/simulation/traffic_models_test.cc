@@ -18,8 +18,12 @@
 #include <memory>
 #include <vector>
 
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/noc/simulation/packetizer.h"
+#include "xls/noc/simulation/random_number_interface.h"
 
 namespace xls::noc {
 namespace {

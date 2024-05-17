@@ -17,6 +17,7 @@
 #include <cstdint>
 
 #include "gtest/gtest.h"
+#include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {
 namespace {

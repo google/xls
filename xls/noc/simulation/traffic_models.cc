@@ -23,6 +23,8 @@
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/noc/simulation/packetizer.h"
+#include "xls/noc/simulation/random_number_interface.h"
 
 namespace xls::noc {
 

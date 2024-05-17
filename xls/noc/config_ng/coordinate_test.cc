@@ -18,6 +18,8 @@
 #include <optional>
 
 #include "gtest/gtest.h"
+#include "xls/data_structures/inline_bitmap.h"
+#include "xls/noc/config_ng/dimension_bounds.h"
 
 namespace xls::noc {
 namespace {

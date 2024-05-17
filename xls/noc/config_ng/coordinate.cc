@@ -20,7 +20,9 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
+#include "xls/noc/config_ng/dimension_bounds.h"
 
 namespace xls::noc {
 
@@ -125,8 +127,7 @@ std::optional<int64_t> Coordinate::GetUniqueDifferentDimensionIndex(
       }
     }
   }
-  return dimension_index == -1 ? std::nullopt
-                               : std::optional(dimension_index);
+  return dimension_index == -1 ? std::nullopt : std::optional(dimension_index);
 }
 
 bool Coordinate::operator==(const Coordinate& rhs) const {

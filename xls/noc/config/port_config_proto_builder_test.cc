@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/noc/config/network_config.pb.h"
 
 namespace xls::noc {
 

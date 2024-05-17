@@ -14,13 +14,14 @@
 
 #include "xls/noc/simulation/indexer.h"
 
+#include "absl/status/status.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/parameters.h"
 
 namespace xls {
 namespace noc {
