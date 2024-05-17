@@ -139,13 +139,13 @@ Its signature is: `zip(lhs: T[N], rhs: U[N]) -> (T, U)[N]`.
 fn test_zip_array_size_1() {
     const LHS = u8[1]:[42];
     const RHS = u16[1]:[64];
-    const WANT = (u8, u16)[1]:[(42, 64)]
+    const WANT = [(u8:42, u16:64)];
     assert_eq(zip(LHS, RHS), WANT);
 }
 
 #[test]
 fn test_zip_array_size_2() {
-    assert_eq(zip(u32[2]:[1, 2], u64[2]:[10, 11]), (u32, u64)[2]:[(1, 10), (2, 11)]);
+    assert_eq(zip(u32[2]:[1, 2], u64[2]:[10, 11]), [(u32:1, u64:10), (u32:2, u64:11)]);
 }
 ```
 
@@ -514,7 +514,7 @@ enum MyEnum : u2 {
 
 #[test]
 fn test_all_ones_macro() {
-  assert_eq(all_ones!<u32>(), u32:0);
+  assert_eq(all_ones!<u32>(), u32:0xFFFFFFFF);
   assert_eq(all_ones!<MyPoint>(), MyPoint{x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF});
   assert_eq(all_ones!<MyEnum>(), MyEnum::THREE);
 }
@@ -860,9 +860,8 @@ import std;
 
 #[test]
 fn convert_to_bits_test() {
-  let _ = assert_eq(u3:0b001, std::convert_to_bits(bool[3]:[false, false, true]));
-  let _ = assert_eq(u3:0b100, std::convert_to_bits(bool[3]:[true, false, false]));
-  ()
+  assert_eq(u3:0b001, std::convert_to_bits_msb0(bool[3]:[false, false, true]));
+  assert_eq(u3:0b100, std::convert_to_bits_msb0(bool[3]:[true, false, false]));
 }
 ```
 
