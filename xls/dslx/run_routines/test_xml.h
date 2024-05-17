@@ -35,11 +35,29 @@
 
 namespace xls::dslx::test_xml {
 
-struct XmlNode {
-  std::string tag;
+class XmlNode {
+ public:
+  explicit XmlNode(std::string tag) : tag_(std::move(tag)) {}
+
+  std::string_view tag() const { return tag_; }
+  absl::btree_map<std::string, std::string>& attrs() {
+    return attrs_;
+  }
+  const absl::btree_map<std::string, std::string>& attrs() const {
+    return attrs_;
+  }
+  std::vector<std::unique_ptr<XmlNode>>& children() {
+    return children_;
+  }
+  absl::Span<const std::unique_ptr<XmlNode>> children() const {
+    return absl::MakeConstSpan(children_);
+  }
+
+ private:
+  const std::string tag_;
   // btree map as a simple way to get stable ordering on output
-  absl::btree_map<std::string, std::string> attrs;
-  std::vector<std::unique_ptr<XmlNode>> children;
+  absl::btree_map<std::string, std::string> attrs_;
+  std::vector<std::unique_ptr<XmlNode>> children_;
 };
 
 // Schema recommends using the 'result' attribute to provide more details.
