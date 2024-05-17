@@ -14,6 +14,7 @@
 
 #include "gtest/gtest.h"
 #include "xls/noc/config_ng/fake_network_component.h"
+#include "xls/noc/config_ng/network_component_port.h"
 #include "xls/noc/config_ng/network_view.h"
 
 namespace xls::noc {

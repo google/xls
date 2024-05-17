@@ -21,7 +21,11 @@
 #include <vector>
 
 #include "absl/log/die_if_null.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "xls/common/iterator_range.h"
+#include "xls/ir/unwrapping_iterator.h"
+#include "xls/noc/config_ng/network_component_port.h"
 
 namespace xls::noc {
 

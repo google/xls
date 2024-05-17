@@ -21,6 +21,7 @@
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/parameters.h"
 
 namespace xls {
 namespace noc {

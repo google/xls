@@ -15,6 +15,7 @@
 #include "xls/noc/config_ng/network_topology_component.h"
 
 #include "gtest/gtest.h"
+#include "xls/noc/config_ng/coordinate.h"
 #include "xls/noc/config_ng/network_topology_view.h"
 
 namespace xls::noc {

@@ -30,6 +30,7 @@
 #include "xls/noc/config/network_config_proto_builder.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/network_graph_builder.h"
+#include "xls/noc/simulation/parameters.h"
 #include "xls/noc/simulation/sample_network_graphs.h"
 
 namespace xls {

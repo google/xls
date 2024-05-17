@@ -41,6 +41,7 @@ cc_library(
         "//xls/noc/simulation:network_graph_builder",
         "//xls/noc/simulation:noc_traffic_injector",
         "//xls/noc/simulation:parameters",
+        "//xls/noc/simulation:random_number_interface",
         "//xls/noc/simulation:sim_objects",
         "//xls/noc/simulation:simulator_to_link_monitor_shim",
         "//xls/noc/simulation:simulator_to_traffic_injector_shim",
@@ -74,6 +75,8 @@ cc_test(
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
         "//xls/noc/simulation:common",
+        "//xls/noc/simulation:flit",
+        "//xls/noc/simulation:traffic_description",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -95,12 +98,16 @@ cc_test(
     name = "sample_experiments_test",
     srcs = ["sample_experiments_test.cc"],
     deps = [
+        ":experiment",
         ":experiment_factory",
         ":sample_experiments",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/noc/simulation:common",
+        "//xls/noc/simulation:flit",
         "@com_google_googletest//:gtest",
     ],
 )

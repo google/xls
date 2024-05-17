@@ -17,6 +17,7 @@
 #include <cstdint>
 
 #include "gtest/gtest.h"
+#include "xls/noc/config/network_config_builder_options.pb.h"
 
 namespace xls::noc {
 

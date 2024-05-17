@@ -27,6 +27,8 @@
 #include "xls/noc/drivers/experiment.h"
 #include "xls/noc/drivers/experiment_factory.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/traffic_description.h"
 
 namespace xls::noc {
 namespace {

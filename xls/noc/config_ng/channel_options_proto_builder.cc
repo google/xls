@@ -18,6 +18,7 @@
 
 #include "absl/log/die_if_null.h"
 #include "xls/common/proto_adaptor_utils.h"
+#include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {
 

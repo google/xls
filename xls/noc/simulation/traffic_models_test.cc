@@ -19,7 +19,11 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/noc/simulation/packetizer.h"
+#include "xls/noc/simulation/random_number_interface.h"
 
 namespace xls::noc {
 namespace {

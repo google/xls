@@ -18,6 +18,12 @@
 #include <memory>
 #include <vector>
 
+#include "absl/memory/memory.h"
+#include "xls/common/iterator_range.h"
+#include "xls/ir/unwrapping_iterator.h"
+#include "xls/noc/config_ng/network_component.h"
+#include "xls/noc/config_ng/network_connection.h"
+
 namespace xls::noc {
 
 xabsl::iterator_range<UnwrappingIterator<

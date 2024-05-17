@@ -29,8 +29,15 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/network_graph.h"
+#include "xls/noc/simulation/packetizer.h"
+#include "xls/noc/simulation/parameters.h"
+#include "xls/noc/simulation/random_number_interface.h"
+#include "xls/noc/simulation/traffic_description.h"
+#include "xls/noc/simulation/traffic_models.h"
 
 namespace xls::noc {
 

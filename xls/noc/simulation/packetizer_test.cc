@@ -21,6 +21,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/noc/simulation/flit.h"
 
 namespace xls::noc {
 namespace {

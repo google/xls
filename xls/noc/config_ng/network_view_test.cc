@@ -16,6 +16,7 @@
 
 #include "gtest/gtest.h"
 #include "xls/noc/config_ng/fake_network_component.h"
+#include "xls/noc/config_ng/network_connection.h"
 
 namespace xls::noc {
 namespace {
