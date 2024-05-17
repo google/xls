@@ -13,14 +13,17 @@
 // limitations under the License.
 #include "xls/ir/value_view.h"
 
+#include <strings.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
-#include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "gtest/gtest.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"

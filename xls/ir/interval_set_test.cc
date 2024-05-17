@@ -21,12 +21,12 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "fuzztest/fuzztest.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set_test_utils.h"

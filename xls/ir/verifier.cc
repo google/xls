@@ -35,6 +35,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -63,13 +64,12 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "re2/re2.h"
+#include "xls/ir/verify_node.h"
 
 namespace xls {
 namespace {
 
 using ::absl::StrFormat;
-
 
 absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
   // TODO(meheff): param IDs currently collide with non-param IDs. All IDs

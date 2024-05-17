@@ -2096,7 +2096,8 @@ absl::StatusOr<Function*> Parser::ParseFunction(
       result->SetInitiationInterval(ii);
     } else if (attribute == "ffi_proto") {
       ForeignFunctionData ffi;
-      if (!google::protobuf::TextFormat::ParseFromString(literal.value(), &ffi)) {
+      if (!google::protobuf::TextFormat::ParseFromString(literal.value(),
+                                                         &ffi)) {
         return absl::InvalidArgumentError("Non-parseable FFI metadata proto.");
       }
       // Dummy parse to make sure it is a valid template.
@@ -2326,8 +2327,8 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
         Token metadata_token,
         scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
     ChannelMetadataProto proto;
-    bool success =
-        google::protobuf::TextFormat::ParseFromString(metadata_token.value(), &proto);
+    bool success = google::protobuf::TextFormat::ParseFromString(
+        metadata_token.value(), &proto);
     if (!success) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Invalid channel metadata @ %s",

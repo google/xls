@@ -16,8 +16,8 @@
 
 #include <memory>
 
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"

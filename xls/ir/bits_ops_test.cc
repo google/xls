@@ -21,12 +21,12 @@
 #include <utility>
 #include <vector>
 
-#include "benchmark/benchmark.h"
-#include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "benchmark/benchmark.h"
+#include "fuzztest/fuzztest.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"

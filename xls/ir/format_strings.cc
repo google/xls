@@ -15,18 +15,21 @@
 #include "xls/ir/format_strings.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls {
 

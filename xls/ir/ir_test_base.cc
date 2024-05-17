@@ -21,12 +21,12 @@
 #include <string_view>
 #include <utility>
 
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "gtest/gtest.h"
 // #include "xls/codegen/codegen_options.h"
 // #include "xls/codegen/combinational_generator.h"
 // #include "xls/codegen/module_signature.h"
@@ -60,9 +60,9 @@ VerifiedPackage::~VerifiedPackage() {
 
 absl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
     std::string_view text) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<VerifiedPackage> package,
-                       Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(
-                           text, std::nullopt));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<VerifiedPackage> package,
+      Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(text, std::nullopt));
   XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
   return std::move(package);
 }

@@ -20,12 +20,12 @@
 #include <string>
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
@@ -40,7 +40,6 @@
 #include "xls/ir/value.h"
 
 namespace xls {
-
 
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
@@ -1873,7 +1872,6 @@ block my_block(x: bits[32], y: bits[32]) {
 )";
   ParsePackageAndCheckDump(input);
 }
-
 
 TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(

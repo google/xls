@@ -31,6 +31,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/ternary_evaluator.h"

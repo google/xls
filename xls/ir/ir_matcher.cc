@@ -24,14 +24,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"

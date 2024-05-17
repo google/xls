@@ -18,9 +18,9 @@
 #include <optional>
 #include <vector>
 
+#include "absl/strings/str_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/str_format.h"
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"

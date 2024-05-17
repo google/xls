@@ -134,7 +134,7 @@ Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
 }
 
 std::optional<Interval> Interval::Intersect(const Interval& lhs,
-                                             const Interval& rhs) {
+                                            const Interval& rhs) {
   CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   CHECK(!lhs.IsImproper());
   CHECK(!rhs.IsImproper());

@@ -17,10 +17,10 @@
 #include <cstdint>
 #include <vector>
 
-#include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "fuzztest/fuzztest.h"
+#include "gtest/gtest.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"

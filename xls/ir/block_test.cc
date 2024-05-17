@@ -20,11 +20,11 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/visitor.h"

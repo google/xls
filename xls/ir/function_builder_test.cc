@@ -17,10 +17,10 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
@@ -32,6 +32,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -335,7 +336,8 @@ TEST(FunctionBuilderTest, MinDelayNegativeWithGetError) {
   BValue token = fb.AfterAll({});
   fb.MinDelay(token, /*delay=*/-5);
 
-  EXPECT_THAT(fb.GetError(),
+  EXPECT_THAT(
+      fb.GetError(),
       status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
                                testing::HasSubstr("Delay cannot be negative")));
 }
@@ -1005,7 +1007,6 @@ TEST(FunctionBuilderTest, TraceWithVerbosity) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   EXPECT_EQ(f->return_value()->As<Trace>()->verbosity(), 1);
 }
-
 
 TEST(FunctionBuilderTest, TraceWrongTypeOperand0) {
   Package p("p");

@@ -18,11 +18,11 @@
 #include <string>
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"

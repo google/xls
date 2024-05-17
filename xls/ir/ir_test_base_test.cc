@@ -20,6 +20,7 @@
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/function_base.h"
 
 namespace xls {
 namespace {

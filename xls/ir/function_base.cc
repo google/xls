@@ -50,8 +50,8 @@ std::vector<std::string> FunctionBase::AttributeIrStrings() const {
   std::vector<std::string> attribute_strings;
   if (ForeignFunctionData().has_value()) {
     std::string serialized;
-    CHECK(
-        google::protobuf::TextFormat::PrintToString(*ForeignFunctionData(), &serialized));
+    CHECK(google::protobuf::TextFormat::PrintToString(*ForeignFunctionData(),
+                                                      &serialized));
     // Triple-quoted attribute strings allow for newlines.
     attribute_strings.push_back(
         absl::StrCat("ffi_proto(\"\"\"", serialized, "\"\"\")"));

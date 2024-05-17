@@ -763,12 +763,15 @@ absl::StatusOr<Param*> Proc::TransformStateElement(
         Next::kValueOperand, nt.old_next->param()));
   }
   for (const auto& [old_n, new_n] : to_replace) {
-    XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(new_n, [&](Node* n) {
-      if (n->Is<Next>() && n->As<Next>()->param() == old_n) {
-        return false;
-      }
-      return true;
-    }, /*replace_implicit_uses=*/false));
+    XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(
+        new_n,
+        [&](Node* n) {
+          if (n->Is<Next>() && n->As<Next>()->param() == old_n) {
+            return false;
+          }
+          return true;
+        },
+        /*replace_implicit_uses=*/false));
   }
   return new_param;
 }

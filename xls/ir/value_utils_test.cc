@@ -16,9 +16,9 @@
 
 #include <cstdint>
 
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"

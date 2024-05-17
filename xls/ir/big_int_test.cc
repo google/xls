@@ -20,12 +20,13 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/status/status.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls {

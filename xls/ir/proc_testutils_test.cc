@@ -17,11 +17,11 @@
 #include <cstdint>
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"

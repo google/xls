@@ -22,14 +22,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "fuzztest/fuzztest.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"

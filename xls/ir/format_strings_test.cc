@@ -17,10 +17,11 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls {
 namespace {

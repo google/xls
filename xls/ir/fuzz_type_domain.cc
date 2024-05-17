@@ -40,8 +40,7 @@ std::optional<int64_t> TypeProtoSize(const TypeProto& type_proto,
     case TypeProto::TUPLE: {
       int64_t total_size = 0;
       for (const auto& element : type_proto.tuple_elements()) {
-        std::optional<int64_t> element_size =
-            TypeProtoSize(element, max_size);
+        std::optional<int64_t> element_size = TypeProtoSize(element, max_size);
         if (!element_size.has_value()) {
           return std::nullopt;
         }

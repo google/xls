@@ -28,6 +28,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "re2/re2.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -35,7 +36,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
-#include "re2/re2.h"
 
 namespace xls {
 

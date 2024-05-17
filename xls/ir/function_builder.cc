@@ -39,15 +39,18 @@
 #include "xls/common/symbolized_stacktrace.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/ir/verify_node.h"
@@ -215,8 +218,7 @@ BValue BuilderBase::OneHot(BValue input, LsbOrMsb priority,
 
 BValue BuilderBase::OneHotSelect(BValue selector,
                                  absl::Span<const BValue> cases,
-                                 const SourceInfo& loc,
-                                 std::string_view name) {
+                                 const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1333,8 +1335,7 @@ BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
 }
 
 BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
-                                 const SourceInfo& loc,
-                                 std::string_view name) {
+                                 const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1841,8 +1842,8 @@ absl::StatusOr<Block*> BlockBuilder::Build() {
 }
 
 BValue BlockBuilder::InstantiationInput(Instantiation* instantiation,
-                                        std::string_view port_name,
-                                        BValue data, const SourceInfo& loc,
+                                        std::string_view port_name, BValue data,
+                                        const SourceInfo& loc,
                                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();

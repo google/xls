@@ -20,20 +20,21 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "fuzztest/fuzztest.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/bits_test_utils.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/value.h"
 

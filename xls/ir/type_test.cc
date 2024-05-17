@@ -14,9 +14,9 @@
 
 #include "xls/ir/type.h"
 
+#include "absl/status/status.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls {
