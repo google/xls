@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6543a935.min.css">
       
       
 
@@ -44,6 +44,22 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings1.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings2.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings3.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings4.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings5.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings6.css">
+    
+      <link rel="stylesheet" href="../../css/print-site.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-material.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1260,6 +1276,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../../dslx_ffi/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FFI
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../dslx_language_server/" class="md-nav__link">
         
   
@@ -2171,8 +2208,9 @@ to venture into the exciting land of procs!</p>
 <p><strong>Procs</strong>, short for "communicating sequential processes", are the means by
 which DSLX models sequential and stateful modules. A proc contains:</p>
 <ul>
-<li>A <em><code>config</code></em> function that initializes constant proc state and spawns any
-    other dependent/child procs needed for execution.</li>
+<li>A <em><code>init</code></em> function that initializes the proc state.</li>
+<li>A <em><code>config</code></em> function that spawns any other dependent/child procs needed for
+    execution.</li>
 <li>A recurrent (i.e., infinitely looping) <em><code>next</code></em> function that contains the
     actual logic to be executed by the proc.</li>
 </ul>
@@ -2188,25 +2226,29 @@ DSLX implementation of
 which computes <code>C = A * B + C</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">float32</span><span class="p">;</span>
 
-<span class="k">type</span> <span class="nc">F32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span>::<span class="n">F32</span><span class="p">;</span>
+<span class="k">type</span><span class="w"> </span><span class="nc">F32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span><span class="p">::</span><span class="n">F32</span><span class="p">;</span>
 
 <span class="n">proc</span><span class="w"> </span><span class="n">Fmac</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">input_a_consumer</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
-<span class="w">  </span><span class="n">input_b_consumer</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
-<span class="w">  </span><span class="n">output_producer</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">input_a_consumer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">input_b_consumer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">output_producer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
 
-<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">input_a_consumer</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span>
-<span class="w">         </span><span class="n">output_producer</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">float32</span><span class="p">::</span><span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">input_a_consumer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span>
+<span class="w">         </span><span class="n">output_producer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="p">(</span><span class="n">input_a_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">output_producer</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_a</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_a_consumer</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_b</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">);</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span>::<span class="n">fma</span><span class="p">(</span><span class="n">input_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span><span class="p">::</span><span class="n">fma</span><span class="p">(</span><span class="n">input_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">tok_b</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">output_producer</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">);</span>
-<span class="w">    </span><span class="p">(</span><span class="n">result</span><span class="p">,)</span>
+<span class="w">    </span><span class="n">result</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2214,17 +2256,18 @@ which computes <code>C = A * B + C</code>:</p>
 for simplicity.)</p>
 <p>There's a lot to unpack here, so we'll walk through the example.</p>
 <p>The first part of interest is the declaration of the proc member values: the
-three channels. Procs can have "member" state, similar to class data members in
-software. In DSLX, proc members are constant values, and are set by the output
-of the <code>config</code> function. Member values can be referred to inside the <code>next</code>
-function in the same way as locally-declared data.</p>
-<p>Next up is the <code>config</code> function itself. When a proc is "spawned", its given two
-sets of values: one set for the <code>config</code> function and one set to initialize
-<code>next</code> (following this example, we'll show how procs are spawned). Inside a
-<code>config</code> function, any constant values can be computed, any necessary procs can
-be spawned, and finally member values are set by the return value. Member values
-are assigned in declaration order: the first element of the return tuple
-corresponds to the first-declared member, and so on.</p>
+three channels. These are similar to class data members in software. In DSLX,
+proc members are constant values, and are set by the output of the <code>config</code>
+function. Member values can be referred to inside the <code>next</code> function in the
+same way as locally-declared data.</p>
+<p>Next up is the <code>init</code> function, defining the initial value for the proc state.</p>
+<p>Following is the <code>config</code> function itself. When a proc is "spawned", its given a
+sets of values that get passed to the <code>config</code> function (following this example,
+we'll show how procs are spawned). Inside a <code>config</code> function, any constant
+values can be computed, any necessary procs can be spawned, and finally member
+values are set by the return value. Member values are assigned in declaration
+order: the first element of the return tuple corresponds to the first-declared
+member, and so on.</p>
 <p>After that, we encounter <code>next</code>. This function serves as the real "body" of the
 Proc. The <code>next</code> function maintains and evolves the proc's recurrent state and
 is responsible for communicating with the outside world, as well. In our
@@ -2251,34 +2294,37 @@ RTL environment.) Procs may only be spawned in <code>config</code> functions, as
 part of statically configuring the hardware network to construct.</p>
 <p>As an example, spawning a couple of our procs above would look as follows:</p>
 <div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Spawner</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">fmac_1_a_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
-<span class="w">  </span><span class="n">fmac_1_b_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
-<span class="w">  </span><span class="n">fmac_1_output_consumer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
-<span class="w">  </span><span class="n">fmac_2_a_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
-<span class="w">  </span><span class="n">fmac_2_b_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
-<span class="w">  </span><span class="n">fmac_2_output_consumer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">fmac_1_a_producer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">fmac_1_b_producer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">fmac_1_output_consumer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">fmac_2_a_producer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">fmac_2_b_producer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">fmac_2_output_consumer</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// ...</span>
 
 <span class="w">  </span><span class="n">config</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_1_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_a_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">(</span><span class="s">&quot;fmac_1_a&quot;</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_1_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_b_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">(</span><span class="s">&quot;fmac_1_b&quot;</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_1_output_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_output_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">(</span><span class="s">&quot;fmac_1_output&quot;</span><span class="p">);</span>
-<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">fmac</span><span class="p">(</span><span class="n">fmac_1_a_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_b_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_output_p</span><span class="p">)(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">));</span>
+<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">Fmac</span><span class="p">(</span><span class="n">fmac_1_a_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_b_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_output_p</span><span class="p">);</span>
 
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_2_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_a_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">(</span><span class="s">&quot;fmac_2_a&quot;</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_2_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_b_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">(</span><span class="s">&quot;fmac_2_b&quot;</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_2_output_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_output_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">(</span><span class="s">&quot;fmac_2_output&quot;</span><span class="p">);</span>
-<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">fmac</span><span class="p">(</span><span class="n">fmac_2_a_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_b_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_output_p</span><span class="p">)(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">));</span>
+<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">Fmac</span><span class="p">(</span><span class="n">fmac_2_a_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_b_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_output_p</span><span class="p">);</span>
 
 <span class="w">    </span><span class="p">(</span><span class="n">fmac_1_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_output_c</span><span class="p">,</span>
 <span class="w">     </span><span class="n">fmac_2_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_output_c</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="c1">// ...</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>For each child proc, we first declare the necessary channels (each channel
 declaration produces a producer and consumer channel, respectively), then we
 actually spawn it. The first set of arguments is passed to the child's config
-function and the second is the initial state for the child proc. A spawn
-produces no value, hence no <code>let</code> on the left-hand side.</p>
+function. A spawn produces no value, hence no <code>let</code> on the left-hand side.</p>
 <h2 id="advanced-features">Advanced features</h2>
 <h3 id="channel-arrays-and-loop-based-spawning">Channel arrays and loop-based spawning</h3>
 <blockquote>
@@ -2286,25 +2332,29 @@ produces no value, hence no <code>let</code> on the left-hand side.</p>
 </blockquote>
 <p>Many hardware layouts have regular arrays of components, such as systolic
 arrays, vector units, etc. Individually specifying these quickly grows
-cumbersome, so users can instead declare channels of arrays and spawn procs
+cumbersome, so users can instead declare arrays of channels and spawn procs
 inside <code>for</code> loops. This looks as follows:</p>
 <div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Spawner4x4</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">input_producers</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">];</span>
-<span class="w">  </span><span class="n">output_consumers</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">];</span>
+<span class="w">  </span><span class="n">input_producers</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">output_consumers</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// ...</span>
 
 <span class="w">  </span><span class="n">config</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">input_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">output_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">input_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">](</span><span class="s">&quot;node_input&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">output_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">](</span><span class="s">&quot;node_output&quot;</span><span class="p">);</span>
 
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="n">spawn</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">input_consumers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-<span class="w">                   </span><span class="n">output_producers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">])(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">))</span>
-<span class="w">      </span><span class="p">}()</span>
-<span class="w">    </span><span class="p">}()</span>
+<span class="w">                   </span><span class="n">output_producers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]);</span>
+<span class="w">      </span><span class="p">}(());</span>
+<span class="w">    </span><span class="p">}(());</span>
 
 <span class="w">    </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="c1">// ...</span>
 <span class="p">}</span>
 </code></pre></div>
 <h3 id="parametric-procs">Parametric procs</h3>
@@ -2312,23 +2362,27 @@ inside <code>for</code> loops. This looks as follows:</p>
 be specified at the proc level, and not at the component function level (i.e.,
 not on <code>config</code> or <code>next</code>). Building off of the previous example, this looks as
 follows:</p>
-<div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Parametric</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">M</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">input_producers</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">];</span>
-<span class="w">  </span><span class="n">output_consumers</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">];</span>
+<div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Parametric</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">M</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">input_producers</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">output_consumers</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// ...</span>
 
 <span class="w">  </span><span class="n">config</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">input_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">output_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">input_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">](</span><span class="s">&quot;node_input&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">output_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">](</span><span class="s">&quot;node_output&quot;</span><span class="p">);</span>
 
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">N</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">M</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">N</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">M</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="n">spawn</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">input_consumers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-<span class="w">                   </span><span class="n">output_producers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">])(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">))</span>
-<span class="w">      </span><span class="p">}()</span>
-<span class="w">    </span><span class="p">}()</span>
+<span class="w">                   </span><span class="n">output_producers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">]);</span>
+<span class="w">      </span><span class="p">}(());</span>
+<span class="w">    </span><span class="p">}(());</span>
 
 <span class="w">    </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="c1">// ...</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>These two features are very powerful together: users can specify a broad variety
@@ -2337,28 +2391,31 @@ of designs simply by adjusting a few parametric values.</p>
 <p>The DSLX interpreter supports testing procs via the <em>test_proc</em> construct. A
 test proc is very similar to a normal proc with the following changes:</p>
 <ul>
-<li>A test proc is preceded by the <code>#[test_proc()]</code> directive. This directive,
-    as one might expect, notifies the interpreter that the following proc is a
-    test proc. Any initial state needed by the test proc should go inside the
-    parentheses.</li>
+<li>A test proc is preceded by the <code>#[test_proc]</code> directive. This directive, as
+    one might expect, notifies the interpreter that the following proc is a test
+    proc.</li>
 <li>A test proc's <code>config</code> function must accept a single argument: a boolean
     input channel for terminating interpretation. When the test is complete, the
     proc should send the test's status (<code>true</code> on success, <code>false</code> on failure)
     on that channel (commonly called the "terminator" channel).</li>
 </ul>
 <p>A skeletal example:</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#[test_proc(u32:0)]</span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test_proc]</span>
 <span class="n">proc</span><span class="w"> </span><span class="n">Tester</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">terminator</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">terminator</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
 
-<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">terminator</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">proc_under_test</span><span class="p">(</span><span class="o">..</span><span class="p">.)(</span><span class="o">..</span><span class="p">.);</span>
+<span class="w">  </span><span class="c1">// ...</span>
+
+<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">terminator</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">proc_under_test</span><span class="p">(</span><span class="o">..</span><span class="p">.);</span>
 <span class="w">    </span><span class="p">(</span><span class="n">terminator</span><span class="p">,)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">new_state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">..</span><span class="p">.</span>
-<span class="w">    </span><span class="p">(</span><span class="n">new_state</span><span class="p">,)</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// send and recv message to the proc under test.</span>
+<span class="w">    </span><span class="c1">// ...</span>
+<span class="w">    </span><span class="c1">// terminate the test interpretation.</span>
+<span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">terminator</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">);</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2370,20 +2427,20 @@ sensitive (for example, an SRAM -- though we have separate infrastructure for
 making SRAMs work that builds on top of this feature), you can create external
 channels representing the interface you want to use, e.g.:</p>
 <div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">main</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">req</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
-<span class="w">  </span><span class="n">resp</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">req</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">  </span><span class="n">resp</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
 
-<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">u32</span>: <span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">req</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">req</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="p">(</span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">state</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">state</span><span class="p">;</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">request</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">response</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">);</span>
-<span class="w">    </span><span class="n">state</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span>
+<span class="w">    </span><span class="n">state</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2398,9 +2455,9 @@ is specified twice because it is possible to give a range of allowed cycle
 differences.</p>
 <p>For more details on <code>--io_constraints</code>, check out
 <a href="https://google.github.io/xls/codegen_options/#pipelining-and-scheduling-options">the docs</a>.
-For a complete example, see
-<code>//xls/examples:constraint_sv</code> and associated build targets; the
-target you'd build to get the mangled channel names is <code>:constraint_ir</code>.</p>
+For a complete example, see <code>//xls/examples:constraint_sv</code> and
+associated build targets; the target you'd build to get the mangled channel
+names is <code>:constraint_ir</code>.</p>
 <div class="footnote">
 <hr />
 <ol>
@@ -2459,7 +2516,9 @@ point-to-point connections between any two procs.&#160;<a class="footnote-backre
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      
+        <script src="../../js/print-site.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       

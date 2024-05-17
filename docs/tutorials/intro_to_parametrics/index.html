@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6543a935.min.css">
       
       
 
@@ -44,6 +44,22 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings1.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings2.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings3.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings4.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings5.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings6.css">
+    
+      <link rel="stylesheet" href="../../css/print-site.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-material.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1227,6 +1243,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../../dslx_ffi/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FFI
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../dslx_language_server/" class="md-nav__link">
         
   
@@ -2109,7 +2146,7 @@ before following this tutorial.</p>
 <h2 id="simple-parametrics">Simple parametrics</h2>
 <p>Consider the simple example of the <code>umax</code> function
 <a href="https://github.com/google/xls/tree/main/xls/dslx/stdlib/std.x">in the DSLX standard library</a>:</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">umax</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">umax</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"> </span><span class="n">y</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2130,8 +2167,8 @@ infer them:</p>
 <p>Explicit specification:</p>
 <div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">std</span><span class="p">;</span>
 
-<span class="k">fn</span> <span class="nf">foo</span><span class="p">(</span><span class="n">a</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">b</span>: <span class="kt">u16</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="kt">u64</span> <span class="p">{</span>
-<span class="w">  </span><span class="n">std</span>::<span class="n">umax</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">64</span><span class="o">&gt;</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">foo</span><span class="p">(</span><span class="n">a</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">:</span><span class="w"> </span><span class="kt">u16</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u64</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="p">::</span><span class="n">umax</span><span class="o">&lt;</span><span class="kt">u32</span><span class="p">:</span><span class="mi">64</span><span class="o">&gt;</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Here, the user has directly told the language what the values of all parametrics
@@ -2139,15 +2176,15 @@ are.</p>
 <p>Parametric inference:</p>
 <div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">std</span><span class="p">;</span>
 
-<span class="k">fn</span> <span class="nf">foo</span><span class="p">(</span><span class="n">a</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">b</span>: <span class="kt">u16</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="kt">u64</span> <span class="p">{</span>
-<span class="w">  </span><span class="n">std</span>::<span class="n">umax</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">foo</span><span class="p">(</span><span class="n">a</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">:</span><span class="w"> </span><span class="kt">u16</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u64</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="p">::</span><span class="n">umax</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u64</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Here, though, the language is able to determine that <code>N</code> is 64, since that
 matches the types of the arguments to <code>umax</code>, and since both arg types agree.
 There may be times where inference isn't possible - for example, when there
 exist parametrics that aren't referenced in the argument list:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">my_parametric_sum</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">a</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">b</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">my_parametric_sum</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">a</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">a_mod</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">uN</span><span class="p">[</span><span class="n">N</span><span class="p">];</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">b_mod</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">uN</span><span class="p">[</span><span class="n">N</span><span class="p">];</span>
 <span class="w">  </span><span class="n">a_mod</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b_mod</span>
@@ -2162,9 +2199,9 @@ exponent was 8 bits wide, the calculated <em>unbiased</em> exponent was 9 bits w
 to the additional sign bit. In this situation, if <code>EXP_SZ</code> was 8, then it'd be
 handy to also have a <code>SIGNED_EXP_SZ</code> symbol that was equal to 9. This can be
 done as follows:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">unbias_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">SIGNED_EXP_SZ</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">    </span><span class="n">exp</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span>:<span class="o">???</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">unbias_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">SIGNED_EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="n">exp</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]:</span><span class="o">???</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Oh no! Specifying parametrics in this way has revealed a problem! If we
@@ -2176,12 +2213,12 @@ evaluated at interpretation or compilation time. In this case, we just need an
 expression that can calculate the correct bias adjustment: <code>(sN[SIGNED_EXP_SZ]:1
 &lt;&lt; (EXP_SZ - u32:1)) - sN[SIGNED_EXP_SZ]:1</code></p>
 <p>This is a bit unwieldy in practice, so we can wrap it in a function:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">bias_scaler</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">WIDE_N</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">N</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="p">(</span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span>:<span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">N</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span>:<span class="mi">1</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">bias_scaler</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">WIDE_N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">N</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="p">(</span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]:</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">N</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]:</span><span class="mi">1</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">unbias_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">SIGNED_EXP_SZ</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">    </span><span class="n">exp</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">unbias_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">SIGNED_EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="n">exp</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">bias_scaler</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="o">&gt;</span><span class="p">()</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2194,31 +2231,31 @@ write a new function, even though the basic logic would be the same.</p>
 such conversions - even to floating-point formats we haven't considered!</p>
 <p>The first step in such a parameterization is to have a working single-typed
 example, which we take from the previous codelab:</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">float32</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">sign</span>: <span class="nc">u1</span><span class="p">,</span>
-<span class="w">  </span><span class="n">bexp</span>: <span class="kt">u8</span><span class="p">,</span>
-<span class="w">  </span><span class="n">fraction</span>: <span class="nc">u23</span><span class="p">,</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">float32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">u1</span><span class="p">,</span>
+<span class="w">  </span><span class="n">bexp</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">,</span>
+<span class="w">  </span><span class="n">fraction</span><span class="p">:</span><span class="w"> </span><span class="nc">u23</span><span class="p">,</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">unbias_exponent</span><span class="p">(</span><span class="n">exp</span>: <span class="kt">u8</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">s9</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s9</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s9</span>:<span class="mi">127</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">unbias_exponent</span><span class="p">(</span><span class="n">exp</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s9</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s9</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s9</span><span class="p">:</span><span class="mi">127</span>
 <span class="p">}</span>
 
-<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">float_to_int</span><span class="p">(</span><span class="n">x</span>: <span class="nc">float32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">float_to_int</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">float32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">exp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">unbias_exponent</span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">bexp</span><span class="p">);</span>
 
 <span class="w">  </span><span class="c1">// Add the implicit leading one.</span>
 <span class="w">  </span><span class="c1">// Note that we need to add one bit to the fraction to hold it.</span>
-<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u33</span>:<span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">23</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u33</span><span class="p">);</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u33</span><span class="p">:</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">23</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u33</span><span class="p">);</span>
 
 <span class="w">  </span><span class="c1">// Shift the result to the right if the exponent is less than 23.</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span>
-<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">23</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">))</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">(</span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">))</span><span class="w"> </span><span class="p">}</span>
 <span class="w">      </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="p">};</span>
 
 <span class="w">  </span><span class="c1">// Shift the result to the left if the exponent is greater than 23.</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span>
-<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">((</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">((</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
 <span class="w">      </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="p">};</span>
 
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s32</span><span class="p">;</span>
@@ -2234,42 +2271,42 @@ types flow from that base definition:</p>
 <li><code>fraction:</code>float32::fraction` size + 1 implicit leading bit</li>
 </ul>
 <p>Thus, the struct declaration and function signature will be:</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">sign</span>: <span class="nc">u1</span><span class="p">,</span>
-<span class="w">  </span><span class="n">bexp</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">],</span>
-<span class="w">  </span><span class="n">fraction</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">FRACTION_SZ</span><span class="p">],</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">u1</span><span class="p">,</span>
+<span class="w">  </span><span class="n">bexp</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">],</span>
+<span class="w">  </span><span class="n">fraction</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">FRACTION_SZ</span><span class="p">],</span>
 <span class="p">}</span>
 
-<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">float_to_int</span><span class="o">&lt;</span><span class="n">EXP_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">RESULT_SZ</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">    </span><span class="n">x</span>: <span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">RESULT_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">float_to_int</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">RESULT_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">RESULT_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="o">..</span><span class="p">.</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>From there, the rest of the function can be populated by replacing the types in
 the original implementation with the parameterized ones in the signature:</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">sign</span>: <span class="nc">u1</span><span class="p">,</span>
-<span class="w">  </span><span class="n">bexp</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">],</span>
-<span class="w">  </span><span class="n">fraction</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">FRACTION_SZ</span><span class="p">],</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">u1</span><span class="p">,</span>
+<span class="w">  </span><span class="n">bexp</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">],</span>
+<span class="w">  </span><span class="n">fraction</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">FRACTION_SZ</span><span class="p">],</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">bias_scaler</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">WIDE_N</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">N</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="p">(</span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span>:<span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">N</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span>:<span class="mi">1</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">bias_scaler</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">WIDE_N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">N</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="p">(</span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]:</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">N</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">))</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">WIDE_N</span><span class="p">]:</span><span class="mi">1</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">unbias_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">SIGNED_EXP_SZ</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">    </span><span class="n">exp</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">unbias_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">SIGNED_EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="n">exp</span><span class="p">:</span><span class="w"> </span><span class="nc">uN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">SIGNED_EXP_SZ</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">bias_scaler</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="o">&gt;</span><span class="p">()</span>
 <span class="p">}</span>
 
-<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">float_to_int</span><span class="o">&lt;</span>
-<span class="w">    </span><span class="n">EXP_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">RESULT_SZ</span>: <span class="kt">u32</span><span class="p">,</span>
-<span class="w">    </span><span class="n">WIDE_EXP_SZ</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">},</span>
-<span class="w">    </span><span class="n">WIDE_FRACTION_SZ</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">FRACTION_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">    </span><span class="n">x</span>: <span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">RESULT_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">float_to_int</span><span class="o">&lt;</span>
+<span class="w">    </span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">RESULT_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span>
+<span class="w">    </span><span class="n">WIDE_EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">EXP_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">},</span>
+<span class="w">    </span><span class="n">WIDE_FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">FRACTION_SZ</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">    </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">RESULT_SZ</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">exp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">unbias_exponent</span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">bexp</span><span class="p">);</span>
 
-<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">uN</span><span class="p">[</span><span class="n">WIDE_FRACTION_SZ</span><span class="p">]</span>:<span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="w"> </span><span class="o">|</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">uN</span><span class="p">[</span><span class="n">WIDE_FRACTION_SZ</span><span class="p">]:</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="w"> </span><span class="o">|</span>
 <span class="w">      </span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">uN</span><span class="p">[</span><span class="n">WIDE_FRACTION_SZ</span><span class="p">]);</span>
 
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span>
@@ -2347,7 +2384,9 @@ additional cost. Try it out! Create an <code>0xbeef</code>-bit wide floating-poi
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      
+        <script src="../../js/print-site.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       

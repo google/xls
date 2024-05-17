@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6543a935.min.css">
       
       
 
@@ -44,6 +44,22 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings1.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings2.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings3.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings4.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings5.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings6.css">
+    
+      <link rel="stylesheet" href="../../css/print-site.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-material.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1242,6 +1258,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../../dslx_ffi/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FFI
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../dslx_language_server/" class="md-nav__link">
         
   
@@ -2137,10 +2174,10 @@ input and produces an output of the same size. Each element in the output
 contains the count of duplicate values seen so far in the input. The counter
 resets to 0 if a new value is found.</p>
 <p>For example, for this input:</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]</span>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]</span>
 </code></pre></div>
 <p>the code should produce this output:</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span>
 </code></pre></div>
 <p>At index 0 it has not yet found any value, so it assigns a counter value of <code>0</code>.</p>
 <p>At index 1 it finds the second occurrence of the value '0' (which is the 1st
@@ -2148,10 +2185,10 @@ duplicate) and therefore adds a 1 to the counter from index 0.</p>
 <p>At index 2 it finds the third occurrence of the value '0' (which is the 2nd
 duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <p>Correspondingly, for this input:</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">]</span>
 </code></pre></div>
 <p>it should produce:</p>
-<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span>
 </code></pre></div>
 <p>The full listing is in <code>examples/dslx_intro/prefix_scan_equality.x</code>.</p>
 <h3 id="function-prefix_scan_eq">Function <code>prefix_scan_eq</code></h3>
@@ -2159,7 +2196,7 @@ duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <p>The function prototype is straight-forward. Input is an array of 8 values of type
 <code>u32</code>. Output is an array of size 8 holding 3-bit values (the maximum resulting
 count can only be 7, which fits in 3 bits).</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">prefix_scan_eq</span><span class="p">(</span><span class="n">x</span>: <span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">prefix_scan_eq</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 </code></pre></div>
 <p>The first let expression produces a tuple of 3 values. It only cares about the
 last value <code>result</code>, so it stubs out the other two elements via the 'ignore'
@@ -2172,7 +2209,7 @@ above let needs to be of the same type.</p>
 <h4 id="enumerated-loop">Enumerated Loop</h4>
 <p>Using tuples as the accumulator is a convenient way to model multiple
 loop-carried values:</p>
-<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">((</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">elem</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="n">prior</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">))</span>: <span class="p">((</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]))</span>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">((</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">elem</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="n">prior</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)):</span><span class="w"> </span><span class="p">((</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]))</span>
 <span class="w">          </span><span class="k">in</span><span class="w"> </span><span class="n">enumerate</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </code></pre></div>
 <p>The iterable of this loop is <code>enumerate(x)</code>. On each iteration, this construct
@@ -2191,7 +2228,7 @@ members of the tuple and will only return the <code>result</code> part.</p>
 <p>The next expression is an interesting <code>match</code> expression. The let expression
 binds the tuple <code>(to_place, new_count): (u3, u3)</code> to the result of the following
 match expression:</p>
-<div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">to_place</span><span class="p">,</span><span class="w"> </span><span class="n">new_count</span><span class="p">)</span>: <span class="p">(</span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">prior</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">elem</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">to_place</span><span class="p">,</span><span class="w"> </span><span class="n">new_count</span><span class="p">):</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">match</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">prior</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">elem</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </code></pre></div>
 <p><code>to_place</code> will hold the value that is to be written at a given index.
 <code>new_count</code> will contain the updated counter value.</p>
@@ -2204,24 +2241,24 @@ match expression:</p>
 following four cases:</p>
 <div class="highlight"><pre><span></span><code><span class="w">      </span><span class="c1">// i == 0 (no matter whether prior == elem or not):</span>
 <span class="w">      </span><span class="c1">//    we set position 0 to 0 and update the new_counter to 1</span>
-<span class="w">      </span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span>
-<span class="w">      </span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span>
+<span class="w">      </span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">:</span><span class="mi">1</span><span class="p">),</span>
+<span class="w">      </span><span class="p">(</span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">:</span><span class="mi">1</span><span class="p">),</span>
 
 <span class="w">      </span><span class="c1">// if i != 0 - if the current element is the same as pior,</span>
 <span class="w">      </span><span class="c1">//    set to_place to the value of the current count</span>
 <span class="w">      </span><span class="c1">//    update new_counter with the increased counter value</span>
-<span class="w">      </span><span class="p">(</span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">count</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span>
+<span class="w">      </span><span class="p">(</span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">count</span><span class="p">,</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">u3</span><span class="p">:</span><span class="mi">1</span><span class="p">),</span>
 
 <span class="w">      </span><span class="c1">// if i != 0 - if current element is different from prior,</span>
 <span class="w">      </span><span class="c1">//     set to_place back to 0</span>
 <span class="w">      </span><span class="c1">//     set new_counter back to 1</span>
-<span class="w">      </span><span class="p">(</span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">1</span><span class="p">),</span>
+<span class="w">      </span><span class="p">(</span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">u3</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">:</span><span class="mi">1</span><span class="p">),</span>
 <span class="w">    </span><span class="p">};</span>
 </code></pre></div>
 <p>To update the result, we set index <code>i</code> in the <code>result</code> array to the value
 <code>to_place</code> via the built-in <code>update</code> function, which produces a new value
 <code>new_result</code>):</p>
-<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">new_result</span>: <span class="nc">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">to_place</span><span class="p">);</span>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">new_result</span><span class="p">:</span><span class="w"> </span><span class="nc">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">to_place</span><span class="p">);</span>
 </code></pre></div>
 <p>Finally the updated accumulator value is constructed, it is the last expression
 in the loop:</p>
@@ -2236,7 +2273,7 @@ accumulator in the following way.</p>
     is short for "fill in the rest of the elements with the last value
     specified".)</li>
 </ul>
-<div class="highlight"><pre><span></span><code><span class="p">}((</span><span class="kt">u32</span>:<span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]));</span>
+<div class="highlight"><pre><span></span><code><span class="p">}((</span><span class="kt">u32</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]));</span>
 </code></pre></div>
 <p>And, finally, the function simply returns <code>result</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">result</span>
@@ -2246,17 +2283,17 @@ accumulator in the following way.</p>
 <p>To test the two cases we've described above, we add the following two test cases
 right to this implementation file:</p>
 <div class="highlight"><pre><span></span><code><span class="cp">#[test]</span>
-<span class="k">fn</span> <span class="nf">test_prefix_scan_eq_all_zero</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.];</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_prefix_scan_eq_all_zero</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.];</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix_scan_eq</span><span class="p">(</span><span class="n">input</span><span class="p">);</span>
-<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span>
 <span class="p">}</span>
 
 <span class="cp">#[test]</span>
-<span class="k">fn</span> <span class="nf">test_prefix_scan_eq_doubles</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">];</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_prefix_scan_eq_doubles</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">];</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix_scan_eq</span><span class="p">(</span><span class="n">input</span><span class="p">);</span>
-<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>:<span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>To run tests against the file present in the repository:</p>
@@ -2322,7 +2359,9 @@ implicit comparison to IR interpreter -- see
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      
+        <script src="../../js/print-site.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       

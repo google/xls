@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6543a935.min.css">
       
       
 
@@ -44,6 +44,22 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings1.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings2.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings3.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings4.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings5.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-enum-headings6.css">
+    
+      <link rel="stylesheet" href="../../css/print-site.css">
+    
+      <link rel="stylesheet" href="../../css/print-site-material.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1227,6 +1243,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../../dslx_ffi/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FFI
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../dslx_language_server/" class="md-nav__link">
         
   
@@ -2122,10 +2159,10 @@ minimum representable integer value with the sign of the input number.</p>
 the entry function. If you recall, a IEEE binary32 (the C <code>float</code> type) has 1
 sign bit, 8 [biased] exponent bits, and 23 fractional bits. These values can be
 packed into a tuple, and so, the signature of our function can be defined as:</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">float_to_int</span><span class="p">(</span>
-<span class="w">    </span><span class="n">x</span>: <span class="p">(</span><span class="n">u1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">,</span><span class="w"> </span><span class="n">u23</span><span class="p">))</span>
-<span class="w">    </span>-&gt; <span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">s32</span>:<span class="mh">0xbeef</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">float_to_int</span><span class="p">(</span>
+<span class="w">    </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="p">(</span><span class="n">u1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">,</span><span class="w"> </span><span class="n">u23</span><span class="p">))</span>
+<span class="w">    </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">s32</span><span class="p">:</span><span class="mh">0xbeef</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>DSLX syntax is intended to follow Rust syntax as much as possible, so this may
@@ -2166,27 +2203,27 @@ handy. It has the full details on language features and syntax and even we XLS
 devs frequently reference it.</p>
 <p>Anyway...the tuple representation of our input is a bit cumbersome, so let's
 define our floating-point number as a struct instead:</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">float32</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">sign</span>: <span class="nc">u1</span><span class="p">,</span>
-<span class="w">  </span><span class="n">bexp</span>: <span class="kt">u8</span><span class="p">,</span>
-<span class="w">  </span><span class="n">fraction</span>: <span class="nc">u23</span><span class="p">,</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">float32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">u1</span><span class="p">,</span>
+<span class="w">  </span><span class="n">bexp</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">,</span>
+<span class="w">  </span><span class="n">fraction</span><span class="p">:</span><span class="w"> </span><span class="nc">u23</span><span class="p">,</span>
 <span class="p">}</span>
 
-<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">float_to_int</span><span class="p">(</span><span class="n">x</span>: <span class="nc">float32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">s32</span>:<span class="mh">0xbeef</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">float_to_int</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">float32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">s32</span><span class="p">:</span><span class="mh">0xbeef</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Finally, let's write a quick test to make sure things work. Add the following
 code to your file.</p>
 <div class="highlight"><pre><span></span><code><span class="cp">#[test]</span>
-<span class="k">fn</span> <span class="nf">float_to_int_test</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">float_to_int_test</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="c1">// 0xbeef in float32.</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">test_input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">sign</span>: <span class="nc">u1</span>:<span class="mh">0x0</span><span class="p">,</span>
-<span class="w">    </span><span class="n">bexp</span>: <span class="kt">u8</span>:<span class="mh">0x8e</span><span class="p">,</span>
-<span class="w">    </span><span class="n">fraction</span>: <span class="nc">u23</span>:<span class="mh">0x3eef00</span>
+<span class="w">    </span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">u1</span><span class="p">:</span><span class="mh">0x0</span><span class="p">,</span>
+<span class="w">    </span><span class="n">bexp</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mh">0x8e</span><span class="p">,</span>
+<span class="w">    </span><span class="n">fraction</span><span class="p">:</span><span class="w"> </span><span class="nc">u23</span><span class="p">:</span><span class="mh">0x3eef00</span>
 <span class="w">  </span><span class="p">};</span>
-<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s32</span>:<span class="mh">0xbeef</span><span class="p">,</span><span class="w"> </span><span class="n">float_to_int</span><span class="p">(</span><span class="n">test_input</span><span class="p">))</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s32</span><span class="p">:</span><span class="mh">0xbeef</span><span class="p">,</span><span class="w"> </span><span class="n">float_to_int</span><span class="p">(</span><span class="n">test_input</span><span class="p">))</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Now run the test through the DSLX interpreter:</p>
@@ -2211,8 +2248,8 @@ valid floating-point number's exponent is a value from 0 to 254, being an
 The range of a floating-point number's exponent is from -128 to 127, though, so
 we need to subtract 127 from that value to get the actual exponent. Let's write
 a function to do just that:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">unbias_exponent</span><span class="p">(</span><span class="n">exp</span>: <span class="kt">u8</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">s9</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s9</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s9</span>:<span class="mi">127</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">unbias_exponent</span><span class="p">(</span><span class="n">exp</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s9</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s9</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s9</span><span class="p">:</span><span class="mi">127</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Notice that we need to expand the exponent to add on the sign bit before the
@@ -2226,31 +2263,31 @@ capabilities, but this is an area targeted for improvement.</p>
 in-bound cases. To do that, we need to prepend that leading <code>1</code> and shift the
 fractional part into its proper location in the final integer. Here's what that
 looks like when we add that to our original function:</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">float32</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">sign</span>: <span class="nc">u1</span><span class="p">,</span>
-<span class="w">  </span><span class="n">bexp</span>: <span class="kt">u8</span><span class="p">,</span>
-<span class="w">  </span><span class="n">fraction</span>: <span class="nc">u23</span><span class="p">,</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">float32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">u1</span><span class="p">,</span>
+<span class="w">  </span><span class="n">bexp</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">,</span>
+<span class="w">  </span><span class="n">fraction</span><span class="p">:</span><span class="w"> </span><span class="nc">u23</span><span class="p">,</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">unbias_exponent</span><span class="p">(</span><span class="n">exp</span>: <span class="kt">u8</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">s9</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s9</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s9</span>:<span class="mi">127</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">unbias_exponent</span><span class="p">(</span><span class="n">exp</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s9</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s9</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s9</span><span class="p">:</span><span class="mi">127</span>
 <span class="p">}</span>
 
-<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">float_to_int</span><span class="p">(</span><span class="n">x</span>: <span class="nc">float32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">float_to_int</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">float32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s32</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">exp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">unbias_exponent</span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">bexp</span><span class="p">);</span>
 
 <span class="w">  </span><span class="c1">// Add the implicit leading one.</span>
 <span class="w">  </span><span class="c1">// Note that we need to add one bit to the fraction to hold it.</span>
-<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u33</span>:<span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">23</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u33</span><span class="p">);</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u33</span><span class="p">:</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">23</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">.</span><span class="n">fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u33</span><span class="p">);</span>
 
 <span class="w">  </span><span class="c1">// Shift the result to the right if the exponent is less than 23.</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span>
-<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">23</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">))</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">(</span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">))</span><span class="w"> </span><span class="p">}</span>
 <span class="w">      </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="p">};</span>
 
 <span class="w">  </span><span class="c1">// Shift the result to the left if the exponent is greater than 23.</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">=</span>
-<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">((</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">((</span><span class="n">exp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="p">}</span>
 <span class="w">      </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="p">};</span>
 
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s32</span><span class="p">;</span>
@@ -2337,7 +2374,9 @@ our possible conversions. See you there!</p>
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      
+        <script src="../../js/print-site.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       

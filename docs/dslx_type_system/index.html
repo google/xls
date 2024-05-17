@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.6543a935.min.css">
       
       
 
@@ -44,6 +44,22 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings1.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings2.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings3.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings4.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings5.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings6.css">
+    
+      <link rel="stylesheet" href="../css/print-site.css">
+    
+      <link rel="stylesheet" href="../css/print-site-material.css">
     
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1158,6 +1174,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../dslx_ffi/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FFI
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../dslx_language_server/" class="md-nav__link">
         
   
@@ -2206,15 +2243,15 @@ things that the DSL provides as a useful abstraction on top of XLS IR, is
 <em>parametric instantiation</em>. This is where users write a parameterized function
 (or proc) and instantiate it with particular concrete parmeters; e.g.</p>
 <div class="highlight"><pre><span></span><code><span class="c1">// A parametric (identity) function.</span>
-<span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">}</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="kt">u8</span> <span class="p">{</span>
-<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">)</span><span class="w">  </span><span class="c1">// Instantiates p with N=8</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u8</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">)</span><span class="w">  </span><span class="c1">// Instantiates p with N=8</span>
 <span class="p">}</span>
 
 <span class="cp">#[test]</span>
-<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">)</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>This allows us to write more generic code as library-style functions, which
@@ -2236,7 +2273,7 @@ syntactic macros.</p>
 <p>In the DSL, as noted above, the definitions of parametric instances are parsed,
 but not typechecked until instantiation, and errors are raised if the concrete
 set of parameterized values cause a type error during instantiation. That is:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="n">N</span><span class="p">()</span><span class="w">  </span><span class="c1">// type error on instantiation: cannot invoke a number</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -2246,12 +2283,12 @@ checked. If another function were to instantiate it by calling <code>p</code>, h
 type error would occur due to that instantiation.</p>
 <p>Similarly, we can consider a definition that does not work "for all N", but
 works "for one N", and that's the only <code>N</code> we instantiate it with.</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">const_assert</span><span class="o">!</span><span class="p">(</span><span class="n">N</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">);</span>
-<span class="w">    </span><span class="n">u42</span>:<span class="mi">64</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">p</span><span class="o">&lt;</span><span class="n">N</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">const_assert</span><span class="o">!</span><span class="p">(</span><span class="n">N</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">42</span><span class="p">);</span>
+<span class="w">    </span><span class="n">u42</span><span class="p">:</span><span class="mi">64</span>
 <span class="p">}</span>
-<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">u42</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">42</span><span class="o">&gt;</span><span class="p">()</span><span class="w">  </span><span class="c1">// this is fine</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">u42</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span><span class="p">:</span><span class="mi">42</span><span class="o">&gt;</span><span class="p">()</span><span class="w">  </span><span class="c1">// this is fine</span>
 <span class="p">}</span>
 </code></pre></div>
 <h2 id="parametric-evaluation-ordering">Parametric Evaluation Ordering</h2>
@@ -2268,28 +2305,28 @@ the assignment of a value to each named parameter.)</p>
 <p>The three components are performed in that order.</p>
 <h3 id="1-binding-explicit-values">1: Binding Explicit Values</h3>
 <p>In this example:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">],</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]</span>:<span class="mi">64</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">],</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]:</span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]:</span><span class="mi">64</span><span class="p">)</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="p">(</span><span class="kt">u8</span><span class="p">,</span><span class="w"> </span><span class="kt">u16</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">16</span><span class="o">&gt;</span><span class="p">()</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="p">(</span><span class="kt">u8</span><span class="p">,</span><span class="w"> </span><span class="kt">u16</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span><span class="p">:</span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">16</span><span class="o">&gt;</span><span class="p">()</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>The caller <code>main</code> explicitly binds the parametrics <code>A</code> and <code>B</code> by supplying
 arguments in the angle brackets.</p>
 <h3 id="2-binding-actual-arguments">2: Binding Actual Arguments</h3>
 <p>In this example:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span>:<span class="mi">1</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]:</span><span class="mi">1</span>
 <span class="p">}</span>
-<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">u13</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="n">u13</span>:<span class="mi">42</span><span class="p">)</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">u13</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="n">u13</span><span class="p">:</span><span class="mi">42</span><span class="p">)</span>
 <span class="p">}</span>
 
 <span class="cp">#[test]</span>
-<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="n">u13</span>:<span class="mi">43</span><span class="p">)</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="n">u13</span><span class="p">:</span><span class="mi">43</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <p><code>main</code> is implicitly saying what <code>A</code> must be by passing a <code>u13</code> -- we know that
@@ -2298,23 +2335,23 @@ the parameter to <code>p</code> is declared to be a <code>bits[A]</code>, so we 
 the caller).</p>
 <p>Note that if you contradict an explicit binding and a binding from actual
 arguments, you will get a type error; e.g. this will cause a type error:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">u13</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">14</span><span class="o">&gt;</span><span class="p">(</span><span class="n">u13</span>:<span class="mi">42</span><span class="p">)</span><span class="w">  </span><span class="c1">// explicit says 14 bits, actual arg is 13 bits</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">u13</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span><span class="p">:</span><span class="mi">14</span><span class="o">&gt;</span><span class="p">(</span><span class="n">u13</span><span class="p">:</span><span class="mi">42</span><span class="p">)</span><span class="w">  </span><span class="c1">// explicit says 14 bits, actual arg is 13 bits</span>
 <span class="p">}</span>
 </code></pre></div>
 <h3 id="3-default-expressions">3: Default Expressions</h3>
 <p>In this example:</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">A</span><span class="o">+</span><span class="n">A</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">A</span><span class="o">+</span><span class="n">A</span><span class="p">}</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">bits</span><span class="p">[</span><span class="n">B</span><span class="p">]</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="kt">u32</span> <span class="p">{</span>
-<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="kt">u16</span>:<span class="mi">42</span><span class="p">)</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">p</span><span class="p">(</span><span class="kt">u16</span><span class="p">:</span><span class="mi">42</span><span class="p">)</span>
 <span class="p">}</span>
 
 <span class="cp">#[test]</span>
-<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">);</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">42</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
 <p><code>main</code> is implicitly saying what <code>A</code> must be by passing a <code>u16</code>; however, <code>B</code> is
@@ -2328,15 +2365,15 @@ but is useful in thinking through the design and power of parametric
 instantiation.</p>
 <p>One consequence of the ordering defined is that earlier parametric bindings can
 be used to define the types of later parametric bindings; e.g.</p>
-<div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span>:<span class="mi">0</span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">p</span><span class="o">&lt;</span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">:</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]:</span><span class="mi">0</span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="n">A</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="n">B</span>
 <span class="p">}</span>
 
-<span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="kt">u8</span> <span class="p">{</span><span class="w"> </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span>:<span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u8</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">p</span><span class="o">&lt;</span><span class="kt">u32</span><span class="p">:</span><span class="mi">8</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
 
 <span class="cp">#[test]</span>
-<span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">0</span><span class="p">)</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(),</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">0</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Note that <code>main</code> uses an explicit parametric to define <code>A</code> as <code>8</code>. Then the
@@ -2393,7 +2430,9 @@ later parametric binding's type.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      
+        <script src="../js/print-site.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       

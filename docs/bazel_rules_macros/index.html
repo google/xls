@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.20">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.66ac8b77.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.6543a935.min.css">
       
       
 
@@ -44,6 +44,22 @@
         <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings1.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings2.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings3.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings4.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings5.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings6.css">
+    
+      <link rel="stylesheet" href="../css/print-site.css">
+    
+      <link rel="stylesheet" href="../css/print-site-material.css">
     
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1156,6 +1172,27 @@
   
   
     <li class="md-nav__item">
+      <a href="../dslx_ffi/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    FFI
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../dslx_language_server/" class="md-nav__link">
         
   
@@ -1462,6 +1499,15 @@
   <a href="#xls_dslx_opt_ir_test" class="md-nav__link">
     <span class="md-ellipsis">
       xls_dslx_opt_ir_test
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_dslx_prove_quickcheck_test" class="md-nav__link">
+    <span class="md-ellipsis">
+      xls_dslx_prove_quickcheck_test
     </span>
   </a>
   
@@ -2286,6 +2332,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#xls_dslx_prove_quickcheck_test" class="md-nav__link">
+    <span class="md-ellipsis">
+      xls_dslx_prove_quickcheck_test
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#xls_dslx_test" class="md-nav__link">
     <span class="md-ellipsis">
       xls_dslx_test
@@ -2916,6 +2971,92 @@ xls_dslx_opt_ir_test(
 <tr>
 <td style="text-align: left;"><a id="xls_dslx_opt_ir_test-top"></a>top</td>
 <td style="text-align: left;">The (<em>mangled</em>) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.</td>
+<td style="text-align: left;">String</td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>""</code></td>
+</tr>
+</tbody>
+</table>
+<p><a id="xls_dslx_prove_quickcheck_test"></a></p>
+<h2 id="xls_dslx_prove_quickcheck_test">xls_dslx_prove_quickcheck_test</h2>
+<pre>
+xls_dslx_prove_quickcheck_test(<a href="#xls_dslx_prove_quickcheck_test-name">name</a>, <a href="#xls_dslx_prove_quickcheck_test-deps">deps</a>, <a href="#xls_dslx_prove_quickcheck_test-srcs">srcs</a>, <a href="#xls_dslx_prove_quickcheck_test-library">library</a>, <a href="#xls_dslx_prove_quickcheck_test-test_filter">test_filter</a>)
+</pre>
+
+<p>Attempts to prove DSLX quickcheck properties with a SAT solver.</p>
+<p>Examples:</p>
+<ol>
+<li>
+<p>xls_dslx_prove_quickcheck_test on DSLX source files.</p>
+<div class="highlight"><pre><span></span><code># Assume a xls_dslx_library target bc_dslx is present.
+xls_dslx_prove_quickcheck_test(
+    name = &quot;e_dslx_quickcheck_test&quot;,
+    srcs = [
+        &quot;d.x&quot;,
+        &quot;e.x&quot;,
+    ],
+    deps = [&quot;:bc_dslx&quot;],
+)
+</code></pre></div>
+</li>
+<li>
+<p>xls_dslx_prove_quickcheck_test on a xls_dslx_library.</p>
+<div class="highlight"><pre><span></span><code>xls_dslx_library(
+    name = &quot;b_dslx&quot;,
+    srcs = [&quot;b.x&quot;],
+    deps = [&quot;:a_dslx&quot;],
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = &quot;b_dslx_test&quot;,
+    library = &quot;b_dslx&quot;,
+)
+</code></pre></div>
+</li>
+</ol>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Mandatory</th>
+<th style="text-align: left;">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_prove_quickcheck_test-name"></a>name</td>
+<td style="text-align: left;">A unique name for this target.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels#target-names">Name</a></td>
+<td style="text-align: left;">required</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_prove_quickcheck_test-deps"></a>deps</td>
+<td style="text-align: left;">Dependency targets for the files in the 'srcs' attribute. This attribute is mutually exclusive with the 'library' attribute.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">List of labels</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>[]</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_prove_quickcheck_test-srcs"></a>srcs</td>
+<td style="text-align: left;">Source files for the rule. The files must have a '.x' extension. This attribute is mutually exclusive with the 'library' attribute.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">List of labels</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>[]</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_prove_quickcheck_test-library"></a>library</td>
+<td style="text-align: left;">A DSLX library target where the direct (non-transitive) files of the target are tested. This attribute is mutually exclusive with the 'srcs' and 'deps' attribute.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_prove_quickcheck_test-test_filter"></a>test_filter</td>
+<td style="text-align: left;">Regex to select quickcheck tests to run.</td>
 <td style="text-align: left;">String</td>
 <td style="text-align: left;">optional</td>
 <td style="text-align: left;"><code>""</code></td>
@@ -4238,7 +4379,9 @@ Recognized metrics from OpenSTA log:
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.dd8806f2.min.js"></script>
+      <script src="../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      
+        <script src="../js/print-site.js"></script>
       
         <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
       
