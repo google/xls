@@ -26,4 +26,8 @@ bazel build dev_utils:run_clang_tidy_cached
 
 $(dirname $0)/make-compilation-db.sh
 
+# Use either CLANG_TIDY provided by the user as environment variable or use
+# our own from the toolchain we configured in the WORKSPACE.
+export CLANG_TIDY="${CLANG_TIDY:-$(bazel info output_base)/external/llvm_toolchain_llvm/bin/clang-tidy}"
+
 exec bazel-bin/dev_utils/run_clang_tidy_cached "$@"
