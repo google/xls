@@ -36,6 +36,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type_info.pb.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"
 #include "xls/dslx/warning_kind.h"
 

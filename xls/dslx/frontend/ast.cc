@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <optional>
@@ -50,6 +51,7 @@
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/number_parser.h"
 
@@ -526,7 +528,7 @@ const absl::btree_set<BinopKind>& GetBinopShifts() {
 
 std::string BinopKindFormat(BinopKind kind) {
   switch (kind) {
-    // clang-format off
+      // clang-format off
     // Shifts.
     case BinopKind::kShl:       return "<<";
     case BinopKind::kShr:       return ">>";
@@ -2162,11 +2164,12 @@ std::vector<AstNode*> Statement::GetChildren(bool want_types) const {
   return {ToAstNode(wrapped_)};
 }
 
-Span ExprOrTypeSpan(const ExprOrType &expr_or_type) {
+Span ExprOrTypeSpan(const ExprOrType& expr_or_type) {
   return absl::visit(Visitor{
-    [](Expr* expr) { return expr->span(); },
-    [](TypeAnnotation* type) { return type->span(); },
-  }, expr_or_type);
+                         [](Expr* expr) { return expr->span(); },
+                         [](TypeAnnotation* type) { return type->span(); },
+                     },
+                     expr_or_type);
 }
 
 }  // namespace xls::dslx

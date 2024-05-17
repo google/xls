@@ -14,6 +14,7 @@
 
 #include "xls/passes/map_inlining_pass.h"
 
+#include "absl/log/log.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

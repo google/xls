@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 

@@ -19,6 +19,7 @@
 #include <string>
 #include <tuple>
 
+#include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"

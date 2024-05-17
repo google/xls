@@ -43,7 +43,9 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_info.pb.h"
+#include "xls/ir/bits.h"
 
 namespace xls::dslx {
 namespace {

@@ -23,6 +23,7 @@
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
 namespace xls::dslx {

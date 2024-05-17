@@ -14,6 +14,7 @@
 
 #include "xls/dslx/import_data.h"
 
+#include <cstddef>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
@@ -33,9 +34,15 @@
 #include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_record.h"
+#include "xls/dslx/interp_bindings.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 

@@ -59,6 +59,7 @@
 #include "xls/dslx/frontend/token.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/name_uniquer.h"
 
@@ -1609,7 +1610,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(outer_bindings, restrictions));
     UnopKind unop_kind;
     switch (tok.kind()) {
-      // clang-format off
+        // clang-format off
       case TokenKind::kBang: unop_kind = UnopKind::kInvert; break;
       case TokenKind::kMinus: unop_kind = UnopKind::kNegate; break;
       // clang-format on
@@ -2972,8 +2973,8 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
   if (peek->kind() == TokenKind::kOBrace) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
     // Conditional expressions are the first below the let/for/while set.
-    XLS_ASSIGN_OR_RETURN(
-        Expr * expr, ParseConditionalExpression(bindings, kNoRestrictions));
+    XLS_ASSIGN_OR_RETURN(Expr * expr,
+                         ParseConditionalExpression(bindings, kNoRestrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
 
     return expr;

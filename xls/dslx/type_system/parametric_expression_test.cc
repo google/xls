@@ -18,8 +18,10 @@
 #include <string>
 #include <utility>
 
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "gtest/gtest.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 namespace {

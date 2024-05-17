@@ -222,10 +222,6 @@ cc_test(
     deps = [
         ":float32_add_jit_wrapper",
         ":float32_test_utils",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
@@ -234,6 +230,10 @@ cc_test(
         "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -296,12 +296,12 @@ cc_test(
     deps = [
         ":float32_mul_jit_wrapper",
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -338,9 +338,6 @@ cc_test(
     deps = [
         ":float32_test_utils",
         ":float32_upcast_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:get_runfile_path",
@@ -349,6 +346,9 @@ cc_test(
         "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -397,12 +397,12 @@ cc_test(
     deps = [
         ":float32_from_int32_wrapper",
         ":float32_to_int32_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -416,11 +416,6 @@ cc_binary(
         ":float32_add.opt.ir",
     ],
     deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -430,6 +425,11 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
         "@z3//:api",
     ],
 )
@@ -479,15 +479,16 @@ cc_test(
     deps = [
         ":float32_fma_jit_wrapper",
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -519,17 +520,18 @@ cc_test(
     deps = [
         ":float32_ldexp_jit_wrapper",
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/common/status:status_macros",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -572,12 +574,12 @@ cc_test(
     deps = [
         ":float32_fast_rsqrt_jit_wrapper",
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -646,10 +648,6 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float64_add_jit_wrapper",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
@@ -658,6 +656,10 @@ cc_test(
         "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -720,12 +722,12 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float64_mul_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -769,15 +771,16 @@ cc_test(
     deps = [
         ":float32_test_utils",
         ":float64_fma_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

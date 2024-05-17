@@ -19,11 +19,13 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/value_format_descriptor.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 namespace {

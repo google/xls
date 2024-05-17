@@ -14,18 +14,25 @@
 
 #include "xls/passes/arith_simplification_pass.h"
 
+#include <stdint.h>
+#include <sys/types.h>
+
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <string>
 
+#include "absl/log/log.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/time/time.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
-#include "absl/time/time.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"

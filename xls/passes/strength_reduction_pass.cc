@@ -14,6 +14,8 @@
 
 #include "xls/passes/strength_reduction_pass.h"
 
+#include <sys/select.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdint>

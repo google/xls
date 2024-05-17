@@ -22,14 +22,13 @@
 #include <string_view>
 #include <tuple>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -57,10 +56,10 @@ using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Matcher;
 using ::testing::Optional;
-using ::testing::Values;
-using ::testing::ValuesIn;
 using ::testing::TestPartResult;
 using ::testing::TestWithParam;
+using ::testing::Values;
+using ::testing::ValuesIn;
 
 struct TestParam {
   using evaluation_function = std::function<absl::Status(
