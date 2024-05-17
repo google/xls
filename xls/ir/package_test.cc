@@ -477,7 +477,7 @@ TEST_F(PackageTest, CloneSingleValueChannelToDifferentPackage) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0, p0.CreateSingleValueChannel("ch0", ChannelOps::kSendOnly,
-                                                p0.GetBitsType(32)));
+                                                 p0.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch0_clone, p1.CloneChannel(ch0, "ch0"));
 
   EXPECT_EQ(p0.channels().size(), 1);

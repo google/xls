@@ -201,14 +201,11 @@ TEST_F(NodeUtilTest, IsLiteralMask) {
 }
 
 TEST_F(NodeUtilTest, NonReductiveEquivalents) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Op and_op, OpToNonReductionOp(Op::kAndReduce));
+  XLS_ASSERT_OK_AND_ASSIGN(Op and_op, OpToNonReductionOp(Op::kAndReduce));
   EXPECT_EQ(and_op, Op::kAnd);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Op or_op, OpToNonReductionOp(Op::kOrReduce));
+  XLS_ASSERT_OK_AND_ASSIGN(Op or_op, OpToNonReductionOp(Op::kOrReduce));
   EXPECT_EQ(or_op, Op::kOr);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Op xor_op, OpToNonReductionOp(Op::kXorReduce));
+  XLS_ASSERT_OK_AND_ASSIGN(Op xor_op, OpToNonReductionOp(Op::kXorReduce));
   EXPECT_EQ(xor_op, Op::kXor);
   EXPECT_FALSE(OpToNonReductionOp(Op::kBitSlice).ok());
 }
@@ -318,7 +315,7 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithToken) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({send}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Node* receive_node, proc->GetNode("receive"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * receive_node, proc->GetNode("receive"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Literal * lit0,
       proc->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 32))));

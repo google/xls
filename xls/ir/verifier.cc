@@ -63,13 +63,13 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/ir/verify_node.h"
 #include "re2/re2.h"
 
 namespace xls {
 namespace {
 
 using ::absl::StrFormat;
-
 
 absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
   // TODO(meheff): param IDs currently collide with non-param IDs. All IDs

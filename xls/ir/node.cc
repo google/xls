@@ -767,7 +767,7 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
 
 absl::Status Node::ReplaceUsesWith(Node* replacement,
                                    const std::function<bool(Node*)>& filter,
-                                  bool replace_implicit_uses) {
+                                   bool replace_implicit_uses) {
   XLS_RET_CHECK(replacement != nullptr);
   XLS_RET_CHECK(GetType() == replacement->GetType())
       << "type was: " << GetType()->ToString()

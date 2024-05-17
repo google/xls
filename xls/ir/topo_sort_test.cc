@@ -331,10 +331,10 @@ void BM_TopoSortLadder(benchmark::State& state) {
   std::unique_ptr<VerifiedPackage> p =
       std::make_unique<VerifiedPackage>("ladder_tree_pkg");
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto* f, benchmark_support::GenerateChain(
-                   p.get(), state.range(0), 2,
-                   benchmark_support::strategy::BinaryAdd(),
-                   benchmark_support::strategy::DistinctLiteral()));
+      auto* f,
+      benchmark_support::GenerateChain(
+          p.get(), state.range(0), 2, benchmark_support::strategy::BinaryAdd(),
+          benchmark_support::strategy::DistinctLiteral()));
   for (auto _ : state) {
     auto v = TopoSort(f);
     benchmark::DoNotOptimize(v);

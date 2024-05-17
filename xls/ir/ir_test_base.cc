@@ -60,9 +60,9 @@ VerifiedPackage::~VerifiedPackage() {
 
 absl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
     std::string_view text) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<VerifiedPackage> package,
-                       Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(
-                           text, std::nullopt));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<VerifiedPackage> package,
+      Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(text, std::nullopt));
   XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
   return std::move(package);
 }

@@ -22,6 +22,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 
@@ -64,8 +65,8 @@ TEST(CaretTest, FileContent) {
 2 |   this is a line of code that does stuff
   |   ^
 )";
-  std::string expected = absl::StrFormat(expected_format,
-                                         std::string(temp_file.path()));
+  std::string expected =
+      absl::StrFormat(expected_format, std::string(temp_file.path()));
   EXPECT_EQ(
       PrintCaret(LookUpInPackage(&p), loc, std::nullopt, std::nullopt, 60),
       expected);

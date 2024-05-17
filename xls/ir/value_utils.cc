@@ -19,8 +19,11 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "xls/common/bits_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"

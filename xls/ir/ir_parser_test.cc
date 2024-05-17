@@ -41,7 +41,6 @@
 
 namespace xls {
 
-
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::Eq;
@@ -1873,7 +1872,6 @@ block my_block(x: bits[32], y: bits[32]) {
 )";
   ParsePackageAndCheckDump(input);
 }
-
 
 TEST(IrParserTest, ParseArrayIndex) {
   const std::string input = R"(

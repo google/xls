@@ -369,21 +369,21 @@ absl::StatusOr<std::optional<Node*>> GetPredicateUsedByNode(Node* node) {
 }
 
 namespace {
-  absl::flat_hash_set<Node*> GetTransitiveUsers(Node* node) {
-    absl::flat_hash_set<Node*> users;
-    std::deque<Node*> deque{node};
-    while (!deque.empty()) {
-      Node* front = deque.front();
-      users.insert(front);
-      for (Node* user : front->users()) {
-        if (!users.contains(user)) {
-          deque.push_back(user);
-        }
+absl::flat_hash_set<Node*> GetTransitiveUsers(Node* node) {
+  absl::flat_hash_set<Node*> users;
+  std::deque<Node*> deque{node};
+  while (!deque.empty()) {
+    Node* front = deque.front();
+    users.insert(front);
+    for (Node* user : front->users()) {
+      if (!users.contains(user)) {
+        deque.push_back(user);
       }
-      deque.pop_front();
     }
-    return users;
+    deque.pop_front();
   }
+  return users;
+}
 }  // namespace
 
 absl::StatusOr<Node*> ReplaceTupleElementsWith(
@@ -421,9 +421,9 @@ absl::StatusOr<Node*> ReplaceTupleElementsWith(
   absl::flat_hash_set<Node*> users = GetTransitiveUsers(node);
   for (auto& [index, replacement] : replacements) {
     if (users.contains(replacement)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Replacement index %d (%v) depends on node %v.",
-                            index, *replacement, *node));
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Replacement index %d (%v) depends on node %v.",
+                          index, *replacement, *node));
     }
   }
 
@@ -470,7 +470,6 @@ absl::StatusOr<Node*> ReplaceTupleElementsWith(Node* node, int64_t index,
   return ReplaceTupleElementsWith(node, {{index, replacement_element}});
 }
 
-
 bool IsBinarySelect(Node* node) {
   if (!node->Is<Select>()) {
     return false;
@@ -485,7 +484,7 @@ absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
   for (std::unique_ptr<Proc>& proc : package->procs()) {
     for (Node* node : proc->nodes()) {
       if (!IsChannelNode(node)) {
-          continue;
+        continue;
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
       channel_users[channel].push_back(node);

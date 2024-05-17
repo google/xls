@@ -29,6 +29,8 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/fileno.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 

@@ -98,9 +98,8 @@ absl::StatusOr<Function*> Function::Clone(
 
   // Clone parameters over first to maintain order.
   for (Param* param : (const_cast<Function*>(this))->params()) {
-    XLS_ASSIGN_OR_RETURN(
-            original_to_clone[param],
-            param->CloneInNewFunction({}, cloned_function));
+    XLS_ASSIGN_OR_RETURN(original_to_clone[param],
+                         param->CloneInNewFunction({}, cloned_function));
   }
   for (Node* node : TopoSort(const_cast<Function*>(this))) {
     if (node->Is<Param>()) {  // Params were already copied.

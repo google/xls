@@ -34,6 +34,7 @@
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/bits_test_utils.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/value.h"
 

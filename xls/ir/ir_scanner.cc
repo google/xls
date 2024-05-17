@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls {
@@ -184,8 +185,8 @@ class Tokenizer {
     int64_t content_start = index();
     while (!EndOfString()) {
       if (MatchSubstring(quote)) {
-        std::string_view content = std::string_view(
-            str_.data() + content_start, index() - content_start);
+        std::string_view content = std::string_view(str_.data() + content_start,
+                                                    index() - content_start);
         Advance(quote.size());
         return content;
       }
@@ -225,7 +226,7 @@ class Tokenizer {
   // last matching character. min_chars is the minimum number of characters
   // which are unconditionally captured.
   std::string_view CaptureWhile(std::function<bool(char)> test_f,
-                                 int64_t min_chars = 0) {
+                                int64_t min_chars = 0) {
     int64_t start = index();
     while (!EndOfString() &&
            ((index() < min_chars + start) || test_f(current()))) {
