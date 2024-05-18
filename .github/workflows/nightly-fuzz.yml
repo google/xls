@@ -24,7 +24,7 @@ jobs:
 
       - name: Bazel Build Fuzz Driver (opt)
         run: |
-          bazel build -c opt xls/fuzzer:run_fuzz_multiprocess
+          bazel build -c opt --noshow_progress xls/fuzzer:run_fuzz_multiprocess
 
       - name: Bazel Run Fuzz (opt)
         run: |
