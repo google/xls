@@ -26,7 +26,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -37,6 +36,7 @@
 #include "xls/ir/fileno.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"
 
@@ -103,32 +103,49 @@ class Package {
   absl::StatusOr<FunctionBase*> GetFunctionBaseByName(
       std::string_view name) const;
 
+  TypeManager& type_manager() { return type_manager_; }
+  const TypeManager& type_manager() const { return type_manager_; }
   // Returns whether the given type is one of the types owned by this package.
   bool IsOwnedType(const Type* type) const {
-    return owned_types_.find(type) != owned_types_.end();
+    return type_manager_.IsOwnedType(type);
   }
   bool IsOwnedFunctionType(const FunctionType* function_type) const {
-    return owned_function_types_.find(function_type) !=
-           owned_function_types_.end();
+    return type_manager_.IsOwnedFunctionType(function_type);
   }
 
-  BitsType* GetBitsType(int64_t bit_count);
-  ArrayType* GetArrayType(int64_t size, Type* element_type);
-  TupleType* GetTupleType(absl::Span<Type* const> element_types);
-  TokenType* GetTokenType();
+  BitsType* GetBitsType(int64_t bit_count) {
+    return type_manager_.GetBitsType(bit_count);
+  }
+  ArrayType* GetArrayType(int64_t size, Type* element_type) {
+    return type_manager_.GetArrayType(size, element_type);
+  }
+  TupleType* GetTupleType(absl::Span<Type* const> element_types) {
+    return type_manager_.GetTupleType(element_types);
+  }
+  TokenType* GetTokenType() { return type_manager_.GetTokenType(); }
   FunctionType* GetFunctionType(absl::Span<Type* const> args_types,
-                                Type* return_type);
+                                Type* return_type) {
+    return type_manager_.GetFunctionType(args_types, return_type);
+  }
 
   // Returns a pointer to a type owned by this package that is of the same
   // type as 'other_package_type', which may be owned by another package.
-  absl::StatusOr<Type*> MapTypeFromOtherPackage(Type* other_package_type);
+  absl::StatusOr<Type*> MapTypeFromOtherPackage(Type* other_package_type) {
+    return type_manager_.MapTypeFromOtherArena(other_package_type);
+  }
 
   // Creates and returned an owned type constructed from the given proto.
-  absl::StatusOr<Type*> GetTypeFromProto(const TypeProto& proto);
+  absl::StatusOr<Type*> GetTypeFromProto(const TypeProto& proto) {
+    return type_manager_.GetTypeFromProto(proto);
+  }
   absl::StatusOr<FunctionType*> GetFunctionTypeFromProto(
-      const FunctionTypeProto& proto);
+      const FunctionTypeProto& proto) {
+    return type_manager_.GetFunctionTypeFromProto(proto);
+  }
 
-  Type* GetTypeForValue(const Value& value);
+  Type* GetTypeForValue(const Value& value) {
+    return type_manager_.GetTypeForValue(value);
+  }
 
   // Add a function, proc, or block to the package. Ownership is transferred to
   // the package.
@@ -260,7 +277,6 @@ class Package {
   std::string DumpIr() const;
 
   std::vector<std::string> GetFunctionNames() const;
-
 
   int64_t next_node_id() const { return next_node_id_; }
 
@@ -430,33 +446,8 @@ class Package {
   std::vector<std::unique_ptr<Proc>> procs_;
   std::vector<std::unique_ptr<Block>> blocks_;
 
-  // Set of owned types in this package.
-  absl::flat_hash_set<const Type*> owned_types_;
-
-  // Set of owned function types in this package.
-  absl::flat_hash_set<const FunctionType*> owned_function_types_;
-
-  // Mapping from bit count to the owned "bits" type with that many bits. Use
-  // node_hash_map for pointer stability.
-  absl::node_hash_map<int64_t, BitsType> bit_count_to_type_;
-
-  // Mapping from the size and element type of an array type to the owned
-  // ArrayType. Use node_hash_map for pointer stability.
-  using ArrayKey = std::pair<int64_t, const Type*>;
-  absl::node_hash_map<ArrayKey, ArrayType> array_types_;
-
-  // Mapping from elements to the owned tuple type.
-  //
-  // Uses node_hash_map for pointer stability.
-  using TypeVec = absl::InlinedVector<const Type*, 4>;
-  absl::node_hash_map<TypeVec, TupleType> tuple_types_;
-
-  // Owned token type.
-  TokenType token_type_;
-
-  // Mapping from Type:ToString to the owned function type. Use
-  // node_hash_map for pointer stability.
-  absl::node_hash_map<std::string, FunctionType> function_types_;
+  // Underlying manager for types used in this package.
+  TypeManager type_manager_;
 
   // The largest `Fileno` used in this `Package`.
   std::optional<Fileno> maximum_fileno_;

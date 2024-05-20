@@ -427,6 +427,28 @@ cc_library(
 )
 
 cc_library(
+    name = "type_manager",
+    srcs = ["type_manager.cc"],
+    hdrs = ["type_manager.h"],
+    deps = [
+        ":type",
+        ":value",
+        ":xls_type_cc_proto",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "op",
     srcs = ["op.cc"],
     hdrs = ["op.h"],
@@ -523,6 +545,7 @@ cc_library(
         ":register",
         ":source_location",
         ":type",
+        ":type_manager",
         ":unwrapping_iterator",
         ":value",
         ":value_utils",
