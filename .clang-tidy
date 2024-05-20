@@ -27,9 +27,6 @@
 #    essentially the same effect as putting them in an anonymous namespace and
 #    has added benefits -- including, having the statement of internal linkage
 #    right by the function definition.
-#
-# NOTE: Below, there must be no comments, otherwise clang tidy silently ignores
-#       rules... (ask me how I know).
 ###
 Checks: >
   clang-diagnostic-*,
