@@ -33,6 +33,7 @@
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
@@ -118,7 +119,7 @@ class FunctionJit {
     uint8_t* output_buffers[1] = {result_buffer};
     jitted_function_base_.RunPackedJittedFunction(
         arg_buffers, output_buffers, temp_buffer_.get(), &events,
-        /*instance_context=*/nullptr, runtime(), /*continuation_point=*/0);
+        /*instance_context=*/&callbacks_, runtime(), /*continuation_point=*/0);
 
     return InterpreterEventsToStatus(events);
   }
@@ -276,6 +277,9 @@ class FunctionJit {
   // Pre-allocated & aligned storage for required temporary storage. NB Not
   // thread safe.
   JitTempBuffer temp_buffer_;
+
+  // Context callbacks.
+  InstanceContext callbacks_ = InstanceContext::CreateForFunc();
 
   std::unique_ptr<JitRuntime> jit_runtime_;
 };

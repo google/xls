@@ -1376,13 +1376,10 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildFromAot(
   absl::btree_map<std::string, int64_t> queue_indices;
   if (function->IsProc()) {
     continuation_points.reserve(abi.continuation_point_node_ids_size());
-    auto all_nodes = function->nodes();
     for (const auto& [cont_point, node_id] :
          abi.continuation_point_node_ids()) {
-      auto it = absl::c_find_if(all_nodes,
-                                [&](Node* n) { return n->id() == node_id; });
-      XLS_RET_CHECK(it != all_nodes.end());
-      continuation_points[cont_point] = *it;
+      XLS_ASSIGN_OR_RETURN(continuation_points[cont_point],
+                           function->GetNodeById(node_id));
     }
     for (auto* chan : function->package()->channels()) {
       XLS_RET_CHECK(abi.channel_queue_indices().contains(chan->name()));

@@ -18,7 +18,6 @@
 #include <sys/types.h>
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
@@ -41,6 +40,7 @@
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
 
@@ -250,6 +250,8 @@ class BlockJitContinuation {
 
   // Temporary scratch storage. Not thread safe.
   JitTempBuffer temp_buffer_;
+
+  InstanceContext callbacks_;
 
   InterpreterEvents events_;
 

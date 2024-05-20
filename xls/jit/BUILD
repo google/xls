@@ -46,6 +46,29 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "jit_callbacks",
+    srcs = ["jit_callbacks.cc"],
+    hdrs = ["jit_callbacks.h"],
+    deps = [
+        ":jit_channel_queue",
+        ":jit_runtime",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:format_preference",
+        "//xls/ir:proc_elaboration",
+        "//xls/ir:type",
+        "//xls/ir:type_manager",
+        "//xls/ir:value",
+        "//xls/ir:xls_type_cc_proto",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_binary(
     name = "aot_compiler",
     srcs = ["aot_compiler.cc"],
@@ -133,6 +156,7 @@ cc_library(
     srcs = ["ir_builder_visitor.cc"],
     hdrs = ["ir_builder_visitor.h"],
     deps = [
+        ":jit_callbacks",
         ":jit_channel_queue",
         ":jit_runtime",
         ":llvm_type_converter",
@@ -335,6 +359,7 @@ cc_library(
         ":function_base_jit",
         ":ir_builder_visitor",
         ":jit_buffer",
+        ":jit_callbacks",
         ":jit_runtime",
         ":observer",
         ":orc_jit",
@@ -538,6 +563,7 @@ cc_library(
     deps = [
         ":function_base_jit",
         ":jit_buffer",
+        ":jit_callbacks",
         ":jit_runtime",
         ":orc_jit",
         "//xls/common/status:ret_check",
@@ -588,6 +614,7 @@ cc_library(
         ":function_base_jit",
         ":ir_builder_visitor",
         ":jit_buffer",
+        ":jit_callbacks",
         ":jit_channel_queue",
         ":jit_runtime",
         ":observer",
@@ -599,6 +626,7 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:elaboration",
         "//xls/ir:events",
+        "//xls/ir:proc_elaboration",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -635,7 +663,7 @@ cc_library(
         ":aot_entrypoint_cc_proto",
         ":ir_builder_visitor",
         ":jit_buffer",
-        ":jit_channel_queue",
+        ":jit_callbacks",
         ":jit_runtime",
         ":llvm_type_converter",
         ":orc_jit",

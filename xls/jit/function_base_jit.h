@@ -32,6 +32,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/aot_entrypoint.pb.h"
+#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"

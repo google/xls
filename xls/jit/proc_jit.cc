@@ -41,10 +41,11 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_base_jit.h"
-#include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
@@ -124,8 +125,8 @@ ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
       input_(jit_func.CreateInputOutputBuffer().value()),
       output_(jit_func.CreateInputOutputBuffer().value()),
       temp_buffer_(jit_func.CreateTempBuffer()),
-      instance_context_{.instance = proc_instance,
-                        .channel_queues = std::move(queues)} {
+      instance_context_(
+          InstanceContext::CreateForProc(proc_instance, std::move(queues))) {
   // Write initial state value to the input_buffer.
   for (Param* state_param : proc()->StateParams()) {
     int64_t param_index = proc()->GetParamIndex(state_param).value();
@@ -148,18 +149,28 @@ std::vector<Value> ProcJitContinuation::GetState() const {
   return state;
 }
 
+std::string NameOfNodeOrDefault(Proc* p, int64_t id,
+                                std::string_view default_res) {
+  absl::StatusOr<Node*> node = p->GetNodeById(id);
+  if (node.ok()) {
+    return node.value()->GetName();
+  }
+  return std::string(default_res);
+}
+
 absl::Status ProcJitContinuation::NextTick() {
   for (auto& [param, active_next_values] :
        instance_context_.active_next_values) {
     if (active_next_values.size() > 1) {
-      return absl::AlreadyExistsError(
-          absl::StrFormat("Multiple active next values for param \"%s\" in a "
-                          "single activation: %s",
-                          param->name(),
-                          absl::StrJoin(active_next_values, ", ",
-                                        [](std::string* out, Next* next) {
-                                          absl::StrAppend(out, next->GetName());
-                                        })));
+      return absl::AlreadyExistsError(absl::StrFormat(
+          "Multiple active next values for param \"%s\" in a "
+          "single activation: %s",
+          NameOfNodeOrDefault(proc(), param, "<UNKNOWN PARAM>"),
+          absl::StrJoin(
+              active_next_values, ", ", [&](std::string* out, int64_t next) {
+                absl::StrAppend(
+                    out, NameOfNodeOrDefault(proc(), next, "<UNKNOWN NEXT>"));
+              })));
     }
   }
   instance_context_.active_next_values.clear();

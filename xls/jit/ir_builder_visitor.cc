@@ -559,205 +559,114 @@ llvm::Value* ClampIndexInBounds(llvm::Value* index, ArrayType* array_type,
   return inbounds_index;
 }
 
-// This is a shim to let JIT code add a new trace fragment to an existing trace
-// buffer.
-void PerformStringStep(char* step_string, std::string* buffer) {
-  buffer->append(step_string);
+template <int64_t kFunctionOffset>
+llvm::Value* InvokeCallback(llvm::IRBuilder<>* builder, llvm::Type* return_type,
+                            llvm::Value* instance_ptr,
+                            absl::Span<llvm::Value* const> args) {
+  std::vector<llvm::Value*> all_args{instance_ptr};
+  all_args.reserve(args.size() + 1);
+  absl::c_copy(args, std::back_inserter(all_args));
+  static_assert(InstanceContext::IsVtableOffset(kFunctionOffset));
+  llvm::ConstantInt* fn_offset = llvm::ConstantInt::get(
+      llvm::Type::getInt64Ty(builder->getContext()), kFunctionOffset);
+  std::vector<llvm::Type*> params_types;
+  params_types.reserve(all_args.size());
+  absl::c_transform(all_args, std::back_inserter(params_types),
+                    [](llvm::Value* v) { return v->getType(); });
+  llvm::Value* fn_ptr_ptr =
+      builder->CreateGEP(builder->getInt8Ty(), instance_ptr, fn_offset,
+                         "callback_ptr_ptr", /*IsInBounds=*/ true);
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(return_type, params_types, /*isVarArg=*/false);
+  llvm::Value* fn_ptr =
+      builder->CreateLoad(llvm::PointerType::get(fn_type, 0), fn_ptr_ptr);
+  return builder->CreateCall(fn_type, fn_ptr, all_args);
 }
 
 // Build the LLVM IR that handles string fragment format steps.
 absl::Status InvokeStringStepCallback(llvm::IRBuilder<>* builder,
                                       const std::string& step_string,
-                                      llvm::Value* buffer_ptr) {
+                                      llvm::Value* buffer_ptr,
+                                      llvm::Value* instance_ctx) {
   llvm::Constant* step_constant = builder->CreateGlobalStringPtr(step_string);
-
-  std::vector<llvm::Type*> params = {step_constant->getType(),
-                                     buffer_ptr->getType()};
-
-  llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
-
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
-
-  std::vector<llvm::Value*> args = {step_constant, buffer_ptr};
-
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()),
-                             absl::bit_cast<uint64_t>(&PerformStringStep));
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder->CreateCall(fn_type, fn_ptr, args);
+  InvokeCallback<InstanceContext::kPerformStringStepOffset>(
+      builder, llvm::Type::getVoidTy(builder->getContext()), instance_ctx,
+      {step_constant, buffer_ptr});
   return absl::OkStatus();
-}
-
-void PerformFormatStep(JitRuntime* runtime, const xls::Type* type,
-                       const uint8_t* value, uint64_t format_u64,
-                       std::string* buffer) {
-  FormatPreference format = static_cast<FormatPreference>(format_u64);
-  Value ir_value = runtime->UnpackBuffer(value, type);
-  absl::StrAppend(buffer, ir_value.ToHumanString(format));
 }
 
 // Build the LLVM IR that handles formatting a runtime value according to a
 // format preference.
-absl::Status InvokeFormatStepCallback(llvm::IRBuilder<>* builder,
-                                      FormatPreference format,
-                                      xls::Type* operand_type,
-                                      llvm::Value* operand,
-                                      llvm::Value* buffer_ptr,
-                                      llvm::Value* jit_runtime_ptr) {
+absl::Status InvokeFormatStepCallback(
+    llvm::IRBuilder<>* builder, FormatPreference format,
+    xls::Type* operand_type, llvm::Value* operand, llvm::Value* buffer_ptr,
+    llvm::Value* jit_runtime_ptr, llvm::Value* instance_ctx) {
+  // Note: we assume the package lifetime is >= that of the JIT code by
+  // capturing this type pointer as a value burned into the JIT code, which
+  // should always be true.
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
   auto* i64_type = llvm::Type::getInt64Ty(builder->getContext());
 
   llvm::ConstantInt* llvm_format =
       llvm::ConstantInt::get(i64_type, static_cast<uint64_t>(format));
-
-  // Note: we assume the package lifetime is >= that of the JIT code by
-  // capturing this type pointer as a value burned into the JIT code, which
-  // should always be true.
-  llvm::ConstantInt* llvm_operand_type =
-      llvm::ConstantInt::get(i64_type, absl::bit_cast<uint64_t>(operand_type));
-
-  std::vector<llvm::Type*> params = {
-      jit_runtime_ptr->getType(), llvm_operand_type->getType(),
-      operand->getType(), llvm_format->getType(), buffer_ptr->getType()};
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
-
-  std::vector<llvm::Value*> args = {jit_runtime_ptr, llvm_operand_type, operand,
-                                    llvm_format, buffer_ptr};
-
-  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
-      i64_type, absl::bit_cast<uint64_t>(&PerformFormatStep));
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder->CreateCall(fn_type, fn_ptr, args);
+  auto proto_str = operand_type->ToProto().SerializeAsString();
+  llvm::ConstantInt* proto_len =
+      llvm::ConstantInt::get(i64_type, proto_str.size());
+  llvm::Constant* proto_llvm_str = builder->CreateGlobalStringPtr(proto_str);
+  InvokeCallback<InstanceContext::kPerformFormatStepOffset>(
+      builder, void_type, instance_ctx,
+      {jit_runtime_ptr, proto_llvm_str, proto_len, operand, llvm_format,
+       buffer_ptr});
   return absl::OkStatus();
-}
-
-// This a shim to let JIT code record a completed trace as an interpreter event.
-void RecordTrace(std::string* buffer, int64_t verbosity,
-                 xls::InterpreterEvents* events) {
-  events->trace_msgs.push_back(
-      TraceMessage{.message = *buffer, .verbosity = verbosity});
-  delete buffer;
 }
 
 // Build the LLVM IR to invoke the callback that records traces.
 absl::Status InvokeRecordTraceCallback(llvm::IRBuilder<>* builder,
                                        int64_t verbosity,
                                        llvm::Value* buffer_ptr,
-                                       llvm::Value* interpreter_events_ptr) {
-  llvm::Type* int64_type = llvm::Type::getInt64Ty(builder->getContext());
-  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
-
-  std::vector<llvm::Type*> params = {buffer_ptr->getType(), int64_type,
-                                     ptr_type};
-
+                                       llvm::Value* interpreter_events_ptr,
+                                       llvm::Value* instance_ctx) {
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
-
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
   llvm::Value* verbosity_value = builder->getInt64(verbosity);
   std::vector<llvm::Value*> args = {buffer_ptr, verbosity_value,
                                     interpreter_events_ptr};
 
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()),
-                             absl::bit_cast<uint64_t>(&RecordTrace));
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder->CreateCall(fn_type, fn_ptr, args);
+  InvokeCallback<InstanceContext::kRecordTraceOffset>(
+      builder, void_type, instance_ctx,
+      {buffer_ptr, verbosity_value, interpreter_events_ptr});
   return absl::OkStatus();
 }
 
-// This is a shim to let JIT code create a buffer for accumulating trace
-// fragments.
-std::string* CreateTraceBuffer() { return new std::string(); }
-
 // Build the LLVM IR to invoke the callback that creates a trace buffer.
 absl::StatusOr<llvm::Value*> InvokeCreateBufferCallback(
-    llvm::IRBuilder<>* builder) {
-  std::vector<llvm::Type*> params;
-
+    llvm::IRBuilder<>* builder, llvm::Value* instance_ctx) {
   llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
-
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(ptr_type, params, /*isVarArg=*/false);
-
-  std::vector<llvm::Value*> args;
-
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()),
-                             absl::bit_cast<uint64_t>(&CreateTraceBuffer));
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  return builder->CreateCall(fn_type, fn_ptr, args);
-}
-
-// This a shim to let JIT code record an assertion failure as an interpreter
-// event.
-void RecordAssertion(char* msg, xls::InterpreterEvents* events) {
-  events->assert_msgs.push_back(msg);
+  return InvokeCallback<InstanceContext::kCreateTraceBufferOffset>(
+      builder, ptr_type, instance_ctx, {});
 }
 
 // Build the LLVM IR to invoke the callback that records assertions.
 absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
                                   const std::string& message,
-                                  llvm::Value* interpreter_events_ptr) {
+                                  llvm::Value* interpreter_events_ptr,
+                                  llvm::Value* instance_ctx) {
   llvm::Constant* msg_constant = builder->CreateGlobalStringPtr(message);
-
-  llvm::Type* msg_type = msg_constant->getType();
-
-  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
-
-  std::vector<llvm::Type*> params = {msg_type, ptr_type};
-
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
 
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
-
-  std::vector<llvm::Value*> args = {msg_constant, interpreter_events_ptr};
-
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()),
-                             absl::bit_cast<uint64_t>(&RecordAssertion));
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder->CreateCall(fn_type, fn_ptr, args);
+  InvokeCallback<InstanceContext::kRecordAssertionOffset>(
+      builder, void_type, instance_ctx, {msg_constant, interpreter_events_ptr});
   return absl::OkStatus();
-}
-
-// This is a shim to let JIT code record the activation of a `next_value` node.
-void RecordActiveNextValue(Next* next, InstanceContext* instance_context) {
-  instance_context->active_next_values[next->param()->As<Param>()].insert(next);
 }
 
 // Build the LLVM IR to invoke the callback that records assertions.
 absl::Status InvokeNextValueCallback(llvm::IRBuilder<>* builder, Next* next,
-                                     llvm::Value* instance_context) {
-  llvm::Type* addr_type =
-      llvm::Type::getIntNTy(builder->getContext(), sizeof(uintptr_t) << 3);
-  llvm::Constant* next_addr =
-      llvm::ConstantInt::get(addr_type, reinterpret_cast<uintptr_t>(next));
-
-  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
-  std::vector<llvm::Type*> params = {ptr_type, ptr_type};
-
+                                     llvm::Value* instance_ctx) {
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
-
-  std::vector<llvm::Value*> args = {
-      builder->CreateIntToPtr(next_addr, ptr_type),
-      builder->CreateIntToPtr(instance_context, ptr_type)};
-
-  llvm::Constant* fn_addr = llvm::ConstantInt::get(
-      addr_type, reinterpret_cast<uintptr_t>(&RecordActiveNextValue));
-  llvm::Value* fn_ptr = builder->CreateIntToPtr(fn_addr, ptr_type);
-  builder->CreateCall(fn_type, fn_ptr, args);
+  llvm::Value* param_value = builder->getInt64(next->param()->id());
+  llvm::Value* next_value = builder->getInt64(next->id());
+  InvokeCallback<InstanceContext::kRecordActiveNextValueOffset>(
+      builder, void_type, instance_ctx, {param_value, next_value});
   return absl::OkStatus();
 }
 
@@ -1495,7 +1404,8 @@ absl::Status IrBuilderVisitor::HandleAssert(Assert* assert_op) {
   llvm::IRBuilder<> fail_builder(fail_block);
   XLS_RETURN_IF_ERROR(
       InvokeAssertCallback(&fail_builder, assert_op->message(),
-                           node_context.GetInterpreterEventsArg()));
+                           node_context.GetInterpreterEventsArg(),
+                           node_context.GetInstanceContextArg()));
 
   fail_builder.CreateBr(after_block);
 
@@ -1564,8 +1474,10 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
       ctx(), absl::StrCat(trace_name, "_print"), node_context.llvm_function());
   llvm::IRBuilder<> print_builder(print_block);
 
-  XLS_ASSIGN_OR_RETURN(llvm::Value * buffer_ptr,
-                       InvokeCreateBufferCallback(&print_builder));
+  XLS_ASSIGN_OR_RETURN(
+      llvm::Value * buffer_ptr,
+      InvokeCreateBufferCallback(&print_builder,
+                                 node_context.GetInstanceContextArg()));
 
   // Operands are: (tok, pred, ..data_operands..)
   XLS_RET_CHECK_EQ(trace_op->operand(0)->GetType(),
@@ -1577,7 +1489,8 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
   for (const FormatStep& step : trace_op->format()) {
     if (std::holds_alternative<std::string>(step)) {
       XLS_RETURN_IF_ERROR(InvokeStringStepCallback(
-          &print_builder, std::get<std::string>(step), buffer_ptr));
+          &print_builder, std::get<std::string>(step), buffer_ptr,
+          node_context.GetInstanceContextArg()));
     } else {
       xls::Node* o = trace_op->operand(operand_index);
       llvm::Value* operand = node_context.LoadOperand(operand_index);
@@ -1588,12 +1501,14 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
       operand_index += 1;
       XLS_RETURN_IF_ERROR(InvokeFormatStepCallback(
           &print_builder, std::get<FormatPreference>(step), o->GetType(),
-          alloca, buffer_ptr, jit_runtime_ptr));
+          alloca, buffer_ptr, jit_runtime_ptr,
+          node_context.GetInstanceContextArg()));
     }
   }
 
   XLS_RETURN_IF_ERROR(InvokeRecordTraceCallback(
-      &print_builder, trace_op->verbosity(), buffer_ptr, events_ptr));
+      &print_builder, trace_op->verbosity(), buffer_ptr, events_ptr,
+      node_context.GetInstanceContextArg()));
 
   print_builder.CreateBr(after_block);
 
@@ -3227,39 +3142,16 @@ absl::StatusOr<llvm::Value*> IrBuilderVisitor::CallFunction(
   return builder.CreateCall(f, args);
 }
 
-bool QueueReceiveWrapper(InstanceContext* instance_context, int64_t queue_index,
-                         uint8_t* buffer) {
-  return instance_context->channel_queues[queue_index]->ReadRaw(buffer);
-}
-
 absl::StatusOr<llvm::Value*> IrBuilderVisitor::ReceiveFromQueue(
     llvm::IRBuilder<>* builder, int64_t queue_index, Receive* receive,
     llvm::Value* output_ptr, llvm::Value* instance_context) {
-  llvm::Type* i64_type = llvm::Type::getInt64Ty(ctx());
+  // llvm::Type* i64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* bool_type = llvm::Type::getInt1Ty(ctx());
-  llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
-
-  // Call the user-provided function of type ProcJit::RecvFnT to receive the
-  // value.
-  std::vector<llvm::Type*> params = {ptr_type, i64_type, ptr_type};
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(bool_type, params, /*isVarArg=*/false);
-
   // Call the wrapper to JitChannelQueue::Recv.
   llvm::Value* queue_index_value =
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), queue_index);
-
-  std::vector<llvm::Value*> args = {
-      builder->CreateIntToPtr(instance_context, ptr_type), queue_index_value,
-      output_ptr};
-
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
-                             absl::bit_cast<uint64_t>(&QueueReceiveWrapper));
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  llvm::Value* receive_fired = builder->CreateCall(fn_type, fn_ptr, args);
-  return receive_fired;
+  return InvokeCallback<InstanceContext::kQueueReceiveWrapperOffset>(
+      builder, bool_type, instance_context, {queue_index_value, output_ptr});
 }
 
 absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
@@ -3368,37 +3260,15 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
           : node_context.entry_builder().getFalse());
 }
 
-void QueueSendWrapper(InstanceContext* instance_context, int64_t queue_index,
-                      const uint8_t* data) {
-  instance_context->channel_queues[queue_index]->WriteRaw(data);
-}
-
 absl::Status IrBuilderVisitor::SendToQueue(llvm::IRBuilder<>* builder,
                                            int64_t queue_index, Send* send,
                                            llvm::Value* send_data_ptr,
                                            llvm::Value* instance_context) {
-  llvm::Type* i64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
-  llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
-
-  // We do the same for sending/writing as we do for receiving/reading
-  // above (set up and call an external function).
-  std::vector<llvm::Type*> params = {ptr_type, i64_type, ptr_type};
-  llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
-
   llvm::Value* queue_index_value =
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), queue_index);
-  std::vector<llvm::Value*> args = {
-      builder->CreateIntToPtr(instance_context, ptr_type), queue_index_value,
-      send_data_ptr};
-
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
-                             absl::bit_cast<uint64_t>(&QueueSendWrapper));
-  llvm::Value* fn_ptr =
-      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder->CreateCall(fn_type, fn_ptr, args);
+  InvokeCallback<InstanceContext::kQueueSendWrapperOffset>(
+      builder, void_type, instance_context, {queue_index_value, send_data_ptr});
   return absl::OkStatus();
 }
 

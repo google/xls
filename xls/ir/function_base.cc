@@ -98,6 +98,15 @@ absl::Status FunctionBase::MoveParamToIndex(Param* param, int64_t index) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<Node*> FunctionBase::GetNodeById(int64_t id) const {
+  for (Node* node : nodes()) {
+    if (node->id() == id) {
+      return node;
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat("No node found with id %d.", id));
+}
+
 absl::StatusOr<Node*> FunctionBase::GetNode(
     std::string_view standard_node_name) const {
   for (Node* node : nodes()) {

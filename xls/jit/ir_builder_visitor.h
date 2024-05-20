@@ -33,25 +33,11 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
-
-// Data structure passed to the JITted function which contains instance-specific
-// execution-relevant information. Used for JITted procs.
-struct InstanceContext {
-  // The proc instance being evaluated.
-  ProcInstance* instance;
-
-  // The active next values for each parameter.
-  absl::flat_hash_map<Param*, absl::flat_hash_set<Next*>> active_next_values;
-
-  // The channel queues used by the proc instance. The order of queues is
-  // assigned at JIT compile time. The indices of particular queues is baked
-  // into the JITted code for sends and receives.
-  std::vector<JitChannelQueue*> channel_queues;
-};
 
 // Returns whether the given node should be materialized at is uses rather than
 // being written to a buffer to pass to the JITted node function. Only possible
