@@ -70,8 +70,8 @@ cc_library(
 )
 
 cc_binary(
-    name = "aot_compiler",
-    srcs = ["aot_compiler.cc"],
+    name = "aot_compiler_main",
+    srcs = ["aot_compiler_main.cc"],
     deps = [
         ":aot_entrypoint_cc_proto",
         ":function_jit",
@@ -116,8 +116,8 @@ py_binary(
 )
 
 cc_test(
-    name = "aot_compiler_test",
-    srcs = ["aot_compiler_test.cc"],
+    name = "aot_basic_function_entrypoint_test",
+    srcs = ["aot_basic_function_entrypoint_test.cc"],
     # The XLS AOT compiler does not currently support cross-compilation.
     deps = [
         ":compound_type_cc",

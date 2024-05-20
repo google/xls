@@ -16,7 +16,7 @@
 This module contains toolchains for XLS.
 """
 
-_DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler"
+_DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler_main"
 
 _DEFAULT_AOT_BASIC_FUNCTION_TARGET = "//xls/jit:aot_basic_function_entrypoint_main"
 
