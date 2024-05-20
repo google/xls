@@ -16,8 +16,15 @@
 #define XLS_JIT_JIT_EMULATED_TLS_H_
 
 #include <cstdint>
+#include <string_view>
+
+// Unmangled c-export symbol that the JIT code will link against.
+extern "C" void* c_export_xls_GetEmulatedMsanTLSAddr(void* selector);
 
 namespace xls {
+
+static constexpr std::string_view kExportedEmulatedMsanEntrypointName =
+    "c_export_xls_GetEmulatedMsanTLSAddr";
 
 // Parameter used to call __emutls_get_address for param_tls
 static constexpr uintptr_t kParamTlsEntry = 1;

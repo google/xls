@@ -396,11 +396,12 @@ absl::Status WriteMainWrapper(Function* f, FunctionJit* jit,
                    context);
   // Technically we are not jitting but we do require that the ir be used on
   // exactly this machine.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<llvm::TargetMachine> machine,
-      OrcJit::CreateTargetMachine(/*aot_specification=*/false));
+      orc_jit->CreateTargetMachine());
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout layout,
-                       OrcJit::CreateDataLayout(/*aot_specification=*/false));
+                       orc_jit->CreateDataLayout());
   LlvmTypeConverter type_convert(&context, layout);
   mod.setDataLayout(layout);
   mod.setTargetTriple(machine->getTargetTriple().str());
@@ -595,6 +596,7 @@ absl::StatusOr<std::vector<Value>> Eval(
   }
 
   if (absl::GetFlag(FLAGS_llvm_jit_main_wrapper_output)) {
+    // TODO(allight): Move this into aot_compiler...
     XLS_RETURN_IF_ERROR(WriteMainWrapper(
         f, jit.get(), arg_sets,
         std::filesystem::path(

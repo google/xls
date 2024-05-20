@@ -49,7 +49,7 @@ TypeLayout CreateTypeLayout(Type* type) {
   std::unique_ptr<OrcJit> orc_jit = OrcJit::Create().value();
   LlvmTypeConverter type_converter(
       orc_jit->GetContext(),
-      orc_jit->CreateDataLayout(/*aot_specification=*/false).value());
+      orc_jit->CreateDataLayout().value());
   return type_converter.CreateTypeLayout(type);
 }
 

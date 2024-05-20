@@ -32,9 +32,9 @@
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/aot_entrypoint.pb.h"
-#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
+#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
 
@@ -73,21 +73,25 @@ using JitFunctionType = int64_t (*)(const uint8_t* const* inputs,
 
 // Abstraction holding function pointers and metadata about a jitted function
 // implementing a XLS Function, Proc, etc.
+//
+// TODO(allight): We should rename this to CompiledFunctionType or something.
 class JittedFunctionBase {
  public:
   JittedFunctionBase() = default;
   // Builds and returns an LLVM IR function implementing the given XLS
   // function.
   static absl::StatusOr<JittedFunctionBase> Build(Function* xls_function,
-                                                  OrcJit& orc_jit);
+                                                  LlvmCompiler& compiler);
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // proc.
-  static absl::StatusOr<JittedFunctionBase> Build(Proc* proc, OrcJit& orc_jit);
+  static absl::StatusOr<JittedFunctionBase> Build(Proc* proc,
+                                                  LlvmCompiler& compiler);
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // block.
-  static absl::StatusOr<JittedFunctionBase> Build(Block* block, OrcJit& jit);
+  static absl::StatusOr<JittedFunctionBase> Build(Block* block,
+                                                  LlvmCompiler& compiler);
 
   // Builds and returns a JittedFunctionBase using code and ABIs provided by an
   // earlier AOT compile.

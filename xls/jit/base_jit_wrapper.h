@@ -150,6 +150,7 @@ class BaseProcJitWrapper {
 
     XLS_ASSIGN_OR_RETURN(auto* man, jit->GetJitChannelQueueManager());
     JitRuntime& runtime = man->runtime();
+    jit->ResetState();
 
     return std::unique_ptr<RealType>(
         new RealType(std::move(package), proc, std::move(jit), runtime));

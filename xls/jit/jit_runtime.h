@@ -106,6 +106,8 @@ class JitRuntime {
     return type_converter_->GetTypePreferredAlignment(xls_type);
   }
 
+  const llvm::DataLayout& data_layout() const { return data_layout_; }
+
  private:
   Value UnpackBufferInternal(const uint8_t* buffer, const Type* result_type)
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);

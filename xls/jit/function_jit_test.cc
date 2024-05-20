@@ -59,7 +59,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
-#include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"
@@ -111,6 +110,51 @@ absl::StatusOr<Value> RunJitNoEvents(FunctionJit* jit,
   }
 
   return InterpreterResultToStatusOrValue(result);
+}
+
+TEST(FunctionJitTest, MsanCatchesUninitializedInputs) {
+#ifndef ABSL_HAVE_MEMORY_SANITIZER
+  GTEST_SKIP() << "Msan is not linked";
+#endif
+  Package p("MsanUninit");
+  FunctionBuilder b("fun", &p);
+  auto p1 = b.Param("cond", p.GetBitsType(8));
+  b.Add(p1, p1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           FunctionJit::Create(function, /*opt_level=*/1));
+  GTEST_SKIP()
+      << "MSAN is not currently configured to check accesses within "
+         "jit-functions due to bug: https://github.com/google/xls/issues/1418";
+  EXPECT_DEATH(
+      [&]() {
+        uint8_t input = 44;
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+        // Force 'input' to be uninitialized.
+        __msan_poison(&input, 1);
+        if (VLOG_IS_ON(2)) {
+          __msan_print_shadow(&input, 1);
+        }
+#endif
+        BitsView<8> bv(&input);
+        // Deliberately initialized.
+        uint8_t res = 2;
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+        if (VLOG_IS_ON(2)) {
+          __msan_print_shadow(&res, 1);
+        }
+#endif
+        MutableBitsView<8> mbv(&res);
+        jit->RunWithUnpackedViews(bv, mbv).IgnoreError();
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+        if (VLOG_IS_ON(2)) {
+          __msan_print_shadow(&input, 1);
+          __msan_print_shadow(&res, 1);
+        }
+#endif
+        std::cerr << "output is " << static_cast<uint32_t>(mbv.GetValue());
+      }(),
+      ".*MemorySanitizer.*");
 }
 
 TEST(FunctionJitTest, TraceFmtNoArgsTest) {
@@ -525,9 +569,9 @@ absl::Status TestSimpleArray(absl::BitGenRef bitgen) {
 
   for (int i = 0; i < CeilOfRatio(kBitWidth * kNumElements, kCharBit); i++) {
     XLS_RET_CHECK(output_data.bytes[i] == expected_data.bytes[i])
-        << std::hex << ": byte " << i << ": "
-        << "0x" << static_cast<int>(output_data.bytes[i]) << " vs. "
-        << "0x" << static_cast<int>(expected_data.bytes[i]);
+        << std::hex << ": byte " << i << ": " << "0x"
+        << static_cast<int>(output_data.bytes[i]) << " vs. " << "0x"
+        << static_cast<int>(expected_data.bytes[i]);
   }
   return absl::OkStatus();
 }
@@ -586,9 +630,9 @@ absl::Status TestTuples(absl::BitGenRef bitgen) {
 
   for (int i = 0; i < CeilOfRatio(TupleT::kBitCount, kCharBit); i++) {
     XLS_RET_CHECK(output_data.bytes[i] == expected_data.bytes[i])
-        << std::hex << ": byte " << i << ": "
-        << "0x" << static_cast<int>(output_data.bytes[i]) << " vs. "
-        << "0x" << static_cast<int>(expected_data.bytes[i]);
+        << std::hex << ": byte " << i << ": " << "0x"
+        << static_cast<int>(output_data.bytes[i]) << " vs. " << "0x"
+        << static_cast<int>(expected_data.bytes[i]);
   }
 
   return absl::OkStatus();
@@ -1060,9 +1104,9 @@ void CheckOutput(absl::Span<uint8_t const> expected_data,
 
   for (int i = 0; i < output_data.size(); ++i) {
     EXPECT_EQ(output_data[i], expected_data[i])
-        << std::hex << ": byte " << i << ": "
-        << "0x" << static_cast<int>(output_data[i]) << " vs. "
-        << "0x" << static_cast<int>(expected_data[i]);
+        << std::hex << ": byte " << i << ": " << "0x"
+        << static_cast<int>(output_data[i]) << " vs. " << "0x"
+        << static_cast<int>(expected_data[i]);
   }
 }
 
@@ -1083,13 +1127,11 @@ void TestPackedBitsWithType(const TypeProto& type_proto) {
   BValue x_lt_y = b.ULt(x, y);
   b.Select(x_lt_y, {y, x});
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      llvm::DataLayout data_layout,
-      OrcJit::CreateDataLayout(/*aot_specification=*/false));
   constexpr int64_t opt_level = 3;
   XLS_ASSERT_OK_AND_ASSIGN(auto orc_jit,
-                           OrcJit::Create(opt_level, /*emit_object_code=*/false,
-                                          /*observer=*/nullptr));
+                           OrcJit::Create(opt_level, /*observer=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
+                           orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
                            JittedFunctionBase::Build(function, *orc_jit));
 
@@ -1148,13 +1190,11 @@ void TestPackedTupleWithType(const TypeProto& type_proto) {
   b.Tuple(output_elements);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      llvm::DataLayout data_layout,
-      OrcJit::CreateDataLayout(/*aot_specification=*/false));
   constexpr int64_t opt_level = 3;
   XLS_ASSERT_OK_AND_ASSIGN(auto orc_jit,
-                           OrcJit::Create(opt_level, /*emit_object_code=*/false,
-                                          /*observer=*/nullptr));
+                           OrcJit::Create(opt_level, /*observer=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
+                           orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
                            JittedFunctionBase::Build(function, *orc_jit));
 
@@ -1218,13 +1258,11 @@ void TestPackedArrayWithType(const TypeProto& type_proto) {
   BValue new_value = b.Param("new_value", element_type);
   b.ArrayUpdate(array, new_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      llvm::DataLayout data_layout,
-      OrcJit::CreateDataLayout(/*aot_specification=*/false));
   constexpr int64_t opt_level = 3;
   XLS_ASSERT_OK_AND_ASSIGN(auto orc_jit,
-                           OrcJit::Create(opt_level, /*emit_object_code=*/false,
-                                          /*observer=*/nullptr));
+                           OrcJit::Create(opt_level, /*observer=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
+                           orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
                            JittedFunctionBase::Build(function, *orc_jit));
 

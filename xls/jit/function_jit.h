@@ -61,9 +61,9 @@ class FunctionJit {
       JitObserver* observer = nullptr);
 
   // Returns the bytes of an object file containing the compiled XLS function.
-  static absl::StatusOr<JitObjectCode> CreateObjectCode(
-      Function* xls_function, int64_t opt_level = 3,
-      JitObserver* observer = nullptr);
+  static absl::StatusOr<JitObjectCode> CreateObjectCode(Function* xls_function,
+                                                        int64_t opt_level,
+                                                        bool include_msan);
 
   // Executes the compiled function with the specified arguments.
   absl::StatusOr<InterpreterResult<Value>> Run(absl::Span<const Value> args);
@@ -204,8 +204,7 @@ class FunctionJit {
         jit_runtime_(std::move(runtime)) {}
 
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateInternal(
-      Function* xls_function, int64_t opt_level, bool emit_object_code,
-      JitObserver* observer);
+      Function* xls_function, int64_t opt_level, JitObserver* observer);
 
   template <bool kForceZeroCopy, typename... ArgsT>
   absl::Status RunWithUnpackedViewsCommon(ArgsT... args) {

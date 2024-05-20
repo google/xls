@@ -48,6 +48,11 @@ _xls_aot_files_attrs = {
         doc = "if the jit code should be compiled with msan",
         mandatory = True,
     ),
+    "_jit_emulated_tls": attr.label(
+        doc = "emulated tls implementation",
+        default = "//xls/jit:jit_emulated_tls",
+        providers = [CcInfo],
+    ),
 }
 
 def _xls_aot_generate_impl(ctx):
@@ -70,8 +75,12 @@ def _xls_aot_generate_impl(ctx):
     args.add("-top", ctx.attr.top)
     args.add("-output_object", obj_file.path)
     args.add("-output_proto", proto_file.path)
+    other_linking_contexts = []
     if ctx.attr.with_msan:
         args.add("--include_msan=true")
+
+        # With msan we need the TLS implementation.
+        other_linking_contexts = [ctx.attr._jit_emulated_tls[CcInfo].linking_context]
     else:
         args.add("--include_msan=false")
     ctx.actions.run(
@@ -93,7 +102,9 @@ def _xls_aot_generate_impl(ctx):
         feature_configuration = feature_configuration,
         cc_toolchain = cc_toolchain,
         compilation_outputs = obj_file_outputs,
+        linking_contexts = other_linking_contexts,
     )
+    cc_common.merge_compilation_contexts()
 
     return [
         AotCompileInfo(object_file = obj_file, proto_file = proto_file),

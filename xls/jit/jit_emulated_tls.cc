@@ -19,6 +19,10 @@
 
 #include "absl/log/log.h"
 
+extern "C" void* c_export_xls_GetEmulatedMsanTLSAddr(void* selector) {
+  return xls::GetEmulatedMsanTLSAddr(selector);
+}
+
 namespace xls {
 
 namespace {
@@ -55,6 +59,8 @@ void* GetEmulatedMsanTLSAddr(void* selector) {
     LOG(ERROR) << "Unexpected MSAN call on non-msan build?";
     return nullptr;
   }
+  VLOG(2) << "EMU_MSAN (enabled: " << kHasMsan << ") Called with "
+          << std::bit_cast<uintptr_t>(selector);
   switch (std::bit_cast<uintptr_t>(selector)) {
     case kParamTlsEntry:
       return std::bit_cast<void*>(&param_tls);

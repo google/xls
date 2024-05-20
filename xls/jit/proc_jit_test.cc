@@ -31,8 +31,9 @@ namespace xls {
 namespace {
 
 JitRuntime* GetJitRuntime() {
+  static auto orc_jit = OrcJit::Create().value();
   static auto jit_runtime = std::make_unique<JitRuntime>(
-      OrcJit::CreateDataLayout(/*aot_specification=*/false).value());
+      orc_jit->CreateDataLayout().value());
   return jit_runtime.get();
 }
 

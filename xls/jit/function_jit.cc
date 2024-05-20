@@ -37,6 +37,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/jit/aot_compiler.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_runtime.h"
@@ -47,8 +48,7 @@ namespace xls {
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
     Function* xls_function, int64_t opt_level, JitObserver* observer) {
-  return CreateInternal(xls_function, opt_level, /*emit_object_code=*/false,
-                        observer);
+  return CreateInternal(xls_function, opt_level, observer);
 }
 
 namespace {
@@ -65,25 +65,23 @@ int64_t JitObjectCodeFunctionUse(const uint8_t* const* inputs,
 }  // namespace
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
-    Function* xls_function, int64_t opt_level, JitObserver* observer) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
-                       CreateInternal(xls_function, opt_level,
-                                      /*emit_object_code=*/true, observer));
+    Function* xls_function, int64_t opt_level, bool include_msan) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
+                       AotCompiler::Create(include_msan, opt_level));
+  XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
+                       JittedFunctionBase::Build(xls_function, *comp));
+  XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
   return JitObjectCode{
-      .object_code = jit->orc_jit_->GetObjectCode(),
-      .function_base = jit->jitted_function_base().WithCodePointers(
-          JitObjectCodeFunctionUse, JitObjectCodeFunctionUse),
+      .object_code = std::move(obj_code),
+      .function_base = std::move(jfb),
   };
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
-    Function* xls_function, int64_t opt_level, bool emit_object_code,
-    JitObserver* observer) {
-  XLS_ASSIGN_OR_RETURN(auto orc_jit,
-                       OrcJit::Create(opt_level, emit_object_code, observer));
-  XLS_ASSIGN_OR_RETURN(
-      llvm::DataLayout data_layout,
-      OrcJit::CreateDataLayout(/*aot_specification=*/emit_object_code));
+    Function* xls_function, int64_t opt_level, JitObserver* observer) {
+  XLS_ASSIGN_OR_RETURN(auto orc_jit, OrcJit::Create(opt_level, observer));
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
+                       orc_jit->CreateDataLayout());
   XLS_ASSIGN_OR_RETURN(auto function_base,
                        JittedFunctionBase::Build(xls_function, *orc_jit));
 

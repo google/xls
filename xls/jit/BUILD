@@ -73,10 +73,10 @@ cc_binary(
     name = "aot_compiler_main",
     srcs = ["aot_compiler_main.cc"],
     deps = [
+        ":aot_compiler",
         ":aot_entrypoint_cc_proto",
         ":function_jit",
         ":llvm_type_converter",
-        ":orc_jit",
         ":type_layout_cc_proto",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -159,8 +159,8 @@ cc_library(
         ":jit_callbacks",
         ":jit_channel_queue",
         ":jit_runtime",
+        ":llvm_compiler",
         ":llvm_type_converter",
-        ":orc_jit",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -253,6 +253,33 @@ cc_test(
         "//xls/ir:value_view",
         "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "llvm_compiler",
+    srcs = ["llvm_compiler.cc"],
+    hdrs = ["llvm_compiler.h"],
+    deps = [
+        ":jit_emulated_tls",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:Analysis",
+        "@llvm-project//llvm:Instrumentation",
+        "@llvm-project//llvm:Passes",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:ir_headers",
     ],
 )
 
@@ -365,6 +392,7 @@ cc_library(
     hdrs = ["function_jit.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":aot_compiler",
         ":function_base_jit",
         ":ir_builder_visitor",
         ":jit_buffer",
@@ -404,6 +432,7 @@ cc_test(
         ":function_jit",
         ":jit_buffer",
         ":jit_runtime",
+        ":llvm_compiler",
         ":orc_jit",
         "//xls/common:bits_util",
         "//xls/common:math_util",
@@ -469,6 +498,7 @@ cc_test(
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
+        ":llvm_compiler",
         ":orc_jit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -489,6 +519,7 @@ cc_library(
     srcs = ["jit_runtime.cc"],
     hdrs = ["jit_runtime.h"],
     deps = [
+        ":llvm_compiler",
         ":llvm_type_converter",
         ":orc_jit",
         "//xls/common/status:status_macros",
@@ -531,16 +562,44 @@ cc_library(
 )
 
 cc_library(
+    name = "aot_compiler",
+    srcs = ["aot_compiler.cc"],
+    hdrs = ["aot_compiler.h"],
+    visibility = [
+        "//xls:xls_internal",
+    ],
+    deps = [
+        ":jit_emulated_tls",
+        ":llvm_compiler",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:Analysis",
+        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:Passes",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:TargetParser",
+        "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:ir_headers",
+    ],
+)
+
+cc_library(
     name = "orc_jit",
     srcs = ["orc_jit.cc"],
     hdrs = ["orc_jit.h"],
     deps = [
         ":jit_emulated_tls",
+        ":llvm_compiler",
         ":observer",
         "//xls/common/logging:log_lines",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -559,7 +618,6 @@ cc_library(
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
-        "@llvm-project//llvm:TargetParser",
         "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:ir_headers",
@@ -575,6 +633,7 @@ cc_library(
         ":jit_buffer",
         ":jit_callbacks",
         ":jit_runtime",
+        ":llvm_compiler",
         ":orc_jit",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -627,6 +686,7 @@ cc_library(
         ":jit_callbacks",
         ":jit_channel_queue",
         ":jit_runtime",
+        ":llvm_compiler",
         ":observer",
         ":orc_jit",
         "//xls/common/status:ret_check",
@@ -675,6 +735,7 @@ cc_library(
         ":jit_buffer",
         ":jit_callbacks",
         ":jit_runtime",
+        ":llvm_compiler",
         ":llvm_type_converter",
         ":orc_jit",
         "//xls/common:math_util",
@@ -724,6 +785,7 @@ cc_binary(
     name = "value_to_native_layout_benchmark",
     srcs = ["value_to_native_layout_benchmark.cc"],
     deps = [
+        ":llvm_compiler",
         ":llvm_type_converter",
         ":orc_jit",
         ":type_layout",
@@ -771,6 +833,7 @@ cc_test(
     name = "type_layout_test",
     srcs = ["type_layout_test.cc"],
     deps = [
+        ":llvm_compiler",
         ":llvm_type_converter",
         ":orc_jit",
         ":type_layout",
@@ -798,6 +861,7 @@ cc_test(
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
+        ":llvm_compiler",
         ":orc_jit",
         ":proc_jit",
         "//xls/common:xls_gunit_main",

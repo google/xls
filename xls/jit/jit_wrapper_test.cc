@@ -105,6 +105,13 @@ std::array<uint8_t, 8> StrArray(std::string_view sv) {
   absl::c_copy_n(sv, ret.size(), ret.begin());
   return ret;
 }
+TEST(JitWrapperTest, Proc2) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCaps::Create());
+  XLS_ASSERT_OK(jit->Tick());
+  EXPECT_THAT(jit->Tick(),
+              status_testing::StatusIs(absl::StatusCode::kInternal,
+                                       testing::ContainsRegex("deadlock")));
+}
 TEST(JitWrapperTest, Proc) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCaps::Create());
   XLS_ASSERT_OK(

@@ -40,10 +40,10 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/jit/aot_compiler.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/llvm_type_converter.h"
-#include "xls/jit/orc_jit.h"
 #include "xls/jit/type_layout.pb.h"
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
@@ -92,13 +92,12 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
     Package* package, Function* func, const JitObjectCode& object_code,
     bool include_msan) {
   AotEntrypointProto proto;
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit,
-                       OrcJit::Create(/*opt_level=*/OrcJit::kDefaultOptLevel,
-                                      /*emit_object_code=*/true,
-                                      /*emit_msan=*/include_msan));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<AotCompiler> aot_compiler,
+      AotCompiler::Create(/*emit_msan=*/include_msan, /*opt_level=*/3));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
-                       OrcJit::CreateDataLayout(/*aot_specification=*/true));
-  LlvmTypeConverter type_converter(orc_jit->GetContext(), data_layout);
+                       aot_compiler->CreateDataLayout());
+  LlvmTypeConverter type_converter(aot_compiler->GetContext(), data_layout);
   *proto.mutable_inputs_layout() = ArgLayouts(func, type_converter);
   *proto.mutable_outputs_layout() = ResultLayouts(func, type_converter);
   proto.add_outputs_names("result");
@@ -172,8 +171,9 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(JitObjectCode object_code,
-                       FunctionJit::CreateObjectCode(f));
+  XLS_ASSIGN_OR_RETURN(
+      JitObjectCode object_code,
+      FunctionJit::CreateObjectCode(f, /*opt_level = */ 3, include_msan));
   XLS_RETURN_IF_ERROR(SetFileContents(
       output_object_path, std::string(object_code.object_code.begin(),
                                       object_code.object_code.end())));

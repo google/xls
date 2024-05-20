@@ -137,11 +137,6 @@ Value TypeLayout::NativeLayoutToValueInternal(Type* element_type,
 }
 
 Value TypeLayout::NativeLayoutToValue(const uint8_t* buffer) const {
-#ifdef ABSL_HAVE_MEMORY_SANITIZER
-  // The buffer likely was written by the JIT so it may appear uninitialized to
-  // sanitizers.
-  __msan_unpoison(buffer, size());
-#endif  // ABSL_HAVE_MEMORY_SANITIZER
   int64_t leaf_index = 0;
   return NativeLayoutToValueInternal(type_, buffer, &leaf_index);
 }

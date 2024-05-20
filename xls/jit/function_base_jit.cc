@@ -1269,21 +1269,31 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
   }
 
   XLS_RETURN_IF_ERROR(
-      jit_context.orc_jit().CompileModule(jit_context.ConsumeModule()));
+      jit_context.llvm_compiler().CompileModule(jit_context.ConsumeModule()));
 
   JittedFunctionBase jitted_function;
 
   jitted_function.function_name_ = function_name;
-  XLS_ASSIGN_OR_RETURN(auto fn_address,
-                       jit_context.orc_jit().LoadSymbol(function_name));
-  jitted_function.function_ = absl::bit_cast<JitFunctionType>(fn_address);
+  if (jit_context.llvm_compiler().IsOrcJit()) {
+    XLS_ASSIGN_OR_RETURN(auto* orc_jit, jit_context.llvm_compiler().AsOrcJit());
+    XLS_ASSIGN_OR_RETURN(auto fn_address, orc_jit->LoadSymbol(function_name));
+    jitted_function.function_ = absl::bit_cast<JitFunctionType>(fn_address);
+  } else {
+    jitted_function.function_ = nullptr;
+  }
 
   if (build_packed_wrapper) {
     jitted_function.packed_function_name_ = packed_wrapper_name;
-    XLS_ASSIGN_OR_RETURN(auto packed_fn_address,
-                         jit_context.orc_jit().LoadSymbol(packed_wrapper_name));
-    jitted_function.packed_function_ =
-        absl::bit_cast<JitFunctionType>(packed_fn_address);
+    if (jit_context.llvm_compiler().IsOrcJit()) {
+      XLS_ASSIGN_OR_RETURN(auto* orc_jit,
+                           jit_context.llvm_compiler().AsOrcJit());
+      XLS_ASSIGN_OR_RETURN(auto packed_fn_address,
+                           orc_jit->LoadSymbol(packed_wrapper_name));
+      jitted_function.packed_function_ =
+          absl::bit_cast<JitFunctionType>(packed_fn_address);
+    } else {
+      jitted_function.packed_function_ = nullptr;
+    }
   }
 
   for (const Node* input : GetJittedFunctionInputs(xls_function)) {
@@ -1326,22 +1336,22 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
-    Function* xls_function, OrcJit& orc_jit) {
-  JitBuilderContext jit_context(orc_jit);
+    Function* xls_function, LlvmCompiler& compiler) {
+  JitBuilderContext jit_context(compiler);
   return JittedFunctionBase::BuildInternal(xls_function, jit_context,
                                            /*build_packed_wrapper=*/true);
 }
 
-absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(Proc* proc,
-                                                             OrcJit& orc_jit) {
-  JitBuilderContext jit_context(orc_jit);
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
+    Proc* proc, LlvmCompiler& compiler) {
+  JitBuilderContext jit_context(compiler);
   return JittedFunctionBase::BuildInternal(proc, jit_context,
                                            /*build_packed_wrapper=*/false);
 }
 
-absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(Block* block,
-                                                             OrcJit& jit) {
-  JitBuilderContext jit_context(jit);
+absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
+    Block* block, LlvmCompiler& compiler) {
+  JitBuilderContext jit_context(compiler);
   return JittedFunctionBase::BuildInternal(block, jit_context,
                                            /*build_packed_wrapper=*/false);
 }
