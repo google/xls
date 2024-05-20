@@ -267,6 +267,15 @@ alias(
 )
 
 cc_library(
+    name = "jit_emulated_tls",
+    srcs = ["jit_emulated_tls.cc"],
+    hdrs = ["jit_emulated_tls.h"],
+    deps = [
+        "@com_google_absl//absl/log",
+    ],
+)
+
+cc_library(
     name = "switchable_function_jit-normal",
     srcs = ["switchable_function_jit.cc"],
     hdrs = ["switchable_function_jit.h"],
@@ -526,6 +535,7 @@ cc_library(
     srcs = ["orc_jit.cc"],
     hdrs = ["orc_jit.h"],
     deps = [
+        ":jit_emulated_tls",
         ":observer",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",

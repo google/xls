@@ -69,6 +69,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/jit/jit_emulated_tls.h"  // NOLINT: Used with MSAN
 #include "xls/jit/observer.h"
 
 namespace xls {
@@ -300,36 +301,6 @@ OrcJit::CreateTargetMachine(bool aot_specification) {
 }
 
 namespace {
-// Based on https://github.com/google/sanitizers/wiki/MemorySanitizerJIT
-// tutorial.
-
-// Identifiers we use to pick out the actual thread-local buffers shared with
-// host msan. Basically the msan ABI is:
-// %x = load-symbol __emutls_v.__msan_param_tls
-// %y = load-symbol __emutls_get_address
-// %tls_slot = invoke %y (%x)
-#ifdef ABSL_HAVE_MEMORY_SANITIZER
-static constexpr uintptr_t kParamTlsEntry = 1;
-static constexpr uintptr_t kRetvalTlsEntry = 2;
-// TODO(allight): Technically if we want to support origin-tracking we could but
-// we'd need to add more of the locals from MSan.cpp here.
-extern "C" __thread unsigned long long  // NOLINT(runtime/int)
-    __msan_param_tls[];
-extern "C" __thread unsigned long long  // NOLINT(runtime/int)
-    __msan_retval_tls[];
-void* GetMsanTLSAddr(void* ctx) {
-  switch (absl::bit_cast<uintptr_t>(ctx)) {
-    case kParamTlsEntry:
-      return absl::bit_cast<void*>(&__msan_param_tls);
-    case kRetvalTlsEntry:
-      return absl::bit_cast<void*>(&__msan_retval_tls);
-    default:
-      LOG(ERROR) << "Unexpected TLS addr request: " << ctx;
-      return nullptr;
-  }
-}
-#endif
-
 class MsanHostEmuTls : public llvm::orc::DefinitionGenerator {
  public:
   llvm::Error tryToGenerate(llvm::orc::LookupState&, llvm::orc::LookupKind,
@@ -345,7 +316,7 @@ class MsanHostEmuTls : public llvm::orc::DefinitionGenerator {
       auto name = (*kv.first).str();
       if (name == "__emutls_get_address") {
         result[kv.first] = llvm::orc::ExecutorSymbolDef(
-            {llvm::orc::ExecutorAddr::fromPtr(GetMsanTLSAddr),
+            {llvm::orc::ExecutorAddr::fromPtr(&GetEmulatedMsanTLSAddr),
              llvm::JITSymbolFlags::Exported});
       }
       if (name == "__emutls_v.__msan_param_tls") {
