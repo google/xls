@@ -24,6 +24,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -186,8 +187,7 @@ FsmOutput* FsmBuilder::AddExistingOutput(LogicRef* logic_ref,
   return &outputs_.back();
 }
 
-FsmRegister* FsmBuilder::AddRegister(std::string_view name,
-                                     DataType* data_type,
+FsmRegister* FsmBuilder::AddRegister(std::string_view name, DataType* data_type,
                                      Expression* reset_value) {
   // A reset value can only be specified if the FSM has a reset signal.
   CHECK(reset_value == nullptr || reset_.has_value());

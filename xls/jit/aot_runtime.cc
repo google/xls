@@ -19,9 +19,14 @@
 #include <utility>
 #include <vector>
 
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/package.h"
+#include "xls/jit/type_layout.h"
+#include "xls/jit/type_layout.pb.h"
 
 namespace xls::aot_compile {
 

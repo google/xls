@@ -25,6 +25,7 @@
 #include "xls/interpreter/proc_interpreter.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 
 namespace xls {

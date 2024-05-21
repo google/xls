@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -25,10 +26,9 @@
 #include <variant>
 #include <vector>
 
-#include "absl/base/casts.h"
+#include "absl/algorithm/container.h"
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -51,7 +51,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/events.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -62,8 +62,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "xls/jit/jit_channel_queue.h"
-#include "xls/jit/jit_runtime.h"
+#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
@@ -575,7 +574,7 @@ llvm::Value* InvokeCallback(llvm::IRBuilder<>* builder, llvm::Type* return_type,
                     [](llvm::Value* v) { return v->getType(); });
   llvm::Value* fn_ptr_ptr =
       builder->CreateGEP(builder->getInt8Ty(), instance_ptr, fn_offset,
-                         "callback_ptr_ptr", /*IsInBounds=*/ true);
+                         "callback_ptr_ptr", /*IsInBounds=*/true);
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(return_type, params_types, /*isVarArg=*/false);
   llvm::Value* fn_ptr =

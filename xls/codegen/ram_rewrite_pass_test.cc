@@ -40,6 +40,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"

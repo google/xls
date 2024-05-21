@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"

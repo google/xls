@@ -27,6 +27,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/function_extractor.h"
+#include "xls/netlist/lib_parser.h"
 #include "xls/netlist/netlist.pb.h"
 
 ABSL_FLAG(std::string, cell_library, "", "Cell library to preprocess.");

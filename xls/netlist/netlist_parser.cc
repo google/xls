@@ -14,6 +14,7 @@
 
 #include "xls/netlist/netlist_parser.h"
 
+#include <cctype>
 #include <string>
 
 #include "absl/log/check.h"

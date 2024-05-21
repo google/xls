@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/pass_base.h"
 

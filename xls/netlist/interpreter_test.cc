@@ -14,6 +14,7 @@
 #include "xls/netlist/interpreter.h"
 
 #include <atomic>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -33,6 +34,7 @@
 #include "xls/netlist/function_extractor.h"
 #include "xls/netlist/lib_parser.h"
 #include "xls/netlist/netlist.h"
+#include "xls/netlist/netlist.pb.h"
 #include "xls/netlist/netlist_parser.h"
 
 namespace xls {
@@ -470,7 +472,7 @@ TEST(NetlistParserTest, XorUsingCellFunctions) {
 
 class OpaqueBoolValue {
  public:
-  OpaqueBoolValue(const OpaqueBoolValue& rhs)  = default;
+  OpaqueBoolValue(const OpaqueBoolValue& rhs) = default;
   OpaqueBoolValue& operator=(const OpaqueBoolValue& rhs) = default;
   OpaqueBoolValue(OpaqueBoolValue&& rhs) { value_ = rhs.value_; }
   OpaqueBoolValue& operator=(OpaqueBoolValue&& rhs) {
@@ -556,7 +558,7 @@ struct EvalOpCallCounter {
 
 #define OP(ValueT, counter, name)                                            \
   {                                                                          \
-#name, {                                                                 \
+    #name, {                                                                 \
       {                                                                      \
         "Y",                                                                 \
             [&counter](                                                      \

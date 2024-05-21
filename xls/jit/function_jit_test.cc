@@ -19,6 +19,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <ios>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <random>
@@ -59,6 +60,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"

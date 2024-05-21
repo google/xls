@@ -14,12 +14,15 @@
 
 #include "xls/interpreter/serial_proc_runtime.h"
 
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -33,6 +36,7 @@
 #include "xls/interpreter/proc_runtime_test_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_proc_runtime.h"
@@ -103,7 +107,6 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
   return CreateMixedSerialProcRuntime(std::move(elaboration));
 }
 
-
 // Negative test - can we handle asserts
 // when using JitSerialProcRuntime?
 TEST(SerialProcRuntimeTest, JitAsserts) {
@@ -114,10 +117,10 @@ TEST(SerialProcRuntimeTest, JitAsserts) {
   XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
                            CreateJitSerialProcRuntime(package.get()));
 
-  EXPECT_THAT(interpreter->Tick(), status_testing::StatusIs(
-                                   absl::StatusCode::kAborted,
-                                   ::testing::HasSubstr(
-                                     "Assertion failure via fail!")));
+  EXPECT_THAT(interpreter->Tick(),
+              status_testing::StatusIs(
+                  absl::StatusCode::kAborted,
+                  ::testing::HasSubstr("Assertion failure via fail!")));
 }
 
 // Negative test - can we handle asserts
@@ -130,10 +133,10 @@ TEST(SerialProcRuntimeTest, InterpreterAsserts) {
   XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
                            CreateInterpreterSerialProcRuntime(package.get()));
 
-  EXPECT_THAT(interpreter->Tick(), status_testing::StatusIs(
-                                   absl::StatusCode::kAborted,
-                                   ::testing::HasSubstr(
-                                     "Assertion failure via fail!")));
+  EXPECT_THAT(interpreter->Tick(),
+              status_testing::StatusIs(
+                  absl::StatusCode::kAborted,
+                  ::testing::HasSubstr("Assertion failure via fail!")));
 }
 
 // Instantiate and run all the tests in proc_runtime_test_base.cc using
