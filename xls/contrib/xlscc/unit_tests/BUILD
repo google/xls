@@ -15,6 +15,15 @@
 load("@rules_python//python:defs.bzl", "py_test")
 load("//xls/contrib/xlscc/build_rules:cc_generator.bzl", "xls_ac_fuzz_binaries")
 
+package(
+    default_applicable_licenses = ["//:license"],
+    features = [
+        #"layering_check",  TODO(google/xls#1411)
+        "parse_headers",
+    ],
+    licenses = ["notice"],  # Apache 2.0
+)
+
 cc_library(
     name = "unit_test",
     testonly = 1,

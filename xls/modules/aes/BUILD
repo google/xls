@@ -29,6 +29,10 @@ load(
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_users"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
     licenses = ["notice"],
 )
 

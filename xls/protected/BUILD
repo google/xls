@@ -16,7 +16,12 @@
 # upon as they are internal XLS details.
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_best_effort_users"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
     licenses = ["notice"],  # Apache 2.0
 )
 

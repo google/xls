@@ -22,6 +22,11 @@ load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 # cc_proto_library is used in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
+    features = [
+        #"layering_check",  TODO(google/xls#1411)
+        "parse_headers",
+    ],
     licenses = ["notice"],  # Apache 2.0
 )
 

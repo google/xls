@@ -39,6 +39,10 @@ load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
     licenses = ["notice"],
 )
 

@@ -19,6 +19,16 @@ load(
     "xls_dslx_test",
 )
 
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//visibility:private"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
+    licenses = ["notice"],  # Apache 2.0
+)
+
 xls_dslx_library(
     name = "trace_fmt_repro_dslx",
     srcs = ["trace_fmt_repro.x"],

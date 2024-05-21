@@ -23,6 +23,10 @@ load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
     licenses = ["notice"],  # Apache 2.0
 )
 

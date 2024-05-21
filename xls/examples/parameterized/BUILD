@@ -26,6 +26,10 @@ load("//xls/build_rules:xls_utilities.bzl", "proto_to_dslx")
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
     licenses = ["notice"],
 )
 

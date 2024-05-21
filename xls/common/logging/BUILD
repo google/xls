@@ -19,6 +19,10 @@
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//visibility:private"],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
     licenses = ["notice"],  # Apache 2.0
 )
 
