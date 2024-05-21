@@ -189,6 +189,7 @@ cc_library(
         "//xls/dslx:mangle",
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:pos",

@@ -218,6 +218,39 @@ class Checker {
     });
   }
 
+  Checker& IsIndex(int64_t argno, int64_t* size) {
+    IsUN(argno);
+    if (status_.ok()) {  // early exit if uN check succeed.
+      *size = 1;
+      return *this;
+    }
+    status_ = absl::OkStatus();  // reset status
+    const TupleType* t;
+    IsTuple(argno, &t);
+    if (status_.ok()) {
+      *size = t->size();
+    }
+    return *this;
+  }
+
+  Checker& IsTuple(int64_t argno, const TupleType** out = nullptr) {
+    if (!status_.ok()) {
+      return *this;
+    }
+    const Type& t = GetArgType(argno);
+    if (auto* a = dynamic_cast<const TupleType*>(&t)) {
+      if (out != nullptr) {  // NOMUTANTS -- static helper, not testable.
+        *out = a;
+      }
+    } else {
+      status_ = TypeInferenceErrorStatus(
+          span_, &t,
+          absl::StrFormat("Want argument %d to '%s' to be a tuple; got %s",
+                          argno, name_, t.ToString()));
+    }
+    return *this;
+  }
+
   // Fluent API for checking that `argno` is bits-typed.
   Checker& IsBits(int64_t argno) {
     if (!status_.ok()) {
@@ -812,19 +845,40 @@ PopulateSignatureToLambdaMap() {
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), BitsType::MakeU32())};
   };
-  map["(T[N], uN[M], T) -> T[N]"] =
+  map["(T[...], uN[M]|(uN[M], ...), T) -> T[...]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    const ArrayType* a;
+    const ArrayType* container_type;
+    int64_t index_size;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(3)
-                       .IsArray(0, &a)
-                       .IsUN(1);
-    XLS_RETURN_IF_ERROR(checker.status());
-    checker.TypesAreSame(a->element_type(), *data.arg_types[2], [&] {
+                       .IsArray(0, &container_type)
+                       .IsIndex(1, &index_size);
+    if (!checker.status().ok()) {
+      return TypeInferenceErrorStatus(
+          data.span, nullptr,
+          absl::StrFormat(
+              "Need index to be either a uN or a tuple of uN's, got: %s",
+              data.arg_types[1]->ToString()));
+    }
+    const Type* element_type = container_type;
+    for (int64_t i = 0; i < index_size; ++i) {
+      if (auto* f = dynamic_cast<const ArrayType*>(element_type)) {
+        element_type = &f->element_type();
+      } else {
+        return TypeInferenceErrorStatus(
+            data.span, nullptr,
+            absl::StrFormat(
+                "Want argument 0 type %s dimensions: %d to be larger than "
+                "the number of indices: %d",
+                container_type->ToString(),
+                container_type->GetAllDims().size() - 1, index_size));
+      }
+    }
+    checker.TypesAreSame(*element_type, *data.arg_types[2], [&] {
       return absl::StrFormat(
           "Want argument 0 element type %s to match argument 2 type %s",
-          a->element_type().ToString(), data.arg_types[2]->ToString());
+          element_type->ToString(), data.arg_types[2]->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndParametricEnv{std::make_unique<FunctionType>(

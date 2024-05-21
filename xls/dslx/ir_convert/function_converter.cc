@@ -43,6 +43,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/pos.h"
@@ -3148,10 +3149,19 @@ absl::Status FunctionConverter::HandleBuiltinSMulp(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinUpdate(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  XLS_ASSIGN_OR_RETURN(BValue index, Use(node->args()[1]));
+  std::vector<BValue> indices;
+  if (node->args()[1]->kind() == AstNodeKind::kXlsTuple) {
+    for (auto c : node->args()[1]->GetChildren(false)) {
+      XLS_ASSIGN_OR_RETURN(BValue index, Use(c));
+      indices.push_back(index);
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(BValue index, Use(node->args()[1]));
+    indices.push_back(index);
+  }
   XLS_ASSIGN_OR_RETURN(BValue new_value, Use(node->args()[2]));
   Def(node, [&](const SourceInfo& loc) {
-    return function_builder_->ArrayUpdate(arg, new_value, {index}, loc);
+    return function_builder_->ArrayUpdate(arg, new_value, indices, loc);
   });
   return absl::OkStatus();
 }
