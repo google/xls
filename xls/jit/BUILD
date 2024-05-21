@@ -57,7 +57,6 @@ cc_library(
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
-        "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:proc_elaboration",
@@ -502,7 +501,6 @@ cc_test(
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
-        ":llvm_compiler",
         ":orc_jit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -637,7 +635,6 @@ cc_library(
         ":jit_buffer",
         ":jit_callbacks",
         ":jit_runtime",
-        ":llvm_compiler",
         ":orc_jit",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -690,7 +687,6 @@ cc_library(
         ":jit_callbacks",
         ":jit_channel_queue",
         ":jit_runtime",
-        ":llvm_compiler",
         ":observer",
         ":orc_jit",
         "//xls/common/status:ret_check",
@@ -837,7 +833,6 @@ cc_test(
     name = "type_layout_test",
     srcs = ["type_layout_test.cc"],
     deps = [
-        ":llvm_compiler",
         ":llvm_type_converter",
         ":orc_jit",
         ":type_layout",
@@ -865,7 +860,6 @@ cc_test(
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
-        ":llvm_compiler",
         ":orc_jit",
         ":proc_jit",
         "//xls/common:xls_gunit_main",
