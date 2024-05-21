@@ -1380,11 +1380,15 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return FailureErrorStatus(bytecode.source_span(), value.ToString());
     }
     case Builtin::kAssert: {
-      XLS_ASSIGN_OR_RETURN(InterpValue predicate, Pop());
       XLS_ASSIGN_OR_RETURN(InterpValue label, Pop());
+      XLS_ASSIGN_OR_RETURN(InterpValue predicate, Pop());
+
+      XLS_ASSIGN_OR_RETURN(std::string label_as_string,
+                           InterpValueAsString(label));
       if (predicate.IsFalse()) {
-        return FailureErrorStatus(bytecode.source_span(), label.ToString());
+        return FailureErrorStatus(bytecode.source_span(), label_as_string);
       }
+
       stack_.Push(InterpValue::MakeUnit());
       return absl::OkStatus();
     }

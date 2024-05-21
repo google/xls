@@ -1071,7 +1071,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/assert_with_false_predicate.x',
     )
-    self.assertIn('ABORTED: Assertion failure via assert!', stderr)
+    self.assertIn('The program being interpreted failed! oh_no', stderr)
 
   def test_warning_on_assert_pattern(self):
     stderr = self._run(
@@ -1167,6 +1167,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn(
         'Tuple has extra elements:',
         stderr,
+    )
+
+  def test_assert_in_proc(self):
+    stderr = self._run('xls/dslx/tests/errors/assert_in_proc.x')
+    self.assertIn(
+        'The program being interpreted failed! always_fail_assert', stderr
     )
 
 
