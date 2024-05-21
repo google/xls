@@ -64,7 +64,7 @@ class YosysSynthesizerParameters : public SynthesizerParameters {
         yosys_path_(yosys_path),
         sta_path_(sta_path),
         synthesis_libraries_(synthesis_libraries) {}
-  virtual ~YosysSynthesizerParameters() = default;
+  ~YosysSynthesizerParameters() override = default;
 
   std::string yosys_path() const { return yosys_path_; }
   std::string sta_path() const { return sta_path_; }
@@ -81,7 +81,7 @@ class YosysSynthesizerParameters : public SynthesizerParameters {
 class YosysSynthesizerFactory : public SynthesizerFactory {
  public:
   explicit YosysSynthesizerFactory() : SynthesizerFactory("yosys") {}
-  virtual ~YosysSynthesizerFactory() = default;
+  ~YosysSynthesizerFactory() override = default;
   absl::StatusOr<std::unique_ptr<Synthesizer>> CreateSynthesizer(
       const SynthesizerParameters &parameters) override;
   absl::StatusOr<std::unique_ptr<Synthesizer>> CreateSynthesizer(

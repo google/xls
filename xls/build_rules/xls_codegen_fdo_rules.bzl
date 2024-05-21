@@ -318,7 +318,7 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
         yosys_tool = ctx.executable.yosys_tool
         sta_tool = ctx.executable.sta_tool
         synth_lib = ctx.attr.standard_cells[StandardCellInfo].default_corner.liberty
-        final_args += " --fdo_synthesizer_name=yosys"
+        final_args += " --fdo_synthesizer_name={}".format(codegen_args.get("fdo_synthesizer_name", "yosys"))
         final_args += " --fdo_yosys_path={}".format(yosys_tool.path)
         final_args += " --fdo_sta_path={}".format(sta_tool.path)
         final_args += " --fdo_synthesis_libraries={}".format(synth_lib.path)
