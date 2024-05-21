@@ -33,6 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"

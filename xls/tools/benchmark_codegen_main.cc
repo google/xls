@@ -47,6 +47,7 @@
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
+#include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 

@@ -45,6 +45,7 @@
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
+#include "xls/common/math_util.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -76,7 +77,8 @@ struct MessageRecord {
   absl::flat_hash_map<std::string, ChildElement> children;
 
   // The [proto] descriptor for this message/struct, if applicable.
-  std::variant<const google::protobuf::Descriptor*, const google::protobuf::EnumDescriptor*>
+  std::variant<const google::protobuf::Descriptor*,
+               const google::protobuf::EnumDescriptor*>
       descriptor;
 
   // The typedef associated with this message, if it describes a struct.
@@ -238,7 +240,8 @@ std::string GetParentPrefixedName(const std::string& top_package,
 
 // Simple output logger for any errors coming from a
 // SourceTreeDescriptorDatabase.
-class DbErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {
+class DbErrorCollector
+    : public google::protobuf::compiler::MultiFileErrorCollector {
  public:
   // Compatiblity: new interface is Record*(), old interface is Add*().
   // For a transition period, be compatible with both, but note, we can't
@@ -865,7 +868,8 @@ absl::Status EmitEnumData(
         elements);
   }
 
-  const google::protobuf::EnumValueDescriptor* evd = reflection->GetEnum(message, fd);
+  const google::protobuf::EnumValueDescriptor* evd =
+      reflection->GetEnum(message, fd);
   std::string type_name = GetParentPrefixedName(top_package, evd->type());
   auto* enum_def = name_to_record.at(type_name)->enum_def;
   auto* name_ref =
@@ -1122,7 +1126,8 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
 
 absl::StatusOr<std::unique_ptr<Message>> ConstructProtoViaText(
     std::string_view text_proto, std::string_view message_name,
-    DescriptorPool* descriptor_pool, google::protobuf::DynamicMessageFactory* factory) {
+    DescriptorPool* descriptor_pool,
+    google::protobuf::DynamicMessageFactory* factory) {
   XLS_RET_CHECK(descriptor_pool != nullptr);
   XLS_RET_CHECK(factory != nullptr);
 
@@ -1135,21 +1140,23 @@ absl::StatusOr<std::unique_ptr<Message>> ConstructProtoViaText(
   std::unique_ptr<Message> new_message(message->New());
 
   google::protobuf::TextFormat::ParseFromString(ToProtoString(text_proto),
-                                      new_message.get());
+                                                new_message.get());
 
   return new_message;
 }
 
 absl::StatusOr<std::unique_ptr<dslx::Module>> CreateDslxFromParams(
     std::string_view module_name,
-    absl::Span<const std::pair<std::string_view, const google::protobuf::Message*>>
+    absl::Span<
+        const std::pair<std::string_view, const google::protobuf::Message*>>
         params) {
   auto module = std::make_unique<dslx::Module>(std::string{module_name},
                                                /*fs_path=*/std::nullopt);
 
   ProtoToDslxManager proto_to_dslx(module.get());
 
-  for (std::pair<std::string_view, const google::protobuf::Message*> p : params) {
+  for (std::pair<std::string_view, const google::protobuf::Message*> p :
+       params) {
     std::string_view binding_name = p.first;
     const google::protobuf::Message* proto_param = p.second;
 

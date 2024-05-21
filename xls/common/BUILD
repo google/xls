@@ -214,6 +214,7 @@ cc_test(
     deps = [
         ":math_util",
         ":xls_gunit_main",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
@@ -331,6 +332,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

@@ -17,6 +17,8 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/log_severity.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/logging/scoped_mock_log.h"
 

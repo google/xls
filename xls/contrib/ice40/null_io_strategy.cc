@@ -15,6 +15,7 @@
 #include "xls/contrib/ice40/null_io_strategy.h"
 
 #include "absl/status/status.h"
+#include "xls/codegen/vast.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {

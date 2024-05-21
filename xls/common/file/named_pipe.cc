@@ -15,6 +15,7 @@
 #include "xls/common/file/named_pipe.h"
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <cstdio>
@@ -28,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/file/file_descriptor.h"
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/status_macros.h"
 

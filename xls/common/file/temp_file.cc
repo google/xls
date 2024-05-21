@@ -17,10 +17,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <cerrno>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
-#include <system_error>
+#include <system_error>  // NOLINT
 #include <utility>
 
 #include "absl/log/log.h"
@@ -45,7 +47,6 @@ absl::Status WriteContent(int fd, std::string_view content) {
       }
       return absl::UnavailableError(absl::StrCat(
           "Failed to write content to temporary file: ", Strerror(errno)));
-
     }
     bytes_written += bytes_written_this_time;
   }

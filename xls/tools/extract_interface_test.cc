@@ -14,6 +14,8 @@
 
 #include "xls/tools/extract_interface.h"
 
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/proto_test_utils.h"
@@ -23,7 +25,6 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls {
 namespace {

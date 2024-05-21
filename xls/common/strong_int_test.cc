@@ -14,16 +14,17 @@
 
 #include "xls/common/strong_int.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <limits>
 #include <sstream>
 #include <type_traits>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/hash/hash_testing.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 
 namespace xls {
 namespace {
@@ -855,11 +856,11 @@ XLS_DEFINE_STRONG_INT_TYPE(Inches, int64_t);
 XLS_DEFINE_STRONG_INT_TYPE(Feet, int64_t);
 XLS_DEFINE_STRONG_INT_TYPE(Centimeters, int32_t);
 
-constexpr Feet StrongIntConvert(const Inches &arg, Feet * /* unused */) {
+constexpr Feet StrongIntConvert(const Inches& arg, Feet* /* unused */) {
   return Feet(arg.value() / 12);
 }
-constexpr Centimeters StrongIntConvert(const Inches &arg,
-                                       Centimeters * /* unused */) {
+constexpr Centimeters StrongIntConvert(const Inches& arg,
+                                       Centimeters* /* unused */) {
   return Centimeters(arg.value() * 2.54);
 }
 

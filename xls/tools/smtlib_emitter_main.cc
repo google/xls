@@ -29,6 +29,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "../z3/src/api/z3_api.h"

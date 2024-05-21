@@ -14,15 +14,18 @@
 
 #include "xls/common/file/temp_file.h"
 
+#include <stdlib.h>
+#include <unistd.h>
+
 #include <filesystem>  // NOLINT
 #include <string>
 #include <system_error>
 #include <utility>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/matchers.h"
 

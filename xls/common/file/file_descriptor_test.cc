@@ -15,6 +15,7 @@
 #include "xls/common/file/file_descriptor.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <utility>
@@ -99,9 +100,7 @@ TEST_F(FileDescriptorTest, FileDescriptorIsClosedAndResetOnClose) {
 }
 
 TEST_F(FileDescriptorTest, FileDescriptorIsClosedOnDestruction) {
-  {
-    MockFileDescriptor fd(6);
-  }
+  { MockFileDescriptor fd(6); }
 
   EXPECT_EQ(recently_closed_fd, 6);
 }

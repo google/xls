@@ -14,6 +14,10 @@
 
 #include "xls/common/logging/log_flags.h"
 
+#include <algorithm>
+
+#include "absl/base/log_severity.h"
+#include "absl/flags/flag.h"
 #include "absl/log/globals.h"
 
 namespace {

@@ -20,8 +20,8 @@
 #include <string_view>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
@@ -31,6 +31,7 @@
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/verilog_test_base.h"
+#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {

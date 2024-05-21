@@ -14,12 +14,15 @@
 
 #include "xls/common/math_util.h"
 
+#include <sys/types.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <limits>
 
-#include "gtest/gtest.h"
+#include "absl/base/macros.h"
 #include "fuzztest/fuzztest.h"
+#include "gtest/gtest.h"
 
 namespace xls {
 namespace {

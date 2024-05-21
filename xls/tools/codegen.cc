@@ -44,6 +44,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"

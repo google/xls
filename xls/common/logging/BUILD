@@ -59,6 +59,7 @@ cc_test(
         ":log_lines",
         ":scoped_mock_log",
         "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/base:log_severity",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -97,7 +98,7 @@ cc_binary(
     testonly = True,
     srcs = ["log_initialization_tester.cc"],
     deps = [
-        "@com_google_absl//absl/log",
         "//xls/common:init_xls",
+        "@com_google_absl//absl/log",
     ],
 )

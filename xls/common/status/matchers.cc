@@ -20,6 +20,9 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "xls/common/status/status_builder.h"
 
 namespace xls {
 namespace status_testing {

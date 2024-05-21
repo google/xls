@@ -39,7 +39,9 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "re2/re2.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
@@ -57,7 +59,6 @@
 #include "xls/simulation/testbench_stream.h"
 #include "xls/simulation/verilog_simulator.h"
 #include "xls/tools/verilog_include.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace verilog {

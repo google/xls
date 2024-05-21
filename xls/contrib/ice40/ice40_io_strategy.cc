@@ -20,10 +20,12 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/source_location.h"
+#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {

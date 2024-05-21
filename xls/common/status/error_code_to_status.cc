@@ -17,6 +17,7 @@
 #include <system_error>  // NOLINT(build/c++11)
 
 #include "absl/status/status.h"
+#include "xls/common/status/status_builder.h"
 
 namespace xls {
 

@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/contrib/ice40/device_rpc_strategy.h"
 
 namespace xls {
 

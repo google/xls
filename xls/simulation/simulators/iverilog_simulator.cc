@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -52,8 +53,9 @@ static absl::Status SetUpIncludes(const std::filesystem::path& temp_dir,
 absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path iverilog_path,
-                       GetXlsRunfilePath("external/com_icarus_iverilog/iverilog-bin"));
+  XLS_ASSIGN_OR_RETURN(
+      std::filesystem::path iverilog_path,
+      GetXlsRunfilePath("external/com_icarus_iverilog/iverilog-bin"));
   args_vec.push_back(iverilog_path.string());
   args_vec.push_back("-B");
   args_vec.push_back(
@@ -66,8 +68,9 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
 absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
     absl::Span<const std::string> args) {
   std::vector<std::string> args_vec;
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path iverilog_path,
-                       GetXlsRunfilePath("external/com_icarus_iverilog/vvp-bin"));
+  XLS_ASSIGN_OR_RETURN(
+      std::filesystem::path iverilog_path,
+      GetXlsRunfilePath("external/com_icarus_iverilog/vvp-bin"));
   args_vec.push_back(iverilog_path.string());
   args_vec.push_back("-M");
   args_vec.push_back(
