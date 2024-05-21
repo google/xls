@@ -18,9 +18,10 @@
 #include <optional>
 #include <string_view>
 
+#include "absl/algorithm/container.h"
+#include "absl/status/status.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/stdlib/float32_mul_jit_wrapper.h"
 #include "xls/dslx/stdlib/float32_upcast_jit_wrapper.h"

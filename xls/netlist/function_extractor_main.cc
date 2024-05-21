@@ -27,6 +27,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/netlist/function_extractor.h"
+#include "xls/netlist/lib_parser.h"
 #include "xls/netlist/netlist.pb.h"
 
 ABSL_FLAG(std::string, cell_library, "", "Cell library to preprocess.");
@@ -50,7 +51,8 @@ static absl::Status RealMain(const std::string& cell_library_path,
 
   if (output_textproto) {
     std::string output;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(lib_proto, &output));
+    XLS_RET_CHECK(
+        google::protobuf::TextFormat::PrintToString(lib_proto, &output));
     return SetFileContents(output_path, output);
   }
   return SetFileContents(output_path, lib_proto.SerializeAsString());

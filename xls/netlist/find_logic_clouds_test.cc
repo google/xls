@@ -20,7 +20,9 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/fake_cell_library.h"
+#include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist_parser.h"
 
 namespace xls {

@@ -19,12 +19,15 @@
 #include <vector>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/netlist/cell_library.h"
+#include "xls/netlist/netlist.h"
 
 namespace xls {
 namespace netlist {

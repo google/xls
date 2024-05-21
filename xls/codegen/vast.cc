@@ -34,6 +34,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"

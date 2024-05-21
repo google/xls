@@ -21,6 +21,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
@@ -29,6 +30,7 @@
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 
 namespace xls {
 

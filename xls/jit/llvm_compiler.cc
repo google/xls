@@ -14,12 +14,18 @@
 
 #include "xls/jit/llvm_compiler.h"
 
+#include <cerrno>
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
 
 #include "absl/base/call_once.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "llvm/include/llvm-c/Target.h"
 #include "llvm/include/llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/include/llvm/Analysis/LoopAnalysisManager.h"

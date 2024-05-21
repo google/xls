@@ -19,9 +19,14 @@
 #include <utility>
 #include <vector>
 
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/package.h"
+#include "xls/jit/type_layout.h"
+#include "xls/jit/type_layout.pb.h"
 
 namespace xls::aot_compile {
 
@@ -31,8 +36,8 @@ FunctionTypeLayout::Create(std::string_view serialized_arg_layouts,
   auto dummy_package = std::make_unique<Package>("__aot_compiler");
 
   TypeLayoutsProto arg_layouts_proto;
-  if (!google::protobuf::TextFormat::ParseFromString(std::string(serialized_arg_layouts),
-                                           &arg_layouts_proto)) {
+  if (!google::protobuf::TextFormat::ParseFromString(
+          std::string(serialized_arg_layouts), &arg_layouts_proto)) {
     return absl::InvalidArgumentError(
         "Unable to parse TypeLayoutsProto for arguments");
   }

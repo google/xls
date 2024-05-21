@@ -14,14 +14,16 @@
 
 #include "xls/codegen/mulp_combining_pass.h"
 
+#include "absl/status/statusor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = xls::op_matchers;
 namespace xls::verilog {

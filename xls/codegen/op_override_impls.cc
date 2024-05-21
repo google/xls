@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -25,21 +26,27 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
+#include "xls/codegen/module_builder.h"
+#include "xls/codegen/node_representation.h"
+#include "xls/codegen/op_override.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
-#include "re2/re2.h"
+#include "xls/ir/nodes.h"
 
 namespace xls::verilog {
 
-constexpr std::array<std::string_view, 2> kGatePlaceholderAliasKeys{
-    "condition", "input"};
-constexpr std::array<std::string_view, 2> kGatePlaceholderAliasValues{
-    "input0", "input1"};
+constexpr std::array<std::string_view, 2> kGatePlaceholderAliasKeys{"condition",
+                                                                    "input"};
+constexpr std::array<std::string_view, 2> kGatePlaceholderAliasValues{"input0",
+                                                                      "input1"};
 
 static absl::StatusOr<std::string> GenerateFormatString(
     std::string_view fmt_string,

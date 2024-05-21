@@ -22,10 +22,13 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/union_find.h"
+#include "xls/netlist/cell_library.h"
+#include "xls/netlist/netlist.h"
 
 namespace xls {
 namespace netlist {

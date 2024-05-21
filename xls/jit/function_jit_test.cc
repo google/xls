@@ -19,6 +19,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <ios>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <random>
@@ -27,9 +28,6 @@
 #include <tuple>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -41,6 +39,9 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
+#include "fuzztest/fuzztest.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
@@ -59,6 +60,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/ir/xls_type.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"

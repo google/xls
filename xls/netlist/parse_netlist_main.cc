@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -28,7 +29,10 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/find_logic_clouds.h"
+#include "xls/netlist/netlist.h"
+#include "xls/netlist/netlist.pb.h"
 #include "xls/netlist/netlist_parser.h"
 
 ABSL_FLAG(bool, show_clusters, false, "Show the logic clusters found.");
