@@ -1652,7 +1652,7 @@ class BlankLine : public Statement {
 //   [LABEL:] assert property (
 //       @(CLOCKING_EVENT)
 //       [disable iff DISABLE_IFF] CONDITION)
-//     else $error(0, message);
+//     else $fatal(0, message);
 class ConcurrentAssertion : public Statement {
  public:
   ConcurrentAssertion(Expression* condition, Expression* clocking_event,
@@ -1672,6 +1672,27 @@ class ConcurrentAssertion : public Statement {
   Expression* condition_;
   Expression* clocking_event_;
   std::optional<Expression*> disable_iff_;
+  std::string label_;
+  std::string error_message_;
+};
+
+// Represents a SystemVerilog deferred assert statement of the following
+// form:
+//
+//   [LABEL:] assert final (DISABLE_IFF || CONDITION)
+//     else $fatal(0, message);
+class DeferredImmediateAssertion : public Statement {
+ public:
+  DeferredImmediateAssertion(Expression* condition,
+                             std::optional<Expression*> disable_iff,
+                             std::string_view label,
+                             std::string_view error_message, VerilogFile* file,
+                             const SourceInfo& loc);
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  Expression* condition_;
   std::string label_;
   std::string error_message_;
 };
@@ -1925,7 +1946,8 @@ using ModuleMember =
                  BlankLine*,               // Blank line.
                  InlineVerilogStatement*,  // InlineVerilog string statement.
                  VerilogFunction*,         // Function definition
-                 Typedef*, Enum*, Cover*, ConcurrentAssertion*, ModuleSection*>;
+                 Typedef*, Enum*, Cover*, ConcurrentAssertion*,
+                 DeferredImmediateAssertion*, ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may

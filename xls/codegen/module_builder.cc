@@ -882,12 +882,7 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     LOG(WARNING) << "Asserts are only supported in SystemVerilog.";
     return UnrepresentedSentinel();
   }
-  if (clock() == nullptr) {
-    // TODO(meheff): Add support for assertions without a clock using deferred
-    // assertions (SystemVerilog LRM 16.4).
-    return absl::InvalidArgumentError(
-        "Emitting an assert in SystemVerilog requires a clock.");
-  }
+
   Expression* disable_iff;
   if (reset().has_value()) {
     // Disable the assert when in reset.
@@ -902,6 +897,22 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     disable_iff = file_->Make<SystemFunctionCall>(
         asrt->loc(), "isunknown", std::vector<Expression*>({condition}));
   }
+
+  if (clock() == nullptr) {
+    return assert_section()->Add<DeferredImmediateAssertion>(
+        asrt->loc(), condition, disable_iff,
+        asrt->label().has_value() ? asrt->label().value() : "",
+        asrt->message());
+  }
+
+  // Sample the disable_iff signal under the following conditions
+  //  1. reset exists and is synchronous.
+  //  2. reset does not exist and a clock exists.
+  if (!reset().has_value() || !reset()->asynchronous) {
+    disable_iff = file_->Make<SystemFunctionCall>(
+        asrt->loc(), "sampled", std::vector<Expression*>({disable_iff}));
+  }
+
   return assert_section()->Add<ConcurrentAssertion>(
       asrt->loc(), condition,
       /*clocking_event=*/file_->Make<PosEdge>(asrt->loc(), clock()),

@@ -1563,6 +1563,45 @@ TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
 endmodule)");
 }
 
+TEST_P(VastTest, DeferredImmediateAssertionTest) {
+  if (!UseSystemVerilog()) {
+    return;
+  }
+
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  LogicRef* rst = m->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo());
+  LogicRef* a =
+      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
+
+  m->Add<DeferredImmediateAssertion>(
+      SourceInfo(), f.Equals(a, f.Literal(0, 8, SourceInfo()), SourceInfo()),
+      /*disable_iff=*/std::nullopt,
+      /*label=*/"",
+      /*error_message=*/"");
+  m->Add<DeferredImmediateAssertion>(
+      SourceInfo(), f.Equals(a, f.Literal(0x9, 8, SourceInfo()), SourceInfo()),
+      /*disable_iff=*/rst,
+      /*label=*/"my_label",
+      /*error_message=*/"");
+  m->Add<DeferredImmediateAssertion>(
+      SourceInfo(), f.Equals(a, f.Literal(0x42, 8, SourceInfo()), SourceInfo()),
+      /*disable_iff=*/rst,
+      /*label=*/"",
+      /*error_message=*/"a does not equal 0x42");
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top(
+  input wire rst,
+  input wire [7:0] a
+);
+  assert final (a == 8'h00) else $fatal(0);
+  my_label: assert final (rst || a == 8'h09) else $fatal(0);
+  assert final (rst || a == 8'h42) else $fatal(0, "a does not equal 0x42");
+endmodule)");
+}
+
 TEST_P(VastTest, ConcurrentAssertionTest) {
   if (!UseSystemVerilog()) {
     return;

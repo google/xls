@@ -143,6 +143,9 @@ class IcarusVerilogSimulator : public VerilogSimulator {
 
     return absl::OkStatus();
   }
+
+  bool DoesSupportSystemVerilog() const override { return false; }
+  bool DoesSupportAssertions() const override { return false; }
 };
 
 XLS_REGISTER_MODULE_INITIALIZER(iverilog_simulator, {

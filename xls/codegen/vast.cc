@@ -808,24 +808,26 @@ namespace {
 // "Match" statement for emitting a ModuleMember.
 std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
   return absl::visit(
-      Visitor{[=](Def* d) { return d->Emit(line_info); },
-              [=](LocalParam* p) { return p->Emit(line_info); },
-              [=](Parameter* p) { return p->Emit(line_info); },
-              [=](Typedef* d) { return d->Emit(line_info); },
-              [=](Enum* e) { return e->Emit(line_info); },
-              [=](Instantiation* i) { return i->Emit(line_info); },
-              [=](ContinuousAssignment* c) { return c->Emit(line_info); },
-              [=](Comment* c) { return c->Emit(line_info); },
-              [=](BlankLine* b) { return b->Emit(line_info); },
-              [=](InlineVerilogStatement* s) { return s->Emit(line_info); },
-              [=](StructuredProcedure* sp) { return sp->Emit(line_info); },
-              [=](AlwaysComb* ac) { return ac->Emit(line_info); },
-              [=](AlwaysFf* af) { return af->Emit(line_info); },
-              [=](AlwaysFlop* af) { return af->Emit(line_info); },
-              [=](VerilogFunction* f) { return f->Emit(line_info); },
-              [=](Cover* c) { return c->Emit(line_info); },
-              [=](ConcurrentAssertion* ca) { return ca->Emit(line_info); },
-              [=](ModuleSection* s) { return s->Emit(line_info); }},
+      Visitor{
+          [=](Def* d) { return d->Emit(line_info); },
+          [=](LocalParam* p) { return p->Emit(line_info); },
+          [=](Parameter* p) { return p->Emit(line_info); },
+          [=](Typedef* d) { return d->Emit(line_info); },
+          [=](Enum* e) { return e->Emit(line_info); },
+          [=](Instantiation* i) { return i->Emit(line_info); },
+          [=](ContinuousAssignment* c) { return c->Emit(line_info); },
+          [=](Comment* c) { return c->Emit(line_info); },
+          [=](BlankLine* b) { return b->Emit(line_info); },
+          [=](InlineVerilogStatement* s) { return s->Emit(line_info); },
+          [=](StructuredProcedure* sp) { return sp->Emit(line_info); },
+          [=](AlwaysComb* ac) { return ac->Emit(line_info); },
+          [=](AlwaysFf* af) { return af->Emit(line_info); },
+          [=](AlwaysFlop* af) { return af->Emit(line_info); },
+          [=](VerilogFunction* f) { return f->Emit(line_info); },
+          [=](Cover* c) { return c->Emit(line_info); },
+          [=](ConcurrentAssertion* ca) { return ca->Emit(line_info); },
+          [=](DeferredImmediateAssertion* ca) { return ca->Emit(line_info); },
+          [=](ModuleSection* s) { return s->Emit(line_info); }},
       member);
 }
 
@@ -885,7 +887,7 @@ std::string ConcurrentAssertion::Emit(LineInfo* line_info) const {
 
   // The $fatal statement takes finish_number as the first argument which is a
   // value in the set {0, 1, 2}. This value "sets the level of diagnostic
-  // information reported by the tool" (from IEEE Std 1800-2017).
+  // information reported by the tool" (from IEEE Std 1800-2017, 20.10).
   //
   // XLS emits asserts taking combinational inputs, so a deferred
   // immediate assertion is used.
@@ -901,6 +903,40 @@ std::string ConcurrentAssertion::Emit(LineInfo* line_info) const {
                           disable_iff_.value()->Emit(line_info));
   }
   absl::StrAppendFormat(&result, "%s) else $fatal(%d%s);",
+                        condition_->Emit(line_info), kFinishNumber,
+                        error_message_.empty()
+                            ? ""
+                            : absl::StrFormat(", \"%s\"", error_message_));
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+DeferredImmediateAssertion::DeferredImmediateAssertion(
+    Expression* condition, std::optional<Expression*> disable_iff,
+    std::string_view label, std::string_view error_message, VerilogFile* file,
+    const SourceInfo& loc)
+    : Statement(file, loc), label_(label), error_message_(error_message) {
+  if (disable_iff.has_value()) {
+    condition_ = file->LogicalOr(disable_iff.value(), condition, loc);
+  } else {
+    condition_ = condition;
+  }
+}
+
+std::string DeferredImmediateAssertion::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  LineInfoIncrease(line_info, 1);
+
+  // The $fatal statement takes finish_number as the first argument which is a
+  // value in the set {0, 1, 2}. This value "sets the level of diagnostic
+  // information reported by the tool" (from IEEE Std 1800-2017, 20.10).
+  constexpr int64_t kFinishNumber = 0;
+  std::string result;
+  if (!label_.empty()) {
+    absl::StrAppendFormat(&result, "%s: ", label_);
+  }
+
+  absl::StrAppendFormat(&result, "assert final (%s) else $fatal(%d%s);",
                         condition_->Emit(line_info), kFinishNumber,
                         error_message_.empty()
                             ? ""

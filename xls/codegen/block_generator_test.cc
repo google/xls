@@ -471,7 +471,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(assert property (@(posedge my_clk) disable iff (my_rst) a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
+              R"(assert property (@(posedge my_clk) disable iff ($sampled(my_rst)) a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
@@ -536,7 +536,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(assert property (@(posedge my_clk) disable iff ($isunknown(a < 32'h0000_002a)) a < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
+              R"(assert property (@(posedge my_clk) disable iff ($sampled($isunknown(a < 32'h0000_002a))) a < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
@@ -572,7 +572,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
                                  "but block has no reset signal")));
 }
 
-TEST_P(BlockGeneratorTest, AssertMissingClock) {
+TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
   if (!UseSystemVerilog()) {
     return;
   }
@@ -583,11 +583,28 @@ TEST_P(BlockGeneratorTest, AssertMissingClock) {
            "a is not greater than 42", "the_label");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
-  EXPECT_THAT(
-      GenerateVerilog(block, codegen_options()),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Emitting an assert in SystemVerilog requires a clock")));
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(block, codegen_options()));
+    EXPECT_THAT(
+        verilog,
+        HasSubstr(
+            R"(assert final ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a))"));
+  }
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string verilog,
+        GenerateVerilog(
+            block, codegen_options().SetOpOverride(
+                       Op::kAssert,
+                       std::make_unique<OpOverrideAssertion>(
+                           R"(ASSERT({label}, {condition}, "{message}"))"))));
+    EXPECT_THAT(
+        verilog,
+        HasSubstr(
+            R"(ASSERT(the_label, a < 32'h0000_002a, "a is not greater than 42"))"));
+  }
 
   EXPECT_THAT(GenerateVerilog(
                   block, codegen_options().SetOpOverride(

@@ -80,6 +80,10 @@ class VerilogSimulator {
       absl::Span<const MacroDefinition> macro_definitions,
       absl::Span<const VerilogInclude> includes) const = 0;
 
+  // Features supported by simulator.
+  virtual bool DoesSupportSystemVerilog() const = 0;
+  virtual bool DoesSupportAssertions() const = 0;
+
   // Simulation runner harness: runs the given Verilog text using the verilog
   // simulator infrastructure and returns observations of data values that arose
   // during simulation.
