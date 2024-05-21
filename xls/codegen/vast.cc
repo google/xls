@@ -102,6 +102,128 @@ std::string EmitNothing(const VastNode* node, LineInfo* line_info) {
 
 }  // namespace
 
+int Precedence(OperatorKind kind) {
+  switch (kind) {
+    case OperatorKind::kNegate:
+      return 12;
+    case OperatorKind::kBitwiseNot:
+      return 12;
+    case OperatorKind::kLogicalNot:
+      return 12;
+    case OperatorKind::kAndReduce:
+      return 12;
+    case OperatorKind::kOrReduce:
+      return 12;
+    case OperatorKind::kXorReduce:
+      return 12;
+    case OperatorKind::kPower:
+      return 11;
+    case OperatorKind::kDiv:
+      return 10;
+    case OperatorKind::kMod:
+      return 10;
+    case OperatorKind::kMul:
+      return 10;
+    case OperatorKind::kAdd:
+      return 9;
+    case OperatorKind::kSub:
+      return 9;
+    case OperatorKind::kShll:
+      return 8;
+    case OperatorKind::kShra:
+      return 8;
+    case OperatorKind::kShrl:
+      return 8;
+    case OperatorKind::kGe:
+      return 7;
+    case OperatorKind::kGt:
+      return 7;
+    case OperatorKind::kLe:
+      return 7;
+    case OperatorKind::kLt:
+      return 7;
+    case OperatorKind::kNe:
+      return 6;
+    case OperatorKind::kEq:
+      return 6;
+    case OperatorKind::kNeX:
+      return 6;
+    case OperatorKind::kEqX:
+      return 6;
+    case OperatorKind::kBitwiseAnd:
+      return 5;
+    case OperatorKind::kBitwiseXor:
+      return 4;
+    case OperatorKind::kBitwiseOr:
+      return 3;
+    case OperatorKind::kLogicalAnd:
+      return 2;
+    case OperatorKind::kLogicalOr:
+      return 1;
+  }
+}
+
+std::string_view OperatorString(OperatorKind kind) {
+  switch (kind) {
+    case OperatorKind::kAdd:
+      return "+";
+    case OperatorKind::kLogicalAnd:
+      return "&&";
+    case OperatorKind::kBitwiseAnd:
+      return "&";
+    case OperatorKind::kNe:
+      return "!=";
+    case OperatorKind::kEq:
+      return "==";
+    case OperatorKind::kGe:
+      return ">=";
+    case OperatorKind::kGt:
+      return ">";
+    case OperatorKind::kLe:
+      return "<=";
+    case OperatorKind::kLt:
+      return "<";
+    case OperatorKind::kDiv:
+      return "/";
+    case OperatorKind::kMod:
+      return "%";
+    case OperatorKind::kMul:
+      return "*";
+    case OperatorKind::kPower:
+      return "**";
+    case OperatorKind::kBitwiseOr:
+      return "|";
+    case OperatorKind::kLogicalOr:
+      return "||";
+    case OperatorKind::kBitwiseXor:
+      return "^";
+    case OperatorKind::kShll:
+      return "<<";
+    case OperatorKind::kShra:
+      return ">>>";
+    case OperatorKind::kShrl:
+      return ">>";
+    case OperatorKind::kSub:
+      return "-";
+    case OperatorKind::kNeX:
+      return "!==";
+    case OperatorKind::kEqX:
+      return "===";
+    case OperatorKind::kNegate:
+      return "-";
+    case OperatorKind::kBitwiseNot:
+      return "~";
+    case OperatorKind::kLogicalNot:
+      return "!";
+    case OperatorKind::kAndReduce:
+      return "&";
+    case OperatorKind::kOrReduce:
+      return "|";
+    case OperatorKind::kXorReduce:
+      return "^";
+  }
+}
+
 std::string PartialLineSpans::ToString() const {
   return absl::StrCat(
       "[",
@@ -386,7 +508,7 @@ std::string VerilogFunctionCall::Emit(LineInfo* line_info) const {
 
 LogicRef* Module::AddPortDef(Direction direction, Def* def,
                              const SourceInfo& loc) {
-  ports_.push_back(Port{direction, def});
+  ports_.push_back(Port{.direction = direction, .wire = def});
   return file()->Make<LogicRef>(loc, def);
 }
 
@@ -547,32 +669,44 @@ std::string BitVectorType::Emit(LineInfo* line_info) const {
   return result;
 }
 
+ArrayTypeBase::ArrayTypeBase(DataType* element_type,
+                             absl::Span<const int64_t> dims, bool dims_are_max,
+                             VerilogFile* file, const SourceInfo& loc)
+    : DataType(file, loc),
+      element_type_(element_type),
+      dims_are_max_(dims_are_max) {
+  CHECK(!dims.empty());
+  for (int64_t dim : dims) {
+    dims_.push_back(file->PlainLiteral(static_cast<int32_t>(dim), loc));
+  }
+}
+
+Expression* ArrayDimToWidth(Expression* dim, bool dim_is_max) {
+  if (dim_is_max) {
+    Literal* one = dim->file()->PlainLiteral(1, dim->loc());
+    return dim->file()->Add(dim, one, dim->loc());
+  }
+  return dim;
+}
+
 PackedArrayType::PackedArrayType(Expression* width,
                                  absl::Span<Expression* const> packed_dims,
                                  bool is_signed, VerilogFile* file,
                                  const SourceInfo& loc)
-    : DataType(file, loc),
-      element_type_(file->Make<BitVectorType>(loc, width, is_signed)),
-      packed_dims_(packed_dims.begin(), packed_dims.end()) {
-  CHECK(!packed_dims.empty());
-}
+    : ArrayTypeBase(file->Make<BitVectorType>(loc, width, is_signed),
+                    packed_dims, /*dims_are_max=*/false, file, loc) {}
 
 PackedArrayType::PackedArrayType(int64_t width,
                                  absl::Span<const int64_t> packed_dims,
                                  bool is_signed, VerilogFile* file,
                                  const SourceInfo& loc)
-    : DataType(file, loc),
-      element_type_(file->Make<BitVectorType>(loc, static_cast<int32_t>(width),
-                                              is_signed)) {
-  CHECK(!packed_dims.empty());
-  for (int64_t dim : packed_dims) {
-    packed_dims_.push_back(file->PlainLiteral(static_cast<int32_t>(dim), loc));
-  }
-}
+    : ArrayTypeBase(file->Make<BitVectorType>(loc, static_cast<int32_t>(width),
+                                              is_signed),
+                    packed_dims, /*dims_are_max=*/false, file, loc) {}
 
 absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, WidthAsInt64());
-  for (Expression* dim : packed_dims()) {
+  for (Expression* dim : dims()) {
     if (!dim->IsLiteral()) {
       return absl::FailedPreconditionError(
           "Packed dimension is not a literal:" + dim->Emit(nullptr));
@@ -586,16 +720,16 @@ absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
 
 std::string PackedArrayType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result = element_type_->Emit(line_info);
-  if (element_type_->IsUserDefined()) {
+  std::string result = element_type()->Emit(line_info);
+  if (element_type()->IsUserDefined()) {
     // Imitate the space that a bit vector emits between the kind and innermost
     // dimension.
     absl::StrAppend(&result, " ");
   }
-  for (Expression* dim : packed_dims()) {
+  for (Expression* dim : dims()) {
     absl::StrAppendFormat(
         &result, "[%s:0]",
-        dims_are_max_ ? dim->Emit(line_info) : WidthToLimit(line_info, dim));
+        dims_are_max() ? dim->Emit(line_info) : WidthToLimit(line_info, dim));
   }
   LineInfoEnd(line_info, this);
   return result;
@@ -604,22 +738,15 @@ std::string PackedArrayType::Emit(LineInfo* line_info) const {
 UnpackedArrayType::UnpackedArrayType(DataType* element_type,
                                      absl::Span<const int64_t> unpacked_dims,
                                      VerilogFile* file, const SourceInfo& loc)
-    : DataType(file, loc), element_type_(element_type) {
-  CHECK(!unpacked_dims.empty());
+    : ArrayTypeBase(element_type, unpacked_dims, /*dims_are_max=*/false, file,
+                    loc) {
   CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
-  for (int64_t dim : unpacked_dims) {
-    unpacked_dims_.push_back(
-        file->PlainLiteral(static_cast<int32_t>(dim), loc));
-  }
-}
-
-absl::StatusOr<int64_t> UnpackedArrayType::WidthAsInt64() const {
-  return element_type_->FlatBitCountAsInt64();
 }
 
 absl::StatusOr<int64_t> UnpackedArrayType::FlatBitCountAsInt64() const {
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count, element_type_->FlatBitCountAsInt64());
-  for (Expression* dim : unpacked_dims()) {
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                       element_type()->FlatBitCountAsInt64());
+  for (Expression* dim : dims()) {
     if (!dim->IsLiteral()) {
       return absl::FailedPreconditionError(
           "Packed dimension is not a literal:" + dim->Emit(nullptr));
@@ -634,8 +761,9 @@ absl::StatusOr<int64_t> UnpackedArrayType::FlatBitCountAsInt64() const {
 std::string UnpackedArrayType::EmitWithIdentifier(
     LineInfo* line_info, std::string_view identifier) const {
   LineInfoStart(line_info, this);
-  std::string result = element_type_->EmitWithIdentifier(line_info, identifier);
-  for (Expression* dim : unpacked_dims()) {
+  std::string result =
+      element_type()->EmitWithIdentifier(line_info, identifier);
+  for (Expression* dim : dims()) {
     // In SystemVerilog unpacked arrays can be specified using only the size
     // rather than a range.
     if (file()->use_system_verilog()) {
@@ -649,7 +777,12 @@ std::string UnpackedArrayType::EmitWithIdentifier(
 }
 
 std::string Def::Emit(LineInfo* line_info) const {
-  return EmitNoSemi(line_info) + ";";
+  std::string result = EmitNoSemi(line_info);
+  if (init().has_value()) {
+    absl::StrAppend(&result, " = ", (*init())->Emit(line_info));
+  }
+  absl::StrAppend(&result, ";");
+  return result;
 }
 
 std::string Def::EmitNoSemi(LineInfo* line_info) const {
@@ -661,61 +794,14 @@ std::string Def::EmitNoSemi(LineInfo* line_info) const {
   return result;
 }
 
-std::string WireDef::Emit(LineInfo* line_info) const {
-  std::string result = Def::EmitNoSemi(line_info);
-  if (init_ != nullptr) {
-    absl::StrAppend(&result, " = ", init_->Emit(line_info));
-  }
-  absl::StrAppend(&result, ";");
-  return result;
-}
-
-std::string RegDef::Emit(LineInfo* line_info) const {
-  std::string result = Def::EmitNoSemi(line_info);
-  if (init_ != nullptr) {
-    absl::StrAppend(&result, " = ", init_->Emit(line_info));
-  }
-  absl::StrAppend(&result, ";");
-  return result;
-}
-
-std::string LogicDef::Emit(LineInfo* line_info) const {
-  std::string result = Def::EmitNoSemi(line_info);
-  if (init_ != nullptr) {
-    absl::StrAppend(&result, " = ", init_->Emit(line_info));
-  }
-  absl::StrAppend(&result, ";");
-  return result;
-}
-
-std::string UserDef::Emit(LineInfo* line_info) const {
-  std::string result = Def::EmitNoSemi(line_info);
-  if (init_ != nullptr) {
-    absl::StrAppend(&result, " = ", init_->Emit(line_info));
-  }
-  absl::StrAppend(&result, ";");
-  return result;
-}
-
 IntegerDef::IntegerDef(std::string_view name, VerilogFile* file,
                        const SourceInfo& loc)
-    : Def(name, DataKind::kInteger, file->IntegerType(loc), file, loc),
-      init_(nullptr) {}
+    : Def(name, DataKind::kInteger, file->IntegerType(loc), file, loc) {}
 
 IntegerDef::IntegerDef(std::string_view name, DataType* data_type,
                        Expression* init, VerilogFile* file,
                        const SourceInfo& loc)
-    : Def(name, DataKind::kInteger, file->IntegerType(loc), file, loc),
-      init_(init) {}
-
-std::string IntegerDef::Emit(LineInfo* line_info) const {
-  std::string result = Def::EmitNoSemi(line_info);
-  if (init_ != nullptr) {
-    absl::StrAppend(&result, " = ", init_->Emit(line_info));
-  }
-  absl::StrAppend(&result, ";");
-  return result;
-}
+    : Def(name, DataKind::kInteger, file->IntegerType(loc), init, file, loc) {}
 
 namespace {
 
@@ -1364,18 +1450,18 @@ std::string Forever::Emit(LineInfo* line_info) const {
 
 std::string BlockingAssignment::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string lhs = lhs_->Emit(line_info);
-  std::string rhs = rhs_->Emit(line_info);
+  std::string lhs_str = lhs()->Emit(line_info);
+  std::string rhs_str = rhs()->Emit(line_info);
   LineInfoEnd(line_info, this);
-  return absl::StrFormat("%s = %s;", lhs, rhs);
+  return absl::StrFormat("%s = %s;", lhs_str, rhs_str);
 }
 
 std::string NonblockingAssignment::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string lhs = lhs_->Emit(line_info);
-  std::string rhs = rhs_->Emit(line_info);
+  std::string lhs_str = lhs()->Emit(line_info);
+  std::string rhs_str = rhs()->Emit(line_info);
   LineInfoEnd(line_info, this);
-  return absl::StrFormat("%s <= %s;", lhs, rhs);
+  return absl::StrFormat("%s <= %s;", lhs_str, rhs_str);
 }
 
 std::string ReturnStatement::Emit(LineInfo* line_info) const {

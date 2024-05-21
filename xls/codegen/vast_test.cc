@@ -112,7 +112,14 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_THAT(s32->FlatBitCountAsInt64(), IsOkAndHolds(32));
   EXPECT_TRUE(s32->is_signed());
 
-  DataType* packed_array = f.PackedArrayType(10, {3, 2}, SourceInfo());
+  PackedArrayType* packed_array = f.PackedArrayType(10, {3, 2}, SourceInfo());
+  auto* inner_vector =
+      dynamic_cast<BitVectorType*>(packed_array->element_type());
+  EXPECT_NE(inner_vector, nullptr);
+  EXPECT_THAT(inner_vector->WidthAsInt64(), IsOkAndHolds(10));
+  ASSERT_EQ(packed_array->dims().size(), 2);
+  EXPECT_TRUE(packed_array->dims()[0]->IsLiteralWithValue(3));
+  EXPECT_TRUE(packed_array->dims()[1]->IsLiteralWithValue(2));
   EXPECT_FALSE(packed_array->IsUserDefined());
   EXPECT_EQ(packed_array->EmitWithIdentifier(nullptr, "foo"),
             " [9:0][2:0][1:0] foo");
@@ -138,6 +145,9 @@ TEST_P(VastTest, DataTypes) {
 } var)");
   EXPECT_EQ(foo_ref->Emit(nullptr), "foo");
   EXPECT_EQ(bar_ref->Emit(nullptr), "bar");
+  ASSERT_EQ(enum_def->members().size(), 2);
+  EXPECT_EQ(enum_def->members()[0]->GetName(), "foo");
+  EXPECT_EQ(enum_def->members()[1]->GetName(), "bar");
 
   Enum* untyped_enum_def = f.Make<Enum>(SourceInfo(), DataKind::kUntypedEnum,
                                         f.IntegerType(SourceInfo()));
@@ -158,6 +168,7 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_TRUE(type_def_type->IsUserDefined());
   EXPECT_EQ(type_def_type->Emit(nullptr), "my_enum_t");
   EXPECT_EQ(type_def_type->EmitWithIdentifier(nullptr, "x"), "my_enum_t x");
+  EXPECT_EQ(type_def, type_def_type->type_def());
 
   std::vector<Def*> struct_members = {
       f.Make<Def>(SourceInfo(), "elem1", DataKind::kLogic,
@@ -166,6 +177,9 @@ TEST_P(VastTest, DataTypes) {
                   f.IntegerType(SourceInfo())),
       f.Make<Def>(SourceInfo(), "Bv", DataKind::kLogic,
                   f.BitVectorType(16, SourceInfo()))};
+  EXPECT_FALSE(struct_members[0]->init().has_value());
+  EXPECT_FALSE(struct_members[1]->init().has_value());
+  EXPECT_FALSE(struct_members[2]->init().has_value());
   DataType* struct_type = f.Make<Struct>(SourceInfo(), struct_members);
   EXPECT_TRUE(struct_type->IsUserDefined());
   EXPECT_EQ(struct_type->Emit(nullptr), R"(struct packed {
@@ -176,8 +190,15 @@ TEST_P(VastTest, DataTypes) {
 
   std::vector<Expression*> dims = {f.PlainLiteral(5, SourceInfo()),
                                    f.PlainLiteral(2, SourceInfo())};
-  DataType* packed_array_of_structs_with_dims_as_max = f.Make<PackedArrayType>(
-      SourceInfo(), struct_type, dims, /*dims_are_max=*/true);
+  PackedArrayType* packed_array_of_structs_with_dims_as_max =
+      f.Make<PackedArrayType>(SourceInfo(), struct_type, dims,
+                              /*dims_are_max=*/true);
+  EXPECT_TRUE(packed_array_of_structs_with_dims_as_max->dims_are_max());
+  EXPECT_EQ(
+      ArrayDimToWidth(packed_array_of_structs_with_dims_as_max->dims()[0],
+                      packed_array_of_structs_with_dims_as_max->dims_are_max())
+          ->Emit(nullptr),
+      "5 + 1");
   EXPECT_EQ(packed_array_of_structs_with_dims_as_max->Emit(nullptr),
             R"(struct packed {
   logic elem1;
@@ -208,7 +229,13 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_THAT(spacked_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_TRUE(spacked_array->is_signed());
   EXPECT_EQ(spacked_array->Emit(nullptr), " signed [9:0][2:0][1:0]");
-  DataType* unpacked_array = f.UnpackedArrayType(10, {3, 2}, SourceInfo());
+  UnpackedArrayType* unpacked_array =
+      f.UnpackedArrayType(10, {3, 2}, SourceInfo());
+  EXPECT_FALSE(unpacked_array->dims_are_max());
+  EXPECT_EQ(
+      ArrayDimToWidth(unpacked_array->dims()[0], unpacked_array->dims_are_max())
+          ->Emit(nullptr),
+      "3");
   if (f.use_system_verilog()) {
     EXPECT_EQ(unpacked_array->EmitWithIdentifier(nullptr, "foo"),
               " [9:0] foo[3][2]");
@@ -221,13 +248,16 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_FALSE(unpacked_array->is_signed());
 
   // Bit vector type with non-literal range.
-  DataType* bv = f.Make<BitVectorType>(
+  BitVectorType* bv = f.Make<BitVectorType>(
       SourceInfo(),
       /*width=*/
       f.Mul(f.PlainLiteral(10, SourceInfo()), f.PlainLiteral(5, SourceInfo()),
             SourceInfo()),
       /*is_signed=*/false);
   EXPECT_EQ(bv->EmitWithIdentifier(nullptr, "foo"), " [10 * 5 - 1:0] foo");
+  ASSERT_TRUE(bv->width().has_value());
+  EXPECT_EQ((*bv->width())->Emit(nullptr), "10 * 5");
+  EXPECT_FALSE(bv->max().has_value());
   EXPECT_THAT(bv->WidthAsInt64(),
               StatusIs(absl::StatusCode::kFailedPrecondition,
                        HasSubstr("Width is not a literal")));
@@ -237,13 +267,16 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_FALSE(bv->is_signed());
 
   // Bit vector with max as size expr.
-  DataType* bv_max = f.Make<BitVectorType>(
+  BitVectorType* bv_max = f.Make<BitVectorType>(
       SourceInfo(),
       /*size_expr=*/
       f.Mul(f.PlainLiteral(10, SourceInfo()), f.PlainLiteral(5, SourceInfo()),
             SourceInfo()),
       /*is_signed=*/false, /*size_expr_is_max=*/true);
   EXPECT_EQ(bv_max->EmitWithIdentifier(nullptr, "foo"), " [10 * 5:0] foo");
+  EXPECT_FALSE(bv_max->width().has_value());
+  ASSERT_TRUE(bv_max->max().has_value());
+  EXPECT_EQ((*bv_max->max())->Emit(nullptr), "10 * 5");
 }
 
 TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
@@ -519,24 +552,35 @@ TEST_P(VastTest, Literals) {
 
   // Literals with the precise controls used when originating from SystemVerilog
   // source code.
-  EXPECT_EQ(
+  Literal* u32_literal =
       f.Make<Literal>(SourceInfo(), UBits(15, 4), FormatPreference::kHex,
                       /*declared_bit_count=*/32,
-                      /*emit_bit_count=*/true, /*declared_as_signed=*/false)
-          ->Emit(nullptr),
-      "32'hf");
-  EXPECT_EQ(
+                      /*emit_bit_count=*/true, /*declared_as_signed=*/false);
+  EXPECT_EQ(u32_literal->Emit(nullptr), "32'hf");
+  EXPECT_EQ(u32_literal->effective_bit_count(), 32);
+  EXPECT_FALSE(u32_literal->is_declared_as_signed());
+  EXPECT_TRUE(u32_literal->should_emit_bit_count());
+
+  Literal* s32_literal =
       f.Make<Literal>(SourceInfo(), UBits(15, 4), FormatPreference::kHex,
                       /*declared_bit_count=*/32,
-                      /*emit_bit_count=*/true, /*declared_as_signed=*/true)
-          ->Emit(nullptr),
-      "32'shf");
-  EXPECT_EQ(f.Make<Literal>(
-                 SourceInfo(), UBits(15, 4), FormatPreference::kUnsignedDecimal,
-                 /*declared_bit_count=*/32,
-                 /*emit_bit_count=*/false, /*declared_as_signed=*/false)
-                ->Emit(nullptr),
-            "15");
+                      /*emit_bit_count=*/true, /*declared_as_signed=*/true);
+  EXPECT_EQ(s32_literal->Emit(nullptr), "32'shf");
+  EXPECT_EQ(s32_literal->effective_bit_count(), 32);
+  EXPECT_TRUE(s32_literal->is_declared_as_signed());
+  EXPECT_TRUE(s32_literal->should_emit_bit_count());
+
+  Literal* bare_literal = f.Make<Literal>(
+      SourceInfo(), UBits(15, 4), FormatPreference::kUnsignedDecimal,
+      /*declared_bit_count=*/32,
+      /*emit_bit_count=*/false, /*declared_as_signed=*/false);
+  EXPECT_EQ(bare_literal->Emit(nullptr), "15");
+  EXPECT_EQ(bare_literal->effective_bit_count(), 32);
+  EXPECT_FALSE(bare_literal->should_emit_bit_count());
+  EXPECT_FALSE(bare_literal->is_declared_as_signed());
+
+  EXPECT_FALSE(f.PlainLiteral(3, SourceInfo())->is_declared_as_signed());
+  EXPECT_FALSE(f.PlainLiteral(3, SourceInfo())->should_emit_bit_count());
 }
 
 TEST_P(VastTest, Precedence) {
@@ -621,12 +665,11 @@ TEST_P(VastTest, NestedUnaryOps) {
 
 TEST_P(VastTest, ReturnStatement) {
   VerilogFile f(GetFileType());
-  EXPECT_EQ(
-      f.Make<ReturnStatement>(
-           SourceInfo(), f.Mul(f.PlainLiteral(2, SourceInfo()),
-                               f.PlainLiteral(10, SourceInfo()), SourceInfo()))
-          ->Emit(nullptr),
-      "return 2 * 10;");
+  ReturnStatement* statement = f.Make<ReturnStatement>(
+      SourceInfo(), f.Mul(f.PlainLiteral(2, SourceInfo()),
+                          f.PlainLiteral(10, SourceInfo()), SourceInfo()));
+  EXPECT_EQ(statement->Emit(nullptr), "return 2 * 10;");
+  EXPECT_EQ(statement->expr()->Emit(nullptr), "2 * 10");
 }
 
 TEST_P(VastTest, Case) {
@@ -1019,12 +1062,19 @@ end)");
 TEST_P(VastTest, ParameterAndLocalParam) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  m->AddParameter("ClocksPerBaud",
-                  f.Make<MacroRef>(SourceInfo(), "DEFAULT_CLOCKS_PER_BAUD"),
-                  SourceInfo());
-  m->AddParameter(f.Make<Def>(SourceInfo(), "ParamWithDef", DataKind::kLogic,
-                              f.BitVectorType(16, SourceInfo())),
-                  f.PlainLiteral(5, SourceInfo()), SourceInfo());
+  ParameterRef* ref = m->AddParameter(
+      "ClocksPerBaud",
+      f.Make<MacroRef>(SourceInfo(), "DEFAULT_CLOCKS_PER_BAUD"), SourceInfo());
+  EXPECT_EQ(ref->parameter()->GetName(), "ClocksPerBaud");
+  EXPECT_EQ(ref->parameter()->rhs()->Emit(nullptr), "`DEFAULT_CLOCKS_PER_BAUD");
+  ParameterRef* ref2 = m->AddParameter(
+      f.Make<Def>(SourceInfo(), "ParamWithDef", DataKind::kLogic,
+                  f.BitVectorType(16, SourceInfo())),
+      f.PlainLiteral(5, SourceInfo()), SourceInfo());
+  EXPECT_EQ(ref2->parameter()->GetName(), "ParamWithDef");
+  EXPECT_EQ(ref2->parameter()->def()->Emit(nullptr),
+            "logic [15:0] ParamWithDef;");
+  EXPECT_EQ(ref2->parameter()->rhs()->Emit(nullptr), "5");
   LocalParam* p = m->Add<LocalParam>(SourceInfo());
   LocalParamItemRef* idle =
       p->AddItem("StateIdle", f.Literal(0, 2, SourceInfo()), SourceInfo());
@@ -1395,7 +1445,14 @@ TEST_P(VastTest, VerilogFunction) {
                     SourceInfo());
   func->AddStatement<BlockingAssignment>(SourceInfo(), func->return_value_ref(),
                                          f.Shll(foo, bar, SourceInfo()));
-
+  EXPECT_EQ(func->return_value_def()->Emit(nullptr), "reg [41:0] func;");
+  ASSERT_EQ(func->arguments().size(), 3);
+  EXPECT_EQ(func->arguments()[0]->Emit(nullptr), "reg [31:0] foo;");
+  EXPECT_EQ(func->arguments()[1]->Emit(nullptr), "reg [2:0] bar;");
+  EXPECT_EQ(func->arguments()[2]->Emit(nullptr), "integer baz;");
+  EXPECT_EQ(func->statement_block()->Emit(nullptr), R"(begin
+  func = foo << bar;
+end)");
   LogicRef* qux =
       m->AddWire("qux", f.BitVectorType(32, SourceInfo()), SourceInfo());
   m->Add<ContinuousAssignment>(

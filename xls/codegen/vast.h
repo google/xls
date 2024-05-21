@@ -290,7 +290,16 @@ class BitVectorType : public DataType {
   absl::StatusOr<int64_t> WidthAsInt64() const override;
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
   std::optional<Expression*> width() const override {
-    return size_expr_is_max_ ? nullptr : size_expr_;
+    if (size_expr_is_max_) {
+      return std::nullopt;
+    }
+    return size_expr_;
+  }
+  std::optional<Expression*> max() const {
+    if (size_expr_is_max_) {
+      return size_expr_;
+    }
+    return std::nullopt;
   }
   bool is_signed() const override { return is_signed_; }
   std::string Emit(LineInfo* line_info) const override;
@@ -304,9 +313,61 @@ class BitVectorType : public DataType {
   bool is_signed_;
 };
 
+class ArrayTypeBase : public DataType {
+ public:
+  ArrayTypeBase(DataType* element_type, absl::Span<Expression* const> dims,
+                bool dims_are_max, VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc),
+        element_type_(element_type),
+        dims_(dims.begin(), dims.end()),
+        dims_are_max_(dims_are_max) {
+    CHECK(!dims.empty());
+  }
+
+  ArrayTypeBase(DataType* element_type, absl::Span<const int64_t> dims,
+                bool dims_are_max, VerilogFile* file, const SourceInfo& loc);
+
+  bool IsScalar() const override { return false; }
+
+  bool IsUserDefined() const override { return element_type_->IsUserDefined(); }
+
+  absl::StatusOr<int64_t> WidthAsInt64() const override {
+    return element_type_->WidthAsInt64();
+  }
+
+  std::optional<Expression*> width() const override {
+    return element_type_->width();
+  }
+
+  bool is_signed() const override { return element_type_->is_signed(); }
+
+  DataType* element_type() const { return element_type_; }
+
+  // Returns the dimensions for the type, excluding the element type. For
+  // example, the net type for "wire [7:0][42:0][3:0] foo;" has {43, 4} as the
+  // array dimensions. The inner-most dimension (of the contained
+  // `BitVectorType`) is not included as that is considered for type purposes as
+  // the underlying array element type ("wire [7:0]"). Similarly, for an
+  // unpacked array, the net type for "wire [7:0][42:0] foo [123][7];" has {123,
+  // 7} as the unpacked dimensions. The ordering of indices matches the order in
+  // which they are emitted in the emitted Verilog.
+  absl::Span<Expression* const> dims() const { return dims_; }
+
+  bool dims_are_max() const { return dims_are_max_; }
+
+ private:
+  DataType* element_type_;
+  std::vector<Expression*> dims_;
+  bool dims_are_max_;
+};
+
+// Convenience function to normalize an array dimension, which may specify
+// either the width or max index, to a width specification.
+Expression* ArrayDimToWidth(Expression* dim, bool dim_is_max);
+
 // Represents a packed array of bit-vectors type. Example:
 //   wire [7:0][42:0][3:0] foo;
-class PackedArrayType : public DataType {
+class PackedArrayType : public ArrayTypeBase {
  public:
   PackedArrayType(Expression* width, absl::Span<Expression* const> packed_dims,
                   bool is_signed, VerilogFile* file, const SourceInfo& loc);
@@ -317,73 +378,31 @@ class PackedArrayType : public DataType {
   PackedArrayType(DataType* element_type,
                   absl::Span<Expression* const> packed_dims, bool dims_are_max,
                   VerilogFile* file, const SourceInfo& loc)
-      : DataType(file, loc),
-        element_type_(element_type),
-        packed_dims_(packed_dims.begin(), packed_dims.end()),
-        dims_are_max_(dims_are_max) {
-    CHECK(!packed_dims.empty());
-  }
-
-  bool IsScalar() const override { return false; }
-
-  bool IsUserDefined() const override { return element_type_->IsUserDefined(); }
-
-  absl::StatusOr<int64_t> WidthAsInt64() const override {
-    return element_type_->WidthAsInt64();
-  }
+      : ArrayTypeBase(element_type, packed_dims, dims_are_max, file, loc) {}
 
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
 
-  std::optional<Expression*> width() const override {
-    return element_type_->width();
-  }
-
-  bool is_signed() const override { return element_type_->is_signed(); }
   std::string Emit(LineInfo* line_info) const override;
-
-  // Returns the packed dimensions for the type. For example, the net type for
-  // "wire [7:0][42:0][3:0] foo;" has {43, 4} as the packed dimensions. The
-  // inner-most dimension is not included as that is considered for type
-  // purposes as the underlying array element type ("wire [7:0]"). The ordering
-  // of indices matches the order in which they are emitted in the emitted
-  // Verilog.
-  absl::Span<Expression* const> packed_dims() const { return packed_dims_; }
-
- private:
-  DataType* element_type_;
-  std::vector<Expression*> packed_dims_;
-  // Whether the `packed_dims_` represent max indices as opposed to widths.
-  // Currently this is only the case in arrays originating from SystemVerilog
-  // source code.
-  bool dims_are_max_ = false;
 };
 
 // Represents an unpacked array of bit-vectors or packed array types. Example:
 //   wire [7:0][42:0][3:0] foo [1:0];
 // Where [1:0] is the unpacked array dimensions.
-class UnpackedArrayType : public DataType {
+class UnpackedArrayType : public ArrayTypeBase {
  public:
   UnpackedArrayType(DataType* element_type,
                     absl::Span<Expression* const> unpacked_dims,
                     VerilogFile* file, const SourceInfo& loc)
-      : DataType(file, loc),
-        element_type_(element_type),
-        unpacked_dims_(unpacked_dims.begin(), unpacked_dims.end()) {
-    CHECK(!unpacked_dims.empty());
+      : ArrayTypeBase(element_type, unpacked_dims, /*dims_are_max=*/false, file,
+                      loc) {
     CHECK(dynamic_cast<UnpackedArrayType*>(element_type) == nullptr);
   }
+
   UnpackedArrayType(DataType* element_type,
-                    absl::Span<const int64_t> packed_dims, VerilogFile* file,
+                    absl::Span<const int64_t> unpacked_dims, VerilogFile* file,
                     const SourceInfo& loc);
 
-  bool IsScalar() const override { return false; }
-  bool IsUserDefined() const override { return element_type_->IsUserDefined(); }
-  absl::StatusOr<int64_t> WidthAsInt64() const override;
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
-  std::optional<Expression*> width() const override {
-    return element_type_->width();
-  }
-  bool is_signed() const override { return element_type_->is_signed(); }
 
   std::string Emit(LineInfo* line_info) const override {
     LOG(FATAL) << "EmitWithIdentifier should be called rather than emit";
@@ -391,15 +410,6 @@ class UnpackedArrayType : public DataType {
 
   std::string EmitWithIdentifier(LineInfo* line_info,
                                  std::string_view identifier) const override;
-
-  // Returns the unpacked dimensions for the type. For example, the net type for
-  // "wire [7:0][42:0] foo [123][7];" has {123, 7} as the unpacked
-  // dimensions.
-  absl::Span<Expression* const> unpacked_dims() const { return unpacked_dims_; }
-
- private:
-  DataType* element_type_;
-  std::vector<Expression*> unpacked_dims_;
 };
 
 // The kind of a net/variable. kReg, kWire, kLogic can be arbitrarily
@@ -419,16 +429,17 @@ enum class DataKind : int8_t {
 // Represents the definition of a variable or net.
 class Def : public Statement {
  public:
-  // Constructor for a single-bit signal without a range (width) specification.
-  // Examples:
-  //   wire foo;
-  //   reg bar;
   Def(std::string_view name, DataKind data_kind, DataType* data_type,
       VerilogFile* file, const SourceInfo& loc)
+      : Def(name, data_kind, data_type, /*init=*/nullptr, file, loc) {}
+
+  Def(std::string_view name, DataKind data_kind, DataType* data_type,
+      Expression* init, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         name_(name),
         data_kind_(data_kind),
-        data_type_(data_type) {}
+        data_type_(data_type),
+        init_(init == nullptr ? std::nullopt : std::make_optional(init)) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -439,10 +450,14 @@ class Def : public Statement {
   DataKind data_kind() const { return data_kind_; }
   DataType* data_type() const { return data_type_; }
 
+  // Returns the optional initialization expression.
+  std::optional<Expression*> init() const { return init_; }
+
  private:
   std::string name_;
   DataKind data_kind_;
   DataType* data_type_;
+  std::optional<Expression*> init_;
 };
 
 // A wire definition. Example:
@@ -451,14 +466,10 @@ class WireDef : public Def {
  public:
   WireDef(std::string_view name, DataType* data_type, VerilogFile* file,
           const SourceInfo& loc)
-      : Def(name, DataKind::kWire, data_type, file, loc), init_(nullptr) {}
+      : Def(name, DataKind::kWire, data_type, file, loc) {}
   WireDef(std::string_view name, DataType* data_type, Expression* init,
           VerilogFile* file, const SourceInfo& loc)
-      : Def(name, DataKind::kWire, data_type, file, loc), init_(init) {}
-  std::string Emit(LineInfo* line_info) const override;
-
- protected:
-  Expression* init_;
+      : Def(name, DataKind::kWire, data_type, init, file, loc) {}
 };
 
 // Register variable definition.Example:
@@ -467,15 +478,10 @@ class RegDef : public Def {
  public:
   RegDef(std::string_view name, DataType* data_type, VerilogFile* file,
          const SourceInfo& loc)
-      : Def(name, DataKind::kReg, data_type, file, loc), init_(nullptr) {}
+      : Def(name, DataKind::kReg, data_type, file, loc) {}
   RegDef(std::string_view name, DataType* data_type, Expression* init,
          VerilogFile* file, const SourceInfo& loc)
-      : Def(name, DataKind::kReg, data_type, file, loc), init_(init) {}
-
-  std::string Emit(LineInfo* line_info) const override;
-
- protected:
-  Expression* init_;
+      : Def(name, DataKind::kReg, data_type, init, file, loc) {}
 };
 
 // Logic variable definition.Example:
@@ -484,15 +490,10 @@ class LogicDef : public Def {
  public:
   LogicDef(std::string_view name, DataType* data_type, VerilogFile* file,
            const SourceInfo& loc)
-      : Def(name, DataKind::kLogic, data_type, file, loc), init_(nullptr) {}
+      : Def(name, DataKind::kLogic, data_type, file, loc) {}
   LogicDef(std::string_view name, DataType* data_type, Expression* init,
            VerilogFile* file, const SourceInfo& loc)
-      : Def(name, DataKind::kLogic, data_type, file, loc), init_(init) {}
-
-  std::string Emit(LineInfo* line_info) const override;
-
- protected:
-  Expression* init_;
+      : Def(name, DataKind::kLogic, data_type, init, file, loc) {}
 };
 
 // Variable definition with a type that is a user-defined name. Example:
@@ -501,15 +502,10 @@ class UserDef : public Def {
  public:
   UserDef(std::string_view name, DataType* data_type, VerilogFile* file,
           const SourceInfo& loc)
-      : Def(name, DataKind::kUser, data_type, file, loc), init_(nullptr) {}
+      : Def(name, DataKind::kUser, data_type, file, loc) {}
   UserDef(std::string_view name, DataType* data_type, Expression* init,
           VerilogFile* file, const SourceInfo& loc)
-      : Def(name, DataKind::kUser, data_type, file, loc), init_(init) {}
-
-  std::string Emit(LineInfo* line_info) const override;
-
- protected:
-  Expression* init_;
+      : Def(name, DataKind::kUser, data_type, init, file, loc) {}
 };
 
 // Integer variable definition.Example:
@@ -519,11 +515,6 @@ class IntegerDef : public Def {
   IntegerDef(std::string_view name, VerilogFile* file, const SourceInfo& loc);
   IntegerDef(std::string_view name, DataType* data_type, Expression* init,
              VerilogFile* file, const SourceInfo& loc);
-
-  std::string Emit(LineInfo* line_info) const override;
-
- protected:
-  Expression* init_;
 };
 
 // Represents a #${delay} statement.
@@ -575,32 +566,38 @@ class Forever : public Statement {
   Statement* statement_;
 };
 
-// Represents a blocking assignment ("lhs = rhs;")
-class BlockingAssignment : public Statement {
+class AssignmentBase : public Statement {
  public:
-  BlockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
-                     const SourceInfo& loc)
+  AssignmentBase(Expression* lhs, Expression* rhs, VerilogFile* file,
+                 const SourceInfo& loc)
       : Statement(file, loc), lhs_(ABSL_DIE_IF_NULL(lhs)), rhs_(rhs) {}
 
-  std::string Emit(LineInfo* line_info) const override;
+  Expression* lhs() const { return lhs_; }
+  Expression* rhs() const { return rhs_; }
 
  private:
   Expression* lhs_;
   Expression* rhs_;
 };
 
+// Represents a blocking assignment ("lhs = rhs;")
+class BlockingAssignment : public AssignmentBase {
+ public:
+  BlockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
+                     const SourceInfo& loc)
+      : AssignmentBase(lhs, rhs, file, loc) {}
+
+  std::string Emit(LineInfo* line_info) const override;
+};
+
 // Represents a nonblocking assignment  ("lhs <= rhs;").
-class NonblockingAssignment : public Statement {
+class NonblockingAssignment : public AssignmentBase {
  public:
   NonblockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
                         const SourceInfo& loc)
-      : Statement(file, loc), lhs_(ABSL_DIE_IF_NULL(lhs)), rhs_(rhs) {}
+      : AssignmentBase(lhs, rhs, file, loc) {}
 
   std::string Emit(LineInfo* line_info) const override;
-
- private:
-  Expression* lhs_;
-  Expression* rhs_;
 };
 
 // Represents an explicit SystemVerilog function return statement. The
@@ -613,6 +610,8 @@ class ReturnStatement : public Statement {
       : Statement(file, loc), expr_(expr) {}
 
   std::string Emit(LineInfo* line_info) const override;
+
+  Expression* expr() const { return expr_; }
 
  private:
   Expression* expr_;
@@ -631,6 +630,8 @@ class StatementBlock : public VastNode {
   inline T* Add(const SourceInfo& loc, Args&&... args);
 
   std::string Emit(LineInfo* line_info) const override;
+
+  absl::Span<Statement* const> statements() const { return statements_; }
 
  private:
   std::vector<Statement*> statements_;
@@ -858,14 +859,54 @@ class FourValueBinaryLiteral : public Expression {
   std::vector<FourValueBit> bits_;
 };
 
+// Specifies the kind of an `Operator` expression.
+enum class OperatorKind {
+  kEq,
+  kNe,
+  kEqX,
+  kNeX,
+  kGe,
+  kGt,
+  kLe,
+  kLt,
+  kAdd,
+  kSub,
+  kMul,
+  kDiv,
+  kMod,
+  kShll,
+  kShrl,
+  kShra,
+  kLogicalAnd,
+  kLogicalOr,
+  kBitwiseAnd,
+  kBitwiseOr,
+  kBitwiseXor,
+  kPower,
+  kNegate,
+  kBitwiseNot,
+  kLogicalNot,
+  kAndReduce,
+  kOrReduce,
+  kXorReduce
+};
+
+// Returns the precedence for evaluation of an operator with the given kind.
+int Precedence(OperatorKind kind);
+
+// Returns the string used in Verilog code to represent the given operator kind.
+std::string_view OperatorString(OperatorKind kind);
+
 // Represents an operation (unary, binary, etc) with a particular precedence.
 class Operator : public Expression {
  public:
-  Operator(int64_t precedence, VerilogFile* file, const SourceInfo& loc)
-      : Expression(file, loc), precedence_(precedence) {}
+  Operator(OperatorKind kind, VerilogFile* file, const SourceInfo& loc)
+      : Expression(file, loc), kind_(kind), precedence_(Precedence(kind)) {}
   int64_t precedence() const override { return precedence_; }
+  OperatorKind kind() const { return kind_; }
 
  private:
+  OperatorKind kind_;
   int64_t precedence_;
 };
 
@@ -968,6 +1009,8 @@ class Parameter : public NamedTrait {
 
   std::string Emit(LineInfo* line_info) const override;
   std::string GetName() const override { return name_; }
+  Def* def() const { return def_; }
+  Expression* rhs() const { return rhs_; }
 
  private:
   // Agrees with `def_` in all cases where `def_` is non-null.
@@ -1037,6 +1080,8 @@ class TypedefType : public UserDefinedAliasType {
 
   std::string Emit(LineInfo* line_info) const override;
 
+  Typedef* type_def() const { return type_def_; }
+
  private:
   Typedef* type_def_;
 };
@@ -1049,6 +1094,8 @@ class EnumMember : public NamedTrait {
       : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
 
   std::string GetName() const override { return name_; }
+
+  Expression* rhs() const { return rhs_; }
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -1067,6 +1114,8 @@ class EnumMemberRef : public Expression {
     return member_->GetName();
   }
 
+  EnumMember* member() const { return member_; }
+
  private:
   EnumMember* member_;
 };
@@ -1082,6 +1131,10 @@ class Enum : public UserDefinedAliasType {
                            const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const override;
+
+  DataKind kind() const { return kind_; }
+
+  absl::Span<EnumMember* const> members() const { return members_; }
 
  private:
   DataKind kind_;
@@ -1112,6 +1165,8 @@ class Struct : public DataType {
 
   std::string Emit(LineInfo* line_info) const override;
 
+  absl::Span<Def* const> members() const { return members_; }
+
  private:
   std::vector<Def*> members_;
 };
@@ -1126,6 +1181,8 @@ class LocalParamItem : public NamedTrait {
   std::string GetName() const override { return name_; }
 
   std::string Emit(LineInfo* line_info) const override;
+
+  Expression* rhs() const { return rhs_; }
 
  private:
   std::string name_;
@@ -1170,6 +1227,8 @@ class ParameterRef : public Expression {
     return parameter_->GetName();
   }
 
+  Parameter* parameter() const { return parameter_; }
+
  private:
   Parameter* parameter_;
 };
@@ -1208,9 +1267,9 @@ class LogicRef : public IndexableExpression {
 // Represents a Verilog unary expression.
 class Unary : public Operator {
  public:
-  Unary(std::string_view op, Expression* arg, int64_t precedence,
-        VerilogFile* file, const SourceInfo& loc)
-      : Operator(precedence, file, loc), op_(op), arg_(arg) {}
+  Unary(Expression* arg, OperatorKind kind, VerilogFile* file,
+        const SourceInfo& loc)
+      : Operator(kind, file, loc), op_(OperatorString(kind)), arg_(arg) {}
 
   bool IsUnary() const override { return true; }
 
@@ -1221,6 +1280,8 @@ class Unary : public Operator {
            op_ == "^" || op_ == "~^";
   }
   std::string Emit(LineInfo* line_info) const override;
+
+  Expression* arg() const { return arg_; }
 
  private:
   std::string op_;
@@ -1356,6 +1417,8 @@ class Concat : public Expression {
 
   std::string Emit(LineInfo* line_info) const override;
 
+  absl::Span<Expression* const> args() const { return args_; }
+
  private:
   std::vector<Expression*> args_;
   Expression* replication_;
@@ -1376,14 +1439,18 @@ class ArrayAssignmentPattern : public IndexableExpression {
 
 class BinaryInfix : public Operator {
  public:
-  BinaryInfix(Expression* lhs, std::string_view op, Expression* rhs,
-              int64_t precedence, VerilogFile* file, const SourceInfo& loc)
-      : Operator(precedence, file, loc),
-        op_(op),
+  BinaryInfix(Expression* lhs, Expression* rhs, OperatorKind kind,
+              VerilogFile* file, const SourceInfo& loc)
+      : Operator(kind, file, loc),
+        op_(OperatorString(kind)),
         lhs_(ABSL_DIE_IF_NULL(lhs)),
         rhs_(ABSL_DIE_IF_NULL(rhs)) {}
 
   std::string Emit(LineInfo* line_info) const override;
+
+  Expression* lhs() const { return lhs_; }
+
+  Expression* rhs() const { return rhs_; }
 
  private:
   std::string op_;
@@ -1433,6 +1500,12 @@ class Literal : public Expression {
   bool IsLiteralWithValue(int64_t target) const override;
 
   FormatPreference format() const { return format_; }
+
+  bool is_declared_as_signed() const { return declared_as_signed_; }
+
+  bool should_emit_bit_count() const { return emit_bit_count_; }
+
+  int64_t effective_bit_count() const { return effective_bit_count_; }
 
  private:
   Bits bits_;
@@ -1535,6 +1608,10 @@ class Ternary : public Expression {
 
   std::string Emit(LineInfo* line_info) const override;
   int64_t precedence() const override { return 0; }
+
+  Expression* test() const { return test_; }
+  Expression* consequent() const { return consequent_; }
+  Expression* alternate() const { return alternate_; }
 
  private:
   Expression* test_;
@@ -1679,6 +1756,9 @@ class SystemTaskCall : public Statement {
 
   std::string Emit(LineInfo* line_info) const override;
 
+  const std::string& name() const { return name_; }
+  std::optional<std::vector<Expression*>> args() const { return args_; }
+
  private:
   std::string name_;
   std::optional<std::vector<Expression*>> args_;
@@ -1700,6 +1780,9 @@ class SystemFunctionCall : public Expression {
         args_(std::vector<Expression*>(args.begin(), args.end())) {}
 
   std::string Emit(LineInfo* line_info) const override;
+
+  const std::string& name() const { return name_; }
+  std::optional<std::vector<Expression*>> args() const { return args_; }
 
  private:
   std::string name_;
@@ -1781,6 +1864,11 @@ class VerilogFunction : public VastNode {
   // the function.
   LogicRef* return_value_ref();
 
+  RegDef* return_value_def() const { return return_value_def_; }
+  absl::Span<Def* const> arguments() const { return argument_defs_; }
+  StatementBlock* statement_block() const { return statement_block_; }
+  absl::Span<RegDef* const> block_reg_defs() const { return block_reg_defs_; }
+
   // Returns the name of the function.
   std::string name() const { return name_; }
 
@@ -1811,6 +1899,9 @@ class VerilogFunctionCall : public Expression {
       : Expression(file, loc), func_(func), args_(args.begin(), args.end()) {}
 
   std::string Emit(LineInfo* line_info) const override;
+
+  VerilogFunction* func() const { return func_; }
+  absl::Span<Expression* const> args() const { return args_; }
 
  private:
   VerilogFunction* func_;
@@ -1858,9 +1949,7 @@ class ModuleSection : public VastNode {
     return member;
   }
 
-  // Recursively gathers and returns all ModuleMembers contained in this section
-  // or any section contained in this section.
-  std::vector<ModuleMember> GatherMembers() const;
+  const std::vector<ModuleMember>& members() const { return members_; }
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -2025,22 +2114,22 @@ class VerilogFile {
   }
 
   Unary* Negate(Expression* expression, const SourceInfo& loc) {
-    return Make<Unary>(loc, "-", expression, /*precedence=*/12);
+    return Make<Unary>(loc, expression, OperatorKind::kNegate);
   }
   Unary* BitwiseNot(Expression* expression, const SourceInfo& loc) {
-    return Make<Unary>(loc, "~", expression, /*precedence=*/12);
+    return Make<Unary>(loc, expression, OperatorKind::kBitwiseNot);
   }
   Unary* LogicalNot(Expression* expression, const SourceInfo& loc) {
-    return Make<Unary>(loc, "!", expression, /*precedence=*/12);
+    return Make<Unary>(loc, expression, OperatorKind::kLogicalNot);
   }
   Unary* AndReduce(Expression* expression, const SourceInfo& loc) {
-    return Make<Unary>(loc, "&", expression, /*precedence=*/12);
+    return Make<Unary>(loc, expression, OperatorKind::kAndReduce);
   }
   Unary* OrReduce(Expression* expression, const SourceInfo& loc) {
-    return Make<Unary>(loc, "|", expression, /*precedence=*/12);
+    return Make<Unary>(loc, expression, OperatorKind::kOrReduce);
   }
   Unary* XorReduce(Expression* expression, const SourceInfo& loc) {
-    return Make<Unary>(loc, "^", expression, /*precedence=*/12);
+    return Make<Unary>(loc, expression, OperatorKind::kXorReduce);
   }
 
   xls::verilog::Concat* Concat(absl::Span<Expression* const> args,
@@ -2065,82 +2154,82 @@ class VerilogFile {
   }
 
   BinaryInfix* Add(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "+", rhs, /*precedence=*/9);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kAdd);
   }
   BinaryInfix* LogicalAnd(Expression* lhs, Expression* rhs,
                           const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "&&", rhs, /*precedence=*/2);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kLogicalAnd);
   }
   BinaryInfix* BitwiseAnd(Expression* lhs, Expression* rhs,
                           const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "&", rhs, /*precedence=*/5);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kBitwiseAnd);
   }
   BinaryInfix* NotEquals(Expression* lhs, Expression* rhs,
                          const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "!=", rhs, /*precedence=*/6);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kNe);
   }
   BinaryInfix* Equals(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "==", rhs, /*precedence=*/6);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kEq);
   }
   BinaryInfix* GreaterThanEquals(Expression* lhs, Expression* rhs,
                                  const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, ">=", rhs, /*precedence=*/7);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kGe);
   }
   BinaryInfix* GreaterThan(Expression* lhs, Expression* rhs,
                            const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, ">", rhs, /*precedence=*/7);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kGt);
   }
   BinaryInfix* LessThanEquals(Expression* lhs, Expression* rhs,
                               const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "<=", rhs, /*precedence=*/7);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kLe);
   }
   BinaryInfix* LessThan(Expression* lhs, Expression* rhs,
                         const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "<", rhs, /*precedence=*/7);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kLt);
   }
   BinaryInfix* Div(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "/", rhs, /*precedence=*/10);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kDiv);
   }
   BinaryInfix* Mod(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "%", rhs, /*precedence=*/10);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kMod);
   }
   BinaryInfix* Mul(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "*", rhs, /*precedence=*/10);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kMul);
   }
   BinaryInfix* Power(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "**", rhs, /*precedence=*/11);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kPower);
   }
   BinaryInfix* BitwiseOr(Expression* lhs, Expression* rhs,
                          const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "|", rhs, /*precedence=*/3);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kBitwiseOr);
   }
   BinaryInfix* LogicalOr(Expression* lhs, Expression* rhs,
                          const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "||", rhs, /*precedence=*/1);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kLogicalOr);
   }
   BinaryInfix* BitwiseXor(Expression* lhs, Expression* rhs,
                           const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "^", rhs, /*precedence=*/4);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kBitwiseXor);
   }
   BinaryInfix* Shll(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "<<", rhs, /*precedence=*/8);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kShll);
   }
   BinaryInfix* Shra(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, ">>>", rhs, /*precedence=*/8);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kShra);
   }
   BinaryInfix* Shrl(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, ">>", rhs, /*precedence=*/8);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kShrl);
   }
   BinaryInfix* Sub(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "-", rhs, /*precedence=*/9);
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kSub);
   }
 
   // Only for use in testing.
   BinaryInfix* NotEqualsX(Expression* lhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "!==", XLiteral(loc), /*precedence=*/6);
+    return Make<BinaryInfix>(loc, lhs, XLiteral(loc), OperatorKind::kNeX);
   }
   BinaryInfix* EqualsX(Expression* lhs, const SourceInfo& loc) {
-    return Make<BinaryInfix>(loc, lhs, "===", XLiteral(loc), /*precedence=*/6);
+    return Make<BinaryInfix>(loc, lhs, XLiteral(loc), OperatorKind::kEqX);
   }
 
   verilog::Ternary* Ternary(Expression* cond, Expression* consequent,
@@ -2233,6 +2322,8 @@ class VerilogFile {
   bool use_system_verilog() const {
     return file_type_ == FileType::kSystemVerilog;
   }
+
+  const std::vector<FileMember>& members() const { return members_; }
 
  private:
   // Same as PlainLiteral if value fits in an int32_t. Otherwise creates a
