@@ -20,8 +20,8 @@ proc parametric<N: u32, M: u32> {
 
     init { () }
 
-    next(tok: token, state: ()) {
-        let (tok, input) = recv(tok, c);
+    next(state: ()) {
+        let (tok, input) = recv(join(), c);
         let output = ((input as uN[N]) * uN[N]:2) as uN[M];
         let tok = send(tok, s, output);
     }
@@ -42,8 +42,8 @@ proc test_proc {
 
     init { () }
 
-    next(tok: token, state: ()) {
-        let tok = send(tok, input_p, u37:1);
+    next(state: ()) {
+        let tok = send(join(), input_p, u37:1);
         let (tok, result) = recv(tok, output_c);
         assert_eq(result, u37:2);
 

@@ -107,10 +107,10 @@ TEST(TypecheckErrorTest, ParametricWrongArgCount) {
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u8:4) }
 )";
-  EXPECT_THAT(
-      Typecheck(text),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Expected 1 parameter(s) but got 2 argument(s)")));
+  EXPECT_THAT(Typecheck(text),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected 1 parameter(s) for function id, but "
+                                 "got 2 argument(s)")));
 }
 
 TEST(TypecheckErrorTest, ParametricTooManyExplicitSupplied) {
@@ -2474,8 +2474,8 @@ proc t {
 
     init {  }
 
-    next(tok: token, state: ()) {
-        let (ok, result) = map(tok, result_in);
+    next(state: ()) {
+        let (ok, result) = map(join(), result_in);
     }
 }
 )")

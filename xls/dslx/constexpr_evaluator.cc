@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -457,12 +458,22 @@ absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
-  // Map "invocations" are special - only the first (of two) args must be
-  // constexpr (the second must be a fn to apply).
+  std::optional<std::string_view> called_name;
   auto* callee_name_ref = dynamic_cast<NameRef*>(expr->callee());
-  bool callee_is_map =
-      callee_name_ref != nullptr && callee_name_ref->identifier() == "map";
-  if (callee_is_map) {
+  if (callee_name_ref != nullptr) {
+    called_name = callee_name_ref->identifier();
+    if (called_name == "send" || called_name == "send_if" ||
+        called_name == "recv" || called_name == "recv_if" ||
+        called_name == "recv_non_blocking" ||
+        called_name == "recv_if_non_blocking") {
+      // I/O operations are never constexpr.
+      return absl::OkStatus();
+    }
+  }
+
+  if (called_name == "map") {
+    // Map "invocations" are special - only the first (of two) args must be
+    // constexpr (the second must be a fn to apply).
     EVAL_AS_CONSTEXPR_OR_RETURN(expr->args()[0])
   } else {
     // A regular invocation is constexpr iff its args are constexpr.

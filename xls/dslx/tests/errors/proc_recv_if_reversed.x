@@ -22,10 +22,10 @@ proc main {
   config(c: chan<u32> in) {
     (c, )
   }
-  next(tok: token, st: ()) {
+  next(st: ()) {
     // Note: the order of arguments is confused here, it should be:
     //  token, channel, predicate, value
-    let (tok, _) = recv_if(tok, false, ch0, u32:0);
+    let (tok, _) = recv_if(join(), false, ch0, u32:0);
     ()
   }
 }

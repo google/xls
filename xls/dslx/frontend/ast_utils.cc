@@ -198,11 +198,13 @@ absl::Status VerifyParentage(const AstNode* root) {
 
     if (child->parent() != root) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Child \"%s\" (%s) of node \"%s\" (%s) had "
-          "node \"%s\" (%s) as its parent.",
-          child->ToString(), child->GetNodeTypeName(), root->ToString(),
-          root->GetNodeTypeName(), child->parent()->ToString(),
-          child->parent()->GetNodeTypeName()));
+          "Child \"%s\" (%s, %s) of node \"%s\" (%s, %s) had "
+          "node \"%s\" (%s, %s) as its parent.",
+          child->ToString(), child->GetNodeTypeName(),
+          child->GetSpan()->ToString(), root->ToString(),
+          root->GetNodeTypeName(), root->GetSpan()->ToString(),
+          child->parent()->ToString(), child->parent()->GetNodeTypeName(),
+          child->parent()->GetSpan()->ToString()));
     }
   }
 

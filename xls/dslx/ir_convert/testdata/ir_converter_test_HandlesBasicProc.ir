@@ -20,21 +20,23 @@ top proc __test_module__main_0_next(__state: (), init={()}) {
 }
 
 proc __test_module__main__producer_0_next(__state: bits[32], init={0}) {
+  after_all.10: token = after_all(id=10)
+  literal.12: bits[32] = literal(value=1, id=12)
   __token: token = literal(value=token, id=7)
-  literal.11: bits[32] = literal(value=1, id=11)
   literal.9: bits[1] = literal(value=1, id=9)
-  tok: token = send(__token, __state, channel=test_module__my_chan, id=10)
-  add.12: bits[32] = add(__state, literal.11, id=12)
-  next (add.12)
+  tok: token = send(after_all.10, __state, channel=test_module__my_chan, id=11)
+  add.13: bits[32] = add(__state, literal.12, id=13)
+  next (add.13)
 }
 
 proc __test_module__main__consumer_0_next(__state: bits[32], init={0}) {
-  __token: token = literal(value=token, id=13)
-  receive.16: (token, bits[32]) = receive(__token, channel=test_module__my_chan, id=16)
-  i: bits[32] = tuple_index(receive.16, index=1, id=19)
-  literal.15: bits[1] = literal(value=1, id=15)
-  tuple_index.17: token = tuple_index(receive.16, index=0, id=17)
-  tok: token = tuple_index(receive.16, index=0, id=18)
-  add.20: bits[32] = add(i, i, id=20)
-  next (add.20)
+  after_all.17: token = after_all(id=17)
+  receive.18: (token, bits[32]) = receive(after_all.17, channel=test_module__my_chan, id=18)
+  i: bits[32] = tuple_index(receive.18, index=1, id=21)
+  __token: token = literal(value=token, id=14)
+  literal.16: bits[1] = literal(value=1, id=16)
+  tuple_index.19: token = tuple_index(receive.18, index=0, id=19)
+  tok: token = tuple_index(receive.18, index=0, id=20)
+  add.22: bits[32] = add(i, i, id=22)
+  next (add.22)
 }

@@ -27,9 +27,9 @@ proc test_impl {
     (in0, in1, out0)
   }
 
-  next(tok: token, state: u32) {
-    let (tok0, i0, valid0) = recv_non_blocking(tok, in0, u32:123);
-    let (tok1, i1, valid1) = recv_non_blocking(tok, in1, u32:42);
+  next(state: u32) {
+    let (tok0, i0, valid0) = recv_non_blocking(join(), in0, u32:123);
+    let (tok1, i1, valid1) = recv_non_blocking(join(), in1, u32:42);
 
     let o0 = u32:0;
     let o0 = if(valid0) { o0 + i0 } else { o0 };
@@ -53,7 +53,7 @@ pub proc proc_main {
     spawn test_impl(in0, in1, out0);
   }
 
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 #[test_proc]
@@ -75,9 +75,9 @@ proc test_main {
     (terminator, in0_s, in1_s, out0_r)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     // Not sending on either channel means output is 0.
-    let (tok, v) = recv(tok, out0);
+    let (tok, v) = recv(join(), out0);
     assert_eq(v, u32:0);
     let (tok, v) = recv(tok, out0);
     assert_eq(v, u32:0);

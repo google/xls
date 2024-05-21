@@ -20,8 +20,8 @@ proc P {
 
     init { MyU32:42 }
 
-    next(tok: token, state: MyU32) {
-        send(tok, s, state);
+    next(state: MyU32) {
+        send(join(), s, state);
         let new_state = state + MyU32:1;
         new_state
     }
@@ -40,8 +40,8 @@ proc TestProc {
 
     init { () }
 
-    next(tok: token, state: ()) {
-        let (tok, value) = recv(tok, r);
+    next(state: ()) {
+        let (tok, value) = recv(join(), r);
         trace!(value);
         assert_eq(value, u32:42);
 

@@ -33,9 +33,10 @@ fn __itok__test_module__assert_trace_and_add(__token: token, __activated: bits[1
 top proc __test_module__main_0_next(__state: bits[32], init={0}) {
   __token: token = literal(value=token, id=27)
   literal.29: bits[1] = literal(value=1, id=29)
-  invoke.31: (token, bits[32]) = invoke(__token, literal.29, __state, to_apply=__itok__test_module__assert_trace_and_add, id=31)
-  tok: token = send(__token, __state, channel=test_module__input_c, id=30)
-  tuple_index.32: token = tuple_index(invoke.31, index=0, id=32)
-  tuple_index.33: bits[32] = tuple_index(invoke.31, index=1, id=33)
-  next (tuple_index.33)
+  after_all.30: token = after_all(id=30)
+  invoke.32: (token, bits[32]) = invoke(__token, literal.29, __state, to_apply=__itok__test_module__assert_trace_and_add, id=32)
+  tok: token = send(after_all.30, __state, channel=test_module__input_c, id=31)
+  tuple_index.33: token = tuple_index(invoke.32, index=0, id=33)
+  tuple_index.34: bits[32] = tuple_index(invoke.32, index=1, id=34)
+  next (tuple_index.34)
 }

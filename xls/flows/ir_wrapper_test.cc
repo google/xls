@@ -117,7 +117,8 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
     init {
         ()
     }
-    next(tok: token, state: ()) {
+    next(state: ()) {
+        let tok: token = join();
         let (tok, a) = recv(tok, in_0);
         let (tok, b) = recv(tok, in_1);
         let tok = send(tok, output, a + b);

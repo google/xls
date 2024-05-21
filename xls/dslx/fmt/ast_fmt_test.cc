@@ -1459,7 +1459,7 @@ TEST_F(ModuleFmtTest, SimpleProc) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1471,7 +1471,7 @@ TEST_F(ModuleFmtTest, SimpleProcEmptyConfigBlock) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1486,7 +1486,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1498,7 +1498,7 @@ TEST_F(ModuleFmtTest, SimpleParametricProc) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1516,7 +1516,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelDecl) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1534,7 +1534,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelArrayDecl) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1552,7 +1552,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1567,7 +1567,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithSpawn) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 
 pub proc q {
@@ -1579,7 +1579,7 @@ pub proc q {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1594,7 +1594,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithSpawnNoTrailingTuple) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 
 pub proc q {
@@ -1605,7 +1605,7 @@ pub proc q {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1629,7 +1629,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1644,7 +1644,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithTypeAlias) {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1662,7 +1662,7 @@ proc p {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }
@@ -1677,7 +1677,7 @@ proc p_test {
 
     init { () }
 
-    next(tok: token, state: ()) { send(tok, terminator, true); }
+    next(state: ()) { send(join(), terminator, true); }
 }
 )");
 }
@@ -1710,10 +1710,10 @@ proc p {
 
     init { () }
 
-    next(tok: token, state: DelayState) {
+    next(state: DelayState) {
         let data_in = ();
         let (recv_tok, input_data, data_in_valid) =
-            recv_if_non_blocking(tok, data_in, !eq(state.occupancy, DELAY), uN[DATA_WIDTH]:0);
+            recv_if_non_blocking(join(), data_in, !eq(state.occupancy, DELAY), uN[DATA_WIDTH]:0);
     }
 }
 )");
@@ -1870,7 +1870,7 @@ proc CSR<X: u32, Y: u32, Z: u32> {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 
 proc csr_8_32_14 {
@@ -1883,7 +1883,7 @@ proc csr_8_32_14 {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 )");
 }

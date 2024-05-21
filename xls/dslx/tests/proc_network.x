@@ -20,7 +20,7 @@ proc second_level_proc {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 
 proc first_level_proc {
@@ -43,7 +43,7 @@ proc first_level_proc {
 
     init { () }
 
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 
 #[test_proc]
@@ -57,5 +57,5 @@ proc main {
 
     init { () }
 
-    next(tok: token, state: ()) { let tok = send(tok, terminator, true); }
+    next(state: ()) { let tok = send(join(), terminator, true); }
 }

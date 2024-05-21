@@ -800,7 +800,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/proc_recv_if_reversed.x'
     )
-    self.assertIn('proc_recv_if_reversed.x:28:27-28:51', stderr)
+    self.assertIn('proc_recv_if_reversed.x:28:27-28:54', stderr)
     self.assertIn(
         "Want argument 1 to 'recv_if' to be a channel; got uN[1]", stderr
     )

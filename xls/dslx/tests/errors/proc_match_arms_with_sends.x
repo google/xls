@@ -17,10 +17,10 @@ proc p {
 
     init { u32:0 }
     config(c: chan<u32> in) { (c,) }
-    next(tok: token, state: u32) {
+    next(state: u32) {
         let (tok', state'): (token, u32) = match state {
-            u32:0 => recv(tok, c),
-            _ => recv(tok, c),
+            u32:0 => recv(join(), c),
+            _ => recv(join(), c),
         };
         state'
     }

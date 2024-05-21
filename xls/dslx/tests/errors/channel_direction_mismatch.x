@@ -21,8 +21,8 @@ proc foo {
 
   init { () }
 
-  next(tok: token, state: ()) {
-    recv(tok, ch);
+  next(state: ()) {
+    recv(join(), ch);
     ()
   }
 }

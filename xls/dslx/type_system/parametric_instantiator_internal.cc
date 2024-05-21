@@ -310,10 +310,12 @@ FunctionInstantiator::Make(
           << " with " << typed_parametrics.size() << " typed-parametrics and "
           << explicit_parametrics.size() << " explicit parametrics";
   if (args.size() != function_type.params().size()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "ArgCountMismatchError: %s Expected %d parameter(s) but got %d "
-        "argument(s)",
-        span.ToString(), function_type.params().size(), args.size()));
+    return absl::InvalidArgumentError(
+        absl::StrFormat("ArgCountMismatchError: %s Expected %d parameter(s) "
+                        "for function %s, but got %d "
+                        "argument(s)",
+                        span.ToString(), function_type.params().size(),
+                        callee_fn.identifier(), args.size()));
   }
   return absl::WrapUnique(new FunctionInstantiator(
       std::move(span), callee_fn, function_type, args, ctx, typed_parametrics,

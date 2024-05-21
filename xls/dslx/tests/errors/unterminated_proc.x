@@ -17,6 +17,6 @@ pub proc foo {
 
   config () { () }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }

@@ -83,14 +83,15 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
         "and have boolean payload.");
   }
 
-  const std::vector<Param*>& next_params = proc->next().params();
-  BuiltinTypeAnnotation* builtin_type =
-      dynamic_cast<BuiltinTypeAnnotation*>(next_params[0]->type_annotation());
-  if (builtin_type == nullptr ||
-      builtin_type->builtin_type() != BuiltinType::kToken) {
-    return TypeInferenceErrorStatus(
-        proc->next().span(), nullptr,
-        "Test proc 'next' functions first arg must be a token.");
+  if (proc->next().has_implicit_token_param()) {
+    BuiltinTypeAnnotation* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(
+        proc->next().params().front()->type_annotation());
+    if (builtin_type == nullptr ||
+        builtin_type->builtin_type() != BuiltinType::kToken) {
+      return TypeInferenceErrorStatus(
+          proc->next().span(), nullptr,
+          "Test proc 'next' functions first arg must be a token.");
+    }
   }
 
   if (proc->IsParametric()) {
@@ -117,9 +118,10 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
 
     // Evaluate the init() fn's return type matches the expected state param.
     XLS_RETURN_IF_ERROR(TypecheckFunction(proc->init(), ctx));
-    XLS_RET_CHECK_EQ(proc->next().params().size(), 2);
-    XLS_ASSIGN_OR_RETURN(Type * state_type,
-                         type_info->GetItemOrError(next_params[1]));
+    XLS_RET_CHECK_EQ(proc->next().params().size(),
+                     proc->next().has_implicit_token_param() ? 2 : 1);
+    XLS_ASSIGN_OR_RETURN(Type * state_type, type_info->GetItemOrError(
+                                                proc->next().params().back()));
     XLS_RET_CHECK(!state_type->IsMeta());
 
     // TestProcs can't be parameterized, so we don't need to worry about any

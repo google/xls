@@ -1563,7 +1563,7 @@ proc main {
     let (p3, c3) = chan<(u64, (u64, u64[4]))>("tuple_with_array_chan");
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -1590,8 +1590,8 @@ proc producer {
   config(input_c: chan<u32> out) {
     (input_c,)
   }
-  next(tok: token, i: u32) {
-    let tok = send(tok, c, i);
+  next(i: u32) {
+    let tok = send(join(), c, i);
     i + u32:1
   }
 }
@@ -1604,8 +1604,8 @@ proc consumer {
   config(input_c: chan<u32> in) {
     (input_c,)
   }
-  next(tok: token, i: u32) {
-    let (tok, i) = recv(tok, c);
+  next(i: u32) {
+    let (tok, i) = recv(join(), c);
     i + i
   }
 }
@@ -1618,7 +1618,7 @@ proc main {
     spawn consumer(c);
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
 
@@ -1644,8 +1644,8 @@ proc P {
 
     init { MyU32:42 }
 
-    next(tok: token, state: MyU32) {
-        send(tok, s, state);
+    next(state: MyU32) {
+        send(join(), s, state);
         let new_state = state + MyU32:1;
         new_state
     }
@@ -1675,8 +1675,8 @@ TEST(IrConverterTest, SendIfRecvIf) {
     (c,)
   }
 
-  next(tok: token, do_send: bool) {
-    send_if(tok, c, do_send, ((do_send) as u32));
+  next(do_send: bool) {
+    send_if(join(), c, do_send, ((do_send) as u32));
     !do_send
   }
 }
@@ -1692,8 +1692,8 @@ proc consumer {
     (c,)
   }
 
-  next(tok: token, do_recv: bool) {
-    let (_, foo) = recv_if(tok, c, do_recv, u32:42);
+  next(do_recv: bool) {
+    let (_, foo) = recv_if(join(), c, do_recv, u32:42);
     !do_recv
   }
 }
@@ -1706,7 +1706,7 @@ proc main {
     spawn consumer(c);
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 })";
 
   ConvertOptions options;
@@ -1739,7 +1739,8 @@ TEST(IrConverterTest, Join) {
     (p0, p1, p2, c3)
   }
 
-  next(tok: token, state: u32) {
+  next(state: u32) {
+    let tok = join();
     let tok0 = send(tok, p0, ((state) as u32));
     let tok1 = send(tok, p1, ((state) as u32));
     let tok2 = send(tok, p2, ((state) as u32));
@@ -1756,7 +1757,7 @@ proc main {
     let (p, c) = chan<u32>("my_chan");
     spawn foo();
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
 
@@ -1783,8 +1784,8 @@ TEST(IrConverterTest, BoundaryChannels) {
     (in_0, in_1, output)
   }
 
-  next(tok: token, state: ()) {
-    let (tok, a) = recv(tok, in_0);
+  next(state: ()) {
+    let (tok, a) = recv(join(), in_0);
     let (tok, b) = recv(tok, in_1);
     let tok = send(tok, output, a + b);
     ()
@@ -1810,7 +1811,7 @@ proc main {
   }
   config() { () }
 
-  next(tok: token, state: (u32, u32[4])) { state }
+  next(state: (u32, u32[4])) { state }
 })";
 
   ConvertOptions options;
@@ -1979,8 +1980,8 @@ TEST(IrConverterTest, TraceFmt) {
       config(input_c: chan<u32> out) {
         (input_c,)
       }
-      next(tok: token, i: u32) {
-        let tok = send(tok, c, i);
+      next(i: u32) {
+        let tok = send(join(), c, i);
         assert_trace_and_add(i)
       }
     }
@@ -2040,8 +2041,8 @@ TEST(IrConverterTest, ArrayOfTokenError) {
 proc main {
   init {}
   config() {}
-  next(t: token, st:()) {
-    let x: token = [t][u1:0];
+  next(st:()) {
+    let x: token = [join()][u1:0];
     ()
   }
 }
@@ -2062,8 +2063,8 @@ TEST(IrConverterTest, ArrayOfTupleWithTokenError) {
 proc main {
   init {}
   config() {}
-  next(t: token, st:()) {
-    let x: token = [(t,)][u1:0];
+  next(st:()) {
+    let x: token = [(join(),)][u1:0];
     ()
   }
 }
@@ -2137,8 +2138,8 @@ proc Counter {
     (in_ch, out_ch)
   }
 
-  next(tok: token, state: u32) {
-    let (tok, in_data) = recv(tok, in_ch);
+  next(state: u32) {
+    let (tok, in_data) = recv(join(), in_ch);
     let x = square<false>(in_data);
     let next_state = state + x;
     let tok = send(tok, out_ch, next_state);

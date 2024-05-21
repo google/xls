@@ -520,61 +520,71 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   NameRef* chan_expr = module_->Make<NameRef>(fake_span_, param->identifier(),
                                               param->name_def());
 
-  // Choose a random token for the channel op.
-  XLS_ASSIGN_OR_RETURN(TypedExpr token,
-                       ChooseEnvValue(&ctx->env, MakeTokenType()));
-  auto* token_name_ref = dynamic_cast<NameRef*>(token.expr);
-  CHECK(token_name_ref != nullptr);
+  Expr* token_ref = nullptr;
+  if (EnvContainsToken(ctx->env) && RandomBool(0.9)) {
+    // Choose a random token for the channel op.
+    XLS_ASSIGN_OR_RETURN(TypedExpr token,
+                         ChooseEnvValue(&ctx->env, MakeTokenType()));
+    token_ref = token.expr;
 
-  int64_t successor_min_stage = token.min_stage;
-  if (token.last_delaying_op == LastDelayingOp::kSend &&
-      chan_op_info.channel_direction == ChannelDirection::kIn) {
-    // Send depended on by recv - make sure we have a delay.
-    successor_min_stage++;
+    int64_t successor_min_stage = token.min_stage;
+    if (token.last_delaying_op == LastDelayingOp::kSend &&
+        chan_op_info.channel_direction == ChannelDirection::kIn) {
+      // Send depended on by recv - make sure we have a delay.
+      successor_min_stage++;
+    }
+    min_stage = std::max(min_stage, successor_min_stage);
+  } else {
+    // Create a new independent token.
+    token_ref = module_->Make<Invocation>(
+        fake_span_, MakeBuiltinNameRef("join"), std::vector<Expr*>{});
   }
-  min_stage = std::max(min_stage, successor_min_stage);
+  CHECK(token_ref != nullptr);
 
+  TypeAnnotation* token_type = module_->Make<BuiltinTypeAnnotation>(
+      fake_span_, BuiltinType::kToken,
+      module_->GetOrCreateBuiltinNameDef(BuiltinType::kToken));
   switch (chan_op_type) {
     case ChannelOpType::kRecv:
       return TypedExpr{.expr = module_->Make<Invocation>(
                            fake_span_, MakeBuiltinNameRef("recv"),
-                           std::vector<Expr*>{token_name_ref, chan_expr}),
-                       .type = MakeTupleType({token.type, channel_type}),
+                           std::vector<Expr*>{token_ref, chan_expr}),
+                       .type = MakeTupleType({token_type, channel_type}),
                        .last_delaying_op = LastDelayingOp::kRecv,
                        .min_stage = min_stage};
     case ChannelOpType::kRecvNonBlocking:
       return TypedExpr{.expr = module_->Make<Invocation>(
                            fake_span_, MakeBuiltinNameRef("recv_non_blocking"),
-                           std::vector<Expr*>{token_name_ref, chan_expr,
+                           std::vector<Expr*>{token_ref, chan_expr,
                                               default_value.value().expr}),
-                       .type = MakeTupleType({token.type, channel_type,
+                       .type = MakeTupleType({token_type, channel_type,
                                               MakeTypeAnnotation(false, 1)}),
                        .last_delaying_op = LastDelayingOp::kRecv,
                        .min_stage = min_stage};
     case ChannelOpType::kRecvIf:
-      return TypedExpr{.expr = module_->Make<Invocation>(
-                           fake_span_, MakeBuiltinNameRef("recv_if"),
-                           std::vector<Expr*>{token_name_ref, chan_expr,
-                                              predicate.value().expr,
-                                              default_value.value().expr}),
-                       .type = MakeTupleType({token.type, channel_type}),
-                       .last_delaying_op = LastDelayingOp::kRecv,
-                       .min_stage = min_stage};
+      return TypedExpr{
+          .expr = module_->Make<Invocation>(
+              fake_span_, MakeBuiltinNameRef("recv_if"),
+              std::vector<Expr*>{token_ref, chan_expr, predicate.value().expr,
+                                 default_value.value().expr}),
+          .type = MakeTupleType({token_type, channel_type}),
+          .last_delaying_op = LastDelayingOp::kRecv,
+          .min_stage = min_stage};
     case ChannelOpType::kSend:
-      return TypedExpr{.expr = module_->Make<Invocation>(
-                           fake_span_, MakeBuiltinNameRef("send"),
-                           std::vector<Expr*>{token_name_ref, chan_expr,
-                                              payload.value().expr}),
-                       .type = token.type,
-                       .last_delaying_op = LastDelayingOp::kSend,
-                       .min_stage = min_stage};
+      return TypedExpr{
+          .expr = module_->Make<Invocation>(
+              fake_span_, MakeBuiltinNameRef("send"),
+              std::vector<Expr*>{token_ref, chan_expr, payload.value().expr}),
+          .type = token_type,
+          .last_delaying_op = LastDelayingOp::kSend,
+          .min_stage = min_stage};
     case ChannelOpType::kSendIf:
       return TypedExpr{
           .expr = module_->Make<Invocation>(
               fake_span_, MakeBuiltinNameRef("send_if"),
-              std::vector<Expr*>{token_name_ref, chan_expr,
-                                 predicate.value().expr, payload.value().expr}),
-          .type = token.type,
+              std::vector<Expr*>{token_ref, chan_expr, predicate.value().expr,
+                                 payload.value().expr}),
+          .type = token_type,
           .last_delaying_op = LastDelayingOp::kSend,
           .min_stage = min_stage};
   }
@@ -589,7 +599,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Context* ctx) {
   };
   std::vector<TypedExpr> tokens = GatherAllValues(&ctx->env, token_predicate);
   int64_t token_count =
-      absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, tokens.size());
+      absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 0, tokens.size());
   std::vector<Expr*> tokens_to_join;
   std::vector<LastDelayingOp> delaying_ops;
   tokens_to_join.reserve(token_count);
@@ -2822,12 +2832,7 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
     std::string name) {
   Context context{.is_generating_proc = true};
 
-  // A token is required as the first parameter of the next function.
-  NameDef* token_name_def = module_->Make<NameDef>(fake_span_, GenSym(),
-                                                   /*definer=*/nullptr);
-  Param* token_param = module_->Make<Param>(token_name_def, MakeTokenType());
-  std::vector<Param*> params({token_param});
-
+  std::vector<Param*> params;
   TypeAnnotation* state_param_type = nullptr;
   if (options_.emit_stateless_proc) {
     state_param_type = MakeTupleType({});

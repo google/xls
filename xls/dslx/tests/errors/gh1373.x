@@ -30,12 +30,12 @@ proc MyTestProc {
         (terminator,)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let yval = Y::Y0;
         match yval {
             X::Y0 => trace_fmt!("It's Y0!"),
             X::Y1 => trace_fmt!("It's Y1!"),
         };
-        send(tok, terminator, true);
+        send(join(), terminator, true);
     }
 }

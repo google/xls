@@ -241,7 +241,7 @@ TEST(ExtractConversionOrderTest, BasicProcWithEntry) {
 proc foo {
   init { () }
   config() { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc main {
@@ -250,7 +250,7 @@ proc main {
     spawn foo();
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -288,7 +288,7 @@ TEST(ExtractConversionOrderTest, BasicProc) {
 proc foo {
   init { () }
   config() { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc main {
@@ -297,7 +297,7 @@ proc main {
     spawn foo();
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -338,7 +338,7 @@ proc p2 {
   init { u32:0 }
   config() { () }
 
-  next(tok: token, x: u32) {
+  next(x: u32) {
     f0()
   }
 }
@@ -349,7 +349,7 @@ proc p1 {
     spawn p2();
     ()
   }
-  next(tok: token, i: u32) {
+  next(i: u32) {
     i
   }
 }
@@ -361,7 +361,7 @@ proc p0 {
     spawn p1();
     ()
   }
-  next(tok: token, i: u32) {
+  next(i: u32) {
     let j = f1();
     f0() + j
   }
@@ -375,7 +375,7 @@ proc main {
     spawn p2();
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -476,7 +476,7 @@ proc p2 {
   init { u32:3 }
   config() { () }
 
-  next(tok: token, x: u32) {
+  next(x: u32) {
     f0()
   }
 }
@@ -487,7 +487,7 @@ proc p1 {
     spawn p2();
     ()
   }
-  next(tok: token, i: u32) {
+  next(i: u32) {
     i
   }
 }
@@ -499,7 +499,7 @@ proc p0 {
     spawn p1();
     ()
   }
-  next(tok: token, i: u32) {
+  next(i: u32) {
     let j = f1();
     f0() + j
   }
@@ -513,7 +513,7 @@ proc main {
     spawn p2();
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -592,13 +592,13 @@ TEST(ExtractConversionOrderTest, ProcNetworkWithTwoTopLevelProcs) {
 proc p2 {
   init { () }
   config() { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc p1 {
   init { () }
   config() { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc p0 {
@@ -608,7 +608,7 @@ proc p0 {
     spawn p2();
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc main {
@@ -618,7 +618,7 @@ proc main {
     spawn p2();
     ()
   }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -678,13 +678,13 @@ TEST(GetTopLevelProcsTest, OnlyOneParametricProc) {
 proc np {
   init { () }
   config() { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc p<N: u32> {
   init { () }
   config() { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();

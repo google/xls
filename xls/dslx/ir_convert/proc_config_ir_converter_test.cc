@@ -58,7 +58,7 @@ proc test_proc {
   config(c: chan<u32> in, ham_sandwich: u32) {
     (c, ham_sandwich)
   }
-  next(tok: token, y: u32) {
+  next(y: u32) {
     let y = y + x;
     y
   }
@@ -72,7 +72,7 @@ proc main {
     spawn test_proc(c, u32:7);
     (p,)
   }
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -115,7 +115,7 @@ proc test_proc {
   config(c: chan<u32> in) {
     (c,)
   }
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -128,7 +128,7 @@ proc main {
     spawn test_proc(c);
     (p,)
   }
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -165,8 +165,8 @@ proc passthrough {
   config(c_in: chan<u32> in, c_out: chan<u32> out) {
     (c_in, c_out)
   }
-  next(tok: token, state: ()) {
-    let (tok, data) = recv(tok, c_in);
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
     let tok = send(tok, c_out, data);
     ()
   }
@@ -182,7 +182,7 @@ proc test_proc<X: u32, Y: u32> {
     spawn passthrough(c, c_out);
     (c_in, c_out)
   }
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -195,7 +195,7 @@ proc main {
     spawn test_proc<u32:3, u32:4>(c_in, c_out);
     (c_in, c_out)
   }
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -236,8 +236,8 @@ proc main {
     let (p1, c1) = chan<u32>("my_chan");
     (c_in, c_out, c0, p0, c1, p1)
   }
-  next(tok: token, state: ()) {
-    let (tok, data) = recv(tok, c_in);
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
     let tok = send(tok, internal_out0, data);
     let (tok, data) = recv(tok, internal_in0);
     let tok = send(tok, internal_out1, data);
@@ -277,8 +277,8 @@ proc passthrough {
     let (p, c) = chan<u32>("my_chan");
     (c_in, c_out, c, p)
   }
-  next(tok: token, state: ()) {
-    let (tok, data) = recv(tok, c_in);
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
     let tok = send(tok, internal_out, data);
     let (tok, data) = recv(tok, internal_in);
     let tok = send(tok, c_out, data);
@@ -295,8 +295,8 @@ proc main {
     spawn passthrough(c_in, p);
     (c_out, c)
   }
-  next(tok: token, state: ()) {
-    let (tok, data) = recv(tok, internal_in);
+  next(state: ()) {
+    let (tok, data) = recv(join(), internal_in);
     let tok = send(tok, c_out, data);
     ()
   }

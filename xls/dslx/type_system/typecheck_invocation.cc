@@ -354,24 +354,19 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   const absl::Span<Expr* const> args = invocation->args();
   std::vector<InstantiateArg> instantiate_args;
   std::vector<std::unique_ptr<Type>> arg_types;
-  instantiate_args.reserve(args.size() + 1);
-  if (callee_fn.tag() == FunctionTag::kProcNext) {
+  if (callee_fn.has_implicit_token_param()) {
+    instantiate_args.reserve(args.size() + 1);
     arg_types.push_back(std::make_unique<TokenType>());
     instantiate_args.push_back(
         {std::make_unique<TokenType>(), invocation->span()});
-    XLS_RET_CHECK_EQ(invocation->args().size(), 1);
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         DeduceAndResolve(invocation->args()[0], ctx));
-    arg_types.push_back(type->CloneToUnique());
-    instantiate_args.push_back(
-        InstantiateArg{std::move(type), invocation->span()});
   } else {
-    for (Expr* arg : args) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                           DeduceAndResolve(arg, ctx));
-      arg_types.push_back(type->CloneToUnique());
-      instantiate_args.push_back(InstantiateArg{std::move(type), arg->span()});
-    }
+    instantiate_args.reserve(args.size());
+  }
+  for (Expr* arg : args) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
+                         DeduceAndResolve(arg, ctx));
+    arg_types.push_back(type->CloneToUnique());
+    instantiate_args.push_back(InstantiateArg{std::move(type), arg->span()});
   }
 
   // Make a copy; the fn stack can get re-allocated, etc.

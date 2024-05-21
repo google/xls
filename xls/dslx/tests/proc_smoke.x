@@ -22,8 +22,8 @@ proc proc_under_test {
     (u32:0, r)
   }
 
-  next(tok: token, state: ()) {
-    let (tok, _) = recv(tok, input_r);
+  next(state: ()) {
+    let (tok, _) = recv(join(), input_r);
   }
 }
 
@@ -41,8 +41,8 @@ proc test_main {
   }
 
   // Run for two iterations then exit.
-  next(tok: token, iter: u32) {
-    let tok = send(tok, input_s, u32:0);
+  next(iter: u32) {
+    let tok = send(join(), input_s, u32:0);
     let tok = send_if(tok, terminator_s, iter == u32:2, true);
     iter + u32:1
   }

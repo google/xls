@@ -20,8 +20,8 @@ proc producer {
         (s,)
     }
 
-    next(tok: token, do_send: bool) {
-        let tok = send_if(tok, s, do_send, ((do_send) as u32));
+    next(do_send: bool) {
+        let tok = send_if(join(), s, do_send, ((do_send) as u32));
         !do_send
     }
 }
@@ -35,8 +35,8 @@ proc consumer {
         (r,)
     }
 
-    next(tok: token, do_recv: bool) {
-        let (tok, _) = recv_if(tok, r, do_recv, u32:42);
+    next(do_recv: bool) {
+        let (tok, _) = recv_if(join(), r, do_recv, u32:42);
         !do_recv
     }
 }
@@ -48,7 +48,7 @@ proc main {
         spawn producer(s);
         spawn consumer(r);
     }
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 
 #[test_proc]
@@ -69,9 +69,9 @@ proc test_main {
         (terminator, data0_r, data1_s)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         // Sending consumer data.
-        let tok = send(tok, data1, u32:10);
+        let tok = send(join(), data1, u32:10);
         let tok = send(tok, data1, u32:20);
 
         // Receiving producer data.

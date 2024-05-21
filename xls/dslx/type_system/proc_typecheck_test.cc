@@ -31,13 +31,13 @@ TEST(TypecheckTest, ConfigSpawnTerminatingSemicolonNoMembers) {
 proc foo {
     init { }
     config() { }
-    next(tok: token, state: ()) { }
+    next(state: ()) { }
 }
 
 proc entry {
     init { () }
     config() { spawn foo(); }
-    next (tok: token, state: ()) { () }
+    next (state: ()) { () }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -49,13 +49,13 @@ TEST(TypecheckTest, ConfigSpawnExplicitNilTupleNoMembers) {
 proc foo {
     init { }
     config() { }
-    next(tok: token, state: ()) { }
+    next(state: ()) { }
 }
 
 proc entry {
     init { () }
     config() { spawn foo(); () }
-    next (tok: token, state: ()) { () }
+    next (state: ()) { () }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -69,7 +69,7 @@ proc entry {
       let (_p, c) = chan<u32>("my_chan");
       (c,)
     }
-    next (tok: token, state: ()) { () }
+    next (state: ()) { () }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
@@ -86,7 +86,7 @@ proc entry {
     config() {
       ()
     }
-    next (tok: token, state: ()) { () }
+    next (state: ()) { () }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
@@ -103,7 +103,7 @@ proc entry {
     config() {
       u32:42
     }
-    next (tok: token, state: ()) { () }
+    next (state: ()) { () }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
@@ -124,8 +124,8 @@ proc foo {
     config(c: chan<u32> in) {
         (c,)
     }
-    next(tok: token, state: u32) {
-        let (tok, x) = recv_if(tok, c, true, u42:1234);
+    next(state: u32) {
+        let (tok, x) = recv_if(join(), c, true, u42:1234);
         (state + x,)
     }
 }
@@ -138,7 +138,7 @@ proc entry {
         spawn foo(p);
         (c,)
     }
-    next (tok: token, state: ()) { () }
+    next (state: ()) { () }
 }
 )";
   EXPECT_THAT(
@@ -154,7 +154,7 @@ TEST(TypecheckTest, InitDoesntMatchStateParam) {
 proc oopsie {
     init { u32:0xbeef }
     config() { () }
-    next(tok: token, state: u33) {
+    next(state: u33) {
       state
     }
 })";
@@ -170,7 +170,7 @@ TEST(TypecheckTest, NextReturnDoesntMatchState) {
 proc oopsie {
     init { u32:0xbeef }
     config() { () }
-    next(tok: token, state: u32) {
+    next(state: u32) {
       state as u33
     }
 })";
@@ -190,9 +190,9 @@ proc foo {
         ()
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let foo = u32:0;
-        let tok = send(tok, foo, u32:0x0);
+        let tok = send(join(), foo, u32:0x0);
         ()
     }
 }
@@ -213,8 +213,8 @@ proc foo {
     config() {
         (u32:0,)
     }
-    next(tok: token, state: ()) {
-        let tok = send(tok, bar, u32:0x0);
+    next(state: ()) {
+        let tok = send(join(), bar, u32:0x0);
         ()
     }
 }
@@ -237,8 +237,8 @@ proc foo {
     config(c: chan<u32> out) {
         (c,)
     }
-    next(tok: token, state: u32) {
-        let (tok, x) = recv(tok, c);
+    next(state: u32) {
+        let (tok, x) = recv(join(), c);
         (state + x,)
     }
 }
@@ -251,7 +251,7 @@ proc entry {
         spawn foo(c);
         (p,)
     }
-    next (tok: token, state: ()) { () }
+    next (state: ()) { () }
 }
 )";
   EXPECT_THAT(
@@ -272,8 +272,8 @@ proc entry {
         let (p, c) = chan<u32>("my_chan");
         (p, c)
     }
-    next (tok: token, state: ()) {
-        let tok = send(tok, c, u32:0);
+    next (state: ()) {
+        let tok = send(join(), c, u32:0);
         ()
     }
 }
@@ -297,7 +297,7 @@ proc foo {
 
   init { zero!<bar_t>()  }
 
-  next(tok: token, state: bar_t) {
+  next(state: bar_t) {
     state
   }
 }
@@ -315,7 +315,7 @@ proc entry {
         let (p, c) = chan<u32>("my_chan");
         (p, c)
     }
-    next (tok: token, state: ()) {
+    next (state: ()) {
         let tok = send(u32:42, p, u32:0);
         ()
     }
@@ -339,8 +339,8 @@ proc producer {
         (s,)
     }
 
-    next(tok: token, do_send: bool) {
-        let tok = send_if(tok, s, do_send, ((do_send) as u32));
+    next(do_send: bool) {
+        let tok = send_if(join(), s, do_send, ((do_send) as u32));
         !do_send
     }
 }
@@ -355,7 +355,7 @@ fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 pub proc MyProc<X:u32, Y:u32={id(X)}> {
   config() { () }
   init { () }
-  next(tok: token, state: ()) { state }
+  next(state: ()) { state }
 }
 
 #[test_proc]
@@ -366,7 +366,7 @@ proc MyTestProc {
     spawn MyProc<u32:7>();
   }
 
-  next(tok: token, st:()) { }
+  next(st:()) { }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -379,7 +379,7 @@ proc p {
 
   config(result: chan<u32>[2] out) { (result,) }
   init { () }
-  next(tok: token, state: ()) { send(tok, result[0], u32:0); }
+  next(state: ()) { send(join(), result[0], u32:0); }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -392,7 +392,7 @@ proc p {
 
   config(result: chan<u32>[2] out) { (result,) }
   init { () }
-  next(tok: token, state: ()) { send(tok, result[2], u32:0); }
+  next(state: ()) { send(join(), result[2], u32:0); }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram).status(),
@@ -409,7 +409,7 @@ proc p {
 
   config(result: chan<u32>[2] out) { (result,) }
   init { () }
-  next(tok: token, state: ()) { send(tok, result[1], u64:0); }
+  next(state: ()) { send(join(), result[1], u64:0); }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram).status(),
@@ -425,7 +425,7 @@ proc p {
   type MyU32 = u32;
   config() { let _ = zero!<MyU32>(); () }
   init { zero!<MyU32>() }
-  next(tok: token, state: MyU32) { zero!<MyU32>() }
+  next(state: MyU32) { zero!<MyU32>() }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -438,7 +438,7 @@ proc MyProc {
   N;
   config() { () }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
@@ -456,7 +456,7 @@ proc MyProc {
   const_assert!(N == u32:42);
   config() { () }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -468,7 +468,7 @@ proc MyProc<X: u32, Y: u32> {
   const_assert!(X == Y);
   config() { () }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc Instantiator {
@@ -476,7 +476,7 @@ proc Instantiator {
       spawn MyProc<u32:42, u32:64>();
   }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   EXPECT_THAT(
@@ -493,7 +493,7 @@ proc MyProc<X: u32, Y: u32> {
   const_assert!(X == Y);
   config() { () }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc Instantiator {
@@ -501,7 +501,7 @@ proc Instantiator {
       spawn MyProc<u32:42, u32:42>();
   }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -513,7 +513,7 @@ proc MyProc<X: u32, Y: u32> {
   const_assert!(X == Y);
   config() { () }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 
 proc Instantiator {
@@ -522,7 +522,7 @@ proc Instantiator {
       spawn MyProc<u32:42, u32:64>();
   }
   init { () }
-  next(tok: token, state: ()) { () }
+  next(state: ()) { () }
 }
 )";
   EXPECT_THAT(

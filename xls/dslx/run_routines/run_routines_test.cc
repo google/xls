@@ -177,8 +177,8 @@ proc doomed {
         (terminator,)
     }
 
-    next(tok: token, state: ()) {
-      let tok = send(tok, terminator, false);
+    next(state: ()) {
+      let tok = send(join(), terminator, false);
     }
 })";
 
@@ -328,8 +328,8 @@ proc incrementer {
          out_ch: chan<u32> out) {
     (in_ch, out_ch)
   }
-  next(tok: token, _: ()) {
-    let (tok, i) = recv(tok, in_ch);
+  next(_: ()) {
+    let (tok, i) = recv(join(), in_ch);
     let tok = send(tok, out_ch, i + u32:1);
   }
 }
@@ -349,8 +349,8 @@ proc tester_proc {
     (input_out, output_in, terminator)
   }
 
-  next(tok: token, state: ()) {
-    let tok = send_if(tok, data_out, false, u32:42);
+  next(state: ()) {
+    let tok = send_if(join(), data_out, false, u32:42);
     let (tok, _result) = recv(tok, data_in);
     let tok = send(tok, terminator, true);
  }
@@ -376,8 +376,8 @@ proc incrementer {
          out_ch: chan<u32> out) {
     (in_ch, out_ch)
   }
-  next(tok: token, _: ()) {
-    let (tok, i) = recv_if(tok, in_ch, false, u32:0);
+  next(_: ()) {
+    let (tok, i) = recv_if(join(), in_ch, false, u32:0);
     let tok = send_if(tok, out_ch, false, i + u32:1);
   }
 }
@@ -397,8 +397,8 @@ proc tester_proc {
     (input_out, output_in, terminator)
   }
 
-  next(tok: token, state: ()) {
-    let tok = send(tok, data_out, u32:42);
+  next(state: ()) {
+    let tok = send(join(), data_out, u32:42);
     let (tok, _result) = recv(tok, data_in);
     let tok = send(tok, terminator, true);
  }

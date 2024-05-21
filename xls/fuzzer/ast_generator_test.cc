@@ -134,8 +134,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
   options.generate_proc = true;
   options.emit_stateless_proc = true;
   // Regex matcher for the next function signature.
-  constexpr const char* kWantPattern =
-      R"(next\(x[0-9]+: token, x[0-9]+: \(\)\))";
+  constexpr const char* kWantPattern = R"(next\(x[0-9]+: \(\)\))";
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, rng);
     LOG(INFO) << "Generating sample: " << i;
@@ -160,7 +159,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
   // Although [[:word:]] encapsulates [0-9a-zA-Z_], which would simplify the
   // following regex statement. The following regex statement is more readable.
   constexpr const char* kWantPattern =
-      R"(next\(x[0-9]+: token, x[0-9]+: []0-9a-zA-Z_, ()[]+\))";
+      R"(next\(x[0-9]+: []0-9a-zA-Z_, ()[]+\))";
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, rng);
     LOG(INFO) << "Generating sample: " << i;

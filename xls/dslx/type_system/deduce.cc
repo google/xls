@@ -329,7 +329,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
   std::optional<InterpValue> maybe_constexpr_value;
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
       ctx->import_data(), ctx->type_info(), ctx->warnings(),
-      ctx->GetCurrentParametricEnv(), node->rhs(), rhs.get()));
+      ctx->GetCurrentParametricEnv(), node->rhs(), rhs.get()))
+      << "while evaluating: " << node->rhs()->ToString();
   if (ctx->type_info()->IsKnownConstExpr(node->rhs())) {
     XLS_ASSIGN_OR_RETURN(maybe_constexpr_value,
                          ctx->type_info()->GetConstExpr(node->rhs()));
@@ -614,6 +615,18 @@ static void DetectUselessTrailingTuplePattern(const Block* block,
   // Need at least a statement (i.e. with semicolon after it) and an
   // expression-statement at the end to match this pattern.
   if (block->statements().size() < 2) {
+    return;
+  }
+
+  // Make sure we ignore this if we're only following an implicit prologue (as
+  // is used to convert implicit-token-parameter semantics for now).
+  // TODO(https://github.com/google/xls/issues/1401): Remove once we no longer
+  // support implicit token parameter semantics.
+  const Statement* next_to_last_stmt =
+      block->statements()[block->statements().size() - 2];
+  if (next_to_last_stmt->GetSpan().has_value() &&
+      next_to_last_stmt->GetSpan()->limit() <=
+          block->span().start().BumpCol()) {
     return;
   }
 

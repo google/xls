@@ -21,8 +21,8 @@ proc consumer {
   config(send_chans: chan<u16>[128] out, recv_chans: chan<u16>[128][64] in) {
     (send_chans, recv_chans)
   }
-  next(tok: token, state: ()) {
-    let (tok, i) = recv(tok, recv_chans[0][0]);
+  next(state: ()) {
+    let (tok, i) = recv(join(), recv_chans[0][0]);
     let tok = send(tok, send_chans[1], i + i);
   }
 }
@@ -41,8 +41,8 @@ proc producer {
     (ps, cs, terminator)
   }
 
-  next(tok: token, state: ()) {
-    let tok = send(tok, ps[0][0][0], u16:1);
+  next(state: ()) {
+    let tok = send(join(), ps[0][0][0], u16:1);
     let (tok, result) = recv(tok, cs[0][1][1]);
     assert_eq(result, u16:2);
 

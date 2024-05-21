@@ -249,7 +249,7 @@ TEST(AstClonerTest, Procs) {
     init {
         u19:0
     }
-    next(tok: token, state: u19) {
+    next(state: u19) {
         (a as u64 + b) as u19
     }
 })";
@@ -291,7 +291,7 @@ proc my_test_proc {
     init {
         u64:1
     }
-    next(tok: token, state: u64) {
+    next(state: u64) {
         state + a as u64 + b as u64
     }
 })";
@@ -373,7 +373,7 @@ proc my_proc {
     config() {
         (u8:32, u32:8)
     }
-    next(tok: token, state: u16) {
+    next(state: u16) {
         let x = my_function(state as u32);
         a as u16 + b as u16 + x
     }
@@ -396,7 +396,7 @@ fn my_proc.init() -> u16 {
 fn my_proc.config() -> (u8, u32) {
     (u8:32, u32:8)
 }
-fn my_proc.next(tok: token, state: u16) -> u16 {
+fn my_proc.next(state: u16) -> u16 {
     let x = my_function(state as u32);
     a as u16 + b as u16 + x
 }
@@ -409,7 +409,7 @@ proc my_proc {
     init {
         u16:0
     }
-    next(tok: token, state: u16) {
+    next(state: u16) {
         let x = my_function(state as u32);
         a as u16 + b as u16 + x
     }
@@ -571,8 +571,8 @@ proc MyProc {
     init {
         u32:0
     }
-    next(tok: token, state: u32) {
-        let tok = send(tok, input_p, state);
+    next(state: u32) {
+        let tok = send(join(), input_p, state);
         let tok = send_if(tok, input_p, state > u32:32, state);
         let (tok1, state) = recv(tok, output_c);
         let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
@@ -590,8 +590,8 @@ fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
 fn MyProc.init() -> u32 {
     u32:0
 }
-fn MyProc.next(tok: token, state: u32) -> u32 {
-    let tok = send(tok, input_p, state);
+fn MyProc.next(state: u32) -> u32 {
+    let tok = send(join(), input_p, state);
     let tok = send_if(tok, input_p, state > u32:32, state);
     let (tok1, state) = recv(tok, output_c);
     let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
@@ -610,8 +610,8 @@ proc MyProc {
     init {
         u32:0
     }
-    next(tok: token, state: u32) {
-        let tok = send(tok, input_p, state);
+    next(state: u32) {
+        let tok = send(join(), input_p, state);
         let tok = send_if(tok, input_p, state > u32:32, state);
         let (tok1, state) = recv(tok, output_c);
         let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);

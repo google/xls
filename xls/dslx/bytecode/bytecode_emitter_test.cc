@@ -14,6 +14,7 @@
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,6 +23,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -43,6 +46,7 @@ namespace xls::dslx {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
 
 absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(
     ImportData* import_data, std::string_view program,
@@ -1282,7 +1286,7 @@ proc Foo {
     (c, u32:100)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -1329,8 +1333,8 @@ proc Child {
     u64:1234
   }
 
-  next(tok: token, a: u64) {
-    let (tok, b) = recv(tok, c);
+  next(a: u64) {
+    let (tok, b) = recv(join(), c);
     a + x as u64 + y + b as u64
   }
 }
@@ -1344,7 +1348,7 @@ proc Parent {
     (p,)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }
@@ -1398,28 +1402,28 @@ proc Parent {
       bf, BytecodeEmitter::EmitProcNext(&import_data, child_ti, child->next(),
                                         ParametricEnv(), members));
   const std::vector<Bytecode>& next_bytecodes = bf->bytecodes();
-  ASSERT_EQ(next_bytecodes.size(), 17);
-  const std::vector<std::string> kNextExpected = {
-      "load 3 @ test.x:16:25-16:28",
-      "load 0 @ test.x:16:30-16:31",
-      "literal u1:1 @ test.x:16:24-16:32",
-      "literal u32:0 @ test.x:16:24-16:32",
-      "recv Child::c @ test.x:16:24-16:32",
-      "expand_tuple @ test.x:16:9-16:17",
-      "store 5 @ test.x:16:10-16:13",
-      "store 6 @ test.x:16:15-16:16",
-      "load 4 @ test.x:17:5-17:6",
-      "load 1 @ test.x:17:9-17:10",
-      "cast uN[64] @ test.x:17:9-17:17",
-      "uadd @ test.x:17:7-17:8",
-      "load 2 @ test.x:17:20-17:21",
-      "uadd @ test.x:17:18-17:19",
-      "load 6 @ test.x:17:24-17:25",
-      "cast uN[64] @ test.x:17:24-17:32",
-      "uadd @ test.x:17:22-17:23"};
-  for (int i = 0; i < next_bytecodes.size(); i++) {
-    ASSERT_EQ(next_bytecodes[i].ToString(), kNextExpected[i]);
-  }
+  std::vector<std::string> next_bytecode_strings;
+  absl::c_transform(next_bytecodes, std::back_inserter(next_bytecode_strings),
+                    [](const Bytecode& bc) { return bc.ToString(); });
+  EXPECT_THAT(next_bytecode_strings,
+              ElementsAre(testing::MatchesRegex(
+                              "literal token:0x[0-9a-f]+ @ test.x:16:29-16:31"),
+                          "load 0 @ test.x:16:33-16:34",         //
+                          "literal u1:1 @ test.x:16:24-16:35",   //
+                          "literal u32:0 @ test.x:16:24-16:35",  //
+                          "recv Child::c @ test.x:16:24-16:35",  //
+                          "expand_tuple @ test.x:16:9-16:17",    //
+                          "store 4 @ test.x:16:10-16:13",        //
+                          "store 5 @ test.x:16:15-16:16",        //
+                          "load 3 @ test.x:17:5-17:6",           //
+                          "load 1 @ test.x:17:9-17:10",          //
+                          "cast uN[64] @ test.x:17:9-17:17",     //
+                          "uadd @ test.x:17:7-17:8",             //
+                          "load 2 @ test.x:17:20-17:21",         //
+                          "uadd @ test.x:17:18-17:19",           //
+                          "load 5 @ test.x:17:24-17:25",         //
+                          "cast uN[64] @ test.x:17:24-17:32",    //
+                          "uadd @ test.x:17:22-17:23"));
 }
 
 // Verifies no explosions when calling BytecodeEmitter::EmitExpression with an

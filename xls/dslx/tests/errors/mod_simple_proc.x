@@ -15,5 +15,5 @@
 pub proc p {
     init { () }
     config() { () }
-    next(tok: token, state: ()) { }
+    next(state: ()) { }
 }

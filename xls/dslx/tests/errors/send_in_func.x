@@ -25,8 +25,8 @@ proc counter {
     (output,)
   }
 
-  next(tok: token, state: u8) {
-    let tok = send(tok, output, state);
+  next(state: u8) {
+    let tok = send(join(), output, state);
     state + u8:1
   }
 }
@@ -53,8 +53,8 @@ proc counter_test {
     (t, output_s, output_r)
   }
 
-  next(tok: token, state: ()) {
-    let tok = assert_recv_eq(tok, output_r, u8:0);
+  next(state: ()) {
+    let tok = assert_recv_eq(join(), output_r, u8:0);
     let tok = send(tok, terminator, true);
     ()
   }

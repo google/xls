@@ -25,8 +25,8 @@ proc Main {
 
     init { () }
 
-    next(tok: token, state: ()) {
-        let (tok, do_recv) = recv(tok, do_recv_in);
+    next(state: ()) {
+        let (tok, do_recv) = recv(join(), do_recv_in);
         let (tok, foo, foo_valid) = recv_if_non_blocking(tok, data_in, do_recv, u32:123);
         send(tok, result_out, (foo, foo_valid));
     }
@@ -49,10 +49,10 @@ proc Tester {
 
     init { () }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         // First, tell the proc to receive without data present. Expect a
         // result of 123 (default value of recv_if_non_blocking).
-        let tok = send(tok, do_recv_out, true);
+        let tok = send(join(), do_recv_out, true);
         let (tok, result) = recv(tok, result_in);
         assert_eq(result, (u32:123, false));
 

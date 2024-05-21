@@ -392,7 +392,7 @@ TEST_F(ParserTest, ParseSimpleProc) {
     init {
         u32:0
     }
-    next(tok: token, addend: u32) {
+    next(addend: u32) {
         x + addend
     }
 })";
@@ -416,7 +416,7 @@ TEST_F(ParserTest, ParseNextTooManyArgs) {
   const char* text = R"(proc confused {
     config() { () }
     init { () }
-    next(tok: token, state: (), more: u32) { () }
+    next(state: (), more: u32, even_more: u64) { () }
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -432,9 +432,9 @@ TEST_F(ParserTest, ParseNextTooManyArgs) {
   EXPECT_THAT(proc_or,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr(
-                           "test.x:4:43-4:43 A Proc next function takes two "
-                           "arguments: a token and a recurrent state element; "
-                           "got 3 parameters: [tok, state, more]")));
+                           "test.x:4:47-4:47 A Proc next function takes one "
+                           "argument (a recurrent state element); got 3 "
+                           "parameters: [state, more, even_more]")));
 }
 
 TEST_F(ParserTest, ParseSimpleProcWithAlias) {
@@ -447,7 +447,7 @@ TEST_F(ParserTest, ParseSimpleProcWithAlias) {
     init {
         MyU32:0
     }
-    next(tok: token, addend: MyU32) {
+    next(addend: MyU32) {
         x + addend
     }
 })";
@@ -479,7 +479,7 @@ TEST_F(ParserTest, ParseSimpleProcWithDepdenentTypeAlias) {
     init {
         MyOtherU32:0
     }
-    next(tok: token, addend: MyOtherU32) {
+    next(addend: MyOtherU32) {
         x + addend
     }
 })";
@@ -511,8 +511,8 @@ TEST_F(ParserTest, ParseProcNetwork) {
     init {
         u32:0
     }
-    next(tok: token, i: u32) {
-        let tok = send(tok, c_, i);
+    next(i: u32) {
+        let tok = send(join(), c_, i);
         i + 1
     }
 }
@@ -524,8 +524,8 @@ proc consumer<N: u32> {
     init {
         u32:0
     }
-    next(tok: token, i: u32) {
-        let (tok1, e) = recv(tok, c_);
+    next(i: u32) {
+        let (tok1, e) = recv(join(), c_);
         i + 1
     }
 }
@@ -539,7 +539,7 @@ proc main {
     init {
         ()
     }
-    next(tok: token, state: ()) {
+    next(state: ()) {
         ()
     }
 })";
@@ -558,8 +558,8 @@ TEST_F(ParserTest, ParseProcNetworkWithFifoDepthOnInternalChannel) {
     init {
         u32:0
     }
-    next(tok: token, i: u32) {
-        let tok = send(tok, c_, i);
+    next(i: u32) {
+        let tok = send(join(), c_, i);
         i + 1
     }
 }
@@ -571,8 +571,8 @@ proc consumer<N: u32> {
     init {
         u32:0
     }
-    next(tok: token, i: u32) {
-        let (tok1, e) = recv(tok, c_);
+    next(i: u32) {
+        let (tok1, e) = recv(join(), c_);
         i + 1
     }
 }
@@ -586,7 +586,7 @@ proc main {
     init {
         ()
     }
-    next(tok: token, state: ()) {
+    next(state: ()) {
         ()
     }
 })";
@@ -600,8 +600,8 @@ TEST_F(ParserTest, ChannelsNotAsNextArgs) {
     config(c: chan<u32> out) {
         (c,)
     }
-    next(tok: token, i: (chan<u32> out, u32)) {
-        let tok = send(tok, c, i);
+    next(i: (chan<u32> out, u32)) {
+        let tok = send(join(), c, i);
         (c, i + i)
     }
 })";
@@ -624,8 +624,8 @@ TEST_F(ParserTest, ChannelArraysOneD) {
     init {
         u32:100
     }
-    next(tok: token, i: u32) {
-        recv(tok, c);
+    next(i: u32) {
+        recv(join(), c);
         i + i
     }
 }
@@ -639,8 +639,8 @@ proc producer {
     init {
         ()
     }
-    next(tok: token, state: ()) {
-        send(tok, channels[0], u32:0);
+    next(state: ()) {
+        send(join(), channels[0], u32:0);
     }
 })";
 
@@ -656,8 +656,8 @@ TEST_F(ParserTest, ChannelArraysThreeD) {
     init {
         u32:0
     }
-    next(tok: token, i: u32) {
-        let tok = recv(tok, c);
+    next(i: u32) {
+        let tok = recv(join(), c);
         i + i
     }
 }
@@ -671,8 +671,8 @@ proc producer {
     init {
         ()
     }
-    next(tok: token, state: ()) {
-        send(tok, channels[0][1][2], u32:0);
+    next(state: ()) {
+        send(join(), channels[0][1][2], u32:0);
     }
 })";
 
@@ -688,8 +688,8 @@ TEST_F(ParserTest, ParseSendIfAndRecvIf) {
     init {
         false
     }
-    next(tok: token, do_send: bool) {
-        send_if(tok, c, do_send, do_send as u32);
+    next(do_send: bool) {
+        send_if(join(), c, do_send, do_send as u32);
         (!do_send,)
     }
 }
@@ -701,8 +701,8 @@ proc consumer {
     init {
         false
     }
-    next(tok: token, do_recv: bool) {
-        let (_, foo) = recv_if(tok, c, do_recv, u32:0);
+    next(do_recv: bool) {
+        let (_, foo) = recv_if(join(), c, do_recv, u32:0);
         let _ = assert_eq(foo, true);
         (!do_recv,)
     }
@@ -720,8 +720,8 @@ TEST_F(ParserTest, ParseSendIfAndRecvNb) {
     init {
         false
     }
-    next(tok: token, do_send: bool) {
-        let _ = send_if(tok, c, do_send, do_send as u32);
+    next(do_send: bool) {
+        let _ = send_if(join(), c, do_send, do_send as u32);
         (!do_send,)
     }
 }
@@ -733,8 +733,8 @@ proc consumer {
     init {
         ()
     }
-    next(tok: token, state: ()) {
-        let (_, foo, valid) = recv_non_blocking(tok, c, u32:0);
+    next(state: ()) {
+        let (_, foo, valid) = recv_non_blocking(join(), c, u32:0);
         assert_eq(!(foo ^ valid), true);
     }
 })";
@@ -751,8 +751,8 @@ TEST_F(ParserTest, ParseRecvIfNb) {
     init {
         ()
     }
-    next(tok: token, state: ()) {
-        recv_if_non_blocking(tok, c, true, u32:0);
+    next(state: ()) {
+        recv_if_non_blocking(join(), c, true, u32:0);
     }
 })";
 
@@ -771,7 +771,8 @@ TEST_F(ParserTest, ParseJoin) {
     init {
         u32:0
     }
-    next(tok: token, state: u32) {
+    next(state: u32) {
+        let tok = join();
         let tok0 = send(tok, c0, state as u32);
         let tok1 = send(tok, c1, state as u32);
         let tok2 = send(tok, c2, state as u32);
@@ -795,9 +796,9 @@ TEST_F(ParserTest, ParseTestProc) {
     init {
         u32:0
     }
-    next(tok: token, x: u32) {
-        let (tok, y) = recv(tok, input);
-        let tok = send(tok, output, x + y);
+    next(x: u32) {
+        let (tok, y) = recv(join(), input);
+        let tok = send(join(), output, x + y);
         (x + y,)
     }
 }
@@ -815,7 +816,8 @@ proc tester {
     init {
         u32:0
     }
-    next(tok: token, iter: u32) {
+    next(iter: u32) {
+        let tok = join();
         let tok = send(tok, p, u32:0);
         let tok = send(tok, p, u32:1);
         let tok = send(tok, p, u32:2);
@@ -1762,7 +1764,7 @@ TEST_F(ParserTest, ProcWithInit) {
     init {
         u32:0
     }
-    next(tok: token, state: u32) {
+    next(state: u32) {
         state
     }
 })";
@@ -1797,7 +1799,7 @@ proc main {
     config(x27: chan<u8> in) {
         (x12,)
     }
-    next(x0: token, s: ()) {
+    next(s: ()) {
         ()
     }
 })";
@@ -1822,7 +1824,7 @@ proc main {
         (x27,)
     }
     init { () }
-    next(x0: token, s: ()) { () }
+    next(s: ()) { () }
 })";
   Scanner s{"test.x", std::string{kProgram}};
   Parser parser{"test", &s};
@@ -1835,7 +1837,7 @@ proc main {
     x12: chan<u8> in;
     config(x27: chan<u8> in) { (x27,) }
     config(x27: chan<u8> in) { (x27,) }
-    next(x0: token, s: ()) { () }
+    next(s: ()) { () }
 })";
   Scanner s{"test.x", std::string{kProgram}};
   Parser parser{"test", &s};
@@ -1851,8 +1853,8 @@ TEST_F(ParserTest, ProcDuplicateNext) {
 proc main {
     x12: chan<u8> in;
     config(x27: chan<u8> in) { (x27,) }
-    next(x0: token, s: ()) { () }
-    next(x0: token, s: ()) { () }
+    next(s: ()) { () }
+    next(s: ()) { () }
 })";
   Scanner s{"test.x", std::string{kProgram}};
   Parser parser{"test", &s};
@@ -1994,7 +1996,7 @@ TEST_F(ParserTest, ChannelDeclWithFifoDepthExpression) {
         (c_p, c_c)
     }
     init {}
-    next(tok: token, state: ()) {
+    next(state: ()) {
       ()
     }
 }
@@ -2163,7 +2165,7 @@ TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
     init {
         ()
     }
-    next(tok: token, state: ()) {
+    next(state: ()) {
         ()
     }
 })";

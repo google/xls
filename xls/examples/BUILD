@@ -894,6 +894,74 @@ xls_dslx_test(
     deps = [":hack_cpu_dslx"],
 )
 
+xls_dslx_library(
+    name = "serialized_decomposer_dslx",
+    srcs = ["serialized_decomposer.x"],
+)
+
+xls_dslx_test(
+    name = "serialized_decomposer_test",
+    library = ":serialized_decomposer_dslx",
+)
+
+xls_dslx_ir(
+    name = "serialized_decomposer_ir",
+    dslx_top = "serialized_decomposer",
+    ir_file = "serialized_decomposer.ir",
+    library = ":serialized_decomposer_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "serialized_decomposer_opt_ir",
+    src = "serialized_decomposer.ir",
+    top = "__serialized_decomposer__serialized_decomposer_0_next",
+)
+
+xls_ir_verilog(
+    name = "serialized_decomposer_sv",
+    src = ":serialized_decomposer_opt_ir.opt.ir",
+    codegen_args = {
+        "module_name": "serialized_decomposer_top",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "4",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "worst_case_throughput": "3",
+    },
+    verilog_file = "serialized_decomposer.sv",
+)
+
+verilog_library(
+    name = "serialized_decomposer",
+    srcs = [":serialized_decomposer.sv"],
+    tags = ["DSLX"],
+)
+
+synthesize_rtl(
+    name = "serialized_decomposer_verilog_synth",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
+    tags = ["manual"],
+    top_module = "serialized_decomposer_top",
+    deps = [":serialized_decomposer"],
+)
+
+benchmark_synth(
+    name = "serialized_decomposer_benchmark_synth",
+    synth_target = ":serialized_decomposer_verilog_synth",
+    tags = ["manual"],
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
