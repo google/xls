@@ -449,7 +449,8 @@ proc main {
   init {
     bool:1
   }
-  next(x0: token, x1: bool) {
+  next(x1: bool) {
+    let x0: token = join();
     let x2: bool = (x1)[0+:bool];
     let x3: token = join(x0);
     let x4: bool = (x1)[:];

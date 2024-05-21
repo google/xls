@@ -107,11 +107,11 @@ pub proc aes_ctr {
         (command_in, ptxt_in, ctxt_out)
     }
 
-    next(tok: token, state: State) {
+    next(state: State) {
         let step = state.step;
 
         let (tok, cmd) = recv_if(
-            tok, command_in, step == Step::IDLE, zero!<Command>());
+            join(), command_in, step == Step::IDLE, zero!<Command>());
         let cmd = if step == Step::IDLE { cmd } else { state.command };
         let ctr = if step == Step::IDLE { cmd.initial_ctr } else { state.ctr };
         let blocks_left = if step == Step::IDLE {
@@ -154,7 +154,7 @@ proc aes_ctr_test_128 {
         (terminator, command_s, ptxt_s, ctxt_r)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let key = Key:[
             u8:0x00, u8:0x01, u8:0x02, u8:0x03,
             u8:0x04, u8:0x05, u8:0x06, u8:0x07,
@@ -175,7 +175,7 @@ proc aes_ctr_test_128 {
             initial_ctr: u32:0,
             ctr_stride: u32:1,
         };
-        let tok = send(tok, command_out, cmd);
+        let tok = send(join(), command_out, cmd);
 
         let plaintext_0 = Block:[
             u8[4]:[u8:0x20, u8:0x21, u8:0x22, u8:0x23],

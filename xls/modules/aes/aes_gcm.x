@@ -207,9 +207,9 @@ proc aes_gcm {
          ghash_cmd_s, ghash_input_s, ghash_tag_r)
     }
 
-    next(tok: token, state: State) {
+    next(state: State) {
         let (tok, command) = recv_if(
-            tok, command_in, state.step == Step::IDLE, zero!<Command>());
+            join(), command_in, state.step == Step::IDLE, zero!<Command>());
         let ctr_command = get_ctr_command(command);
         let ghash_command = get_ghash_command(command);
 
@@ -304,7 +304,7 @@ proc aes_gcm_test_smoke_128 {
         (command_s, input_s, result_r, terminator)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let command = Command {
             encrypt: true,
             msg_blocks: u32:1,
@@ -313,7 +313,7 @@ proc aes_gcm_test_smoke_128 {
             key_width: KeyWidth::KEY_128,
             iv: InitVector:0,
         };
-        let tok = send(tok, command_out, command);
+        let tok = send(join(), command_out, command);
 
         let msg_block = Block:[
             [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
@@ -371,7 +371,7 @@ proc aes_gcm_multi_block_gcm {
         (command_s, input_s, result_r, terminator)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let key = Key:[
             u8:0xfe, u8:0xdc, u8:0xba, u8:0x98,
             u8:0x76, u8:0x54, u8:0x32, u8:0x10,
@@ -387,7 +387,7 @@ proc aes_gcm_multi_block_gcm {
             key_width: KeyWidth::KEY_128,
             iv: iv,
         };
-        let tok = send(tok, command_out, command);
+        let tok = send(join(), command_out, command);
 
         // AAD.
         let aad_block = Block:[
@@ -493,7 +493,7 @@ proc aes_128_gcm_zero_block_commands {
         (command_s, input_s, result_r, terminator)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let key = Key:[
             u8:0xfe, u8:0xdc, u8:0xba, u8:0x98,
             u8:0x76, u8:0x54, u8:0x32, u8:0x10,
@@ -511,7 +511,7 @@ proc aes_128_gcm_zero_block_commands {
             key_width: KeyWidth::KEY_128,
             iv: iv,
         };
-        let tok = send(tok, command_out, command);
+        let tok = send(join(), command_out, command);
 
         let aad_block = Block:[
             [u8:0xff, u8:0xee, u8:0xdd, u8:0xcc],
@@ -619,7 +619,7 @@ proc sample_generator_test {
         (command_s, input_s, result_r, terminator)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let key = Key:[
             u8:0x66, u8:0x63, u8:0x23, u8:0x41,
             u8:0x15, u8:0xb9, u8:0x6c, u8:0x76,
@@ -672,7 +672,7 @@ proc sample_generator_test {
             key_width: KeyWidth::KEY_256,
             iv: iv,
         };
-        let tok = send(tok, command_out, command);
+        let tok = send(join(), command_out, command);
 
         let tok = send(tok, input_out, aad[0]);
         let tok = send(tok, input_out, aad[1]);

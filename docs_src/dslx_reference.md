@@ -2030,9 +2030,9 @@ proc CountUp {
     config(output_channel: chan<u32> out) { (output_channel,) }
 
     // "Iterate in time" -- takes a state, does some work, and produces a new state.
-    next(tok: token, state: u32) {
+    next(state: u32) {
         // Send our state to the outside world via the channel.
-        send(tok, output_channel, state);
+        send(join(), output_channel, state);
 
         // Calculate our new state.
         state + u32:1
@@ -2062,7 +2062,7 @@ proc $NAME [$PARAMETRICS] {
         ($MEMBER, ...)
     }
 
-    next(tok: token, state: $STATE_TYPE) {
+    next(state: $STATE_TYPE) {
         $NEXT_BODY
         $NEW_STATE
     }
@@ -2126,8 +2126,8 @@ proc Top {
     }
     // Receive the values sent from the `CountUp` proc we instantiated in
     // `config` and trace them out to logging.
-    next(tok: token, state: ()) {
-        let (tok, got) = recv(r);
+    next(state: ()) {
+        let (tok, got) = recv(join(), r);
         trace_fmt!("CountUp gave: {}", got);
     }
 }

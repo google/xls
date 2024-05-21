@@ -36,8 +36,8 @@ proc user_module<BIT_WIDTH: u32> {
     (output_s, seed_and_mask_r)
   }
 
-  next(tok: token, state: (uN[BIT_WIDTH], uN[BIT_WIDTH])) {
-    let (tok, new_state, _) = recv_non_blocking(tok, seed_and_mask_r, state);
+  next(state: (uN[BIT_WIDTH], uN[BIT_WIDTH])) {
+    let (tok, new_state, _) = recv_non_blocking(join(), seed_and_mask_r, state);
     send(tok, output_s, new_state.0);
     (lfsr::lfsr(new_state.0, new_state.1), new_state.1)
   }
@@ -58,8 +58,8 @@ proc test {
     (value_r, seed_s, terminator)
   }
 
-  next(tok: token, state: ()) {
-      let (tok, value) = recv(tok, value_r);
+  next(state: ()) {
+      let (tok, value) = recv(join(), value_r);
       assert_eq(value, u8:1);
 
       let tok = send(tok, seed_s, (u8:1, u8:0b10111000));

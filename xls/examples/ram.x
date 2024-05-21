@@ -226,7 +226,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
     (read_req, read_resp, write_req, write_resp)
   }
 
-  next(tok:token, state:(bits[DATA_WIDTH][SIZE], bool[NUM_PARTITIONS][SIZE])) {
+  next(state:(bits[DATA_WIDTH][SIZE], bool[NUM_PARTITIONS][SIZE])) {
     // state consists of an array storing the memory state, as well as an array
     // indicating if the each subword partition has been initialized.
     let (mem, mem_initialized) = state;
@@ -237,7 +237,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
       mask:bits[NUM_PARTITIONS]:0,
     };
     let (tok, read_req, read_req_valid) =
-      recv_non_blocking(tok, read_req, zero_read_req);
+      recv_non_blocking(join(), read_req, zero_read_req);
     let zero_write_req = WriteReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS> {
       addr:bits[ADDR_WIDTH]:0,
       data:bits[DATA_WIDTH]:0,
@@ -319,7 +319,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
     (read_req_s, read_resp_r, write_req_s, write_resp_r, terminator)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     let NUM_OFFSETS = u32:8;
     let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
       trace!(offset);
@@ -341,7 +341,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
         tok
       } (tok);
       tok
-    } (tok);
+    } (join());
 
     // Test that masked writes work.
     let tok = for (addr, tok) : (u32, token) in range(u32:0, u32:256) {
@@ -391,14 +391,14 @@ proc RamModelInitializationTest {
     (read_req_s, read_resp_r, terminator)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     // Now check that what we wrote is still there.
     let tok = for (addr, tok) : (u32, token) in range(u32:0, u32:256) {
       let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
       let (tok, read_data) = recv(tok, read_resp);
       assert_eq(read_data.data, u32:0);
       tok
-    } (tok);
+    } (join());
 
     let tok = send(tok, terminator, true);
   }
@@ -430,9 +430,9 @@ proc RamModelFourBitMaskReadWriteTest {
     (read_req_s, read_resp_r, write_req_s, write_resp_r, terminator)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     // Write full words
-    let tok = send(tok, write_req, WriteWordReq<u32:2>(
+    let tok = send(join(), write_req, WriteWordReq<u32:2>(
       u8:0,
       u8:0xFF));
     let (tok, _) = recv(tok, write_resp);
@@ -524,8 +524,8 @@ proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
     (req, resp, wr_comp)
   }
 
-  next(tok: token, state: bits[DATA_WIDTH][SIZE]) {
-    let (tok, request) = recv(tok, req_chan);
+  next(state: bits[DATA_WIDTH][SIZE]) {
+    let (tok, request) = recv(join(), req_chan);
 
     let (response, new_state) = if request.we {
       (
@@ -567,7 +567,7 @@ proc SinglePortRamModelTest {
     (req_s, resp_r, wr_comp_r, terminator)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     let NUM_OFFSETS = u32:30;
     trace!(NUM_OFFSETS);
     let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
@@ -601,7 +601,7 @@ proc SinglePortRamModelTest {
         tok
       } (tok);
       tok
-    } (tok);
+    } (join());
     let tok = send(tok, terminator, true);
   }
 }
@@ -632,11 +632,11 @@ proc RamModel2RW<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
     (req0, req1, resp0, resp1, wr_comp0, wr_comp1)
   }
 
-  next(tok: token, state: bits[DATA_WIDTH][SIZE]) {
+  next(state: bits[DATA_WIDTH][SIZE]) {
     let (tok0, request0, valid0) =
-      recv_non_blocking(tok, req_chan0, zero!<RWRamReq>());
+      recv_non_blocking(join(), req_chan0, zero!<RWRamReq>());
     let (tok1, request1, valid1) =
-      recv_non_blocking(tok, req_chan1, zero!<RWRamReq>());
+      recv_non_blocking(join(), req_chan1, zero!<RWRamReq>());
     let fatal_hazard = valid0 && valid1 && request0.addr == request1.addr &&
       match SIMULTANEOUS_READ_WRITE_BEHAVIOR {
         SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT =>
@@ -714,7 +714,7 @@ proc RamModel2RWTest {
     (req0_s, resp0_r, wr_comp0_r, req1_s, resp1_r, wr_comp1_r, terminator)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     let NUM_OFFSETS = u32:30;
     trace!(NUM_OFFSETS);
     let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
@@ -775,7 +775,7 @@ proc RamModel2RWTest {
       } (tok);
 
       tok
-    } (tok);
+    } (join());
     let tok = send(tok, terminator, true);
   }
 }

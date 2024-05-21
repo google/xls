@@ -182,8 +182,8 @@ proc main {
   init {
     u64:1
   }
-  next(tok: token, state: u64) {
-    let (tok, received) = recv(tok, input_channel);
+  next(state: u64) {
+    let (tok, received) = recv(join(), input_channel);
     let rounded: u64 = u64:3 * (state / u64:3);
     let modulo: u64 = state - rounded;
     let x: token = send_if(tok, output_channel, modulo == u64:0, state + u64:5);

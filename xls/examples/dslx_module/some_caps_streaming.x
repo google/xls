@@ -22,9 +22,9 @@ pub proc some_caps_streaming<N: u32> {
 
     init { some_caps::Choice::CAPITALIZE }
 
-    next(tok: token, state: some_caps::Choice) {
+    next(state: some_caps::Choice) {
         trace_fmt!("state={}", state);
-        let (tok, val) = recv(tok, bytes_src);
+        let (tok, val) = recv(join(), bytes_src);
         let ns = match state {
             some_caps::Choice::CAPITALIZE => some_caps::Choice::NOTHING,
             some_caps::Choice::NOTHING => some_caps::Choice::SPONGE,
@@ -53,9 +53,9 @@ proc test_streaming_somecaps {
 
     init { () }
 
-    next(tok: token, st: ()) {
+    next(st: ()) {
         // cap
-        let tok = send(tok, bytes_to_proc, "foobar");
+        let tok = send(join(), bytes_to_proc, "foobar");
         let (tok, v) = recv(tok, bytes_from_proc);
         assert_eq(v, "FOOBAR");
 

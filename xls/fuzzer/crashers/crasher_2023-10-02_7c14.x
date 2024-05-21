@@ -185,8 +185,9 @@ proc main {
     init {
         u27:89478485
     }
-    next(x0: token, x1: u27) {
+    next(x1: u27) {
         {
+            let x0: token = join();
             let x2: u41 = u41:0x155_5555_5555;
             let x3: u16 = x2[16+:u16];
             let x4: bool = x1 >= x3 as u27;

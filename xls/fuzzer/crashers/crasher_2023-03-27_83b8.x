@@ -181,7 +181,8 @@ proc main {
   init {
     u20:512
   }
-  next(x0: token, x1: u20) {
+  next(x1: u20) {
+    let x0: token = join();
     let x2: u20 = signex(x1, x1);
     let x3: u60 = ((x1) ++ (x1)) ++ (x1);
     let x4: u20 = for (i, x): (u4, u20) in u4:0b0..u4:0x2 {

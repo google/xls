@@ -220,8 +220,8 @@ proc main {
     (ch, )
   }
 
-  next (tok: token, state: u32) {
-    let (tok, data) = recv_if(tok, in_ch, state == u32:0, u32:0);
+  next (state: u32) {
+    let (tok, data) = recv_if(join(), in_ch, state == u32:0, u32:0);
     data
   }
 }
@@ -247,8 +247,8 @@ proc main {
     (ch, )
   }
 
-  next (tok: token, state: (u32, u16, u8)) {
-    let (tok, data) = recv_if(tok, in_ch, state.0 == u32:0, (u32:0, u16:0, u8:0));
+  next (state: (u32, u16, u8)) {
+    let (tok, data) = recv_if(join(), in_ch, state.0 == u32:0, (u32:0, u16:0, u8:0));
     data
   }
 }

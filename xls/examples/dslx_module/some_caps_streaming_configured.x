@@ -34,7 +34,7 @@ pub proc some_caps_specialized {
 
     init { () }
 
-    next(tok: token, state: ()) { recv(tok, blocker); }
+    next(state: ()) { recv(join(), blocker); }
 }
 
 // A caps proc with manual wiring to ensure that the spawned proc stays alive.
@@ -55,8 +55,8 @@ pub proc manual_chan_caps_specialized {
 
     init { () }
 
-    next(tok: token, state: ()) {
-        let (tok, send_to_inner) = recv(tok, external_input_wire);
+    next(state: ()) {
+        let (tok, send_to_inner) = recv(join(), external_input_wire);
         let tok = send(tok, real_proc_input_wire, send_to_inner);
         let (tok, recv_from_inner) = recv(tok, real_proc_output_wire);
         send(tok, external_output_wire, recv_from_inner);

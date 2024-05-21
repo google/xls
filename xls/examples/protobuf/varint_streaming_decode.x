@@ -82,7 +82,7 @@ pub proc varint_streaming_u32_decode<
     zero!<MyState>()
   }
 
-  next(tok: token, state: State<INPUT_BYTES, INPUT_BYTES_WIDTH>) {
+  next(state: State<INPUT_BYTES, INPUT_BYTES_WIDTH>) {
     trace_fmt!("state={}", state);
 
     const_assert!(INPUT_BYTES >= OUTPUT_WORDS);
@@ -114,7 +114,7 @@ pub proc varint_streaming_u32_decode<
     // Get a new input once we've processed the entire work chunk.
     let do_input = state.len == InputIdx:0;
     let (input_tok, (input_data, input_len)) = recv_if(
-      tok, bytes_in, do_input, (u8[INPUT_BYTES]:[u8:0, ...], InputIdx:0));
+      join(), bytes_in, do_input, (u8[INPUT_BYTES]:[u8:0, ...], InputIdx:0));
 
     trace_fmt!("input_data={} input_len={}, do_input={}", input_data, input_len, do_input);
 
@@ -248,12 +248,12 @@ proc varint_streaming_u32_decode_test {
     (bytes_s, words_r, terminator)
   }
 
-  next(tok: token, st:()) {
+  next(st:()) {
     // Pump in a bunch of small numbers.
     let tok = for (_, tok): (u32, token) in u32:0..u32:100 {
       send(tok, bytes_out,
         (u8[7]:[u8:0, u8:1, u8:0, u8:1, u8:0, u8:1, u8:0], u3:7))
-    }(tok);
+    }(join());
     let tok = for (_, tok): (u32, token) in u32:0..u32:100 {
       let (tok, (recv_bytes, bytes_recvd)) = recv(tok, words_in);
       assert_eq(recv_bytes, u32[3]:[u32:0, u32:1, u32:0]);

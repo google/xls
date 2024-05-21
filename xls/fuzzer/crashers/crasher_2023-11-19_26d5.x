@@ -69,8 +69,9 @@ proc main {
     init {
         [(s13:0, uN[102]:0x3f_ffff_ffff_ffff_ffff_ffff_ffff), (s13:4095, uN[102]:0x2a_aaaa_aaaa_aaaa_aaaa_aaaa_aaaa), (s13:-2731, uN[102]:0x1f_ffff_ffff_ffff_ffff_ffff_ffff), (s13:4095, uN[102]:0x15_5555_5555_5555_5555_5555_5555), (s13:64, uN[102]:0x1f_ffff_ffff_ffff_ffff_ffff_ffff), (s13:-1, uN[102]:0x25_dc9c_fcd2_edad_5755_55e5_8e3b), (s13:4095, uN[102]:0x1f_ffff_ffff_ffff_ffff_ffff_ffff), (s13:0, uN[102]:0x1f_ffff_ffff_ffff_ffff_ffff_ffff), (s13:2473, uN[102]:0x15_5555_5555_5555_5555_5555_5555), (s13:-2731, uN[102]:0x9_9abc_3e22_6249_b180_9fad_caea), (s13:0, uN[102]:0x15_5555_5555_5555_5555_5555_5555), (s13:2730, uN[102]:0x0), (s13:0, uN[102]:0x1f_ffff_ffff_ffff_ffff_ffff_ffff)]
     }
-    next(x0: token, x2: x1[13]) {
+    next(x2: x1[13]) {
         {
+            let x0: token = join();
             let x3: token = join(x0);
             let x4: x1[26] = x2 ++ x2;
             let x7: x6[1] = [x2];

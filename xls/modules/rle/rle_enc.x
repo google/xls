@@ -82,13 +82,13 @@ pub proc RunLengthEncoder<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
         output_s: chan<EncOutData<SYMBOL_WIDTH, COUNT_WIDTH>> out,
     ) {(input_r, output_s)}
 
-    next (tok: token, state: RunLengthEncoderState<SYMBOL_WIDTH, COUNT_WIDTH>) {
+    next (state: RunLengthEncoderState<SYMBOL_WIDTH, COUNT_WIDTH>) {
         let zero_input = EncInData {
           symbol: bits[SYMBOL_WIDTH]:0,
           last: false
         };
         let (input_tok, input) = recv_if(
-            tok, input_r, !state.prev_last, zero_input);
+            join(), input_r, !state.prev_last, zero_input);
 
         let prev_symbol_valid = state.prev_count != bits[COUNT_WIDTH]:0;
         let symbol_differ = prev_symbol_valid && (
@@ -146,7 +146,7 @@ proc RunLengthEncoder32 {
         ()
     }
 
-    next (tok: token, state: ()) {
+    next (state: ()) {
         ()
     }
 }
@@ -188,7 +188,7 @@ proc RunLengthEncoderCountSymbolTest {
         enc_input_r, enc_output_s);
     (terminator, enc_input_s, enc_output_r)
   }
-  next (tok: token, state:()) {
+  next (state:()) {
     let CountSymbolTestTestStimuli: CountSymbolTestStimulus[4] = [
       CountSymbolTestStimulus:0xA, CountSymbolTestStimulus:0xA,
       CountSymbolTestStimulus:0xA, CountSymbolTestStimulus:0xB,
@@ -202,7 +202,7 @@ proc RunLengthEncoderCountSymbolTest {
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, last: {}",
         counter, stimulus.symbol, stimulus.last);
       (tok)
-    }(tok);
+    }(join());
     let CountSymbolTestTestOutput:
         (CountSymbolTestSymbol, CountSymbolTestCount)[2] = [
       (CountSymbolTestSymbol:0xA, CountSymbolTestCount:0x3),
@@ -252,7 +252,7 @@ proc RunLengthEncoderOverflowTest {
         enc_input_r, enc_output_s);
     (terminator, enc_input_s, enc_output_r)
   }
-  next (tok: token, state:()) {
+  next (state:()) {
     let OverflowTestStimuli: OverflowStimulus[14] = [
       OverflowStimulus:0xB, OverflowStimulus:0xB,
       OverflowStimulus:0x1, OverflowStimulus:0xC,
@@ -272,7 +272,7 @@ proc RunLengthEncoderOverflowTest {
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, last: {}",
         counter, stimulus.symbol, stimulus.last);
       (tok)
-    }(tok);
+    }(join());
     let OverflowTestOutput:
         (OverflowSymbol, OverflowCount)[6] = [
       (OverflowSymbol:0xB, OverflowCount:0x2),
@@ -327,7 +327,7 @@ proc RunLengthEncoderLastAfterLastTest {
         enc_input_r, enc_output_s);
     (terminator, enc_input_s, enc_output_r)
   }
-  next (tok: token, state:()) {
+  next (state:()) {
     let LastAfterLastTestStimuli: LastAfterLastStimulus[2] = [
       LastAfterLastStimulus {symbol: LastAfterLastSymbol:0x1, last: true},
       LastAfterLastStimulus {symbol: LastAfterLastSymbol:0x1, last: true},
@@ -339,7 +339,7 @@ proc RunLengthEncoderLastAfterLastTest {
       trace_fmt!("Sent {} transactions, symbol: 0x{:x}, last: {}",
         counter, stimuli.symbol, stimuli.last);
       (tok)
-    }(tok);
+    }(join());
     let LastAfterLastTestOutput: LastAfterLastOutput[2] = [
       LastAfterLastOutput {
         symbol: LastAfterLastSymbol:0x1,
@@ -396,7 +396,7 @@ proc RunLengthEncoderOverflowWithLastTest {
         enc_input_r, enc_output_s);
     (terminator, enc_input_s, enc_output_r)
   }
-  next (tok: token, state:()) {
+  next (state:()) {
     let OverflowWithLastTestStimuli: OverflowWithLastStimulus[4] = [
       OverflowWithLastStimulus:0xC, OverflowWithLastStimulus:0xC,
       OverflowWithLastStimulus:0xC, OverflowWithLastStimulus:0xC,
@@ -411,7 +411,7 @@ proc RunLengthEncoderOverflowWithLastTest {
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, last: {}",
         counter, stimulus.symbol, stimulus.last);
       (tok)
-    }(tok);
+    }(join());
     let OverflowWithLastTestOutput:
         (OverflowWithLastSymbol, OverflowWithLastCount)[2] = [
       (OverflowWithLastSymbol:0xC, OverflowWithLastCount:0x3),

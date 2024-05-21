@@ -185,8 +185,9 @@ proc main {
     init {
         u59:288230376151711743
     }
-    next(x0: token, x1: u59) {
+    next(x1: u59) {
         {
+            let x0: token = join();
             let x2: (u59,) = (x1,);
             let x3: u59 = x1 | x1;
             let x5: (token, u59, bool) = recv_non_blocking(x0, x4, x1);

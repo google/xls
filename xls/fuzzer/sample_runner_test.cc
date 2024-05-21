@@ -72,7 +72,8 @@ proc main {
     (operand_0, operand_1, result)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
+    let tok = join();
     let (tok_operand_0_val, operand_0_val) = recv(tok, operand_0);
     let (tok_operand_1_val, operand_1_val) = recv(tok, operand_1);
     let tok_recv = join(tok_operand_0_val, tok_operand_1_val);
@@ -98,8 +99,8 @@ proc main {
     (enable_counter, result)
   }
 
-  next(tok: token, counter_value: u32) {
-    let (tok_enable_counter, enable_counter_val) = recv(tok, enable_counter);
+  next(counter_value: u32) {
+    let (tok_enable_counter, enable_counter_val) = recv(join(), enable_counter);
 
     let result_val = if enable_counter_val == true {counter_value + u32:1}
       else {counter_value};

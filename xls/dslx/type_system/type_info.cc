@@ -59,7 +59,7 @@ InvocationData::InvocationData(
   // can be outside of the function body. That is:
   //
   //  proc MyProc<N: u32 = {clog(MY_CONSTANT)}> {
-  //    next(tok, ...) { ... }
+  //    next(...) { ... }
   //  --^~~^ implicitly refers to the clog() call in the parametric above
   //  }
   auto is_fn_in_parametric_proc = [caller]() -> bool {

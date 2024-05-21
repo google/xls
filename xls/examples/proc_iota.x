@@ -23,9 +23,9 @@ proc producer {
     (input_s,)
   }
 
-  next(tok: token, i: u32) {
+  next(i: u32) {
     let foo = i + u32:1;
-    let tok = send(tok, s, foo);
+    let tok = send(join(), s, foo);
     foo
   }
 }
@@ -39,8 +39,8 @@ proc consumer<N:u32> {
     (input_r,)
   }
 
-  next(tok: token, i: u32) {
-    let (tok, e) = recv(tok, r);
+  next(i: u32) {
+    let (tok, e) = recv(join(), r);
     i + e + N
   }
 }
@@ -55,7 +55,7 @@ proc main {
     ()
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     ()
   }
 }

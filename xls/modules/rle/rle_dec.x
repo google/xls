@@ -79,14 +79,14 @@ pub proc RunLengthDecoder<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
     output_s: chan<DecOutData<SYMBOL_WIDTH>> out,
   ) {(input_r, output_s)}
 
-  next (tok: token, state: RunLengthDecoderState<SYMBOL_WIDTH, COUNT_WIDTH>) {
+  next (state: RunLengthDecoderState<SYMBOL_WIDTH, COUNT_WIDTH>) {
     let state_input = DecInData {
       symbol: state.symbol,
       count: state.count,
       last: state.last
     };
     let recv_next_symbol = (state.count == bits[COUNT_WIDTH]:0);
-    let (tok, input) = recv_if(tok, input_r, recv_next_symbol, state_input);
+    let (tok, input) = recv_if(join(), input_r, recv_next_symbol, state_input);
     let next_count = if input.count == bits[COUNT_WIDTH]:0 {
         fail!("invalid_count_0", input.count)
     } else {
@@ -123,7 +123,7 @@ proc RunLengthDecoder32 {
     ()
   }
 
-  next (tok: token, state: ()) {
+  next (state: ()) {
     ()
   }
 }
@@ -157,7 +157,7 @@ proc RunLengthDecoderTransactionTest {
     (terminator, dec_input_s, dec_output_r)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     let TransactionTestStimuli: TestStimulus[6] =[
       (TestSymbol:0xB, TestCount:0x2),
       (TestSymbol:0x1, TestCount:0x1),
@@ -179,7 +179,7 @@ proc RunLengthDecoderTransactionTest {
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
           counter + u32:1, data_in.symbol, data_in.count, data_in.last);
       (tok)
-    }(tok);
+    }(join());
     let TransationTestOutputs: TestSymbol[14] = [
       TestSymbol: 0xB, TestSymbol: 0xB,
       TestSymbol: 0x1, TestSymbol: 0xC,
@@ -228,7 +228,7 @@ proc RunLengthDecoderLastAfterLastTest {
     (terminator, dec_input_s, dec_output_r)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     let LastAfterLastTestStimuli: TestDecInData[2] =[
       TestDecInData {
         symbol: TestSymbol:0x1,
@@ -248,7 +248,7 @@ proc RunLengthDecoderLastAfterLastTest {
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
           counter + u32:1, stimulus.symbol, stimulus.count, stimulus.last);
       (tok)
-    }(tok);
+    }(join());
     let LastAfterLastTestOutputs: TestDecOutData[2] = [
       TestDecOutData{symbol: TestSymbol: 0x1, last: true},
       TestDecOutData{symbol: TestSymbol: 0x2, last: true},

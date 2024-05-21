@@ -306,7 +306,8 @@ proc main {
   init {
     s57:-48038396025285291
   }
-  next(x0: token, x1: s57) {
+  next(x1: s57) {
+    let x0: token = join();
     let x2: s57 = (x1) * (x1);
     let x3: s57 = -(x2);
     let x4: s57 = (x3) - (x1);

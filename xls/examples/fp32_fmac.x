@@ -29,7 +29,7 @@ proc fp32_fmac {
     }
 
     // Nothing to do here - the spawned fmac does all the lifting.
-    next(tok: token, state: ()) { () }
+    next(state: ()) { () }
 }
 
 #[test_proc]
@@ -51,8 +51,8 @@ proc smoke_test {
         (input_a_s, input_b_s, reset_s, output_r, terminator)
     }
 
-    next(tok: token, state: ()) {
-        let tok = send(tok, input_a_s, F32_ZERO);
+    next(state: ()) {
+        let tok = send(join(), input_a_s, F32_ZERO);
         let tok = send(tok, input_b_s, F32_ZERO);
         let tok = send(tok, reset_s, false);
         let (tok, result) = recv(tok, output_r);

@@ -57,14 +57,14 @@ pub proc Delay {
         zero!<MyDelay>()
     }
 
-    next(tok: token, state: DelayState) {
+    next(state: DelayState) {
         trace_fmt!("state = {}", state);
         let init_done = eq(state.initial_output_count, DELAY);
         let (recv_tok, input_data, data_in_valid) =
-            recv_if_non_blocking(tok, data_in, !eq(state.occupancy, DELAY), uN[DATA_WIDTH]:0);
+            recv_if_non_blocking(join(), data_in, !eq(state.occupancy, DELAY), uN[DATA_WIDTH]:0);
         let send_tok = send_if(recv_tok, loopback_push, data_in_valid, input_data);
         let (recv_tok, loopback_data, loopback_valid) =
-            recv_if_non_blocking(tok, loopback_pop, init_done, INIT_DATA as uN[DATA_WIDTH]);
+            recv_if_non_blocking(join(), loopback_pop, init_done, INIT_DATA as uN[DATA_WIDTH]);
         let send_tok = send_if(recv_tok, data_out, !init_done || loopback_valid, loopback_data);
         trace_fmt!("data_in_valid={}, loopback_valid={}", data_in_valid, loopback_valid);
         let next_output_count = if init_done {
@@ -96,13 +96,13 @@ proc DelayTest {
 
     init { () }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         // Check that the first DELAY outputs are INIT_DATA.
         let tok = for (_, tok): (u32, token) in range(u32:0, DELAY) {
             let (tok, value) = recv(tok, data_in);
             assert_eq(value, INIT_DATA);
             tok
-        }(tok);
+        }(join());
         // Queue up a bunch of inputs.
         let tok = for (i, tok): (u32, token) in range(u32:0, u32:2 * DELAY) {
             send(tok, data_out, i)

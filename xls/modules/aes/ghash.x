@@ -234,9 +234,9 @@ pub proc ghash {
         (command_in, input_in, tag_out)
     }
 
-    next(tok: token, state: State) {
+    next(state: State) {
         let (tok, command) = recv_if(
-            tok, command_in, state.step == Step::IDLE, zero!<Command>());
+            join(), command_in, state.step == Step::IDLE, zero!<Command>());
         let state = get_current_state(state, command);
 
         // Get the current working block and update block counts.
@@ -295,7 +295,7 @@ proc ghash_test {
         (command_s, data_s, tag_r, terminator)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         // Test 1: single AAD block, single ctxt block.
         let key = Key:[u8:0, ...];
         // No real need to use AES here, but no reason to _remove_ it, either.
@@ -318,7 +318,7 @@ proc ghash_test {
             ctxt_blocks: u32:1,
             hash_key: hash_key,
         };
-        let tok = send(tok, command_out, command);
+        let tok = send(join(), command_out, command);
         let tok = send(tok, data_out, aad);
         let tok = send(tok, data_out, ctxt);
         let (tok, tag) = recv(tok, tag_in);

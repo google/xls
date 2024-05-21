@@ -173,7 +173,8 @@ proc main {
   init {
     uN[1222]:0x4000_0000
   }
-  next(x0: token, x1: uN[1222]) {
+  next(x1: uN[1222]) {
+    let x0: token = join();
     let x2: uN[1222] = !(x1);
     let x3: (uN[1222], uN[1222], uN[1222]) = (x2, x2, x1);
     let x4: u62 = u62:0x1555_5555_5555_5555;

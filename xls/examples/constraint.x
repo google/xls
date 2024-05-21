@@ -25,9 +25,9 @@ proc main {
     (req, resp)
   }
 
-  next(tok: token, state: u32) {
+  next(state: u32) {
     let request = state * state;
-    let tok = send(tok, req, request);
+    let tok = send(join(), req, request);
     let (tok, _response) = recv(tok, resp);
     state + u32:1
   }

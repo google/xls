@@ -27,8 +27,8 @@ pub proc Accumulator {
 
     init { uN[256]:0 }
 
-    next(tok: token, acc: uN[256]) {
-        let (tok, next_recv) = recv(tok, data_in);
+    next(acc: uN[256]) {
+        let (tok, next_recv) = recv(join(), data_in);
         let tok = send(tok, old_state, acc);
         let to_send = acc + (next_recv as uN[256]);
         let tok = send(tok, data_out, to_send);

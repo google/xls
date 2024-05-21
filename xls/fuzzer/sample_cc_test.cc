@@ -34,7 +34,7 @@ const char kDslxProc[] = R"(proc foo {
     ()
   }
   init { () }
-  next(t: token, s: ()) {
+  next(s: ()) {
     s
   }
 })";

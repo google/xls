@@ -327,8 +327,9 @@ proc main {
     init {
         u25:11184810
     }
-    next(x0: token, x1: u25) {
+    next(x1: u25) {
         {
+            let x0: token = join();
             let x3: x2[1] = [x1];
             let x5: x4[W32_V5] = x1 as x4[W32_V5];
             let x7: token = send_if(x0, x6, bool:0x0, x1);

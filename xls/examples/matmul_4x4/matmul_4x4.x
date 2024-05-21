@@ -38,8 +38,8 @@ proc node {
     (from_west, from_north, to_east, to_south, weight)
   }
 
-  next(tok: token, state: ()) {
-    let (tok, activation) = recv(tok, from_west);
+  next(state: ()) {
+    let (tok, activation) = recv(join(), from_west);
     let (tok, partial_sum) = recv(tok, from_north);
 
     // Compute our partial product.
@@ -101,8 +101,8 @@ proc matmul<ROWS: u32, COLS: u32> {
   }
 
   // All we need to do is to push in "zero" values to the top of the array.
-  next(tok: token, state: ()) {
-    let tok = send(tok, zeroes_out[0], float32::zero(false));
+  next(state: ()) {
+    let tok = send(join(), zeroes_out[0], float32::zero(false));
     let tok = send(tok, zeroes_out[1], float32::zero(false));
     let tok = send(tok, zeroes_out[2], float32::zero(false));
     let tok = send(tok, zeroes_out[3], float32::zero(false));
@@ -124,7 +124,7 @@ proc test_proc {
     (activations_out, results_in, terminator)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
     let f32_0 = float32::zero(false);
     let f32_2 = F32 {sign: false, bexp: u8:128, fraction: u23:0};
     let f32_4 = F32 {sign: false, bexp: u8:129, fraction: u23:0};
@@ -132,7 +132,7 @@ proc test_proc {
     // Send the desired inputs.
     let tok = for (i, tok): (u32, token) in range(u32:0, u32:4) {
       send(tok, activations_out[i], f32_2)
-    } (tok);
+    } (join());
 
     // Send extra inputs to keep the system moving while our results are processing.
     let tok = for (_, tok): (u32, token) in range(u32:0, u32:4) {

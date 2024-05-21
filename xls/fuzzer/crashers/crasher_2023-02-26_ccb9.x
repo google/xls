@@ -181,7 +181,8 @@ proc main {
   init {
     u32:2147483647
   }
-  next(x0: token, x1: u32) {
+  next(x1: u32) {
+    let x0: token = join();
     let x2: u32 = !(x1);
     let x3: u32 = bit_slice_update(x2, x1, x1);
     let x4: u33 = one_hot(x3, bool:0x1);

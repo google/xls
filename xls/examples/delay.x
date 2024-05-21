@@ -63,11 +63,11 @@ proc Delay0or1<DATA_WIDTH:u32, DELAY_IS_ONE:bool, INIT_DATA:u32> {
         (data_in, data_out)
     }
 
-    next (tok: token, prev_recv: bits[DATA_WIDTH]) {
-        let (recv_tok, next_recv) = recv(tok, data_in);
+    next (prev_recv: bits[DATA_WIDTH]) {
+        let (recv_tok, next_recv) = recv(join(), data_in);
         let to_send = if (DELAY_IS_ONE) { prev_recv } else { next_recv };
         trace!(DELAY_IS_ONE);
-        let send_tok = send(tok, data_out, to_send);
+        let send_tok = send(join(), data_out, to_send);
         (next_recv)
     }
 }
@@ -101,11 +101,11 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
         (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
-    next(tok: token, state: DelayState<DATA_WIDTH, ADDR_WIDTH>) {
+    next(state: DelayState<DATA_WIDTH, ADDR_WIDTH>) {
         let we = !state.is_read_stage;
         let re = state.is_read_stage && state.init_done;
 
-        let (tok, next_write) = recv(tok, data_in);
+        let (tok, next_write) = recv(join(), data_in);
 
         let data = next_write ++ state.prev_write;
 
@@ -192,7 +192,7 @@ pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
         (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
-    next (tok: token, state: ()) {
+    next (state: ()) {
         ()
     }
 }
@@ -220,7 +220,7 @@ pub proc Delay32x2048_init3 {
         (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         ()
     }
 }
@@ -250,18 +250,18 @@ proc delay_smoke_test_even {
         (data_in_s, data_out_r, terminator)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let stok = for (i, tok): (u32, token) in range(u32:0, TEST0_DELAY*u32:5) {
             trace!(i);
             send(tok, data_in_r, i)
-        } (tok);
+        } (join());
         // first, receive the inits
         let rtok = for (i, tok): (u32, token) in range(u32:0, TEST0_DELAY) {
             trace!(i);
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok
-        } (tok);
+        } (join());
         // after the inits, check the delayed outputs
         let rtok = for (i, tok) : (u32, token) in range(u32:0, TEST0_DELAY*u32:4) {
             trace!(i);
@@ -299,16 +299,16 @@ const TEST1_DELAY = u32:2047;
         (data_in_s, data_out_r, terminator)
     }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         let stok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY*u32:5) {
             send(tok, data_in_r, i)
-        } (tok);
+        } (join());
         // first, receive the inits
         let rtok = for (_, tok): (u32, token) in range(u32:0, TEST1_DELAY) {
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok
-        } (tok);
+        } (join());
         // after the inits, check the delayed outputs
         let rtok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY*u32:4) {
             let (tok, result) = recv(tok, data_out_s);

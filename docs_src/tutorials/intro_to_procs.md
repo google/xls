@@ -45,7 +45,8 @@ proc Fmac {
     (input_a_consumer, input_b_consumer, output_producer)
   }
 
-  next(tok: token, state: F32) {
+  next(state: F32) {
+    let tok = join();
     let (tok_a, input_a) = recv(tok, input_a_consumer);
     let (tok_b, input_b) = recv(tok, input_b_consumer);
     let result = float32::fma(input_a, input_b, state);
@@ -90,12 +91,9 @@ sequence the send. Between the communication routines is the actual computation.
 At the end of the proc, we terminate with the `result` value. This final value
 becomes the input state for the next iteration. This is how recurrent state is
 managed by procs: a state value is provided to the `next` function, and the
-result of that function is used as the next iteration's state input. Procs can
-have several state elements: in that case, there will be several input state
-args, e.g., `next(tok: token, state_a: F32, state_b: F32)`, and the output will
-be a tuple of values, corresponding in order to the input state values.
-Regardless of that, a `next` function will always take a token as the first
-parameter.
+result of that function is used as the next iteration's state input. Procs have
+exactly one state value; to keep multiple elements in state, the state can be a
+struct.
 
 ## Spawning procs
 
@@ -243,9 +241,12 @@ proc Tester {
     (terminator,)
   }
 
-  next(tok: token, state: ()) {
+  next(state: ()) {
+    let tok = join();
+
     // send and recv message to the proc under test.
     // ...
+
     // terminate the test interpretation.
     send(tok, terminator, true);
   }
@@ -273,9 +274,9 @@ proc main {
     (req, resp)
   }
 
-  next(tok: token, state: u32) {
+  next(state: u32) {
     let request = state * state;
-    let tok = send(tok, req, request);
+    let tok = send(join(), req, request);
     let (tok, response) = recv(tok, resp);
     state + u32:1
   }
