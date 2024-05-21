@@ -17,6 +17,9 @@
 #include <string>
 #include <string_view>
 
+#include "external/verible/common/lsp/lsp-protocol.h"
+#include "xls/dslx/frontend/pos.h"
+
 namespace xls::dslx {
 
 verible::lsp::Range ConvertSpanToLspRange(const Span& span) {

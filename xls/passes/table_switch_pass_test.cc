@@ -28,6 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"

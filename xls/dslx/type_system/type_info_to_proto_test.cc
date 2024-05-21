@@ -30,6 +30,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/type_info.pb.h"
 
 namespace xls::dslx {
 namespace {

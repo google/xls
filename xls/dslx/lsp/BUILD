@@ -98,6 +98,7 @@ cc_binary(
         ":language_server_adapter",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@jsonhpp",
         "//xls/common:exit_status",
         "//xls/common:init_xls",

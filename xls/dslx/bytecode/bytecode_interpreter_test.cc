@@ -46,6 +46,7 @@
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 
@@ -1680,7 +1681,7 @@ fn doomed() {
 
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-              HasSubstr(R"(lhs and rhs were not equal:
+                                       HasSubstr(R"(lhs and rhs were not equal:
   MyStruct {
 <     a: u32:0
 >     a: u32:7
@@ -1740,9 +1741,9 @@ fn doomed() {
 
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-        AllOf(HasSubstr("were not equal"),
-              HasSubstr(
-R"(lhs and rhs were not equal:
+                                       AllOf(HasSubstr("were not equal"),
+                                             HasSubstr(
+                                                 R"(lhs and rhs were not equal:
   S {
       a: u32:42
       b: u32:42
@@ -1802,10 +1803,10 @@ fn doomed() {
 })";
 
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
-  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-      AllOf(
-          HasSubstr("were not equal"),
-          HasSubstr(R"(lhs and rhs were not equal:
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       AllOf(HasSubstr("were not equal"),
+                             HasSubstr(R"(lhs and rhs were not equal:
   MyStruct {
       c: InnerStruct[2]:[
           InnerStruct {
@@ -1837,10 +1838,10 @@ fn doomed() {
     assert_eq(a, b)
 })";
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
-  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-      AllOf(
-          HasSubstr("Flowers::ROSES (u24:16711807"),
-          HasSubstr("Flowers::VIOLETS (u24:15631086"))));
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       AllOf(HasSubstr("Flowers::ROSES (u24:16711807"),
+                             HasSubstr("Flowers::VIOLETS (u24:15631086"))));
 }
 
 TEST(BytecodeInterpreterTest, TraceChannels) {

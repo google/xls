@@ -15,7 +15,6 @@
 #include "xls/passes/proc_state_flattening_pass.h"
 
 #include <cstdint>
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

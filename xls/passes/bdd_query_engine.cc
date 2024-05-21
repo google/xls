@@ -18,6 +18,7 @@
 #include <optional>
 #include <utility>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
@@ -27,6 +28,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
+#include "xls/passes/bdd_function.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {

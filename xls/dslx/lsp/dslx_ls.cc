@@ -22,6 +22,7 @@
 
 #include <unistd.h>
 
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <ostream>
@@ -32,6 +33,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_split.h"
 #include "nlohmann/json.hpp"
 #include "external/verible/common/lsp/json-rpc-dispatcher.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
@@ -109,8 +111,7 @@ absl::Status RealMain() {
   const std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   const std::vector<fs::path> dslx_paths = absl::StrSplit(dslx_path, ':');
 
-  LspLog() << "XLS testing language server"
-           << "\n";
+  LspLog() << "XLS testing language server" << "\n";
   LspLog() << "Path configuration:\n\tstdlib=" << stdlib_path << "\n"
            << "\tdslx_path=" << dslx_path << "\n"
            << "\tcwd=" << fs::current_path().string() << "\n";

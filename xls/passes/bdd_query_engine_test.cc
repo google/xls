@@ -23,6 +23,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 namespace {

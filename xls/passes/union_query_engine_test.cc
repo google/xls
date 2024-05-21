@@ -30,10 +30,12 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/passes/query_engine.h"
 

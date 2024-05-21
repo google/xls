@@ -27,13 +27,16 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;

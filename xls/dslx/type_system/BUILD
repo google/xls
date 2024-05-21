@@ -451,6 +451,8 @@ cc_test(
         ":parametric_expression",
         "@com_google_absl//absl/container:flat_hash_set",
         "//xls/common:xls_gunit_main",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:pos",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -541,6 +543,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
+        "//xls/ir:bits",
     ],
 )
 
@@ -549,6 +552,7 @@ cc_test(
     srcs = ["type_info_to_proto_test.cc"],
     data = glob(["testdata/*.txt"]),
     deps = [
+        ":type_info_cc_proto",
         ":type_info_to_proto",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -678,6 +682,7 @@ cc_binary(
     name = "typecheck_main",
     srcs = ["typecheck_main.cc"],
     deps = [
+        ":type_info_cc_proto",
         ":type_info_to_proto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",

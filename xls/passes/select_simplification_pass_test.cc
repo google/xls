@@ -33,6 +33,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;

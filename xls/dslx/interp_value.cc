@@ -15,6 +15,7 @@
 #include "xls/dslx/interp_value.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -36,6 +37,9 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -564,8 +568,7 @@ absl::StatusOr<InterpValue> InterpValue::Slice(
   XLS_ASSIGN_OR_RETURN(const auto* length_values, length.GetValues());
   int64_t length_value = length_values->size();
   XLS_ASSIGN_OR_RETURN(int64_t start_width, start.GetBitCount());
-  int64_t width = start_width +
-                  Bits::MinBitCountSigned(length_value) +
+  int64_t width = start_width + Bits::MinBitCountSigned(length_value) +
                   Bits::MinBitCountUnsigned(subject.size()) + 1;
   std::vector<InterpValue> result;
   for (int64_t i = 0; i < length_value; ++i) {

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_library")
 load(
     "//xls/build_rules:xls_macros.bzl",
     "xls_dslx_cpp_type_library",
@@ -152,4 +153,9 @@ cc_test(
         "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
+)
+
+xls_dslx_library(
+    name = "test_types",
+    srcs = ["test_types.x"],
 )

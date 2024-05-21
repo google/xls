@@ -27,8 +27,10 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -480,8 +482,7 @@ TEST_F(BddSimplificationPassTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Param("input"));
+  EXPECT_THAT(f->return_value(), m::Param("input"));
 }
 
 }  // namespace

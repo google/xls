@@ -35,6 +35,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"

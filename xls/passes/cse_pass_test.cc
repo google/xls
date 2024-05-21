@@ -30,6 +30,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 

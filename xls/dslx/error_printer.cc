@@ -64,13 +64,13 @@ absl::Status PrintPositionalError(
   // file_limit as a whole is an exclusive limit (the first not-included
   // character), but its file_limit.lineno() is inclusive (addresses the
   // last line, not the one after).
-  const Pos file_limit(error_span.filename(),
-                       lines.size() - 1, lines.back().size());
+  const Pos file_limit(error_span.filename(), lines.size() - 1,
+                       lines.back().size());
 
   // Caps the effective start and limit against the file start and limit,
   // and caps the limit against the start.
-  const Pos start = std::max(file_start,
-      std::min(error_span.start(), file_limit));
+  const Pos start =
+      std::max(file_start, std::min(error_span.start(), file_limit));
   const Pos limit = std::max(start, std::min(file_limit, error_span.limit()));
 
   int64_t line_count_each_side = error_context_line_count / 2;
@@ -114,7 +114,7 @@ absl::Status PrintPositionalError(
   // When emitting multiline errors, we put a leading bar at the start of the
   // line to show which are in the error range. When we're not doing multiline
   // errors, this is just empty.
-  const std::string bar_on  = absl::StrCat(msg_color_leader, " |", color_reset);
+  const std::string bar_on = absl::StrCat(msg_color_leader, " |", color_reset);
   const std::string bar_off = (is_multiline ? "  " : "");
   std::string_view bar = bar_off;
 
@@ -124,14 +124,13 @@ absl::Status PrintPositionalError(
                            error_span.limit().ToStringNoFile());
 
   for (int64_t i = first_line_printed; i <= last_line_printed; ++i) {
-    os << absl::StreamFormat("%s%04d:%s%s %s\n",
-        pos_color_leader, i + 1, color_reset, bar, lines[i]);
+    os << absl::StreamFormat("%s%04d:%s%s %s\n", pos_color_leader, i + 1,
+                             color_reset, bar, lines[i]);
     if (i == start.lineno()) {
       // Emit arrow pointing to all of, or the start of, the error.
       if (is_multiline) {
         std::string spaces(std::string_view("0000: |").size(), ' ');
-        std::string underscores(
-            std::max(int64_t{0}, start.colno()) + 1, '_');
+        std::string underscores(std::max(int64_t{0}, start.colno()) + 1, '_');
         os << absl::StreamFormat("%s%s%s^%s\n", msg_color_leader, spaces,
                                  underscores, color_reset);
         // Each line will also draw a little bit of a vertical bar

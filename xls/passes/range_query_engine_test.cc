@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"

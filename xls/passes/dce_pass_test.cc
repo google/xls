@@ -22,19 +22,21 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
 
 namespace m = xls::op_matchers;
-using status_testing::IsOkAndHolds;
 using status_testing::IsOk;
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::Not;
 
@@ -123,8 +125,7 @@ TEST_F(DeadCodeEliminationPassTest, AvoidsSideEffecting) {
   XLS_EXPECT_OK(f->GetNode("my_cover").status());
   EXPECT_THAT(f->GetNode("dead_afterall"),
               StatusIs(absl::StatusCode::kNotFound));
-  EXPECT_THAT(f->GetNode("dead_sub"),
-              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(f->GetNode("dead_sub"), StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(DeadCodeEliminationPassTest, Block) {
@@ -157,7 +158,7 @@ TEST_F(DeadCodeEliminationPassTest, GateRemoved) {
   BValue dead = fb.Gate(one_bit, eight_bit);
   constexpr std::string_view kDeadNodeName = "DeadGate";
   dead.SetName(kDeadNodeName);
-  XLS_ASSERT_OK_AND_ASSIGN(Function* f, fb.BuildWithReturnValue(eight_bit));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(eight_bit));
   EXPECT_THAT(f->GetNode(kDeadNodeName), IsOkAndHolds(m::Gate()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->GetNode(kDeadNodeName), Not(IsOk()));

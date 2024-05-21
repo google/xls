@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
