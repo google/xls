@@ -27,6 +27,14 @@ load(
     "xls_dslx_opt_ir",
     "xls_ir_cc_library",
 )
+load(
+    "//xls/build_rules:xls_internal_aot_rules.bzl",
+    "xls_aot_generate",
+)
+load(
+    "//xls/build_rules:xls_internal_build_defs.bzl",
+    "XLS_IS_MSAN_BUILD",
+)
 # cc_proto_library is used in this file
 
 package(
@@ -396,6 +404,7 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":aot_compiler",
+        ":aot_entrypoint_cc_proto",
         ":function_base_jit",
         ":ir_builder_visitor",
         ":jit_buffer",
@@ -469,6 +478,42 @@ cc_test(
         "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
         "@llvm-project//llvm:ir_headers",
+    ],
+)
+
+# Separate test since for the aot stuff to build at all function-jit needs to be *mostly* working.
+cc_test(
+    name = "function_jit_aot_test",
+    srcs = [
+        "function_jit_aot_test.cc",
+    ],
+    data = [
+        ":multi_function_aot",
+        ":multi_function_with_trace.ir",
+    ],
+    deps = [
+        ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
+        ":function_jit",
+        ":ir_builder_visitor",
+        ":jit_callbacks",
+        ":jit_runtime",
+        ":multi_function_aot",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
+        "//xls/ir:value",
+        "//xls/ir:value_view",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -940,6 +985,17 @@ xls_dslx_ir(
     library = ":multi_function_dslx",
 )
 
+xls_dslx_library(
+    name = "multi_function_with_trace_dslx",
+    srcs = ["multi_func_with_trace.x"],
+)
+
+xls_dslx_ir(
+    name = "multi_function_with_trace",
+    dslx_top = "multi_function_one",
+    library = ":multi_function_with_trace_dslx",
+)
+
 xls_ir_cc_library(
     name = "multi_function_one_cc",
     src = ":multi_function.ir",
@@ -979,4 +1035,11 @@ cc_xls_ir_jit_wrapper(
         "class_name": "CompoundJitWrapper",
         "namespace": "something::cool",
     },
+)
+
+xls_aot_generate(
+    name = "multi_function_aot",
+    src = ":multi_function_with_trace.ir",
+    top = "multi_function_one",
+    with_msan = XLS_IS_MSAN_BUILD,
 )

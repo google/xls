@@ -64,6 +64,28 @@ int64_t JitObjectCodeFunctionUse(const uint8_t* const* inputs,
 }
 }  // namespace
 
+// Returns an object containing an AOT-compiled version of the specified XLS
+// function.
+/* static */ absl::StatusOr<std::unique_ptr<FunctionJit>>
+FunctionJit::CreateFromAot(Function* xls_function,
+                           const AotEntrypointProto& entrypoint,
+                           JitFunctionType function_unpacked,
+                           std::optional<JitFunctionType> function_packed) {
+  XLS_ASSIGN_OR_RETURN(
+      JittedFunctionBase jfb,
+      JittedFunctionBase::BuildFromAot(xls_function, entrypoint,
+                                       function_unpacked, function_packed));
+  XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
+  // OrcJit is simply the arena that holds the JITed code. Since we are already
+  // compiled theres no need to create and initialize it.
+  // TODO(allight): Ideally we wouldn't even need to link in the llvm stuff if
+  // we go down this path, that's a larger refactor however and just carrying
+  // around some extra .so's isn't a huge deal.
+  return std::unique_ptr<FunctionJit>(
+      new FunctionJit(xls_function, std::unique_ptr<OrcJit>(nullptr),
+                      std::move(jfb), std::move(runtime)));
+}
+
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
     Function* xls_function, int64_t opt_level, bool include_msan) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,

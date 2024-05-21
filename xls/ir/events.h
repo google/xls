@@ -22,6 +22,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 
 namespace xls {
 
@@ -40,6 +41,11 @@ struct TraceMessage {
       return verbosity_cmp;
     }
     return message <=> other.message;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const TraceMessage& t) {
+    absl::Format(&sink, "%s [verbosity: %d]", t.message, t.verbosity);
   }
 };
 

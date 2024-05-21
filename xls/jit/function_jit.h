@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,6 +32,7 @@
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/value.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
@@ -59,6 +61,13 @@ class FunctionJit {
   static absl::StatusOr<std::unique_ptr<FunctionJit>> Create(
       Function* xls_function, int64_t opt_level = 3,
       JitObserver* observer = nullptr);
+
+  // Returns an object containing an AOT-compiled version of the specified XLS
+  // function.
+  static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateFromAot(
+      Function* xls_function, const AotEntrypointProto& entrypoint,
+      JitFunctionType function_unpacked,
+      std::optional<JitFunctionType> function_packed = std::nullopt);
 
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(Function* xls_function,
