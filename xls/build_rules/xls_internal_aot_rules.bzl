@@ -41,7 +41,7 @@ _PROTO_FILE_EXTENSION = ".pb"
 
 _OBJ_FILE_EXTENSION = ".o"
 
-visibility(["//xls/build_rules", "//xls/jit"])
+visibility(["//xls/build_rules/...", "//xls/jit"])
 
 _xls_aot_files_attrs = {
     "with_msan": attr.bool(

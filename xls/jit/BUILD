@@ -205,8 +205,9 @@ cc_library(
     # Allow jit-wrapper users to see this.
     visibility = ["//xls:xls_users"],
     deps = [
+        ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
         ":function_jit",
-        ":jit_runtime",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -215,7 +216,6 @@ cc_library(
         "//xls/ir:value_view",
         "//xls/public:ir_parser",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
@@ -255,6 +255,7 @@ py_binary(
     ],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":aot_entrypoint_py_pb2",
         requirement("Jinja2"),
         requirement("MarkupSafe"),
         "//xls/common:runfiles",

@@ -28,8 +28,16 @@ load(
     "CONFIG",
     "enable_generated_file_wrapper",
 )
+load(
+    "//xls/build_rules:xls_internal_aot_rules.bzl",
+    "xls_aot_generate",
+)
+load(
+    "//xls/build_rules:xls_internal_build_defs.bzl",
+    "XLS_IS_MSAN_BUILD",
+)
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
+load("//xls/build_rules:xls_providers.bzl", "AotCompileInfo", "JitWrapperInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "xls_toolchain_attrs",
@@ -61,6 +69,10 @@ _xls_ir_jit_wrapper_attrs = {
     ),
     "wrapper_type": attr.string(
         doc = "type of function_base we are wrapping.",
+        mandatory = True,
+    ),
+    "aot_info": attr.label(
+        doc = "The target which contains information about available AOT code.",
         mandatory = True,
     ),
 }
@@ -147,11 +159,15 @@ def _xls_ir_jit_wrapper_impl(ctx):
     # function_type
     jit_wrapper_flags.add("--function_type", ctx.attr.wrapper_type)
 
+    # Aot information
+    aot_info_file = ctx.attr.aot_info[AotCompileInfo].proto_file
+    jit_wrapper_flags.add("--aot_info", aot_info_file.path)
+
     my_generated_files = [cc_file, h_file]
 
     # Get runfiles
     jit_wrapper_tool_runfiles = ctx.attr._xls_jit_wrapper_tool[DefaultInfo].default_runfiles
-    runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [src])
+    runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [src, aot_info_file])
 
     ctx.actions.run(
         outputs = my_generated_files,
@@ -211,12 +227,31 @@ Examples:
     ),
 )
 
+def _no_aot_info_impl(ctx):
+    """Helper rule to create an empty AotInfo proto."""
+    file = ctx.actions.declare_file(ctx.attr.name + ".pb")
+    ctx.actions.write(file, "", is_executable = False)
+    return [
+        DefaultInfo(files = depset([file])),
+        AotCompileInfo(object_file = None, proto_file = file),
+    ]
+
+_no_aot_info = rule(
+    doc = """Internal only utility rule to generate an empty AotCompileInfo proto file.
+
+    This can be used with function types that don't yet support AOT.
+    """,
+    implementation = _no_aot_info_impl,
+    attrs = {},
+)
+
 def xls_ir_jit_wrapper_macro(
         name,
         src,
         source_file,
         header_file,
         wrapper_type,
+        aot_info,
         jit_wrapper_args = {},
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
@@ -235,6 +270,8 @@ def xls_ir_jit_wrapper_macro(
       header_file: The generated header file. See 'header_file' attribute from
         the 'xls_ir_jit_wrapper' rule.
       wrapper_type: What sort of function base are we wrapping.
+      aot_info: AotCompileInfo generating label with information about the AOT
+        code that is available.
       jit_wrapper_args: Arguments of the JIT tool. See 'jit_wrapper_args'
          attribute from the 'xls_ir_jit_wrapper' rule.
       enable_generated_file: See 'enable_generated_file' from
@@ -250,6 +287,7 @@ def xls_ir_jit_wrapper_macro(
     string_type_check("source_file", source_file)
     string_type_check("header_file", header_file)
     string_type_check("wrapper_type", wrapper_type)
+    string_type_check("aot_info", aot_info)
     dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
     bool_type_check("enable_generated_file", enable_generated_file)
     bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
@@ -259,6 +297,7 @@ def xls_ir_jit_wrapper_macro(
         src = src,
         source_file = source_file,
         header_file = header_file,
+        aot_info = aot_info,
         jit_wrapper_args = jit_wrapper_args,
         wrapper_type = wrapper_type,
         outs = [source_file, header_file],
@@ -280,6 +319,8 @@ _BASE_JIT_WRAPPER_DEPS = {
     FUNCTION_WRAPPER_TYPE: "//xls/jit:function_base_jit_wrapper",
     PROC_WRAPPER_TYPE: "//xls/jit:proc_base_jit_wrapper",
 }
+
+_AOT_SUPPORTED_WRAPPERS = [FUNCTION_WRAPPER_TYPE]
 
 def cc_xls_ir_jit_wrapper(
         name,
@@ -305,6 +346,9 @@ def cc_xls_ir_jit_wrapper(
                     for compatibility.
       **kwargs: Keyword arguments. Named arguments.
     """
+
+    # TODO(allight): We should add top as an argument here. With the new
+    # jit-wrapper architecture it would be simple to support.
     dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
     string_type_check("src", src)
 
@@ -324,10 +368,28 @@ def cc_xls_ir_jit_wrapper(
 
     source_filename = name + _CC_FILE_EXTENSION
     header_filename = name + _H_FILE_EXTENSION
+
+    extra_lib_deps = []
+    if wrapper_type in _AOT_SUPPORTED_WRAPPERS:
+        xls_aot_generate(
+            name = name + "_aot_code_for_wrapper",
+            src = src,
+            with_msan = XLS_IS_MSAN_BUILD,
+            # The XLS AOT compiler does not currently support cross-compilation.
+        )
+        aot_info_target = ":" + name + "_aot_code_for_wrapper"
+        extra_lib_deps.append(aot_info_target)
+    else:
+        # Simplify the xls_ir_jit_wrapper_macro by making sure it always gets an AotCompileInfo
+        _no_aot_info(name = name + "_empty_aot_info")
+        aot_info_target = ":" + name + "_empty_aot_info"
+        # Since this doesn't define any actual AOT code we don't need to add anything to the deps.
+
     xls_ir_jit_wrapper_macro(
         name = "__" + name + "_xls_ir_jit_wrapper",
         src = src,
         jit_wrapper_args = jit_wrapper_args,
+        aot_info = aot_info_target,
         wrapper_type = wrapper_type,
         source_file = source_filename,
         header_file = header_filename,
@@ -338,7 +400,7 @@ def cc_xls_ir_jit_wrapper(
         name = name,
         srcs = [":" + source_filename],
         hdrs = [":" + header_filename],
-        deps = [
+        deps = extra_lib_deps + [
             _BASE_JIT_WRAPPER_DEPS[wrapper_type],
             "@com_google_absl//absl/status",
             "//xls/common/status:status_macros",

@@ -1,26 +1,63 @@
 #include "{{ wrapped.header_filename }}"
 
+#include <cstdint>
 #include <array>
 #include <string_view>
 
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/function_base_jit_wrapper.h"
 
+extern "C" {
+
+// The actual symbols the AOT generates.
+// Unpacked entrypoint
+int64_t {{wrapped.aot_entrypoint.function_symbol}}(  // NOLINT
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
+    xls::JitRuntime* jit_runtime, int64_t continuation_point);
+// Packed entrypoint
+int64_t {{wrapped.aot_entrypoint.packed_function_symbol}}(  // NOLINT
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
+    xls::JitRuntime* jit_runtime, int64_t continuation_point);
+}
+
 namespace {{ wrapped.namespace }} {
 
 namespace {
+
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr bool kTargetHasSanitizer = true;
+#else
+static constexpr bool kTargetHasSanitizer = false;
+#endif
+static constexpr bool kExternHasSanitizer = {{ "true" if wrapped.aot_entrypoint.has_msan else "false" }};
+
+static_assert(kTargetHasSanitizer == kExternHasSanitizer,
+              "sanitizer states do not match!");
+
 static constexpr std::string_view kFunctionName = "{{ wrapped.function_name }}";
 
 // Note: This is a plain array as the content can be so large that it exceeds
 // compiler constexpr limits if attempting to assign to std::string_view
 static constexpr char kIrText[] =
     R"original_ir({{wrapped.ir_text}})original_ir";
+
+// Bytes of the AOT entrypoint message:
+{{ str(wrapped.aot_entrypoint).split("\n") | prefix_each("// ") | join("\n") }}
+static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToString())}}> kAotEntrypointProtoBin = {
+  {{wrapped.aot_entrypoint.SerializeToString() | list | join(", ")}}
+};
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
 {{ wrapped.class_name }}::Create() {
   return xls::BaseFunctionJitWrapper::Create<{{wrapped.class_name}}>(
-            kIrText, kFunctionName);
+            kIrText,
+            kFunctionName,
+            kAotEntrypointProtoBin,
+            {{wrapped.aot_entrypoint.function_symbol}},
+            {{wrapped.aot_entrypoint.packed_function_symbol}});
 }
 
 absl::StatusOr<xls::Value> {{ wrapped.class_name }}::Run(

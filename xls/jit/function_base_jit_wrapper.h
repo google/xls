@@ -19,14 +19,12 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -37,8 +35,9 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/jit/aot_entrypoint.pb.h"
+#include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/jit_runtime.h"
 #include "xls/public/ir_parser.h"
 
 namespace xls {
@@ -62,13 +61,22 @@ class BaseFunctionJitWrapper {
 
   template <typename RealType>
   static absl::StatusOr<std::unique_ptr<RealType>> Create(
-      std::string_view ir_text, std::string_view function_name)
+      std::string_view ir_text, std::string_view function_name,
+      absl::Span<uint8_t const> aot_entrypoint_proto_bin,
+      JitFunctionType unpacked_entrypoint, JitFunctionType packed_entrypoint)
     requires(std::is_base_of_v<BaseFunctionJitWrapper, RealType>)
   {
     XLS_ASSIGN_OR_RETURN(auto package,
                          ParsePackage(ir_text, /*filename=*/std::nullopt));
     XLS_ASSIGN_OR_RETURN(auto function, package->GetFunction(function_name));
-    XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
+    AotEntrypointProto proto;
+    // NB We could fallback to real jit here maybe?
+    XLS_RET_CHECK(proto.ParseFromArray(aot_entrypoint_proto_bin.data(),
+                                       aot_entrypoint_proto_bin.size()))
+        << "Unable to parse aot information.";
+    XLS_ASSIGN_OR_RETURN(
+        auto jit, FunctionJit::CreateFromAot(
+                      function, proto, unpacked_entrypoint, packed_entrypoint));
     return std::unique_ptr<RealType>(
         new RealType(std::move(package), std::move(jit),
                      MatchesImplicitToken(function->GetType()->parameters())));

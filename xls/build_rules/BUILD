@@ -166,6 +166,8 @@ bzl_library(
     deps = [
         ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
+        ":xls_internal_aot_rules_bzl",
+        ":xls_internal_build_defs_bzl",
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",

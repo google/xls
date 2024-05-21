@@ -32,6 +32,7 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load("//xls/build_rules:xls_internal_aot_rules.bzl", "xls_aot_generate")
 load(
     "//xls/build_rules:xls_rules_build_defs.bzl",
     "FUNCTION_WRAPPER_TYPE",
@@ -582,12 +583,19 @@ xls_dslx_verilog(
     deps = [":simple_example_4_dslx"],
 )
 
+xls_aot_generate(
+    name = "simple_example_5_one_stage_jit_wrapper_aot_gen",
+    src = ":simple_example_5_one_stage.opt.ir",
+    with_msan = False,
+)
+
 # The xls_ir_jit_wrapper rule using an optimized IR file as input.
 # The header and source files are outputs of the rule, they can be referenced
 # by other rules.
 xls_ir_jit_wrapper_macro(
     name = "simple_example_5_one_stage_jit_wrapper",
     src = ":simple_example_5_one_stage.opt.ir",
+    aot_info = ":simple_example_5_one_stage_jit_wrapper_aot_gen",
     header_file = "simple_example_5_one_stage_jit_wrapper.h",
     jit_wrapper_args = {
         "namespace": "not_xls::test",
@@ -698,6 +706,7 @@ xls_dslx_verilog_native_rule(
 xls_ir_jit_wrapper_native_rule(
     name = "simple_example_5_one_stage_jit_wrapper_native_rule",
     src = ":simple_example_5_one_stage.opt.ir",
+    aot_info = ":simple_example_5_one_stage_jit_wrapper_aot_gen",
     header_file = "simple_example_5_one_stage_jit_wrapper_native_rule.h",
     jit_wrapper_args = {
         "namespace": "not_xls::test",
@@ -779,9 +788,16 @@ xls_dslx_verilog_native_rule(
     verilog_file = "xls_dslx_verilog_native_rule.sv",
 )
 
+xls_aot_generate(
+    name = "user_defined_output_filename_jit_wrapper_aot_gen",
+    src = ":xls_ir_opt_ir.opt.ir",
+    with_msan = False,
+)
+
 xls_ir_jit_wrapper_macro(
     name = "user_defined_output_filename_jit_wrapper",
     src = ":xls_ir_opt_ir.opt.ir",
+    aot_info = ":user_defined_output_filename_jit_wrapper_aot_gen",
     header_file = "xls_ir_jit_wrapper.h",
     jit_wrapper_args = {
         "namespace": "not_xls::test",
@@ -793,6 +809,7 @@ xls_ir_jit_wrapper_macro(
 xls_ir_jit_wrapper_native_rule(
     name = "user_defined_output_filename_native_rule_jit_wrapper",
     src = ":xls_ir_opt_ir.opt.ir",
+    aot_info = ":user_defined_output_filename_jit_wrapper_aot_gen",
     header_file = "xls_ir_jit_wrapper_native_rule.h",
     jit_wrapper_args = {
         "namespace": "not_xls::test",

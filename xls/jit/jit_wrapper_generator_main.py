@@ -31,6 +31,7 @@ import jinja2
 from xls.common import runfiles
 from xls.ir import xls_ir_interface_pb2 as ir_interface_pb2
 from xls.ir import xls_type_pb2 as type_pb2
+from xls.jit import aot_entrypoint_pb2
 
 
 _FUNCTION_TYPE = flags.DEFINE_string(
@@ -97,6 +98,15 @@ _WRAPPER_NAMESPACE = flags.DEFINE_string(
     default="xls",
     help="C++ namespace to put the wrapper in.",
 )
+_AOT_INFO = flags.DEFINE_string(
+    "aot_info",
+    required=True,
+    default=None,
+    help=(
+        "Proto file describing the interface of the available AOT'd functions"
+        " as a AotEntrypointProto. Must be a binary proto."
+    ),
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -150,6 +160,7 @@ class WrappedIr:
   header_guard: str
   header_filename: str
   namespace: str
+  aot_entrypoint: Optional[aot_entrypoint_pb2.AotEntrypointProto]
   # Function params and result.
   params: Optional[Sequence[XlsNamedValue]] = None
   result: Optional[XlsNamedValue] = None
@@ -306,6 +317,7 @@ def interpret_function_interface(
     class_name: str,
     header_guard: str,
     header_filename: str,
+    aot_info: aot_entrypoint_pb2.AotEntrypointProto,
 ) -> WrappedIr:
   """Fill in a WrappedIr for a function.
 
@@ -315,6 +327,7 @@ def interpret_function_interface(
     class_name: The class name
     header_guard: The header-guard string
     header_filename: The header file name.
+    aot_info: The aot info for the function.
 
   Returns:
     A wrapped ir for the function.
@@ -337,6 +350,7 @@ def interpret_function_interface(
       namespace=namespace,
       params=params,
       result=result,
+      aot_entrypoint=aot_info,
   )
 
 
@@ -362,6 +376,7 @@ def interpret_proc_interface(
       incoming_channels=input_channels,
       outgoing_channels=output_channels,
       state=state,
+      aot_entrypoint=None,
   )
 
 
@@ -386,6 +401,7 @@ def interpret_interface(
     output_name: str,
     class_name: str,
     function_name: str,
+    aot_info: aot_entrypoint_pb2.AotEntrypointProto,
 ) -> WrappedIr:
   """Create a wrapped-ir representation of the IR to be rendered to source.
 
@@ -395,6 +411,7 @@ def interpret_interface(
     output_name: what the file basename we are writing to is.
     class_name: what the class we are creating is called.
     function_name: what the IR function we are actually calling is.
+    aot_info: The aot info for the function.
 
   Returns:
     A WrappedIr ready for rendering.
@@ -422,6 +439,7 @@ def interpret_interface(
           class_name,
           header_guard,
           header_filename,
+          aot_info,
       )
   # Try to find a proc
   if _FUNCTION_TYPE.value in (None, "PROC"):
@@ -476,6 +494,10 @@ def main(argv: Sequence[str]) -> None:
     raise app.UsageError(
         "Unknown --function_type. Requires none or FUNCTION or PROC"
     )
+  with open(_AOT_INFO.value, "rb") as aot_info_file:
+    aot_info = aot_entrypoint_pb2.AotEntrypointProto.FromString(
+        aot_info_file.read()
+    )
   ir_interface = ir_interface_pb2.PackageInterfaceProto.FromString(
       subprocess.check_output([
           runfiles.get_path("xls/tools/extract_interface_main"),
@@ -496,12 +518,21 @@ def main(argv: Sequence[str]) -> None:
       output_name,
       class_name,
       function_name,
+      aot_info,
   )
+
+  if (
+      aot_info.xls_function_identifier
+      and wrapped.function_name != aot_info.xls_function_identifier
+  ):
+    raise app.UsageError("Aot info is for a different function!")
 
   # Create the JINJA env and add an append filter.
   env = jinja2.Environment(undefined=jinja2.StrictUndefined)
   env.filters["append_each"] = lambda vs, suffix: [v + suffix for v in vs]
-  bindings = {"wrapped": wrapped, "len": len}
+  env.filters["prefix_each"] = lambda vs, prefix: [prefix + v for v in vs]
+  env.filters["to_char_ints"] = lambda v: [x for x in v]
+  bindings = {"wrapped": wrapped, "len": len, "str": str}
 
   with open(f"{_OUTPUT_DIR.value}/{output_name}.cc", "wt") as cc_file:
     cc_template = env.from_string(_CC_TEMPLATES[wrapped.jit_type])
