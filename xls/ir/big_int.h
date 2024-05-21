@@ -121,7 +121,7 @@ class BigInt {
   static BigInt Exp2(int64_t e);
 
  private:
-  BIGNUM bn_;
+  BIGNUM bn_{};
 };
 
 std::ostream& operator<<(std::ostream& os, const BigInt& big_int);

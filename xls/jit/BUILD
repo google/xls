@@ -200,18 +200,15 @@ cc_library(
 )
 
 cc_library(
-    name = "base_jit_wrapper",
-    hdrs = ["base_jit_wrapper.h"],
+    name = "function_base_jit_wrapper",
+    hdrs = ["function_base_jit_wrapper.h"],
     # Allow jit-wrapper users to see this.
     visibility = ["//xls:xls_users"],
     deps = [
         ":function_jit",
-        ":jit_channel_queue",
-        ":jit_proc_runtime",
         ":jit_runtime",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/interpreter:proc_runtime",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:value",
@@ -222,6 +219,27 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "proc_base_jit_wrapper",
+    hdrs = ["proc_base_jit_wrapper.h"],
+    # Allow jit-wrapper users to see this.
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":jit_channel_queue",
+        ":jit_proc_runtime",
+        ":jit_runtime",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:proc_runtime",
+        "//xls/ir",
+        "//xls/ir:value",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 

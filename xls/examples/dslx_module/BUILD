@@ -16,6 +16,7 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "PROC_WRAPPER_TYPE",
     "cc_xls_ir_jit_wrapper",
     "xls_dslx_ir",
     "xls_dslx_library",
@@ -73,6 +74,7 @@ cc_xls_ir_jit_wrapper(
         "namespace": "xls::examples",
     },
     visibility = ["//xls:xls_internal"],
+    wrapper_type = PROC_WRAPPER_TYPE,
 )
 
 xls_dslx_opt_ir(
@@ -92,4 +94,5 @@ cc_xls_ir_jit_wrapper(
         "namespace": "xls::examples",
     },
     visibility = ["//xls:xls_internal"],
+    wrapper_type = PROC_WRAPPER_TYPE,
 )

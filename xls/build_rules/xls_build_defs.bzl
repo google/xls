@@ -51,6 +51,9 @@ load(
 )
 load(
     "//xls/build_rules:xls_jit_wrapper_rules.bzl",
+    _BLOCK_WRAPPER_TYPE = "BLOCK_WRAPPER_TYPE",
+    _FUNCTION_WRAPPER_TYPE = "FUNCTION_WRAPPER_TYPE",
+    _PROC_WRAPPER_TYPE = "PROC_WRAPPER_TYPE",
     _cc_xls_ir_jit_wrapper = "cc_xls_ir_jit_wrapper",
 )
 load(
@@ -92,6 +95,9 @@ xls_dslx_opt_ir_test = _xls_dslx_opt_ir_test
 
 # XLS Macros
 cc_xls_ir_jit_wrapper = _cc_xls_ir_jit_wrapper
+PROC_WRAPPER_TYPE = _PROC_WRAPPER_TYPE
+FUNCTION_WRAPPER_TYPE = _FUNCTION_WRAPPER_TYPE
+BLOCK_WRAPPER_TYPE = _BLOCK_WRAPPER_TYPE
 
 # TODO (vmirian) 1-10-2022 Do not expose xls_dslx_ir to user. Prefer to simply
 # have an opt ir generated from a DSLX file.

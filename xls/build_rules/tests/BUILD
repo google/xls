@@ -34,6 +34,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_rules_build_defs.bzl",
+    "FUNCTION_WRAPPER_TYPE",
     "xls_ir_jit_wrapper_macro",
     xls_dslx_ir_native_rule = "xls_dslx_ir",
     xls_dslx_opt_ir_native_rule = "xls_dslx_opt_ir",
@@ -592,6 +593,7 @@ xls_ir_jit_wrapper_macro(
         "namespace": "not_xls::test",
     },
     source_file = "simple_example_5_one_stage_jit_wrapper.cc",
+    wrapper_type = FUNCTION_WRAPPER_TYPE,
 )
 
 # cc_xls_ir_jit_wrapper macro with a cc_library target with name
@@ -701,6 +703,7 @@ xls_ir_jit_wrapper_native_rule(
         "namespace": "not_xls::test",
     },
     source_file = "simple_example_5_one_stage_jit_wrapper_native_rule.cc",
+    wrapper_type = FUNCTION_WRAPPER_TYPE,
 )
 
 ################################################################################
@@ -784,6 +787,7 @@ xls_ir_jit_wrapper_macro(
         "namespace": "not_xls::test",
     },
     source_file = "xls_ir_jit_wrapper.cc",
+    wrapper_type = FUNCTION_WRAPPER_TYPE,
 )
 
 xls_ir_jit_wrapper_native_rule(
@@ -794,6 +798,7 @@ xls_ir_jit_wrapper_native_rule(
         "namespace": "not_xls::test",
     },
     source_file = "xls_ir_jit_wrapper_native_rule.cc",
+    wrapper_type = FUNCTION_WRAPPER_TYPE,
 )
 
 ################################################################################
