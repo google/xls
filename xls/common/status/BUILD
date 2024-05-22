@@ -69,6 +69,7 @@ cc_test(
     deps = [
         ":matchers",
         ":ret_check",
+        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
@@ -93,6 +94,7 @@ cc_library(
         "@com_google_absl//absl/log:log_sink",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:cord",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",

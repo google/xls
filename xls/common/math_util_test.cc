@@ -20,6 +20,7 @@
 
 #include "gtest/gtest.h"
 #include "fuzztest/fuzztest.h"
+#include "absl/base/macros.h"
 
 namespace xls {
 namespace {

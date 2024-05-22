@@ -19,6 +19,9 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/dynamic_message.h"
+#include "google/protobuf/message.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/file/temp_file.h"

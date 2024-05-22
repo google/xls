@@ -38,6 +38,8 @@
 #include "xls/contrib/ice40/device_rpc_strategy_factory.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 ABSL_FLAG(std::string, target_device, "",

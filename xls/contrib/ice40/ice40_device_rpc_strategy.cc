@@ -18,6 +18,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <filesystem>
 #include <ios>
@@ -26,6 +27,7 @@
 #include <system_error>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -38,7 +40,9 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strerror.h"
+#include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 namespace xls {

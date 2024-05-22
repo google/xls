@@ -14,6 +14,7 @@
 
 #include "xls/common/strong_int.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <limits>

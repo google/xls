@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <strings.h>
+
 #include <cstdlib>
 #include <filesystem>
 #include <initializer_list>
@@ -49,6 +51,7 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/type.h"
@@ -83,9 +86,7 @@ class Trie {
   }
 
   // Insert the given string into the trie.
-  void Insert(std::string_view string) {
-    strings_.emplace_back(string);
-  }
+  void Insert(std::string_view string) { strings_.emplace_back(string); }
 
   // Returns all strings that are suffixes of the given query string.
   std::vector<std::string> AllSuffixesOf(std::string_view query) const {

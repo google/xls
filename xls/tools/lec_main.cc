@@ -14,6 +14,8 @@
 
 // Tool to prove or disprove logical equivalence of XLS IR and a netlist.
 
+#include <unistd.h>
+
 #include <csignal>  // IWYU pragma: keep
 #include <cstdint>
 #include <cstring>

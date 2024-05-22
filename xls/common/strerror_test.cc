@@ -15,6 +15,7 @@
 #include "xls/common/strerror.h"
 
 #include <cerrno>
+#include <cstring>
 
 #include "gtest/gtest.h"
 

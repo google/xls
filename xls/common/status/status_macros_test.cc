@@ -14,6 +14,7 @@
 
 #include "xls/common/status/status_macros.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>

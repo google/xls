@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/common/case_converters.h"
 
+#include <cctype>
 #include <string>
 #include <string_view>
 #include <vector>

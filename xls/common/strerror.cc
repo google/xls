@@ -14,6 +14,7 @@
 
 #include "xls/common/strerror.h"
 
+#include <cstring>  // NOLINT needed for strerror_r
 #include <string>
 #include <type_traits>
 
