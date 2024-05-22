@@ -100,7 +100,6 @@ cc_test(
     deps = [
         ":z3_ir_equivalence",
         ":z3_ir_equivalence_testutils",
-        ":z3_ir_translator",
         ":z3_ir_translator_matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
