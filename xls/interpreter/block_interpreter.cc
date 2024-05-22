@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/block_interpreter.h"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,18 +30,23 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/elaborated_block_dfs_visitor.h"
 #include "xls/ir/events.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 namespace {
@@ -107,6 +113,8 @@ class BlockInterpreter final : public IrInterpreter {
   }
 
  private:
+  friend class ElaboratedBlockInterpreter;
+
   // The prefix to use for register names.
   const std::string_view register_prefix_;
 
@@ -115,6 +123,108 @@ class BlockInterpreter final : public IrInterpreter {
 
   // The next state for the registers.
   absl::flat_hash_map<std::string, Value>& next_reg_state_;
+};
+
+class FifoModel {
+ public:
+  FifoModel(Type* type, FifoConfig config, std::string_view instance_prefix_,
+            const absl::flat_hash_map<std::string, Value>& reg_state,
+            absl::flat_hash_map<std::string, Value>& next_reg_state)
+      : type_(type),
+        config_(config),
+        register_name_(absl::StrCat(instance_prefix_, "elements")),
+        reg_state_(reg_state),
+        next_reg_state_(next_reg_state) {}
+
+  absl::Status HandleInput(InstantiationInput* input, const Value& value) {
+    if (input->port_name() == "push_valid") {
+      push_valid_ = value;
+    } else if (input->port_name() == "push_data") {
+      push_data_ = value;
+    } else if (input->port_name() == "pop_ready") {
+      pop_ready_ = value;
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Unexpected port '%s'", input->port_name()));
+    }
+    if (push_valid_.has_value() && push_data_.has_value() &&
+        pop_ready_.has_value()) {
+      XLS_RET_CHECK(Elements().IsTuple());
+      absl::Span<Value const> elements = Elements().elements();
+      bool empty = elements.empty();
+      bool full = elements.size() == config_.depth();
+      bool pop_element = !empty && pop_ready_->IsAllOnes();
+      // push to elements if:
+      // 1) push_valid
+      // 2) !full and not directly popping
+
+      bool pushed_element_immediately_popped = empty && config_.bypass() &&
+                                               pop_ready_->IsAllOnes() &&
+                                               push_valid_->IsAllOnes();
+      bool push_element =
+          push_valid_->IsAllOnes() && !pushed_element_immediately_popped &&
+          (!full || (config_.bypass() && pop_ready_->IsAllOnes()));
+      Value const* start = elements.begin();
+      if (pop_element) {
+        ++start;
+      }
+      std::vector<Value> next_elements(start, elements.end());
+      if (push_element) {
+        next_elements.push_back(*push_data_);
+      }
+      XLS_RET_CHECK_LE(next_elements.size(), config_.depth());
+      NextElements() = Value::Tuple(next_elements);
+    }
+    return absl::OkStatus();
+  }
+  absl::StatusOr<Value> HandleOutput(InstantiationOutput* output) {
+    XLS_RET_CHECK(Elements().IsTuple());
+    absl::Span<Value const> elements = Elements().elements();
+    XLS_RET_CHECK_LE(elements.size(), config_.depth());
+    bool empty = elements.empty();
+    bool full = elements.size() == config_.depth();
+    if (output->port_name() == "pop_valid") {
+      if (empty && config_.bypass()) {
+        XLS_RET_CHECK(push_valid_.has_value());
+        return *push_valid_;
+      }
+      return Value(UBits(static_cast<int64_t>(!empty), 1));
+    }
+    if (output->port_name() == "pop_data") {
+      if (!empty) {
+        return elements.front();
+      }
+      if (config_.bypass()) {
+        XLS_RET_CHECK(push_data_.has_value());
+        return *push_data_;
+      }
+      return ZeroOfType(type_);
+    }
+    if (output->port_name() == "push_ready") {
+      if (full && config_.bypass()) {
+        XLS_RET_CHECK(pop_ready_.has_value());
+        return *pop_ready_;
+      }
+      return Value(UBits(static_cast<int64_t>(!full), 1));
+    }
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unexpected port '%s'", output->port_name()));
+  }
+
+  std::string_view register_name() const { return register_name_; }
+
+ private:
+  const Value& Elements() const { return reg_state_.at(register_name_); }
+  Value& NextElements() { return next_reg_state_[register_name_]; }
+
+  Type* type_;
+  FifoConfig config_;
+  std::string register_name_;
+  const absl::flat_hash_map<std::string, Value>& reg_state_;
+  absl::flat_hash_map<std::string, Value>& next_reg_state_;
+  std::optional<Value> push_data_;
+  std::optional<Value> push_valid_;
+  std::optional<Value> pop_ready_;
 };
 
 class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
@@ -127,13 +237,23 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
     next_reg_state_.reserve(reg_state_.size());
 
     for (BlockInstance* instance : elaboration.instances()) {
-      if (!instance->block().has_value()) {
-        continue;
+      if (instance->instantiation().has_value() &&
+          instance->instantiation().value()->kind() ==
+              InstantiationKind::kFifo) {
+        auto* fifo_instantiation =
+            down_cast<FifoInstantiation*>(instance->instantiation().value());
+        fifo_models_.insert(
+            {instance, FifoModel(fifo_instantiation->data_type(),
+                                 fifo_instantiation->fifo_config(),
+                                 instance->RegisterPrefix(), reg_state_,
+                                 next_reg_state_)});
+      } else if (instance->block().has_value()) {
+        interpreters_.insert(
+            {instance,
+             BlockInterpreter(*instance->block(), &interpreter_events_,
+                              instance->RegisterPrefix(), reg_state_,
+                              next_reg_state_)});
       }
-      interpreters_.insert(
-          {instance, BlockInterpreter(*instance->block(), &interpreter_events_,
-                                      instance->RegisterPrefix(), reg_state_,
-                                      next_reg_state_)});
     }
     CHECK_OK(SetInstance(elaboration.top()));
   }
@@ -174,6 +294,16 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
   absl::Status HandleInstantiationInput(InstantiationInput* instantiation_input,
                                         BlockInstance* instance) override {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
+    if (instantiation_input->instantiation()->kind() ==
+        InstantiationKind::kFifo) {
+      BlockInstance* fifo_instance = instance->instantiation_to_instance().at(
+          instantiation_input->instantiation());
+      XLS_RETURN_IF_ERROR(
+          fifo_models_.at(fifo_instance)
+              .HandleInput(instantiation_input,
+                           current_interpreter_->NodeValuesMap().at(
+                               instantiation_input->data())));
+    }
     // Instantiation inputs have empty tuple types.
     return current_interpreter_->SetValueResult(instantiation_input,
                                                 Value::Tuple({}));
@@ -182,6 +312,16 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
       InstantiationOutput* instantiation_output,
       BlockInstance* instance) override {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
+    if (instantiation_output->instantiation()->kind() ==
+        InstantiationKind::kFifo) {
+      BlockInstance* fifo_instance = instance->instantiation_to_instance().at(
+          instantiation_output->instantiation());
+      XLS_ASSIGN_OR_RETURN(
+          Value fifo_output,
+          fifo_models_.at(fifo_instance).HandleOutput(instantiation_output));
+      return current_interpreter_->SetValueResult(instantiation_output,
+                                                  fifo_output);
+    }
     BlockInstance* child_instance = instance->instantiation_to_instance().at(
         instantiation_output->instantiation());
     XLS_ASSIGN_OR_RETURN(
@@ -559,6 +699,8 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
   absl::flat_hash_map<std::string, Value> next_reg_state_;
   InterpreterEvents interpreter_events_;
   absl::flat_hash_map<BlockInstance*, BlockInterpreter> interpreters_;
+  absl::flat_hash_map<BlockInstance*, FifoModel> fifo_models_;
+
   // SetInstance() compares current_instance_ to its argument, so initialize
   // first.
   BlockInstance* current_instance_ = nullptr;
@@ -596,6 +738,10 @@ absl::StatusOr<BlockRunResult> BlockRun(
   absl::flat_hash_set<std::string> reg_names;
   reg_names.reserve(reg_state.size());
   for (BlockInstance* inst : elaboration.instances()) {
+    if (inst->instantiation().has_value() &&
+        inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
+      reg_names.insert(absl::StrCat(inst->RegisterPrefix(), "elements"));
+    }
     if (!inst->block().has_value()) {
       continue;
     }

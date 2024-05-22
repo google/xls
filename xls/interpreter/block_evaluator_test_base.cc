@@ -35,6 +35,7 @@
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
@@ -248,6 +249,401 @@ TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
                                        Pair("out1", Value(UBits(6, 8))),
                                        Pair("out2", Value(UBits(3, 8))),
                                        Pair("out3", Value(UBits(4, 8)))))));
+}
+
+absl::flat_hash_map<std::string, Value> PushAndPopInputs(int64_t data) {
+  return absl::flat_hash_map<std::string, Value>{
+      {"push_data", Value(UBits(data, 32))},
+      {"push_valid", Value(UBits(1, 1))},
+      {"pop_ready", Value(UBits(1, 1))},
+  };
+}
+
+absl::flat_hash_map<std::string, Value> PushNoPopInputs(int64_t data) {
+  return absl::flat_hash_map<std::string, Value>{
+      {"push_data", Value(UBits(data, 32))},
+      {"push_valid", Value(UBits(1, 1))},
+      {"pop_ready", Value(UBits(0, 1))},
+  };
+}
+
+absl::flat_hash_map<std::string, Value> PopOnlyInputs() {
+  return absl::flat_hash_map<std::string, Value>{
+      {"push_data", Value(UBits(0, 32))},
+      {"push_valid", Value(UBits(0, 1))},
+      {"pop_ready", Value(UBits(1, 1))},
+  };
+}
+
+absl::flat_hash_map<std::string, Value> NoopInputs() {
+  return absl::flat_hash_map<std::string, Value>{
+      {"push_data", Value(UBits(0, 32))},
+      {"push_valid", Value(UBits(0, 1))},
+      {"pop_ready", Value(UBits(0, 1))},
+  };
+}
+
+MATCHER_P(TryPopValue, matcher, "") {
+  if (arg.at("pop_valid").IsAllZeros()) {
+    *result_listener << "No valid pop!";
+    return false;
+  }
+  return ExplainMatchResult(IsOkAndHolds(matcher),
+                            arg.at("pop_data").bits().ToInt64(),
+                            result_listener);
+}
+
+MATCHER(NoTryPopValue, "") {
+  if (arg.at("pop_valid").IsAllOnes()) {
+    *result_listener << absl::StreamFormat("Unexpected pop! Saw value %s.",
+                                           arg.at("pop_data").ToString());
+    return false;
+  }
+  return true;
+}
+
+TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationNoBypassWorks) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsHierarchicalBlocks()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("fifo_wrapper", p.get());
+  FifoConfig fifo_config(/*depth=*/1, /*bypass=*/false,
+                         /*register_push_outputs=*/true,
+                         /*register_pop_outputs=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
+
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Make push side.
+  bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", u1));
+  bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  std::vector<absl::flat_hash_map<std::string, Value>> inputs = {
+      // Try pushing more than the capacity (do not pop).
+      PushNoPopInputs(0),
+      PushNoPopInputs(1),
+      PushNoPopInputs(2),
+      // Noop should change nothing.
+      NoopInputs(),
+      NoopInputs(),
+      NoopInputs(),
+      // Pop and try to push
+      PushAndPopInputs(3),
+      PushAndPopInputs(4),
+      PushAndPopInputs(5),
+      // Flush for a while
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      // Push and pop a few times
+      PushAndPopInputs(6),
+      PushAndPopInputs(7),
+      PushAndPopInputs(8),
+      PushAndPopInputs(9),
+  };
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+              IsOkAndHolds(ElementsAre(NoTryPopValue(),  //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   // actually pops
+                                       NoTryPopValue(),  //
+                                       TryPopValue(4),   // actually pops
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       TryPopValue(6),   // actually pops
+                                       NoTryPopValue(),  //
+                                       TryPopValue(8)    // actually pops
+                                       )));
+}
+
+TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationWithBypassWorks) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsHierarchicalBlocks()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("fifo_wrapper", p.get());
+  FifoConfig fifo_config(/*depth=*/1, /*bypass=*/true,
+                         /*register_push_outputs=*/false,
+                         /*register_pop_outputs=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
+
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Make push side.
+  bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", u1));
+  bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  std::vector<absl::flat_hash_map<std::string, Value>> inputs = {
+      // Try pushing more than the capacity (do not pop).
+      PushNoPopInputs(0),
+      PushNoPopInputs(1),
+      PushNoPopInputs(2),
+      // Noop should change nothing.
+      NoopInputs(),
+      NoopInputs(),
+      NoopInputs(),
+      // Pop and try to push
+      PushAndPopInputs(3),
+      PushNoPopInputs(4),
+      // Flush for a while
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      // Push and pop a few times
+      PushAndPopInputs(6),
+      PushAndPopInputs(7),
+      PushAndPopInputs(8),
+      PushAndPopInputs(9),
+  };
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+              IsOkAndHolds(ElementsAre(TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   // actually pops
+                                       TryPopValue(3),   //
+                                       TryPopValue(3),   // actually pops
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       TryPopValue(6),   //
+                                       TryPopValue(7),   // actually pops
+                                       TryPopValue(8),   // actually pops
+                                       TryPopValue(9)    // actually pops
+                                       )));
+}
+
+TEST_P(BlockEvaluatorTest, FifoInstantiationNoBypassWorks) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsHierarchicalBlocks()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("fifo_wrapper", p.get());
+  FifoConfig fifo_config(/*depth=*/5, /*bypass=*/false,
+                         /*register_push_outputs=*/true,
+                         /*register_pop_outputs=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
+
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Make push side.
+  bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", u1));
+  bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  std::vector<absl::flat_hash_map<std::string, Value>> inputs = {
+      // Try pushing more than the capacity (do not pop).
+      PushNoPopInputs(0),
+      PushNoPopInputs(1),
+      PushNoPopInputs(2),
+      PushNoPopInputs(3),
+      PushNoPopInputs(4),
+      PushNoPopInputs(5),
+      PushNoPopInputs(6),
+      // Noop should change nothing.
+      NoopInputs(),
+      NoopInputs(),
+      NoopInputs(),
+      // Pop and try to push
+      PushAndPopInputs(7),
+      PushAndPopInputs(8),
+      PushAndPopInputs(9),
+      PushAndPopInputs(10),
+      PushAndPopInputs(11),
+      PushAndPopInputs(12),
+      // Flush for a while
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      // Push and pop steady state
+      PushAndPopInputs(13),
+      PushAndPopInputs(14),
+      PushAndPopInputs(15),
+      PushAndPopInputs(16),
+      PushAndPopInputs(17),
+      PushAndPopInputs(18),
+      PushAndPopInputs(19),
+      PushAndPopInputs(20),
+  };
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+              IsOkAndHolds(ElementsAre(NoTryPopValue(),  //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   // actually pops
+                                       TryPopValue(1),   // actually pops
+                                       TryPopValue(2),   // actually pops
+                                       TryPopValue(3),   // actually pops
+                                       TryPopValue(4),   // actually pops
+                                       TryPopValue(8),   // actually pops
+                                       TryPopValue(9),   // actually pops
+                                       TryPopValue(10),  // actually pops
+                                       TryPopValue(11),  // actually pops
+                                       TryPopValue(12),  // actually pops
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       NoTryPopValue(),  //
+                                       TryPopValue(13),  // actually pops
+                                       TryPopValue(14),  // actually pops
+                                       TryPopValue(15),  // actually pops
+                                       TryPopValue(16),  // actually pops
+                                       TryPopValue(17),  // actually pops
+                                       TryPopValue(18),  // actually pops
+                                       TryPopValue(19)   // actually pops
+                                       )));
+}
+
+TEST_P(BlockEvaluatorTest, FifoInstantiationWithBypassWorks) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsHierarchicalBlocks()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("fifo_wrapper", p.get());
+  FifoConfig fifo_config(/*depth=*/5, /*bypass=*/true,
+                         /*register_push_outputs=*/false,
+                         /*register_pop_outputs=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
+
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Make push side.
+  bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", u1));
+  bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  std::vector<absl::flat_hash_map<std::string, Value>> inputs = {
+      // Try pushing more than the capacity (do not pop).
+      PushNoPopInputs(0),
+      PushNoPopInputs(1),
+      PushNoPopInputs(2),
+      PushNoPopInputs(3),
+      PushNoPopInputs(4),
+      PushNoPopInputs(5),
+      PushNoPopInputs(6),
+      // Noop should change nothing.
+      NoopInputs(),
+      NoopInputs(),
+      NoopInputs(),
+      // Pop and try to push
+      PushAndPopInputs(7),
+      PushAndPopInputs(8),
+      PushAndPopInputs(9),
+      PushAndPopInputs(10),
+      PushAndPopInputs(11),
+      PushAndPopInputs(12),
+      // Flush for a while
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      PopOnlyInputs(),
+      // Push and pop steady state
+      PushAndPopInputs(13),
+      PushAndPopInputs(14),
+      PushAndPopInputs(15),
+      PushAndPopInputs(16),
+      PushAndPopInputs(17),
+      PushAndPopInputs(18),
+      PushAndPopInputs(19),
+      PushAndPopInputs(20),
+  };
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+              IsOkAndHolds(ElementsAre(TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   //
+                                       TryPopValue(0),   // actually pops
+                                       TryPopValue(1),   // actually pops
+                                       TryPopValue(2),   // actually pops
+                                       TryPopValue(3),   // actually pops
+                                       TryPopValue(4),   // actually pops
+                                       TryPopValue(7),   // actually pops
+                                       TryPopValue(8),   // actually pops
+                                       TryPopValue(9),   // actually pops
+                                       TryPopValue(10),  // actually pops
+                                       TryPopValue(11),  // actually pops
+                                       TryPopValue(12),  // actually pops
+                                       NoTryPopValue(),  //
+                                       TryPopValue(13),  // actually pops
+                                       TryPopValue(14),  // actually pops
+                                       TryPopValue(15),  // actually pops
+                                       TryPopValue(16),  // actually pops
+                                       TryPopValue(17),  // actually pops
+                                       TryPopValue(18),  // actually pops
+                                       TryPopValue(19),  // actually pops
+                                       TryPopValue(20)   // actually pops
+                                       )));
 }
 
 TEST_P(BlockEvaluatorTest, SumAndDifferenceBlock) {

@@ -40,6 +40,7 @@
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
@@ -188,6 +189,13 @@ BlockEvaluator::EvaluateSequentialBlock(
   // Initial register state is zero for all registers.
   absl::flat_hash_map<std::string, Value> reg_state;
   for (BlockInstance* inst : elaboration.instances()) {
+    if (inst->instantiation().has_value() &&
+        inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
+      // We use tuples b/c empty arrays are not allowed.
+      // TODO: google/xls#1389 - Factor FIFO state out.
+      reg_state[absl::StrCat(inst->RegisterPrefix(), "elements")] =
+          Value::Tuple({});
+    }
     if (!inst->block().has_value()) {
       continue;
     }
