@@ -14,6 +14,7 @@
 
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <list>
@@ -28,6 +29,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -38,17 +40,23 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/file/temp_file.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/cc_parser.h"
+#include "xls/contrib/xlscc/hls_block.pb.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
+#include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"

@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
@@ -454,8 +455,8 @@ TEST_F(CCParserTest, Unroll2WithCommentBefore) {
   ASSERT_EQ(pragma.int_argument(), 2);
 
   clang::PresumedLoc loop_loc2(func_loc.getFilename(), func_loc.getFileID(),
-                              func_loc.getLine() + 3, func_loc.getColumn(),
-                              func_loc.getIncludeLoc());
+                               func_loc.getLine() + 3, func_loc.getColumn(),
+                               func_loc.getIncludeLoc());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       xlscc::Pragma pragma2,
@@ -560,7 +561,6 @@ TEST_F(CCParserTest, UnrollBadNumber) {
       return true;
     }
   )";
-
 
   ASSERT_THAT(
       ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),

@@ -53,7 +53,6 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/simulation/default_verilog_simulator.h"
 #include "xls/simulation/module_simulator.h"
-#include "xls/simulation/verilog_simulators.h"
 
 ABSL_FLAG(int, sample_count, 1, "number of samples to generate.");
 ABSL_FLAG(int, seed, 1, "seed for pseudo-randomizer");
@@ -236,8 +235,8 @@ TEST_F(GeneratedTester, Simple) {
 
     std::filesystem::path cc_filepath = exec_filename.string() + ".cc";
     absl::Status status = RunExisting(cc_filepath, exec_filename);
-    XLS_EXPECT_OK(status)
-        << "failed test case: " << std::to_string(seed) << " " << cc_filepath;
+    XLS_EXPECT_OK(status) << "failed test case: " << std::to_string(seed) << " "
+                          << cc_filepath;
   } else {
     absl::StatusOr<std::vector<std::filesystem::path>> files =
         xls::GetDirectoryEntries(crash_path);
