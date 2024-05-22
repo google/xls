@@ -17,15 +17,18 @@
 #include <string>
 #include <utility>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/signature_generator.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
+#include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"

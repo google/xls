@@ -15,6 +15,7 @@
 #include "xls/contrib/xlscc/translator.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -32,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "../z3/src/api/z3_api.h"
 #include "absl/base/casts.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
@@ -62,10 +64,12 @@
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
+#include "llvm/include/llvm/ADT/APFloat.h"
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/FloatingPointMode.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
+#include "re2/re2.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
@@ -84,9 +88,8 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3_api.h"
-#include "re2/re2.h"
 
 using std::list;
 using std::ostringstream;

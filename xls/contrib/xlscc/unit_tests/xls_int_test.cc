@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <string>
 
+#include "gtest/gtest.h"
 #include "xls/common/source_location.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 

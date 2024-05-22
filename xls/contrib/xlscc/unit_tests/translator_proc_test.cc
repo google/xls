@@ -19,15 +19,16 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
+#include "gtest/gtest.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -5005,7 +5006,8 @@ TEST_P(TranslatorProcTest, IOProcClass) {
   )";
 
   xlscc::HLSBlock ref_meta;
-  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;
@@ -5444,7 +5446,8 @@ TEST_P(TranslatorProcTest, IOProcClassSubClass) {
   )";
 
   xlscc::HLSBlock ref_meta;
-  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;
@@ -5896,7 +5899,8 @@ TEST_P(TranslatorProcTest, IOProcClassEnumMember) {
   )";
 
   xlscc::HLSBlock ref_meta;
-  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;
@@ -5956,7 +5960,8 @@ TEST_P(TranslatorProcTest, IOProcClassMemberSetConstruct) {
   )";
 
   xlscc::HLSBlock ref_meta;
-  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;
@@ -6063,7 +6068,8 @@ TEST_P(TranslatorProcTest, IOProcClassLValueInit) {
   )";
 
   xlscc::HLSBlock ref_meta;
-  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;
@@ -6128,7 +6134,8 @@ TEST_P(TranslatorProcTest, IOProcClassHierarchicalLValue) {
   )";
 
   xlscc::HLSBlock ref_meta;
-  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;

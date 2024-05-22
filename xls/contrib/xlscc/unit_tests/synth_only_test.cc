@@ -14,6 +14,7 @@
 
 #include <string>
 
+#include "gtest/gtest.h"
 #include "xls/common/source_location.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
@@ -30,8 +31,7 @@ TEST_F(SynthOnlyTest, CstdintStdNamespace) {
       std::int64_t result = a;
       return result;
     })";
-  RunAcDatatypeTest({{"a", 3}}, 3, content,
-                    xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(SynthOnlyTest, StdintNotInStdNamespace) {
@@ -42,8 +42,7 @@ TEST_F(SynthOnlyTest, StdintNotInStdNamespace) {
       int64_t result = a;
       return result;
     })";
-  RunAcDatatypeTest({{"a", 3}}, 3, content,
-                    xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(SynthOnlyTest, IntTypesIncludesStdint) {
@@ -54,8 +53,7 @@ TEST_F(SynthOnlyTest, IntTypesIncludesStdint) {
       int64_t result = a;
       return result;
     })";
-  RunAcDatatypeTest({{"a", 3}}, 3, content,
-                    xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
 }
 
 }  // namespace

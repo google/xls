@@ -16,12 +16,14 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 
 namespace xlscc {

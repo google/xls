@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <list>
 #include <memory>
 #include <optional>

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <iostream>
@@ -22,7 +23,6 @@
 #include <string_view>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/flags/flag.h"
@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
@@ -53,7 +54,6 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/simulation/default_verilog_simulator.h"
 #include "xls/simulation/module_simulator.h"
-#include "xls/simulation/verilog_simulators.h"
 
 ABSL_FLAG(int, sample_count, 1, "number of samples to generate.");
 ABSL_FLAG(int, seed, 1, "seed for pseudo-randomizer");
@@ -168,7 +168,8 @@ class GeneratedTester : public XlsccTestBase {
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     XLS_ASSIGN_OR_RETURN(
         std::string ac_int_path,
-        xls::GetXlsRunfilePath("external/com_github_hlslibs_ac_types/include/ac_int.h"));
+        xls::GetXlsRunfilePath(
+            "external/com_github_hlslibs_ac_types/include/ac_int.h"));
     XLS_ASSIGN_OR_RETURN(
         std::string xls_int_path,
         xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));
@@ -236,8 +237,8 @@ TEST_F(GeneratedTester, Simple) {
 
     std::filesystem::path cc_filepath = exec_filename.string() + ".cc";
     absl::Status status = RunExisting(cc_filepath, exec_filename);
-    XLS_EXPECT_OK(status)
-        << "failed test case: " << std::to_string(seed) << " " << cc_filepath;
+    XLS_EXPECT_OK(status) << "failed test case: " << std::to_string(seed) << " "
+                          << cc_filepath;
   } else {
     absl::StatusOr<std::vector<std::filesystem::path>> files =
         xls::GetDirectoryEntries(crash_path);
