@@ -13,43 +13,37 @@
 // limitations under the License.
 
 proc counter {
-  output: chan<u8> out;
+    output: chan<u8> out;
 
-  init {
-    u8:0
-  }
+    config(output: chan<u8> out) { (output,) }
 
-  config(output: chan<u8> out) {
-    (output,)
-  }
+    init { u8:0 }
 
-  next(tok: token, state: u8) {
-    assert!(false, "always_fail_assert");
+    next(state: u8) {
+        assert!(false, "always_fail_assert");
 
-    let tok = send(tok, output, state);
-    state + u8:1
-  }
+        let tok = send(join(), output, state);
+        state + u8:1
+    }
 }
 
 #[test_proc]
 proc counter_test {
-  terminator: chan<bool> out;
-  output_s: chan<u8> out;
-  output_r: chan<u8> in;
+    terminator: chan<bool> out;
+    output_s: chan<u8> out;
+    output_r: chan<u8> in;
 
-  init {
-    ()
-  }
+    config(t: chan<bool> out) {
+        let (output_s, output_r) = chan<u8>("ch");
+        spawn counter(output_s);
+        (t, output_s, output_r)
+    }
 
-  config(t: chan<bool> out) {
-    let (output_s, output_r) = chan<u8>("ch");
-    spawn counter(output_s);
-    (t, output_s, output_r)
-  }
+    init { () }
 
-  next(tok: token, state: ()) {
-    let (tok, data) = recv(tok, output_r);
-    assert_eq(data, u8:0);
-    send(tok, terminator, true);
-  }
+    next(state: ()) {
+        let (tok, data) = recv(join(), output_r);
+        assert_eq(data, u8:0);
+        send(tok, terminator, true);
+    }
 }
