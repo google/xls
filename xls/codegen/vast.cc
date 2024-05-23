@@ -1188,7 +1188,7 @@ std::string Enum::Emit(LineInfo* line_info) const {
 EnumMemberRef* Enum::AddMember(std::string_view name, Expression* rhs,
                                const SourceInfo& loc) {
   members_.push_back(file()->Make<EnumMember>(loc, name, rhs));
-  return file()->Make<EnumMemberRef>(loc, members_.back());
+  return file()->Make<EnumMemberRef>(loc, this, members_.back());
 }
 
 std::string EnumMember::Emit(LineInfo* line_info) const {

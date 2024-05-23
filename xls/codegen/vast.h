@@ -53,6 +53,7 @@ enum class FileType {
 };
 
 // Forward declarations.
+class Enum;
 class VastNode;
 class VerilogFile;
 class Expression;
@@ -1107,16 +1108,19 @@ class EnumMember : public NamedTrait {
 // Refers to an enum item for use in expressions.
 class EnumMemberRef : public Expression {
  public:
-  EnumMemberRef(EnumMember* member, VerilogFile* file, const SourceInfo& loc)
-      : Expression(file, loc), member_(member) {}
+  EnumMemberRef(Enum* enum_def, EnumMember* member, VerilogFile* file,
+                const SourceInfo& loc)
+      : Expression(file, loc), enum_def_(enum_def), member_(member) {}
 
   std::string Emit(LineInfo* line_info) const override {
     return member_->GetName();
   }
 
+  Enum* enum_def() const { return enum_def_; }
   EnumMember* member() const { return member_; }
 
  private:
+  Enum* enum_def_;
   EnumMember* member_;
 };
 
