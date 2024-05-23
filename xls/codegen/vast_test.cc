@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
@@ -1771,6 +1772,113 @@ endmodule)");
             std::vector<LineSpan>{LineSpan(8, 8)});
   EXPECT_EQ(line_info.LookupNode(qux->def()).value(),
             std::vector<LineSpan>{LineSpan(9, 9)});
+}
+
+TEST_P(VastTest, PackageBasic) {
+  VerilogFile f(GetFileType());
+  VerilogPackage* p = f.AddVerilogPackage("top_pkg", SourceInfo());
+
+  std::vector<Def*> struct_members = {
+      f.Make<Def>(SourceInfo(), "elem1", DataKind::kLogic,
+                  f.ScalarType(SourceInfo())),
+      f.Make<Def>(SourceInfo(), "foo_bar", DataKind::kInteger,
+                  f.IntegerType(SourceInfo())),
+      f.Make<Def>(SourceInfo(), "Bv", DataKind::kLogic,
+                  f.BitVectorType(16, SourceInfo()))};
+  TypedefType* struct_typedef = p->top()->AddStructTypedef(
+      "my_struct_t", absl::Span<Def*>(struct_members), SourceInfo());
+
+  p->top()->Add<BlankLine>(SourceInfo());
+
+  std::vector<EnumMember*> enum_members = {
+      f.Make<EnumMember>(SourceInfo(), "foo", f.PlainLiteral(3, SourceInfo())),
+      f.Make<EnumMember>(SourceInfo(), "bar", f.PlainLiteral(1, SourceInfo()))};
+  TypedefType* enum_typedef = p->top()->AddEnumTypedef(
+      "my_enum_t", DataKind::kLogic, f.BitVectorType(32, SourceInfo()),
+      absl::Span<EnumMember*>(enum_members), SourceInfo());
+
+  p->top()->Add<BlankLine>(SourceInfo());
+
+  ParameterRef* param_ref = p->top()->AddParameter(
+      f.Make<Def>(SourceInfo(), "ParamWithDef", DataKind::kLogic,
+                  f.BitVectorType(16, SourceInfo())),
+      f.PlainLiteral(5, SourceInfo()), SourceInfo());
+
+  ParameterRef* param_nodef_ref = p->top()->AddParameter(
+      "ParamWithoutDef", f.PlainLiteral(7, SourceInfo()), SourceInfo());
+
+  LineInfo line_info;
+  EXPECT_EQ(p->Emit(&line_info),
+            R"(package top_pkg;
+  typedef struct packed {
+    logic elem1;
+    integer foo_bar;
+    logic [15:0] Bv;
+  } my_struct_t;
+
+  typedef enum logic [31:0] {
+    foo = 3,
+    bar = 1
+  } my_enum_t;
+
+  parameter logic [15:0] ParamWithDef = 5;
+  parameter ParamWithoutDef = 7;
+endpackage)");
+
+  EXPECT_EQ(line_info.LookupNode(p).value(),
+            std::vector<LineSpan>{LineSpan(0, 14)});
+
+  EXPECT_EQ(line_info.LookupNode(struct_typedef->type_def()).value(),
+            std::vector<LineSpan>{LineSpan(1, 5)});
+  EXPECT_EQ(line_info.LookupNode(enum_typedef->type_def()).value(),
+            std::vector<LineSpan>{LineSpan(7, 10)});
+  EXPECT_EQ(line_info.LookupNode(param_ref->parameter()).value(),
+            std::vector<LineSpan>{LineSpan(12, 12)});
+  EXPECT_EQ(line_info.LookupNode(param_nodef_ref->parameter()).value(),
+            std::vector<LineSpan>{LineSpan(13, 13)});
+}
+
+TEST_P(VastTest, PackageSections) {
+  VerilogFile f(GetFileType());
+  VerilogPackage* p = f.AddVerilogPackage("top_pkg", SourceInfo());
+
+  VerilogPackageSection* sec1 =
+      p->top()->Add<VerilogPackageSection>(SourceInfo());
+  VerilogPackageSection* sec2 =
+      p->top()->Add<VerilogPackageSection>(SourceInfo());
+
+  ParameterRef* param_sec1 = sec1->AddParameter(
+      "ParamSec1", f.PlainLiteral(1, SourceInfo()), SourceInfo());
+
+  ParameterRef* param_top = p->top()->AddParameter(
+      "ParamTop", f.PlainLiteral(0, SourceInfo()), SourceInfo());
+
+  ParameterRef* param_sec2 = sec2->AddParameter(
+      "ParamSec2", f.PlainLiteral(2, SourceInfo()), SourceInfo());
+
+  LineInfo line_info;
+  EXPECT_EQ(p->Emit(&line_info),
+            R"(package top_pkg;
+  parameter ParamSec1 = 1;
+  parameter ParamSec2 = 2;
+  parameter ParamTop = 0;
+endpackage)");
+
+  EXPECT_EQ(line_info.LookupNode(p).value(),
+            std::vector<LineSpan>{LineSpan(0, 4)});
+  EXPECT_EQ(line_info.LookupNode(p->top()).value(),
+            std::vector<LineSpan>{LineSpan(1, 3)});
+  EXPECT_EQ(line_info.LookupNode(sec1).value(),
+            std::vector<LineSpan>{LineSpan(1, 1)});
+  EXPECT_EQ(line_info.LookupNode(sec2).value(),
+            std::vector<LineSpan>{LineSpan(2, 2)});
+
+  EXPECT_EQ(line_info.LookupNode(param_sec1->parameter()).value(),
+            std::vector<LineSpan>{LineSpan(1, 1)});
+  EXPECT_EQ(line_info.LookupNode(param_sec2->parameter()).value(),
+            std::vector<LineSpan>{LineSpan(2, 2)});
+  EXPECT_EQ(line_info.LookupNode(param_top->parameter()).value(),
+            std::vector<LineSpan>{LineSpan(3, 3)});
 }
 
 INSTANTIATE_TEST_SUITE_P(VastTestInstantiation, VastTest,

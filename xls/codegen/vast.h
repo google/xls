@@ -803,11 +803,11 @@ class Expression : public VastNode {
   // Returns the precedence of the expression. This is used when emitting the
   // Expression to determine if parentheses are necessary. Expressions which are
   // leaves such as Literal or LogicRef don't strictly have a precedence, but
-  // for the purposses of emission we consider them to have maximum precedence
+  // for the purposes of emission we consider them to have maximum precedence
   // so they are never wrapped in parentheses. Operator (derived from
   // Expression) are the only types with non-max precedence.
   //
-  // Precedence of operators in Verilog operator precendence (from LRM):
+  // Precedence of operators in Verilog operator precedence (from LRM):
   //   Highest:  (12)  + - ! ~ (unary) & | ^ (reductions)
   //             (11)  **
   //             (10)  * / %
@@ -1130,6 +1130,12 @@ class Enum : public UserDefinedAliasType {
   Enum(DataKind kind, DataType* data_type, VerilogFile* file,
        const SourceInfo& loc)
       : UserDefinedAliasType(data_type, file, loc), kind_(kind) {}
+
+  Enum(DataKind kind, DataType* data_type, absl::Span<EnumMember*> members,
+       VerilogFile* file, const SourceInfo& loc)
+      : UserDefinedAliasType(data_type, file, loc),
+        kind_(kind),
+        members_(members.begin(), members.end()) {}
 
   EnumMemberRef* AddMember(std::string_view name, Expression* rhs,
                            const SourceInfo& loc);
@@ -1958,7 +1964,13 @@ using ModuleMember =
 // contain other ModuleSections. ModuleSections enables modules to be
 // constructed a non-linear, random-access fashion by appending members to
 // different sections rather than just appending to the end of module.
+//
 // TODO(meheff): Move Module methods AddReg*, AddWire*, etc to ModuleSection.
+//
+// TODO(tedhong): Alternatively, move AddX functions to free functions, and
+// add extra inheritance levels/type traits constrain which VastNode
+// (ModuleSection, Module, PackageSection, Package, etc...) supports adding X
+// construct.
 class ModuleSection : public VastNode {
  public:
   using VastNode::VastNode;
@@ -2053,12 +2065,104 @@ class Module : public VastNode {
   // Add the given Def as a port on the module.
   LogicRef* AddPortDef(Direction direction, Def* def, const SourceInfo& loc);
 
-  std::string EmitMember(LineInfo* line_info, ModuleMember* member);
-
   std::string name_;
   std::vector<Port> ports_;
 
   ModuleSection top_;
+};
+
+class VerilogPackageSection;
+
+// Represents a member of a package.
+using VerilogPackageMember =
+    std::variant<Parameter*,               // Package parameter/constant.
+                 Comment*,                 // Comment text.
+                 BlankLine*,               // Blank line.
+                 InlineVerilogStatement*,  // InlineVerilog string statement.
+                 Typedef*, VerilogPackageSection*>;
+
+// A ParameterSection is a container of ParameterMembers used to organize the
+// contents of a package. A Package contains a single top-level PackageSection
+// which may contain other PackageSections. PackageSections enables packages
+// to be constructed a non-linear, random-access fashion by appending members to
+// different sections rather than just appending to the end of package.
+class VerilogPackageSection : public VastNode {
+ public:
+  using VastNode::VastNode;
+
+  // Constructs and adds a package member of type T to the section. Ownership is
+  // maintained by the parent VerilogFile. Templatized on T in order to return a
+  // pointer to the derived type.  Most constructs should be added to the
+  // package. The exceptions are the AddFoo convenience methods defined below
+  // which return a Ref to the object created rather than the object itself.
+  template <typename T, typename... Args>
+  inline T* Add(const SourceInfo& loc, Args&&... args);
+
+  template <typename T>
+  T AddVerilogPackageMember(T member) {
+    members_.push_back(member);
+    return member;
+  }
+
+  // Adds a enum typedef to the package section.  Returns a type of the enum's
+  // typedef rather than the enum itself.
+  TypedefType* AddEnumTypedef(std::string_view name, Enum* enum_data_type,
+                              const SourceInfo& loc);
+  TypedefType* AddEnumTypedef(std::string_view name, DataKind kind,
+                              DataType* data_type,
+                              absl::Span<EnumMember*> enum_members,
+                              const SourceInfo& loc);
+
+  // Adds a struct typedef to the package section.  Returns a the type of the
+  // typedef rather than the typedef itself.
+  TypedefType* AddStructTypedef(std::string_view name, Struct* struct_data_type,
+                                const SourceInfo& loc);
+  TypedefType* AddStructTypedef(std::string_view name,
+                                absl::Span<Def*> struct_members,
+                                const SourceInfo& loc);
+
+  // Adds a parameter to the package section.  Returns a reference to the
+  // parameter rather than the parameter itself.
+  ParameterRef* AddParameter(std::string_view name, Expression* rhs,
+                             const SourceInfo& loc);
+  ParameterRef* AddParameter(Def* def, Expression* rhs, const SourceInfo& loc);
+
+  const std::vector<VerilogPackageMember>& members() const { return members_; }
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  std::vector<VerilogPackageMember> members_;
+};
+
+// Represents a package definition.
+class VerilogPackage : public VastNode {
+ public:
+  VerilogPackage(std::string_view name, VerilogFile* file,
+                 const SourceInfo& loc)
+      : VastNode(file, loc), name_(name), top_(file, loc) {}
+
+  // Constructs and adds a node to the package's top section. Ownership is
+  // maintained by the parent VerilogFile.
+  template <typename T, typename... Args>
+  inline T* Add(const SourceInfo& loc, Args&&... args);
+
+  // Adds a previously constructed VAST construct to the module.
+  template <typename T>
+  T AddVerilogPackageMember(T member) {
+    top_.AddVerilogPackageMember(member);
+    return member;
+  }
+
+  VerilogPackageSection* top() { return &top_; }
+
+  const std::string& name() const { return name_; }
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  std::string name_;
+  VerilogPackageSection top_;
 };
 
 // Represents a file-level inclusion directive.
@@ -2073,13 +2177,18 @@ class Include : public VastNode {
   std::string path_;
 };
 
-using FileMember = std::variant<Module*, Include*, BlankLine*, Comment*>;
+using FileMember =
+    std::variant<Module*, VerilogPackage*, Include*, BlankLine*, Comment*>;
 
 // Represents a file (as a Verilog translation-unit equivalent).
 class VerilogFile {
  public:
   explicit VerilogFile(FileType file_type) : file_type_(file_type) {}
 
+  VerilogPackage* AddVerilogPackage(std::string_view name,
+                                    const SourceInfo& loc) {
+    return Add(Make<VerilogPackage>(loc, name));
+  }
   Module* AddModule(std::string_view name, const SourceInfo& loc) {
     return Add(Make<Module>(loc, name));
   }
@@ -2397,6 +2506,18 @@ template <typename T, typename... Args>
 inline T* ModuleSection::Add(const SourceInfo& loc, Args&&... args) {
   T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
   AddModuleMember(ptr);
+  return ptr;
+}
+
+template <typename T, typename... Args>
+inline T* VerilogPackage::Add(const SourceInfo& loc, Args&&... args) {
+  return top()->Add<T>(loc, std::forward<Args>(args)...);
+}
+
+template <typename T, typename... Args>
+inline T* VerilogPackageSection::Add(const SourceInfo& loc, Args&&... args) {
+  T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
+  AddVerilogPackageMember(ptr);
   return ptr;
 }
 

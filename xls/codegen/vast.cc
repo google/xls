@@ -371,12 +371,7 @@ UnpackedArrayType* VerilogFile::UnpackedArrayType(
 
 std::string VerilogFile::Emit(LineInfo* line_info) const {
   auto file_member_str = [=](const FileMember& member) -> std::string {
-    return absl::visit(
-        Visitor{[=](Include* m) -> std::string { return m->Emit(line_info); },
-                [=](Module* m) -> std::string { return m->Emit(line_info); },
-                [=](BlankLine* m) -> std::string { return m->Emit(line_info); },
-                [=](Comment* m) -> std::string { return m->Emit(line_info); }},
-        member);
+    return absl::visit([=](auto* m) { return m->Emit(line_info); }, member);
   };
 
   std::string out;
@@ -575,6 +570,50 @@ ParameterRef* Module::AddParameter(Def* def, Expression* rhs,
 
 Typedef* Module::AddTypedef(Def* def, const SourceInfo& loc) {
   return AddModuleMember(file()->Make<Typedef>(loc, def));
+}
+
+TypedefType* VerilogPackageSection::AddEnumTypedef(std::string_view name,
+                                                   Enum* enum_data_type,
+                                                   const SourceInfo& loc) {
+  Typedef* def = Add<Typedef>(
+      loc, file()->Make<Def>(loc, name, DataKind::kUser, enum_data_type));
+  return file()->Make<TypedefType>(loc, def);
+}
+
+TypedefType* VerilogPackageSection::AddEnumTypedef(
+    std::string_view name, DataKind kind, DataType* data_type,
+    absl::Span<EnumMember*> enum_members, const SourceInfo& loc) {
+  return AddEnumTypedef(
+      name, file()->Make<Enum>(loc, kind, data_type, enum_members), loc);
+}
+
+TypedefType* VerilogPackageSection::AddStructTypedef(std::string_view name,
+                                                     Struct* struct_data_type,
+                                                     const SourceInfo& loc) {
+  Typedef* def = Add<Typedef>(
+      loc, file()->Make<Def>(loc, name, DataKind::kUser, struct_data_type));
+  return file()->Make<TypedefType>(loc, def);
+}
+
+TypedefType* VerilogPackageSection::AddStructTypedef(
+    std::string_view name, absl::Span<Def*> struct_members,
+    const SourceInfo& loc) {
+  return AddStructTypedef(name, file()->Make<Struct>(loc, struct_members), loc);
+}
+
+ParameterRef* VerilogPackageSection::AddParameter(std::string_view name,
+                                                  Expression* rhs,
+                                                  const SourceInfo& loc) {
+  Parameter* param =
+      AddVerilogPackageMember(file()->Make<Parameter>(loc, name, rhs));
+  return file()->Make<ParameterRef>(loc, param);
+}
+
+ParameterRef* VerilogPackageSection::AddParameter(Def* def, Expression* rhs,
+                                                  const SourceInfo& loc) {
+  Parameter* param =
+      AddVerilogPackageMember(file()->Make<Parameter>(loc, def, rhs));
+  return file()->Make<ParameterRef>(loc, param);
 }
 
 Literal* Expression::AsLiteralOrDie() {
@@ -808,28 +847,13 @@ namespace {
 
 // "Match" statement for emitting a ModuleMember.
 std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
-  return absl::visit(
-      Visitor{
-          [=](Def* d) { return d->Emit(line_info); },
-          [=](LocalParam* p) { return p->Emit(line_info); },
-          [=](Parameter* p) { return p->Emit(line_info); },
-          [=](Typedef* d) { return d->Emit(line_info); },
-          [=](Enum* e) { return e->Emit(line_info); },
-          [=](Instantiation* i) { return i->Emit(line_info); },
-          [=](ContinuousAssignment* c) { return c->Emit(line_info); },
-          [=](Comment* c) { return c->Emit(line_info); },
-          [=](BlankLine* b) { return b->Emit(line_info); },
-          [=](InlineVerilogStatement* s) { return s->Emit(line_info); },
-          [=](StructuredProcedure* sp) { return sp->Emit(line_info); },
-          [=](AlwaysComb* ac) { return ac->Emit(line_info); },
-          [=](AlwaysFf* af) { return af->Emit(line_info); },
-          [=](AlwaysFlop* af) { return af->Emit(line_info); },
-          [=](VerilogFunction* f) { return f->Emit(line_info); },
-          [=](Cover* c) { return c->Emit(line_info); },
-          [=](ConcurrentAssertion* ca) { return ca->Emit(line_info); },
-          [=](DeferredImmediateAssertion* ca) { return ca->Emit(line_info); },
-          [=](ModuleSection* s) { return s->Emit(line_info); }},
-      member);
+  return absl::visit([=](auto* d) { return d->Emit(line_info); }, member);
+}
+
+// Visitor for emitting a VerilogPackageMember.
+std::string EmitVerilogPackageMember(LineInfo* line_info,
+                                     const VerilogPackageMember& member) {
+  return absl::visit([=](auto* d) { return d->Emit(line_info); }, member);
 }
 
 }  // namespace
@@ -844,6 +868,25 @@ std::string ModuleSection::Emit(LineInfo* line_info) const {
       }
     }
     elements.push_back(EmitModuleMember(line_info, member));
+    LineInfoIncrease(line_info, 1);
+  }
+  if (!elements.empty()) {
+    LineInfoIncrease(line_info, -1);
+  }
+  LineInfoEnd(line_info, this);
+  return absl::StrJoin(elements, "\n");
+}
+
+std::string VerilogPackageSection::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::vector<std::string> elements;
+  for (const VerilogPackageMember& member : members_) {
+    if (std::holds_alternative<VerilogPackageSection*>(member)) {
+      if (std::get<VerilogPackageSection*>(member)->members_.empty()) {
+        continue;
+      }
+    }
+    elements.push_back(EmitVerilogPackageMember(line_info, member));
     LineInfoIncrease(line_info, 1);
   }
   if (!elements.empty()) {
@@ -1010,6 +1053,20 @@ std::string Module::Emit(LineInfo* line_info) const {
   absl::StrAppend(&result, Indent(top_.Emit(line_info)), "\n");
   LineInfoIncrease(line_info, 1);
   absl::StrAppend(&result, "endmodule");
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string VerilogPackage::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+
+  std::string result = absl::StrCat("package ", name_, ";\n");
+  LineInfoIncrease(line_info, 1);
+
+  absl::StrAppend(&result, Indent(top_.Emit(line_info)), "\n");
+  LineInfoIncrease(line_info, 1);
+
+  absl::StrAppend(&result, "endpackage");
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -1217,7 +1274,6 @@ std::string Struct::Emit(LineInfo* line_info) const {
     absl::StrAppend(&result, Indent(next->Emit(line_info)), "\n");
   }
   absl::StrAppend(&result, "}");
-  LineInfoIncrease(line_info, 1);
   LineInfoEnd(line_info, this);
   return result;
 }
