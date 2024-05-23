@@ -92,6 +92,9 @@ absl::Status FlattenArray(const ArrayFormatDescriptor& sfd, const BValue& v,
   for (int64_t i = 0; i < sfd.size(); ++i) {
     BValue index = ctx.fn_builder.Literal(UBits(i, /*bit_count=*/32));
     BValue elem = ctx.fn_builder.ArrayIndex(v, {index});
+    if (i != 0) {
+      ctx.fmt_steps.push_back(", ");
+    }
     XLS_RETURN_IF_ERROR(Flatten(sfd.element_format(), elem, ctx));
   }
   ctx.fmt_steps.push_back("]");

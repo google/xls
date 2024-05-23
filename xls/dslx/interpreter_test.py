@@ -350,6 +350,24 @@ class InterpreterTest(test_base.TestCase):
     )
     self.assertIn('a: [MyEnum::ONE, MyEnum::TWO]', stderr)
 
+  def test_trace_fmt_array_of_ints(self):
+    """Tests we can trace-format an array of u8 values."""
+    program = """
+    fn main() {
+      let a = u8[2]:[u8:1, u8:2];
+      trace_fmt!("a: {:#x}", a);
+    }
+
+    #[test]
+    fn hello_test() {
+      main()
+    }
+    """
+    stderr = self._parse_and_test(
+        program, want_error=False, alsologtostderr=True
+    )
+    self.assertIn('a: [0x1, 0x2]', stderr)
+
   def test_trace_fmt_tuple_of_enum(self):
     """Tests that we can trace format a tuple that includes enum values."""
     program = """

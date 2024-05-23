@@ -1962,14 +1962,14 @@ TEST(IrConverterTest, EmptyArray) {
 
 TEST(IrConverterTest, TraceFmt) {
   constexpr std::string_view kProgram = R"(
-    fn trace_and_add(x: u32) -> u32 {
-      trace_fmt!("x = {}", x);
-      x + u32:1
+    fn trace_and_add(x: u32, y: u32[u32:2]) -> u32 {
+      trace_fmt!("x = {}, y = {}", x, y);
+      x + y[u8:1] + y[u8:0]
     }
 
     fn assert_trace_and_add(x: u32) -> u32 {
       if x == u32:5 { fail!("x_is_now_5", u32:0) } else { u32:0 };
-      trace_and_add(x)
+      trace_and_add(x, [u32:4, u32:6])
     }
 
     proc main {
