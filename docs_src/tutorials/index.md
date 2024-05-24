@@ -18,6 +18,9 @@ design techniques. Here they are, grouped by topic:
 *   [`enumerate` and `match` expressions](prefix_scan.md) : Explains how to use
     `enumerate()` expressions to control loop iteration and how to use the
     `match` pattern-matching expression for selecting between alternatives.
-*   [Intro to procs](intro_to_procs.md) (communicating sequential processes) :
-    Provides a basic introduction to writing stateful and communicating modules,
-    i.e., procs.
+*   [What is a proc?](what_is_a_proc.md): A step-by-step introduction to procs,
+    XLS's answer to how to write modules with state and explicit communication
+    interfaces.
+*   [How to use procs](how_to_use_procs.md) (communicating sequential
+    processes): Provides a basic introduction to writing stateful and
+    communicating modules, i.e., procs.

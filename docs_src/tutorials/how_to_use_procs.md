@@ -1,11 +1,6 @@
-# DSLX Tutorial: Intro to procs
+# DSLX Tutorial: How to use procs
 
-Up to this point, our tutorials have described stateless, non-communicating,
-combinational modules. To add state or communication with other actors, we need
-to venture into the exciting land of procs!
-
-**Procs**, short for "communicating sequential processes", are the means by
-which DSLX models sequential and stateful modules. A proc contains:
+A proc contains:
 
 *   A *`init`* function that initializes the proc state.
 *   A *`config`* function that spawns any other dependent/child procs needed for

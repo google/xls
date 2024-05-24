@@ -17,7 +17,8 @@ nav:
       - Intro to parameterics: 'tutorials/intro_to_parametrics.md'
       - For expressions: 'tutorials/crc32.md'
       - Enumerate and match: 'tutorials/prefix_scan.md'
-      - Intro to Procs: 'tutorials/intro_to_procs.md'
+      - What is a Proc?: 'tutorials/what_is_a_proc.md'
+      - How to use Procs: 'tutorials/how_to_use_procs.md'
     - \[contrib\] XLS[cc]:
       - Overview: 'tutorials/xlscc_overview.md'
       - Integers: 'tutorials/xlscc_integers.md'

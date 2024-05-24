@@ -25,11 +25,11 @@ speeds for use in host software or a simulator, but that design can also
 generate hardware block output -- the XLS tools' correctness ensures (and
 provides tools to help formally verify) that they are functionally identical.
 
-XLS also supports
-[*concurrent processes*](https://google.github.io/xls/tutorials/intro_to_procs/),
-in Communicating Sequential Processes (CSP) style, that allow pipelines to
-communicate with each other and induct over time. This feature is still under
-active development but today supports base use cases.
+XLS supports both (optionally pipelined) functions with pure-wire I/O interfaces
+and
+[*concurrent processes*](https://google.github.io/xls/tutorials/what_is_a_proc/)
+(or `proc`s). Procs are stateful, allowing induction over time, and include more
+general communication interfaces.
 
 ## State of the Project
 
