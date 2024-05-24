@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
     
     
       
@@ -469,11 +469,32 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_procs/" class="md-nav__link">
+      <a href="../tutorials/what_is_a_proc/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Intro to Procs
+    What is a Proc?
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/how_to_use_procs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    How to use Procs
   </span>
   
 
@@ -4040,11 +4061,20 @@ trivial (0 bit wide) inputs:</p>
 </code></pre></div>
 <h3 id="update"><code>update</code></h3>
 <p><code>update(array, index, new_value)</code> returns a copy of <code>array</code> where <code>array[index]</code>
-has been replaced with <code>new_value</code>, and all other elements are unchanged. Note
-that this is <em>not</em> an in-place update of the array, it is an "evolution" of
-<code>array</code>. It is the compiler's responsibility to optimize by using mutation
-instead of copying, when it's safe to do. The compiler makes a best effort to do
-this, but can't guarantee the optimization is always made.</p>
+has been replaced with <code>new_value</code>, and all other elements are unchanged.
+<code>index</code> can either be a scalar index or a tuple when updating nested element(s)
+of multi-dimensional array. Note that this is <em>not</em> an in-place update of the
+array, it is an "evolution" of <code>array</code>. It is the compiler's responsibility to
+optimize by using mutation instead of copying, when it's safe to do. The
+compiler makes a best effort to do this, but can't guarantee the optimization is
+always made.</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_update</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">update</span><span class="p">([</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span><span class="w"> </span><span class="n">u2</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">),</span><span class="w"> </span><span class="p">[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">]);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">update</span><span class="p">([[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="p">[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">4</span><span class="p">]],</span>
+<span class="w">                   </span><span class="p">(</span><span class="n">u1</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u1</span><span class="p">:</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">),</span><span class="w"> </span><span class="p">[[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="p">[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">4</span><span class="p">]]);</span>
+<span class="p">}</span>
+</code></pre></div>
 <h3 id="assert_eq-assert_lt"><code>assert_eq</code>, <code>assert_lt</code></h3>
 <p>In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
 results DSLX provides the <code>assert_eq</code> primitive (we'll add more of those in the
@@ -4604,7 +4634,7 @@ non-negative 32-bit integers, which range from <code>0</code> to <code>2^31-1</c
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      <script src="../assets/javascripts/bundle.081f42fc.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       

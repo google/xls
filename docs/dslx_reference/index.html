@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
     
     
       
@@ -469,11 +469,32 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_procs/" class="md-nav__link">
+      <a href="../tutorials/what_is_a_proc/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Intro to Procs
+    What is a Proc?
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/how_to_use_procs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    How to use Procs
   </span>
   
 
@@ -5148,9 +5169,9 @@ environments.</p>
 <span class="w">    </span><span class="n">config</span><span class="p">(</span><span class="n">output_channel</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">(</span><span class="n">output_channel</span><span class="p">,)</span><span class="w"> </span><span class="p">}</span>
 
 <span class="w">    </span><span class="c1">// &quot;Iterate in time&quot; -- takes a state, does some work, and produces a new state.</span>
-<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="c1">// Send our state to the outside world via the channel.</span>
-<span class="w">        </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">output_channel</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
+<span class="w">        </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">output_channel</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
 
 <span class="w">        </span><span class="c1">// Calculate our new state.</span>
 <span class="w">        </span><span class="n">state</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span>
@@ -5175,7 +5196,7 @@ above:</p>
         ($MEMBER, ...)
     }
 
-    next(tok: token, state: $STATE_TYPE) {
+    next(state: $STATE_TYPE) {
         $NEXT_BODY
         $NEW_STATE
     }
@@ -5233,8 +5254,8 @@ sufficient.</p>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="c1">// Receive the values sent from the `CountUp` proc we instantiated in</span>
 <span class="w">    </span><span class="c1">// `config` and trace them out to logging.</span>
-<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">r</span><span class="p">);</span>
 <span class="w">        </span><span class="n">trace_fmt</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;CountUp gave: {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">);</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
@@ -5296,7 +5317,7 @@ sufficient.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      <script src="../assets/javascripts/bundle.081f42fc.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       

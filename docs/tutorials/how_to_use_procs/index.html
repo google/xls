@@ -8,21 +8,21 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/tutorials/intro_to_procs/">
+        <link rel="canonical" href="https://google.github.io/xls/tutorials/how_to_use_procs/">
       
       
-        <link rel="prev" href="../prefix_scan/">
+        <link rel="prev" href="../what_is_a_proc/">
       
       
         <link rel="next" href="../xlscc_overview/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
     
     
       
-        <title>Intro to Procs - XLS: Accelerated HW Synthesis</title>
+        <title>How to use Procs - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dslx-tutorial-intro-to-procs" class="md-skip">
+        <a href="#dslx-tutorial-how-to-use-procs" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Intro to Procs
+              How to use Procs
             
           </span>
         </div>
@@ -470,6 +470,27 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../what_is_a_proc/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    What is a Proc?
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -486,7 +507,7 @@
           
   
   <span class="md-ellipsis">
-    Intro to Procs
+    How to use Procs
   </span>
   
 
@@ -497,7 +518,7 @@
         
   
   <span class="md-ellipsis">
-    Intro to Procs
+    How to use Procs
   </span>
   
 
@@ -2201,12 +2222,8 @@
   
 
 
-<h1 id="dslx-tutorial-intro-to-procs">DSLX Tutorial: Intro to procs</h1>
-<p>Up to this point, our tutorials have described stateless, non-communicating,
-combinational modules. To add state or communication with other actors, we need
-to venture into the exciting land of procs!</p>
-<p><strong>Procs</strong>, short for "communicating sequential processes", are the means by
-which DSLX models sequential and stateful modules. A proc contains:</p>
+<h1 id="dslx-tutorial-how-to-use-procs">DSLX Tutorial: How to use procs</h1>
+<p>A proc contains:</p>
 <ul>
 <li>A <em><code>init</code></em> function that initializes the proc state.</li>
 <li>A <em><code>config</code></em> function that spawns any other dependent/child procs needed for
@@ -2242,7 +2259,8 @@ which computes <code>C = A * B + C</code>:</p>
 <span class="w">    </span><span class="p">(</span><span class="n">input_a_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">output_producer</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">();</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_a</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_a_consumer</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_b</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span><span class="p">::</span><span class="n">fma</span><span class="p">(</span><span class="n">input_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
@@ -2280,12 +2298,9 @@ sequence the send. Between the communication routines is the actual computation.
 <p>At the end of the proc, we terminate with the <code>result</code> value. This final value
 becomes the input state for the next iteration. This is how recurrent state is
 managed by procs: a state value is provided to the <code>next</code> function, and the
-result of that function is used as the next iteration's state input. Procs can
-have several state elements: in that case, there will be several input state
-args, e.g., <code>next(tok: token, state_a: F32, state_b: F32)</code>, and the output will
-be a tuple of values, corresponding in order to the input state values.
-Regardless of that, a <code>next</code> function will always take a token as the first
-parameter.</p>
+result of that function is used as the next iteration's state input. Procs have
+exactly one state value; to keep multiple elements in state, the state can be a
+struct.</p>
 <h2 id="spawning-procs">Spawning procs</h2>
 <p>In any real design, procs will form a network<sup id="fnref:proc_network"><a class="footnote-ref" href="#fn:proc_network">1</a></sup>, where one proc
 will spawn any number of child procs, which themselves might spawn other procs.
@@ -2411,9 +2426,12 @@ test proc is very similar to a normal proc with the following changes:</p>
 <span class="w">    </span><span class="p">(</span><span class="n">terminator</span><span class="p">,)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">();</span>
+
 <span class="w">    </span><span class="c1">// send and recv message to the proc under test.</span>
 <span class="w">    </span><span class="c1">// ...</span>
+
 <span class="w">    </span><span class="c1">// terminate the test interpretation.</span>
 <span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">terminator</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">);</span>
 <span class="w">  </span><span class="p">}</span>
@@ -2436,9 +2454,9 @@ channels representing the interface you want to use, e.g.:</p>
 <span class="w">    </span><span class="p">(</span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">state</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">state</span><span class="p">;</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">request</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">request</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">response</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">);</span>
 <span class="w">    </span><span class="n">state</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span>
 <span class="w">  </span><span class="p">}</span>
@@ -2516,7 +2534,7 @@ point-to-point connections between any two procs.&#160;<a class="footnote-backre
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.081f42fc.min.js"></script>
       
         <script src="../../js/print-site.js"></script>
       

@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.23">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
     
     
       
@@ -471,11 +471,32 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_procs/" class="md-nav__link">
+      <a href="../tutorials/what_is_a_proc/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Intro to Procs
+    What is a Proc?
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/how_to_use_procs/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    How to use Procs
   </span>
   
 
@@ -2475,11 +2496,11 @@ and machine cycles to accelerate this overall process.</p>
 speeds for use in host software or a simulator, but that design can also
 generate hardware block output -- the XLS tools' correctness ensures (and
 provides tools to help formally verify) that they are functionally identical.</p>
-<p>XLS also supports
-<a href="https://google.github.io/xls/tutorials/intro_to_procs/"><em>concurrent processes</em></a>,
-in Communicating Sequential Processes (CSP) style, that allow pipelines to
-communicate with each other and induct over time. This feature is still under
-active development but today supports base use cases.</p>
+<p>XLS supports both (optionally pipelined) functions with pure-wire I/O interfaces
+and
+<a href="https://google.github.io/xls/tutorials/what_is_a_proc/"><em>concurrent processes</em></a>
+(or <code>proc</code>s). Procs are stateful, allowing induction over time, and include more
+general communication interfaces.</p>
 <h2 id="index-state-of-the-project">State of the Project</h2>
 <p>XLS is experimental, undergoing rapid development, and not an officially
 supported Google product. Expect bugs and sharp edges. Please help by trying it
@@ -2822,9 +2843,12 @@ design techniques. Here they are, grouped by topic:</p>
 <li><a href="#tutorials-prefix_scan"><code>enumerate</code> and <code>match</code> expressions</a> : Explains how to use
     <code>enumerate()</code> expressions to control loop iteration and how to use the
     <code>match</code> pattern-matching expression for selecting between alternatives.</li>
-<li><a href="#tutorials-intro_to_procs">Intro to procs</a> (communicating sequential processes) :
-    Provides a basic introduction to writing stateful and communicating modules,
-    i.e., procs.</li>
+<li><a href="#tutorials-what_is_a_proc">What is a proc?</a>: A step-by-step introduction to procs,
+    XLS's answer to how to write modules with state and explicit communication
+    interfaces.</li>
+<li><a href="#tutorials-how_to_use_procs">How to use procs</a> (communicating sequential
+    processes): Provides a basic introduction to writing stateful and
+    communicating modules, i.e., procs.</li>
 </ul></section>
                         <h2 class='nav-section-title' id='section-dslx'>
                             DSLX <a class='headerlink' href='#section-dslx' title='Permanent link'>↵</a>
@@ -3509,12 +3533,426 @@ right to this implementation file:</p>
 <p>(Note that <code>--compare=none</code> is currently required because <code>enumerate</code> ranges are
 not currently convertable to IR, otherwise running the DSLX interpreter would do
 implicit comparison to IR interpreter -- see
-<a href="https://github.com/google/xls/issues/164">google/xls#164</a>.)</p></section><section class="print-page" id="tutorials-intro_to_procs"><h1 id="tutorials-intro_to_procs-dslx-tutorial-intro-to-procs">DSLX Tutorial: Intro to procs</h1>
+<a href="https://github.com/google/xls/issues/164">google/xls#164</a>.)</p></section><section class="print-page" id="tutorials-what_is_a_proc"><h1 id="tutorials-what_is_a_proc-dslx-tutorial-what-is-a-proc">DSLX Tutorial: What is a Proc?</h1>
 <p>Up to this point, our tutorials have described stateless, non-communicating,
 combinational modules. To add state or communication with other actors, we need
 to venture into the exciting land of procs!</p>
 <p><strong>Procs</strong>, short for "communicating sequential processes", are the means by
-which DSLX models sequential and stateful modules. A proc contains:</p>
+which DSLX models sequential and stateful modules. DSLX's semantics are based on
+<a href="https://en.wikipedia.org/wiki/Kahn_process_networks">Kahn process networks</a>, or
+KPNs. A pure KPN is made up of independent computing units communicating with
+each other in timing-insensitive ways; whenever possible, we try to make it easy
+to express your desired behavior in this style.<sup id="tutorials-what_is_a_proc-fnref:impure-kpn"><a class="footnote-ref" href="#tutorials-what_is_a_proc-fn:impure-kpn">1</a></sup> In XLS, our
+independent computing units are called processes, or <em>procs</em>. Each proc has a
+fixed set of I/O interfaces (aka <em>channels</em>, usually FIFO queues), a fixed
+amount of memory (aka <em>state</em>), and the ability to carry out a bounded amount of
+computation on their state &amp; inputs whenever they activate.</p>
+<p>We can think of each proc as <em>activating</em> as often as it can; e.g., in hardware,
+up to once per clock cycle. Each activation proceeds as the information &amp;
+resources for it to run become available. For example, suppose the proc is
+designed to:</p>
+<ul>
+<li>read a number from each of channels A and B,</li>
+<li>add the numbers together, and</li>
+<li>write the result to channel C.</li>
+</ul>
+<p>The first activation will wait until it can read the first numbers from each of
+channels A and B, then write their sum as the first value on channel C. The
+second activation will read the second number from each of channels A and B,
+then write their sum as the second value on channel C... and so on.</p>
+<blockquote>
+<p>[!NOTE] \
+XLS guarantees that, for each I/O operation X, the first activation's action
+(X<sub>0</sub>) will happen before the second activation's action
+(X<sub>1</sub>), and so on. Therefore, the first activation will read the
+first numbers on channels A and B, and write the first number on channel C.
+However, if a proc includes multiple I/O operations - even on the same
+channel - and these operations need to happen in a specific order (whether in
+the same activation or between activations), there is no ordering guarantee by
+default. Instead, you can express that using <strong>tokens</strong>, as we'll discuss
+later.</p>
+</blockquote>
+<h2 id="tutorials-what_is_a_proc-channels">Channels</h2>
+<p>In general, <strong>channels</strong> provide possible I/O operations each activation can
+carry out. A proc can receive from an input channel or send on an output channel
+any number of times per activation (though for now, only once per
+channel<sup id="tutorials-what_is_a_proc-fnref:strictness"><a class="footnote-ref" href="#tutorials-what_is_a_proc-fn:strictness">2</a></sup>). There are multiple types of channels, which can make
+things rather more complicated; for now, we'll discuss the standard
+<strong>streaming</strong> channel type.</p>
+<p>By default, receives are considered to be <strong>blocking</strong> operations; if no data is
+available on the channel, the activation will <strong>stall</strong><sup id="fnref:stalling"><a class="footnote-ref" href="#tutorials-what_is_a_proc-fn:stalling">3</a></sup> until the
+data becomes available. (This is part of how the defaults ensure that the
+results are timing-insensitive, making it easier for you to use XLS to produce
+more optimized hardware.) Once the data is available, the receiving proc will
+take the value from the channel, removing it if the channel is a FIFO queue, and
+proceed.</p>
+<p>Sends, by contrast, are considered to be <strong>non-blocking</strong> operations; by
+default, XLS models channels as if they used infinite-depth queues, so sends can
+always complete.</p>
+<blockquote>
+<p>[!NOTE] \
+In reality, when compiled to RTL, hardware FIFOs have finite depth. By
+default, XLS allows for <strong>backpressure</strong> on finite-depth channels. If the
+channel is not able to receive new data when the send should trigger, the
+activation will stall until the channel is ready. This always produces correct
+behavior in the absence of deadlocks, but can introduce deadlocks in RTL that
+did not exist at higher levels.</p>
+</blockquote>
+<p>Using these, we can implement our first example, which reads from two channels
+and writes the sum to a third:</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="n">proc</span><span class="w"> </span><span class="n">adder</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">B</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">C</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// The initial value of the proc&#39;s state (empty in this case).</span>
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="c1">// The interface used by anything that spawns this proc, which will need to</span>
+<span class="w">  </span><span class="c1">// configure its inputs &amp; outputs.</span>
+<span class="w">  </span><span class="n">config</span><span class="w"> </span><span class="p">(</span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">C</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">C</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="c1">// The description of how this proc actually acts when running.</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">st</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_A</span><span class="p">,</span><span class="w"> </span><span class="n">data_A</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">A</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_B</span><span class="p">,</span><span class="w"> </span><span class="n">data_B</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">B</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data_A</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">data_B</span><span class="p">;</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">(</span><span class="n">tok_A</span><span class="p">,</span><span class="w"> </span><span class="n">tok_B</span><span class="p">);</span>
+<span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">C</span><span class="p">,</span><span class="w"> </span><span class="n">sum</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>You might be surprised at the extra values being passed to and returned from our
+<code>recv</code> and <code>send</code> operations. These are <em>tokens</em>, which we will discuss in more
+detail below; they are used to establish ordering between operations where data
+dependencies aren't sufficient.<sup id="tutorials-what_is_a_proc-fnref:required-tokens"><a class="footnote-ref" href="#tutorials-what_is_a_proc-fn:required-tokens">4</a></sup></p>
+<p>More generally, sends and receives can also be conditional; we can decide
+whether or not to carry out each operation based on a computed predicate. For
+example, we can write a proc that:</p>
+<ul>
+<li>reads a value <em>x</em> from channel A, and</li>
+<li>if that input is zero:
+    *   reads a value <em>y</em> from channel B, and
+    *   writes <em>y</em> to channel C.</li>
+<li>otherwise:
+    *   writes <em>x</em> to channel C.</li>
+</ul>
+<p>Therefore, each activation reads one value from channel A, reads either one or
+zero values from channel B, and writes one value to channel C. We can implement
+this as follows:</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="n">proc</span><span class="w"> </span><span class="n">fallback</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">B</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">C</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">config</span><span class="w"> </span><span class="p">(</span><span class="n">A</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">C</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">C</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">st</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">data_A</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">A</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">data_B</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv_if</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">data_A</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">data_A</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">data_B</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">data_A</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">C</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<blockquote>
+<p>[!NOTE] \
+You might be surprised that we didn't simply put the <code>data_B</code> conditional
+receive inside the correct branch of our <code>if</code> expression. DSLX does not
+currently allow receives to happen in conditional expressions, so we need to
+control them separately.</p>
+</blockquote>
+<h3 id="tutorials-what_is_a_proc-state">State</h3>
+<p>Each proc can also have its own <strong>state elements</strong>, each of which is a piece of
+data of any allowed type. Each state element has an initial value, which is the
+value seen by the first activation; beyond that, activation <em>N</em> sets the state
+elements to values that can be read by activation <em>N</em>+1. This can include
+setting them back to whatever value activation <em>N</em>-1 assigned to them,
+effectively leaving them unchanged. It's worth noting that activation <em>N</em>+1 is
+allowed to start before the state from activation <em>N</em> has fully resolved; it can
+stall if it needs to read from the state, waiting until it can confirm that the
+previous activation has set the state element that it needs.</p>
+<p>For example, we can design a proc to implement a saturating accumulator, which
+reads a value, adds the result to an accumulator (storing the maximum value if
+the result would overflow), and returns the updated accumulator value:</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="n">proc</span><span class="w"> </span><span class="n">saturating_accumulator</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">ch_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">config</span><span class="w"> </span><span class="p">(</span><span class="n">ch_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">ch_in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">accumulated</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">data</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">ch_in</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">data</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u33</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">accumulated</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u33</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">new_val</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">sum</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">all_ones</span><span class="o">!&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u33</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">all_ones</span><span class="o">!&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">sum</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u32</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">new_val</span><span class="p">);</span>
+
+<span class="w">    </span><span class="c1">// The last expression is the value the next activation will receive as its</span>
+<span class="w">    </span><span class="c1">// state.</span>
+<span class="w">    </span><span class="n">new_val</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="tutorials-what_is_a_proc-state-and-throughput">State and Throughput</h4>
+<p>If we try to generate pipelined hardware for this proc (as discussed in the
+pipelining documentation) and cannot fit the saturating addition in a single
+stage, then XLS will notice that it can take more than one cycle for each
+activation to determine the next state after reading the current state. This
+means this example will not be able to achieve <strong>full throughput</strong>; i.e., it
+might be possible for activations to stall <em>internally</em>, waiting on the state
+from the previous activation, even though all input channels are full and no
+output channel is providing backpressure. By default, XLS assumes you're
+expecting full throughput, and will emit an error explaining this failure in
+terms of the <strong>worst-case throughput</strong> for the proc (the number of cycles that
+can elapse between two activations with no externally-caused
+stalls)<sup id="tutorials-what_is_a_proc-fnref:inverse-throughput"><a class="footnote-ref" href="#tutorials-what_is_a_proc-fn:inverse-throughput">5</a></sup>; the error message will also include what
+worst-case throughput <em>is</em> possible with your design as written, and how to let
+XLS know if this is acceptable for your use case.</p>
+<div class="highlight"><pre><span></span><code>Error:<span class="w"> </span>INVALID_ARGUMENT:<span class="w"> </span>Impossible<span class="w"> </span>to<span class="w"> </span>schedule<span class="w"> </span>proc<span class="w"> </span>&lt;NAME&gt;<span class="w"> </span>as<span class="w"> </span>specified<span class="p">;</span><span class="w"> </span>cannot<span class="w"> </span>achieve<span class="w"> </span>full<span class="w"> </span>throughput.<span class="w"> </span>Try<span class="w"> </span><span class="sb">`</span>--worst_case_throughput<span class="o">=</span><span class="m">5</span><span class="sb">`</span>
+</code></pre></div>
+<p>On the other hand, we could also design a proc that compares the newest input
+value to the previous value, clamps the difference to the range [-5, 5], and
+sends the clamped difference:</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="n">proc</span><span class="w"> </span><span class="n">clamped_diff</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">ch_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">s32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">s32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">s32</span><span class="p">:</span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">config</span><span class="w"> </span><span class="p">(</span><span class="n">ch_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">s32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">s32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">ch_in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">prev</span><span class="p">:</span><span class="w"> </span><span class="nc">s32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">ch_in</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">diff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">val</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s33</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">prev</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s33</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">clamped_diff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">diff</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">s33</span><span class="p">:</span><span class="mi">5</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">s32</span><span class="p">:</span><span class="mi">5</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">diff</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">s33</span><span class="p">:</span><span class="o">-</span><span class="mi">5</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">s32</span><span class="p">:</span><span class="o">-</span><span class="mi">5</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">diff</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s32</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">clamped_diff</span><span class="p">);</span>
+<span class="w">    </span><span class="n">val</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Even if we can't fit both the subtraction and the clamping into a single
+pipeline stage, XLS can still pipeline this example to achieve full throughput;
+the new state value can be determined immediately on reading the value, so the
+next activation can read that state before the first activation is done
+computing its result.</p>
+<h3 id="tutorials-what_is_a_proc-tokens">Tokens</h3>
+<p>For computation operations, XLS can tell which operations depend on which
+others, and <strong>schedule</strong> them in hardware respecting these dependencies.
+Sometimes, though, a dependency might be external to the proc. For example,
+suppose our proc needs to send a message on channel A, then wait for a response
+on channel B. If we wait for the response before we send the message, our
+hardware will end up deadlocked.</p>
+<p>To make sure XLS knows that the message needs to be sent first, we use a
+<strong>token</strong>; this lets us express the dependency between these operations even
+though the <code>send</code> does not produce any actual data that the <code>recv</code> can use.
+Every operation where ordering effects can be important (generally because
+they're visible at the interface), including I/O operations, returns a token and
+can accept a token. For instance, to express the dependency we wrote above, we
+can write:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">// ...</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">request_tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">);</span>
+<span class="c1">// ...</span>
+<span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">response_tok</span><span class="p">,</span><span class="w"> </span><span class="n">response</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">request_tok</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">);</span>
+<span class="c1">// ...</span>
+</code></pre></div>
+<p>Since the <code>recv</code> depends on the token produced by the <code>send</code>, we know that the
+receive operation should not be allowed to go off until the send operation has
+completed.</p>
+<p>Of course, it's possible for an operation to need to happen after <em>more</em> than
+one predecessor. For a simple example, maybe our request needs to be sent in
+multiple parts. For this case, we have the <code>join(tok...)</code> function, which takes
+any number of tokens and returns a single token that depends on all of them. (In
+fact, we've been using that already - we wrote <code>join()</code> in our previous examples
+whenever we needed a token that depended on nothing!) In context, this might
+look like:</p>
+<div class="highlight"><pre><span></span><code><span class="c1">// ...</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">request_part_1_tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">request_part_1</span><span class="p">);</span>
+<span class="c1">// ...</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">request_part_2_tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">request_part_2</span><span class="p">);</span>
+<span class="c1">// ...</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">request_part_3_tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">request_part_3</span><span class="p">);</span>
+<span class="c1">// ...</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">full_request_tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">(</span><span class="n">request_part_1_tok</span><span class="p">,</span><span class="w"> </span><span class="n">request_part_2_tok</span><span class="p">,</span><span class="w"> </span><span class="n">request_part_3_tok</span><span class="p">);</span>
+<span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">response_tok</span><span class="p">,</span><span class="w"> </span><span class="n">response</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">full_request_tok</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">);</span>
+<span class="c1">// ...</span>
+</code></pre></div>
+<p>In this example, our <code>send()</code>s can happen in any order, but we know that the
+<code>recv()</code> will not block until after all the <code>send()</code>s have finished.</p>
+<h4 id="tutorials-what_is_a_proc-cross-activation-tokens">Cross-Activation Tokens</h4>
+<p>There are also contexts where we need to specify ordering constraints
+<strong>between</strong> activations. As usual, when we want to communicate some context to
+the next activation, we can use a state element; in this case, we can pass a
+token as a state element.</p>
+<p>For example, suppose we need to write a serialization interface that takes in a
+complex struct and produces a sequence of four 32-bit values. If the input
+channel receives inputs <code>A</code> and <code>B</code>, we need to make sure to produce <code>[A1, A2,
+A3, A4, B1, B2, B3, B4]</code> on the output channel. We can pass a token within each
+activation to make sure that the sends are properly sequenced, but we also need
+to pass it to the <em>next</em> activation to make sure it doesn't start serializing
+<code>B</code> until <code>A</code> is finished. (i.e., we want to prevent orders like <code>[A1, A2, B1,
+...]</code>.) Using tokens in our state, we can write:</p>
+<blockquote>
+<p>[!NOTE] \
+This example will not work as written until DSLX supports multiple I/O
+operations per channel per activation.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="n">proc</span><span class="w"> </span><span class="n">serialize</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">ch_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">complex_struct</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">join</span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">config</span><span class="w"> </span><span class="p">(</span><span class="n">ch_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">complex_struct</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">ch_in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">next</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">input_tok</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">ch_in</span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// ... (calculate val1)</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">val1</span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// ... (calculate val2)</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">val2</span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// ... (calculate val3)</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">val3</span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// ... (calculate val4)</span>
+<span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">val4</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="tutorials-what_is_a_proc-timing-sensitive-operations">Timing-Sensitive Operations</h3>
+<blockquote>
+<p>[!WARNING] \
+Using timing-sensitive operations means that your circuit's behavior can
+depend on the exact details of scheduling. It is possible to write correct XLS
+code under these constraints, but the logic <strong>must</strong> work no matter how
+operations are pipelined, and <strong>should</strong> (within reason) be designed to be
+correct even if the number of stages in the pipeline varies. Testing/DV is
+substantially more difficult for timing-sensitive procs. As such, similar to
+how <em>unsafe</em> operations work in Rust, we recommend that you avoid using
+timing-sensitive operations except where strictly necessary. It's good
+practice to keep them confined to small well-understood procs that implement
+certain necessary behaviors.</p>
+</blockquote>
+<p>Using streaming channels as documented above, there are some circuits that are
+simply impossible to implement; for example, you cannot implement an
+<strong>arbiter</strong>, a process that listens on multiple channels and forwards the
+highest-priority message sending at any given time, while using only blocking
+reads. All unimplementable circuits are <strong>timing-sensitive</strong>; their results
+depend on <em>when</em> the inputs arrive on each channel, not just on the <em>order of
+arrival</em>. This makes it much harder to write a provably correct design; however,
+there are still times these circuits are needed!</p>
+<p>For these times, XLS does include some timing-sensitive operations.</p>
+<p>In particular, XLS has a <strong>non-blocking receive</strong> operation,
+<code>recv_non_blocking(tok, ch, default)</code>. This attempts to read from the channel
+<code>ch</code>. If the channel's queue is empty at the time of the read, it returns \
+<code>(tok, default, false)</code>. Otherwise, it acts like a normal receive,
+<span style="text-decoration:underline;">removing</span> the leading element
+<code>data</code> from the <code>ch</code> queue and returning <code>(tok, data, true)</code>.</p>
+<p>We can use this operation to implement a simple arbiter, combining two channels
+(<code>data0_in</code> and <code>data1_in</code>) into one <code>result</code> by letting the higher-priority
+data (from <code>data0_in</code>) through whenever it is ready with no delay, and sending
+the lower-priority data (from <code>data1_in</code>) only when there's no higher-priority
+message to send:</p>
+<div class="highlight"><pre><span></span><code><span class="k">struct</span><span class="w"> </span><span class="nc">Message</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">value1</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span>
+<span class="w">  </span><span class="n">value2</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span>
+<span class="w">  </span><span class="n">value3</span><span class="p">:</span><span class="w"> </span><span class="kt">bool</span>
+<span class="p">}</span>
+
+<span class="k">pub</span><span class="w"> </span><span class="n">proc</span><span class="w"> </span><span class="n">priority_arbiter</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">data0_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">Message</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">data1_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">Message</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
+<span class="w">  </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="p">(</span><span class="n">u1</span><span class="p">,</span><span class="w"> </span><span class="n">Message</span><span class="p">)</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">init</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">config</span><span class="w"> </span><span class="p">(</span><span class="n">data0_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">Message</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">data1_in</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="n">Message</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="p">(</span><span class="n">u1</span><span class="p">,</span><span class="w"> </span><span class="n">Message</span><span class="p">)</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="n">data0_in</span><span class="p">,</span><span class="w"> </span><span class="n">data1_in</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">next</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">data0_msg</span><span class="p">,</span><span class="w"> </span><span class="n">data0_valid</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv_non_blocking</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">data0_in</span><span class="p">,</span><span class="w"> </span><span class="n">zero</span><span class="o">!&lt;</span><span class="n">Message</span><span class="o">&gt;</span><span class="p">());</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">data1_msg</span><span class="p">,</span><span class="w"> </span><span class="n">data1_valid</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv_if_non_blocking</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">data1_in</span><span class="p">,</span><span class="w"> </span><span class="o">!</span><span class="n">data0_valid</span><span class="p">,</span><span class="w"> </span><span class="n">zero</span><span class="o">!&lt;</span><span class="n">Message</span><span class="o">&gt;</span><span class="p">());</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">source</span><span class="p">,</span><span class="w"> </span><span class="n">to_send</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">data0_valid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="p">(</span><span class="n">u1</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">data0_msg</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="p">(</span><span class="n">u1</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">data1_msg</span><span class="p">)</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">    </span><span class="n">send_if</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">data0_valid</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">data1_valid</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">source</span><span class="p">,</span><span class="w"> </span><span class="n">to_send</span><span class="p">));</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<div class="footnote">
+<hr />
+<ol>
+<li id="tutorials-what_is_a_proc-fn:impure-kpn">
+<p>For when it's necessary, we also expose a limited number of ways
+to express timing-sensitive computations, which we'll discuss
+later.&#160;<a class="footnote-backref" href="#tutorials-what_is_a_proc-fnref:impure-kpn" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+<li id="tutorials-what_is_a_proc-fn:strictness">
+<p>At the moment, DSLX only supports channels where we can prove
+that at most one I/O operation can fire per channel per
+activation. Work is in progress to allow the user to opt into
+multiple I/O operations per channel per activation, and we expect
+this support to land soon. It will be opt-in, however, since this
+introduces the extra overhead of an arbiter to sequence the
+operations, and also adds potential backpressure since each
+channel can still accept at most one datum per clock cycle!&#160;<a class="footnote-backref" href="#tutorials-what_is_a_proc-fnref:strictness" title="Jump back to footnote 2 in the text">&#8617;</a></p>
+</li>
+<li id="tutorials-what_is_a_proc-fn:stalling">
+<p>When generating pipelined hardware, no later activation can proceed
+past the stalled stage. This may cause activations at earlier
+stages to stall as well, since the resources for them to run are
+not yet available. Activations at later stages can proceed as
+normal. Once the data becomes available, the pipeline will resume
+all stalled operations. See the pipelining documentation for more
+details.&#160;<a class="footnote-backref" href="#tutorials-what_is_a_proc-fnref:stalling" title="Jump back to footnote 3 in the text">&#8617;</a></p>
+</li>
+<li id="tutorials-what_is_a_proc-fn:required-tokens">
+<p>For now, <code>send</code> and <code>recv</code> need to take and return tokens
+even when data dependencies are sufficient to express the
+ordering requirements. We do have work in progress to create
+a syntax where tokens are only used where necessary; watch
+this space!&#160;<a class="footnote-backref" href="#tutorials-what_is_a_proc-fnref:required-tokens" title="Jump back to footnote 4 in the text">&#8617;</a></p>
+</li>
+<li id="tutorials-what_is_a_proc-fn:inverse-throughput">
+<p>This is technically an <strong>inverse throughput</strong>. The
+throughput of a proc is properly defined as the number of
+activations that occur per cycle... but rather than
+saying that your proc has WCT 1/2, it's more natural to
+think in inverse throughput - the number of cycles per
+activation - and write WCT 2.&#160;<a class="footnote-backref" href="#tutorials-what_is_a_proc-fnref:inverse-throughput" title="Jump back to footnote 5 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div></section><section class="print-page" id="tutorials-how_to_use_procs"><h1 id="tutorials-how_to_use_procs-dslx-tutorial-how-to-use-procs">DSLX Tutorial: How to use procs</h1>
+<p>A proc contains:</p>
 <ul>
 <li>A <em><code>init</code></em> function that initializes the proc state.</li>
 <li>A <em><code>config</code></em> function that spawns any other dependent/child procs needed for
@@ -3527,7 +3965,7 @@ share data with other procs, or else it'd just be spinning dead code. These
 means are <em>channels</em>: entities into which data can be sent and from which data
 can be received. Each channel has a send and a receive endpoint: data inserted
 into a channel by a <code>send</code> op can be pulled out by a <code>recv</code> op.</p>
-<h2 id="tutorials-intro_to_procs-example-proc">Example proc</h2>
+<h2 id="tutorials-how_to_use_procs-example-proc">Example proc</h2>
 <p>Many concepts here are more easily explained via example, so here's a possible
 DSLX implementation of
 <a href="https://en.wikipedia.org/wiki/Multiply%E2%80%93accumulate_operation">FMAC (fused multiply-accumulate)</a>,
@@ -3550,7 +3988,8 @@ which computes <code>C = A * B + C</code>:</p>
 <span class="w">    </span><span class="p">(</span><span class="n">input_a_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">output_producer</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">();</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_a</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_a_consumer</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_b</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span><span class="p">::</span><span class="n">fma</span><span class="p">(</span><span class="n">input_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
@@ -3588,14 +4027,11 @@ sequence the send. Between the communication routines is the actual computation.
 <p>At the end of the proc, we terminate with the <code>result</code> value. This final value
 becomes the input state for the next iteration. This is how recurrent state is
 managed by procs: a state value is provided to the <code>next</code> function, and the
-result of that function is used as the next iteration's state input. Procs can
-have several state elements: in that case, there will be several input state
-args, e.g., <code>next(tok: token, state_a: F32, state_b: F32)</code>, and the output will
-be a tuple of values, corresponding in order to the input state values.
-Regardless of that, a <code>next</code> function will always take a token as the first
-parameter.</p>
-<h2 id="tutorials-intro_to_procs-spawning-procs">Spawning procs</h2>
-<p>In any real design, procs will form a network<sup id="fnref:proc_network"><a class="footnote-ref" href="#tutorials-intro_to_procs-fn:proc_network">1</a></sup>, where one proc
+result of that function is used as the next iteration's state input. Procs have
+exactly one state value; to keep multiple elements in state, the state can be a
+struct.</p>
+<h2 id="tutorials-how_to_use_procs-spawning-procs">Spawning procs</h2>
+<p>In any real design, procs will form a network<sup id="fnref:proc_network"><a class="footnote-ref" href="#tutorials-how_to_use_procs-fn:proc_network">1</a></sup>, where one proc
 will spawn any number of child procs, which themselves might spawn other procs.
 (The "root" proc will be instantiated by some outside component in the outside
 RTL environment.) Procs may only be spawned in <code>config</code> functions, as they're
@@ -3633,8 +4069,8 @@ part of statically configuring the hardware network to construct.</p>
 declaration produces a producer and consumer channel, respectively), then we
 actually spawn it. The first set of arguments is passed to the child's config
 function. A spawn produces no value, hence no <code>let</code> on the left-hand side.</p>
-<h2 id="tutorials-intro_to_procs-advanced-features">Advanced features</h2>
-<h3 id="tutorials-intro_to_procs-channel-arrays-and-loop-based-spawning">Channel arrays and loop-based spawning</h3>
+<h2 id="tutorials-how_to_use_procs-advanced-features">Advanced features</h2>
+<h3 id="tutorials-how_to_use_procs-channel-arrays-and-loop-based-spawning">Channel arrays and loop-based spawning</h3>
 <blockquote>
 <p><strong>Note</strong>: This feature is currently WIP and is not yet available.</p>
 </blockquote>
@@ -3665,7 +4101,7 @@ inside <code>for</code> loops. This looks as follows:</p>
 <span class="w">  </span><span class="c1">// ...</span>
 <span class="p">}</span>
 </code></pre></div>
-<h3 id="tutorials-intro_to_procs-parametric-procs">Parametric procs</h3>
+<h3 id="tutorials-how_to_use_procs-parametric-procs">Parametric procs</h3>
 <p>Just as with other DSLX constructs, Procs can be parameterized. Parametrics must
 be specified at the proc level, and not at the component function level (i.e.,
 not on <code>config</code> or <code>next</code>). Building off of the previous example, this looks as
@@ -3695,7 +4131,7 @@ follows:</p>
 </code></pre></div>
 <p>These two features are very powerful together: users can specify a broad variety
 of designs simply by adjusting a few parametric values.</p>
-<h2 id="tutorials-intro_to_procs-proc-testing">Proc testing</h2>
+<h2 id="tutorials-how_to_use_procs-proc-testing">Proc testing</h2>
 <p>The DSLX interpreter supports testing procs via the <em>test_proc</em> construct. A
 test proc is very similar to a normal proc with the following changes:</p>
 <ul>
@@ -3719,9 +4155,12 @@ test proc is very similar to a normal proc with the following changes:</p>
 <span class="w">    </span><span class="p">(</span><span class="n">terminator</span><span class="p">,)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">();</span>
+
 <span class="w">    </span><span class="c1">// send and recv message to the proc under test.</span>
 <span class="w">    </span><span class="c1">// ...</span>
+
 <span class="w">    </span><span class="c1">// terminate the test interpretation.</span>
 <span class="w">    </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">terminator</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">);</span>
 <span class="w">  </span><span class="p">}</span>
@@ -3729,7 +4168,7 @@ test proc is very similar to a normal proc with the following changes:</p>
 </code></pre></div>
 <p>The <a href="https://github.com/google/xls/tree/main/xls/examples/fp32_fmac.x">FP32 fmac module</a>
 has a more complete proc test that may be used for reference.</p>
-<h1 id="tutorials-intro_to_procs-scheduling-constraints">Scheduling constraints</h1>
+<h1 id="tutorials-how_to_use_procs-scheduling-constraints">Scheduling constraints</h1>
 <p>If you want to interface with something in the outside world that is latency
 sensitive (for example, an SRAM -- though we have separate infrastructure for
 making SRAMs work that builds on top of this feature), you can create external
@@ -3744,9 +4183,9 @@ channels representing the interface you want to use, e.g.:</p>
 <span class="w">    </span><span class="p">(</span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">)</span>
 <span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">state</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">state</span><span class="p">;</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">request</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">request</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">response</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">);</span>
 <span class="w">    </span><span class="n">state</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span>
 <span class="w">  </span><span class="p">}</span>
@@ -3769,9 +4208,9 @@ names is <code>:constraint_ir</code>.</p>
 <div class="footnote">
 <hr />
 <ol>
-<li id="tutorials-intro_to_procs-fn:proc_network">
+<li id="tutorials-how_to_use_procs-fn:proc_network">
 <p>The proc network itself will form a tree, but channels may make
-point-to-point connections between any two procs.&#160;<a class="footnote-backref" href="#tutorials-intro_to_procs-fnref:proc_network" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+point-to-point connections between any two procs.&#160;<a class="footnote-backref" href="#tutorials-how_to_use_procs-fnref:proc_network" title="Jump back to footnote 1 in the text">&#8617;</a></p>
 </li>
 </ol>
 </div></section><h1 class='nav-section-title-end'>Ended: DSLX</h1>
@@ -10366,9 +10805,9 @@ environments.</p>
 <span class="w">    </span><span class="n">config</span><span class="p">(</span><span class="n">output_channel</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">(</span><span class="n">output_channel</span><span class="p">,)</span><span class="w"> </span><span class="p">}</span>
 
 <span class="w">    </span><span class="c1">// &quot;Iterate in time&quot; -- takes a state, does some work, and produces a new state.</span>
-<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">        </span><span class="c1">// Send our state to the outside world via the channel.</span>
-<span class="w">        </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">output_channel</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
+<span class="w">        </span><span class="n">send</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">output_channel</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
 
 <span class="w">        </span><span class="c1">// Calculate our new state.</span>
 <span class="w">        </span><span class="n">state</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span>
@@ -10393,7 +10832,7 @@ above:</p>
         ($MEMBER, ...)
     }
 
-    next(tok: token, state: $STATE_TYPE) {
+    next(state: $STATE_TYPE) {
         $NEXT_BODY
         $NEW_STATE
     }
@@ -10451,8 +10890,8 @@ sufficient.</p>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">    </span><span class="c1">// Receive the values sent from the `CountUp` proc we instantiated in</span>
 <span class="w">    </span><span class="c1">// `config` and trace them out to logging.</span>
-<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span><span class="p">:</span><span class="w"> </span><span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+<span class="w">    </span><span class="n">next</span><span class="p">(</span><span class="n">state</span><span class="p">:</span><span class="w"> </span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">join</span><span class="p">(),</span><span class="w"> </span><span class="n">r</span><span class="p">);</span>
 <span class="w">        </span><span class="n">trace_fmt</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;CountUp gave: {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">got</span><span class="p">);</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
@@ -10871,11 +11310,20 @@ trivial (0 bit wide) inputs:</p>
 </code></pre></div>
 <h3 id="dslx_std-update"><code>update</code></h3>
 <p><code>update(array, index, new_value)</code> returns a copy of <code>array</code> where <code>array[index]</code>
-has been replaced with <code>new_value</code>, and all other elements are unchanged. Note
-that this is <em>not</em> an in-place update of the array, it is an "evolution" of
-<code>array</code>. It is the compiler's responsibility to optimize by using mutation
-instead of copying, when it's safe to do. The compiler makes a best effort to do
-this, but can't guarantee the optimization is always made.</p>
+has been replaced with <code>new_value</code>, and all other elements are unchanged.
+<code>index</code> can either be a scalar index or a tuple when updating nested element(s)
+of multi-dimensional array. Note that this is <em>not</em> an in-place update of the
+array, it is an "evolution" of <code>array</code>. It is the compiler's responsibility to
+optimize by using mutation instead of copying, when it's safe to do. The
+compiler makes a best effort to do this, but can't guarantee the optimization is
+always made.</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_update</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">update</span><span class="p">([</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span><span class="w"> </span><span class="n">u2</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">),</span><span class="w"> </span><span class="p">[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">]);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">update</span><span class="p">([[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="p">[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">4</span><span class="p">]],</span>
+<span class="w">                   </span><span class="p">(</span><span class="n">u1</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u1</span><span class="p">:</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">),</span><span class="w"> </span><span class="p">[[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="p">[</span><span class="kt">u8</span><span class="p">:</span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span><span class="p">:</span><span class="mi">4</span><span class="p">]]);</span>
+<span class="p">}</span>
+</code></pre></div>
 <h3 id="dslx_std-assert_eq-assert_lt"><code>assert_eq</code>, <code>assert_lt</code></h3>
 <p>In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
 results DSLX provides the <code>assert_eq</code> primitive (we'll add more of those in the
@@ -14451,7 +14899,7 @@ xls_ir_verilog_fdo(
 <p><a id="cc_xls_ir_jit_wrapper"></a></p>
 <h2 id="bazel_rules_macros-cc_xls_ir_jit_wrapper">cc_xls_ir_jit_wrapper</h2>
 <pre>
-cc_xls_ir_jit_wrapper(<a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-name">name</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-src">src</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
+cc_xls_ir_jit_wrapper(<a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-name">name</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-src">src</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
 </pre>
 
 <p>Invokes the JIT wrapper generator and compiles the result as a cc_library.</p>
@@ -14482,6 +14930,11 @@ identical to this macro.</p>
 <td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-jit_wrapper_args"></a>jit_wrapper_args</td>
 <td style="text-align: left;">Arguments of the JIT wrapper tool. Note: argument 'output_name' cannot be defined.</td>
 <td style="text-align: left;"><code>{}</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-wrapper_type"></a>wrapper_type</td>
+<td style="text-align: left;">The type of XLS construct to wrap. Must be one of 'BLOCK', 'FUNCTION', or 'PROC'. You should use the exported FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE for compatibility.</td>
+<td style="text-align: left;"><code>"FUNCTION"</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs</td>
@@ -17883,7 +18336,7 @@ USA.</p></section><h1 class='nav-section-title-end'>Ended: NoC</h1></div>
     <script id="__config" type="application/json">{"base": "/xls/", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.ebd0bdb7.min.js"></script>
+      <script src="../assets/javascripts/bundle.081f42fc.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       
