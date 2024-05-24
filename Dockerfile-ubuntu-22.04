@@ -11,15 +11,19 @@ LABEL description="Docker Image for Building/Testing XLS on Ubuntu 22.04 x86-64"
 # Update package info
 RUN apt-get update -y
 
-# Install Bazel
-RUN apt-get install -y curl gnupg && \
-curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg && \
-mv bazel.gpg /etc/apt/trusted.gpg.d/ && \
-echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list && \
-apt-get update -y && apt-get install -y bazel
+# Install bazelisk from latest release
+RUN apt-get install -y curl python3
+RUN curl -O -L $(curl -L \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  https://api.github.com/repos/bazelbuild/bazelisk/releases | \
+  python3 -c 'import json; import sys; print(filter(lambda url: "linux-amd64" in url, (a["browser_download_url"] for a in json.load(sys.stdin)[0]["assets"])).__next__())')
+
+RUN chmod +x bazelisk-linux-amd64 && mv bazelisk-linux-amd64 /usr/bin/bazel
+
 
 # Install dependencies
-RUN apt-get -y install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
+RUN apt-get -y install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential libxml2-dev liblapack-dev libblas-dev gfortran
 
 # Install development tools
 RUN apt-get install -y git vim
