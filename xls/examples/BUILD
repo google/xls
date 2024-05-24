@@ -971,3 +971,29 @@ filegroup(
     srcs = glob(["*.x"]),
     visibility = ["//xls:xls_internal"],
 )
+
+xls_dslx_library(
+    name = "passthrough_dslx",
+    srcs = [
+        "passthrough.x",
+    ],
+)
+
+xls_dslx_test(
+    name = "passthrough_dslx_test",
+    srcs = ["passthrough.x"],
+    deps = [":passthrough_dslx"],
+)
+
+xls_dslx_verilog(
+    name = "passthrough_verilog",
+    codegen_args = {
+        "module_name": "passthrough",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+    },
+    dslx_top = "Passthrough",
+    library = "passthrough_dslx",
+    verilog_file = "passthrough.sv",
+)
