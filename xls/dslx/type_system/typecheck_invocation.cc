@@ -354,14 +354,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   const absl::Span<Expr* const> args = invocation->args();
   std::vector<InstantiateArg> instantiate_args;
   std::vector<std::unique_ptr<Type>> arg_types;
-  if (callee_fn.has_implicit_token_param()) {
-    instantiate_args.reserve(args.size() + 1);
-    arg_types.push_back(std::make_unique<TokenType>());
-    instantiate_args.push_back(
-        {std::make_unique<TokenType>(), invocation->span()});
-  } else {
-    instantiate_args.reserve(args.size());
-  }
+  instantiate_args.reserve(args.size());
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          DeduceAndResolve(arg, ctx));

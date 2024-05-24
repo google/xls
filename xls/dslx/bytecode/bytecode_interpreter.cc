@@ -1610,9 +1610,6 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   // The Proc's "next" state includes all proc members (i.e., constants) as well
   // as the _actual_ state args themselves (plus the implicit token if needed).
   std::vector<InterpValue> full_next_args = *constants;
-  if (proc->next().has_implicit_token_param()) {
-    full_next_args.push_back(InterpValue::MakeToken());
-  }
   InterpValue initial_state(InterpValue::MakeToken());
   if (maybe_spawn.has_value()) {
     XLS_ASSIGN_OR_RETURN(
@@ -1666,9 +1663,7 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
     // next go-around.
     // If we get an empty tuple and the proc has no recurrent state, then don't
     // add it.
-    const int64_t size_with_recurrent_state =
-        proc_->members().size() +
-        (proc_->next().has_implicit_token_param() ? 2 : 1);
+    const int64_t size_with_recurrent_state = proc_->members().size() + 1;
     if (next_args_.size() == size_with_recurrent_state) {
       next_args_.back() = result_value;
     } else {

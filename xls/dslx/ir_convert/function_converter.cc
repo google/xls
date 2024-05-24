@@ -2380,17 +2380,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
           [this]() { return implicit_token_data_->activated; },
   };
 
-  // Bind the recurrent state element (and the implicit token param, if any).
+  // Bind the recurrent state element.
   BValue state = builder_ptr->GetStateParam(0);
-  if (f->has_implicit_token_param()) {
-    XLS_RET_CHECK_EQ(f->params().size(), 2);
-    SetNodeToIr(f->params()[0]->name_def(), implicit_token);
-    SetNodeToIr(f->params()[1]->name_def(), state);
-  } else {
-    XLS_RET_CHECK_EQ(f->params().size(), 1);
-    // Bind the recurrent state element.
-    SetNodeToIr(f->params()[0]->name_def(), state);
-  }
+  XLS_RET_CHECK_EQ(f->params().size(), 1);
+  SetNodeToIr(f->params()[0]->name_def(), state);
 
   proc_id_ = proc_id;
 

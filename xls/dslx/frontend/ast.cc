@@ -1602,8 +1602,7 @@ std::vector<AstNode*> For::GetChildren(bool want_types) const {
 Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
-                   Block* body, FunctionTag tag, bool is_public,
-                   bool has_implicit_token_param)
+                   Block* body, FunctionTag tag, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -1612,9 +1611,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       return_type_(return_type),
       body_(body),
       tag_(tag),
-      is_public_(is_public),
-      has_implicit_token_param_(has_implicit_token_param) {
-  CHECK(!has_implicit_token_param || tag == FunctionTag::kProcNext);
+      is_public_(is_public) {
   for (const ParametricBinding* pb : parametric_bindings_) {
     CHECK(parametric_keys_.insert(pb->identifier()).second);
   }

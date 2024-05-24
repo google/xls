@@ -76,17 +76,13 @@ XLS_DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
 
 constexpr ExprRestrictions kNoRestrictions = ExprRestrictions(0);
 
-enum class ProcNextImplicitTokenStyle : std::uint8_t {
-  kAccept,
-  kConvert,
-  kBlock
-};
+enum class ProcNextImplicitTokenStyle : std::uint8_t { kConvert, kBlock };
 
 struct DslxParserOptions {
   // TODO(https://github.com/google/xls/issues/1401): Remove support for the
   // false token-param option.
   ProcNextImplicitTokenStyle proc_next_implicit_token_style =
-      ProcNextImplicitTokenStyle::kAccept;
+      ProcNextImplicitTokenStyle::kConvert;
 };
 
 class Parser : public TokenParser {

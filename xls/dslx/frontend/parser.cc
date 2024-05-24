@@ -2235,16 +2235,12 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                             "Channels cannot be Proc next params.");
   }
 
-  bool has_implicit_token_param = false;
   std::vector<Statement*> prologue;
   if (token_param.has_value()) {
     switch (options_.proc_next_implicit_token_style) {
       case ProcNextImplicitTokenStyle::kBlock:
         return absl::InternalError(
             "token_param present but old_style_proc_next is kBlock");
-      case ProcNextImplicitTokenStyle::kAccept:
-        has_implicit_token_param = true;
-        break;
       case ProcNextImplicitTokenStyle::kConvert: {
         // Pretend that the token's implicit definition is one column past the
         // start of the block.
@@ -2284,12 +2280,8 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
       module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
   Function* next =
       module_->Make<Function>(span, name_def, std::move(parametric_bindings),
-                              options_.proc_next_implicit_token_style ==
-                                      ProcNextImplicitTokenStyle::kAccept
-                                  ? next_params
-                                  : std::vector<Param*>({state_param}),
-                              return_type, body, FunctionTag::kProcNext,
-                              is_public, has_implicit_token_param);
+                              std::vector<Param*>({state_param}), return_type,
+                              body, FunctionTag::kProcNext, is_public);
   name_def->set_definer(next);
 
   return next;

@@ -1608,8 +1608,7 @@ class Function : public AstNode {
   Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type, Block* body,
-           FunctionTag tag, bool is_public,
-           bool has_implicit_token_param = false);
+           FunctionTag tag, bool is_public);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -1640,8 +1639,6 @@ class Function : public AstNode {
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
-
-  bool has_implicit_token_param() const { return has_implicit_token_param_; }
 
   // Returns all of the parametric identifiers that must be bound by the caller
   // in an invocation; i.e. they have no default expression.
@@ -1698,7 +1695,6 @@ class Function : public AstNode {
   std::optional<Proc*> proc_;
 
   const bool is_public_;
-  const bool has_implicit_token_param_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
 };
 
