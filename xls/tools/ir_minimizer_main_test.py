@@ -126,6 +126,84 @@ top proc __testit__main_0_next(__state: bits[32], init={3}) {
 }
 '''
 
+PROC_2 = '''package multi_proc
+
+file_number 0 "xls/jit/multi_proc.x"
+
+chan multi_proc__bytes_src(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan multi_proc__bytes_result(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan multi_proc__send_double_pipe(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan multi_proc__send_quad_pipe(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan multi_proc__recv_double_pipe(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan multi_proc__recv_quad_pipe(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+fn __multi_proc__double_it(n: bits[32]) -> bits[32] {
+  ret add.2: bits[32] = add(n, n, id=2, pos=[(0,17,32)])
+}
+
+fn __multi_proc__proc_double.init() -> () {
+  ret tuple.3: () = tuple(id=3, pos=[(0,25,11)])
+}
+
+fn __multi_proc__proc_quad.init() -> () {
+  ret tuple.4: () = tuple(id=4, pos=[(0,40,11)])
+}
+
+top proc __multi_proc__proc_ten_0_next(__state: (), init={()}) {
+  tok: token = after_all(id=8)
+  receive.9: (token, bits[32]) = receive(tok, channel=multi_proc__bytes_src, id=9)
+  tok__1: token = tuple_index(receive.9, index=0, id=11, pos=[(0,74,13)])
+  v: bits[32] = tuple_index(receive.9, index=1, id=12, pos=[(0,74,18)])
+  tok__2: token = send(tok__1, v, channel=multi_proc__send_quad_pipe, id=13)
+  receive.14: (token, bits[32]) = receive(tok__2, channel=multi_proc__recv_quad_pipe, id=14)
+  tok__3: token = tuple_index(receive.14, index=0, id=16, pos=[(0,76,13)])
+  tok__4: token = send(tok__3, v, channel=multi_proc__send_double_pipe, id=19)
+  qv: bits[32] = tuple_index(receive.14, index=1, id=17, pos=[(0,76,18)])
+  receive.20: (token, bits[32]) = receive(tok__4, channel=multi_proc__recv_double_pipe, id=20)
+  ev: bits[32] = invoke(qv, to_apply=__multi_proc__double_it, id=18, pos=[(0,77,26)])
+  dv: bits[32] = tuple_index(receive.20, index=1, id=23, pos=[(0,79,18)])
+  tok__5: token = tuple_index(receive.20, index=0, id=22, pos=[(0,79,13)])
+  add.24: bits[32] = add(ev, dv, id=24, pos=[(0,81,35)])
+  __token: token = literal(value=token, id=5)
+  literal.7: bits[1] = literal(value=1, id=7)
+  tuple_index.10: token = tuple_index(receive.9, index=0, id=10)
+  tuple_index.15: token = tuple_index(receive.14, index=0, id=15)
+  tuple_index.21: token = tuple_index(receive.20, index=0, id=21)
+  send.25: token = send(tok__5, add.24, channel=multi_proc__bytes_result, id=25)
+  tuple.26: () = tuple(id=26, pos=[(0,72,15)])
+  next (tuple.26)
+}
+
+proc __multi_proc__proc_ten__proc_double_0_next(__state: (), init={()}) {
+  tok: token = after_all(id=30)
+  receive.31: (token, bits[32]) = receive(tok, channel=multi_proc__send_double_pipe, id=31)
+  v: bits[32] = tuple_index(receive.31, index=1, id=34, pos=[(0,29,18)])
+  tok__1: token = tuple_index(receive.31, index=0, id=33, pos=[(0,29,13)])
+  invoke.35: bits[32] = invoke(v, to_apply=__multi_proc__double_it, id=35, pos=[(0,30,41)])
+  __token: token = literal(value=token, id=27)
+  literal.29: bits[1] = literal(value=1, id=29)
+  tuple_index.32: token = tuple_index(receive.31, index=0, id=32)
+  send.36: token = send(tok__1, invoke.35, channel=multi_proc__recv_double_pipe, id=36)
+  tuple.37: () = tuple(id=37, pos=[(0,27,15)])
+  next (tuple.37)
+}
+
+proc __multi_proc__proc_ten__proc_quad_0_next(__state: (), init={()}) {
+  tok: token = after_all(id=41)
+  receive.42: (token, bits[32]) = receive(tok, channel=multi_proc__send_quad_pipe, id=42)
+  v: bits[32] = tuple_index(receive.42, index=1, id=45, pos=[(0,44,18)])
+  invoke.46: bits[32] = invoke(v, to_apply=__multi_proc__double_it, id=46, pos=[(0,45,51)])
+  tok__1: token = tuple_index(receive.42, index=0, id=44, pos=[(0,44,13)])
+  invoke.47: bits[32] = invoke(invoke.46, to_apply=__multi_proc__double_it, id=47, pos=[(0,45,41)])
+  __token: token = literal(value=token, id=38)
+  literal.40: bits[1] = literal(value=1, id=40)
+  tuple_index.43: token = tuple_index(receive.42, index=0, id=43)
+  send.48: token = send(tok__1, invoke.47, channel=multi_proc__recv_quad_pipe, id=48)
+  tuple.49: () = tuple(id=49, pos=[(0,42,15)])
+  next (tuple.49)
+}
+'''
+
 
 class IrMinimizerMainTest(absltest.TestCase):
 
@@ -168,6 +246,35 @@ top fn __testit__main_0_next() -> bits[32] {
 """,
     )
 
+  def test_minimize_extract_single_proc(self):
+    ir_file = self.create_tempfile(content=PROC_2)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(
+        test_sh_file.full_path,
+        ["/usr/bin/env grep 'multi_proc__bytes_src' $1"],
+    )
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH,
+        f'--test_executable={test_sh_file.full_path}',
+        '--can_remove_params=false',
+        '--can_remove_sends=true',
+        '--can_remove_receives=true',
+        '--can_extract_single_proc=true',
+        ir_file.full_path,
+    ])
+    self._maybe_record_property('output', minimized_ir.decode('utf-8'))
+    self.assertRegex(
+        minimized_ir.decode('utf-8'),
+        r'''package multi_proc
+
+chan multi_proc__bytes_src\(bits\[32\], id=[0-9]+, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata=""""""\)
+
+top proc __multi_proc__proc_ten_0_next\(\) \{
+  tok: token = after_all\(id=1\)
+  receive_9: \(token, bits\[32\]\) = receive\(tok, channel=multi_proc__bytes_src, id=2\)
+\}
+''')
+
   def test_minimize_inline_one_can_inline_other_invokes(self):
     ir_file = self.create_tempfile(content=INVOKE_TWO_DEEP)
     test_sh_file = self.create_tempfile()
@@ -209,7 +316,9 @@ top fn muladdadd(a: bits[8], b: bits[8], c: bits[8], d: bits[8]) -> bits[8] {
         ir_file.full_path,
     ])
     self._maybe_record_property('output', minimized_ir.decode('utf-8'))
-    self.assertEqual(minimized_ir.decode('utf-8'), """package foo
+    self.assertEqual(
+        minimized_ir.decode('utf-8'),
+        """package foo
 
 fn bar(x: bits[8][8]) -> bits[8][4] {
   ret literal.57: bits[8][4] = literal(value=[0, 0, 0, 0], id=57)
@@ -221,7 +330,8 @@ top fn foo(x: bits[8], y: bits[8]) -> bits[8][2] {
   literal.64: bits[1] = literal(value=0, id=64)
   ret array_slice.65: bits[8][2] = array_slice(invoke.26, literal.64, width=2, id=65)
 }
-""")
+""",
+    )
 
   def test_minimize_add_no_remove_params(self):
     ir_file = self.create_tempfile(content=ADD_IR)

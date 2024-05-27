@@ -58,6 +58,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/events.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
@@ -128,6 +129,10 @@ ABSL_FLAG(int64_t, failed_attempt_limit, 256,
           "done reducing.");
 ABSL_FLAG(int64_t, total_attempt_limit, 16384,
           "Limit on total number of attempts to try before bailing.");
+ABSL_FLAG(
+    bool, can_extract_single_proc, false,
+    "Whether to extract a single proc from a network. Selected proc might not "
+    "be top. All internal channels are changed to be recv/send only.");
 ABSL_FLAG(bool, can_extract_segments, false,
           "Whether to allow the minimizer to extract segments of the IR. This "
           "transform entirely removes some segment of logic and makes a new "
@@ -949,6 +954,71 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   return SimplificationResult::kDidChange;
 }
 
+absl::StatusOr<SimplifiedIr> ExtractSingleProc(FunctionBase* f,
+                                               std::string* which_transform) {
+  XLS_RET_CHECK(f->IsProc());
+  Package* p = f->package();
+  Proc* proc = f->AsProcOrDie();
+  VLOG(3) << "Extracting proc " << proc->name() << " from network;";
+  if (proc->is_new_style_proc()) {
+    VLOG(3) << "new style procs not yet supported.";
+    return SimplifiedIr{.result = SimplificationResult::kDidNotChange,
+                        .ir_data = f->package(),
+                        .node_count = f->node_count()};
+  }
+  *which_transform = absl::StrFormat(
+      "Extracting proc %s from network into singleton proc.", proc->name());
+  absl::flat_hash_set<Channel*> send_chans;
+  absl::flat_hash_set<Channel*> recv_chans;
+  for (Node* n : proc->nodes()) {
+    if (n->Is<Send>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * c,
+                           p->GetChannel(n->As<Send>()->channel_name()));
+      send_chans.insert(c);
+    } else if (n->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * c,
+                           p->GetChannel(n->As<Receive>()->channel_name()));
+      recv_chans.insert(c);
+    }
+  }
+  Package new_pkg = Package(f->package()->name());
+  absl::flat_hash_map<const Function*, Function*> function_remap;
+  absl::flat_hash_map<const FunctionBase*, FunctionBase*> function_base_remap;
+  // Keep all the subroutines.
+  for (FunctionBase* f : FunctionsInPostOrder(p)) {
+    if (f->IsFunction()) {
+      XLS_ASSIGN_OR_RETURN(
+          function_remap[f->AsFunctionOrDie()],
+          f->AsFunctionOrDie()->Clone(f->name(), &new_pkg, function_remap));
+      function_base_remap[f] = function_remap[f->AsFunctionOrDie()];
+    }
+  }
+  for (Channel* c : send_chans) {
+    XLS_RETURN_IF_ERROR(
+        new_pkg
+            .CloneChannel(c, c->name(),
+                          Package::CloneChannelOverrides().OverrideSupportedOps(
+                              ChannelOps::kSendOnly))
+            .status());
+  }
+  for (Channel* c : recv_chans) {
+    XLS_RETURN_IF_ERROR(
+        new_pkg
+            .CloneChannel(c, c->name(),
+                          Package::CloneChannelOverrides().OverrideSupportedOps(
+                              ChannelOps::kReceiveOnly))
+            .status());
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Proc * new_proc,
+      proc->Clone(proc->name(), &new_pkg, /*channel_remapping=*/{},
+                  /*call_remapping=*/function_base_remap));
+  XLS_RETURN_IF_ERROR(new_pkg.SetTop(new_proc));
+  return SimplifiedIr{.result = SimplificationResult::kDidChange,
+                      .ir_data = new_pkg.DumpIr(),
+                      .node_count = new_proc->node_count()};
+}
+
 // Picks a random node in the function 'f' and (if possible) generates a new
 // package&function that only contains that node and its antecedents.
 absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
@@ -1128,6 +1198,13 @@ absl::StatusOr<SimplifiedIr> Simplify(FunctionBase* f,
     }
   }
 
+  if (absl::GetFlag(FLAGS_can_extract_single_proc) && f->IsProc() &&
+      absl::Bernoulli(rng, 0.1) && f->package()->procs().size() > 1) {
+    XLS_ASSIGN_OR_RETURN(auto result, ExtractSingleProc(f, which_transform));
+    if (result.result != SimplificationResult::kDidNotChange) {
+      return result;
+    }
+  }
   if (absl::Bernoulli(rng, 0.2)) {
     XLS_ASSIGN_OR_RETURN(SimplificationResult result,
                          SimplifyReturnValue(f, rng, which_transform));
