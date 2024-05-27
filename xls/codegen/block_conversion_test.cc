@@ -460,8 +460,30 @@ TEST_F(BlockConversionTest, SimpleFunction) {
   EXPECT_EQ(unit.top_block->GetPorts().size(), 3);
   EXPECT_EQ(unit.metadata[unit.top_block].concurrent_stages, std::nullopt);
 
+  EXPECT_THAT(
+      GetOutputPort(unit.top_block),
+      m::OutputPort("out", m::Add(m::InputPort("x"), m::InputPort("y"))));
+}
+
+TEST_F(BlockConversionTest, SimpleFunctionWithNamedOutput) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      FunctionToCombinationalBlock(f, codegen_options()
+                                          .module_name("SimpleFunctionBlock")
+                                          .output_port_name("simple_output")));
+
+  EXPECT_EQ(unit.top_block->name(), "SimpleFunctionBlock");
+  EXPECT_EQ(unit.top_block->GetPorts().size(), 3);
+  EXPECT_EQ(unit.metadata[unit.top_block].concurrent_stages, std::nullopt);
+
   EXPECT_THAT(GetOutputPort(unit.top_block),
-              m::OutputPort(m::Add(m::InputPort("x"), m::InputPort("y"))));
+              m::OutputPort("simple_output",
+                            m::Add(m::InputPort("x"), m::InputPort("y"))));
 }
 
 TEST_F(BlockConversionTest, ZeroInputs) {

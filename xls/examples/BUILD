@@ -443,6 +443,20 @@ xls_dslx_opt_ir(
     opt_ir_file = "tiny_adder.opt.ir",
 )
 
+xls_dslx_verilog(
+    name = "tiny_adder_sv",
+    codegen_args = {
+        "module_name": "tiny_adder",
+        "generator": "combinational",
+        "delay_model": "unit",
+        "use_system_verilog": "true",
+        "output_port_name": "result",
+    },
+    dslx_top = "tiny_adder",
+    library = ":tiny_adder_dslx",
+    verilog_file = "tiny_adder.sv",
+)
+
 # -- find_index sample, with OpenROAD synthesis
 
 xls_dslx_library(

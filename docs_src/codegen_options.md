@@ -162,6 +162,7 @@ estimation refinements in XLS. For now, FDO is disabled by default
 Some names can be set at codegen via the following flags:
 
 -   `--module_name=...` sets the name of the generated verilog module.
+-   `--output_port_name=....` sets the name of the output port for functions.
 -   For functions, `--input_valid_signal=...` and `--output_valid_signal=...`
     adds and sets the name of valid signals when `--generator` is set to
     `pipeline`.

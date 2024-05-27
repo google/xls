@@ -48,6 +48,7 @@ namespace xls::verilog {
 CodegenOptions::CodegenOptions(const CodegenOptions& options)
     : entry_(options.entry_),
       module_name_(options.module_name_),
+      output_port_name_(options.output_port_name_),
       reset_proto_(options.reset_proto_),
       pipeline_control_(options.pipeline_control_),
       clock_name_(options.clock_name_),
@@ -79,6 +80,7 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
 CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   entry_ = options.entry_;
   module_name_ = options.module_name_;
+  output_port_name_ = options.output_port_name_;
   reset_proto_ = options.reset_proto_;
   pipeline_control_ = options.pipeline_control_;
   clock_name_ = options.clock_name_;
@@ -115,6 +117,11 @@ CodegenOptions& CodegenOptions::entry(std::string_view name) {
 
 CodegenOptions& CodegenOptions::module_name(std::string_view name) {
   module_name_ = name;
+  return *this;
+}
+
+CodegenOptions& CodegenOptions::output_port_name(std::string_view name) {
+  output_port_name_ = name;
   return *this;
 }
 

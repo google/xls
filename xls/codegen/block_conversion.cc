@@ -82,10 +82,6 @@ namespace xls {
 namespace verilog {
 namespace {
 
-// Name of the output port which holds the return value of the function.
-// TODO(meheff): 2021-03-01 Allow port names other than "out".
-static const char kOutputPortName[] = "out";
-
 // If options specify it, adds and returns an input for a reset signal.
 static absl::Status MaybeAddResetPort(Block* block,
                                       const CodegenOptions& options) {
@@ -2229,11 +2225,11 @@ class CloneNodesIntoBlockHandler {
   }
 
   // If a function, create an output port for the function's return.
-  absl::Status AddOutputPortsIfFunction() {
+  absl::Status AddOutputPortsIfFunction(std::string_view output_port_name) {
     if (!is_proc_) {
       Function* function = function_base_->AsFunctionOrDie();
       return block()
-          ->AddOutputPort(kOutputPortName,
+          ->AddOutputPort(output_port_name,
                           node_map_.at(function->return_value()))
           .status();
     }
@@ -2850,7 +2846,7 @@ CloneNodesIntoPipelinedBlock(const PipelineSchedule& schedule,
     XLS_RET_CHECK_OK(cloner.AddNextPipelineStage(schedule, stage));
   }
 
-  XLS_RET_CHECK_OK(cloner.AddOutputPortsIfFunction());
+  XLS_RET_CHECK_OK(cloner.AddOutputPortsIfFunction(options.output_port_name()));
   XLS_RET_CHECK_OK(cloner.MarkMutualExclusiveStages(schedule.length()));
 
   return std::make_tuple(cloner.GetResult(), cloner.GetConcurrentStages());
@@ -2938,7 +2934,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToPipelinedBlock(
       function_metadata.valid_ports->output != nullptr) {
     port_order.push_back(function_metadata.valid_ports->output->GetName());
   }
-  port_order.push_back(kOutputPortName);
+  port_order.push_back(std::string{options.output_port_name()});
   XLS_RETURN_IF_ERROR(unit.top_block->ReorderPorts(port_order));
 
   unit.metadata[unit.top_block] = CodegenMetadata{
@@ -3380,9 +3376,10 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
     node_map[node] = block_node;
   }
 
-  XLS_RETURN_IF_ERROR(
-      block->AddOutputPort(kOutputPortName, node_map.at(f->return_value()))
-          .status());
+  XLS_RETURN_IF_ERROR(block
+                          ->AddOutputPort(options.output_port_name(),
+                                          node_map.at(f->return_value()))
+                          .status());
 
   CodegenPassUnit unit(block->package(), block);
   unit.metadata[block]

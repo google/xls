@@ -89,6 +89,9 @@ ABSL_FLAG(bool, add_idle_output, false,
 ABSL_FLAG(std::string, module_name, "",
           "Explicit name to use for the generated module; if not provided the "
           "mangled IR function name is used.");
+ABSL_FLAG(std::string, output_port_name, "out",
+          "Explicit name to use for the output port; if not provided the name "
+          "\"out\" will be used (only applies to functions).");
 ABSL_FLAG(std::string, reset, "",
           "Name of the reset signal. If empty, no reset signal is used.");
 ABSL_FLAG(bool, reset_active_low, false,
@@ -232,6 +235,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
   POPULATE_FLAG(flop_single_value_channels);
   POPULATE_FLAG(add_idle_output);
   POPULATE_FLAG(module_name);
+  POPULATE_FLAG(output_port_name);
   POPULATE_FLAG(reset);
   POPULATE_FLAG(reset_active_low);
   POPULATE_FLAG(reset_asynchronous);

@@ -83,6 +83,8 @@ CODEGEN_FIELDS = {
                        "input and flops is added to the block.",
     "module_name": "Explicit name to use for the generated module; if not " +
                    "provided the mangled IR function name is used.",
+    "output_port_name": "Explicit name to use for the output port; if not " +
+                        "provided the name \"out\" will be used (only applies to functions).",
     "reset": "Name of the reset signal.",
     "reset_active_low": "Whether the reset signal is active low.",
     "reset_asynchronous": "Whether the reset signal is asynchronous.",

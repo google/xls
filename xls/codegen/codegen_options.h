@@ -87,6 +87,10 @@ class CodegenOptions {
     return module_name_;
   }
 
+  // Name to use for the output port name (only applies to fonctions).
+  CodegenOptions& output_port_name(std::string_view name);
+  std::string_view output_port_name() const { return output_port_name_; }
+
   // Reset signal to use for any registers with initial values. Required if the
   // proc contains any registers with initial values.
   CodegenOptions& reset(std::string_view name, bool asynchronous,
@@ -258,6 +262,7 @@ class CodegenOptions {
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
+  std::string output_port_name_ = "out";
   std::optional<ResetProto> reset_proto_;
   std::optional<PipelineControl> pipeline_control_;
   std::optional<std::string> clock_name_;

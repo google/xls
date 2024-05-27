@@ -155,6 +155,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.module_name(p.module_name());
   }
 
+  if (!p.output_port_name().empty()) {
+    options.output_port_name(p.output_port_name());
+  }
+
   options.use_system_verilog(p.use_system_verilog());
   options.separate_lines(p.separate_lines());
 
