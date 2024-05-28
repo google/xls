@@ -150,3 +150,27 @@ cc_library(
         "//xls/ir:ir_parser",
     ],
 )
+
+cc_library(
+     name = "c_api",
+     srcs = ["c_api.cc"],
+     hdrs = ["c_api.h"],
+     deps = [
+         ":runtime_build_actions",
+     ],
+)
+
+cc_test(
+    name = "c_api_test",
+    srcs = ["c_api_test.cc"],
+    deps = [
+        "@com_google_absl//absl/cleanup",
+        ":c_api",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:temp_directory",
+        "//xls/dslx:default_dslx_stdlib_path",
+    ],
+)
