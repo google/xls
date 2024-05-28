@@ -43,8 +43,7 @@ TEST_F(BlockJitTest, ConstantToPort) {
   bb.OutputPort("answer", input);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, JitRuntime::Create());
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b, runtime.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
   auto cont = jit->NewContinuation();
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
 
@@ -58,8 +57,7 @@ TEST_F(BlockJitTest, AddTwoPort) {
   bb.OutputPort("answer", bb.Add(input1, input2));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, JitRuntime::Create());
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b, runtime.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
   auto cont = jit->NewContinuation();
   XLS_ASSERT_OK(
       cont->SetInputPorts({Value(UBits(12, 8)), Value(UBits(30, 8))}));
@@ -78,8 +76,7 @@ TEST_F(BlockJitTest, ConstantToReg) {
   bb.RegisterRead(r);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, JitRuntime::Create());
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b, runtime.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
   auto cont = jit->NewContinuation();
   XLS_ASSERT_OK(cont->SetRegisters({Value(UBits(2, 8))}));
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
@@ -98,8 +95,7 @@ TEST_F(BlockJitTest, DelaySlot) {
   bb.OutputPort("output", read);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, JitRuntime::Create());
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b, runtime.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
   auto cont = jit->NewContinuation();
 
   XLS_ASSERT_OK(cont->SetRegisters({Value(UBits(2, 8))}));
@@ -123,8 +119,7 @@ TEST_F(BlockJitTest, SetInputsWithViews) {
   bb.OutputPort("output", bb.Add(input1, input2));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, JitRuntime::Create());
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b, runtime.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
   auto cont = jit->NewContinuation();
 
   int16_t input_bits1 = -12;
@@ -154,8 +149,7 @@ TEST_F(BlockJitTest, SetRegistersWithViews) {
   bb.OutputPort("output", bb.Add(read1, read2));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, JitRuntime::Create());
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b, runtime.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
   auto cont = jit->NewContinuation();
 
   int16_t input_bits1 = -12;

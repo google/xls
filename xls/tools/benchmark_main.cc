@@ -608,7 +608,7 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
                        JitRuntime::Create());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockJit> jit,
-                       BlockJit::Create(block, runtime.get()));
+                       BlockJit::Create(block));
   std::cout << absl::StreamFormat(
       "JIT compile time (%s): %dms\n", description,
       DurationToMs(absl::Now() - start_jit_compile));

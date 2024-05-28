@@ -50,8 +50,7 @@
 
 namespace xls {
 
-absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    Block* block, JitRuntime* runtime) {
+absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(Block* block) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
   XLS_ASSIGN_OR_RETURN(auto function,
                        JittedFunctionBase::Build(block, *orc_jit));
@@ -59,13 +58,15 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
     return absl::UnimplementedError(
         "Jitting of blocks with instantiations is not yet supported.");
   }
-  return std::unique_ptr<BlockJit>(
-      new BlockJit(block, runtime, std::move(orc_jit), std::move(function)));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
+                       JitRuntime::Create());
+  return std::unique_ptr<BlockJit>(new BlockJit(
+      block, std::move(runtime), std::move(orc_jit), std::move(function)));
 }
 
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
   return std::unique_ptr<BlockJitContinuation>(
-      new BlockJitContinuation(block_, this, runtime_, function_));
+      new BlockJitContinuation(block_, this, function_));
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
@@ -73,7 +74,7 @@ absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
       continuation.input_buffers_.current(),
       continuation.output_buffers_.current(), continuation.temp_buffer_,
       &continuation.GetEvents(), /*instance_context=*/&continuation.callbacks_,
-      runtime_,
+      runtime_.get(),
       /*continuation_point=*/0);
   continuation.SwapRegisters();
   return absl::OkStatus();
@@ -139,11 +140,9 @@ BlockJitContinuation::IOSpace BlockJitContinuation::MakeCombinedBuffers(
 }
 
 BlockJitContinuation::BlockJitContinuation(Block* block, BlockJit* jit,
-                                           JitRuntime* runtime,
                                            const JittedFunctionBase& jit_func)
     : block_(block),
       block_jit_(jit),
-      runtime_(runtime),
       register_buffers_memory_{jit_func.CreateInputBuffer(),
                                jit_func.CreateInputBuffer()},
       input_port_buffers_memory_(jit_func.CreateInputBuffer()),
@@ -178,7 +177,7 @@ absl::Status BlockJitContinuation::SetInputPorts(
         << ip->GetType()->ToString();
     ++it;
   }
-  return runtime_->PackArgs(values, types, input_port_pointers());
+  return block_jit_->runtime()->PackArgs(values, types, input_port_pointers());
 }
 
 absl::Status BlockJitContinuation::SetInputPorts(
@@ -231,7 +230,7 @@ absl::Status BlockJitContinuation::SetRegisters(
         << reg->type()->ToString();
     ++it;
   }
-  return runtime_->PackArgs(values, types, register_pointers());
+  return block_jit_->runtime()->PackArgs(values, types, register_pointers());
 }
 
 absl::Status BlockJitContinuation::SetRegisters(
@@ -275,7 +274,7 @@ std::vector<Value> BlockJitContinuation::GetOutputPorts() const {
   result.reserve(output_port_pointers().size());
   int i = 0;
   for (auto ptr : output_port_pointers()) {
-    result.push_back(runtime_->UnpackBuffer(
+    result.push_back(block_jit_->runtime()->UnpackBuffer(
         ptr, block_->GetOutputPorts()[i++]->operand(0)->GetType()));
   }
   return result;
@@ -327,8 +326,8 @@ std::vector<Value> BlockJitContinuation::GetRegisters() const {
   result.reserve(register_pointers().size());
   int i = 0;
   for (auto ptr : register_pointers()) {
-    result.push_back(
-        runtime_->UnpackBuffer(ptr, block_->GetRegisters()[i++]->type()));
+    result.push_back(block_jit_->runtime()->UnpackBuffer(
+        ptr, block_->GetRegisters()[i++]->type()));
   }
   return result;
 }
@@ -353,7 +352,7 @@ absl::StatusOr<BlockRunResult> JitBlockEvaluator::EvaluateBlock(
       << "StreamingJitBlockEvaluator does not support instantiations";
 
   XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(top_block, runtime.get()));
+  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(top_block));
   auto continuation = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(continuation->SetInputPorts(inputs));
   XLS_RETURN_IF_ERROR(continuation->SetRegisters(reg_state));
@@ -374,8 +373,7 @@ StreamingJitBlockEvaluator::EvaluateSequentialBlock(
   for (Register* reg : block->GetRegisters()) {
     reg_state[reg->name()] = ZeroOfType(reg->type());
   }
-  XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(block, runtime.get()));
+  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(block));
   auto continuation = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(continuation->SetRegisters(reg_state));
 
@@ -403,8 +401,7 @@ StreamingJitBlockEvaluator::EvaluateChannelizedSequentialBlock(
     reg_state[reg->name()] = ZeroOfType(reg->type());
   }
 
-  XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(block, runtime.get()));
+  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(block));
   auto continuation = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(continuation->SetRegisters(reg_state));
 
@@ -468,11 +465,8 @@ namespace {
 class BlockContinuationJitWrapper final : public BlockContinuation {
  public:
   BlockContinuationJitWrapper(std::unique_ptr<BlockJitContinuation>&& cont,
-                              std::unique_ptr<BlockJit>&& jit,
-                              std::unique_ptr<JitRuntime>&& runtime)
-      : continuation_(std::move(cont)),
-        jit_(std::move(jit)),
-        runtime_(std::move(runtime)) {}
+                              std::unique_ptr<BlockJit>&& jit)
+      : continuation_(std::move(cont)), jit_(std::move(jit)) {}
   const absl::flat_hash_map<std::string, Value>& output_ports() final {
     if (!temporary_outputs_) {
       temporary_outputs_.emplace(continuation_->GetOutputPortsMap());
@@ -502,7 +496,6 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
  private:
   std::unique_ptr<BlockJitContinuation> continuation_;
   std::unique_ptr<BlockJit> jit_;
-  std::unique_ptr<JitRuntime> runtime_;
   // Holder for the data we return out of output_ports so that we can reduce
   // copying.
   std::optional<absl::flat_hash_map<std::string, Value>> temporary_outputs_;
@@ -519,12 +512,11 @@ StreamingJitBlockEvaluator::NewContinuation(
   Block* top_block = *elaboration.top()->block();
   XLS_RET_CHECK_EQ(elaboration.instances().size(), 1)
       << "StreamingJitBlockEvaluator does not support instantiations";
-  XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(top_block, runtime.get()));
+  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(top_block));
   auto jit_cont = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(jit_cont->SetRegisters(initial_registers));
-  return std::make_unique<BlockContinuationJitWrapper>(
-      std::move(jit_cont), std::move(jit), std::move(runtime));
+  return std::make_unique<BlockContinuationJitWrapper>(std::move(jit_cont),
+                                                       std::move(jit));
 }
 
 }  // namespace xls

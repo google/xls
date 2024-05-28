@@ -49,8 +49,7 @@ namespace xls {
 class BlockJitContinuation;
 class BlockJit {
  public:
-  static absl::StatusOr<std::unique_ptr<BlockJit>> Create(Block* block,
-                                                          JitRuntime* runtime);
+  static absl::StatusOr<std::unique_ptr<BlockJit>> Create(Block* block);
 
   // Create a new blank block with no registers or ports set. Can be cycled
   // independently of other blocks/continuations.
@@ -60,6 +59,8 @@ class BlockJit {
   absl::Status RunOneCycle(BlockJitContinuation& continuation);
 
   OrcJit& orc_jit() const { return *jit_; }
+
+  JitRuntime* runtime() const { return runtime_.get(); }
 
   // Get how large each pointer buffer for the input ports are.
   absl::Span<const int64_t> input_port_sizes() const {
@@ -74,15 +75,15 @@ class BlockJit {
   }
 
  private:
-  BlockJit(Block* block, JitRuntime* runtime, std::unique_ptr<OrcJit> jit,
-           JittedFunctionBase function)
+  BlockJit(Block* block, std::unique_ptr<JitRuntime> runtime,
+           std::unique_ptr<OrcJit> jit, JittedFunctionBase function)
       : block_(block),
-        runtime_(runtime),
+        runtime_(std::move(runtime)),
         jit_(std::move(jit)),
         function_(std::move(function)) {}
 
   Block* block_;
-  JitRuntime* runtime_;
+  std::unique_ptr<JitRuntime> runtime_;
   std::unique_ptr<OrcJit> jit_;
   JittedFunctionBase function_;
 };
@@ -194,7 +195,7 @@ class BlockJitContinuation {
 
  private:
   using BufferPair = std::array<JitArgumentSet, 2>;
-  BlockJitContinuation(Block* block, BlockJit* jit, JitRuntime* runtime,
+  BlockJitContinuation(Block* block, BlockJit* jit,
                        const JittedFunctionBase& jit_func);
   static IOSpace MakeCombinedBuffers(const JittedFunctionBase& jit_func,
                                      const Block* block,
@@ -227,7 +228,6 @@ class BlockJitContinuation {
 
   const Block* block_;
   BlockJit* block_jit_;
-  JitRuntime* runtime_;
 
   // Buffers for the registers. Note this includes (unused) space for the input
   // ports.
