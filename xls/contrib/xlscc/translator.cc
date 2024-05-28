@@ -88,7 +88,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
 using std::list;

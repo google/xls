@@ -24,7 +24,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_op_translator.h"
-#include "../z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3_api.h"
 
 namespace xls::solvers::z3 {
 namespace {

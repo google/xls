@@ -43,8 +43,8 @@
 #include "xls/ir/package.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3_api.h"
-#include "../z3/src/api/z3_fpa.h"
+#include "external/z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3_fpa.h"
 
 ABSL_FLAG(absl::Duration, timeout, absl::InfiniteDuration(),
           "How long to wait for the proof to complete.");

@@ -25,7 +25,7 @@
 #include "absl/status/statusor.h"
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"
-#include "../z3/src/api/z3.h"
+#include "external/z3/src/api/z3.h"
 
 namespace xls {
 namespace solvers {

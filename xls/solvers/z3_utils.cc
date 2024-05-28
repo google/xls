@@ -33,7 +33,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "../z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
 namespace xls {

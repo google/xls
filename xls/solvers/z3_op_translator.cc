@@ -22,8 +22,8 @@
 
 #include "absl/base/macros.h"
 #include "absl/log/check.h"
-#include "../z3/src/api/z3.h"  // IWYU pragma: keep
-#include "../z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3.h"  // IWYU pragma: keep
+#include "external/z3/src/api/z3_api.h"
 
 namespace xls::solvers::z3 {
 

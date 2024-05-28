@@ -49,8 +49,8 @@
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_op_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3_api.h"
-#include "../z3/src/api/z3_fpa.h"
+#include "external/z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3_fpa.h"
 
 namespace xls {
 namespace solvers {

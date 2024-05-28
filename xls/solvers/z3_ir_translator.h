@@ -42,8 +42,8 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "../z3/src/api/z3.h"  // IWYU pragma: keep
-#include "../z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3.h"  // IWYU pragma: keep
+#include "external/z3/src/api/z3_api.h"
 
 namespace xls {
 namespace solvers {

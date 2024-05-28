@@ -42,7 +42,7 @@
 #include "xls/passes/unroll_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3_api.h"
+#include "external/z3/src/api/z3_api.h"
 
 static constexpr std::string_view kUsage = R"(
 Verifies that the two provided XLS IR files are logically equivalent; that is,
