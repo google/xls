@@ -77,6 +77,8 @@ class SharedCompiler final : public LlvmCompiler {
         the_module_(underlying_->NewModule(
             absl::StrFormat("__shared_module_for_%s", name))) {}
 
+  bool IsSharedCompilation() const override { return true; }
+
   // Share around the same module.
   std::unique_ptr<llvm::Module> NewModule(std::string_view ignored) override {
     CHECK(the_module_) << "no module to give out!";
@@ -122,10 +124,10 @@ absl::StatusOr<JitObjectCode> GetAotObjectCode(ProcElaboration elaboration,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> target,
                        compiler->CreateTargetMachine());
   llvm::DataLayout layout = target->createDataLayout();
-  SharedCompiler sc(
-      elaboration.top() ? elaboration.top()->GetName()
+  SharedCompiler sc(elaboration.top()
+                        ? elaboration.top()->GetName()
                         : elaboration.procs().front()->package()->name(),
-      compiler.get(), std::move(target), std::move(layout));
+                    compiler.get(), std::move(target), std::move(layout));
   JitObjectCode joc;
   for (Proc* p : elaboration.procs()) {
     joc.entrypoints.push_back({.function = p});

@@ -867,8 +867,10 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm::Type::getInt1Ty(jit_context.module()->getContext()), param_types,
       /*isVarArg=*/false);
+
   std::string function_name = absl::StrFormat(
-      "__%s_%s_%d", node->function_base()->name(), node->GetName(), node->id());
+      "__%s_%s_%d", jit_context.MangleFunctionName(node->function_base()),
+      node->GetName(), node->id());
   XLS_ASSIGN_OR_RETURN(
       nc.llvm_function_,
       CreateLlvmFunction(function_name, function_type, jit_context.module()));

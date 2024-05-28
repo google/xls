@@ -821,10 +821,22 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
   VLOG(4) << xls_function->DumpIr();
   std::vector<Partition> partitions = PartitionFunctionBase(xls_function);
 
+  // For shared compilations (ie AOT proc-networks) we need to have multiple
+  // different procs all hitting the same function. The issue is that we
+  // assign slots in the temp buffer globally starting from 0 for each call to
+  // JittedFunctionBase::Build. This means that different 'procs' have
+  // different ideas about where in the temp buffer things go. For now to
+  // avoid this issue simple create a different copy all dependent functions
+  // for each top.
+  // TODO(allight): Long term it would be good to avoid this headache and
+  // extra code. Since the function call graph is a DAG we should be able to
+  // have each function assign its own tmp buffer starting from 0 and make the
+  // overall tmp-buffer the topo sort.
+  std::string base_name = jit_context.MangleFunctionName(xls_function);
   std::vector<Node*> inputs = GetJittedFunctionInputs(xls_function);
   std::vector<Node*> outputs = GetJittedFunctionOutputs(xls_function);
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
-      MangleForLLVM(xls_function->name()), inputs, outputs,
+      MangleForLLVM(base_name), inputs, outputs,
       llvm::Type::getInt64Ty(jit_context.context()), jit_context,
       LlvmFunctionWrapper::FunctionArg{
           .name = "continuation_point",
@@ -834,8 +846,7 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
 
   std::vector<llvm::Function*> partition_functions;
   for (int64_t i = 0; i < partitions.size(); ++i) {
-    std::string name =
-        absl::StrFormat("__%s_partition_%d", xls_function->name(), i);
+    std::string name = absl::StrFormat("__%s_partition_%d", base_name, i);
     XLS_ASSIGN_OR_RETURN(
         llvm::Function * partition_function,
         BuildPartitionFunction(name, partitions[i], inputs, outputs, allocator,
@@ -1266,6 +1277,20 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
   llvm::Function* top_function = nullptr;
   std::vector<Partition> top_partitions;
   for (FunctionBase* f : functions) {
+    // For shared compilations (ie AOT proc-networks) we need to have multiple
+    // different procs all hitting the same function. The issue is that we
+    // assign slots in the temp buffer globally starting from 0 for each call to
+    // JittedFunctionBase::Build. This means that different 'procs' have
+    // different ideas about where in the temp buffer things go. For now to
+    // avoid this issue simple create a different copy all dependent functions
+    // for each top.
+    // TODO(allight): Long term it would be good to avoid this headache and
+    // extra code. Since the function call graph is a DAG we should be able to
+    // have each function assign its own tmp buffer starting from 0 and make the
+    // overall tmp-buffer the topo sort.
+    XLS_RET_CHECK_EQ(
+        jit_context.module()->getFunction(MangleForLLVM(f->name())), nullptr)
+        << "Multiple copies of the same function created";
     XLS_ASSIGN_OR_RETURN(PartitionedFunction partitioned_function,
                          BuildFunctionInternal(f, allocator, jit_context));
     jit_context.SetLlvmFunction(f, partitioned_function.function);
@@ -1358,21 +1383,21 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
     Function* xls_function, LlvmCompiler& compiler) {
-  JitBuilderContext jit_context(compiler);
+  JitBuilderContext jit_context(compiler, xls_function);
   return JittedFunctionBase::BuildInternal(xls_function, jit_context,
                                            /*build_packed_wrapper=*/true);
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
     Proc* proc, LlvmCompiler& compiler) {
-  JitBuilderContext jit_context(compiler);
+  JitBuilderContext jit_context(compiler, proc);
   return JittedFunctionBase::BuildInternal(proc, jit_context,
                                            /*build_packed_wrapper=*/false);
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
     Block* block, LlvmCompiler& compiler) {
-  JitBuilderContext jit_context(compiler);
+  JitBuilderContext jit_context(compiler, block);
   return JittedFunctionBase::BuildInternal(block, jit_context,
                                            /*build_packed_wrapper=*/false);
 }

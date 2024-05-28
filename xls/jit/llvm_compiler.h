@@ -55,6 +55,8 @@ class LlvmCompiler {
 
   bool IsAotCompiler() { return AsAotCompiler().ok(); }
   bool IsOrcJit() { return AsOrcJit().ok(); }
+  // Return true if this is a compilation shared with many targets.
+  virtual bool IsSharedCompilation() const { return false; }
 
   // Gets the context pointer.
   virtual llvm::LLVMContext* GetContext() = 0;

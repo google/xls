@@ -28,6 +28,7 @@
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Value.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -43,12 +44,12 @@ bool ShouldMaterializeAtUse(Node* node);
 // etc.
 class JitBuilderContext {
  public:
-  explicit JitBuilderContext(LlvmCompiler& llvm_compiler)
+  explicit JitBuilderContext(LlvmCompiler& llvm_compiler, FunctionBase* top)
       : module_(llvm_compiler.NewModule("__module")),
         llvm_compiler_(llvm_compiler),
-        type_converter_(
-            llvm_compiler_.GetContext(),
-            llvm_compiler_.CreateDataLayout().value()) {
+        top_(top),
+        type_converter_(llvm_compiler_.GetContext(),
+                        llvm_compiler_.CreateDataLayout().value()) {
     CHECK_EQ(module_->getTargetTriple(), llvm_compiler_.target_triple());
   }
 
@@ -56,6 +57,7 @@ class JitBuilderContext {
   llvm::LLVMContext& context() const { return module_->getContext(); }
   LlvmCompiler& llvm_compiler() { return llvm_compiler_; }
   LlvmTypeConverter& type_converter() { return type_converter_; }
+  FunctionBase* top() const { return top_; }
 
   // Destructively returns the underlying llvm::Module.
   std::unique_ptr<llvm::Module> ConsumeModule() { return std::move(module_); }
@@ -90,9 +92,17 @@ class JitBuilderContext {
     return queue_indices_;
   }
 
+  std::string MangleFunctionName(FunctionBase* f) {
+    if (f == top() || !llvm_compiler().IsSharedCompilation()) {
+      return f->name();
+    }
+    return absl::StrFormat("%s____SUBROUTINE_OF_%s", f->name(), top()->name());
+  }
+
  private:
   std::unique_ptr<llvm::Module> module_;
   LlvmCompiler& llvm_compiler_;
+  FunctionBase* top_;
   LlvmTypeConverter type_converter_;
 
   // Map from FunctionBase to the associated JITed llvm::Function.

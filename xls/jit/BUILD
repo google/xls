@@ -541,6 +541,8 @@ cc_test(
         "proc_jit_aot_test.cc",
     ],
     data = [
+        ":multi_proc.ir",
+        ":multi_proc_aot",
         ":some_caps_no_idents.ir",
         ":specialized_caps_aot",
     ],
@@ -551,6 +553,7 @@ cc_test(
         ":jit_channel_queue",
         ":jit_proc_runtime",
         ":jit_runtime",
+        ":multi_proc_aot",  # build_cleaner: keep
         ":specialized_caps_aot",  # build_cleaner: keep
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
@@ -560,6 +563,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:events",
         "//xls/ir:type_manager",
         "//xls/ir:value",
@@ -1140,5 +1144,22 @@ genrule(
 xls_aot_generate(
     name = "specialized_caps_aot",
     src = ":some_caps_no_idents",
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
+xls_dslx_library(
+    name = "multi_proc_dslx",
+    srcs = ["multi_proc.x"],
+)
+
+xls_dslx_ir(
+    name = "multi_proc",
+    dslx_top = "proc_ten",
+    library = ":multi_proc_dslx",
+)
+
+xls_aot_generate(
+    name = "multi_proc_aot",
+    src = ":multi_proc",
     with_msan = XLS_IS_MSAN_BUILD,
 )

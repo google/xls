@@ -29,6 +29,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type_manager.h"
@@ -53,6 +54,18 @@ int64_t proc_1(  // NOLINT
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
     xls::JitRuntime* jit_runtime, int64_t continuation_point);
+int64_t __multi_proc__proc_ten__proc_quad_0_next(  // NOLINT
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
+    xls::JitRuntime* jit_runtime, int64_t continuation_point);
+int64_t __multi_proc__proc_ten__proc_double_0_next(  // NOLINT
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
+    xls::JitRuntime* jit_runtime, int64_t continuation_point);
+int64_t __multi_proc__proc_ten_0_next(  // NOLINT
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
+    xls::JitRuntime* jit_runtime, int64_t continuation_point);
 }
 
 namespace xls {
@@ -64,20 +77,59 @@ static_assert(std::is_same_v<JitFunctionType, decltype(&proc_0)>,
 static_assert(std::is_same_v<JitFunctionType, decltype(&proc_1)>,
               "Jit function ABI updated. This test needs to be tweaked.");
 
-static constexpr std::string_view kTestAotEntrypointsProto =
+static constexpr std::string_view kTestCapsAotEntrypointsProto =
     "xls/jit/specialized_caps_aot.pb";
-static constexpr std::string_view kGoldIr = "xls/jit/some_caps_no_idents.ir";
+static constexpr std::string_view kCapsGoldIr =
+    "xls/jit/some_caps_no_idents.ir";
+static constexpr std::string_view kTestMultiAotEntrypointsProto =
+    "xls/jit/multi_proc_aot.pb";
+static constexpr std::string_view kMultiGoldIr = "xls/jit/multi_proc.ir";
 
-absl::StatusOr<AotPackageEntrypointsProto> GetEntrypointsProto() {
+absl::StatusOr<AotPackageEntrypointsProto> GetMultiEntrypointsProto() {
   AotPackageEntrypointsProto proto;
   XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
-                       GetXlsRunfilePath(kTestAotEntrypointsProto));
+                       GetXlsRunfilePath(kTestMultiAotEntrypointsProto));
   XLS_ASSIGN_OR_RETURN(std::string bin, GetFileContents(path));
   XLS_RET_CHECK(proto.ParseFromString(bin));
   return proto;
 }
-bool AreSymbolsAsExpected() {
-  auto v = GetEntrypointsProto();
+
+bool AreMultiSymbolsAsExpected() {
+  auto v = GetMultiEntrypointsProto();
+  if (!v.ok()) {
+    return false;
+  }
+  return absl::c_any_of(v->entrypoint(),
+                        [](const AotEntrypointProto& p) {
+                          return p.has_function_symbol() &&
+                                 p.function_symbol() ==
+                                     "__multi_proc__proc_ten_0_next";
+                        }) &&
+         absl::c_any_of(
+             v->entrypoint(),
+             [](const AotEntrypointProto& p) {
+               return p.has_function_symbol() &&
+                      p.function_symbol() ==
+                          "__multi_proc__proc_ten__proc_double_0_next";
+             }) &&
+         absl::c_any_of(v->entrypoint(), [](const AotEntrypointProto& p) {
+           return p.has_function_symbol() &&
+                  p.function_symbol() ==
+                      "__multi_proc__proc_ten__proc_quad_0_next";
+         });
+}
+
+absl::StatusOr<AotPackageEntrypointsProto> GetCapsEntrypointsProto() {
+  AotPackageEntrypointsProto proto;
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
+                       GetXlsRunfilePath(kTestCapsAotEntrypointsProto));
+  XLS_ASSIGN_OR_RETURN(std::string bin, GetFileContents(path));
+  XLS_RET_CHECK(proto.ParseFromString(bin));
+  return proto;
+}
+
+bool AreCapsSymbolsAsExpected() {
+  auto v = GetCapsEntrypointsProto();
   if (!v.ok()) {
     return false;
   }
@@ -94,15 +146,19 @@ bool AreSymbolsAsExpected() {
 // Not really a test just to make sure that if all other tests are disabled due
 // to linking failure we have *something* that fails.
 TEST(SymbolNames, AreAsExpected) {
-  ASSERT_TRUE(AreSymbolsAsExpected())
+  EXPECT_TRUE(AreCapsSymbolsAsExpected())
       << "Symbols are not what we expected. This test needs to be updated to "
          "match new jit-compiler symbol naming scheme. Symbols are: "
-      << GetEntrypointsProto();
+      << GetCapsEntrypointsProto();
+  EXPECT_TRUE(AreMultiSymbolsAsExpected())
+      << "Symbols are not what we expected. This test needs to be updated to "
+         "match new jit-compiler symbol naming scheme. Symbols are: "
+      << GetMultiEntrypointsProto();
 }
 
 class ProcJitAotTest : public testing::Test {
   void SetUp() override {
-    if (!AreSymbolsAsExpected()) {
+    if (!AreCapsSymbolsAsExpected() || !AreMultiSymbolsAsExpected()) {
       GTEST_SKIP() << "Linking probably failed. AOTEntrypoints lists "
                       "unexpected symbol names";
     }
@@ -127,10 +183,10 @@ Value StrValue(const char sv[8]) {
 
 TEST_F(ProcJitAotTest, Tick) {
   XLS_ASSERT_OK_AND_ASSIGN(AotPackageEntrypointsProto proto,
-                           GetEntrypointsProto());
-  XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kGoldIr));
+                           GetCapsEntrypointsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kCapsGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kGoldIr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kCapsGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p0, p->GetProc("proc_0"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p1, p->GetProc("proc_1"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -161,10 +217,10 @@ TEST_F(ProcJitAotTest, Tick) {
 
 TEST_F(ProcJitAotTest, TickUntilBlocked) {
   XLS_ASSERT_OK_AND_ASSIGN(AotPackageEntrypointsProto proto,
-                           GetEntrypointsProto());
-  XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kGoldIr));
+                           GetCapsEntrypointsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kCapsGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kGoldIr));
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kCapsGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p0, p->GetProc("proc_0"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p1, p->GetProc("proc_1"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -192,5 +248,52 @@ TEST_F(ProcJitAotTest, TickUntilBlocked) {
   EXPECT_THAT(chan_output->Read(), Optional(StrValue("QrStUvWx")));
   EXPECT_THAT(chan_output->Read(), Optional(StrValue("YZ012345")));
 }
+
+TEST_F(ProcJitAotTest, MultipleProcsCanHitSameFunction) {
+  XLS_ASSERT_OK_AND_ASSIGN(AotPackageEntrypointsProto proto,
+                           GetMultiEntrypointsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kMultiGoldIr));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kMultiGoldIr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * pquad, p->GetProc("__multi_proc__proc_ten__proc_quad_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * pdouble, p->GetProc("__multi_proc__proc_ten__proc_double_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * ptop,
+                           p->GetProc("__multi_proc__proc_ten_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto aot_runtime,
+      CreateAotSerialProcRuntime(
+          p.get(), proto,
+          {
+              ProcAotEntrypoints{
+                  .proc = pdouble,
+                  .unpacked = __multi_proc__proc_ten__proc_double_0_next},
+              ProcAotEntrypoints{
+                  .proc = pquad,
+                  .unpacked = __multi_proc__proc_ten__proc_quad_0_next},
+              ProcAotEntrypoints{.proc = ptop,
+                                 .unpacked = __multi_proc__proc_ten_0_next},
+          }));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueManager * chan_man,
+                           aot_runtime->GetJitChannelQueueManager());
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * chan_input,
+                           chan_man->GetQueueByName("multi_proc__bytes_src"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelQueue * chan_output,
+      chan_man->GetQueueByName("multi_proc__bytes_result"));
+  XLS_EXPECT_OK(chan_input->Write(Value(UBits(4, 32))));
+  XLS_EXPECT_OK(chan_input->Write(Value(UBits(8, 32))));
+  XLS_EXPECT_OK(chan_input->Write(Value(UBits(16, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t count, aot_runtime->TickUntilBlocked());
+  // 1 for each of the inputs and then another tick succeeds by making progress
+  // until it tries to recv from the empty channel so 4 count.
+  EXPECT_EQ(count, 4);
+  EXPECT_THAT(chan_output->Read(), Optional(Value(UBits(40, 32))));
+  EXPECT_THAT(chan_output->Read(), Optional(Value(UBits(80, 32))));
+  EXPECT_THAT(chan_output->Read(), Optional(Value(UBits(160, 32))));
+}
+
 }  // namespace
 }  // namespace xls
