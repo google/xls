@@ -320,7 +320,7 @@ _BASE_JIT_WRAPPER_DEPS = {
     PROC_WRAPPER_TYPE: "//xls/jit:proc_base_jit_wrapper",
 }
 
-_AOT_SUPPORTED_WRAPPERS = [FUNCTION_WRAPPER_TYPE]
+_AOT_SUPPORTED_WRAPPERS = [FUNCTION_WRAPPER_TYPE, PROC_WRAPPER_TYPE]
 
 def cc_xls_ir_jit_wrapper(
         name,

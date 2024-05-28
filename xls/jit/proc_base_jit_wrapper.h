@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/proc_runtime.h"
@@ -34,6 +35,8 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
+#include "xls/jit/aot_entrypoint.pb.h"
+#include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
@@ -43,9 +46,15 @@ namespace xls {
 
 class BaseProcJitWrapper {
  public:
+  struct AotEntrypoint {
+    std::string_view proc_name;
+    JitFunctionType function_ptr;
+  };
   template <typename RealType>
   static absl::StatusOr<std::unique_ptr<RealType>> Create(
-      std::string_view ir_text, std::string_view function_name)
+      std::string_view ir_text, std::string_view function_name,
+      absl::Span<uint8_t const> aot_proto,
+      absl::Span<AotEntrypoint const> entrypoints)
     requires(std::is_base_of_v<BaseProcJitWrapper, RealType>)
   {
     XLS_ASSIGN_OR_RETURN(auto package,
@@ -53,14 +62,25 @@ class BaseProcJitWrapper {
     XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc(function_name));
     XLS_RET_CHECK_EQ(proc, package->GetTop().value_or(nullptr))
         << "Only top proc supported right now.";
-    XLS_ASSIGN_OR_RETURN(auto jit, CreateJitSerialProcRuntime(package.get()));
+    AotPackageEntrypointsProto proto;
+    XLS_RET_CHECK(proto.ParseFromArray(aot_proto.data(), aot_proto.size()));
 
-    XLS_ASSIGN_OR_RETURN(auto* man, jit->GetJitChannelQueueManager());
+    std::vector<ProcAotEntrypoints> real_entrypoints;
+    real_entrypoints.reserve(entrypoints.size());
+    for (const AotEntrypoint& e : entrypoints) {
+      XLS_ASSIGN_OR_RETURN(Proc * p, package->GetProc(e.proc_name));
+      real_entrypoints.push_back(
+          ProcAotEntrypoints{.proc = p, .unpacked = e.function_ptr});
+    }
+    XLS_ASSIGN_OR_RETURN(auto aot, CreateAotSerialProcRuntime(
+                                       package.get(), proto, real_entrypoints));
+
+    XLS_ASSIGN_OR_RETURN(auto* man, aot->GetJitChannelQueueManager());
     JitRuntime& runtime = man->runtime();
-    jit->ResetState();
+    aot->ResetState();
 
     return std::unique_ptr<RealType>(
-        new RealType(std::move(package), proc, std::move(jit), runtime));
+        new RealType(std::move(package), proc, std::move(aot), runtime));
   }
 
   ProcRuntime* runtime() const { return runtime_.get(); }

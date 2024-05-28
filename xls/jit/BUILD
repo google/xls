@@ -229,6 +229,8 @@ cc_library(
     # Allow jit-wrapper users to see this.
     visibility = ["//xls:xls_users"],
     deps = [
+        ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
         ":jit_channel_queue",
         ":jit_proc_runtime",
         ":jit_runtime",
@@ -241,6 +243,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

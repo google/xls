@@ -6,10 +6,46 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/proc_base_jit_wrapper.h"
 
+extern "C" {
+{% for e in wrapped.aot_entrypoint.entrypoint %}
+// Entrypoint for pkg: {{e.xls_package_name}}, proc: {{ e.xls_function_identifier }}
+int64_t {{e.function_symbol}}(  // NOLINT
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
+    xls::JitRuntime* jit_runtime, int64_t continuation_point);
+
+{% endfor %}
+}
+
 namespace {{ wrapped.namespace }} {
 
 namespace {
+
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr bool kTargetHasSanitizer = true;
+#else
+static constexpr bool kTargetHasSanitizer = false;
+#endif
+static constexpr bool kExternHasSanitizer = {{ "true" if wrapped.aot_entrypoint.entrypoint[0].has_msan else "false" }};
+
+static_assert(kTargetHasSanitizer == kExternHasSanitizer,
+              "sanitizer states do not match!");
+
 static constexpr std::string_view kProcName = "{{ wrapped.function_name }}";
+
+static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToString())}}> kAotPackageEntrypointProtoBin = {
+  {{wrapped.aot_entrypoint.SerializeToString() | list | join(", ")}}
+};
+
+static constexpr std::array<BaseProcJitWrapper::AotEntrypoint, {{len(wrapped.aot_entrypoint.entrypoint)}}> kFunctionPointers = {
+{% for e in wrapped.aot_entrypoint.entrypoint %}
+  BaseProcJitWrapper::AotEntrypoint{ 
+      .proc_name = "{{e.xls_function_identifier}}",
+      .function_ptr = {{e.function_symbol}}
+  },
+{% endfor %}
+};
+
 static constexpr std::string_view kIrText =
     R"original_ir({{wrapped.ir_text}})original_ir";
 }  // namespace
@@ -17,7 +53,10 @@ static constexpr std::string_view kIrText =
 absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
 {{ wrapped.class_name }}::Create() {
   return xls::BaseProcJitWrapper::Create<{{wrapped.class_name}}>(
-            kIrText, kProcName);
+            kIrText,
+            kProcName,
+            kAotPackageEntrypointProtoBin,
+            kFunctionPointers);
 }
 
 }  // namespace {{ wrapped.namespace }}

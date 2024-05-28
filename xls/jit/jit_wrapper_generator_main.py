@@ -366,7 +366,31 @@ def interpret_proc_interface(
     class_name: str,
     header_guard: str,
     header_filename: str,
+    aot_info: aot_entrypoint_pb2.AotPackageEntrypointsProto,
 ) -> WrappedIr:
+  """Fill in a WrappedIr for a proc from the interface.
+
+  Args:
+    ir: package IR
+    package: the package interface proto
+    proc_ir: the particular proc we want to wrap
+    class_name: The class name
+    header_guard: The header-guard string
+    header_filename: The header file name.
+    aot_info: The aot info for the function.
+
+  Returns:
+    A wrapped ir for the proc.
+
+  Raises:
+    UsageError: If the aot info does not contain the top proc.
+  """
+  top = proc_ir.base.name
+  checks = (v.xls_function_identifier != top for v in aot_info.entrypoint)
+  if all(checks):
+    raise app.UsageError(
+        f"AOT info does not contain an entry for top proc {proc_ir.base.name}"
+    )
   state = [to_param(p) for p in proc_ir.state]
   input_channels = [to_chan(p, package.name) for p in package.channels]
   output_channels = [to_chan(p, package.name) for p in package.channels]
@@ -381,7 +405,7 @@ def interpret_proc_interface(
       incoming_channels=input_channels,
       outgoing_channels=output_channels,
       state=state,
-      aot_entrypoint=None,
+      aot_entrypoint=aot_info,
   )
 
 
@@ -451,7 +475,13 @@ def interpret_interface(
     proc_ir = find_named_entry(interface.procs, function_name, interface.name)
     if proc_ir is not None:
       return interpret_proc_interface(
-          ir, interface, proc_ir, class_name, header_guard, header_filename
+          ir,
+          interface,
+          proc_ir,
+          class_name,
+          header_guard,
+          header_filename,
+          aot_info,
       )
   raise app.UsageError(
       f"No function/proc called {function_name} in {interface.name} found."
