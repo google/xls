@@ -84,6 +84,7 @@ xls_dslx_opt_ir(
     dslx_top = "manual_chan_caps_specialized",
     ir_file = "manual_chan_caps_streaming_configured.ir",
     library = ":some_caps_streaming_configured",
+    visibility = ["//xls:xls_internal"],
 )
 
 cc_xls_ir_jit_wrapper(

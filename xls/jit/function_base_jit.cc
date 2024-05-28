@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -71,6 +72,20 @@
 
 namespace xls {
 namespace {
+
+// A fake function entrypoint we can use if we didn't actually load the compiled
+// code.
+int64_t InvalidJitFunctionUse(const uint8_t* const* inputs,
+                              uint8_t* const* outputs, void* temp_buffer,
+                              InterpreterEvents* events,
+                              InstanceContext* instance_context,
+                              JitRuntime* jit_runtime,
+                              int64_t continuation_point) {
+  static_assert(
+      std::is_same_v<decltype(&InvalidJitFunctionUse), JitFunctionType>);
+  LOG(FATAL)
+      << "Attempt to call invalid function pointer in JitObjectCode structure!";
+}
 
 // Loads a pointer from the `index`-th slot in the array pointed to by
 // `pointer_array`.
@@ -1281,7 +1296,9 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     XLS_ASSIGN_OR_RETURN(auto fn_address, orc_jit->LoadSymbol(function_name));
     jitted_function.function_ = absl::bit_cast<JitFunctionType>(fn_address);
   } else {
-    jitted_function.function_ = nullptr;
+    // Give it a function that will give a sort of useful error message if you
+    // actually try to invoke it.
+    jitted_function.function_ = InvalidJitFunctionUse;
   }
 
   if (build_packed_wrapper) {
@@ -1294,7 +1311,9 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
       jitted_function.packed_function_ =
           absl::bit_cast<JitFunctionType>(packed_fn_address);
     } else {
-      jitted_function.packed_function_ = nullptr;
+      // Give it a function that will give a sort of useful error message if you
+      // actually try to invoke it.
+      jitted_function.packed_function_ = InvalidJitFunctionUse;
     }
   }
 
@@ -1394,9 +1413,10 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildFromAot(
                            function->GetNodeById(node_id));
     }
     for (auto* chan : function->package()->channels()) {
-      XLS_RET_CHECK(abi.channel_queue_indices().contains(chan->name()));
-      queue_indices[chan->name()] =
-          abi.channel_queue_indices().at(chan->name());
+      if (abi.channel_queue_indices().contains(chan->name())) {
+        queue_indices[chan->name()] =
+            abi.channel_queue_indices().at(chan->name());
+      }
     }
   } else {
     XLS_RET_CHECK_EQ(abi.continuation_point_node_ids_size(), 0);

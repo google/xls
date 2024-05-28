@@ -16,10 +16,14 @@
 #define XLS_JIT_JIT_PROC_RUNTIME_H_
 
 #include <memory>
+#include <optional>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/package.h"
+#include "xls/jit/aot_entrypoint.pb.h"
+#include "xls/jit/function_base_jit.h"
 
 namespace xls {
 
@@ -32,6 +36,40 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
 // elaboration of the given proc. Supports new-style procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
     Proc* top);
+
+struct ProcAotEntrypoints {
+  // What proc these entrypoints are associated with.
+  Proc* proc;
+  // unpacked entrypoint
+  JitFunctionType unpacked;
+  // packed entrypoint
+  std::optional<JitFunctionType> packed = std::nullopt;
+};
+
+// Create a SerialProcRuntime composed of ProcJits. Constructed from the
+// elaboration of the given proc using the given impls. All procs in the
+// elaboration must have an associated entry in the entrypoints and impls lists.
+// TODO(allight): Requiring the whole package here makes a lot of things simpler
+// but it would be nice to not need to parse the package in the aot case.
+absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
+    Proc* top, const AotPackageEntrypointsProto& entrypoints,
+    absl::Span<ProcAotEntrypoints const> impls);
+
+// Create a SerialProcRuntime composed of ProcJits. Constructed from the
+// elaboration of the given package using the given impls. All procs in the
+// elaboration must have an associated entry in the entrypoints and impls lists.
+// TODO(allight): Requiring the whole package here makes a lot of things simpler
+// but it would be nice to not need to parse the package in the aot case.
+absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
+    Package* package, const AotPackageEntrypointsProto& entrypoints,
+    absl::Span<ProcAotEntrypoints const> impls);
+
+// Generate AOT code for the given proc elaboration.
+absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Package* package,
+                                                      bool with_msan);
+// Generate AOT code for the given proc elaboration.
+absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Proc* top,
+                                                      bool with_msan);
 
 }  // namespace xls
 

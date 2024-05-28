@@ -67,7 +67,8 @@ absl::StatusOr<llvm::DataLayout> LlvmCompiler::CreateDataLayout() {
 std::unique_ptr<llvm::Module> LlvmCompiler::NewModule(std::string_view name) {
   CHECK(!module_created_) << "Only one module should be made.";
   auto module = std::make_unique<llvm::Module>(name, *GetContext());
-  module->setDataLayout(this->data_layout_);
+  module->setDataLayout(data_layout_);
+  module->setTargetTriple(target_triple());
   return module;
 }
 

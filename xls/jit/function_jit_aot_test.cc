@@ -80,12 +80,13 @@ static constexpr std::string_view kTestAotEntrypointsProto =
     "xls/jit/multi_function_aot.pb";
 
 absl::StatusOr<AotEntrypointProto> GetEntrypointsProto() {
-  AotEntrypointProto proto;
+  AotPackageEntrypointsProto proto;
   XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
                        GetXlsRunfilePath(kTestAotEntrypointsProto));
   XLS_ASSIGN_OR_RETURN(std::string bin, GetFileContents(path));
   XLS_RET_CHECK(proto.ParseFromString(bin));
-  return proto;
+  XLS_RET_CHECK_EQ(proto.entrypoint_size(), 1);
+  return proto.entrypoint()[0];
 }
 bool AreSymbolsAsExpected() {
   auto v = GetEntrypointsProto();

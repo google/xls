@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -24,17 +23,13 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Value.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
-#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/llvm_compiler.h"
-#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
@@ -54,7 +49,7 @@ class JitBuilderContext {
         type_converter_(
             llvm_compiler_.GetContext(),
             llvm_compiler_.CreateDataLayout().value()) {
-    module_->setTargetTriple(llvm_compiler_.target_triple());
+    CHECK_EQ(module_->getTargetTriple(), llvm_compiler_.target_triple());
   }
 
   llvm::Module* module() const { return module_.get(); }

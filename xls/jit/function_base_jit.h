@@ -36,7 +36,6 @@
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/orc_jit.h"
 
 namespace xls {
 
@@ -290,6 +289,18 @@ class JittedFunctionBase {
   // The map from channel reference name to the index of the respective queue in
   // the instance context.
   absl::btree_map<std::string, int64_t> queue_indices_;
+};
+
+struct FunctionEntrypoint {
+  FunctionBase* function;
+  JittedFunctionBase jit_info;
+};
+
+// Data structure containing jitted object code and metadata about how to call
+// it.
+struct JitObjectCode {
+  std::vector<uint8_t> object_code;
+  std::vector<FunctionEntrypoint> entrypoints;
 };
 
 }  // namespace xls

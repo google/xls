@@ -15,20 +15,18 @@
 #ifndef XLS_JIT_PROC_JIT_H_
 #define XLS_JIT_PROC_JIT_H_
 
-#include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/interpreter/proc_evaluator.h"
-#include "xls/ir/elaboration.h"
-#include "xls/ir/events.h"
 #include "xls/ir/proc.h"
-#include "xls/ir/value.h"
+#include "xls/ir/proc_elaboration.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
-#include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
@@ -46,6 +44,11 @@ class ProcJit : public ProcEvaluator {
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
       Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
       JitObserver* observer = nullptr);
+
+  static absl::StatusOr<std::unique_ptr<ProcJit>> CreateFromAot(
+      Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
+      const AotEntrypointProto& entrypoint, JitFunctionType unpacked,
+      std::optional<JitFunctionType> packed = std::nullopt);
 
   ~ProcJit() override = default;
 

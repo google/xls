@@ -127,14 +127,19 @@ def main(argv: Sequence[str]) -> None:
   if len(argv) != 2:
     raise app.UsageError(f"Usage: {argv[0]} [flags] AotEntrypointProto")
   if _READ_TEXTPROTO.value:
-    entrypoint = aot_entrypoint_pb2.AotEntrypointProto()
+    all_entrypoints = aot_entrypoint_pb2.AotPackageEntrypointsProto()
     with open(argv[1], "rt") as proto:
-      text_format.Parse(proto.read(), entrypoint)
+      text_format.Parse(proto.read(), all_entrypoints)
   else:
     with open(argv[1], "rb") as proto:
-      entrypoint = aot_entrypoint_pb2.AotEntrypointProto.FromString(
-          proto.read()
+      all_entrypoints = (
+          aot_entrypoint_pb2.AotPackageEntrypointsProto.FromString(proto.read())
       )
+  if len(all_entrypoints.entrypoint) != 1:
+    raise app.UsageError("Multiple entrypoints are not supported.")
+  entrypoint = all_entrypoints.entrypoint[0]
+  if entrypoint.type != aot_entrypoint_pb2.AotEntrypointProto.FUNCTION:
+    raise app.UsageError("Only functions are supported!")
   params = []
   for name, size, align in zip(
       entrypoint.inputs_names,

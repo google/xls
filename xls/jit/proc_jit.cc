@@ -199,9 +199,7 @@ absl::Status ProcJitContinuation::NextTick() {
   return absl::OkStatus();
 }
 
-}  // namespace
-
-static absl::StatusOr<ChannelInstance*> GetChannelInstance(
+absl::StatusOr<ChannelInstance*> GetChannelInstance(
     ProcInstance* proc_instance, std::string_view channel_name,
     JitChannelQueueManager* queue_mgr) {
   if (proc_instance->path().has_value()) {
@@ -216,6 +214,44 @@ static absl::StatusOr<ChannelInstance*> GetChannelInstance(
   return queue_mgr->elaboration().GetUniqueInstance(channel);
 }
 
+absl::Status InitializeChannelQueues(
+    Proc* proc, JitChannelQueueManager* queue_mgr,
+    const JittedFunctionBase& jitted_function_base,
+    absl::flat_hash_map<ProcInstance*, std::vector<JitChannelQueue*>>&
+        channel_queues) {
+  for (ProcInstance* proc_instance :
+       queue_mgr->elaboration().GetInstances(proc)) {
+    channel_queues[proc_instance].resize(
+        jitted_function_base.queue_indices().size());
+    for (const auto& [channel_name, index] :
+         jitted_function_base.queue_indices()) {
+      XLS_ASSIGN_OR_RETURN(
+          ChannelInstance * channel_instance,
+          GetChannelInstance(proc_instance, channel_name, queue_mgr));
+      channel_queues[proc_instance][index] =
+          &queue_mgr->GetJitQueue(channel_instance);
+    }
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+/* static */ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::CreateFromAot(
+    Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
+    const AotEntrypointProto& entrypoint, JitFunctionType unpacked,
+    std::optional<JitFunctionType> packed) {
+  auto jit = std::unique_ptr<ProcJit>(
+      new ProcJit(proc, jit_runtime, queue_mgr, /*orc_jit=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(
+      jit->jitted_function_base_,
+      JittedFunctionBase::BuildFromAot(proc, entrypoint, unpacked, packed));
+  XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
+  XLS_RETURN_IF_ERROR(InitializeChannelQueues(
+      proc, queue_mgr, jit->jitted_function_base_, jit->channel_queues_));
+  return jit;
+}
+
 absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
     Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
     JitObserver* observer) {
@@ -227,19 +263,8 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
                        JittedFunctionBase::Build(proc, jit->GetOrcJit()));
   XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
 
-  for (ProcInstance* proc_instance :
-       queue_mgr->elaboration().GetInstances(proc)) {
-    jit->channel_queues_[proc_instance].resize(
-        jit->jitted_function_base_.queue_indices().size());
-    for (const auto& [channel_name, index] :
-         jit->jitted_function_base_.queue_indices()) {
-      XLS_ASSIGN_OR_RETURN(
-          ChannelInstance * channel_instance,
-          GetChannelInstance(proc_instance, channel_name, queue_mgr));
-      jit->channel_queues_[proc_instance][index] =
-          &queue_mgr->GetJitQueue(channel_instance);
-    }
-  }
+  XLS_RETURN_IF_ERROR(InitializeChannelQueues(
+      proc, queue_mgr, jit->jitted_function_base_, jit->channel_queues_));
 
   return jit;
 }

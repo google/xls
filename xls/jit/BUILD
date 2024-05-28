@@ -86,7 +86,9 @@ cc_binary(
     deps = [
         ":aot_compiler",
         ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
         ":function_jit",
+        ":jit_proc_runtime",
         ":llvm_type_converter",
         ":type_layout_cc_proto",
         "//xls/common:init_xls",
@@ -95,6 +97,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/ir:type",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
@@ -170,7 +173,6 @@ cc_library(
     hdrs = ["ir_builder_visitor.h"],
     deps = [
         ":jit_callbacks",
-        ":jit_channel_queue",
         ":llvm_compiler",
         ":llvm_type_converter",
         "//xls/common/status:ret_check",
@@ -178,7 +180,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
-        "//xls/ir:elaboration",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
         "//xls/ir:op",
@@ -189,7 +190,6 @@ cc_library(
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -535,6 +535,43 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "proc_jit_aot_test",
+    srcs = [
+        "proc_jit_aot_test.cc",
+    ],
+    data = [
+        ":some_caps_no_idents.ir",
+        ":specialized_caps_aot",
+    ],
+    deps = [
+        ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
+        ":jit_callbacks",
+        ":jit_channel_queue",
+        ":jit_proc_runtime",
+        ":jit_runtime",
+        ":specialized_caps_aot",  # build_cleaner: keep
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:channel_queue",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:type_manager",
+        "//xls/ir:value",
+        "//xls/ir:value_builder",
+        "//xls/ir:value_utils",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "jit_channel_queue",
     srcs = ["jit_channel_queue.cc"],
@@ -749,8 +786,8 @@ cc_library(
     srcs = ["proc_jit.cc"],
     hdrs = ["proc_jit.h"],
     deps = [
+        ":aot_entrypoint_cc_proto",
         ":function_base_jit",
-        ":ir_builder_visitor",
         ":jit_buffer",
         ":jit_callbacks",
         ":jit_channel_queue",
@@ -762,7 +799,6 @@ cc_library(
         "//xls/interpreter:proc_evaluator",
         "//xls/ir",
         "//xls/ir:channel",
-        "//xls/ir:elaboration",
         "//xls/ir:events",
         "//xls/ir:proc_elaboration",
         "//xls/ir:value",
@@ -836,17 +872,29 @@ cc_library(
     srcs = ["jit_proc_runtime.cc"],
     hdrs = ["jit_proc_runtime.h"],
     deps = [
+        ":aot_compiler",
+        ":aot_entrypoint_cc_proto",
+        ":function_base_jit",
         ":jit_channel_queue",
+        ":llvm_compiler",
         ":proc_jit",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:proc_evaluator",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
-        "//xls/ir:channel",
         "//xls/ir:proc_elaboration",
         "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:ir_headers",
     ],
 )
 
@@ -1072,5 +1120,25 @@ xls_aot_generate(
     name = "multi_function_aot",
     src = ":multi_function_with_trace.ir",
     top = "multi_function_one",
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
+# Procs get the file name embedded in their identifier when they have generics.
+# This means that writing a test which also works in OSS would be difficult. To
+# avoid this problem we just remove all identifiers. Normal users should never
+# need to do this since the generated wrappers handle all of this for you.
+genrule(
+    name = "some_caps_no_idents",
+    srcs = ["//xls/examples/dslx_module:manaul_chan_caps_streaming_configured_opt_ir.opt.ir"],
+    outs = ["some_caps_no_idents.ir"],
+    cmd = """
+        $(location //xls/tools:remove_identifiers_main) $< > $@
+        """,
+    tools = ["//xls/tools:remove_identifiers_main"],
+)
+
+xls_aot_generate(
+    name = "specialized_caps_aot",
+    src = ":some_caps_no_idents",
     with_msan = XLS_IS_MSAN_BUILD,
 )

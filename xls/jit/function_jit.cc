@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -51,19 +50,6 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
   return CreateInternal(xls_function, opt_level, observer);
 }
 
-namespace {
-int64_t JitObjectCodeFunctionUse(const uint8_t* const* inputs,
-                                 uint8_t* const* outputs, void* temp_buffer,
-                                 InterpreterEvents* events,
-                                 InstanceContext* instance_context,
-                                 JitRuntime* jit_runtime,
-                                 int64_t continuation_point) {
-  static_assert(
-      std::is_same_v<decltype(&JitObjectCodeFunctionUse), JitFunctionType>);
-  LOG(FATAL) << "Attempt to call function point in JitObjectCode structure!";
-}
-}  // namespace
-
 // Returns an object containing an AOT-compiled version of the specified XLS
 // function.
 /* static */ absl::StatusOr<std::unique_ptr<FunctionJit>>
@@ -93,10 +79,13 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
   XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
                        JittedFunctionBase::Build(xls_function, *comp));
   XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
-  return JitObjectCode{
-      .object_code = std::move(obj_code),
-      .function_base = std::move(jfb),
-  };
+  return JitObjectCode{.object_code = std::move(obj_code),
+                       .entrypoints = {
+                           FunctionEntrypoint{
+                               .function = xls_function,
+                               .jit_info = std::move(jfb),
+                           },
+                       }};
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(

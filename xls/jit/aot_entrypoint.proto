@@ -21,9 +21,17 @@ import "xls/jit/type_layout.proto";
 // Proto version of the jittedFunctionBase information needed to call a AOTd
 // function.
 message AotEntrypointProto {
+  enum XlsFunctionType {
+    INVALID = 0;
+    FUNCTION = 1;
+    PROC = 2;
+    BLOCK = 3;
+  }
+
   // The identifier (package and function/proc/block name) in the XLS ir.
   optional string xls_package_name = 1;
   optional string xls_function_identifier = 2;
+  optional XlsFunctionType type = 22;
 
   // Information for unpacked function.
 
@@ -66,4 +74,10 @@ message AotEntrypointProto {
   optional TypeLayoutsProto outputs_layout = 19;
   repeated string inputs_names = 20;
   repeated string outputs_names = 21;
+}
+
+// A single object file can have entrypoints for many different targets. This is
+// a list of all of the targets contained.
+message AotPackageEntrypointsProto {
+  repeated AotEntrypointProto entrypoint = 1;
 }

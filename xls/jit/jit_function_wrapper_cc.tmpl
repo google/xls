@@ -11,12 +11,12 @@ extern "C" {
 
 // The actual symbols the AOT generates.
 // Unpacked entrypoint
-int64_t {{wrapped.aot_entrypoint.function_symbol}}(  // NOLINT
+int64_t {{wrapped.aot_entrypoint.entrypoint[0].function_symbol}}(  // NOLINT
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
     xls::JitRuntime* jit_runtime, int64_t continuation_point);
 // Packed entrypoint
-int64_t {{wrapped.aot_entrypoint.packed_function_symbol}}(  // NOLINT
+int64_t {{wrapped.aot_entrypoint.entrypoint[0].packed_function_symbol}}(  // NOLINT
     const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
     xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
     xls::JitRuntime* jit_runtime, int64_t continuation_point);
@@ -31,7 +31,7 @@ static constexpr bool kTargetHasSanitizer = true;
 #else
 static constexpr bool kTargetHasSanitizer = false;
 #endif
-static constexpr bool kExternHasSanitizer = {{ "true" if wrapped.aot_entrypoint.has_msan else "false" }};
+static constexpr bool kExternHasSanitizer = {{ "true" if wrapped.aot_entrypoint.entrypoint[0].has_msan else "false" }};
 
 static_assert(kTargetHasSanitizer == kExternHasSanitizer,
               "sanitizer states do not match!");
@@ -44,9 +44,9 @@ static constexpr char kIrText[] =
     R"original_ir({{wrapped.ir_text}})original_ir";
 
 // Bytes of the AOT entrypoint message:
-{{ str(wrapped.aot_entrypoint).split("\n") | prefix_each("// ") | join("\n") }}
-static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToString())}}> kAotEntrypointProtoBin = {
-  {{wrapped.aot_entrypoint.SerializeToString() | list | join(", ")}}
+{{ str(wrapped.aot_entrypoint.entrypoint[0]).split("\n") | prefix_each("// ") | join("\n") }}
+static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.entrypoint[0].SerializeToString())}}> kAotEntrypointProtoBin = {
+  {{wrapped.aot_entrypoint.entrypoint[0].SerializeToString() | list | join(", ")}}
 };
 }  // namespace
 
@@ -56,8 +56,8 @@ absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
             kIrText,
             kFunctionName,
             kAotEntrypointProtoBin,
-            {{wrapped.aot_entrypoint.function_symbol}},
-            {{wrapped.aot_entrypoint.packed_function_symbol}});
+            {{wrapped.aot_entrypoint.entrypoint[0].function_symbol}},
+            {{wrapped.aot_entrypoint.entrypoint[0].packed_function_symbol}});
 }
 
 absl::StatusOr<xls::Value> {{ wrapped.class_name }}::Run(

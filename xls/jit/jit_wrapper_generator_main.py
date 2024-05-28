@@ -104,7 +104,7 @@ _AOT_INFO = flags.DEFINE_string(
     default=None,
     help=(
         "Proto file describing the interface of the available AOT'd functions"
-        " as a AotEntrypointProto. Must be a binary proto."
+        " as a AotPackageEntrypointsProto. Must be a binary proto."
     ),
 )
 
@@ -160,7 +160,7 @@ class WrappedIr:
   header_guard: str
   header_filename: str
   namespace: str
-  aot_entrypoint: Optional[aot_entrypoint_pb2.AotEntrypointProto]
+  aot_entrypoint: Optional[aot_entrypoint_pb2.AotPackageEntrypointsProto]
   # Function params and result.
   params: Optional[Sequence[XlsNamedValue]] = None
   result: Optional[XlsNamedValue] = None
@@ -317,9 +317,9 @@ def interpret_function_interface(
     class_name: str,
     header_guard: str,
     header_filename: str,
-    aot_info: aot_entrypoint_pb2.AotEntrypointProto,
+    aot_info: aot_entrypoint_pb2.AotPackageEntrypointsProto,
 ) -> WrappedIr:
-  """Fill in a WrappedIr for a function.
+  """Fill in a WrappedIr for a function from the interface.
 
   Args:
     ir: package IR
@@ -331,7 +331,12 @@ def interpret_function_interface(
 
   Returns:
     A wrapped ir for the function.
+
+  Raises:
+    UsageError: If the aot info is for a different function.
   """
+  if func_ir.base.name != aot_info.entrypoint[0].xls_function_identifier:
+    raise app.UsageError("Aot info is for a different function.")
   params = [to_param(p) for p in func_ir.parameters]
   result = XlsNamedValue(
       name="result",
@@ -401,7 +406,7 @@ def interpret_interface(
     output_name: str,
     class_name: str,
     function_name: str,
-    aot_info: aot_entrypoint_pb2.AotEntrypointProto,
+    aot_info: aot_entrypoint_pb2.AotPackageEntrypointsProto,
 ) -> WrappedIr:
   """Create a wrapped-ir representation of the IR to be rendered to source.
 
@@ -495,7 +500,7 @@ def main(argv: Sequence[str]) -> None:
         "Unknown --function_type. Requires none or FUNCTION or PROC"
     )
   with open(_AOT_INFO.value, "rb") as aot_info_file:
-    aot_info = aot_entrypoint_pb2.AotEntrypointProto.FromString(
+    aot_info = aot_entrypoint_pb2.AotPackageEntrypointsProto.FromString(
         aot_info_file.read()
     )
   ir_interface = ir_interface_pb2.PackageInterfaceProto.FromString(
@@ -520,12 +525,6 @@ def main(argv: Sequence[str]) -> None:
       function_name,
       aot_info,
   )
-
-  if (
-      aot_info.xls_function_identifier
-      and wrapped.function_name != aot_info.xls_function_identifier
-  ):
-    raise app.UsageError("Aot info is for a different function!")
 
   # Create the JINJA env and add an append filter.
   env = jinja2.Environment(undefined=jinja2.StrictUndefined)

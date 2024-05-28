@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -64,7 +65,7 @@ class LlvmCompiler {
   //
   // TODO(allight): We should rethink the architecture of the AOT/JIT compiler
   // at some point.
-  std::unique_ptr<llvm::Module> NewModule(std::string_view name);
+  virtual std::unique_ptr<llvm::Module> NewModule(std::string_view name);
 
   std::string target_triple() const;
 
@@ -77,10 +78,13 @@ class LlvmCompiler {
   // NewModule.
   virtual absl::Status CompileModule(
       std::unique_ptr<llvm::Module>&& module) = 0;
+
   absl::StatusOr<llvm::DataLayout> CreateDataLayout();
+
   virtual absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
   CreateTargetMachine() = 0;
 
+  int64_t opt_level() const { return opt_level_; }
   bool include_msan() const { return include_msan_; }
 
  protected:
@@ -94,6 +98,14 @@ class LlvmCompiler {
 
   LlvmCompiler(int64_t opt_level, bool include_msan)
       : data_layout_(""), opt_level_(opt_level), include_msan_(include_msan) {}
+
+  // Constructor to manually setup the compiler without Init.
+  LlvmCompiler(std::unique_ptr<llvm::TargetMachine> target,
+               llvm::DataLayout&& layout, int64_t opt_level, bool include_msan)
+      : target_machine_(std::move(target)),
+        data_layout_(layout),
+        opt_level_(opt_level),
+        include_msan_(include_msan) {}
 
   // Setup by Init
   std::unique_ptr<llvm::TargetMachine> target_machine_;

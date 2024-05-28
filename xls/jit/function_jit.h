@@ -42,14 +42,6 @@
 
 namespace xls {
 
-// Data structure containing jitted object code and metadata about how to call
-// it.
-struct JitObjectCode {
-  std::vector<uint8_t> object_code;
-
-  JittedFunctionBase function_base;
-};
-
 // This class provides a facility to execute XLS functions (on the host) by
 // converting it to LLVM IR, compiling it, and finally executing it. Not
 // thread-safe due to sharing of result and temporary buffers between

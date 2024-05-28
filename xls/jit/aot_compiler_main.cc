@@ -18,6 +18,7 @@
 // disk.
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
 #include <string>
@@ -40,9 +41,12 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/jit/aot_compiler.h"
 #include "xls/jit/aot_entrypoint.pb.h"
+#include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/type_layout.pb.h"
 
@@ -54,10 +58,10 @@ ABSL_FLAG(std::string, top, "",
 ABSL_FLAG(std::string, output_object, "",
           "Path at which to write the output object file.");
 ABSL_FLAG(std::string, output_proto, "",
-          "Path at which to write the AotEntrypointProto describing the ABI of "
-          "the generated object file.");
+          "Path at which to write the AotPackageEntrypointsProto describing "
+          "the ABI of the generated object files.");
 ABSL_FLAG(bool, generate_textproto, false,
-          "Generate the AotEntrypointProto as a textproto");
+          "Generate the AotPackageEntrypointsProto as a textproto");
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 static constexpr bool kHasMsan = true;
 #else
@@ -70,26 +74,8 @@ ABSL_FLAG(bool, include_msan, kHasMsan,
 namespace xls {
 namespace {
 
-// Returns the TypeLayouts for the arguments of `f`.
-TypeLayoutsProto ArgLayouts(Function* f, LlvmTypeConverter& type_converter) {
-  TypeLayoutsProto layouts_proto;
-  for (Param* param : f->params()) {
-    *layouts_proto.add_layouts() =
-        type_converter.CreateTypeLayout(param->GetType()).ToProto();
-  }
-  return layouts_proto;
-}
-
-// Returns the TypeLayout for the return value of `f`.
-TypeLayoutsProto ResultLayouts(Function* f, LlvmTypeConverter& type_converter) {
-  TypeLayoutsProto layout_proto;
-  *layout_proto.add_layouts() =
-      type_converter.CreateTypeLayout(f->return_value()->GetType()).ToProto();
-  return layout_proto;
-}
-
 absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
-    Package* package, Function* func, const JitObjectCode& object_code,
+    Package* package, FunctionBase* func, const JittedFunctionBase& object_code,
     bool include_msan) {
   AotEntrypointProto proto;
   XLS_ASSIGN_OR_RETURN(
@@ -98,53 +84,66 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
                        aot_compiler->CreateDataLayout());
   LlvmTypeConverter type_converter(aot_compiler->GetContext(), data_layout);
-  *proto.mutable_inputs_layout() = ArgLayouts(func, type_converter);
-  *proto.mutable_outputs_layout() = ResultLayouts(func, type_converter);
-  proto.add_outputs_names("result");
   proto.set_has_msan(include_msan);
-  for (const Param* p : func->params()) {
-    proto.add_inputs_names(p->name());
+  if (func->IsFunction()) {
+    proto.set_type(AotEntrypointProto::FUNCTION);
+    proto.add_outputs_names("result");
+    for (const Param* p : func->params()) {
+      proto.add_inputs_names(p->name());
+      *proto.mutable_inputs_layout()->add_layouts() =
+          type_converter.CreateTypeLayout(p->GetType()).ToProto();
+    }
+    *proto.mutable_outputs_layout()->add_layouts() =
+        type_converter
+            .CreateTypeLayout(func->AsFunctionOrDie()->GetType()->return_type())
+            .ToProto();
+  } else if (func->IsProc()) {
+    proto.set_type(AotEntrypointProto::PROC);
+    for (const Param* p : func->params()) {
+      proto.add_inputs_names(p->name());
+      proto.add_outputs_names(p->name());
+      auto layout_proto =
+          type_converter.CreateTypeLayout(p->GetType()).ToProto();
+      *proto.mutable_inputs_layout()->add_layouts() = layout_proto;
+      *proto.mutable_outputs_layout()->add_layouts() = layout_proto;
+    }
+  } else {
+    return absl::UnimplementedError("block aot dumping unsupported!");
   }
   proto.set_xls_package_name(package->name());
   proto.set_xls_function_identifier(func->name());
-  proto.set_function_symbol(object_code.function_base.function_name());
-  absl::c_for_each(object_code.function_base.input_buffer_sizes(),
+  proto.set_function_symbol(object_code.function_name());
+  absl::c_for_each(object_code.input_buffer_sizes(),
                    [&](int64_t i) { proto.add_input_buffer_sizes(i); });
-  absl::c_for_each(
-      object_code.function_base.input_buffer_preferred_alignments(),
-      [&](int64_t i) { proto.add_input_buffer_alignments(i); });
-  absl::c_for_each(
-      object_code.function_base.input_buffer_abi_alignments(),
-      [&](int64_t i) { proto.add_input_buffer_abi_alignments(i); });
-  absl::c_for_each(object_code.function_base.output_buffer_sizes(),
+  absl::c_for_each(object_code.input_buffer_preferred_alignments(),
+                   [&](int64_t i) { proto.add_input_buffer_alignments(i); });
+  absl::c_for_each(object_code.input_buffer_abi_alignments(), [&](int64_t i) {
+    proto.add_input_buffer_abi_alignments(i);
+  });
+  absl::c_for_each(object_code.output_buffer_sizes(),
                    [&](int64_t i) { proto.add_output_buffer_sizes(i); });
-  absl::c_for_each(
-      object_code.function_base.output_buffer_preferred_alignments(),
-      [&](int64_t i) { proto.add_output_buffer_alignments(i); });
-  absl::c_for_each(
-      object_code.function_base.output_buffer_abi_alignments(),
-      [&](int64_t i) { proto.add_output_buffer_abi_alignments(i); });
-  if (object_code.function_base.HasPackedFunction()) {
-    proto.set_packed_function_symbol(
-        *object_code.function_base.packed_function_name());
-    absl::c_for_each(
-        object_code.function_base.packed_input_buffer_sizes(),
-        [&](int64_t i) { proto.add_packed_input_buffer_sizes(i); });
-    absl::c_for_each(
-        object_code.function_base.packed_output_buffer_sizes(),
-        [&](int64_t i) { proto.add_packed_output_buffer_sizes(i); });
+  absl::c_for_each(object_code.output_buffer_preferred_alignments(),
+                   [&](int64_t i) { proto.add_output_buffer_alignments(i); });
+  absl::c_for_each(object_code.output_buffer_abi_alignments(), [&](int64_t i) {
+    proto.add_output_buffer_abi_alignments(i);
+  });
+  if (object_code.HasPackedFunction()) {
+    proto.set_packed_function_symbol(*object_code.packed_function_name());
+    absl::c_for_each(object_code.packed_input_buffer_sizes(), [&](int64_t i) {
+      proto.add_packed_input_buffer_sizes(i);
+    });
+    absl::c_for_each(object_code.packed_output_buffer_sizes(), [&](int64_t i) {
+      proto.add_packed_output_buffer_sizes(i);
+    });
   }
 
-  proto.set_temp_buffer_size(object_code.function_base.temp_buffer_size());
-  proto.set_temp_buffer_alignment(
-      object_code.function_base.temp_buffer_alignment());
-  for (const auto& [cont, node] :
-       object_code.function_base.continuation_points()) {
-    proto.mutable_continuation_point_node_ids()->at(cont) = node->id();
+  proto.set_temp_buffer_size(object_code.temp_buffer_size());
+  proto.set_temp_buffer_alignment(object_code.temp_buffer_alignment());
+  for (const auto& [cont, node] : object_code.continuation_points()) {
+    proto.mutable_continuation_point_node_ids()->insert({cont, node->id()});
   }
-  for (const auto& [chan_name, idx] :
-       object_code.function_base.queue_indices()) {
-    proto.mutable_channel_queue_indices()->at(chan_name) = idx;
+  for (const auto& [chan_name, idx] : object_code.queue_indices()) {
+    proto.mutable_channel_queue_indices()->insert({chan_name, idx});
   }
   return proto;
 }
@@ -157,37 +156,55 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(input_ir, input_ir_path));
 
-  Function* f;
+  FunctionBase* f;
   std::string package_prefix = absl::StrCat("__", package->name(), "__");
   if (top.empty()) {
-    XLS_ASSIGN_OR_RETURN(f, package->GetTopAsFunction());
+    XLS_RET_CHECK(package->HasTop()) << "No top given.";
+    f = *package->GetTop();
   } else {
-    absl::StatusOr<Function*> maybe_f = package->GetFunction(top);
+    absl::StatusOr<FunctionBase*> maybe_f = package->GetFunctionBaseByName(top);
     if (maybe_f.ok()) {
       f = *maybe_f;
     } else {
       XLS_ASSIGN_OR_RETURN(
-          f, package->GetFunction(absl::StrCat(package_prefix, top)));
+          f, package->GetFunctionBaseByName(absl::StrCat(package_prefix, top)));
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      JitObjectCode object_code,
-      FunctionJit::CreateObjectCode(f, /*opt_level = */ 3, include_msan));
+  JitObjectCode object_code;
+  if (f->IsFunction()) {
+    XLS_ASSIGN_OR_RETURN(object_code, FunctionJit::CreateObjectCode(
+                                          f->AsFunctionOrDie(),
+                                          /*opt_level = */ 3, include_msan));
+  } else if (f->IsProc()) {
+    if (f->AsProcOrDie()->is_new_style_proc()) {
+      XLS_ASSIGN_OR_RETURN(
+          object_code, CreateProcAotObjectCode(f->AsProcOrDie(), include_msan));
+    } else {
+      // all procs
+      XLS_ASSIGN_OR_RETURN(
+          object_code, CreateProcAotObjectCode(package.get(), include_msan));
+    }
+  } else {
+    return absl::UnimplementedError(
+        "Dumping block jit code is not yet supported");
+  }
+  AotPackageEntrypointsProto all_entrypoints;
   XLS_RETURN_IF_ERROR(SetFileContents(
       output_object_path, std::string(object_code.object_code.begin(),
                                       object_code.object_code.end())));
-
-  XLS_ASSIGN_OR_RETURN(
-      AotEntrypointProto entrypoint,
-      GenerateEntrypointProto(package.get(), f, object_code, include_msan));
+  for (const FunctionEntrypoint& oc : object_code.entrypoints) {
+    XLS_ASSIGN_OR_RETURN(*all_entrypoints.add_entrypoint(),
+                         GenerateEntrypointProto(package.get(), oc.function,
+                                                 oc.jit_info, include_msan));
+  }
   if (generate_textproto) {
     std::string text;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(entrypoint, &text));
+    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(all_entrypoints, &text));
     XLS_RETURN_IF_ERROR(SetFileContents(output_proto_path, text));
   } else {
-    XLS_RETURN_IF_ERROR(
-        SetFileContents(output_proto_path, entrypoint.SerializeAsString()));
+    XLS_RETURN_IF_ERROR(SetFileContents(output_proto_path,
+                                        all_entrypoints.SerializeAsString()));
   }
 
   return absl::OkStatus();
