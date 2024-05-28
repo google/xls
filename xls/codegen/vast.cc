@@ -305,8 +305,14 @@ std::string ScalarType::Emit(LineInfo* line_info) const {
 }
 
 std::string IntegerType::Emit(LineInfo* line_info) const {
-  // The `DataKind` preceding the type is enough.
-  return EmitNothing(this, line_info);
+  // The `DataKind` preceding the type is enough if it's signed, which is the
+  // default.
+  if (is_signed_) {
+    return EmitNothing(this, line_info);
+  }
+  LineInfoStart(line_info, this);
+  LineInfoEnd(line_info, this);
+  return " unsigned";
 }
 
 std::string MacroRef::Emit(LineInfo* line_info) const {

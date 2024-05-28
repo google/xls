@@ -255,18 +255,24 @@ class ScalarType : public DataType {
 //   integer foo;
 class IntegerType : public DataType {
  public:
-  IntegerType(VerilogFile* file, const SourceInfo& loc) : DataType(file, loc) {}
+  IntegerType(bool is_signed, VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc), is_signed_(is_signed) {}
+
+  IntegerType(VerilogFile* file, const SourceInfo& loc)
+      : IntegerType(/*is_signed=*/true, file, loc) {}
 
   bool IsScalar() const override { return false; }
   absl::StatusOr<int64_t> WidthAsInt64() const override {
     return absl::InvalidArgumentError("Cannot get width of integer types");
   }
-  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override {
-    return absl::InvalidArgumentError(
-        "Cannot get flat bit count of integer types");
-  }
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const override { return 32; }
   std::optional<Expression*> width() const override { return std::nullopt; }
   std::string Emit(LineInfo* line_info) const override;
+
+  bool is_signed() const override { return is_signed_; }
+
+ private:
+  bool is_signed_;
 };
 
 // Represents a bit-vector type. Example:
@@ -2402,8 +2408,9 @@ class VerilogFile {
   // for example, as bit-slice indices.
   verilog::Literal* PlainLiteral(int32_t value, const SourceInfo& loc) {
     return Make<verilog::Literal>(loc, SBits(value, 32),
-                                  FormatPreference::kDefault,
-                                  /*emit_bit_count=*/false);
+                                  FormatPreference::kDefault, 32,
+                                  /*emit_bit_count=*/false,
+                                  /*declared_as_signed=*/true);
   }
 
   // Returns a scalar type. Example:

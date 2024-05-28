@@ -580,7 +580,7 @@ TEST_P(VastTest, Literals) {
   EXPECT_FALSE(bare_literal->should_emit_bit_count());
   EXPECT_FALSE(bare_literal->is_declared_as_signed());
 
-  EXPECT_FALSE(f.PlainLiteral(3, SourceInfo())->is_declared_as_signed());
+  EXPECT_TRUE(f.PlainLiteral(3, SourceInfo())->is_declared_as_signed());
   EXPECT_FALSE(f.PlainLiteral(3, SourceInfo())->should_emit_bit_count());
 }
 

@@ -146,6 +146,44 @@ cc_library(
 )
 
 cc_library(
+    name = "infer_vast_types",
+    srcs = ["infer_vast_types.cc"],
+    hdrs = ["infer_vast_types.h"],
+    deps = [
+        ":vast",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "infer_vast_types_test",
+    srcs = ["infer_vast_types_test.cc"],
+    deps = [
+        ":infer_vast_types",
+        ":vast",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
+        "//xls/ir:number_parser",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "finite_state_machine",
     srcs = ["finite_state_machine.cc"],
     hdrs = ["finite_state_machine.h"],
