@@ -1415,7 +1415,7 @@ data}))`).
 The `reset` and `load_enable` arguments affect the value written according to
 the following table.
 
-| `Register` reset      | `reset` value | `load_enable` value | new value     | {.sortable}
+| `Register` reset      | `reset` value | `load_enable` value | new value     |
 : behavior              :               :                     :               :
 | --------------------- | ------------- | ------------------- | ------------- |
 | `active_low == false` | `false` / `0` | not present         | `data`        |
