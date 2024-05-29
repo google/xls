@@ -766,7 +766,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@llvm-project//llvm:ir_headers",
     ],
 )
 
@@ -776,11 +775,8 @@ cc_test(
     deps = [
         ":block_jit",
         ":jit_runtime",
-        ":orc_jit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:block_evaluator",
         "//xls/interpreter:block_evaluator_test_base",
         "//xls/ir",
         "//xls/ir:bits",
@@ -788,12 +784,8 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/ir:value_view",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
-        "@llvm-project//llvm:ir_headers",
     ],
 )
 
