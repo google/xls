@@ -16,6 +16,8 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "PROC_WRAPPER_TYPE",
+    "cc_xls_ir_jit_wrapper",
     "xls_benchmark_ir",
     "xls_dslx_ir",
     "xls_dslx_library",
@@ -67,23 +69,30 @@ xls_dslx_ir(
     library = ":aes_ctr_dslx",
 )
 
+cc_xls_ir_jit_wrapper(
+    name = "aes_ctr_wrapper",
+    src = ":aes_ctr.ir",
+    jit_wrapper_args = {
+        "class_name": "AesCtr",
+        "namespace": "xls::aes::wrapped",
+    },
+    wrapper_type = PROC_WRAPPER_TYPE,
+)
+
 cc_test(
     name = "aes_ctr_test",
     srcs = ["aes_ctr_test.cc"],
-    data = [
-        ":aes_ctr.ir",
-    ],
     deps = [
+        ":aes_ctr_wrapper",
         ":aes_test_common",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:proc_runtime",
+        "//xls/ir",
+        "//xls/ir:channel",
         "//xls/ir:events",
-        "//xls/ir:ir_parser",
         "//xls/jit:jit_channel_queue",
-        "//xls/jit:jit_proc_runtime",
         "@boringssl//:crypto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -92,7 +101,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
     ],
 )
@@ -156,25 +164,31 @@ xls_dslx_ir(
     library = ":aes_gcm_dslx",
 )
 
+cc_xls_ir_jit_wrapper(
+    name = "aes_gcm_wrapper",
+    src = ":aes_gcm.ir",
+    jit_wrapper_args = {
+        "class_name": "AesGcm",
+        "namespace": "xls::aes::wrapped",
+    },
+    wrapper_type = PROC_WRAPPER_TYPE,
+)
+
 cc_test(
     name = "aes_gcm_test",
     srcs = ["aes_gcm_test.cc"],
-    data = [
-        ":aes_gcm.ir",
-    ],
     tags = ["optonly"],
     deps = [
+        ":aes_gcm_wrapper",
         ":aes_test_common",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
-        "//xls/interpreter:serial_proc_runtime",
+        "//xls/interpreter:proc_runtime",
+        "//xls/ir",
         "//xls/ir:bits",
-        "//xls/ir:ir_parser",
+        "//xls/ir:channel",
         "//xls/ir:value",
-        "//xls/jit:jit_proc_runtime",
         "@boringssl//:crypto",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",

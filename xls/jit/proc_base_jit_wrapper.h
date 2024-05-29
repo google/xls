@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -77,7 +78,6 @@ class BaseProcJitWrapper {
 
     XLS_ASSIGN_OR_RETURN(auto* man, aot->GetJitChannelQueueManager());
     JitRuntime& runtime = man->runtime();
-    aot->ResetState();
 
     return std::unique_ptr<RealType>(
         new RealType(std::move(package), proc, std::move(aot), runtime));
@@ -146,6 +146,12 @@ class BaseProcJitWrapper {
         runtime_(std::move(runtime)),
         jit_runtime_(jit_runtime) {}
 
+  static std::tuple<std::unique_ptr<Package>, std::unique_ptr<ProcRuntime>>
+  TakeRuntimeBase(std::unique_ptr<BaseProcJitWrapper> w) {
+    return w->DoTakeRuntime();
+  }
+
+
   template <typename PackedView>
   absl::Status SendToChannelPacked(std::string_view chan_name,
                                    PackedView view) {
@@ -171,6 +177,12 @@ class BaseProcJitWrapper {
   Proc* proc_;
   std::unique_ptr<ProcRuntime> runtime_;
   JitRuntime& jit_runtime_;
+
+ private:
+  std::tuple<std::unique_ptr<Package>, std::unique_ptr<ProcRuntime>>
+  DoTakeRuntime() {
+    return {std::move(package_), std::move(runtime_)};
+  }
 };
 
 }  // namespace xls

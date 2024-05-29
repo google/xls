@@ -14,12 +14,12 @@
 
 // Test of the XLS GCM mode implementation against a reference (in this
 // case, BoringSSL's implementation).
+#include <cstddef>
 #include <cstdint>
-#include <filesystem>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -32,16 +32,16 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "openssl/aead.h"
+#include "openssl/base.h"
 #include "xls/common/exit_status.h"
-#include "xls/common/file/filesystem.h"
-#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/ir_parser.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value.h"
-#include "xls/jit/jit_proc_runtime.h"
+#include "xls/modules/aes/aes_gcm_wrapper.h"
 #include "xls/modules/aes/aes_test_common.h"
 
 // TODO(rspringer): This is a bit slow. Seems like we should be able to compute
@@ -58,14 +58,13 @@ constexpr int kMaxPtxtBlocks = 128;
 constexpr int kTagBits = 128;
 constexpr int kTagBytes = kTagBits / 8;
 
-constexpr std::string_view kIrPath = "xls/modules/aes/aes_gcm.ir";
 constexpr std::string_view kCmdChannelName = "aes_gcm__command_in";
 constexpr std::string_view kDataInChannelName = "aes_gcm__data_r";
 constexpr std::string_view kDataOutChannelName = "aes_gcm__data_s";
 
 struct JitData {
   std::unique_ptr<Package> package;
-  std::unique_ptr<SerialProcRuntime> runtime;
+  std::unique_ptr<ProcRuntime> runtime;
 };
 
 struct SampleData {
@@ -107,7 +106,7 @@ static absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
                                          bool encrypt) {
   // Create (and send) the initial command.
   Package* package = jit_data->package.get();
-  SerialProcRuntime* runtime = jit_data->runtime.get();
+  ProcRuntime* runtime = jit_data->runtime.get();
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        package->GetChannel(kCmdChannelName));
   XLS_ASSIGN_OR_RETURN(Value command, CreateCommandValue(sample_data, encrypt));
@@ -161,11 +160,11 @@ static absl::StatusOr<Result> ReferenceEncrypt(const SampleData& sample) {
   int num_aad_blocks = sample.aad.size();
   size_t max_result_size;
   if (sample.key_bits == 128) {
-      max_result_size = num_ptxt_blocks * kBlockBytes +
-                           EVP_AEAD_max_overhead(EVP_aead_aes_128_gcm());
+    max_result_size = num_ptxt_blocks * kBlockBytes +
+                      EVP_AEAD_max_overhead(EVP_aead_aes_128_gcm());
   } else {
-      max_result_size = num_ptxt_blocks * kBlockBytes +
-                           EVP_AEAD_max_overhead(EVP_aead_aes_256_gcm());
+    max_result_size = num_ptxt_blocks * kBlockBytes +
+                      EVP_AEAD_max_overhead(EVP_aead_aes_256_gcm());
   }
 
   auto ptxt_buffer = std::make_unique<uint8_t[]>(num_ptxt_blocks * kBlockBytes);
@@ -302,18 +301,13 @@ static absl::StatusOr<bool> RunSample(JitData* jit_data,
 }
 
 static absl::StatusOr<JitData> CreateJitData() {
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
-                       GetXlsRunfilePath(kIrPath));
-  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                       Parser::ParsePackage(ir_text));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> runtime,
-                       CreateJitSerialProcRuntime(package.get()));
-
-  JitData jit_data{std::move(package), std::move(runtime)};
-  return jit_data;
+  XLS_ASSIGN_OR_RETURN((std::unique_ptr<wrapped::AesGcm> aes_gcm),
+                       wrapped::AesGcm::Create());
+  auto [package, runtime] = wrapped::AesGcm::TakeRuntime(std::move(aes_gcm));
+  return JitData{.package = std::move(package), .runtime = std::move(runtime)};
 }
+
+
 
 static absl::Status RunTest(int num_samples, int key_bits) {
   int key_bytes = key_bits / 8;
