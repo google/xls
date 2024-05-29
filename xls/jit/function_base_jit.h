@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -301,6 +302,7 @@ struct FunctionEntrypoint {
 struct JitObjectCode {
   std::vector<uint8_t> object_code;
   std::vector<FunctionEntrypoint> entrypoints;
+  llvm::DataLayout data_layout;
 };
 
 }  // namespace xls

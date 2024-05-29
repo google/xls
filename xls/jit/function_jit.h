@@ -21,7 +21,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -58,6 +57,7 @@ class FunctionJit {
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateFromAot(
       Function* xls_function, const AotEntrypointProto& entrypoint,
+      std::string_view data_layout,
       JitFunctionType function_unpacked,
       std::optional<JitFunctionType> function_packed = std::nullopt);
 

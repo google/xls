@@ -72,6 +72,7 @@
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/orc_jit.h"
 #include "xls/jit/proc_jit.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
@@ -605,10 +606,7 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
                                        std::string_view description,
                                        Rng& rng_engine) {
   absl::Time start_jit_compile = absl::Now();
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
-                       JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockJit> jit,
-                       BlockJit::Create(block));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockJit> jit, BlockJit::Create(block));
   std::cout << absl::StreamFormat(
       "JIT compile time (%s): %dms\n", description,
       DurationToMs(absl::Now() - start_jit_compile));
@@ -634,8 +632,9 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
   input_types.reserve(block->GetInputPorts().size());
   absl::c_transform(block->GetInputPorts(), std::back_inserter(input_types),
                     [](InputPort* v) { return v->GetType(); });
-  XLS_ASSIGN_OR_RETURN(auto jit_args, ConvertToJitArguments(
-                                          arg_set, input_types, runtime.get()));
+  XLS_ASSIGN_OR_RETURN(
+      auto jit_args,
+      ConvertToJitArguments(arg_set, input_types, jit->runtime()));
   auto [jit_arg_buffers, jit_arg_pointers] = std::move(jit_args);
 
   // The JIT is much faster so run many times.
@@ -680,9 +679,14 @@ template <typename Rng>
 absl::Status RunProcInterpreterAndJit(Proc* proc, std::string_view description,
                                       Rng& rng_engine) {
   absl::Time start_jit_compile = absl::Now();
+  // Technically the creation cost to get the data layout is amortized over all
+  // the procs in the elaboration.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> layout_source, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(auto data_layout, layout_source->CreateDataLayout());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<JitChannelQueueManager> queue_manager,
-      JitChannelQueueManager::CreateThreadSafe(proc->package()));
+      JitChannelQueueManager::CreateThreadSafe(
+          proc->package(), std::make_unique<JitRuntime>(data_layout)));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ProcJit> jit,
       ProcJit::Create(proc, &queue_manager->runtime(), queue_manager.get()));

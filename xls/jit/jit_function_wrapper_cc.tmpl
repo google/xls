@@ -45,8 +45,8 @@ static constexpr char kIrText[] =
 
 // Bytes of the AOT entrypoint message:
 {{ str(wrapped.aot_entrypoint.entrypoint[0]).split("\n") | prefix_each("// ") | join("\n") }}
-static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.entrypoint[0].SerializeToString())}}> kAotEntrypointProtoBin = {
-  {{wrapped.aot_entrypoint.entrypoint[0].SerializeToString() | list | join(", ")}}
+static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToString())}}> kAotEntrypointsProtoBin = {
+  {{wrapped.aot_entrypoint.SerializeToString() | list | join(", ")}}
 };
 }  // namespace
 
@@ -55,7 +55,7 @@ absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
   return xls::BaseFunctionJitWrapper::Create<{{wrapped.class_name}}>(
             kIrText,
             kFunctionName,
-            kAotEntrypointProtoBin,
+            kAotEntrypointsProtoBin,
             {{wrapped.aot_entrypoint.entrypoint[0].function_symbol}},
             {{wrapped.aot_entrypoint.entrypoint[0].packed_function_symbol}});
 }

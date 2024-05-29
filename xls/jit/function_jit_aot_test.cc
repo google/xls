@@ -79,24 +79,24 @@ static constexpr std::string_view kGoldTopName =
 static constexpr std::string_view kTestAotEntrypointsProto =
     "xls/jit/multi_function_aot.pb";
 
-absl::StatusOr<AotEntrypointProto> GetEntrypointsProto() {
+absl::StatusOr<AotPackageEntrypointsProto> GetEntrypointsProto() {
   AotPackageEntrypointsProto proto;
   XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
                        GetXlsRunfilePath(kTestAotEntrypointsProto));
   XLS_ASSIGN_OR_RETURN(std::string bin, GetFileContents(path));
   XLS_RET_CHECK(proto.ParseFromString(bin));
   XLS_RET_CHECK_EQ(proto.entrypoint_size(), 1);
-  return proto.entrypoint()[0];
+  return proto;
 }
 bool AreSymbolsAsExpected() {
   auto v = GetEntrypointsProto();
   if (!v.ok()) {
     return false;
   }
-  return v->has_function_symbol() &&
-         v->function_symbol() == kExpectedSymbolNameUnpacked &&
-         v->has_packed_function_symbol() &&
-         v->packed_function_symbol() == kExpectedSymbolNamePacked;
+  return v->entrypoint(0).has_function_symbol() &&
+         v->entrypoint(0).function_symbol() == kExpectedSymbolNameUnpacked &&
+         v->entrypoint(0).has_packed_function_symbol() &&
+         v->entrypoint(0).packed_function_symbol() == kExpectedSymbolNamePacked;
 }
 
 // Not really a test just to make sure that if all other tests are disabled due
@@ -118,7 +118,8 @@ class FunctionJitAotTest : public testing::Test {
 };
 
 TEST_F(FunctionJitAotTest, CallAot) {
-  XLS_ASSERT_OK_AND_ASSIGN(AotEntrypointProto proto, GetEntrypointsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(AotPackageEntrypointsProto proto,
+                           GetEntrypointsProto());
   XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kGoldIr));
@@ -126,7 +127,8 @@ TEST_F(FunctionJitAotTest, CallAot) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       auto test_aot, FunctionJit::CreateFromAot(
-                         f, proto, __multi_func_with_trace__multi_function_one,
+                         f, proto.entrypoint(0), proto.data_layout(),
+                         __multi_func_with_trace__multi_function_one,
                          __multi_func_with_trace__multi_function_one_packed));
   // Value
   {
@@ -159,7 +161,8 @@ TEST_F(FunctionJitAotTest, CallAot) {
 }
 
 TEST_F(FunctionJitAotTest, InterceptCallAot) {
-  XLS_ASSERT_OK_AND_ASSIGN(AotEntrypointProto proto, GetEntrypointsProto());
+  XLS_ASSERT_OK_AND_ASSIGN(AotPackageEntrypointsProto proto,
+                           GetEntrypointsProto());
   XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kGoldIr));
@@ -174,7 +177,7 @@ TEST_F(FunctionJitAotTest, InterceptCallAot) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto test_aot,
       FunctionJit::CreateFromAot(
-          f, proto,
+          f, proto.entrypoint(0), proto.data_layout(),
           [](const uint8_t* const* inputs, uint8_t* const* outputs,
              void* temp_buffer, xls::InterpreterEvents* events,
              xls::InstanceContext* instance_context,

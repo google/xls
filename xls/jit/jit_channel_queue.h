@@ -27,8 +27,8 @@
 #include "absl/synchronization/mutex.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_runtime.h"
 
@@ -37,7 +37,7 @@ namespace xls {
 // A queue from which raw bytes may be written or read.
 class ByteQueue {
  public:
-  // `channel_element_size` is the granuality of the queue access. Each read or
+  // `channel_element_size` is the granularity of the queue access. Each read or
   // write to the queue handles this many bytes at a time. `is_single_value`
   // indicates whether this queue follows single-value channel semantics where
   // the queue only holds a single value; writes overwrite the value in the
@@ -207,13 +207,15 @@ class JitChannelQueueManager : public ChannelQueueManager {
   // Factories which create a queue manager with exclusively ThreadSafe/Unsafe
   // queues.
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadSafe(Package* package);
+  CreateThreadSafe(Package* package, std::unique_ptr<JitRuntime> runtime);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadSafe(ProcElaboration&& elaboration);
+  CreateThreadSafe(ProcElaboration&& elaboration,
+                   std::unique_ptr<JitRuntime> runtime);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadUnsafe(Package* package);
+  CreateThreadUnsafe(Package* package, std::unique_ptr<JitRuntime> runtime);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadUnsafe(ProcElaboration&& elaboration);
+  CreateThreadUnsafe(ProcElaboration&& elaboration,
+                     std::unique_ptr<JitRuntime> runtime);
 
   JitChannelQueue& GetJitQueue(Channel* channel);
   JitChannelQueue& GetJitQueue(ChannelInstance* channel_instance);

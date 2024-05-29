@@ -126,16 +126,16 @@ std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadSafe(Package* package) {
+JitChannelQueueManager::CreateThreadSafe(Package* package,
+                                         std::unique_ptr<JitRuntime> runtime) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return CreateThreadSafe(std::move(elaboration));
+  return CreateThreadSafe(std::move(elaboration), std::move(runtime));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadSafe(ProcElaboration&& elaboration) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
-                       JitRuntime::Create());
+JitChannelQueueManager::CreateThreadSafe(ProcElaboration&& elaboration,
+                                         std::unique_ptr<JitRuntime> runtime) {
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (ChannelInstance* channel_instance : elaboration.channel_instances()) {
     queues.push_back(std::make_unique<ThreadSafeJitChannelQueue>(
@@ -146,16 +146,16 @@ JitChannelQueueManager::CreateThreadSafe(ProcElaboration&& elaboration) {
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadUnsafe(Package* package) {
+JitChannelQueueManager::CreateThreadUnsafe(
+    Package* package, std::unique_ptr<JitRuntime> runtime) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return CreateThreadUnsafe(std::move(elaboration));
+  return CreateThreadUnsafe(std::move(elaboration), std::move(runtime));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadUnsafe(ProcElaboration&& elaboration) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
-                       JitRuntime::Create());
+JitChannelQueueManager::CreateThreadUnsafe(
+    ProcElaboration&& elaboration, std::unique_ptr<JitRuntime> runtime) {
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (ChannelInstance* channel_instance : elaboration.channel_instances()) {
     queues.push_back(std::make_unique<ThreadUnsafeJitChannelQueue>(

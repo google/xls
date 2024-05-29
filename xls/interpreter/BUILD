@@ -448,6 +448,8 @@ cc_test(
         "//xls/ir:value",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:jit_proc_runtime",
+        "//xls/jit:jit_runtime",
+        "//xls/jit:orc_jit",
         "//xls/jit:proc_jit",
         "@com_google_googletest//:gtest",
     ],

@@ -26,6 +26,7 @@
 #include "xls/ir/proc_elaboration.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 namespace {
@@ -40,7 +41,9 @@ static void BM_QueueWriteThenRead(benchmark::State& state) {
   int64_t element_size_bytes = state.range(0);
 
   Package package("benchmark");
-  std::unique_ptr<JitRuntime> jit_runtime = JitRuntime::Create().value();
+  auto orc_jit = OrcJit::Create().value();
+  auto jit_runtime =
+      std::make_unique<JitRuntime>(orc_jit->CreateDataLayout().value());
   Channel* channel =
       package
           .CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,

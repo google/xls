@@ -32,8 +32,8 @@ namespace {
 
 JitRuntime* GetJitRuntime() {
   static auto orc_jit = OrcJit::Create().value();
-  static auto jit_runtime = std::make_unique<JitRuntime>(
-      orc_jit->CreateDataLayout().value());
+  static auto jit_runtime =
+      std::make_unique<JitRuntime>(orc_jit->CreateDataLayout().value());
   return jit_runtime.get();
 }
 
@@ -50,7 +50,10 @@ INSTANTIATE_TEST_SUITE_P(
               .value();
         },
         [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
-          return JitChannelQueueManager::CreateThreadSafe(package).value();
+          return JitChannelQueueManager::CreateThreadSafe(
+                     package, std::make_unique<JitRuntime>(
+                                  GetJitRuntime()->data_layout()))
+              .value();
         })));
 
 }  // namespace

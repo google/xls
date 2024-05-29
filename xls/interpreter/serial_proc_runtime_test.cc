@@ -40,6 +40,8 @@
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_proc_runtime.h"
+#include "xls/jit/jit_runtime.h"
+#include "xls/jit/orc_jit.h"
 #include "xls/jit/proc_jit.h"
 
 namespace xls {
@@ -51,11 +53,14 @@ constexpr const char kIrAssertPath[] = "xls/interpreter/force_assert.ir";
 // ProcJits.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
     ProcElaboration elaboration) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(auto data_layout, orc->CreateDataLayout());
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<JitChannelQueueManager> queue_manager,
-      JitChannelQueueManager::CreateThreadSafe(std::move(elaboration)));
+      JitChannelQueueManager::CreateThreadSafe(
+          std::move(elaboration), std::make_unique<JitRuntime>(data_layout)));
 
   // Create a ProcJit or a ProcInterpreter for each Proc. Alternate between the
   // two options.

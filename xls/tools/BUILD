@@ -1229,6 +1229,7 @@ cc_binary(
         "//xls/jit:function_jit",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:jit_runtime",
+        "//xls/jit:orc_jit",
         "//xls/jit:proc_jit",
         "//xls/passes:bdd_function",
         "//xls/passes:bdd_query_engine",

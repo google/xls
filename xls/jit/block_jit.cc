@@ -58,10 +58,10 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(Block* block) {
     return absl::UnimplementedError(
         "Jitting of blocks with instantiations is not yet supported.");
   }
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
-                       JitRuntime::Create());
-  return std::unique_ptr<BlockJit>(new BlockJit(
-      block, std::move(runtime), std::move(orc_jit), std::move(function)));
+  XLS_ASSIGN_OR_RETURN(auto data_layout, orc_jit->CreateDataLayout());
+  return std::unique_ptr<BlockJit>(
+      new BlockJit(block, std::make_unique<JitRuntime>(data_layout),
+                   std::move(orc_jit), std::move(function)));
 }
 
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
@@ -351,7 +351,6 @@ absl::StatusOr<BlockRunResult> JitBlockEvaluator::EvaluateBlock(
   XLS_RET_CHECK_EQ(elaboration.instances().size(), 1)
       << "StreamingJitBlockEvaluator does not support instantiations";
 
-  XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
   XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(top_block));
   auto continuation = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(continuation->SetInputPorts(inputs));

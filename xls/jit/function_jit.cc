@@ -16,7 +16,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -28,6 +30,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/Support/Error.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
@@ -38,7 +42,6 @@
 #include "xls/ir/value_utils.h"
 #include "xls/jit/aot_compiler.h"
 #include "xls/jit/function_base_jit.h"
-#include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
@@ -55,13 +58,17 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
 /* static */ absl::StatusOr<std::unique_ptr<FunctionJit>>
 FunctionJit::CreateFromAot(Function* xls_function,
                            const AotEntrypointProto& entrypoint,
+                           std::string_view data_layout,
                            JitFunctionType function_unpacked,
                            std::optional<JitFunctionType> function_packed) {
   XLS_ASSIGN_OR_RETURN(
       JittedFunctionBase jfb,
       JittedFunctionBase::BuildFromAot(xls_function, entrypoint,
                                        function_unpacked, function_packed));
-  XLS_ASSIGN_OR_RETURN(auto runtime, JitRuntime::Create());
+  llvm::Expected<llvm::DataLayout> layout =
+      llvm::DataLayout::parse(data_layout);
+  XLS_RET_CHECK(layout) << "Unable to parse '" << data_layout
+                        << "' to an llvm data-layout.";
   // OrcJit is simply the arena that holds the JITed code. Since we are already
   // compiled theres no need to create and initialize it.
   // TODO(allight): Ideally we wouldn't even need to link in the llvm stuff if
@@ -69,13 +76,14 @@ FunctionJit::CreateFromAot(Function* xls_function,
   // around some extra .so's isn't a huge deal.
   return std::unique_ptr<FunctionJit>(
       new FunctionJit(xls_function, std::unique_ptr<OrcJit>(nullptr),
-                      std::move(jfb), std::move(runtime)));
+                      std::move(jfb), std::make_unique<JitRuntime>(*layout)));
 }
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
     Function* xls_function, int64_t opt_level, bool include_msan) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
                        AotCompiler::Create(include_msan, opt_level));
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
   XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
                        JittedFunctionBase::Build(xls_function, *comp));
   XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
@@ -85,7 +93,8 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
                                .function = xls_function,
                                .jit_info = std::move(jfb),
                            },
-                       }};
+                       },
+                      .data_layout = data_layout};
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(

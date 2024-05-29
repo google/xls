@@ -62,21 +62,24 @@ class BaseFunctionJitWrapper {
   template <typename RealType>
   static absl::StatusOr<std::unique_ptr<RealType>> Create(
       std::string_view ir_text, std::string_view function_name,
-      absl::Span<uint8_t const> aot_entrypoint_proto_bin,
+      absl::Span<uint8_t const> aot_entrypoints_proto_bin,
       JitFunctionType unpacked_entrypoint, JitFunctionType packed_entrypoint)
     requires(std::is_base_of_v<BaseFunctionJitWrapper, RealType>)
   {
     XLS_ASSIGN_OR_RETURN(auto package,
                          ParsePackage(ir_text, /*filename=*/std::nullopt));
     XLS_ASSIGN_OR_RETURN(auto function, package->GetFunction(function_name));
-    AotEntrypointProto proto;
+    AotPackageEntrypointsProto proto;
     // NB We could fallback to real jit here maybe?
-    XLS_RET_CHECK(proto.ParseFromArray(aot_entrypoint_proto_bin.data(),
-                                       aot_entrypoint_proto_bin.size()))
+    XLS_RET_CHECK(proto.ParseFromArray(aot_entrypoints_proto_bin.data(),
+                                       aot_entrypoints_proto_bin.size()))
         << "Unable to parse aot information.";
-    XLS_ASSIGN_OR_RETURN(
-        auto jit, FunctionJit::CreateFromAot(
-                      function, proto, unpacked_entrypoint, packed_entrypoint));
+    XLS_RET_CHECK_EQ(proto.entrypoint_size(), 1)
+        << "FunctionWrapper should only have a single XLS function compiled.";
+    XLS_ASSIGN_OR_RETURN(auto jit,
+                         FunctionJit::CreateFromAot(
+                             function, proto.entrypoint(0), proto.data_layout(),
+                             unpacked_entrypoint, packed_entrypoint));
     return std::unique_ptr<RealType>(
         new RealType(std::move(package), std::move(jit),
                      MatchesImplicitToken(function->GetType()->parameters())));

@@ -80,4 +80,7 @@ message AotEntrypointProto {
 // a list of all of the targets contained.
 message AotPackageEntrypointsProto {
   repeated AotEntrypointProto entrypoint = 1;
+
+  // The LLVM DataLayout used in this compile.
+  optional string data_layout = 2;
 }

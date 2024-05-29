@@ -21,6 +21,7 @@
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -32,6 +33,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -42,7 +44,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
-#include "xls/jit/aot_compiler.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
@@ -76,14 +77,8 @@ namespace {
 
 absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
     Package* package, FunctionBase* func, const JittedFunctionBase& object_code,
-    bool include_msan) {
+    bool include_msan, LlvmTypeConverter& type_converter) {
   AotEntrypointProto proto;
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<AotCompiler> aot_compiler,
-      AotCompiler::Create(/*emit_msan=*/include_msan, /*opt_level=*/3));
-  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
-                       aot_compiler->CreateDataLayout());
-  LlvmTypeConverter type_converter(aot_compiler->GetContext(), data_layout);
   proto.set_has_msan(include_msan);
   if (func->IsFunction()) {
     proto.set_type(AotEntrypointProto::FUNCTION);
@@ -171,7 +166,7 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
     }
   }
 
-  JitObjectCode object_code;
+  std::optional<JitObjectCode> object_code;
   if (f->IsFunction()) {
     XLS_ASSIGN_OR_RETURN(object_code, FunctionJit::CreateObjectCode(
                                           f->AsFunctionOrDie(),
@@ -191,12 +186,19 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
   }
   AotPackageEntrypointsProto all_entrypoints;
   XLS_RETURN_IF_ERROR(SetFileContents(
-      output_object_path, std::string(object_code.object_code.begin(),
-                                      object_code.object_code.end())));
-  for (const FunctionEntrypoint& oc : object_code.entrypoints) {
-    XLS_ASSIGN_OR_RETURN(*all_entrypoints.add_entrypoint(),
-                         GenerateEntrypointProto(package.get(), oc.function,
-                                                 oc.jit_info, include_msan));
+      output_object_path, std::string(object_code->object_code.begin(),
+                                      object_code->object_code.end())));
+
+  *all_entrypoints.mutable_data_layout() =
+      object_code->data_layout.getStringRepresentation();
+
+  auto context = std::make_unique<llvm::LLVMContext>();
+  LlvmTypeConverter type_converter(context.get(), object_code->data_layout);
+  for (const FunctionEntrypoint& oc : object_code->entrypoints) {
+    XLS_ASSIGN_OR_RETURN(
+        *all_entrypoints.add_entrypoint(),
+        GenerateEntrypointProto(package.get(), oc.function, oc.jit_info,
+                                include_msan, type_converter));
   }
   if (generate_textproto) {
     std::string text;

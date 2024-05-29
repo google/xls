@@ -15,11 +15,13 @@
 #ifndef XLS_JIT_JIT_RUNTIME_H_
 #define XLS_JIT_JIT_RUNTIME_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/ir/type.h"
@@ -34,7 +36,6 @@ namespace xls {
 class JitRuntime {
  public:
   explicit JitRuntime(llvm::DataLayout data_layout);
-  static absl::StatusOr<std::unique_ptr<JitRuntime>> Create();
 
   // Packs the specified values into a flat buffer with the data layout
   // expected by LLVM.
