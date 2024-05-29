@@ -26,13 +26,15 @@
 #include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/jit/llvm_compiler.h"
+#include "xls/jit/observer.h"
 
 namespace xls {
 
 class AotCompiler final : public LlvmCompiler {
  public:
   static absl::StatusOr<std::unique_ptr<AotCompiler>> Create(
-      bool include_msan, int64_t opt_level = LlvmCompiler::kDefaultOptLevel);
+      bool include_msan, int64_t opt_level = LlvmCompiler::kDefaultOptLevel,
+      JitObserver* observer = nullptr);
 
   absl::StatusOr<AotCompiler*> AsAotCompiler() override { return this; }
 
@@ -63,13 +65,15 @@ class AotCompiler final : public LlvmCompiler {
   absl::Status InitInternal() override;
 
  private:
-  AotCompiler(int64_t opt_level, bool include_msan)
-      : LlvmCompiler(opt_level, include_msan) {}
+  AotCompiler(int64_t opt_level, bool include_msan, JitObserver* observer)
+      : LlvmCompiler(opt_level, include_msan), jit_observer_(observer) {}
 
   std::unique_ptr<llvm::LLVMContext> context_ =
       std::make_unique<llvm::LLVMContext>();
 
   std::optional<std::vector<uint8_t>> object_code_;
+
+  JitObserver* jit_observer_;
 };
 
 }  // namespace xls

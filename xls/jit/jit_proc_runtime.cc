@@ -49,6 +49,7 @@
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_compiler.h"
+#include "xls/jit/observer.h"
 #include "xls/jit/proc_jit.h"
 
 namespace xls {
@@ -121,9 +122,12 @@ class SharedCompiler final : public LlvmCompiler {
 };
 
 absl::StatusOr<JitObjectCode> GetAotObjectCode(ProcElaboration elaboration,
-                                               bool with_msan) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> compiler,
-                       AotCompiler::Create(with_msan));
+                                               bool with_msan,
+                                               JitObserver* observer) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<AotCompiler> compiler,
+      AotCompiler::Create(
+          with_msan, /*opt_level=*/LlvmCompiler::kDefaultOptLevel, observer));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> target,
                        compiler->CreateTargetMachine());
   llvm::DataLayout layout = target->createDataLayout();
@@ -267,16 +271,17 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
 }
 
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Package* package,
-                                                      bool with_msan) {
+                                                      bool with_msan,
+                                                      JitObserver* observer) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return GetAotObjectCode(std::move(elaboration), with_msan);
+  return GetAotObjectCode(std::move(elaboration), with_msan, observer);
 }
-absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Proc* top,
-                                                      bool with_msan) {
+absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Proc* top, bool with_msan,
+                                                      JitObserver* observer) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
-  return GetAotObjectCode(std::move(elaboration), with_msan);
+  return GetAotObjectCode(std::move(elaboration), with_msan, observer);
 }
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the

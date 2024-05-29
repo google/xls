@@ -24,6 +24,7 @@
 #include "xls/ir/package.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
+#include "xls/jit/observer.h"
 
 namespace xls {
 
@@ -65,11 +66,11 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     absl::Span<ProcAotEntrypoints const> impls);
 
 // Generate AOT code for the given proc elaboration.
-absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Package* package,
-                                                      bool with_msan);
+absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
+    Package* package, bool with_msan, JitObserver* observer = nullptr);
 // Generate AOT code for the given proc elaboration.
-absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Proc* top,
-                                                      bool with_msan);
+absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
+    Proc* top, bool with_msan, JitObserver* observer = nullptr);
 
 }  // namespace xls
 

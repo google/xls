@@ -45,17 +45,19 @@
 #include "llvm/include/llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/include/llvm/TargetParser/Triple.h"
 #include "llvm/include/llvm/TargetParser/X86TargetParser.h"
+#include "llvm/include/llvm/Transforms/Utils/Cloning.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/jit_emulated_tls.h"
 #include "xls/jit/llvm_compiler.h"
+#include "xls/jit/observer.h"
 
 namespace xls {
 
 /* static */ absl::StatusOr<std::unique_ptr<AotCompiler>> AotCompiler::Create(
-    bool include_msan, int64_t opt_level) {
+    bool include_msan, int64_t opt_level, JitObserver* observer) {
   LlvmCompiler::InitializeLlvm();
-  auto compiler =
-      std::unique_ptr<AotCompiler>(new AotCompiler(opt_level, include_msan));
+  auto compiler = std::unique_ptr<AotCompiler>(
+      new AotCompiler(opt_level, include_msan, observer));
   XLS_RETURN_IF_ERROR(compiler->Init());
   return std::move(compiler);
 }
@@ -172,6 +174,13 @@ absl::Status AddWeakEmuTls(llvm::Module& module, llvm::LLVMContext* context) {
 }  // namespace
 absl::Status AotCompiler::CompileModule(
     std::unique_ptr<llvm::Module>&& module) {
+  JitObserverRequests notification;
+  if (jit_observer_ != nullptr) {
+    notification = jit_observer_->GetNotificationOptions();
+  }
+  if (notification.unoptimized_module) {
+    jit_observer_->UnoptimizedModule(module.get());
+  }
   auto err = PerformStandardOptimization(module.get());
   if (err) {
     std::string mem;
@@ -183,6 +192,24 @@ absl::Status AotCompiler::CompileModule(
   // after all the msan stuff is done.
   if (include_msan()) {
     XLS_RETURN_IF_ERROR(AddWeakEmuTls(*module, GetContext()));
+  }
+  if (notification.optimized_module) {
+    jit_observer_->OptimizedModule(module.get());
+  }
+  if (notification.assembly_code_str) {
+    llvm::SmallVector<char, 0> asm_stream_buffer;
+    llvm::raw_svector_ostream asm_ostream(asm_stream_buffer);
+    llvm::legacy::PassManager asm_mpm;
+    if (target_machine_->addPassesToEmitFile(
+            asm_mpm, asm_ostream, nullptr,
+            llvm::CodeGenFileType::AssemblyFile)) {
+      return absl::InternalError(
+          "Unable to add passes for assembly code dumping");
+    }
+    std::unique_ptr<llvm::Module> clone = llvm::CloneModule(*module);
+    asm_mpm.run(*clone);
+    std::string asm_code(asm_stream_buffer.begin(), asm_stream_buffer.end());
+    jit_observer_->AssemblyCodeString(module.get(), asm_code);
   }
   llvm::SmallVector<char, 0> stream_buffer;
   llvm::raw_svector_ostream ostream(stream_buffer);

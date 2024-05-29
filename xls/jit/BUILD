@@ -89,6 +89,7 @@ cc_binary(
         ":function_jit",
         ":jit_proc_runtime",
         ":llvm_type_converter",
+        ":observer",
         ":type_layout_cc_proto",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -104,6 +105,7 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf",
+        "@llvm-project//llvm:Support",
         "@llvm-project//llvm:ir_headers",
     ],
 )
@@ -682,6 +684,7 @@ cc_library(
     deps = [
         ":jit_emulated_tls",
         ":llvm_compiler",
+        ":observer",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -694,6 +697,7 @@ cc_library(
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
         "@llvm-project//llvm:TargetParser",
+        "@llvm-project//llvm:TransformUtils",
         "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:ir_headers",
@@ -890,6 +894,7 @@ cc_library(
         ":jit_channel_queue",
         ":jit_runtime",
         ":llvm_compiler",
+        ":observer",
         ":proc_jit",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

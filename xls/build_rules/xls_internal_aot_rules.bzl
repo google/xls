@@ -17,6 +17,7 @@ This module contains rules for generating AOT compiled ir entrypoints.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "get_src_ir_for_xls",
@@ -53,6 +54,10 @@ _xls_aot_files_attrs = {
         default = "//xls/jit:jit_emulated_tls",
         providers = [CcInfo],
     ),
+    "_emit_aot_intermediates": attr.label(
+        doc = "emit intermediates",
+        default = "//xls/common/config:emit_aot_intermediates",
+    ),
 }
 
 def _xls_aot_generate_impl(ctx):
@@ -75,6 +80,18 @@ def _xls_aot_generate_impl(ctx):
     args.add("-top", ctx.attr.top)
     args.add("-output_object", obj_file.path)
     args.add("-output_proto", proto_file.path)
+    extra_files = []
+    if ctx.attr._emit_aot_intermediates[BuildSettingInfo].value:
+        textproto_file = ctx.actions.declare_file(ctx.attr.name + ".text_proto")
+        llvm_ir_file = ctx.actions.declare_file(ctx.attr.name + ".ll")
+        llvm_opt_ir_file = ctx.actions.declare_file(ctx.attr.name + ".opt.ll")
+        asm_file = ctx.actions.declare_file(ctx.attr.name + ".S")
+        extra_files = [llvm_ir_file, llvm_opt_ir_file, asm_file, textproto_file]
+        args.add("-output_textproto", textproto_file.path)
+        args.add("-output_llvm_ir", llvm_ir_file.path)
+        args.add("-output_llvm_opt_ir", llvm_opt_ir_file.path)
+        args.add("-output_asm", asm_file.path)
+
     other_linking_contexts = []
     if ctx.attr.with_msan:
         args.add("--include_msan=true")
@@ -84,7 +101,7 @@ def _xls_aot_generate_impl(ctx):
     else:
         args.add("--include_msan=false")
     ctx.actions.run(
-        outputs = [proto_file, obj_file],
+        outputs = [proto_file, obj_file] + extra_files,
         inputs = [src],
         arguments = [args],
         executable = aot_compiler,
@@ -108,7 +125,7 @@ def _xls_aot_generate_impl(ctx):
 
     return [
         AotCompileInfo(object_file = obj_file, proto_file = proto_file),
-        DefaultInfo(files = depset([obj_file, proto_file])),
+        DefaultInfo(files = depset([obj_file, proto_file] + extra_files)),
         CcInfo(linking_context = linking_context),
     ]
 

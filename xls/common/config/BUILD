@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
@@ -31,4 +33,14 @@ cc_library(
     name = "xls_config_oss",
     srcs = ["xls_config_oss.cc"],
     hdrs = ["xls_config.h"],
+)
+
+# Tell AOT targets to emit llvm ir and asm in addition to their normal outputs.
+#
+# This is the equivalent of the cc_* rules '--save_temps' flag. It can be set by passing
+# `--//xls/common/config:emit_aot_intermediates=True`.
+bool_flag(
+    name = "emit_aot_intermediates",
+    build_setting_default = False,
+    visibility = ["//xls:xls_internal"],
 )

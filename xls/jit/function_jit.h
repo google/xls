@@ -57,14 +57,13 @@ class FunctionJit {
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateFromAot(
       Function* xls_function, const AotEntrypointProto& entrypoint,
-      std::string_view data_layout,
-      JitFunctionType function_unpacked,
+      std::string_view data_layout, JitFunctionType function_unpacked,
       std::optional<JitFunctionType> function_packed = std::nullopt);
 
   // Returns the bytes of an object file containing the compiled XLS function.
-  static absl::StatusOr<JitObjectCode> CreateObjectCode(Function* xls_function,
-                                                        int64_t opt_level,
-                                                        bool include_msan);
+  static absl::StatusOr<JitObjectCode> CreateObjectCode(
+      Function* xls_function, int64_t opt_level, bool include_msan,
+      JitObserver* observer = nullptr);
 
   // Executes the compiled function with the specified arguments.
   absl::StatusOr<InterpreterResult<Value>> Run(absl::Span<const Value> args);

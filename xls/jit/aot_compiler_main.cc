@@ -34,6 +34,7 @@
 #include "absl/strings/str_cat.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/Support/raw_ostream.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -49,20 +50,28 @@
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/observer.h"
 #include "xls/jit/type_layout.pb.h"
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
-ABSL_FLAG(std::string, top, "",
+ABSL_FLAG(std::optional<std::string>, top, std::nullopt,
           "IR function to compile. "
           "If unspecified, the package top function will be used - "
           "in that case, the package-scoping mangling will be removed.");
-ABSL_FLAG(std::string, output_object, "",
+ABSL_FLAG(std::optional<std::string>, output_object, std::nullopt,
           "Path at which to write the output object file.");
-ABSL_FLAG(std::string, output_proto, "",
+ABSL_FLAG(std::optional<std::string>, output_proto, std::nullopt,
           "Path at which to write the AotPackageEntrypointsProto describing "
           "the ABI of the generated object files.");
-ABSL_FLAG(bool, generate_textproto, false,
-          "Generate the AotPackageEntrypointsProto as a textproto");
+ABSL_FLAG(std::optional<std::string>, output_textproto, std::nullopt,
+          "Path to write a textproto AotPackageEntrypointsProto describing the "
+          "ABI of the generated object file.");
+ABSL_FLAG(std::optional<std::string>, output_llvm_ir, std::nullopt,
+          "Path at which to write the output llvm file.");
+ABSL_FLAG(std::optional<std::string>, output_llvm_opt_ir, std::nullopt,
+          "Path at which to write the output optimized llvm file.");
+ABSL_FLAG(std::optional<std::string>, output_asm, std::nullopt,
+          "Path at which to write the output optimized llvm file.");
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 static constexpr bool kHasMsan = true;
 #else
@@ -74,6 +83,39 @@ ABSL_FLAG(bool, include_msan, kHasMsan,
 
 namespace xls {
 namespace {
+
+class IntermediatesObserver final : public JitObserver {
+ public:
+  explicit IntermediatesObserver(JitObserverRequests req) : requests_(req) {}
+  JitObserverRequests GetNotificationOptions() const override {
+    return requests_;
+  }
+  // Called when a LLVM module has been created and is ready for optimization
+  void UnoptimizedModule(const llvm::Module* module) override {
+    llvm::raw_string_ostream ostream(unoptimized_);
+    module->print(ostream, nullptr);
+  }
+  // Called when a LLVM module has been created and is ready for codegen
+  void OptimizedModule(const llvm::Module* module) override {
+    llvm::raw_string_ostream ostream(optimized_);
+    module->print(ostream, nullptr);
+  }
+  // Called when a LLVM module has been compiled with the asm code.
+  void AssemblyCodeString(const llvm::Module* module,
+                          std::string_view asm_code) override {
+    asm_ = asm_code;
+  }
+
+  std::string_view unoptimized_code() const { return unoptimized_; }
+  std::string_view optimized_code() const { return optimized_; }
+  std::string_view asm_code() const { return asm_; }
+
+ private:
+  JitObserverRequests requests_;
+  std::string unoptimized_;
+  std::string optimized_;
+  std::string asm_;
+};
 
 absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
     Package* package, FunctionBase* func, const JittedFunctionBase& object_code,
@@ -143,51 +185,65 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
   return proto;
 }
 
-absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
-                      const std::string& output_object_path,
-                      const std::string& output_proto_path, bool include_msan,
-                      bool generate_textproto) {
+absl::Status RealMain(const std::string& input_ir_path,
+                      const std::optional<std::string>& top,
+                      const std::optional<std::string>& output_object_path,
+                      const std::optional<std::string>& output_proto_path,
+                      bool include_msan,
+                      const std::optional<std::string>& output_textproto_path,
+                      const std::optional<std::string>& output_llvm_ir_path,
+                      const std::optional<std::string>& output_llvm_opt_ir_path,
+                      const std::optional<std::string>& output_asm_path) {
   XLS_ASSIGN_OR_RETURN(std::string input_ir, GetFileContents(input_ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(input_ir, input_ir_path));
 
+  IntermediatesObserver obs(
+      {.unoptimized_module = output_llvm_ir_path.has_value(),
+       .optimized_module = output_llvm_opt_ir_path.has_value(),
+       .assembly_code_str = output_asm_path.has_value()});
   FunctionBase* f;
   std::string package_prefix = absl::StrCat("__", package->name(), "__");
-  if (top.empty()) {
+  if (!top || top->empty()) {
     XLS_RET_CHECK(package->HasTop()) << "No top given.";
     f = *package->GetTop();
   } else {
-    absl::StatusOr<FunctionBase*> maybe_f = package->GetFunctionBaseByName(top);
+    absl::StatusOr<FunctionBase*> maybe_f =
+        package->GetFunctionBaseByName(*top);
     if (maybe_f.ok()) {
       f = *maybe_f;
     } else {
-      XLS_ASSIGN_OR_RETURN(
-          f, package->GetFunctionBaseByName(absl::StrCat(package_prefix, top)));
+      XLS_ASSIGN_OR_RETURN(f, package->GetFunctionBaseByName(
+                                  absl::StrCat(package_prefix, *top)));
     }
   }
 
   std::optional<JitObjectCode> object_code;
   if (f->IsFunction()) {
-    XLS_ASSIGN_OR_RETURN(object_code, FunctionJit::CreateObjectCode(
-                                          f->AsFunctionOrDie(),
-                                          /*opt_level = */ 3, include_msan));
+    XLS_ASSIGN_OR_RETURN(
+        object_code,
+        FunctionJit::CreateObjectCode(f->AsFunctionOrDie(),
+                                      /*opt_level = */ 3, include_msan, &obs));
   } else if (f->IsProc()) {
     if (f->AsProcOrDie()->is_new_style_proc()) {
       XLS_ASSIGN_OR_RETURN(
-          object_code, CreateProcAotObjectCode(f->AsProcOrDie(), include_msan));
+          object_code,
+          CreateProcAotObjectCode(f->AsProcOrDie(), include_msan, &obs));
     } else {
       // all procs
-      XLS_ASSIGN_OR_RETURN(
-          object_code, CreateProcAotObjectCode(package.get(), include_msan));
+      XLS_ASSIGN_OR_RETURN(object_code, CreateProcAotObjectCode(
+                                            package.get(), include_msan, &obs));
     }
   } else {
     return absl::UnimplementedError(
         "Dumping block jit code is not yet supported");
   }
   AotPackageEntrypointsProto all_entrypoints;
-  XLS_RETURN_IF_ERROR(SetFileContents(
-      output_object_path, std::string(object_code->object_code.begin(),
-                                      object_code->object_code.end())));
+  if (output_object_path) {
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        *output_object_path, std::string(object_code->object_code.begin(),
+                                         object_code->object_code.end())));
+  }
 
   *all_entrypoints.mutable_data_layout() =
       object_code->data_layout.getStringRepresentation();
@@ -200,13 +256,25 @@ absl::Status RealMain(const std::string& input_ir_path, const std::string& top,
         GenerateEntrypointProto(package.get(), oc.function, oc.jit_info,
                                 include_msan, type_converter));
   }
-  if (generate_textproto) {
+  if (output_textproto_path) {
     std::string text;
     XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(all_entrypoints, &text));
-    XLS_RETURN_IF_ERROR(SetFileContents(output_proto_path, text));
-  } else {
-    XLS_RETURN_IF_ERROR(SetFileContents(output_proto_path,
+    XLS_RETURN_IF_ERROR(SetFileContents(*output_textproto_path, text));
+  }
+  if (output_proto_path) {
+    XLS_RETURN_IF_ERROR(SetFileContents(*output_proto_path,
                                         all_entrypoints.SerializeAsString()));
+  }
+  if (output_llvm_ir_path) {
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(*output_llvm_ir_path, obs.unoptimized_code()));
+  }
+  if (output_llvm_opt_ir_path) {
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(*output_llvm_opt_ir_path, obs.optimized_code()));
+  }
+  if (output_asm_path) {
+    XLS_RETURN_IF_ERROR(SetFileContents(*output_asm_path, obs.asm_code()));
   }
 
   return absl::OkStatus();
@@ -220,17 +288,19 @@ int main(int argc, char** argv) {
   std::string input_ir_path = absl::GetFlag(FLAGS_input);
   QCHECK(!input_ir_path.empty()) << "--input must be specified.";
 
-  std::string top = absl::GetFlag(FLAGS_top);
+  std::optional<std::string> top = absl::GetFlag(FLAGS_top);
 
-  std::string output_object_path = absl::GetFlag(FLAGS_output_object);
-  std::string output_proto_path = absl::GetFlag(FLAGS_output_proto);
-  QCHECK(!output_object_path.empty() && !output_proto_path.empty())
-      << "All of --output_{object,proto} must be specified.";
+  std::optional<std::string> output_object_path =
+      absl::GetFlag(FLAGS_output_object);
+  std::optional<std::string> output_proto_path =
+      absl::GetFlag(FLAGS_output_proto);
 
   bool include_msan = absl::GetFlag(FLAGS_include_msan);
-  absl::Status status =
-      xls::RealMain(input_ir_path, top, output_object_path, output_proto_path,
-                    include_msan, absl::GetFlag(FLAGS_generate_textproto));
+  absl::Status status = xls::RealMain(
+      input_ir_path, top, output_object_path, output_proto_path, include_msan,
+      absl::GetFlag(FLAGS_output_textproto),
+      absl::GetFlag(FLAGS_output_llvm_ir),
+      absl::GetFlag(FLAGS_output_llvm_opt_ir), absl::GetFlag(FLAGS_output_asm));
   if (!status.ok()) {
     std::cout << status.message();
     return 1;

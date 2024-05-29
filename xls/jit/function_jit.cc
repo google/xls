@@ -80,21 +80,23 @@ FunctionJit::CreateFromAot(Function* xls_function,
 }
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
-    Function* xls_function, int64_t opt_level, bool include_msan) {
+    Function* xls_function, int64_t opt_level, bool include_msan,
+    JitObserver* observer) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
-                       AotCompiler::Create(include_msan, opt_level));
+                       AotCompiler::Create(include_msan, opt_level, observer));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
   XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
                        JittedFunctionBase::Build(xls_function, *comp));
   XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
   return JitObjectCode{.object_code = std::move(obj_code),
-                       .entrypoints = {
-                           FunctionEntrypoint{
-                               .function = xls_function,
-                               .jit_info = std::move(jfb),
+                       .entrypoints =
+                           {
+                               FunctionEntrypoint{
+                                   .function = xls_function,
+                                   .jit_info = std::move(jfb),
+                               },
                            },
-                       },
-                      .data_layout = data_layout};
+                       .data_layout = data_layout};
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(

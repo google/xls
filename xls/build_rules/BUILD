@@ -267,6 +267,7 @@ bzl_library(
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
         "@bazel_skylib//lib:dicts",
+        "@bazel_skylib//rules:common_settings",
     ],
 )
 
