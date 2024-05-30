@@ -37,27 +37,25 @@ line-by-line:
     [imported](../dslx_reference.md#imports)
     therein.
 2.  Function parameter declarations! This function only takes one parameter,
-    `x`, whose type follows its name. In this case, it's a _`tuple`_: a grouping
+    `x`, whose type follows its name. In this case, it's a *`tuple`*: a grouping
     of potentially disparate elements into a single quantity. A tuple is
     specified by listing a set of types in parentheses, as here. Our tuple has a
-    1-bit element for the sign, an 8-bit element for the biased
-    exponent, and a 23-bit element for the fractional part. In what is the
-    complete opposite of a coincidence, these fields match those of an IEEE
-    float32 number. If a function takes more than one argument, they'll be
-    comma-separated.
-    -   u1, u8, and u23 are all shortcuts for the type uN[1], uN[8], and uN[23].
-        The uN[X] construct declares an X-bit wide unsigned type. There is also
-        sN[X], which declares an X-bit wide _signed_ type.
-    -   Other type shortcuts exist such as bits[X](alias for uN[X]), bool (alias
-        for uN[1]), and u[1-64] and s[1-64], being aliases for uN[1] through
-        uN[64] and sN[1] through sN[64].
+    1-bit element for the sign, an 8-bit element for the biased exponent, and a
+    23-bit element for the fractional part. In what is the complete opposite of
+    a coincidence, these fields match those of an IEEE float32 number. If a
+    function takes more than one argument, they'll be comma-separated.
+    -   `u1`, `u8`, and `u23` are all shortcuts for the type `uN[1]`, `uN[8]`,
+        and `uN[23]`. The `uN[X]` construct declares an X-bit wide unsigned
+        type. There is also `sN[X]`, which declares an X-bit wide *signed* type.
+    -   Other type shortcuts exist such as `bits[X]` (alias for `uN[X]`), `bool`
+        (alias for `uN[1]`), and `u[1-64]` and `s[1-64]`, being aliases for
+        `uN[1]` through `uN[64]` and `sN[1]` through `sN[64]`.
 3.  Function return type. This function returns a signed 32-bit type, matching
     the intentions of float-to-int conversion (since floats are signed).
 4.  Finally, the last line: the final statement in a function is its return
-    value. Here, we're unconditionally returning a signed 32-bit number with
-    the value `48879`. This is only temporary to
-    make the function syntactically valid - we're still learning the basics!
-    Gimme a second!
+    value. Here, we're unconditionally returning a signed 32-bit number with the
+    value `48879`. This is only temporary to make the function syntactically
+    valid - we're still learning the basics! Gimme a second!
 
 As an aside, it's a good idea to keep a bookmark to the
 [DSLX language reference](../dslx_reference.md)
