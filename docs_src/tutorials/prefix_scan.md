@@ -9,13 +9,18 @@ input and produces an output of the same size. Each element in the output
 contains the count of duplicate values seen so far in the input. The counter
 resets to 0 if a new value is found.
 
-For example, for this input:
+For example, suppose we have this input:
 
 ```dslx-snippet
   let input = u32[8]:[0, ...]
 ```
 
-the code should produce this output:
+This creates an 8-element
+[array](../dslx_reference.md#array-type) of `u32`
+integers; the `...` at the end of the array is a shorthand to indicate
+"fill in the rest of the elements with the last value specified".
+
+The prefix scan code should produce this output:
 
 ```dslx-snippet
   u3[8]:[0, 1, 2, 3, 4, 5, 6, 7])
@@ -41,7 +46,8 @@ it should produce:
   assert_eq(result, u3[8]:[0, 1, 0, 1, 0, 1, 0, 1])
 ```
 
-The full listing is in `examples/dslx_intro/prefix_scan_equality.x`.
+The full listing is in
+[examples/dslx_intro/prefix_scan_equality.x](https://github.com/google/xls/tree/main/xls/examples/dslx_intro/prefix_scan_equality.x).
 
 ### Function `prefix_scan_eq`
 
@@ -56,16 +62,17 @@ fn prefix_scan_eq(x: u32[8]) -> u3[8] {
 ```
 
 The first let expression produces a tuple of 3 values. It only cares about the
-last value `result`, so it stubs out the other two elements via the 'ignore'
+last value `result`, so it stubs out the other two elements via the 'unused'
 placeholder `_`.
 
 ```dslx-snippet
   let (_, _, result) =
 ```
 
-Why a 3-Tuple? Because he following loop has tuple of three values as the
-accumulator. The return type of the loop is the type of the accumulator, so
-above let needs to be of the same type.
+Why a 3-Tuple? Because the subsequent loop on the right hand side of this
+assignment has a tuple of three values as the accumulator. The return type of
+the loop is the type of the accumulator, so the above let needs to be of the
+same type.
 
 #### Enumerated Loop
 
@@ -91,7 +98,7 @@ array type `u3[8]`, which is an array holding 8 elements of bit-width 3. This is
 the type of `result` in the accumulator.
 
 Looping back to the prior `let` statement, it ignores the `prior` and `count`
-members of the tuple and will only return the `result` part.
+members of the tuple and will only store the `result` part.
 
 #### A Match Expression
 
@@ -152,9 +159,7 @@ accumulator in the following way.
 
 *   set element `prior` to -1, in order to not match any other value.
 *   set element `count` to 0.
-*   set element `result` to 8 0's of size `u3`. (Note that the `...` syntax
-    is short for "fill in the rest of the elements with the last value
-    specified".)
+*   set element `result` to 8 0's of size `u3`.
 
 ```dslx-snippet
 }((u32:-1, u3:0, u3[8]:[0, ...]));

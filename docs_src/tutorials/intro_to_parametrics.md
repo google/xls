@@ -166,8 +166,8 @@ Next is to identify all types needing parameterization, here being the intended
 size of the result and the layout of the floating-point type itself; all other
 types flow from that base definition:
 
-*   `exp:`float32::bexp` size + 1 sign bit
-*   `fraction:`float32::fraction` size + 1 implicit leading bit
+*   `exp`: `float32::bexp` size + 1 sign bit
+*   `fraction`: `float32::fraction` size + 1 implicit leading bit
 
 Thus, the struct declaration and function signature will be:
 
