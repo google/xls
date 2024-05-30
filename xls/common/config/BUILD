@@ -35,10 +35,15 @@ cc_library(
     hdrs = ["xls_config.h"],
 )
 
+config_setting(
+    name = "save_temps_is_requested",
+    values = {"save_temps": "true"},
+    visibility = ["//xls:xls_internal"],
+)
+
 # Tell AOT targets to emit llvm ir and asm in addition to their normal outputs.
 #
-# This is the equivalent of the cc_* rules '--save_temps' flag. It can be set by passing
-# `--//xls/common/config:emit_aot_intermediates=True`.
+# This can be set even if --save_temps is not passed. If --save_temps is passed this is ignored.
 bool_flag(
     name = "emit_aot_intermediates",
     build_setting_default = False,
