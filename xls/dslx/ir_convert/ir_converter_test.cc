@@ -1474,6 +1474,48 @@ fn main(x: u32, y: u32) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ConvertCoverOpWithConditionalGuard) {
+  const std::string kProgram = R"(
+fn f(x: u32) -> u32 {
+    cover!("x_less_than_0", x < u32:0);
+    x
+}
+
+fn main(y: u32) -> u32 {
+    if y < u32:10 {
+        f(y)
+    } else {
+        u32:0
+    }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ConvertAssertOpWithConditionalGuard) {
+  const std::string kProgram = R"(
+fn f(x: u32) -> u32 {
+    assert!(x < u32:5, "x_less_than_5");
+    x
+}
+
+fn main(y: u32) -> u32 {
+    if y < u32:10 {
+        f(y)
+    } else {
+        u32:0
+    }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, ConvertGateOp) {
   const std::string kProgram = R"(
 fn main(p: bool, x: u32) -> u32 {

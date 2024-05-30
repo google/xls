@@ -1,0 +1,28 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__f(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  literal.4: bits[32] = literal(value=5, id=4)
+  not.7: bits[1] = not(__activated, id=7)
+  ult.5: bits[1] = ult(x, literal.4, id=5)
+  or.8: bits[1] = or(not.7, ult.5, id=8)
+  assert.9: token = assert(__token, or.8, message="Assertion failure via assert! @ test_module.x:3:12-3:40", label="x_less_than_5", id=9)
+  after_all.11: token = after_all(assert.9, id=11)
+  literal.6: bits[8][13] = literal(value=[120, 95, 108, 101, 115, 115, 95, 116, 104, 97, 110, 95, 53], id=6)
+  tuple.10: () = tuple(id=10)
+  ret tuple.12: (token, bits[32]) = tuple(after_all.11, x, id=12)
+}
+
+fn __itok__test_module__main(__token: token, __activated: bits[1], y: bits[32]) -> (token, bits[32]) {
+  literal.16: bits[32] = literal(value=10, id=16)
+  ult.17: bits[1] = ult(y, literal.16, id=17)
+  and.18: bits[1] = and(__activated, ult.17, id=18)
+  invoke.19: (token, bits[32]) = invoke(__token, and.18, y, to_apply=__itok__test_module__f, id=19)
+  tuple_index.20: token = tuple_index(invoke.19, index=0, id=20)
+  literal.22: bits[32] = literal(value=0, id=22)
+  tuple_index.21: bits[32] = tuple_index(invoke.19, index=1, id=21)
+  after_all.24: token = after_all(tuple_index.20, id=24)
+  sel.23: bits[32] = sel(ult.17, cases=[literal.22, tuple_index.21], id=23)
+  ret tuple.25: (token, bits[32]) = tuple(after_all.24, sel.23, id=25)
+}

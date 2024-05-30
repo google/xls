@@ -1794,12 +1794,20 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
         << "Invoking cover!(), but no implicit token is present for caller @ "
         << node->span();
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
+    BValue control_predicate = implicit_token_data_->create_control_predicate();
+
+    // Variables:
+    // * we got to the control point (CP)
+    // * the cover condition (CC)
+    //
+    // COVERED = CP & CC
+    BValue covered = function_builder_->And(control_predicate, condition);
     XLS_RET_CHECK_EQ(node->args().size(), 2);
     String* label = dynamic_cast<String*>(node->args()[0]);
     XLS_RET_CHECK(label != nullptr)
         << "cover!() argument 0 must be a literal string "
         << "(should have been typechecked?).";
-    function_builder_->Cover(condition, label->text());
+    function_builder_->Cover(covered, label->text());
   }
 
   // The result of the cover call is unit, the empty tuple.

@@ -1,0 +1,27 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__f(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+  literal.5: bits[32] = literal(value=0, id=5)
+  ult.6: bits[1] = ult(x, literal.5, id=6)
+  and.7: bits[1] = and(__activated, ult.6, id=7)
+  after_all.10: token = after_all(id=10)
+  literal.4: bits[8][13] = literal(value=[120, 95, 108, 101, 115, 115, 95, 116, 104, 97, 110, 95, 48], id=4)
+  cover.8: () = cover(and.7, label="x_less_than_0", id=8)
+  tuple.9: () = tuple(id=9)
+  ret tuple.11: (token, bits[32]) = tuple(after_all.10, x, id=11)
+}
+
+fn __itok__test_module__main(__token: token, __activated: bits[1], y: bits[32]) -> (token, bits[32]) {
+  literal.15: bits[32] = literal(value=10, id=15)
+  ult.16: bits[1] = ult(y, literal.15, id=16)
+  and.17: bits[1] = and(__activated, ult.16, id=17)
+  invoke.18: (token, bits[32]) = invoke(__token, and.17, y, to_apply=__itok__test_module__f, id=18)
+  tuple_index.19: token = tuple_index(invoke.18, index=0, id=19)
+  literal.21: bits[32] = literal(value=0, id=21)
+  tuple_index.20: bits[32] = tuple_index(invoke.18, index=1, id=20)
+  after_all.23: token = after_all(tuple_index.19, id=23)
+  sel.22: bits[32] = sel(ult.16, cases=[literal.21, tuple_index.20], id=22)
+  ret tuple.24: (token, bits[32]) = tuple(after_all.23, sel.22, id=24)
+}
