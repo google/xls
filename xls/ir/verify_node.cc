@@ -94,11 +94,10 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleCover(Cover* cover) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(cover, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(cover, /*operand_no=*/0));
-    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(cover, /*operand_no=*/1,
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(cover, 1));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(cover, /*operand_no=*/0,
                                                  /*expected_bit_count=*/1));
-    return ExpectHasTokenType(cover);
+    return ExpectHasTupleType(cover);
   }
 
   absl::Status HandleNaryAnd(NaryOp* and_op) override {

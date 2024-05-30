@@ -437,10 +437,14 @@ absl::StatusOr<Value> BddFunction::Evaluate(
                            function->GetParamIndex(node->As<Param>()));
       result = args.at(param_index);
     } else if (OpIsSideEffecting(node->op()) && node->GetType()->IsToken()) {
-      // Don't evaluate side-effecting ops that return tokens (e.g. assert,
-      // trace, cover), but conjure a placeholder token so that values.at(node)
-      // doesn't have to deal with missing nodes.
+      // Don't evaluate side-effecting ops that return tokens but conjure a
+      // placeholder token so that values.at(node) doesn't have to deal with
+      // missing nodes.
       result = Value::Token();
+    } else if (node->Is<Cover>()) {
+      // Directly set a placeholder result for covers, as these are
+      // side-effecting ops that don't affect the BDD.
+      result = Value::Tuple({});
     } else if (!node->GetType()->IsBits() ||
                saturated_expressions_.contains(node)) {
       std::vector<Value> operand_values;

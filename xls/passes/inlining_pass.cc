@@ -168,11 +168,10 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
       std::string new_label =
           GetPrefixedLabel(invoke, node->As<Cover>()->label(), inline_count);
       Cover* cover = invoked_node_to_replacement.at(node)->As<Cover>();
-      Node* token = cover->token();
       Node* condition = cover->condition();
       XLS_ASSIGN_OR_RETURN(auto new_cover,
                            cover->function_base()->MakeNodeWithName<Cover>(
-                               cover->loc(), token, condition, new_label,
+                               cover->loc(), condition, new_label,
                                std::move(original_label), cover->GetName()));
       XLS_RETURN_IF_ERROR(cover->ReplaceUsesWith(new_cover));
       XLS_RETURN_IF_ERROR(cover->function_base()->RemoveNode(cover));

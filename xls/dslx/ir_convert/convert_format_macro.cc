@@ -163,7 +163,9 @@ absl::StatusOr<BValue> ConvertFormatMacro(const FormatMacro& node,
   // ir_args that are interpolated into the format steps.
   std::vector<FormatStep> fmt_steps;
   std::vector<BValue> ir_args;
-  ConvertContext ctx{fmt_steps, ir_args, function_builder};
+  ConvertContext ctx{.fmt_steps = fmt_steps,
+                     .ir_args = ir_args,
+                     .fn_builder = function_builder};
 
   size_t next_argno = 0;
   for (size_t node_format_index = 0; node_format_index < node.format().size();
@@ -187,9 +189,8 @@ absl::StatusOr<BValue> ConvertFormatMacro(const FormatMacro& node,
     }
   }
 
-  BValue trace_result_token = function_builder.Trace(
-      entry_token, control_predicate, ir_args, fmt_steps);
-  return trace_result_token;
+  return function_builder.Trace(entry_token, control_predicate, ir_args,
+                                fmt_steps);
 }
 
 }  // namespace xls::dslx

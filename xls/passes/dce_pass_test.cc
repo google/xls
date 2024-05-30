@@ -100,29 +100,31 @@ TEST_F(DeadCodeEliminationPassTest, AvoidsSideEffecting) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn has_token(x: bits[32], y: bits[32]) -> bits[32] {
-      after_all_1: token = after_all()
-      add_2: bits[32] = add(x, y)
-      literal_3: bits[1] = literal(value=1)
-      my_cover: token = cover(after_all_1, literal_3, label="my_coverpoint")
-      tuple_5: (token, bits[32]) = tuple(my_cover, add_2)
-      tuple_index_6: token = tuple_index(tuple_5, index=0)
-      tuple_index_7: bits[32] = tuple_index(tuple_5, index=1)
+      add_1: bits[32] = add(x, y)
+      literal_2: bits[1] = literal(value=1)
+      my_cover: () = cover(literal_2, label="my_coverpoint")
+      tuple_4: ((), bits[32]) = tuple(my_cover, add_1)
+      tuple_index_5: () = tuple_index(tuple_4, index=0)
+      tuple_index_6: bits[32] = tuple_index(tuple_4, index=1)
       dead_afterall: token = after_all()
       dead_sub: bits[32] = sub(x, y)
-      ret sub_9: bits[32] = sub(tuple_index_7, y)
+      ret sub_9: bits[32] = sub(tuple_index_6, y)
     }
   )",
                                                        p.get()));
 
-  EXPECT_EQ(f->node_count(), 12);
+  EXPECT_EQ(f->node_count(), 11);
   XLS_EXPECT_OK(f->GetNode("my_cover").status());
+  XLS_EXPECT_OK(f->GetNode("tuple_index_5").status());
   XLS_EXPECT_OK(f->GetNode("dead_afterall").status());
-  XLS_EXPECT_OK(f->GetNode("dead_afterall").status());
+  XLS_EXPECT_OK(f->GetNode("dead_sub").status());
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
-  EXPECT_EQ(f->node_count(), 9);
+  EXPECT_EQ(f->node_count(), 8);
   XLS_EXPECT_OK(f->GetNode("my_cover").status());
+    EXPECT_THAT(f->GetNode("tuple_index_5"),
+              StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(f->GetNode("dead_afterall"),
               StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(f->GetNode("dead_sub"), StatusIs(absl::StatusCode::kNotFound));

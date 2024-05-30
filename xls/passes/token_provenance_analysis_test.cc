@@ -70,9 +70,8 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   BValue t3 = pb.Assert(pb.TupleIndex(pb.TupleIndex(tuple, 3), 0),
                         pb.Literal(UBits(1, 1)), "assertion failed");
   BValue t4 = pb.Trace(t3, pb.Literal(UBits(1, 1)), {}, "");
-  BValue t5 = pb.Cover(t4, pb.Literal(UBits(1, 1)), "trace");
-  BValue t6 = pb.AfterAll({t3, t4, t5});
-  BValue t7 = pb.MinDelay(t6, 42);
+  BValue t5 = pb.AfterAll({t3, t4});
+  BValue t6 = pb.MinDelay(t5, 42);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
@@ -90,7 +89,6 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   EXPECT_EQ(provenance.at(t4.node()).Get({}), t4.node());
   EXPECT_EQ(provenance.at(t5.node()).Get({}), t5.node());
   EXPECT_EQ(provenance.at(t6.node()).Get({}), t6.node());
-  EXPECT_EQ(provenance.at(t7.node()).Get({}), t7.node());
 }
 
 TEST_F(TokenProvenanceAnalysisTest, VeryLongChain) {
@@ -133,25 +131,21 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGSimple) {
   BValue t3 = pb.Assert(pb.TupleIndex(pb.TupleIndex(tuple, 3), 0),
                         pb.Literal(UBits(1, 1)), "assertion failed");
   BValue t4 = pb.Trace(t3, pb.Literal(UBits(1, 1)), {}, "");
-  BValue t5 = pb.Cover(t4, pb.Literal(UBits(1, 1)), "trace");
-  BValue t6 = pb.AfterAll({t3, t4, t5});
+  BValue t5 = pb.AfterAll({t3, t4});
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build({t6, pb.Literal(UBits(0, 0))}));
+                           pb.Build({t3, pb.Literal(UBits(0, 0))}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenDAG dag, ComputeTokenDAG(proc));
 
   EXPECT_THAT(dag, Not(Contains(Key(token.node()))));
   EXPECT_THAT(dag, AllOf(Contains(Key(recv.node())), Contains(Key(t2.node())),
-                         Contains(Key(t3.node())), Contains(Key(t4.node())),
-                         Contains(Key(t5.node())), Contains(Key(t6.node()))));
+                         Contains(Key(t3.node())), Contains(Key(t4.node()))));
   EXPECT_THAT(dag.at(recv.node()), ElementsAre(token.node()));
   EXPECT_THAT(dag.at(t2.node()), ElementsAre(recv.node()));
   EXPECT_THAT(dag.at(t3.node()), ElementsAre(t2.node()));
   EXPECT_THAT(dag.at(t4.node()), ElementsAre(t3.node()));
-  EXPECT_THAT(dag.at(t5.node()), ElementsAre(t4.node()));
-  EXPECT_THAT(dag.at(t6.node()),
-              AllOf(SizeIs(3), Contains(t3.node()), Contains(t4.node()),
-                    Contains(t5.node())));
+  EXPECT_THAT(dag.at(t5.node()),
+              AllOf(SizeIs(2), Contains(t3.node()), Contains(t4.node())));
 }
 
 TEST_F(TokenProvenanceAnalysisTest, TokenDAGVeryLongChain) {
@@ -191,16 +185,15 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
   BValue t3 = pb.Assert(pb.TupleIndex(pb.TupleIndex(tuple, 3), 0),
                         pb.Literal(UBits(1, 1)), "assertion failed");
   BValue t4 = pb.Trace(t3, pb.Literal(UBits(1, 1)), {}, "");
-  BValue t5 = pb.Cover(t4, pb.Literal(UBits(1, 1)), "trace");
-  BValue t6 = pb.AfterAll({t3, t4, t5});
+  BValue t5 = pb.AfterAll({t3, t4});
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build({t6, pb.Literal(UBits(0, 0))}));
+                           pb.Build({t5, pb.Literal(UBits(0, 0))}));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<NodeAndPredecessors> topo_dag,
                            ComputeTopoSortedTokenDAG(proc));
 
-  EXPECT_EQ(topo_dag.size(), 7);
+  EXPECT_EQ(topo_dag.size(), 6);
   EXPECT_EQ(topo_dag[0].node, token.node());
   EXPECT_THAT(topo_dag[0].predecessors, IsEmpty());
   EXPECT_EQ(topo_dag[1].node, recv.node());
@@ -212,11 +205,8 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
   EXPECT_EQ(topo_dag[4].node, t4.node());
   EXPECT_THAT(topo_dag[4].predecessors, ElementsAre(t3.node()));
   EXPECT_EQ(topo_dag[5].node, t5.node());
-  EXPECT_THAT(topo_dag[5].predecessors, ElementsAre(t4.node()));
-  EXPECT_EQ(topo_dag[6].node, t6.node());
-  EXPECT_THAT(topo_dag[6].predecessors,
-              AllOf(SizeIs(3), Contains(t3.node()), Contains(t4.node()),
-                    Contains(t5.node())));
+  EXPECT_THAT(topo_dag[5].predecessors,
+              AllOf(SizeIs(2), Contains(t3.node()), Contains(t4.node())));
 }
 
 TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGNestedTuples) {

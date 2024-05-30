@@ -1267,19 +1267,18 @@ Value       | Type
 
 Records the number of times the given condition evaluates to true. Just like
 `assert`, this is a software-only construct and is not emitted in a final
-hardware design. Tokens are used to sequence this operation in the graph.
+hardware design.
 
 ```
-result = cover(tkn, condition, label=<string>)
+result = cover(condition, label=<string>)
 ```
 
 **Types**
 
 Value       | Type
 ----------- | ---------
-`tkn`       | `token`
 `condition` | `bits[1]`
-`result`    | `token`
+`result`    | `()`
 
 **Keyword arguments**
 

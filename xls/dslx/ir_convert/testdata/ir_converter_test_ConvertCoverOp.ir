@@ -4,10 +4,10 @@ file_number 0 "test_module.x"
 
 fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32], y: bits[32]) -> (token, ()) {
   foo: bits[1] = eq(x, y, id=5)
-  cover.7: token = cover(__token, foo, label="x_equals_y", id=7)
-  after_all.9: token = after_all(cover.7, id=9)
+  after_all.9: token = after_all(id=9)
   tuple.8: () = tuple(id=8)
   literal.6: bits[8][10] = literal(value=[120, 95, 101, 113, 117, 97, 108, 115, 95, 121], id=6)
+  cover.7: () = cover(foo, label="x_equals_y", id=7)
   ret tuple.10: (token, ()) = tuple(after_all.9, tuple.8, id=10)
 }
 

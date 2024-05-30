@@ -3775,10 +3775,8 @@ TEST_F(ProcInliningPassTest, ProcWithCover) {
     BValue recv = b.Receive(middle, b.Literal(Value::Token()));
     BValue recv_token = b.TupleIndex(recv, 0);
     BValue recv_data = b.TupleIndex(recv, 1);
-    BValue cover_token =
-        b.Cover(recv_token, b.Ne(recv_data, b.Literal(UBits(0, 32))),
-                "cover_data_ne_0");
-    b.Send(out, cover_token, recv_data);
+    b.Cover(b.Ne(recv_data, b.Literal(UBits(0, 32))), "cover_data_ne_0");
+    b.Send(out, recv_token, recv_data);
 
     XLS_ASSERT_OK(b.Build());
   }

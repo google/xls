@@ -1468,17 +1468,10 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
                name);
 }
 
-BValue BuilderBase::Cover(BValue token, BValue condition,
-                          std::string_view label, const SourceInfo& loc,
-                          std::string_view name) {
+BValue BuilderBase::Cover(BValue condition, std::string_view label,
+                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
-  }
-  if (!token.GetType()->IsToken()) {
-    return SetError(
-        absl::StrFormat("First operand of cover must be of token type; is: %s",
-                        token.GetType()->ToString()),
-        loc);
   }
   if (!condition.GetType()->IsBits() ||
       condition.GetType()->AsBitsOrDie()->bit_count() != 1) {
@@ -1491,7 +1484,7 @@ BValue BuilderBase::Cover(BValue token, BValue condition,
   if (label.empty()) {
     return SetError("The label of a cover node cannot be empty.", loc);
   }
-  return AddNode<xls::Cover>(loc, token.node(), condition.node(), label,
+  return AddNode<xls::Cover>(loc, condition.node(), label,
                              /*original_label=*/std::nullopt, name);
 }
 

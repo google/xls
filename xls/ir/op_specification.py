@@ -689,12 +689,11 @@ OpClass.kinds['TRACE'] = OpClass(
 OpClass.kinds['COVER'] = OpClass(
     name='Cover',
     op='Op::kCover',
-    operands=[Operand('token'), Operand('condition')],
-    xls_type_expression='function->package()->GetTokenType()',
+    operands=[Operand('condition')],
+    xls_type_expression='function->package()->GetTupleType({})',
     extra_methods=[
-        Method(name='token', return_cpp_type='Node*', expression='operand(0)'),
         Method(
-            name='condition', return_cpp_type='Node*', expression='operand(1)'
+            name='condition', return_cpp_type='Node*', expression='operand(0)'
         ),
         Method(
             name='set_label',

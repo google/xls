@@ -608,7 +608,7 @@ class BuilderBase {
 
   // Adds a coverpoint to the function that records every time the associated
   // condition evaluates to true.
-  BValue Cover(BValue token, BValue condition, std::string_view label,
+  BValue Cover(BValue condition, std::string_view label,
                const SourceInfo& loc = SourceInfo(),
                std::string_view name = "");
 

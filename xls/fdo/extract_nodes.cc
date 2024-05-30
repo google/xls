@@ -62,11 +62,11 @@ absl::StatusOr<std::unique_ptr<Package>> ExtractNodes(
         filtered_nodes.insert(node);
       } else {
         // Currently support FDO only post-opt;
-        // only tokens should have zero bitwidth
-        XLS_RET_CHECK(ntype->IsToken())
-            << "Not expecting non-token type with zero bits"
+        XLS_RET_CHECK(ntype->IsToken() || ntype->IsTuple())
+            << "Only token or (empty) tuple type should have zero bits"
             << node->ToString();
-        // skip (don't include token-producing nodes)
+        // skip (don't include token-producing nodes or those with no meaningful
+        // return value)
       }
     }
   }

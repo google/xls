@@ -337,7 +337,7 @@ class LeafTypeTreeIterator {
 //   // value-initialized (set to zero in the case of in64).
 //   ... = tree.elements(); /* { 0, 444, 0, 333 } */
 //
-//   // Get the value associated with the bits[44] type.
+//   // Get the value associated with the bits[55] type.
 //   ... = tree.Get({1});
 //
 //   // INVALID: try to access a value at an index which does not refer to a

@@ -718,7 +718,7 @@ class NodeIrContext {
 
   // Completes the LLVM function by adding a return statement with the given
   // result (or pointer to result). If `exit_builder` is specified then it is
-  // used to build the return statement. therwise `entry_builder()` is used.
+  // used to build the return statement. Otherwise `entry_builder()` is used.
   // If `return_value` is not specified then false is returned by the node
   // function.
   void FinalizeWithValue(llvm::Value* result,
@@ -1410,7 +1410,8 @@ absl::Status IrBuilderVisitor::HandleAssert(Assert* assert_op) {
 
   fail_builder.CreateBr(after_block);
 
-  b.CreateCondBr(node_context.LoadOperand(1), ok_block, fail_block);
+  b.CreateCondBr(node_context.LoadOperand(Assert::kConditionOperand), ok_block,
+                 fail_block);
 
   auto after_builder = std::make_unique<llvm::IRBuilder<>>(after_block);
   llvm::Value* token = type_converter()->GetToken();
@@ -1943,7 +1944,7 @@ absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
   // TODO(https://github.com/google/xls/issues/499): 2021-09-17: Add coverpoint
   // support to the JIT.
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
-                       NewNodeIrContext(cover, {"tkn", "condition"}));
+                       NewNodeIrContext(cover, {"condition"}));
   llvm::Value* token = type_converter()->GetToken();
   return FinalizeNodeIrContextWithValue(std::move(node_context), token);
 }

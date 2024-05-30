@@ -220,11 +220,11 @@ class StateElement {
   // Returns the node holding the element from the proc state.
   Node* GetState() const { return state_; }
 
-  // Returns the node corresponding to the value of the state eleemnt on the
+  // Returns the node corresponding to the value of the state element on the
   // next proc tick.
   Node* GetNext() const { return next_; }
 
-  // Set the value of the state eleemnt on the next proc state. This must be
+  // Set the value of the state element on the next proc state. This must be
   // called at least once to replace the placeholder next value.
   absl::Status SetNext(Node* node) {
     XLS_RET_CHECK_EQ(node->GetType(), next_->GetType());
@@ -848,6 +848,7 @@ class ProcThread {
     };
     absl::btree_set<ActivationNode*, OriginalNodeIdLessThan>
         terminal_activation_nodes;
+    std::vector<Node*> tokenless_nodes_with_sink_activation;
     for (const NodeAndPredecessors& token_node : token_graph) {
       ActivationNode* activation_node;
       if (token_node.node->Is<Param>()) {
@@ -880,6 +881,18 @@ class ProcThread {
             AllocateActivationNode(name,
                                    {source_activation_node_->activation_out},
                                    token_node.node));
+      } else if (token_node.node->Is<Cover>()) {
+        // Covers are similar to gate ops but they need to activate after all
+        // their data inputs are valid so map them to the sink node once that is
+        // known. This could be later than actually desired in certain corner
+        // cases. Alternatively, to be more precise about activation, we would
+        // need to trace the operands back to their token node (if any) and
+        // create an implicit node joining those tokens.
+        // TODO(https://github.com/google/xls/issues/1440): Refine activation
+        // of cover ops.
+        XLS_RET_CHECK(token_node.predecessors.empty());
+        tokenless_nodes_with_sink_activation.push_back(token_node.node);
+        continue;
       } else {
         XLS_ASSIGN_OR_RETURN(std::string name,
                              GetActivationNodeName(token_node.node));
@@ -909,6 +922,11 @@ class ProcThread {
         AllocateActivationNode(
             absl::StrFormat("%s_activation_sink", inlined_proc_->name()),
             /*activations_in=*/activation_sink_inputs, std::nullopt));
+
+    for (Node* tokenless_node : tokenless_nodes_with_sink_activation) {
+      original_node_to_activation_node_[tokenless_node] = sink_activation_node_;
+    }
+
     XLS_RETURN_IF_ERROR(
         activation_state_->SetNext(sink_activation_node_->activation_out));
 

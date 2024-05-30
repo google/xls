@@ -1267,8 +1267,8 @@ fn bar(tkn: token, cond: bits[1], x: bits[3], y: bits[7]) -> token {
 TEST(IrParserTest, ParseCover) {
   const std::string input = R"(package foobar
 
-fn bar(tkn: token, cond: bits[1]) -> token {
-  ret cover.1: token = cover(tkn, cond, label="The foo is bar", id=1)
+fn bar(cond: bits[1]) -> () {
+  ret cover.1: () = cover(cond, label="The foo is bar", id=1)
 }
 )";
   ParsePackageAndCheckDump(input);

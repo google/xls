@@ -952,7 +952,7 @@ TEST(FunctionBuilderTest, Assert) {
             "It's about sending a message");
 }
 
-TEST(FunctionBuilderTest, AssertWrongTypeOperand0) {
+TEST(FunctionBuilderTest, AssertWrongTypeTokenOperand) {
   Package p("p");
   FunctionBuilder b("f", &p);
   b.Assert(b.Param("blah", p.GetBitsType(42)),
@@ -964,7 +964,7 @@ TEST(FunctionBuilderTest, AssertWrongTypeOperand0) {
                HasSubstr("First operand of assert must be of token type")));
 }
 
-TEST(FunctionBuilderTest, AssertWrongTypeOperand1) {
+TEST(FunctionBuilderTest, AssertWrongTypeConditionOperand) {
   Package p("p");
   FunctionBuilder b("f", &p);
   b.Assert(b.Param("blah", p.GetTokenType()), b.Param("cond", p.GetBitsType(2)),
@@ -1008,7 +1008,7 @@ TEST(FunctionBuilderTest, TraceWithVerbosity) {
   EXPECT_EQ(f->return_value()->As<Trace>()->verbosity(), 1);
 }
 
-TEST(FunctionBuilderTest, TraceWrongTypeOperand0) {
+TEST(FunctionBuilderTest, TraceWrongTypeTokenOperand) {
   Package p("p");
   FunctionBuilder b("f", &p);
 
@@ -1023,7 +1023,7 @@ TEST(FunctionBuilderTest, TraceWrongTypeOperand0) {
                HasSubstr("First operand of trace must be of token type")));
 }
 
-TEST(FunctionBuilderTest, TraceWrongTypeOperand1) {
+TEST(FunctionBuilderTest, TraceWrongTypeConditionOperand) {
   Package p("p");
   FunctionBuilder b("f", &p);
 

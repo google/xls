@@ -26,6 +26,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -68,9 +69,12 @@ TEST_F(TraceVerbosityPassTest, SimpleTraceRemoved) {
            /*verbosity=*/1);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
   EXPECT_THAT(block->nodes(), Contains(m::Trace()));
-  EXPECT_THAT(RunTraceVerbosityPass(block, /*max_trace_verbosity=*/1),
-              IsOkAndHolds(false));
-  EXPECT_THAT(RunTraceVerbosityPass(block), IsOkAndHolds(true));
+  absl::StatusOr<bool> graph_changed =
+      RunTraceVerbosityPass(block, /*max_trace_verbosity=*/1);
+  EXPECT_THAT(graph_changed, IsOkAndHolds(false));
+
+  graph_changed = RunTraceVerbosityPass(block, /*max_trace_verbosity=*/0);
+  EXPECT_THAT(graph_changed, IsOkAndHolds(true));
   EXPECT_THAT(block->nodes(), Not(Contains(m::Trace())));
 }
 
@@ -94,11 +98,43 @@ TEST_F(TraceVerbosityPassTest, RelatedTracesRemoved) {
            /*verbosity=*/1);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
   EXPECT_THAT(block->nodes(), Contains(m::Trace()));
-  EXPECT_THAT(RunTraceVerbosityPass(block, /*max_trace_verbosity=*/2),
-              IsOkAndHolds(false));
-  EXPECT_THAT(RunTraceVerbosityPass(block), IsOkAndHolds(true));
+  absl::StatusOr<bool> graph_changed =
+      RunTraceVerbosityPass(block, /*max_trace_verbosity=*/2);
+  EXPECT_THAT(graph_changed, IsOkAndHolds(false));
+
+  graph_changed = RunTraceVerbosityPass(block, /*max_trace_verbosity=*/0);
+  EXPECT_THAT(graph_changed, IsOkAndHolds(true));
   EXPECT_THAT(block->nodes(), Not(Contains(m::TraceWithVerbosity(Gt(0)))));
   EXPECT_THAT(block->nodes(), Contains(m::TraceWithVerbosity(Eq(0))).Times(1));
+}
+
+TEST_F(TraceVerbosityPassTest, FilteredTraceUsageReplaced) {
+  auto p = CreatePackage();
+  Type* token_type = p->GetTokenType();
+  BlockBuilder bb(TestName(), p.get());
+  BValue a = bb.InputPort("a", p->GetBitsType(32));
+  bb.OutputPort("b", a);
+  BValue tok = bb.AfterAll({});
+  BValue trace_result =
+      bb.Trace(tok, bb.Eq(a, bb.Literal(UBits(0, 32))), {}, "a == 0",
+               /*verbosity=*/1);
+  FunctionBuilder b("takes_token_arg", p.get());
+  b.Param("arg", token_type);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func,
+                           b.BuildWithReturnValue(b.Literal(UBits(0, 32))));
+  bb.Invoke({trace_result}, func);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+  EXPECT_THAT(block->nodes(), Contains(m::Trace()));
+  EXPECT_THAT(block->nodes(), Contains(m::Invoke(m::Trace())).Times(1));
+  absl::StatusOr<bool> graph_changed =
+      RunTraceVerbosityPass(block, /*max_trace_verbosity=*/2);
+  EXPECT_THAT(graph_changed, IsOkAndHolds(false));
+
+  graph_changed = RunTraceVerbosityPass(block, /*max_trace_verbosity=*/0);
+  EXPECT_THAT(graph_changed, IsOkAndHolds(true));
+  EXPECT_THAT(block->nodes(), Not(Contains(m::Trace())));
+  EXPECT_THAT(block->nodes(), Contains(m::Invoke(m::AfterAll())).Times(1));
 }
 
 }  // namespace

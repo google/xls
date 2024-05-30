@@ -265,8 +265,8 @@ fn callee(the_token: token, x: bits[32]) -> (token, bits[32]) {
   literal.10: bits[32] = literal(value=666)
   eq.20: bits[1] = eq(x, literal.10)
   ne.30: bits[1] = ne(x, literal.10)
-  cover.40: token = cover(the_token, ne.30, label="cover_label")
-  assert.50: token = assert(cover.40, eq.20, label="assert_label", message="derp")
+  cover.40: () = cover(ne.30, label="cover_label")
+  assert.50: token = assert(the_token, eq.20, label="assert_label", message="derp")
   ret tuple.60: (token, bits[32]) = tuple(assert.50, x)
 }
 

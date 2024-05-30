@@ -996,9 +996,7 @@ TEST_P(PipelineGeneratorTest, EmitsCoverpoints) {
   auto sum = fb.Add(x, y);
   auto val_128 = fb.Literal(UBits(128, 8));
   auto gt_128 = fb.UGt(sum, val_128);
-  auto implicit_token = fb.AfterAll({});
-  auto cover = fb.Cover(implicit_token, gt_128, "my_coverpoint");
-  fb.AfterAll({cover});
+  fb.Cover(gt_128, "my_coverpoint");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(sum));
 
   XLS_ASSERT_OK_AND_ASSIGN(

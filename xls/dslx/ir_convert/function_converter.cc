@@ -1734,7 +1734,7 @@ absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
     tokens_.push_back(assert_result_token);
   }
 
-  // The result of the failure call is unit, the empty tuple.
+  // The result of the assert call is unit, the empty tuple.
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Tuple(std::vector<BValue>());
   });
@@ -1768,9 +1768,6 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
     args.push_back(argval);
   }
 
-  std::vector<FormatStep> fmt_steps;
-  std::vector<BValue> ir_args;
-
   XLS_ASSIGN_OR_RETURN(
       BValue trace_result_token,
       ConvertFormatMacro(*node, implicit_token_data_->entry_token,
@@ -1802,13 +1799,10 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
     XLS_RET_CHECK(label != nullptr)
         << "cover!() argument 0 must be a literal string "
         << "(should have been typechecked?).";
-    BValue cover_result_token = function_builder_->Cover(
-        implicit_token_data_->entry_token, condition, label->text());
-    implicit_token_data_->control_tokens.push_back(cover_result_token);
+    function_builder_->Cover(condition, label->text());
   }
 
-  // The result of the cover call is the argument given; e.g. if we were to
-  // turn off coverpoints, this is the value that would be used.
+  // The result of the cover call is unit, the empty tuple.
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Tuple(std::vector<BValue>());
   });

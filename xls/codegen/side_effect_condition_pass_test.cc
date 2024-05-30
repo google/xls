@@ -390,11 +390,10 @@ top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
 
 TEST_P(SideEffectConditionPassTest, FunctionCoverWorks) {
   constexpr std::string_view ir_text = R"(package test
-top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
+top fn f(x: bits[32], y: bits[32]) -> bits[32] {
   not_x_gt_y: bits[1] = ule(x, y)
-  cover: token = cover(tkn, not_x_gt_y, label="not_x_gt_y")
-  sum: bits[32] = add(x, y)
-  ret out: (token, bits[32]) = tuple(cover, sum)
+  cover: () = cover(not_x_gt_y, label="not_x_gt_y")
+  ret sum: bits[32] = add(x, y)
 }
     )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
