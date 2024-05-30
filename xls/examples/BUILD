@@ -1011,3 +1011,15 @@ xls_dslx_verilog(
     library = "passthrough_dslx",
     verilog_file = "passthrough.sv",
 )
+
+xls_dslx_library(
+    name = "gcd_dslx",
+    srcs = ["gcd.x"],
+)
+
+xls_dslx_test(
+    name = "gcd_test",
+    srcs = ["gcd.x"],
+    deps = [":gcd_dslx"],    
+    size= "small",
+)
