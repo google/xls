@@ -240,10 +240,46 @@ TEST_F(InferVastTypesTest, TernaryExampleFromSpec) {
   EXPECT_EQ(
       InferTypesToString(file_.Ternary(c, file_.BitwiseAnd(a, b, loc), d, loc)),
       R"(
+a : [4:0]
+b : [4:0]
 c : [3:0]
 d : [4:0]
 a & b : [4:0]
 c ? a & b : d : [4:0]
+)");
+}
+
+TEST_F(InferVastTypesTest, ComplexTernary) {
+  // (a > b) ? a : ((b < c) ? b : c)
+  // where a is 3 bits, b is 4 bits, and c is 5 bits. The point here is mainly
+  // to make sure all the refs to each variable get their own inferred type.
+  SourceInfo loc;
+  auto* a = module_->AddParameter(
+      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(3, loc)),
+      UnsignedZero(3), loc);
+  auto* b = module_->AddParameter(
+      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(4, loc)),
+      UnsignedZero(4), loc);
+  auto* c = module_->AddParameter(
+      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(5, loc)),
+      UnsignedZero(5), loc);
+  EXPECT_EQ(InferTypesToString(file_.Ternary(
+                file_.GreaterThan(a, b, loc), a->Duplicate(),
+                file_.Ternary(file_.LessThan(b->Duplicate(), c, loc),
+                              b->Duplicate(), c->Duplicate(), loc),
+                loc)),
+            R"(
+a : [3:0]
+a : [4:0]
+b : [3:0]
+b : [4:0]
+b : [4:0]
+c : [4:0]
+c : [4:0]
+a > b : logic
+b < c : logic
+a > b ? a : (b < c ? b : c) : [4:0]
+b < c ? b : c : [4:0]
 )");
 }
 
@@ -309,6 +345,28 @@ a ** b : [15:0]
 )");
 }
 
+TEST_F(InferVastTypesTest, MultiFile) {
+  SourceInfo loc;
+  VerilogFile file2(FileType::kSystemVerilog);
+  Module* module2 = file2.AddModule("module2", loc);
+  auto* a = module_->AddParameter(
+      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(4, loc)),
+      UnsignedZero(4), loc);
+  module2->AddParameter(
+      file2.Make<Def>(loc, "b", DataKind::kLogic, file2.BitVectorType(6, loc)),
+      file2.Add(file2.PlainLiteral(50, loc), a, loc), loc);
+  std::vector<VerilogFile*> files = {&file_, &file2};
+  auto types = InferVastTypes(files);
+  XLS_ASSERT_OK(types);
+  EXPECT_EQ(TypesToString(*types),
+            R"(
+0 : [3:0]
+50 : unsigned
+a : unsigned
+50 + a : [5:0]
+)");
+}
+
 TEST_F(InferVastTypesTest, BigConstants) {
   SourceInfo loc;
   // parameter int unsigned GiB = 1024 * 1024 * 1024;
@@ -341,6 +399,36 @@ GiB : [63:0]
 1024 * 1024 : integer
 1024 * (1024 * 1024) : unsigned
 64'h0000_0019_0000_0000 : [63:0]
+)");
+}
+
+TEST_F(InferVastTypesTest, NonLiteralArrayDim) {
+  SourceInfo loc;
+  // parameter foo = 24;
+  // parameter logic[foo - 1:0] bar = 55;
+  // parameter logic[63:0] baz = bar + 1;
+  auto* foo = module_->AddParameter("foo", BareLiteral(24), loc);
+  auto* bar = module_->AddParameter(
+      file_.Make<Def>(loc, "bar", DataKind::kLogic,
+                      file_.Make<BitVectorType>(
+                          loc, file_.Sub(foo, BareLiteral(1), loc),
+                          /*is_signed=*/false, /*size_expr_is_max=*/true)),
+      BareLiteral(55), loc);
+  module_->AddParameter(
+      file_.Make<Def>(
+          loc, "baz", DataKind::kLogic,
+          file_.Make<BitVectorType>(loc, BareLiteral(63), /*is_signed=*/false,
+                                    /*size_expr_is_max=*/true)),
+      file_.Add(bar, BareLiteral(1), loc), loc);
+  EXPECT_EQ(InferTypesToString(), R"(
+1 : [63:0]
+1 : integer
+24 : integer
+55 : [23:0]
+bar : [63:0]
+foo : integer
+bar + 1 : [63:0]
+foo - 1 : integer
 )");
 }
 
@@ -421,6 +509,72 @@ TEST_F(InferVastTypesTest, EnumPromotion) {
 2 : [11:0]
 foo : unsigned
 foo + 1 : unsigned
+)");
+}
+
+TEST_F(InferVastTypesTest, PromotionToFoldedTypedef) {
+  // parameter size = 50;
+  // typedef logic[size - 1:0] foo_t;
+  // parameter mb = 1024 * 1024;
+  // parameter foo_t bar = 50 * mb;
+  SourceInfo loc;
+  auto* size = module_->AddParameter("size", BareLiteral(50), loc);
+  Typedef* type_def = file_.Make<Typedef>(
+      loc,
+      file_.Make<Def>(loc, "foo_t", DataKind::kLogic,
+                      file_.Make<BitVectorType>(
+                          loc, file_.Sub(size, BareLiteral(1), loc),
+                          /*is_signed=*/false, /*size_expr_is_max=*/true)));
+  module_->AddModuleMember(type_def);
+  auto* mb = module_->AddParameter(
+      "mb", file_.Mul(BareLiteral(1024), BareLiteral(1024), loc), loc);
+  module_->AddParameter(file_.Make<Def>(loc, "bar", DataKind::kUser,
+                                        file_.Make<TypedefType>(loc, type_def)),
+                        file_.Mul(BareLiteral(50), mb, loc), loc);
+  EXPECT_EQ(InferTypesToString(),
+            R"(
+1 : integer
+50 : [49:0]
+50 : integer
+1024 : integer
+1024 : integer
+mb : [49:0]
+size : integer
+50 * mb : [49:0]
+size - 1 : integer
+1024 * 1024 : integer
+)");
+}
+
+TEST_F(InferVastTypesTest, ConcatWithFoldedTypedef) {
+  // parameter size = 50;
+  // typedef logic[size - 1:0] foo_t;
+  // parameter foo_t foo = 3;
+  // parameter integer bar = 4;
+  // {foo, bar}
+  SourceInfo loc;
+  auto* size = module_->AddParameter("size", BareLiteral(50), loc);
+  Typedef* type_def = file_.Make<Typedef>(
+      loc,
+      file_.Make<Def>(loc, "foo_t", DataKind::kLogic,
+                      file_.Make<BitVectorType>(
+                          loc, file_.Sub(size, BareLiteral(1), loc),
+                          /*is_signed=*/false, /*size_expr_is_max=*/true)));
+  module_->AddModuleMember(type_def);
+  auto* foo = module_->AddParameter(
+      file_.Make<Def>(loc, "foo", DataKind::kUser,
+                      file_.Make<TypedefType>(loc, type_def)),
+      BareLiteral(3), loc);
+  auto* bar =
+      module_->AddParameter(file_.Make<Def>(loc, "bar", DataKind::kInteger,
+                                            file_.Make<IntegerType>(loc)),
+                            BareLiteral(4), loc);
+  EXPECT_EQ(
+      InferTypesToString(file_.Concat(std::vector<Expression*>{foo, bar}, loc)),
+      R"(
+bar : integer
+foo : foo_t
+{foo, bar} : [81:0]
 )");
 }
 
@@ -519,6 +673,41 @@ a + 1 : [15:0]
 )");
 }
 
+TEST_F(InferVastTypesTest, TypedefReturnType) {
+  // parameter width = 24;
+  // typedef logic[width - 1:0] word_t;
+  // function automatic word_t fn(
+  //    word_t a);
+  //   return a + 3'0;
+  // endfunction
+  // Getting this right requires constant folding the definition of `word_t` and
+  // promoting the 3-bit value.
+  SourceInfo loc;
+  auto* width = module_->AddParameter("width", BareLiteral(24), loc);
+  Typedef* word_t = module_->AddTypedef(
+      file_.Make<Def>(loc, "word_t", DataKind::kLogic,
+                      file_.Make<BitVectorType>(
+                          loc, file_.Sub(width, BareLiteral(1), loc),
+                          /*is_signed=*/false, /*size_expr_is_max=*/true)),
+      loc);
+  TypedefType* word_t_type = file_.Make<TypedefType>(loc, word_t);
+  VerilogFunction* fn = file_.Make<VerilogFunction>(loc, "fn", word_t_type);
+  LogicRef* a = fn->AddArgument(
+      file_.Make<Def>(loc, "a", DataKind::kUser, word_t_type), loc);
+  fn->AddStatement<ReturnStatement>(loc, file_.Add(a, UnsignedZero(3), loc));
+  module_->top()->AddModuleMember(fn);
+  EXPECT_EQ(InferTypesToString(),
+            R"(
+0 : [23:0]
+1 : integer
+24 : integer
+a : [23:0]
+a + 0 : [23:0]
+width : integer
+width - 1 : integer
+)");
+}
+
 TEST_F(InferVastTypesTest, ContextDependentUnary) {
   // b = ~(a + 0) where all parameters are logic [15:0].
   SourceInfo loc;
@@ -603,6 +792,19 @@ b : [31:0]
 c : [31:0]
 b + c : [31:0]
 &(b + c) : [15:0]
+)");
+}
+
+TEST_F(InferVastTypesTest, UseOfUntypedParameter) {
+  SourceInfo loc;
+  auto* foo = module_->AddParameter("foo", UnsignedZero(4), loc);
+  module_->AddParameter("bar", file_.Add(UnsignedZero(2), foo, loc), loc);
+  file_.PlainLiteral(3, SourceInfo());
+  EXPECT_EQ(InferTypesToString(), R"(
+0 : [3:0]
+0 : [3:0]
+foo : [3:0]
+0 + foo : [3:0]
 )");
 }
 

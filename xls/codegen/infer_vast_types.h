@@ -17,6 +17,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/codegen/vast.h"
 
 namespace xls {
@@ -29,6 +30,12 @@ namespace verilog {
 // promote the whole RHS subtree. However, there are various exceptions.
 absl::StatusOr<absl::flat_hash_map<Expression*, DataType*>> InferVastTypes(
     VerilogFile* file);
+
+// Builds a map of the inferred types of all expressions in the given `corpus`.
+// If a `VerilogFile` may have cross-file references, it is best to use this
+// function to build a unified map of all types in the corpus.
+absl::StatusOr<absl::flat_hash_map<Expression*, DataType*>> InferVastTypes(
+    absl::Span<VerilogFile* const> corpus);
 
 // Builds a map of the inferred types for just `expr` and its descendants. This
 // should not be used to analyze a whole file in steps.

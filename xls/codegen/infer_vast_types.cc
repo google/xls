@@ -23,13 +23,16 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/codegen/fold_vast_constants.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace verilog {
@@ -43,9 +46,10 @@ absl::flat_hash_map<std::string, DataType*> BuildSystemFunctionReturnTypes(
     VerilogFile* file) {
   DataType* int_type = file->IntegerType(SourceInfo());
   DataType* scalar_type = file->ScalarType(SourceInfo());
-  return {{"clog2", int_type},      {"countbits", int_type},
-          {"countones", int_type},  {"onehot", scalar_type},
-          {"onehot0", scalar_type}, {"isunknown", scalar_type}};
+  return {{"bits", int_type},        {"clog2", int_type},
+          {"countbits", int_type},   {"countones", int_type},
+          {"onehot", scalar_type},   {"onehot0", scalar_type},
+          {"isunknown", scalar_type}};
 }
 
 // A utility that helps build a map of inferred types.
@@ -107,7 +111,7 @@ class TypeInferenceVisitor {
     // promote the internals of RHS, while reflecting the fact that the top node
     // must be downcast to fit the variable.
     if (external_context_type.has_value()) {
-      (*types_)[expr] = *external_context_type;
+      (*types_)[expr] = MaybeFoldConstants(*external_context_type);
     }
     return absl::OkStatus();
   }
@@ -131,23 +135,68 @@ class TypeInferenceVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status TraverseTypedef(Typedef* type_def) {
-    if (auto* enum_def = dynamic_cast<Enum*>(type_def->data_type()); enum_def) {
+  absl::Status TraverseDataType(DataType* data_type) {
+    if (auto* bit_vector_type = dynamic_cast<BitVectorType*>(data_type);
+        bit_vector_type && !bit_vector_type->size_expr()->IsLiteral()) {
+      return TraverseExpression(bit_vector_type->size_expr());
+    }
+    if (auto* array_type = dynamic_cast<ArrayTypeBase*>(data_type);
+        array_type) {
+      XLS_RETURN_IF_ERROR(TraverseDataType(array_type->element_type()));
+      for (Expression* dim : array_type->dims()) {
+        if (!dim->IsLiteral()) {
+          XLS_RETURN_IF_ERROR(TraverseExpression(dim));
+        }
+      }
+    }
+    if (auto* enum_def = dynamic_cast<Enum*>(data_type); enum_def) {
       return TraverseEnum(enum_def);
     }
+    if (auto* struct_def = dynamic_cast<Struct*>(data_type); struct_def) {
+      return TraverseStruct(struct_def);
+    }
     return absl::OkStatus();
+  }
+
+  absl::Status TraverseStruct(Struct* struct_def) {
+    for (Def* def : struct_def->members()) {
+      XLS_RETURN_IF_ERROR(TraverseDataType(def->data_type()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status TraverseTypedef(Typedef* type_def) {
+    return TraverseDataType(type_def->data_type());
   }
 
   absl::Status TraverseParameter(Parameter* parameter) {
     std::optional<DataType*> data_type = std::nullopt;
     if (parameter->def()) {
       data_type = parameter->def()->data_type();
+      XLS_RETURN_IF_ERROR(TraverseDataType(*data_type));
     }
-    return TraverseExpression(parameter->rhs(),
-                              /*external_context_type=*/data_type);
+    XLS_RETURN_IF_ERROR(
+        TraverseExpression(parameter->rhs(),
+                           /*external_context_type=*/data_type));
+    if (!parameter->def()) {
+      // For parameters of the form `parameter foo = some_expr;`, without a type
+      // on the LHS, the RHS decides the type, and there has to be an RHS. We
+      // store this type in the separate `auto_parameter_types_` map, because
+      // the normal type map can only have exprs as keys (and clients of
+      // inference only care about expr types).
+      const auto it = types_->find(parameter->rhs());
+      if (it == types_->end()) {
+        return absl::InvalidArgumentError(
+            absl::StrCat("No type could be inferred for untyped parameter: ",
+                         parameter->Emit(nullptr)));
+      }
+      auto_parameter_types_.emplace(parameter, it->second);
+    }
+    return absl::OkStatus();
   }
 
   absl::Status TraverseEnum(Enum* enum_def) {
+    XLS_RETURN_IF_ERROR(TraverseDataType(enum_def->BaseType()));
     for (EnumMember* member : enum_def->members()) {
       if (member->rhs() != nullptr) {
         XLS_RETURN_IF_ERROR(TraverseExpression(
@@ -273,12 +322,17 @@ class TypeInferenceVisitor {
       }
     }
     if (auto* ref = dynamic_cast<ParameterRef*>(expr); ref) {
-      return ref->parameter()->def() == nullptr
-                 ? ref->file()->IntegerType(ref->loc())
-                 : ref->parameter()->def()->data_type();
+      if (ref->parameter()->def() != nullptr) {
+        return ref->parameter()->def()->data_type();
+      }
+      const auto it = auto_parameter_types_.find(ref->parameter());
+      if (it != auto_parameter_types_.end()) {
+        return it->second;
+      }
+      return ref->file()->IntegerType(ref->loc());
     }
     if (auto* ref = dynamic_cast<EnumMemberRef*>(expr); ref) {
-      return ref->enum_def()->BaseType();
+      return ref->enum_def();
     }
     if (auto* ref = dynamic_cast<LogicRef*>(expr); ref) {
       return ref->def()->data_type();
@@ -303,7 +357,7 @@ class TypeInferenceVisitor {
                            arg->Emit(nullptr)));
         }
         XLS_ASSIGN_OR_RETURN(int64_t arg_bit_count,
-                             it->second->FlatBitCountAsInt64());
+                             EvaluateBitCount(it->second));
         bit_count += arg_bit_count;
       }
       return expr->file()->BitVectorType(bit_count, expr->loc(),
@@ -392,25 +446,40 @@ class TypeInferenceVisitor {
       return;
     }
     if (auto* ternary = dynamic_cast<Ternary*>(expr); ternary) {
-      types_->emplace(ternary->consequent(), data_type);
-      types_->emplace(ternary->alternate(), data_type);
+      ApplyInferredTypeRecursively(data_type, ternary->consequent());
+      ApplyInferredTypeRecursively(data_type, ternary->alternate());
     }
   }
 
   absl::StatusOr<DataType*> LargestType(DataType* a, DataType* b,
                                         bool reconcile_signedness = true) {
-    XLS_ASSIGN_OR_RETURN(int64_t a_bit_count, a->FlatBitCountAsInt64());
-    XLS_ASSIGN_OR_RETURN(int64_t b_bit_count, b->FlatBitCountAsInt64());
+    DataType* folded_a = MaybeFoldConstants(a);
+    DataType* folded_b = MaybeFoldConstants(b);
+    absl::StatusOr<int64_t> maybe_a_bit_count = folded_a->FlatBitCountAsInt64();
+    absl::StatusOr<int64_t> maybe_b_bit_count = folded_b->FlatBitCountAsInt64();
+    // In cases like `parameter logic[$clog2(32767):0] = ...`, we don't have the
+    // ability to infer one of the types, and it's unlikely to matter.
+    if (!maybe_b_bit_count.ok()) {
+      return folded_a;
+    }
+    if (!maybe_a_bit_count.ok()) {
+      return folded_b;
+    }
+    int64_t a_bit_count = *maybe_a_bit_count;
+    int64_t b_bit_count = *maybe_b_bit_count;
     bool b_int = dynamic_cast<IntegerType*>(b) != nullptr;
     int64_t result_bit_count;
     DataType* result;
-    // Prefer the larger type, but if they are equivalent, prefer the integer
-    // type, if any.
-    if (a_bit_count > b_bit_count || (a_bit_count == b_bit_count && !b_int)) {
-      result = a;
+    // Prefer the larger type, but if they are equivalent:
+    // 1. Prefer the integer type, if any, as it's more precise as to intent.
+    // 2. Prefer the RHS in a case of sign mismatch without reconciliation.
+    if (a_bit_count > b_bit_count ||
+        (a_bit_count == b_bit_count && a->is_signed() == b->is_signed() &&
+         !b_int)) {
+      result = folded_a;
       result_bit_count = a_bit_count;
     } else {
-      result = b;
+      result = folded_b;
       result_bit_count = b_bit_count;
     }
     // Don't propagate user-defined types where the user didn't use them.
@@ -430,11 +499,39 @@ class TypeInferenceVisitor {
       return data_type->file()->Make<IntegerType>(data_type->loc(),
                                                   /*is_signed=*/false);
     }
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, data_type->FlatBitCountAsInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, EvaluateBitCount(data_type));
     return data_type->file()->BitVectorType(bit_count, data_type->loc());
   }
 
+  DataType* MaybeFoldConstants(DataType* data_type) {
+    if (!data_type->FlatBitCountAsInt64().ok()) {
+      absl::StatusOr<DataType*> folded_type =
+          FoldVastConstants(data_type, *types_);
+      if (folded_type.ok()) {
+        return *folded_type;
+      }
+      VLOG(2) << "Could not fold: " << data_type->Emit(nullptr)
+              << ", status: " << folded_type.status();
+    }
+    return data_type;
+  }
+
+  absl::StatusOr<int64_t> EvaluateBitCount(DataType* data_type) {
+    absl::StatusOr<int64_t> direct_answer = data_type->FlatBitCountAsInt64();
+    if (direct_answer.ok()) {
+      return direct_answer;
+    }
+    absl::StatusOr<DataType*> folded_type =
+        FoldVastConstants(data_type, *types_);
+    if (folded_type.ok()) {
+      return (*folded_type)->FlatBitCountAsInt64();
+    }
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Could not evaluate bit count for type: ", data_type->Emit(nullptr)));
+  }
+
   absl::flat_hash_map<Expression*, DataType*>* types_;
+  absl::flat_hash_map<Parameter*, DataType*> auto_parameter_types_;
   const absl::flat_hash_map<std::string, DataType*>
       system_function_return_types_;
 };
@@ -447,6 +544,20 @@ absl::StatusOr<absl::flat_hash_map<Expression*, DataType*>> InferVastTypes(
   auto visitor = std::make_unique<TypeInferenceVisitor>(
       &types, BuildSystemFunctionReturnTypes(file));
   XLS_RETURN_IF_ERROR(visitor->TraverseFile(file));
+  return types;
+}
+
+absl::StatusOr<absl::flat_hash_map<Expression*, DataType*>> InferVastTypes(
+    absl::Span<VerilogFile* const> corpus) {
+  absl::flat_hash_map<Expression*, DataType*> types;
+  std::unique_ptr<TypeInferenceVisitor> visitor;
+  for (VerilogFile* file : corpus) {
+    if (visitor == nullptr) {
+      visitor = std::make_unique<TypeInferenceVisitor>(
+          &types, BuildSystemFunctionReturnTypes(file));
+    }
+    XLS_RETURN_IF_ERROR(visitor->TraverseFile(file));
+  }
   return types;
 }
 

@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
@@ -25,7 +26,28 @@ namespace xls::dslx {
 // Lazily populated as information is needed.
 class TraitVisitor : public ExprVisitorWithDefault {
  public:
-  absl::Status HandleNameRef(const NameRef* expr) override;
+  template <typename T>
+  absl::Status Handle(const T* expr) {
+    for (AstNode* child : expr->GetChildren(true)) {
+      if (Expr* child_expr = dynamic_cast<Expr*>(child); child_expr) {
+        XLS_RETURN_IF_ERROR(child_expr->AcceptExpr(this));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  template <>
+  absl::Status Handle<NameRef>(const NameRef* expr) {
+    name_refs_.push_back(expr);
+    return absl::OkStatus();
+  }
+
+#define DEFINE_HANDLER(__type)                               \
+  absl::Status Handle##__type(const __type* expr) override { \
+    return Handle(expr);                                     \
+  }
+
+  XLS_DSLX_EXPR_NODE_EACH(DEFINE_HANDLER)
 
   const std::vector<const NameRef*>& name_refs() { return name_refs_; }
 

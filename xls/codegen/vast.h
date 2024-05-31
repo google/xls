@@ -41,6 +41,7 @@
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/source_location.h"
 
@@ -296,6 +297,7 @@ class BitVectorType : public DataType {
   bool IsScalar() const override { return false; }
   absl::StatusOr<int64_t> WidthAsInt64() const override;
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
+
   std::optional<Expression*> width() const override {
     if (size_expr_is_max_) {
       return std::nullopt;
@@ -308,6 +310,11 @@ class BitVectorType : public DataType {
     }
     return std::nullopt;
   }
+
+  // Returns the expression for either the width or max; whichever was supplied
+  // at construction time.
+  Expression* size_expr() const { return size_expr_; }
+
   bool is_signed() const override { return is_signed_; }
   std::string Emit(LineInfo* line_info) const override;
 
@@ -386,6 +393,9 @@ class PackedArrayType : public ArrayTypeBase {
                   absl::Span<Expression* const> packed_dims, bool dims_are_max,
                   VerilogFile* file, const SourceInfo& loc)
       : ArrayTypeBase(element_type, packed_dims, dims_are_max, file, loc) {}
+
+  PackedArrayType(DataType* element_type, absl::Span<const int64_t> packed_dims,
+                  bool dims_are_max, VerilogFile* file, const SourceInfo& loc);
 
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const override;
 
@@ -1125,6 +1135,11 @@ class EnumMemberRef : public Expression {
   Enum* enum_def() const { return enum_def_; }
   EnumMember* member() const { return member_; }
 
+  // Duplicates this reference for use in another place. If performing type
+  // inference on the VAST tree, the same exact ref object should not be used in
+  // multiple places.
+  EnumMemberRef* Duplicate() const;
+
  private:
   Enum* enum_def_;
   EnumMember* member_;
@@ -1137,8 +1152,9 @@ class Enum : public UserDefinedAliasType {
        const SourceInfo& loc)
       : UserDefinedAliasType(data_type, file, loc), kind_(kind) {}
 
-  Enum(DataKind kind, DataType* data_type, absl::Span<EnumMember*> members,
-       VerilogFile* file, const SourceInfo& loc)
+  Enum(DataKind kind, DataType* data_type,
+       absl::Span<EnumMember* const> members, VerilogFile* file,
+       const SourceInfo& loc)
       : UserDefinedAliasType(data_type, file, loc),
         kind_(kind),
         members_(members.begin(), members.end()) {}
@@ -1245,6 +1261,11 @@ class ParameterRef : public Expression {
 
   Parameter* parameter() const { return parameter_; }
 
+  // Duplicates this reference for use in another place. If performing type
+  // inference on the VAST tree, the same exact ref object should not be used in
+  // multiple places.
+  ParameterRef* Duplicate() const;
+
  private:
   Parameter* parameter_;
 };
@@ -1274,6 +1295,11 @@ class LogicRef : public IndexableExpression {
 
   // Returns the name of the underlying Def this object refers to.
   std::string GetName() const { return def()->GetName(); }
+
+  // Duplicates this reference for use in another place. If performing type
+  // inference on the VAST tree, the same exact ref object should not be used in
+  // multiple places.
+  LogicRef* Duplicate() const;
 
  private:
   // Logic signal definition.
@@ -1511,6 +1537,13 @@ class Literal : public Expression {
   std::string Emit(LineInfo* line_info) const override;
 
   const Bits& bits() const { return bits_; }
+
+  absl::StatusOr<int64_t> ToInt64() const {
+    if (effective_bit_count() != bits_.bit_count()) {
+      return bits_ops::ZeroExtend(bits_, effective_bit_count()).ToInt64();
+    }
+    return bits_.ToInt64();
+  }
 
   bool IsLiteral() const override { return true; }
   bool IsLiteralWithValue(int64_t target) const override;

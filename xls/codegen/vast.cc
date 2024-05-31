@@ -622,6 +622,10 @@ ParameterRef* VerilogPackageSection::AddParameter(Def* def, Expression* rhs,
   return file()->Make<ParameterRef>(loc, param);
 }
 
+ParameterRef* ParameterRef::Duplicate() const {
+  return file()->Make<ParameterRef>(loc(), parameter());
+}
+
 Literal* Expression::AsLiteralOrDie() {
   CHECK(IsLiteral());
   return static_cast<Literal*>(this);
@@ -640,6 +644,10 @@ Unary* Expression::AsUnaryOrDie() {
 LogicRef* Expression::AsLogicRefOrDie() {
   CHECK(IsLogicRef());
   return static_cast<LogicRef*>(this);
+}
+
+LogicRef* LogicRef::Duplicate() const {
+  return file()->Make<LogicRef>(loc(), def());
 }
 
 std::string XSentinel::Emit(LineInfo* line_info) const {
@@ -694,11 +702,13 @@ BitVectorType::BitVectorType(int64_t width, bool is_signed, VerilogFile* file,
       is_signed_(is_signed) {}
 
 absl::StatusOr<int64_t> BitVectorType::WidthAsInt64() const {
-  if (!size_expr_->IsLiteral() || size_expr_is_max_) {
+  if (!size_expr_->IsLiteral()) {
     return absl::FailedPreconditionError("Width is not a literal: " +
                                          size_expr_->Emit(nullptr));
   }
-  return size_expr_->AsLiteralOrDie()->bits().ToUint64();
+  XLS_ASSIGN_OR_RETURN(int64_t size,
+                       size_expr_->AsLiteralOrDie()->bits().ToUint64());
+  return size + (size_expr_is_max_ ? 1 : 0);
 }
 
 absl::StatusOr<int64_t> BitVectorType::FlatBitCountAsInt64() const {
@@ -749,6 +759,13 @@ PackedArrayType::PackedArrayType(int64_t width,
     : ArrayTypeBase(file->Make<BitVectorType>(loc, static_cast<int32_t>(width),
                                               is_signed),
                     packed_dims, /*dims_are_max=*/false, file, loc) {}
+
+PackedArrayType::PackedArrayType(DataType* element_type,
+                                 absl::Span<const int64_t> packed_dims,
+                                 bool dims_are_max, VerilogFile* file,
+                                 const SourceInfo& loc)
+    : ArrayTypeBase(element_type, packed_dims, /*dims_are_max=*/dims_are_max,
+                    file, loc) {}
 
 absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, WidthAsInt64());
@@ -847,7 +864,7 @@ IntegerDef::IntegerDef(std::string_view name, VerilogFile* file,
 IntegerDef::IntegerDef(std::string_view name, DataType* data_type,
                        Expression* init, VerilogFile* file,
                        const SourceInfo& loc)
-    : Def(name, DataKind::kInteger, file->IntegerType(loc), init, file, loc) {}
+    : Def(name, DataKind::kInteger, data_type, init, file, loc) {}
 
 namespace {
 
@@ -1252,6 +1269,10 @@ EnumMemberRef* Enum::AddMember(std::string_view name, Expression* rhs,
                                const SourceInfo& loc) {
   members_.push_back(file()->Make<EnumMember>(loc, name, rhs));
   return file()->Make<EnumMemberRef>(loc, this, members_.back());
+}
+
+EnumMemberRef* EnumMemberRef::Duplicate() const {
+  return file()->Make<EnumMemberRef>(loc(), enum_def(), member());
 }
 
 std::string EnumMember::Emit(LineInfo* line_info) const {

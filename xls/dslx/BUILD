@@ -193,9 +193,9 @@ cc_test(
 
 cc_library(
     name = "trait_visitor",
-    srcs = ["trait_visitor.cc"],
     hdrs = ["trait_visitor.h"],
     deps = [
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "@com_google_absl//absl/status",
     ],
