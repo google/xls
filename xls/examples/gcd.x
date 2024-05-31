@@ -16,12 +16,11 @@ import std;
 
 // https://en.wikipedia.org/wiki/Greatest_common_divisor#Euclidean_algorithm
 fn gcd_euclidean<N: u32, DN: u32 = {N * u32:2}>(a: uN[N], b: uN[N]) -> uN[N] {
-    let (_, gcd) = for (i, (a, b)) in range(u32:0, DN) {
-        let (d, r) = std::iterative_div_mod(a, b);
-        if (r == uN[N]:0) {
+    let (gcd, _) = for (i, (a, b)) in range(u32:0, DN) {
+        if (b == uN[N]:0) {
             (a, b)
         } else {
-            (b, r)
+            (b, std::iterative_div_mod(a, b).1)
         }
     }((a, b));
     gcd
