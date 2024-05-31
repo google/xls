@@ -27,7 +27,7 @@ namespace {
 
 using testing::HasSubstr;
 
-// Smoke test for ConvertDslxToIr C API.
+// Smoke test for `xls_convert_dslx_to_ir` C API.
 TEST(XlsCApiTest, ConvertDslxToIrSimple) {
   const std::string kProgram = "fn id(x: u32) -> u32 { x }";
   const char* additional_search_paths[] = {};
@@ -75,7 +75,7 @@ TEST(XlsCApiTest, ConvertDslxToIrError) {
   EXPECT_THAT(error_out, HasSubstr("Unrecognized character: '@'"));
 }
 
-// Smoke test for ConvertDslxPathToIr C API.
+// Smoke test for `xls_convert_dslx_path_to_ir` C API.
 TEST(XlsCApiTest, ConvertDslxPathToIr) {
   const std::string kProgram = "fn id(x: u32) -> u32 { x }";
 
@@ -102,6 +102,50 @@ TEST(XlsCApiTest, ConvertDslxPathToIr) {
   ASSERT_NE(ir_out, nullptr);
 
   EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
+}
+
+TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
+  char* error = nullptr;
+  struct xls_value* value = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error, &value));
+
+  char* string_out = nullptr;
+  ASSERT_TRUE(xls_value_to_string(value, &string_out));
+  EXPECT_EQ(std::string{string_out}, "bits[32]:66");
+  free(string_out);
+
+  xls_value_free(value);
+}
+
+TEST(XlsCApiTest, ParsePackageAndInterpretFunctionInIt) {
+  const std::string kPackage = R"(
+package p
+
+fn f(x: bits[32]) -> bits[32] {
+  ret y: bits[32] = identity(x)
+}
+)";
+
+  char* error = nullptr;
+  struct xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kPackage.c_str(), "p.ir", &error, &package))
+      << "xls_parse_ir_package error: " << error;
+
+  struct xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "f", &error, &function));
+
+  struct xls_value* ft = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error, &ft));
+  absl::Cleanup free_ft([ft] { xls_value_free(ft); });
+
+  const struct xls_value* args[] = {ft};
+
+  struct xls_value* result = nullptr;
+  ASSERT_TRUE(
+      xls_interpret_function(function, /*argc=*/1, args, &error, &result));
+  absl::Cleanup free_result([result] { xls_value_free(result); });
+
+  ASSERT_TRUE(xls_value_eq(ft, result));
 }
 
 }  // namespace

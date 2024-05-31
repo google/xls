@@ -157,6 +157,8 @@ cc_library(
     hdrs = ["c_api.h"],
     deps = [
         ":runtime_build_actions",
+        "//xls/ir:ir_parser",
+        "//xls/interpreter:ir_interpreter",
     ],
 )
 
