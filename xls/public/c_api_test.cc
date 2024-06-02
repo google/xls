@@ -130,6 +130,7 @@ fn f(x: bits[32]) -> bits[32] {
   struct xls_package* package = nullptr;
   ASSERT_TRUE(xls_parse_ir_package(kPackage.c_str(), "p.ir", &error, &package))
       << "xls_parse_ir_package error: " << error;
+  absl::Cleanup free_package([package] { xls_package_free(package); });
 
   struct xls_function* function = nullptr;
   ASSERT_TRUE(xls_package_get_function(package, "f", &error, &function));
