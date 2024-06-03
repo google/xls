@@ -103,7 +103,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@jsonhpp",
+        "@jsonhpp//:json",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx:default_dslx_stdlib_path",

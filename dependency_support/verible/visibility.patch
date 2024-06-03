@@ -1,40 +1,13 @@
-diff --git a/BUILD b/BUILD
-index c10e3bf2..2eddb5ed 100644
---- a/BUILD
-+++ b/BUILD
-@@ -4,7 +4,6 @@
- # Run tests with
- #  bazel test ...
- 
--load("@com_github_google_rules_install//installer:def.bzl", "installer")
- load("@rules_license//rules:license.bzl", "license")
- 
- package(
-@@ -46,14 +45,6 @@ filegroup(
-     ],
- )
- 
--installer(
--    name = "install",
--    data = [
--        ":install-binaries",
--        ":install-scripts",
--    ],
--)
--
- genrule(
-     name = "lint_doc",
-     outs = ["documentation_verible_lint_rules.md"],
 diff --git a/common/lsp/BUILD b/common/lsp/BUILD
-index 87d7969f..00b80158 100644
+index 8273dc26..cf0b71ae 100644
 --- a/common/lsp/BUILD
 +++ b/common/lsp/BUILD
-@@ -12,7 +12,7 @@ load("//common/tools:jcxxgen.bzl", "jcxxgen")
+@@ -11,7 +11,7 @@ load("//bazel:sh_test_with_runfiles_lib.bzl", "sh_test_with_runfiles_lib")
  package(
      default_applicable_licenses = ["//:license"],
      default_visibility = [
 -        "//verilog/tools/ls:__subpackages__",
 +        "//visibility:public",
      ],
+     features = ["layering_check"],
  )
- 

@@ -354,24 +354,24 @@ def load_external_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
-    # 2023-12-15  Last version compatible with absl with or without VLOG()
+    # 2024-05-28
     http_archive(
         name = "verible",
-        sha256 = "133bb3f7b041ce5009f6bb369ed62f1d6c3760e3ab9b44ab08484a7245d096d3",
-        strip_prefix = "verible-0.0-3498-g82ac5189",
-        urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/v0.0-3498-g82ac5189.tar.gz"],
+        sha256 = "a72b9e351f893ac62fac3c72227dc809e29460eb4ddac35e673d73627e9fab1f",
+        strip_prefix = "verible-0.0-3665-ga9394662",
+        urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/v0.0-3665-ga9394662.tar.gz"],
         patch_args = ["-p1"],
         patches = ["//dependency_support/verible:visibility.patch"],
     )
 
-    # Same as Verible as of 2023-05-18
+    # Same as Verible as of 2024-05-28
     http_archive(
         name = "jsonhpp",
         build_file = "@verible//bazel:jsonhpp.BUILD",
-        sha256 = "081ed0f9f89805c2d96335c3acfa993b39a0a5b4b4cef7edb68dd2210a13458c",
-        strip_prefix = "json-3.10.2",
+        sha256 = "0d8ef5af7f9794e3263480193c491549b2ba6cc74bb018906202ada498a79406",
+        strip_prefix = "json-3.11.3",
         urls = [
-            "https://github.com/nlohmann/json/archive/refs/tags/v3.10.2.tar.gz",
+            "https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz",
         ],
     )
 
