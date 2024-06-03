@@ -14,6 +14,8 @@
 
 #include "xls/public/c_api.h"
 
+#include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/public/runtime_build_actions.h"
 
 namespace {
@@ -45,6 +47,7 @@ bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
   CHECK(dslx != nullptr);
   CHECK(path != nullptr);
   CHECK(dslx_stdlib_path != nullptr);
+  CHECK(error_out != nullptr);
 
   std::vector<std::filesystem::path> additional_search_paths_cpp =
       ToCpp(additional_search_paths, additional_search_paths_count);
@@ -67,6 +70,7 @@ bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
                                  char** error_out, char** ir_out) {
   CHECK(path != nullptr);
   CHECK(dslx_stdlib_path != nullptr);
+  CHECK(error_out != nullptr);
 
   std::vector<std::filesystem::path> additional_search_paths_cpp =
       ToCpp(additional_search_paths, additional_search_paths_count);
@@ -80,6 +84,128 @@ bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
 
   *ir_out = nullptr;
   *error_out = ToOwnedCString(result.status().ToString());
+  return false;
+}
+
+bool xls_parse_typed_value(const char* input, char** error_out,
+                           xls_value** xls_value_out) {
+  CHECK(input != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(xls_value_out != nullptr);
+
+  absl::StatusOr<xls::Value> value_or = xls::Parser::ParseTypedValue(input);
+  if (value_or.ok()) {
+    *xls_value_out = reinterpret_cast<xls_value*>(
+        new xls::Value(std::move(value_or).value()));
+    return true;
+  }
+
+  *xls_value_out = nullptr;
+  *error_out = ToOwnedCString(value_or.status().ToString());
+  return false;
+}
+
+void xls_value_free(xls_value* v) {
+  if (v == nullptr) {
+    return;
+  }
+  delete reinterpret_cast<xls::Value*>(v);
+}
+
+void xls_package_free(struct xls_package* p) {
+  if (p == nullptr) {
+    return;
+  }
+  delete reinterpret_cast<xls::Package*>(p);
+}
+
+bool xls_value_to_string(const struct xls_value* v, char** string_out) {
+  CHECK(v != nullptr);
+  CHECK(string_out != nullptr);
+  std::string s = reinterpret_cast<const xls::Value*>(v)->ToString();
+  *string_out = strdup(s.c_str());
+  return *string_out != nullptr;
+}
+
+bool xls_value_eq(const struct xls_value* v, const struct xls_value* w) {
+  CHECK(v != nullptr);
+  CHECK(w != nullptr);
+
+  const auto* lhs = reinterpret_cast<const xls::Value*>(v);
+  const auto* rhs = reinterpret_cast<const xls::Value*>(w);
+  return *lhs == *rhs;
+}
+
+bool xls_parse_ir_package(const char* ir, const char* filename,
+                          char** error_out,
+                          struct xls_package** xls_package_out) {
+  CHECK(ir != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(xls_package_out != nullptr);
+
+  std::optional<std::string_view> cpp_filename;
+  if (filename != nullptr) {
+    cpp_filename.emplace(filename);
+  }
+  absl::StatusOr<std::unique_ptr<xls::Package>> package_or =
+      xls::Parser::ParsePackage(ir, cpp_filename);
+  if (package_or.ok()) {
+    *xls_package_out =
+        reinterpret_cast<xls_package*>(package_or.value().release());
+    *error_out = nullptr;
+    return true;
+  }
+
+  *xls_package_out = nullptr;
+  *error_out = ToOwnedCString(package_or.status().ToString());
+  return false;
+}
+
+bool xls_package_get_function(struct xls_package* package,
+                              const char* function_name, char** error_out,
+                              struct xls_function** result_out) {
+  xls::Package* xls_package = reinterpret_cast<xls::Package*>(package);
+  absl::StatusOr<xls::Function*> function_or =
+      xls_package->GetFunction(function_name);
+  if (function_or.ok()) {
+    *result_out = reinterpret_cast<struct xls_function*>(function_or.value());
+    return true;
+  }
+
+  *result_out = nullptr;
+  *error_out = ToOwnedCString(function_or.status().ToString());
+  return false;
+}
+
+bool xls_interpret_function(struct xls_function* function, size_t argc,
+                            const struct xls_value** args, char** error_out,
+                            struct xls_value** result_out) {
+  CHECK(function != nullptr);
+  CHECK(args != nullptr);
+
+  xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
+
+  std::vector<xls::Value> xls_args;
+  xls_args.reserve(argc);
+  for (size_t i = 0; i < argc; ++i) {
+    CHECK(args[i] != nullptr);
+    xls_args.push_back(*reinterpret_cast<const xls::Value*>(args[i]));
+  }
+
+  absl::StatusOr<xls::InterpreterResult<xls::Value>> result_or =
+      xls::InterpretFunction(xls_function, xls_args);
+  if (result_or.ok()) {
+    // TODO(cdleary): 2024-05-30 We should pass back interpreter events through
+    // this API instead of dropping them.
+    xls::Value result_value =
+        xls::DropInterpreterEvents(std::move(result_or)).value();
+    *result_out = reinterpret_cast<struct xls_value*>(
+        new xls::Value(std::move(result_value)));
+    return true;
+  }
+
+  *result_out = nullptr;
+  *error_out = ToOwnedCString(result_or.status().ToString());
   return false;
 }
 
