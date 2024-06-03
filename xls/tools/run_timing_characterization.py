@@ -15,16 +15,16 @@
 
 """Runs timing characterization to generate XLS delay models using Yosys and OpenSTA.
 
-   There are two modes:
+There are two modes:
 
-   If --openroad_path is supplied, then scripts, tooling,
-   and libraries are found in the OpenROAD installation.
-   The set of PDKs used is hardcoded (sky130, asap7, and nangate45).
-   Timing characterization is run for all these PDKs.
+If --openroad_path is supplied, then scripts, tooling,
+and libraries are found in the OpenROAD installation.
+The set of PDKs used is hardcoded (sky130, asap7, and nangate45).
+Timing characterization is run for all these PDKs.
 
-   If --openroad_path is NOT supplied, then paths to
-   Yosys, openSTA, synthesis library, and (if different from
-   synthesis librarty) STA libraries must be provided.
+If --openroad_path is NOT supplied, then paths to
+Yosys, openSTA, synthesis library, and (if different from
+synthesis librarty) STA libraries must be provided.
 """
 
 # Assume that https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts are
@@ -34,17 +34,21 @@ import datetime
 import os
 import subprocess
 import time
-
 from typing import List
 
 from absl import app
 from absl import flags
 from absl import logging
-
 import portpicker
 
 _SAMPLES_PATH = flags.DEFINE_string(
     'samples_path', None, 'Path to proto providing sample points.'
+)
+_OP_INCLUDE_LIST = flags.DEFINE_list(
+    'op_include_list',
+    [],
+    'Names of ops from samples textproto to generate data points for. If empty,'
+    ' all of them are included. Note that kIdentity is always included',
 )
 _BAZEL_BIN_PATH = flags.DEFINE_string(
     'bazel_bin_path', None, 'Root directory of bazel-bin'
@@ -70,12 +74,12 @@ _SYNTH_LIBS = flags.DEFINE_string(
     'synth_libs', None, 'Path to synthesis library or libraries'
 )
 _STA_LIBS = flags.DEFINE_string(
-    'sta_libs', None, 'Path to static timing library or libraries; '
-                      'only needed if different from synth_libs'
+    'sta_libs',
+    None,
+    'Path to static timing library or libraries; '
+    'only needed if different from synth_libs',
 )
-_OUT_PATH = flags.DEFINE_string(
-    'out_path', None, 'Path for output text proto'
-)
+_OUT_PATH = flags.DEFINE_string('out_path', None, 'Path for output text proto')
 
 # The options below are used when bazel_bin_path is NOT specified
 _CLIENT = flags.DEFINE_string(
@@ -118,21 +122,23 @@ def _do_config_task(config: WorkerConfig):
     config.yosys_bin = f'{config.openroad_path}/tools/install/yosys/bin/yosys'
     config.sta_bin = f'{config.openroad_path}/tools/install/OpenROAD/bin/sta'
     config.client_checkpoint_file = (
-        f'../../{config.target}_checkpoint.textproto')
+        f'../../{config.target}_checkpoint.textproto'
+    )
   else:
     if not _YOSYS_PATH.value:
       raise app.UsageError(
-          'Must provide either --openroad_path or --yosys_path.')
+          'Must provide either --openroad_path or --yosys_path.'
+      )
     config.yosys_bin = os.path.realpath(_YOSYS_PATH.value)
 
     if not _STA_PATH.value:
-      raise app.UsageError(
-          'Must provide either --openroad_path or --sta_path.')
+      raise app.UsageError('Must provide either --openroad_path or --sta_path.')
     config.sta_bin = os.path.realpath(_STA_PATH.value)
 
     if not _SYNTH_LIBS.value:
       raise app.UsageError(
-          'Must provide either --openroad_path or --synth_libs.')
+          'Must provide either --openroad_path or --synth_libs.'
+      )
     synth_libs = _SYNTH_LIBS.value
     assert synth_libs is not None
     config.synthesis_libraries = synth_libs.split()
@@ -150,7 +156,8 @@ def _do_config_task(config: WorkerConfig):
       config.client_checkpoint_file = out_path
     else:
       raise app.UsageError(
-          'If not using --openroad_path, then must provide --out_path.')
+          'If not using --openroad_path, then must provide --out_path.'
+      )
 
     if not _SAMPLES_PATH.value:
       if _QUICK_RUN.value:
@@ -175,8 +182,9 @@ def _do_config_task(config: WorkerConfig):
 
   print('server bin path:', config.server_bin)
   print('client bin path:', config.client_bin)
-  print('output checkpoint path:',
-        os.path.realpath(config.client_checkpoint_file))
+  print(
+      'output checkpoint path:', os.path.realpath(config.client_checkpoint_file)
+  )
 
   if not os.path.isfile(config.yosys_bin):
     raise app.UsageError(f'Yosys tools not found with {config.yosys_bin}')
@@ -205,6 +213,9 @@ def _do_config_task(config: WorkerConfig):
   if _SAMPLES_PATH.value:
     config.samples_path = os.path.realpath(_SAMPLES_PATH.value)
     config.client_extra_args.append(f'--samples_path={config.samples_path}')
+    config.client_extra_args.append(
+        '--op_include_list=' + ','.join(_OP_INCLUDE_LIST.value)
+    )
 
 
 def _do_config_asap7(config: WorkerConfig):
@@ -361,6 +372,7 @@ def main(_):
     _do_config_task(config)
     _do_worker_task(config)
     print('Finish')
+
 
 if __name__ == '__main__':
   app.run(main)

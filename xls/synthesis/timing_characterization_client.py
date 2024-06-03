@@ -35,14 +35,26 @@ from xls.synthesis import synthesis_service_pb2_grpc
 
 FLAGS = flags.FLAGS
 _MAX_PS = flags.DEFINE_integer(
-    'max_ps', 15000, 'Maximum picoseconds delay to test.')
+    'max_ps', 15000, 'Maximum picoseconds delay to test.'
+)
 _MIN_PS = flags.DEFINE_integer(
-    'min_ps', 20, 'Minimum picoseconds delay to test.')
+    'min_ps', 20, 'Minimum picoseconds delay to test.'
+)
 _CHECKPOINT_PATH = flags.DEFINE_string(
-    'checkpoint_path', '', 'Path at which to load and save checkpoints. ' +
-    'Checkpoints will not be kept if unspecified.')
+    'checkpoint_path',
+    '',
+    'Path at which to load and save checkpoints. Checkpoints will not be kept'
+    ' if unspecified.',
+)
 _SAMPLES_PATH = flags.DEFINE_string(
-    'samples_path', '', 'Path at which to load samples textproto.')
+    'samples_path', '', 'Path at which to load samples textproto.'
+)
+_OP_INCLUDE_LIST = flags.DEFINE_list(
+    'op_include_list',
+    [],
+    'Names of ops from samples textproto to generate data points for. If empty,'
+    ' all of them are included. Note that kIdentity is always included.',
+)
 
 ENUM2NAME_MAP = dict((op.enum_name, op.name) for op in OPS)
 
@@ -101,9 +113,7 @@ def _search_for_fmax_and_synth(
     # the binary search.  Just use the max_frequency_hz of the first response
     # (whether it passes or fails).
     if response.insensitive_to_target_freq and response.max_frequency_hz > 0:
-      logging.info(
-          'USING (@min %2.1fps).', response_ps
-      )
+      logging.info('USING (@min %2.1fps).', response_ps)
       best_result = response
       break
 
@@ -111,12 +121,15 @@ def _search_for_fmax_and_synth(
       if response.max_frequency_hz > 0:
         logging.info(
             'PASS at %.1fps (slack %dps @min %2.1fps)',
-            current_ps, response.slack_ps, response_ps
+            current_ps,
+            response.slack_ps,
+            response_ps,
         )
       else:
         logging.error('PASS but no maximum frequency determined.')
-        logging.error('ERROR: this occurs when '
-                      'an operator is optimized to a constant.')
+        logging.error(
+            'ERROR: this occurs when an operator is optimized to a constant.'
+        )
         logging.error('Source Verilog:\n%s', request.module_text)
         sys.exit()
       high_ps = current_ps
@@ -126,7 +139,9 @@ def _search_for_fmax_and_synth(
       if response.max_frequency_hz:
         logging.info(
             'FAIL at %.1fps (slack %dps @min %2.1fps).',
-            current_ps, response.slack_ps, response_ps
+            current_ps,
+            response.slack_ps,
+            response_ps,
         )
       else:
         # This shouldn't happen
@@ -145,20 +160,22 @@ def _search_for_fmax_and_synth(
         1e12 / best_result.max_frequency_hz,
     )
   else:
-    logging.error(
-        'INTERNAL ERROR: no passing run.'
-    )
+    logging.error('INTERNAL ERROR: no passing run.')
     sys.exit()
   return best_result
 
 
-def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
-                   results: delay_model_pb2.DataPoints,
-                   data_points: Dict[str, Set[str]], ir_text: str,
-                   op: str, result_bit_count: int,
-                   operand_bit_counts: Sequence[int],
-                   operand_element_counts: Dict[int, int],
-                   specialization: delay_model_pb2.SpecializationKind) -> None:
+def _synthesize_ir(
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
+    results: delay_model_pb2.DataPoints,
+    data_points: Dict[str, Set[str]],
+    ir_text: str,
+    op: str,
+    result_bit_count: int,
+    operand_bit_counts: Sequence[int],
+    operand_element_counts: Dict[int, int],
+    specialization: delay_model_pb2.SpecializationKind,
+) -> None:
   """Synthesizes the given IR text and checkpoint resulting data points."""
   if op not in data_points:
     data_points[op] = set()
@@ -176,11 +193,16 @@ def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     return
   data_points[op].add(key)
 
-  logging.info('Running %s with %d / %s', op, result_bit_count,
-               ', '.join([str(x) for x in operand_bit_counts]))
+  logging.info(
+      'Running %s with %d / %s',
+      op,
+      result_bit_count,
+      ', '.join([str(x) for x in operand_bit_counts]),
+  )
   module_name = 'main'
   mod_generator_result = op_module_generator.generate_verilog_module(
-      module_name, ir_text)
+      module_name, ir_text
+  )
 
   op_comment = '// op: ' + op + ' \n'
   verilog_text = op_comment + mod_generator_result.verilog_text
@@ -254,20 +276,28 @@ def _run_point(
   # TODO(tcal): complete handling for specialization == HAS_LITERAL_OPERAND
   logging.info('types: %s : %s', res_type, ' '.join(opnd_types))
   literal_operand = None
-  repeated_operand = 1 if (
-      specialization == delay_model_pb2.OPERANDS_IDENTICAL) else None
+  repeated_operand = (
+      1 if (specialization == delay_model_pb2.OPERANDS_IDENTICAL) else None
+  )
   ir_text = op_module_generator.generate_ir_package(
       op_name, res_type, (opnd_types), attr, literal_operand, repeated_operand
   )
   logging.info('ir_text:\n%s\n', ir_text)
   _synthesize_ir(
-      stub, results, data_points, ir_text, op, res_bit_count,
-      list(point.operand_widths), opnd_element_counts, specialization
+      stub,
+      results,
+      data_points,
+      ir_text,
+      op,
+      res_bit_count,
+      list(point.operand_widths),
+      opnd_element_counts,
+      specialization,
   )
 
 
 def init_data(
-    checkpoint_path: str
+    checkpoint_path: str,
 ) -> Tuple[Dict[str, Set[str]], delay_model_pb2.DataPoints]:
   """Return new state, loading data from a checkpoint, if available."""
   data_points = {}
@@ -279,8 +309,9 @@ def init_data(
       op = data_point.operation
       if op.op not in data_points:
         data_points[op.op] = set()
-      key = ', '.join([str(op.bit_count)] +
-                      [str(x.bit_count) for x in op.operands])
+      key = ', '.join(
+          [str(op.bit_count)] + [str(x.bit_count) for x in op.operands]
+      )
       if op.specialization:
         key = key + ' ' + str(op.specialization)
       data_points[op.op].add(key)
@@ -294,13 +325,15 @@ def run_characterization(
   data_points, data_points_proto = init_data(_CHECKPOINT_PATH.value)
   samples_file = _SAMPLES_PATH.value
   op_samples_list = delay_model_pb2.OpSamplesList()
+  op_include_list = set()
+  if _OP_INCLUDE_LIST.value:
+    op_include_list.update(['kIdentity'] + _OP_INCLUDE_LIST.value)
   with gfile.open(samples_file, 'r') as f:
     op_samples_list = text_format.Parse(f.read(), op_samples_list)
   for op_samples in op_samples_list.op_samples:
-    for point in op_samples.samples:
-      _run_point(op_samples,
-                 point,
-                 data_points_proto, data_points, stub)
+    if not op_include_list or op_samples.op in op_include_list:
+      for point in op_samples.samples:
+        _run_point(op_samples, point, data_points_proto, data_points, stub)
 
   print('# proto-file: xls/delay_model/delay_model.proto')
   print('# proto-message: xls.delay_model.DataPoints')
