@@ -743,6 +743,15 @@ communication events).
 send(tok: token, chan<T> out, value: T) -> token
 ```
 
+### `send_if`: conditionally send a value on a channel
+
+```
+send_if(tok: token, chan<T> out, predicate: bool, value: T) -> token
+```
+
+The `send_if` builtin does a send on a channel as described in [`send`][#send],
+but only attempts to do so if the given predicate is true.
+
 ### `recv`: (blocking) receive of a value from a channel
 
 The `recv` builtin does a "blocking" `recv` of a value from a channel -- it is
@@ -763,7 +772,7 @@ but only attempts to do so if the given predicate is true.
 recv_if(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T)
 ```
 
-### `recv_nonblocking`: non-blocking receive of a value from a channel
+### `recv_non_blocking`: non-blocking receive of a value from a channel
 
 Performs a non-blocking receive from channel `c` -- if the channel is empty the
 `default_value` is returned as the result, and the `bool` in the result
@@ -771,7 +780,7 @@ indicates whether the value originated from the channel (i.e. `true` means the
 value came from the channel).
 
 ```
-recv_nonblocking(tok: token, c: chan<T> in, default_value: T) -> (token, T, bool)
+recv_non_blocking(tok: token, c: chan<T> in, default_value: T) -> (token, T, bool)
 ```
 
 NOTE: non-blocking operations make a block latency sensitive and can no longer
@@ -779,15 +788,15 @@ be described as pure "Kahn Process Networks", which means that the design's
 correctness is more sensitive to the chosen schedule, and thus design
 verification should occur on the scheduled design.
 
-### `recv_if_nonblocking`: conditional non-blocking receive of a value from a channel
+### `recv_if_non_blocking`: conditional non-blocking receive of a value from a channel
 
-As `recv_nonblocking` is above, but with an additional predicate that indicates
+As `recv_non_blocking` is above, but with an additional predicate that indicates
 whether we should attempt to do the nonblocking receive from the channel. If
 this predicate is false, the default value will be provided and the returned
 boolean will be false.
 
 ```
-recv_nonblocking(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
+recv_if_non_blocking(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
 ```
 
 ## `import std`: DSLX standard library routines
