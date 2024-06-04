@@ -1603,6 +1603,7 @@ proto_library(
 
 py_proto_library(
     name = "design_stats_py_pb2",
+    visibility = ["//xls:xls_utility_users"],
     deps = [":design_stats_proto"],
 )
 
