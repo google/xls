@@ -209,6 +209,19 @@ cc_test(
 )
 
 cc_library(
+    name = "delay_synthesis_service",
+    srcs = ["delay_synthesis_service.cc"],
+    hdrs = ["delay_synthesis_service.h"],
+    deps = [
+        ":synthesizer",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/synthesis:synthesis_service_cc_grpc",
+        "//xls/synthesis:synthesis_service_cc_proto",
+        "@com_github_grpc_grpc//:grpc++_public_hdrs",
+    ],
+)
+
+cc_library(
     name = "node_cut",
     srcs = ["node_cut.cc"],
     hdrs = ["node_cut.h"],
