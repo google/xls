@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -492,6 +493,9 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
   lines.push_back(statement_block_->Emit(line_info));
   LineInfoIncrease(line_info, 1);
   LineInfoEnd(line_info, this);
+  if (!absl::StartsWith(return_type, " ")) {
+    return_type = absl::StrCat(" ", return_type);
+  }
   return absl::StrCat(
       absl::StrFormat("function automatic%s (%s);\n", return_type, parameters),
       Indent(absl::StrJoin(lines, "\n")), "\nendfunction");
