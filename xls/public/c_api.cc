@@ -14,8 +14,25 @@
 
 #include "xls/public/c_api.h"
 
+#include <string.h>  // NOLINT(modernize-deprecated-headers)
+
+#include <cstddef>
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/events.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/public/runtime_build_actions.h"
 
 namespace {

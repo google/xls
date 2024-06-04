@@ -15,7 +15,7 @@
 #ifndef XLS_PUBLIC_C_API_H_
 #define XLS_PUBLIC_C_API_H_
 
-#include <stddef.h>
+#include <stddef.h>  // NOLINT(modernize-deprecated-headers)
 
 // C API that exposes the functionality in various public headers in a way that
 // C-based FFI facilities can easily wrap.
