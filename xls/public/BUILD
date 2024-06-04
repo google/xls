@@ -157,8 +157,13 @@ cc_library(
     hdrs = ["c_api.h"],
     deps = [
         ":runtime_build_actions",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
         "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:events",
         "//xls/ir:ir_parser",
+        "//xls/ir:value",
     ],
 )
 

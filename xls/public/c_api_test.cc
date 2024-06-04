@@ -14,9 +14,12 @@
 
 #include "xls/public/c_api.h"
 
+#include <cstdlib>
+#include <filesystem>  // NOLINT
 #include <string>
 
 #include "absl/cleanup/cleanup.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
