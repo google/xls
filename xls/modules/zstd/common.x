@@ -45,8 +45,8 @@ pub struct BlockDataPacket {
 }
 
 pub enum SequenceExecutorMessageType : u1 {
-  LITERAL = 0,
-  SEQUENCE = 1,
+    LITERAL = 0,
+    SEQUENCE = 1,
 }
 
 pub struct ExtendedBlockDataPacket {
@@ -54,10 +54,10 @@ pub struct ExtendedBlockDataPacket {
     packet: BlockDataPacket,
 }
 
-pub struct SequenceExecutorPacket {
+pub struct SequenceExecutorPacket<DATA_WIDTH: u32> {
     msg_type: SequenceExecutorMessageType,
     length: CopyOrMatchLength, // Literal length or match length
-    content: CopyOrMatchContent, // Literal data or match offset
+    content: uN[DATA_WIDTH * u32:8], // Literal data or match offset
     last: bool, // Last packet in frame
 }
 
@@ -81,6 +81,9 @@ pub type RleLitData = uN[RLE_LITERALS_DATA_WIDTH];
 pub type RleLitRepeat = uN[RLE_LITERALS_REPEAT_WIDTH];
 pub type LitData = uN[LITERALS_DATA_WIDTH];
 pub type LitLength = uN[LITERALS_LENGTH_WIDTH];
+pub type LitID = u32;
+
+pub type DecompressedSize = u20;
 
 pub enum LiteralType: u3 {
     RAW        = 0,
@@ -98,7 +101,7 @@ pub struct Streams {
 
 pub struct LiteralsPathCtrl {
     data_conf: Streams,
-    decompressed_size: u20,
+    decompressed_size: DecompressedSize,
     literals_type: LiteralType,
 }
 
@@ -106,6 +109,7 @@ pub struct RleLiteralsData {
     data: RleLitData,
     repeat: RleLitRepeat,
     last: bool,
+    id: LitID,
 }
 
 pub struct LiteralsData {
@@ -113,3 +117,17 @@ pub struct LiteralsData {
     length: LitLength,
     last: bool,
 }
+
+pub struct LiteralsDataWithSync {
+    data: LitData,
+    length: LitLength,
+    last: bool,
+    id: LitID,
+    literals_last: bool,
+}
+
+pub struct LiteralsBufferCtrl {
+    length: u32,
+    last: bool,
+}
+

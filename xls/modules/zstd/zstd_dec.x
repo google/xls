@@ -32,7 +32,7 @@ type Buffer = buff::Buffer;
 type BlockDataPacket = common::BlockDataPacket;
 type BlockData = common::BlockData;
 type BlockSize = common::BlockSize;
-type SequenceExecutorPacket = common::SequenceExecutorPacket;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
 type ZstdDecodedPacket = common::ZstdDecodedPacket;
 
 // TODO: all of this porboably should be in common.x

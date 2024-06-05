@@ -731,6 +731,20 @@ xls_dslx_test(
 )
 
 xls_dslx_library(
+    name = "parallel_rams_dslx",
+    srcs = ["parallel_rams.x"],
+    deps = [
+        ":common_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "parallel_rams_dslx_test",
+    library = ":parallel_rams_dslx",
+)
+
+xls_dslx_library(
     name = "sequence_executor_dslx",
     srcs = [
         "sequence_executor.x",
@@ -738,6 +752,7 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":ram_printer_dslx",
+        ":parallel_rams_dslx",
         "//xls/examples:ram_dslx",
     ],
 )
@@ -834,6 +849,8 @@ place_and_route(
     clock_period = "750",
     core_padding_microns = 2,
     min_pin_distance = "0.5",
+    die_height_microns = 120,
+    die_width_microns = 120,
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":sequence_executor_asap7",
@@ -1139,8 +1156,8 @@ place_and_route(
     name = "literals_dispatcher_place_and_route",
     clock_period = "750",
     core_padding_microns = 2,
-    die_height_microns = 50,
-    die_width_microns = 50,
+    die_height_microns = 64,
+    die_width_microns = 64,
     min_pin_distance = "0.5",
     placement_density = "0.30",
     stop_after_step = "global_routing",
@@ -1295,5 +1312,99 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":raw_literals_dec_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "literals_buffer_dslx",
+    srcs = [
+        "literals_buffer.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":ram_printer_dslx",
+        ":parallel_rams_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "literals_buffer_dslx_test",
+    library = ":literals_buffer_dslx",
+)
+
+xls_dslx_verilog(
+    name = "literals_buffer_verilog",
+    codegen_args = {
+        "module_name": "LiteralsBuffer",
+        "delay_model": "asap7",
+        "ram_configurations": ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "ram{}".format(num),
+                rd_req = "literals_buffer__rd_req_m{}_s".format(num),
+                rd_resp = "literals_buffer__rd_resp_m{}_r".format(num),
+                wr_req = "literals_buffer__wr_req_m{}_s".format(num),
+                wr_resp = "literals_buffer__wr_resp_m{}_r".format(num),
+            )
+            for num in range(7)
+        ]),
+        "pipeline_stages": "6",
+        "reset": "rst",
+        "worst_case_throughput": "1",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "LiteralsBufferInst",
+    library = ":literals_buffer_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__literals_buffer__LiteralsBufferInst__LiteralsBuffer__LiteralsBufferReader_0__64_0_0_0_13_8192_65536_next",
+    },
+    verilog_file = "literals_buffer.v",
+)
+
+xls_benchmark_ir(
+    name = "literals_buffer_opt_ir_benchmark",
+    src = ":literals_buffer_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "6",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "literals_buffer_verilog_benchmark",
+    verilog_target = "literals_buffer_verilog",
+)
+
+verilog_library(
+    name = "literals_buffer_verilog_lib",
+    srcs = [
+        ":literals_buffer.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "literals_buffer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "LiteralsBuffer",
+    deps = [
+        ":literals_buffer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "literals_buffer_benchmark_synth",
+    synth_target = ":literals_buffer_synth_asap7",
+)
+
+place_and_route(
+    name = "literals_buffer_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":literals_buffer_synth_asap7",
     target_die_utilization_percentage = "10",
 )
