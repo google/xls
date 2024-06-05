@@ -34,6 +34,21 @@ std::vector<std::filesystem::path> ToCpp(const char* additional_search_paths[],
 
 char* ToOwnedCString(const std::string& s) { return strdup(s.c_str()); }
 
+// Helper function that we can use to adapt to the common C API pattern when
+// we're returning an `absl::StatusOr<std::string>` value.
+bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
+                        char** error_out, char** value_out) {
+  if (to_return.ok()) {
+    *value_out = ToOwnedCString(to_return.value());
+    *error_out = nullptr;
+    return true;
+  }
+
+  *value_out = nullptr;
+  *error_out = ToOwnedCString(to_return.status().ToString());
+  return false;
+}
+
 }  // namespace
 
 extern "C" {
@@ -54,14 +69,7 @@ bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
 
   absl::StatusOr<std::string> result = xls::ConvertDslxToIr(
       dslx, path, module_name, dslx_stdlib_path, additional_search_paths_cpp);
-  if (result.ok()) {
-    *ir_out = ToOwnedCString(result.value());
-    return true;
-  }
-
-  *ir_out = nullptr;
-  *error_out = ToOwnedCString(result.status().ToString());
-  return false;
+  return ReturnStringHelper(result, error_out, ir_out);
 }
 
 bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
@@ -77,14 +85,26 @@ bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
 
   absl::StatusOr<std::string> result = xls::ConvertDslxPathToIr(
       path, dslx_stdlib_path, additional_search_paths_cpp);
-  if (result.ok()) {
-    *ir_out = ToOwnedCString(result.value());
-    return true;
-  }
+  return ReturnStringHelper(result, error_out, ir_out);
+}
 
-  *ir_out = nullptr;
-  *error_out = ToOwnedCString(result.status().ToString());
-  return false;
+bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
+                     char** ir_out) {
+  CHECK(ir != nullptr);
+  CHECK(top != nullptr);
+
+  absl::StatusOr<std::string> result = xls::OptimizeIr(ir, top);
+  return ReturnStringHelper(result, error_out, ir_out);
+}
+
+bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
+                          char** error_out, char** mangled_out) {
+  CHECK(module_name != nullptr);
+  CHECK(function_name != nullptr);
+
+  absl::StatusOr<std::string> result =
+      xls::MangleDslxName(module_name, function_name);
+  return ReturnStringHelper(result, error_out, mangled_out);
 }
 
 bool xls_parse_typed_value(const char* input, char** error_out,

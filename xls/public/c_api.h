@@ -54,6 +54,12 @@ bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
                                  size_t additional_search_paths_count,
                                  char** error_out, char** ir_out);
 
+bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
+                     char** ir_out);
+
+bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
+                          char** error_out, char** mangled_out);
+
 // Parses a string that represents a typed XLS value; e.g. `bits[32]:0x42`.
 bool xls_parse_typed_value(const char* input, char** error_out,
                            struct xls_value** xls_value_out);

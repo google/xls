@@ -149,4 +149,44 @@ fn f(x: bits[32]) -> bits[32] {
   ASSERT_TRUE(xls_value_eq(ft, result));
 }
 
+TEST(XlsCApiTest, ParsePackageAndOptimizeFunctionInIt) {
+  const std::string kPackage = R"(
+package p
+
+fn f() -> bits[32] {
+  one: bits[32] = literal(value=1)
+  ret result: bits[32] = add(one, one)
+}
+)";
+
+  char* error = nullptr;
+  char* opt_ir = nullptr;
+  ASSERT_TRUE(xls_optimize_ir(kPackage.c_str(), "f", &error, &opt_ir));
+  absl::Cleanup free_opt_ir([opt_ir] { free(opt_ir); });
+
+  ASSERT_NE(opt_ir, nullptr);
+
+  const std::string kWant = R"(package p
+
+top fn f() -> bits[32] {
+  ret result: bits[32] = literal(value=2, id=3)
+}
+)";
+
+  EXPECT_EQ(std::string_view(opt_ir), kWant);
+}
+
+TEST(XlsCApiTest, MangleDslxName) {
+  std::string module_name = "foo_bar";
+  std::string function_name = "baz_bat";
+
+  char* error = nullptr;
+  char* mangled = nullptr;
+  ASSERT_TRUE(xls_mangle_dslx_name(module_name.c_str(), function_name.c_str(),
+                                   &error, &mangled));
+  absl::Cleanup free_mangled([mangled] { free(mangled); });
+
+  EXPECT_EQ(std::string_view(mangled), "__foo_bar__baz_bat");
+}
+
 }  // namespace
