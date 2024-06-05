@@ -121,11 +121,10 @@ TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
 }
 
 TEST(XlsCApiTest, ParsePackageAndInterpretFunctionInIt) {
-  const std::string kPackage = R"(
-package p
+  const std::string kPackage = R"(package p
 
 fn f(x: bits[32]) -> bits[32] {
-  ret y: bits[32] = identity(x)
+  ret y: bits[32] = identity(x, id=2)
 }
 )";
 
@@ -134,6 +133,11 @@ fn f(x: bits[32]) -> bits[32] {
   ASSERT_TRUE(xls_parse_ir_package(kPackage.c_str(), "p.ir", &error, &package))
       << "xls_parse_ir_package error: " << error;
   absl::Cleanup free_package([package] { xls_package_free(package); });
+
+  char* dumped = nullptr;
+  ASSERT_TRUE(xls_package_to_string(package, &dumped));
+  absl::Cleanup free_dumped([dumped] { free(dumped); });
+  EXPECT_EQ(std::string_view(dumped), kPackage);
 
   struct xls_function* function = nullptr;
   ASSERT_TRUE(xls_package_get_function(package, "f", &error, &function));
@@ -150,6 +154,46 @@ fn f(x: bits[32]) -> bits[32] {
   absl::Cleanup free_result([result] { xls_value_free(result); });
 
   ASSERT_TRUE(xls_value_eq(ft, result));
+}
+
+TEST(XlsCApiTest, ParsePackageAndOptimizeFunctionInIt) {
+  const std::string kPackage = R"(
+package p
+
+fn f() -> bits[32] {
+  one: bits[32] = literal(value=1)
+  ret result: bits[32] = add(one, one)
+}
+)";
+
+  char* error = nullptr;
+  char* opt_ir = nullptr;
+  ASSERT_TRUE(xls_optimize_ir(kPackage.c_str(), "f", &error, &opt_ir));
+  absl::Cleanup free_opt_ir([opt_ir] { free(opt_ir); });
+
+  ASSERT_NE(opt_ir, nullptr);
+
+  const std::string kWant = R"(package p
+
+top fn f() -> bits[32] {
+  ret result: bits[32] = literal(value=2, id=3)
+}
+)";
+
+  EXPECT_EQ(std::string_view(opt_ir), kWant);
+}
+
+TEST(XlsCApiTest, MangleDslxName) {
+  std::string module_name = "foo_bar";
+  std::string function_name = "baz_bat";
+
+  char* error = nullptr;
+  char* mangled = nullptr;
+  ASSERT_TRUE(xls_mangle_dslx_name(module_name.c_str(), function_name.c_str(),
+                                   &error, &mangled));
+  absl::Cleanup free_mangled([mangled] { free(mangled); });
+
+  EXPECT_EQ(std::string_view(mangled), "__foo_bar__baz_bat");
 }
 
 }  // namespace
