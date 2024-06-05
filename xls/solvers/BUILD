@@ -144,6 +144,7 @@ cc_library(
     deps = [
         ":z3_op_translator",
         ":z3_utils",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",

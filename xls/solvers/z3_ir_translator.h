@@ -233,18 +233,19 @@ class IrTranslator : public DfsVisitorWithDefault {
   template <typename OpT, typename FnT>
   absl::Status HandleBinary(OpT* op, FnT f);
   template <typename OpT, typename FnT>
-  absl::Status HandleNary(OpT* op, FnT f, bool invert_result);
+  absl::Status HandleNary(OpT* op, FnT f, bool invert_result,
+                          bool skip_empty_operands = false);
   template <typename FnT>
   absl::Status HandleShift(BinOp* shift, FnT f);
   template <typename FnT>
   absl::Status HandleUnary(Node* op, FnT f);
 
   // Recursive call to translate XLS literals into Z3 form.
-  // The `has_uses` parameter is used for checking whether the literal we're
-  // trying to translate contains a zero-width bitvector that has nontrivial
-  // uses in the IR graph.
-  absl::StatusOr<Z3_ast> TranslateLiteralValue(bool has_uses, Type* type,
-                                               const Value& value);
+  // The `has_nonconcat_uses` parameter is used for checking whether the literal
+  // we're trying to translate contains a zero-width bitvector that has
+  // nontrivial uses in the IR graph.
+  absl::StatusOr<Z3_ast> TranslateLiteralValue(bool has_nonconcat_uses,
+                                               Type* type, const Value& value);
 
   // Common multiply handling.
   void HandleMul(ArithOp* mul, bool is_signed);

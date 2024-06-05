@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -542,18 +543,30 @@ absl::Status IrTranslator::HandleShll(BinOp* shll) {
 }
 
 template <typename OpT, typename FnT>
-absl::Status IrTranslator::HandleNary(OpT* op, FnT f, bool invert_result) {
+absl::Status IrTranslator::HandleNary(OpT* op, FnT f, bool invert_result,
+                                      bool skip_empty_operands) {
   ScopedErrorHandler seh(ctx_);
-  int64_t operands = op->operands().size();
-  XLS_RET_CHECK_GT(operands, 0) << op->ToString();
-  Z3_ast accum = GetBitVec(op->operand(0));
-  for (int64_t i = 1; i < operands; ++i) {
-    accum = f(ctx_, accum, GetBitVec(op->operand(i)));
+  absl::Span<Node* const> operands = op->operands();
+  XLS_RET_CHECK(!operands.empty()) << op->ToString();
+  std::optional<Z3_ast> accum = std::nullopt;
+  Type* empty_bits_type = op->package()->GetBitsType(0);
+  for (Node* operand : operands) {
+    if (skip_empty_operands && operand->GetType() == empty_bits_type) {
+      continue;
+    }
+    XLS_RET_CHECK_NE(operand->GetType(), empty_bits_type)
+        << "empty operand to: " << op->ToString();
+    if (accum.has_value()) {
+      accum = f(ctx_, *accum, GetBitVec(operand));
+    } else {
+      accum = GetBitVec(operand);
+    }
   }
+  XLS_RET_CHECK(accum.has_value()) << op->ToString();
   if (invert_result) {
-    accum = Z3OpTranslator(ctx_).Not(accum);
+    accum = Z3OpTranslator(ctx_).Not(*accum);
   }
-  NoteTranslation(op, accum);
+  NoteTranslation(op, *accum);
   return seh.status();
 }
 
@@ -578,7 +591,8 @@ absl::Status IrTranslator::HandleNaryXor(NaryOp* op) {
 }
 
 absl::Status IrTranslator::HandleConcat(Concat* concat) {
-  return HandleNary(concat, Z3_mk_concat, /*invert_result=*/false);
+  return HandleNary(concat, Z3_mk_concat, /*invert_result=*/false,
+                    /*skip_empty_operands=*/true);
 }
 
 Z3_ast IrTranslator::CreateTuple(Z3_sort tuple_sort,
@@ -940,6 +954,21 @@ absl::Status IrTranslator::HandleZeroExtend(ExtendOp* zero_ext) {
 
 absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
   ScopedErrorHandler seh(ctx_);
+
+  // We translate zero length bitvectors to empty tuples.
+  // This will cause errors if the bitvectors are used in any nontrivial way.
+  if (bit_slice->width() == 0) {
+    if (absl::c_any_of(bit_slice->users(),
+                       [](Node* user) { return !user->Is<Concat>(); })) {
+      return absl::UnimplementedError(
+          "Zero length bitvectors must not have nontrivial uses in the IR "
+          "graph when translating to Z3");
+    }
+    TupleType tuple_type({});
+    NoteTranslation(bit_slice, CreateTuple(&tuple_type, {}));
+    return seh.status();
+  }
+
   int64_t low = bit_slice->start();
   int64_t high = low + bit_slice->width() - 1;
   Z3_ast result =
@@ -1021,9 +1050,8 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralBits(const Bits& bits) {
                           &booleans[0]);
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
-                                                           Type* value_type,
-                                                           const Value& value) {
+absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
+    bool has_nonconcat_uses, Type* value_type, const Value& value) {
   bool is_zero_bit_vector = value.IsBits() && value.GetFlatBitCount() == 0;
 
   if (value.IsBits() && !is_zero_bit_vector) {
@@ -1034,11 +1062,10 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
   // This will cause errors if the bitvectors are used in any nontrivial way,
   // but fixes fuzzer errors in the mutual_exclusion_pass.
   if (is_zero_bit_vector) {
-    if (has_uses) {
+    if (has_nonconcat_uses) {
       return absl::UnimplementedError(
-          "Zero length bitvectors must not have "
-          "uses in the IR graph when translating "
-          "to Z3");
+          "Zero length bitvectors must not have nontrivial uses in the IR "
+          "graph when translating to Z3");
     }
     TupleType tuple_type({});
     return CreateTuple(&tuple_type, {});
@@ -1059,7 +1086,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
     for (int i = 0; i < value.elements().size(); i++) {
       XLS_ASSIGN_OR_RETURN(
           Z3_ast translated,
-          TranslateLiteralValue(has_uses, array_type->element_type(),
+          TranslateLiteralValue(has_nonconcat_uses, array_type->element_type(),
                                 value.elements()[i]));
       elements.push_back(translated);
     }
@@ -1075,7 +1102,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
   for (int i = 0; i < num_elements; i++) {
     XLS_ASSIGN_OR_RETURN(
         Z3_ast translated,
-        TranslateLiteralValue(has_uses, tuple_type->element_type(i),
+        TranslateLiteralValue(has_nonconcat_uses, tuple_type->element_type(i),
                               value.elements()[i]));
     elements.push_back(translated);
   }
@@ -1087,8 +1114,10 @@ absl::Status IrTranslator::HandleLiteral(Literal* literal) {
   ScopedErrorHandler seh(ctx_);
   XLS_ASSIGN_OR_RETURN(
       Z3_ast result,
-      TranslateLiteralValue(!literal->users().empty(), literal->GetType(),
-                            literal->value()));
+      TranslateLiteralValue(
+          /*has_nonconcat_uses=*/absl::c_any_of(
+              literal->users(), [](Node* user) { return !user->Is<Concat>(); }),
+          literal->GetType(), literal->value()));
   NoteTranslation(literal, result);
   return seh.status();
 }
@@ -1407,10 +1436,13 @@ Z3_ast IrTranslator::GetValue(const Node* node) {
   return it->second;
 }
 
-// Wrapper around the above that verifies we're accessing a Bits value.
+// Wrapper around the above that verifies we're accessing a non-empty Bits
+// value.
 Z3_ast IrTranslator::GetBitVec(Node* node) {
   Z3_ast value = GetValue(node);
   Z3_sort value_sort = Z3_get_sort(ctx_, value);
+  CHECK(node->GetType()->IsBits());
+  CHECK_GT(node->BitCountOrDie(), 0);
   CHECK_EQ(Z3_get_sort_kind(ctx_, value_sort), Z3_BV_SORT);
   CHECK_EQ(node->GetType()->GetFlatBitCount(),
            Z3_get_bv_sort_size(ctx_, value_sort));

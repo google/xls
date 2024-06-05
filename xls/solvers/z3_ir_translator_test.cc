@@ -238,6 +238,23 @@ fn f(x: bits[4], y: bits[4], z: bits[4]) -> bits[1] {
   EXPECT_THAT(proven, IsProvenTrue());
 }
 
+TEST_F(Z3IrTranslatorTest, ConcatWithEmptySliceIsSelf) {
+  const std::string program = R"(
+fn f(x: bits[4]) -> bits[1] {
+  e: bits[0] = bit_slice(x, start=2, width=0)
+  a: bits[4] = concat(e, x, e)
+  ret c: bits[1] = eq(x, a)
+}
+)";
+  std::unique_ptr<Package> package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
 TEST_F(Z3IrTranslatorTest, InBoundsDynamicSlice) {
   const std::string program = R"(
 fn f(p: bits[4]) -> bits[1] {
