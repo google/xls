@@ -24,7 +24,7 @@ type BlockPacketLength = common::BlockPacketLength;
 type ExtendedBlockDataPacket = common::ExtendedBlockDataPacket;
 type CopyOrMatchContent = common::CopyOrMatchContent;
 type CopyOrMatchLength = common::CopyOrMatchLength;
-type SequenceExecutorPacket = common::SequenceExecutorPacket;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 
 // Proc responsible for connecting internal procs used in Block data decoding.
