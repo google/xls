@@ -75,6 +75,9 @@ void xls_value_free(struct xls_value* v);
 
 void xls_package_free(struct xls_package* p);
 
+// Returns a string representation of the given IR package `p`.
+bool xls_package_to_string(const struct xls_package* p, char** string_out);
+
 // Parses IR text to a package.
 
 // Note: `filename` may be nullptr.

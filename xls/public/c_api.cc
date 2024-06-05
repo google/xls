@@ -156,6 +156,14 @@ bool xls_value_eq(const struct xls_value* v, const struct xls_value* w) {
   return *lhs == *rhs;
 }
 
+bool xls_package_to_string(const struct xls_package* p, char** string_out) {
+  CHECK(p != nullptr);
+  CHECK(string_out != nullptr);
+  std::string s = reinterpret_cast<const xls::Package*>(p)->DumpIr();
+  *string_out = strdup(s.c_str());
+  return *string_out != nullptr;
+}
+
 bool xls_parse_ir_package(const char* ir, const char* filename,
                           char** error_out,
                           struct xls_package** xls_package_out) {
