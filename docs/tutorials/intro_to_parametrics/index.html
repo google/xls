@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
     
     
       
@@ -2288,8 +2288,8 @@ example, which we take from the previous codelab:</p>
 size of the result and the layout of the floating-point type itself; all other
 types flow from that base definition:</p>
 <ul>
-<li><code>exp:</code>float32::bexp` size + 1 sign bit</li>
-<li><code>fraction:</code>float32::fraction` size + 1 implicit leading bit</li>
+<li><code>exp</code>: <code>float32::bexp</code> size + 1 sign bit</li>
+<li><code>fraction</code>: <code>float32::fraction</code> size + 1 implicit leading bit</li>
 </ul>
 <p>Thus, the struct declaration and function signature will be:</p>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>

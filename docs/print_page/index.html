@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
     
     
       
@@ -2993,24 +2993,22 @@ line-by-line:</p>
     <code>x</code>, whose type follows its name. In this case, it's a <em><code>tuple</code></em>: a grouping
     of potentially disparate elements into a single quantity. A tuple is
     specified by listing a set of types in parentheses, as here. Our tuple has a
-    1-bit element for the sign, an 8-bit element for the biased
-    exponent, and a 23-bit element for the fractional part. In what is the
-    complete opposite of a coincidence, these fields match those of an IEEE
-    float32 number. If a function takes more than one argument, they'll be
-    comma-separated.
-    -   u1, u8, and u23 are all shortcuts for the type uN[1], uN[8], and uN[23].
-        The uN[X] construct declares an X-bit wide unsigned type. There is also
-        sN[X], which declares an X-bit wide <em>signed</em> type.
-    -   Other type shortcuts exist such as bits<a href="#tutorials-float_to_int-alias for un[x]">X</a>, bool (alias
-        for uN[1]), and u[1-64] and s[1-64], being aliases for uN[1] through
-        uN[64] and sN[1] through sN[64].</li>
+    1-bit element for the sign, an 8-bit element for the biased exponent, and a
+    23-bit element for the fractional part. In what is the complete opposite of
+    a coincidence, these fields match those of an IEEE float32 number. If a
+    function takes more than one argument, they'll be comma-separated.
+    -   <code>u1</code>, <code>u8</code>, and <code>u23</code> are all shortcuts for the type <code>uN[1]</code>, <code>uN[8]</code>,
+        and <code>uN[23]</code>. The <code>uN[X]</code> construct declares an X-bit wide unsigned
+        type. There is also <code>sN[X]</code>, which declares an X-bit wide <em>signed</em> type.
+    -   Other type shortcuts exist such as <code>bits[X]</code> (alias for <code>uN[X]</code>), <code>bool</code>
+        (alias for <code>uN[1]</code>), and <code>u[1-64]</code> and <code>s[1-64]</code>, being aliases for
+        <code>uN[1]</code> through <code>uN[64]</code> and <code>sN[1]</code> through <code>sN[64]</code>.</li>
 <li>Function return type. This function returns a signed 32-bit type, matching
     the intentions of float-to-int conversion (since floats are signed).</li>
 <li>Finally, the last line: the final statement in a function is its return
-    value. Here, we're unconditionally returning a signed 32-bit number with
-    the value <code>48879</code>. This is only temporary to
-    make the function syntactically valid - we're still learning the basics!
-    Gimme a second!</li>
+    value. Here, we're unconditionally returning a signed 32-bit number with the
+    value <code>48879</code>. This is only temporary to make the function syntactically
+    valid - we're still learning the basics! Gimme a second!</li>
 </ol>
 <p>As an aside, it's a good idea to keep a bookmark to the
 <a href="#dslx_reference">DSLX language reference</a>
@@ -3271,8 +3269,8 @@ example, which we take from the previous codelab:</p>
 size of the result and the layout of the floating-point type itself; all other
 types flow from that base definition:</p>
 <ul>
-<li><code>exp:</code>float32::bexp` size + 1 sign bit</li>
-<li><code>fraction:</code>float32::fraction` size + 1 implicit leading bit</li>
+<li><code>exp</code>: <code>float32::bexp</code> size + 1 sign bit</li>
+<li><code>fraction</code>: <code>float32::fraction</code> size + 1 implicit leading bit</li>
 </ul>
 <p>Thus, the struct declaration and function signature will be:</p>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">float</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
@@ -3352,7 +3350,7 @@ number of times</strong> within a function.</p>
 <p>A DSLX <code>for</code> loop has the following structure:</p>
 <ol>
 <li>The loop signature: this consists of three elements:
-    1.  An (index, <accumulator vars>) tuple. The index holds the current
+    1.  An <code>(index, &lt;accumulator vars&gt;)</code> tuple. The index holds the current
         iteration number, and the accumulator vars are user-specified data
         carried into the current iteration.
     2.  The type specification for the index/accumulators tuple. Note that the
@@ -3368,11 +3366,14 @@ number of times</strong> within a function.</p>
     the next iteration of the loop (for non-terminal iterations) or as the
     result of the entire expression (for the terminal iteration).</li>
 </ol>
-<p>For this specific for loop, the index variable and accumulator are <code>i</code> and
-<code>crc</code>, both of type <code>u32</code>. The iterable range expression specifies that the loop
-should execute 8 times.</p>
+<p>For this specific for loop, the index variable is unused, so we assign it to
+<code>_</code>. This indicates to the DSLX frontend that "the variable is unused but that's
+ok"; a trailing name after the underscore is also allowed to provide additional
+context. The accumulator consists of a single variable <code>crc</code>. Both index and
+accumulator are of type <code>u32</code>. The iterable range expression specifies that the
+loop should execute 8 times.</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="c1">// 8 rounds of updates.</span>
-<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">crc</span><span class="p">):</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">8</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">crc</span><span class="p">):</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">8</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 </code></pre></div>
 <p>At the end of the loop, the calculated value is being assigned to the
 accumulator <code>crc</code> - the last expression in the loop body is assigned to the
@@ -3397,10 +3398,14 @@ understand the intended functionality first.</p>
 input and produces an output of the same size. Each element in the output
 contains the count of duplicate values seen so far in the input. The counter
 resets to 0 if a new value is found.</p>
-<p>For example, for this input:</p>
+<p>For example, suppose we have this input:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]</span>
 </code></pre></div>
-<p>the code should produce this output:</p>
+<p>This creates an 8-element
+<a href="#dslx_reference-array-type">array</a> of <code>u32</code>
+integers; the <code>...</code> at the end of the array is a shorthand to indicate
+"fill in the rest of the elements with the last value specified".</p>
+<p>The prefix scan code should produce this output:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">])</span>
 </code></pre></div>
 <p>At index 0 it has not yet found any value, so it assigns a counter value of <code>0</code>.</p>
@@ -3414,7 +3419,8 @@ duplicate) and therefore adds a 1 to the counter from index 1. And so on.</p>
 <p>it should produce:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span>
 </code></pre></div>
-<p>The full listing is in <code>examples/dslx_intro/prefix_scan_equality.x</code>.</p>
+<p>The full listing is in
+<a href="https://github.com/google/xls/tree/main/xls/examples/dslx_intro/prefix_scan_equality.x">examples/dslx_intro/prefix_scan_equality.x</a>.</p>
 <h3 id="tutorials-prefix_scan-function-prefix_scan_eq">Function <code>prefix_scan_eq</code></h3>
 <p>The implementation displays a few interesting language features.</p>
 <p>The function prototype is straight-forward. Input is an array of 8 values of type
@@ -3423,13 +3429,14 @@ count can only be 7, which fits in 3 bits).</p>
 <div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">prefix_scan_eq</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">[</span><span class="mi">8</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
 </code></pre></div>
 <p>The first let expression produces a tuple of 3 values. It only cares about the
-last value <code>result</code>, so it stubs out the other two elements via the 'ignore'
+last value <code>result</code>, so it stubs out the other two elements via the 'unused'
 placeholder <code>_</code>.</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">)</span><span class="w"> </span><span class="o">=</span>
 </code></pre></div>
-<p>Why a 3-Tuple? Because he following loop has tuple of three values as the
-accumulator. The return type of the loop is the type of the accumulator, so
-above let needs to be of the same type.</p>
+<p>Why a 3-Tuple? Because the subsequent loop on the right hand side of this
+assignment has a tuple of three values as the accumulator. The return type of
+the loop is the type of the accumulator, so the above let needs to be of the
+same type.</p>
 <h4 id="tutorials-prefix_scan-enumerated-loop">Enumerated Loop</h4>
 <p>Using tuples as the accumulator is a convenient way to model multiple
 loop-carried values:</p>
@@ -3447,7 +3454,7 @@ a tuple consisting of a <code>u32</code> value (<code>prior</code>), a <code>u3<
 array type <code>u3[8]</code>, which is an array holding 8 elements of bit-width 3. This is
 the type of <code>result</code> in the accumulator.</p>
 <p>Looping back to the prior <code>let</code> statement, it ignores the <code>prior</code> and <code>count</code>
-members of the tuple and will only return the <code>result</code> part.</p>
+members of the tuple and will only store the <code>result</code> part.</p>
 <h4 id="tutorials-prefix_scan-a-match-expression">A Match Expression</h4>
 <p>The next expression is an interesting <code>match</code> expression. The let expression
 binds the tuple <code>(to_place, new_count): (u3, u3)</code> to the result of the following
@@ -3493,9 +3500,7 @@ accumulator in the following way.</p>
 <ul>
 <li>set element <code>prior</code> to -1, in order to not match any other value.</li>
 <li>set element <code>count</code> to 0.</li>
-<li>set element <code>result</code> to 8 0's of size <code>u3</code>. (Note that the <code>...</code> syntax
-    is short for "fill in the rest of the elements with the last value
-    specified".)</li>
+<li>set element <code>result</code> to 8 0's of size <code>u3</code>.</li>
 </ul>
 <div class="highlight"><pre><span></span><code><span class="p">}((</span><span class="kt">u32</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span><span class="p">[</span><span class="mi">8</span><span class="p">]:[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]));</span>
 </code></pre></div>
@@ -6948,8 +6953,8 @@ result = assert(tkn, condition, message=&lt;string&gt;, label=&lt;string&gt;)
 <h4 id="ir_semantics-cover"><strong><code>cover</code></strong></h4>
 <p>Records the number of times the given condition evaluates to true. Just like
 <code>assert</code>, this is a software-only construct and is not emitted in a final
-hardware design. Tokens are used to sequence this operation in the graph.</p>
-<div class="highlight"><pre><span></span><code>result = cover(tkn, condition, label=&lt;string&gt;)
+hardware design.</p>
+<div class="highlight"><pre><span></span><code>result = cover(condition, label=&lt;string&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -6961,16 +6966,12 @@ hardware design. Tokens are used to sequence this operation in the graph.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>tkn</code></td>
-<td><code>token</code></td>
-</tr>
-<tr>
 <td><code>condition</code></td>
 <td><code>bits[1]</code></td>
 </tr>
 <tr>
 <td><code>result</code></td>
-<td><code>token</code></td>
+<td><code>()</code></td>
 </tr>
 </tbody>
 </table>
@@ -7148,7 +7149,7 @@ is equivalent to <code>register_write.REG(sel(load_enable, {register_read.REG,
 data}))</code>).</p>
 <p>The <code>reset</code> and <code>load_enable</code> arguments affect the value written according to
 the following table.</p>
-<p>| <code>Register</code> reset      | <code>reset</code> value | <code>load_enable</code> value | new value     | {.sortable}
+<p>| <code>Register</code> reset      | <code>reset</code> value | <code>load_enable</code> value | new value     |
 : behavior              :               :                     :               :
 | --------------------- | ------------- | ------------------- | ------------- |
 | <code>active_low == false</code> | <code>false</code> / <code>0</code> | not present         | <code>data</code>        |
@@ -10948,10 +10949,11 @@ in a user-defined function, and thus do not live in the standard library.</p>
 <li><a href="#dslx_std-proc-related-builtins-communicating-sequential-processes">proc-related builtins (Communicating Sequential Processes)</a><ul>
 <li><a href="#dslx_std-join-sequencing-io-tokens">join: sequencing I/O tokens</a></li>
 <li><a href="#dslx_std-send-send-a-value-on-a-channel">send: send a value on a channel</a></li>
+<li><a href="#dslx_std-send_if-conditionally-send-a-value-on-a-channel">send_if: conditionally send a value on a channel</a></li>
 <li><a href="#dslx_std-recv-blocking-receive-of-a-value-from-a-channel">recv: (blocking) receive of a value from a channel</a></li>
 <li><a href="#dslx_std-recv_if-conditional-blocking-receive-of-a-value-from-a-channel">recv_if: conditional (blocking) receive of a value from a channel</a></li>
-<li><a href="#dslx_std-recv_nonblocking-non-blocking-receive-of-a-value-from-a-channel">recv_nonblocking: non-blocking receive of a value from a channel</a></li>
-<li><a href="#dslx_std-recv_if_nonblocking-conditional-non-blocking-receive-of-a-value-from-a-channel">recv_if_nonblocking: conditional non-blocking receive of a value from a channel</a></li>
+<li><a href="#dslx_std-recv_non_blocking-non-blocking-receive-of-a-value-from-a-channel">recv_non_blocking: non-blocking receive of a value from a channel</a></li>
+<li><a href="#dslx_std-recv_if_non_blocking-conditional-non-blocking-receive-of-a-value-from-a-channel">recv_if_non_blocking: conditional non-blocking receive of a value from a channel</a></li>
 </ul>
 </li>
 <li><a href="#dslx_std-import-std-dslx-standard-library-routines">import std: DSLX standard library routines</a><ul>
@@ -11554,6 +11556,11 @@ and producing a new I/O sequencing token (which can be used to order
 communication events).</p>
 <div class="highlight"><pre><span></span><code>send(tok: token, chan&lt;T&gt; out, value: T) -&gt; token
 </code></pre></div>
+<h3 id="dslx_std-send_if-conditionally-send-a-value-on-a-channel"><code>send_if</code>: conditionally send a value on a channel</h3>
+<div class="highlight"><pre><span></span><code>send_if(tok: token, chan&lt;T&gt; out, predicate: bool, value: T) -&gt; token
+</code></pre></div>
+<p>The <code>send_if</code> builtin does a send on a channel as described in [<code>send</code>][#send],
+but only attempts to do so if the given predicate is true.</p>
 <h3 id="dslx_std-recv-blocking-receive-of-a-value-from-a-channel"><code>recv</code>: (blocking) receive of a value from a channel</h3>
 <p>The <code>recv</code> builtin does a "blocking" <code>recv</code> of a value from a channel -- it is
 blocking in the sense that the current activation of the <code>proc</code> cannot complete
@@ -11566,23 +11573,23 @@ used to force a sequencing of the <code>recv</code> with respect to other I/O op
 but only attempts to do so if the given predicate is true.</p>
 <div class="highlight"><pre><span></span><code>recv_if(tok: token, c: chan&lt;T&gt; in, predicate: bool, default_value: T) -&gt; (token, T)
 </code></pre></div>
-<h3 id="dslx_std-recv_nonblocking-non-blocking-receive-of-a-value-from-a-channel"><code>recv_nonblocking</code>: non-blocking receive of a value from a channel</h3>
+<h3 id="dslx_std-recv_non_blocking-non-blocking-receive-of-a-value-from-a-channel"><code>recv_non_blocking</code>: non-blocking receive of a value from a channel</h3>
 <p>Performs a non-blocking receive from channel <code>c</code> -- if the channel is empty the
 <code>default_value</code> is returned as the result, and the <code>bool</code> in the result
 indicates whether the value originated from the channel (i.e. <code>true</code> means the
 value came from the channel).</p>
-<div class="highlight"><pre><span></span><code>recv_nonblocking(tok: token, c: chan&lt;T&gt; in, default_value: T) -&gt; (token, T, bool)
+<div class="highlight"><pre><span></span><code>recv_non_blocking(tok: token, c: chan&lt;T&gt; in, default_value: T) -&gt; (token, T, bool)
 </code></pre></div>
 <p>NOTE: non-blocking operations make a block latency sensitive and can no longer
 be described as pure "Kahn Process Networks", which means that the design's
 correctness is more sensitive to the chosen schedule, and thus design
 verification should occur on the scheduled design.</p>
-<h3 id="dslx_std-recv_if_nonblocking-conditional-non-blocking-receive-of-a-value-from-a-channel"><code>recv_if_nonblocking</code>: conditional non-blocking receive of a value from a channel</h3>
-<p>As <code>recv_nonblocking</code> is above, but with an additional predicate that indicates
+<h3 id="dslx_std-recv_if_non_blocking-conditional-non-blocking-receive-of-a-value-from-a-channel"><code>recv_if_non_blocking</code>: conditional non-blocking receive of a value from a channel</h3>
+<p>As <code>recv_non_blocking</code> is above, but with an additional predicate that indicates
 whether we should attempt to do the nonblocking receive from the channel. If
 this predicate is false, the default value will be provided and the returned
 boolean will be false.</p>
-<div class="highlight"><pre><span></span><code>recv_nonblocking(tok: token, c: chan&lt;T&gt; in, predicate: bool, default_value: T) -&gt; (token, T, bool)
+<div class="highlight"><pre><span></span><code>recv_if_non_blocking(tok: token, c: chan&lt;T&gt; in, predicate: bool, default_value: T) -&gt; (token, T, bool)
 </code></pre></div>
 <h2 id="dslx_std-import-std-dslx-standard-library-routines"><code>import std</code>: DSLX standard library routines</h2>
 <h3 id="dslx_std-bits-type-properties">Bits Type Properties</h3>
@@ -13470,6 +13477,7 @@ estimation refinements in XLS. For now, FDO is disabled by default
 <p>Some names can be set at codegen via the following flags:</p>
 <ul>
 <li><code>--module_name=...</code> sets the name of the generated verilog module.</li>
+<li><code>--output_port_name=....</code> sets the name of the output port for functions.</li>
 <li>For functions, <code>--input_valid_signal=...</code> and <code>--output_valid_signal=...</code>
     adds and sets the name of valid signals when <code>--generator</code> is set to
     <code>pipeline</code>.</li>

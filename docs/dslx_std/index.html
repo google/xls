@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
     
     
       
@@ -1461,6 +1461,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#send_if-conditionally-send-a-value-on-a-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      send_if: conditionally send a value on a channel
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#recv-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
     <span class="md-ellipsis">
       recv: (blocking) receive of a value from a channel
@@ -1479,18 +1488,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#recv_nonblocking-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
+  <a href="#recv_non_blocking-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
     <span class="md-ellipsis">
-      recv_nonblocking: non-blocking receive of a value from a channel
+      recv_non_blocking: non-blocking receive of a value from a channel
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#recv_if_nonblocking-conditional-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
+  <a href="#recv_if_non_blocking-conditional-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
     <span class="md-ellipsis">
-      recv_if_nonblocking: conditional non-blocking receive of a value from a channel
+      recv_if_non_blocking: conditional non-blocking receive of a value from a channel
     </span>
   </a>
   
@@ -3164,6 +3173,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#send_if-conditionally-send-a-value-on-a-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      send_if: conditionally send a value on a channel
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#recv-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
     <span class="md-ellipsis">
       recv: (blocking) receive of a value from a channel
@@ -3182,18 +3200,18 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#recv_nonblocking-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
+  <a href="#recv_non_blocking-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
     <span class="md-ellipsis">
-      recv_nonblocking: non-blocking receive of a value from a channel
+      recv_non_blocking: non-blocking receive of a value from a channel
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#recv_if_nonblocking-conditional-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
+  <a href="#recv_if_non_blocking-conditional-non-blocking-receive-of-a-value-from-a-channel" class="md-nav__link">
     <span class="md-ellipsis">
-      recv_if_nonblocking: conditional non-blocking receive of a value from a channel
+      recv_if_non_blocking: conditional non-blocking receive of a value from a channel
     </span>
   </a>
   
@@ -3699,10 +3717,11 @@ in a user-defined function, and thus do not live in the standard library.</p>
 <li><a href="#proc-related-builtins-communicating-sequential-processes">proc-related builtins (Communicating Sequential Processes)</a><ul>
 <li><a href="#join-sequencing-io-tokens">join: sequencing I/O tokens</a></li>
 <li><a href="#send-send-a-value-on-a-channel">send: send a value on a channel</a></li>
+<li><a href="#send_if-conditionally-send-a-value-on-a-channel">send_if: conditionally send a value on a channel</a></li>
 <li><a href="#recv-blocking-receive-of-a-value-from-a-channel">recv: (blocking) receive of a value from a channel</a></li>
 <li><a href="#recv_if-conditional-blocking-receive-of-a-value-from-a-channel">recv_if: conditional (blocking) receive of a value from a channel</a></li>
-<li><a href="#recv_nonblocking-non-blocking-receive-of-a-value-from-a-channel">recv_nonblocking: non-blocking receive of a value from a channel</a></li>
-<li><a href="#recv_if_nonblocking-conditional-non-blocking-receive-of-a-value-from-a-channel">recv_if_nonblocking: conditional non-blocking receive of a value from a channel</a></li>
+<li><a href="#recv_non_blocking-non-blocking-receive-of-a-value-from-a-channel">recv_non_blocking: non-blocking receive of a value from a channel</a></li>
+<li><a href="#recv_if_non_blocking-conditional-non-blocking-receive-of-a-value-from-a-channel">recv_if_non_blocking: conditional non-blocking receive of a value from a channel</a></li>
 </ul>
 </li>
 <li><a href="#import-std-dslx-standard-library-routines">import std: DSLX standard library routines</a><ul>
@@ -4305,6 +4324,11 @@ and producing a new I/O sequencing token (which can be used to order
 communication events).</p>
 <div class="highlight"><pre><span></span><code>send(tok: token, chan&lt;T&gt; out, value: T) -&gt; token
 </code></pre></div>
+<h3 id="send_if-conditionally-send-a-value-on-a-channel"><code>send_if</code>: conditionally send a value on a channel</h3>
+<div class="highlight"><pre><span></span><code>send_if(tok: token, chan&lt;T&gt; out, predicate: bool, value: T) -&gt; token
+</code></pre></div>
+<p>The <code>send_if</code> builtin does a send on a channel as described in [<code>send</code>][#send],
+but only attempts to do so if the given predicate is true.</p>
 <h3 id="recv-blocking-receive-of-a-value-from-a-channel"><code>recv</code>: (blocking) receive of a value from a channel</h3>
 <p>The <code>recv</code> builtin does a "blocking" <code>recv</code> of a value from a channel -- it is
 blocking in the sense that the current activation of the <code>proc</code> cannot complete
@@ -4317,23 +4341,23 @@ used to force a sequencing of the <code>recv</code> with respect to other I/O op
 but only attempts to do so if the given predicate is true.</p>
 <div class="highlight"><pre><span></span><code>recv_if(tok: token, c: chan&lt;T&gt; in, predicate: bool, default_value: T) -&gt; (token, T)
 </code></pre></div>
-<h3 id="recv_nonblocking-non-blocking-receive-of-a-value-from-a-channel"><code>recv_nonblocking</code>: non-blocking receive of a value from a channel</h3>
+<h3 id="recv_non_blocking-non-blocking-receive-of-a-value-from-a-channel"><code>recv_non_blocking</code>: non-blocking receive of a value from a channel</h3>
 <p>Performs a non-blocking receive from channel <code>c</code> -- if the channel is empty the
 <code>default_value</code> is returned as the result, and the <code>bool</code> in the result
 indicates whether the value originated from the channel (i.e. <code>true</code> means the
 value came from the channel).</p>
-<div class="highlight"><pre><span></span><code>recv_nonblocking(tok: token, c: chan&lt;T&gt; in, default_value: T) -&gt; (token, T, bool)
+<div class="highlight"><pre><span></span><code>recv_non_blocking(tok: token, c: chan&lt;T&gt; in, default_value: T) -&gt; (token, T, bool)
 </code></pre></div>
 <p>NOTE: non-blocking operations make a block latency sensitive and can no longer
 be described as pure "Kahn Process Networks", which means that the design's
 correctness is more sensitive to the chosen schedule, and thus design
 verification should occur on the scheduled design.</p>
-<h3 id="recv_if_nonblocking-conditional-non-blocking-receive-of-a-value-from-a-channel"><code>recv_if_nonblocking</code>: conditional non-blocking receive of a value from a channel</h3>
-<p>As <code>recv_nonblocking</code> is above, but with an additional predicate that indicates
+<h3 id="recv_if_non_blocking-conditional-non-blocking-receive-of-a-value-from-a-channel"><code>recv_if_non_blocking</code>: conditional non-blocking receive of a value from a channel</h3>
+<p>As <code>recv_non_blocking</code> is above, but with an additional predicate that indicates
 whether we should attempt to do the nonblocking receive from the channel. If
 this predicate is false, the default value will be provided and the returned
 boolean will be false.</p>
-<div class="highlight"><pre><span></span><code>recv_nonblocking(tok: token, c: chan&lt;T&gt; in, predicate: bool, default_value: T) -&gt; (token, T, bool)
+<div class="highlight"><pre><span></span><code>recv_if_non_blocking(tok: token, c: chan&lt;T&gt; in, predicate: bool, default_value: T) -&gt; (token, T, bool)
 </code></pre></div>
 <h2 id="import-std-dslx-standard-library-routines"><code>import std</code>: DSLX standard library routines</h2>
 <h3 id="bits-type-properties">Bits Type Properties</h3>

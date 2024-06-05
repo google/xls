@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
     
     
       
@@ -5418,8 +5418,8 @@ result = assert(tkn, condition, message=&lt;string&gt;, label=&lt;string&gt;)
 <h4 id="cover"><strong><code>cover</code></strong></h4>
 <p>Records the number of times the given condition evaluates to true. Just like
 <code>assert</code>, this is a software-only construct and is not emitted in a final
-hardware design. Tokens are used to sequence this operation in the graph.</p>
-<div class="highlight"><pre><span></span><code>result = cover(tkn, condition, label=&lt;string&gt;)
+hardware design.</p>
+<div class="highlight"><pre><span></span><code>result = cover(condition, label=&lt;string&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -5431,16 +5431,12 @@ hardware design. Tokens are used to sequence this operation in the graph.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>tkn</code></td>
-<td><code>token</code></td>
-</tr>
-<tr>
 <td><code>condition</code></td>
 <td><code>bits[1]</code></td>
 </tr>
 <tr>
 <td><code>result</code></td>
-<td><code>token</code></td>
+<td><code>()</code></td>
 </tr>
 </tbody>
 </table>
@@ -5618,7 +5614,7 @@ is equivalent to <code>register_write.REG(sel(load_enable, {register_read.REG,
 data}))</code>).</p>
 <p>The <code>reset</code> and <code>load_enable</code> arguments affect the value written according to
 the following table.</p>
-<p>| <code>Register</code> reset      | <code>reset</code> value | <code>load_enable</code> value | new value     | {.sortable}
+<p>| <code>Register</code> reset      | <code>reset</code> value | <code>load_enable</code> value | new value     |
 : behavior              :               :                     :               :
 | --------------------- | ------------- | ------------------- | ------------- |
 | <code>active_low == false</code> | <code>false</code> / <code>0</code> | not present         | <code>data</code>        |

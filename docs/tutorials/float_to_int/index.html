@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.24">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
     
     
       
@@ -2199,24 +2199,22 @@ line-by-line:</p>
     <code>x</code>, whose type follows its name. In this case, it's a <em><code>tuple</code></em>: a grouping
     of potentially disparate elements into a single quantity. A tuple is
     specified by listing a set of types in parentheses, as here. Our tuple has a
-    1-bit element for the sign, an 8-bit element for the biased
-    exponent, and a 23-bit element for the fractional part. In what is the
-    complete opposite of a coincidence, these fields match those of an IEEE
-    float32 number. If a function takes more than one argument, they'll be
-    comma-separated.
-    -   u1, u8, and u23 are all shortcuts for the type uN[1], uN[8], and uN[23].
-        The uN[X] construct declares an X-bit wide unsigned type. There is also
-        sN[X], which declares an X-bit wide <em>signed</em> type.
-    -   Other type shortcuts exist such as bits<a href="alias for uN[X]">X</a>, bool (alias
-        for uN[1]), and u[1-64] and s[1-64], being aliases for uN[1] through
-        uN[64] and sN[1] through sN[64].</li>
+    1-bit element for the sign, an 8-bit element for the biased exponent, and a
+    23-bit element for the fractional part. In what is the complete opposite of
+    a coincidence, these fields match those of an IEEE float32 number. If a
+    function takes more than one argument, they'll be comma-separated.
+    -   <code>u1</code>, <code>u8</code>, and <code>u23</code> are all shortcuts for the type <code>uN[1]</code>, <code>uN[8]</code>,
+        and <code>uN[23]</code>. The <code>uN[X]</code> construct declares an X-bit wide unsigned
+        type. There is also <code>sN[X]</code>, which declares an X-bit wide <em>signed</em> type.
+    -   Other type shortcuts exist such as <code>bits[X]</code> (alias for <code>uN[X]</code>), <code>bool</code>
+        (alias for <code>uN[1]</code>), and <code>u[1-64]</code> and <code>s[1-64]</code>, being aliases for
+        <code>uN[1]</code> through <code>uN[64]</code> and <code>sN[1]</code> through <code>sN[64]</code>.</li>
 <li>Function return type. This function returns a signed 32-bit type, matching
     the intentions of float-to-int conversion (since floats are signed).</li>
 <li>Finally, the last line: the final statement in a function is its return
-    value. Here, we're unconditionally returning a signed 32-bit number with
-    the value <code>48879</code>. This is only temporary to
-    make the function syntactically valid - we're still learning the basics!
-    Gimme a second!</li>
+    value. Here, we're unconditionally returning a signed 32-bit number with the
+    value <code>48879</code>. This is only temporary to make the function syntactically
+    valid - we're still learning the basics! Gimme a second!</li>
 </ol>
 <p>As an aside, it's a good idea to keep a bookmark to the
 <a href="../../dslx_reference/">DSLX language reference</a>
