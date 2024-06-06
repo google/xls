@@ -18,6 +18,7 @@ load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -297,18 +298,17 @@ xls_benchmark_ir(
     },
 )
 
-# TODO(b/319286627): 2024-01-09 Disabled due to failure at HEAD.
-# build_test(
-#     name = "rle_build_test",
-#     targets = [
-#         "rle_enc_verilog",
-#         "rle_enc_gds_sky130",
-#         "rle_enc_gds_asap7",
-#         "rle_dec_verilog",
-#         "rle_dec_gds_sky130",
-#         "rle_dec_gds_asap7",
-#     ],
-# )
+build_test(
+    name = "rle_build_test",
+    targets = [
+        "rle_enc_verilog",
+        "rle_enc_gds_sky130",
+        "rle_enc_gds_asap7",
+        "rle_dec_verilog",
+        "rle_dec_gds_sky130",
+        "rle_dec_gds_asap7",
+    ],
+)
 
 filegroup(
     name = "x_files",
