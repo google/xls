@@ -41,6 +41,11 @@
 
 namespace xls {
 namespace verilog {
+// Properties for selectors that are relevant for codegen.
+struct SelectorProperties {
+  bool one_hot;
+  bool never_zero;
+};
 
 // An abstraction wrapping a VAST module which assists with lowering of XLS IR
 // into Verilog. Key functionality:
@@ -308,15 +313,15 @@ class ModuleBuilder {
   // etc) because a function definition may be reused to implement multiple
   // identical nodes (for example, two different 32-bit multiplies may map to
   // the same function).
-  std::string VerilogFunctionName(Node* node);
+  absl::StatusOr<std::string> VerilogFunctionName(Node* node);
 
   // Defines a function which implements the given node. If a function already
   // exists which implements this node then the existing function is returned.
   absl::StatusOr<VerilogFunction*> DefineFunction(Node* node);
 
-  // Get a BddQueryEngine for a given node, constructing it if it hasn't already
-  // been constructed for another node with the same FunctionBase.
-  absl::StatusOr<BddQueryEngine* const> GetBddForNode(Node* node);
+  // Uses query_engine_ to compute selector properties. If query_engine_ is not
+  // populated, it will populate first.
+  absl::StatusOr<SelectorProperties> GetSelectorProperties(Node* selector);
 
   std::string module_name_;
   VerilogFile* file_;

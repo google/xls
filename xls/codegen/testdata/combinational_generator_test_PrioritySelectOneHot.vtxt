@@ -4,21 +4,18 @@ module main(
   input wire [15:0] y,
   output wire [15:0] out
 );
-  function automatic [15:0] priority_sel_16b_2way (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1);
+  function automatic [15:0] priority_sel_16b_2way_soh_snz (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1);
     begin
-      casez (sel)
-        2'b?1: begin
-          priority_sel_16b_2way = case0;
+      case (sel)
+        2'b01: begin
+          priority_sel_16b_2way_soh_snz = case0;
         end
         2'b10: begin
-          priority_sel_16b_2way = case1;
-        end
-        default: begin
-          priority_sel_16b_2way = 16'h0000;
+          priority_sel_16b_2way_soh_snz = case1;
         end
       endcase
     end
   endfunction
 
-  assign out = priority_sel_16b_2way({!p, p}, x, y);
+  assign out = priority_sel_16b_2way_soh_snz({!p, p}, x, y);
 endmodule

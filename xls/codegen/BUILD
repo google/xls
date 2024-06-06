@@ -422,6 +422,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/passes:bdd_function",
         "//xls/passes:bdd_query_engine",
+        "//xls/passes:query_engine",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

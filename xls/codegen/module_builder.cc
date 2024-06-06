@@ -148,6 +148,73 @@ absl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
   return file->Make<ArrayAssignmentPattern>(SourceInfo(), pieces);
 }
 
+// Defines and returns a function which implements the given PrioritySelect
+// node.
+absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
+    Node* selector, Type* tpe, int64_t num_cases, const SourceInfo& loc,
+    std::string_view function_name, ModuleSection* section,
+    SelectorProperties selector_properties, bool use_system_verilog) {
+  VerilogFile* file = section->file();
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      loc, function_name, file->BitVectorType(tpe->GetFlatBitCount(), loc));
+  Expression* selector_expression = func->AddArgument(
+      "sel", file->BitVectorType(selector->BitCountOrDie(), loc), loc);
+
+  std::vector<Expression*> cases;
+  cases.reserve(num_cases);
+  for (size_t i = 0; i < num_cases; ++i) {
+    cases.push_back(func->AddArgument(
+        absl::StrCat("case", i),
+        file->BitVectorType(tpe->GetFlatBitCount(), loc), loc));
+  }
+
+  CaseType case_type(CaseKeyword::kCasez);
+  FourValueBit case_label_top_bits = FourValueBit::kHighZ;
+  if (selector_properties.one_hot) {
+    case_type.keyword = CaseKeyword::kCase;
+    case_label_top_bits = FourValueBit::kZero;
+  }
+  if ((selector_properties.one_hot || selector_properties.never_zero) &&
+      use_system_verilog) {
+    case_type.modifier = CaseModifier::kUnique;
+  }
+
+  Case* case_statement =
+      func->AddStatement<Case>(loc, selector_expression, case_type);
+  // Make a ternary vector that looks like ???...?1000...0.
+  // Each label will be a sliding window into this larger vector.
+  // If the selector is known to be one hot, the window will look like
+  // 000...01000...0 instead and the "unique" keyword will be used instead.
+  std::vector<FourValueBit> ternary_vector;
+  ternary_vector.reserve((cases.size() * 2) - 1);
+  std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
+              case_label_top_bits);
+  ternary_vector.push_back(FourValueBit::kOne);
+  std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
+              FourValueBit::kZero);
+  absl::Span<FourValueBit const> ternary_span = ternary_vector;
+
+  for (size_t i = 0; i < cases.size(); ++i) {
+    absl::StatusOr<Expression*> label_expression =
+        file->Make<FourValueBinaryLiteral>(
+            loc, ternary_span.subspan(i, cases.size()));
+    CHECK_OK(label_expression.status());
+    StatementBlock* block =
+        case_statement->AddCaseArm(label_expression.value());
+    block->Add<BlockingAssignment>(loc, func->return_value_ref(), cases[i]);
+  }
+
+  // Add default case that returns zero
+  if (!selector_properties.never_zero) {
+    Expression* zero = file->Literal(0, tpe->GetFlatBitCount(), loc);
+    case_statement->AddCaseArm(DefaultSentinel())
+        ->Add<BlockingAssignment>(loc, func->return_value_ref(), zero);
+  }
+
+  return func;
+}
+
 }  // namespace
 
 absl::Status ModuleBuilder::AddAssignment(
@@ -595,6 +662,23 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
   return absl::OkStatus();
 }
 
+absl::StatusOr<SelectorProperties> ModuleBuilder::GetSelectorProperties(
+    Node* selector) {
+  XLS_RET_CHECK(selector->GetType()->IsBits());
+  bool one_hot = false;
+  bool never_zero = false;
+  if (!query_engine_.has_value()) {
+    query_engine_ = BddQueryEngine(BddFunction::kDefaultPathLimit);
+    XLS_RETURN_IF_ERROR(
+        query_engine_->Populate(selector->function_base()).status());
+  }
+  if (query_engine_.has_value()) {
+    one_hot = query_engine_->AtMostOneBitTrue(selector);
+    never_zero = query_engine_->AtLeastOneBitTrue(selector);
+  }
+  return SelectorProperties{.one_hot = one_hot, .never_zero = never_zero};
+}
+
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     std::string_view name, Node* node, absl::Span<Expression* const> inputs) {
   LogicRef* ref = DeclareVariable(name, node->GetType());
@@ -854,6 +938,53 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         XLS_RETURN_IF_ERROR(AddAssignmentToGeneratedExpression(
             array_type, /*lhs=*/ref, /*inputs=*/cases,
             ohs_element, /*add_assignment=*/
+            [&](Expression* lhs, Expression* rhs) {
+              assignment_section()->Add<ContinuousAssignment>(node->loc(), lhs,
+                                                              rhs);
+            },
+            /*sv_array_expr=*/false));
+        break;
+      }
+      case Op::kPrioritySel: {
+        Expression* selector_expression = inputs[0];
+        // Determine the element type of the potentially-multidimensional
+        // array. This is the type of the inputs passed into the expression
+        // generator ohs_element.
+        Type* element_type = array_type->element_type();
+        while (element_type->IsArray()) {
+          element_type = element_type->AsArrayOrDie()->element_type();
+        }
+        absl::Span<Expression* const> cases = inputs.subspan(1);
+        XLS_ASSIGN_OR_RETURN(std::string function_name,
+                             VerilogFunctionName(node));
+        absl::StrAppend(&function_name, "_element",
+                        element_type->GetFlatBitCount());
+        VerilogFunction* func;
+        if (node_functions_.contains(function_name)) {
+          func = node_functions_.at(function_name);
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              SelectorProperties selector_properties,
+              GetSelectorProperties(node->As<PrioritySelect>()->selector()));
+          XLS_ASSIGN_OR_RETURN(
+              func,
+              DefinePrioritySelectFunction(
+                  node->As<PrioritySelect>()->selector(), /*tpe=*/element_type,
+                  /*num_cases*/ node->As<PrioritySelect>()->cases().size(),
+                  /*loc=*/node->loc(), function_name, functions_section_,
+                  selector_properties, options_.use_system_verilog()));
+        }
+        auto priority_sel_element = [&](absl::Span<Expression* const> inputs) {
+          std::vector<Expression*> selector_and_inputs{selector_expression};
+          selector_and_inputs.insert(selector_and_inputs.end(), inputs.begin(),
+                                     inputs.end());
+          // We emit priority selects as function invocations.
+          return file_->Make<VerilogFunctionCall>(node->loc(), func,
+                                                  selector_and_inputs);
+        };
+        XLS_RETURN_IF_ERROR(AddAssignmentToGeneratedExpression(
+            array_type, /*lhs=*/ref, /*inputs=*/cases, priority_sel_element,
+            /*add_assignment=*/
             [&](Expression* lhs, Expression* rhs) {
               assignment_section()->Add<ContinuousAssignment>(node->loc(), lhs,
                                                               rhs);
@@ -1204,7 +1335,7 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
   }
 }
 
-std::string ModuleBuilder::VerilogFunctionName(Node* node) {
+absl::StatusOr<std::string> ModuleBuilder::VerilogFunctionName(Node* node) {
   switch (node->op()) {
     case Op::kSMul:
     case Op::kUMul:
@@ -1227,10 +1358,23 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat(
           "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
           node->operand(1)->BitCountOrDie(), node->operand(2)->BitCountOrDie());
-    case Op::kPrioritySel:
-      return absl::StrFormat("%s_%db_%dway", OpToString(node->op()),
+    case Op::kPrioritySel: {
+      XLS_ASSIGN_OR_RETURN(
+          SelectorProperties selector_properties,
+          GetSelectorProperties(node->As<PrioritySelect>()->selector()));
+      std::string_view one_hot_str;
+      std::string_view never_zero_str;
+      if (selector_properties.one_hot) {
+        one_hot_str = "_soh";  // selector one hot
+      }
+      if (selector_properties.never_zero) {
+        never_zero_str = "_snz";  // selector never zero
+      }
+      return absl::StrFormat("%s_%db_%dway%s%s", OpToString(node->op()),
                              node->GetType()->GetFlatBitCount(),
-                             node->operand(0)->BitCountOrDie());
+                             node->operand(0)->BitCountOrDie(), one_hot_str,
+                             never_zero_str);
+    }
     case Op::kSDiv:
     case Op::kUDiv:
       CHECK_EQ(node->BitCountOrDie(), node->operand(0)->BitCountOrDie());
@@ -1656,89 +1800,11 @@ VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
   return func;
 }
 
-// Defines and returns a function which implements the given UMul node.
-VerilogFunction* DefinePrioritySelectFunction(
-    PrioritySelect* sel, std::string_view function_name,
-    ModuleSection* section, const std::optional<BddQueryEngine>& query_engine,
-    bool use_system_verilog) {
-  VerilogFile* file = section->file();
-
-  VerilogFunction* func = section->Add<VerilogFunction>(
-      sel->loc(), function_name,
-      file->BitVectorType(sel->GetType()->GetFlatBitCount(), sel->loc()));
-  Expression* selector = func->AddArgument(
-      "sel", file->BitVectorType(sel->operand(0)->BitCountOrDie(), sel->loc()),
-      sel->loc());
-
-  std::vector<Expression*> cases;
-  cases.reserve(sel->cases().size());
-  for (size_t i = 0; i < sel->cases().size(); ++i) {
-    Node* const node = sel->get_case(i);
-    cases.push_back(func->AddArgument(
-        absl::StrCat("case", i),
-        file->BitVectorType(node->GetType()->GetFlatBitCount(), sel->loc()),
-        sel->loc()));
-  }
-
-  CHECK(sel->selector()->GetType()->IsBits());
-  bool one_hot = false;
-  bool never_zero = false;
-  if (query_engine.has_value()) {
-    one_hot = query_engine->AtMostOneBitTrue(sel->selector());
-    never_zero = query_engine->AtLeastOneBitTrue(sel->selector());
-  }
-
-  CaseType case_type(CaseKeyword::kCasez);
-  FourValueBit case_label_top_bits = FourValueBit::kHighZ;
-  if (one_hot) {
-    case_type.keyword = CaseKeyword::kCase;
-    case_label_top_bits = FourValueBit::kZero;
-  }
-  if ((one_hot || never_zero) && use_system_verilog) {
-    case_type.modifier = CaseModifier::kUnique;
-  }
-
-  Case* case_statement =
-      func->AddStatement<Case>(sel->loc(), selector, case_type);
-  // Make a ternary vector that looks like ???...?1000...0.
-  // Each label will be a sliding window into this larger vector.
-  // If the selector is known to be one hot, the window will look like
-  // 000...01000...0 instead and the "unique" keyword will be used instead.
-  std::vector<FourValueBit> ternary_vector;
-  ternary_vector.reserve(cases.size() * 2 - 1);
-  std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
-              case_label_top_bits);
-  ternary_vector.push_back(FourValueBit::kOne);
-  std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
-              FourValueBit::kZero);
-  absl::Span<FourValueBit const> ternary_span = ternary_vector;
-
-  for (size_t i = 0; i < cases.size(); ++i) {
-    absl::StatusOr<Expression*> label_expression =
-        file->Make<FourValueBinaryLiteral>(
-            sel->loc(), ternary_span.subspan(i, cases.size()));
-    CHECK_OK(label_expression.status());
-    StatementBlock* block =
-        case_statement->AddCaseArm(label_expression.value());
-    block->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(),
-                                   cases[i]);
-  }
-
-  // Add default case that returns zero
-  if (!never_zero) {
-    Expression* zero = file->Literal(
-        0, sel->operand(1)->GetType()->GetFlatBitCount(), sel->loc());
-    case_statement->AddCaseArm(DefaultSentinel())
-        ->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(), zero);
-  }
-
-  return func;
-}
 
 }  // namespace
 
 absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
-  std::string function_name = VerilogFunctionName(node);
+  XLS_ASSIGN_OR_RETURN(std::string function_name, VerilogFunctionName(node));
   if (node_functions_.contains(function_name)) {
     return node_functions_.at(function_name);
   }
@@ -1768,16 +1834,19 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       func = DefineBitSliceUpdateFunction(node->As<BitSliceUpdate>(),
                                           function_name, functions_section_);
       break;
-    case Op::kPrioritySel:
-      if (!query_engine_.has_value() && options_.use_system_verilog()) {
-        query_engine_ = BddQueryEngine(BddFunction::kDefaultPathLimit);
-        XLS_RETURN_IF_ERROR(
-            query_engine_->Populate(node->function_base()).status());
-      }
-      func = DefinePrioritySelectFunction(
-          node->As<PrioritySelect>(), function_name, functions_section_,
-          query_engine_, options_.use_system_verilog());
+    case Op::kPrioritySel: {
+      XLS_ASSIGN_OR_RETURN(
+          SelectorProperties selector_properties,
+          GetSelectorProperties(node->As<PrioritySelect>()->selector()));
+      XLS_ASSIGN_OR_RETURN(
+          func,
+          DefinePrioritySelectFunction(
+              node->As<PrioritySelect>()->selector(), /*tpe=*/node->GetType(),
+              /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
+              /*loc=*/node->loc(), function_name, functions_section_,
+              selector_properties, options_.use_system_verilog()));
       break;
+    }
     case Op::kUDiv:
       func = DefineUDivFunction(node, function_name, functions_section_);
       break;
