@@ -163,7 +163,11 @@ def _convert_to_ir(ctx, src):
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
 
     ir_conv_args["top"] = ctx.attr.dslx_top
-    my_args = args_to_string(ir_conv_args)
+    my_args = ctx.actions.args()
+    for flag, value in ir_conv_args.items():
+        # NB Using format because some of the values are 'true/false' which
+        # don't mix well with short-flags.
+        my_args.add("--{}={}".format(flag, value))
 
     ir_filename = get_output_filename_value(
         ctx,
@@ -171,22 +175,20 @@ def _convert_to_ir(ctx, src):
         ctx.attr.name + _IR_FILE_EXTENSION,
     )
     ir_file = ctx.actions.declare_file(ir_filename)
+    my_args.add("-output_file", ir_file.path)
+    my_args.add(src.path)
 
     # Get runfiles
     runfiles = get_runfiles_for_xls(ctx, [], [src])
 
-    ctx.actions.run_shell(
+    ctx.actions.run(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
         tools = [ir_converter_tool],
         # The files required for converting the DSLX source file.
         inputs = runfiles.files,
-        command = "{} {} {} > {}".format(
-            ir_converter_tool.path,
-            my_args,
-            src.path,
-            ir_file.path,
-        ),
+        arguments = [my_args],
+        executable = ir_converter_tool,
         mnemonic = "ConvertDSLX",
         progress_message = "Converting DSLX file to XLS IR: %s" % (src.path),
         toolchain = None,

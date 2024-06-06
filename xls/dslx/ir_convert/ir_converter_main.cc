@@ -41,6 +41,8 @@
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/package.h"
 
+ABSL_FLAG(std::optional<std::string>, output_file, std::nullopt,
+          "Where to write the ir file. Defaults to stdout");
 // LINT.IfChange
 ABSL_FLAG(std::string, top, "",
           "The name of the top entity. When provided, the function/proc is the "
@@ -93,6 +95,7 @@ If no entry point is given all functions within the module are converted:
 )";
 
 absl::Status RealMain(
+    std::optional<std::filesystem::path> output_file,
     absl::Span<const std::string_view> paths,
     std::optional<std::string_view> top,
     std::optional<std::string_view> package_name,
@@ -131,10 +134,14 @@ absl::Status RealMain(
       ConvertFilesToPackage(paths, stdlib_path, dslx_paths, convert_options,
                             /*top=*/top,
                             /*package_name=*/package_name, printed_error));
-  std::cout << result.package->DumpIr();
+  if (output_file) {
+    XLS_RETURN_IF_ERROR(SetFileContents(*output_file, result.DumpIr()));
+  } else {
+    std::cout << result.package->DumpIr();
+  }
   if (interface_proto_file) {
-    XLS_RETURN_IF_ERROR(SetFileContents(
-        *interface_proto_file, result.interface.SerializeAsString()));
+    XLS_RETURN_IF_ERROR(SetFileContents(*interface_proto_file,
+                                        result.interface.SerializeAsString()));
   }
   if (interface_textproto_file) {
     std::string res;
@@ -164,6 +171,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  std::optional<std::filesystem::path> output_file =
+      absl::GetFlag(FLAGS_output_file)
+          ? std::make_optional<std::filesystem::path>(
+                *absl::GetFlag(FLAGS_output_file))
+          : std::nullopt;
+
   std::string stdlib_path = absl::GetFlag(FLAGS_stdlib_path);
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
@@ -189,8 +202,8 @@ int main(int argc, char* argv[]) {
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
   bool printed_error = false;
   absl::Status status = xls::dslx::RealMain(
-      args, top, package_name, stdlib_path, dslx_paths, emit_fail_as_assert,
-      verify_ir, warnings_as_errors, &printed_error,
+      output_file, args, top, package_name, stdlib_path, dslx_paths,
+      emit_fail_as_assert, verify_ir, warnings_as_errors, &printed_error,
       absl::GetFlag(FLAGS_interface_proto_file)
           ? std::make_optional<std::filesystem::path>(
                 *absl::GetFlag(FLAGS_interface_proto_file))
