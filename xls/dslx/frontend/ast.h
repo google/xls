@@ -166,7 +166,7 @@ class Expr;
 class TypeAnnotation;
 
 using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
-Span ExprOrTypeSpan(const ExprOrType &expr_or_type);
+Span ExprOrTypeSpan(const ExprOrType& expr_or_type);
 
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
@@ -432,9 +432,7 @@ class BuiltinNameDef : public AstNode {
   }
   std::optional<Span> GetSpan() const override { return std::nullopt; }
 
-  std::string_view GetNodeTypeName() const override {
-    return "BuiltinNameDef";
-  }
+  std::string_view GetNodeTypeName() const override { return "BuiltinNameDef"; }
   std::string ToString() const override { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1045,10 +1043,7 @@ class TypeAlias : public AstNode {
   std::string_view GetNodeTypeName() const override { return "TypeAlias"; }
   const std::string& identifier() const { return name_def_.identifier(); }
 
-  std::string ToString() const override {
-    return absl::StrFormat("%stype %s = %s;", is_public_ ? "pub " : "",
-                           identifier(), type_annotation_.ToString());
-  }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {&name_def_, &type_annotation_};
@@ -1059,12 +1054,20 @@ class TypeAlias : public AstNode {
   bool is_public() const { return is_public_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
+  void set_extern_type_name(std::string_view n) {
+    extern_type_name_ = std::string(n);
+  }
+  const std::optional<std::string>& extern_type_name() const {
+    return extern_type_name_;
+  }
 
  private:
   Span span_;
   NameDef& name_def_;
   TypeAnnotation& type_annotation_;
   bool is_public_;
+  // The external verilog type name
+  std::optional<std::string> extern_type_name_;
 };
 
 // Represents an array expression; e.g. `[a, b, c]`.
@@ -2168,6 +2171,12 @@ class EnumDef : public AstNode {
   const std::string& GetMemberName(int64_t i) const {
     return values_.at(i).name_def->identifier();
   }
+  void set_extern_type_name(std::string_view n) {
+    extern_type_name_ = std::string(n);
+  }
+  const std::optional<std::string>& extern_type_name() const {
+    return extern_type_name_;
+  }
 
  private:
   Span span_;
@@ -2189,6 +2198,9 @@ class EnumDef : public AstNode {
 
   // Whether or not this enum definition was marked as public.
   bool is_public_;
+
+  // The external verilog type name
+  std::optional<std::string> extern_type_name_;
 };
 
 // Helper struct for DSLX-struct items defined inside of DSLX-structs.
@@ -2238,12 +2250,21 @@ class StructDef : public AstNode {
 
   int64_t size() const { return members_.size(); }
 
+  void set_extern_type_name(std::string_view n) {
+    extern_type_name_ = std::string(n);
+  }
+  const std::optional<std::string>& extern_type_name() const {
+    return extern_type_name_;
+  }
+
  private:
   Span span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<StructMember> members_;
   bool public_;
+  // The external verilog type name
+  std::optional<std::string> extern_type_name_;
 };
 
 // Represents instantiation of a struct via member expressions.
@@ -2269,9 +2290,7 @@ class StructInstance : public Expr {
     return v->HandleStructInstance(this);
   }
 
-  std::string_view GetNodeTypeName() const override {
-    return "StructInstance";
-  }
+  std::string_view GetNodeTypeName() const override { return "StructInstance"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   // These are the members in the order given in the instantiation, note that

@@ -1025,6 +1025,13 @@ pub const MOL: MyU32 = MyU32:42;
 )");
 }
 
+TEST_F(ModuleFmtTest, TypeAliasSvType) {
+  Run(R"(#[sv_type("foo")]type MyU32 = u32;)",
+     R"(#[sv_type("foo")]
+type MyU32 = u32;
+)");
+}
+
 TEST_F(ModuleFmtTest, ConstantDefArray) {
   Run("pub const VALS = u32[2]:[32, 64];\n");
 }
@@ -1084,6 +1091,17 @@ TEST_F(ModuleFmtTest, EnumDefTwoValues) {
 )");
 }
 
+TEST_F(ModuleFmtTest, EnumDefTwoValuesSvType) {
+  Run(R"(#[sv_type("foo")] pub enum MyEnum:u32{A=1,B=2}
+)",
+      R"(#[sv_type("foo")]
+pub enum MyEnum : u32 {
+    A = 1,
+    B = 2,
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, EnumDefCommentOnEachMember) {
   const std::string_view kWant = R"(pub enum MyEnum : u32 {
     // This is the first member comment.
@@ -1116,6 +1134,15 @@ TEST_F(ModuleFmtTest, StructDefTwoFields) {
 }
 )",
       32);
+}
+
+TEST_F(ModuleFmtTest, StructDefTwoFieldsSvType) {
+  const std::string kInput =
+      R"(#[sv_type("cool")] pub struct Point { x: u32, y: u64 })";
+
+  Run(kInput, R"(#[sv_type("cool")]
+pub struct Point { x: u32, y: u64 }
+)");
 }
 
 TEST_F(ModuleFmtTest, StructDefEmptyWithComment) {

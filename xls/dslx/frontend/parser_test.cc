@@ -1024,8 +1024,8 @@ TEST_F(ParserTest, DISABLED_ZeroMacroSimpleStructArray) {
     b.Add(name, mod.GetOrCreateBuiltinNameDef(name));
   }
 
-  NameDef* name_def = mod.Make<NameDef>(
-    Span::Fake(), std::string("MyType"), nullptr);
+  NameDef* name_def =
+      mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
   auto* struct_def = mod.Make<StructDef>(Span::Fake(), name_def,
                                          std::vector<ParametricBinding*>(),
@@ -1058,24 +1058,22 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStruct) {
 
   std::vector<ParametricBinding*> params;
 
-  NameDef* name_def = mod.Make<NameDef>(
-    Span::Fake(), std::string("MyParm0"), nullptr);
+  NameDef* name_def =
+      mod.Make<NameDef>(Span::Fake(), std::string("MyParm0"), nullptr);
   b.Add(name_def->identifier(), name_def);
   BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
   TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
-  name_def = mod.Make<NameDef>(
-    Span::Fake(), std::string("MyParm1"), nullptr);
+  name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyParm1"), nullptr);
   b.Add(name_def->identifier(), name_def);
   builtin_type = BuiltinTypeFromString("u32").value();
   elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
-  name_def = mod.Make<NameDef>(
-    Span::Fake(), std::string("MyType"), nullptr);
+  name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
   auto* struct_def = mod.Make<StructDef>(Span::Fake(), name_def, params,
                                          std::vector<StructMember>{}, false);
@@ -1107,24 +1105,22 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStructArray) {
 
   std::vector<ParametricBinding*> params;
 
-  NameDef* name_def = mod.Make<NameDef>(
-    Span::Fake(), std::string("MyParm0"), nullptr);
+  NameDef* name_def =
+      mod.Make<NameDef>(Span::Fake(), std::string("MyParm0"), nullptr);
   b.Add(name_def->identifier(), name_def);
   BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
   TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
-  name_def = mod.Make<NameDef>(
-    Span::Fake(), std::string("MyParm1"), nullptr);
+  name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyParm1"), nullptr);
   b.Add(name_def->identifier(), name_def);
   builtin_type = BuiltinTypeFromString("u32").value();
   elem_type = mod.Make<BuiltinTypeAnnotation>(
       Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef(builtin_type));
   params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
 
-  name_def = mod.Make<NameDef>(
-    Span::Fake(), std::string("MyType"), nullptr);
+  name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
   auto* struct_def = mod.Make<StructDef>(Span::Fake(), name_def, params,
                                          std::vector<StructMember>{}, false);
@@ -1179,6 +1175,15 @@ const MY_TUPLE = (MyEnum::FOO, MyEnum::BAR) as (MyEnum, MyEnum);)");
 
 TEST_F(ParserTest, Struct) {
   const char* text = R"(struct Point {
+    x: u32,
+    y: u32,
+})";
+  RoundTrip(text);
+}
+
+TEST_F(ParserTest, StructAnnotation) {
+  const char* text = R"(#[sv_type("cool")]
+struct Point {
     x: u32,
     y: u32,
 })";
@@ -1359,6 +1364,16 @@ TEST_F(ParserTest, Enum) {
 })");
 }
 
+TEST_F(ParserTest, EnumSvType) {
+  RoundTrip(R"(#[sv_type("cool")]
+enum MyEnum : u2 {
+    A = 0,
+    B = 1,
+    C = 2,
+    D = 3,
+})");
+}
+
 TEST_F(ParserTest, ModuleWithSemis) {
   RoundTrip(R"(fn f() -> s32 {
     let x: s32 = 42;
@@ -1379,6 +1394,10 @@ TEST_F(ParserTest, ParametricColonRefInvocation) {
 }
 
 TEST_F(ParserTest, ModuleWithTypeAlias) { RoundTrip("type MyType = u32;"); }
+TEST_F(ParserTest, ModuleWithTypeAliasSvType) {
+  RoundTrip(R"(#[sv_type("cool")]
+type MyType = u32;)");
+}
 
 TEST_F(ParserTest, ModuleWithImport) { RoundTrip("import thing;"); }
 

@@ -92,6 +92,12 @@ static AnyNameDef GetSubjectNameDef(const ColonRef::Subject& subject) {
 
 void Parenthesize(std::string* s) { *s = absl::StrCat("(", *s, ")"); }
 
+std::string MakeExternTypeAttr(const std::optional<std::string>& name) {
+  if (name) {
+    return absl::StrFormat("#[sv_type(\"%s\")]\n", *name);
+  }
+  return "";
+}
 }  // namespace
 
 std::string_view FunctionTagToString(FunctionTag tag) {
@@ -1099,11 +1105,13 @@ absl::StatusOr<Expr*> EnumDef::GetValue(std::string_view name) const {
 
 std::string EnumDef::ToString() const {
   std::string type_str;
+  std::string extern_attr = MakeExternTypeAttr(extern_type_name_);
   if (type_annotation_ != nullptr) {
     type_str = absl::StrCat(" : " + type_annotation_->ToString());
   }
-  std::string result = absl::StrFormat(
-      "%senum %s%s {\n", is_public_ ? "pub " : "", identifier(), type_str);
+  std::string result =
+      absl::StrFormat("%s%senum %s%s {\n", extern_attr,
+                      is_public_ ? "pub " : "", identifier(), type_str);
 
   auto value_to_string = [](Expr* value) -> std::string {
     if (Number* number = dynamic_cast<Number*>(value)) {
@@ -1332,8 +1340,10 @@ std::string StructDef::ToString() const {
                       });
     parametric_str = absl::StrFormat("<%s>", guts);
   }
-  std::string result = absl::StrFormat(
-      "%sstruct %s%s {\n", public_ ? "pub " : "", identifier(), parametric_str);
+  std::string extern_type_def = MakeExternTypeAttr(extern_type_name_);
+  std::string result =
+      absl::StrFormat("%s%sstruct %s%s {\n", extern_type_def,
+                      public_ ? "pub " : "", identifier(), parametric_str);
   for (const auto& item : members_) {
     absl::StrAppendFormat(&result, "%s%s: %s,\n", kRustOneIndent, item.name,
                           item.type->ToString());
@@ -2131,6 +2141,11 @@ TypeAlias::TypeAlias(Module* owner, Span span, NameDef& name_def,
 
 TypeAlias::~TypeAlias() = default;
 
+std::string TypeAlias::ToString() const {
+  return absl::StrFormat(
+      "%s%stype %s = %s;", MakeExternTypeAttr(extern_type_name_),
+      is_public_ ? "pub " : "", identifier(), type_annotation_.ToString());
+}
 // -- class Array
 
 Array::~Array() = default;

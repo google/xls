@@ -306,8 +306,33 @@ DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
              << " type: " << n.GetNodeTypeName();
 }
 
+static DocRef JoinWithAttr(std::optional<DocRef> attr, DocRef rest,
+                           DocArena& arena) {
+  if (!attr) {
+    return rest;
+  }
+  return arena.MakeConcat(*attr, rest);
+}
+
+static DocRef FmtSvTypeAttribute(std::string_view name, DocArena& arena) {
+  std::vector<DocRef> pieces;
+  pieces.push_back(arena.MakeText("#"));
+  pieces.push_back(arena.obracket());
+  pieces.push_back(arena.MakeText("sv_type"));
+  pieces.push_back(arena.oparen());
+  pieces.push_back(arena.MakeText(absl::StrFormat("\"%s\"", name)));
+  pieces.push_back(arena.cparen());
+  pieces.push_back(arena.cbracket());
+  pieces.push_back(arena.hard_line());
+  return ConcatNGroup(arena, pieces);
+}
+
 DocRef Fmt(const TypeAlias& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
+  std::optional<DocRef> attr;
+  if (n.extern_type_name()) {
+    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena);
+  }
   if (n.is_public()) {
     pieces.push_back(arena.Make(Keyword::kPub));
     pieces.push_back(arena.space());
@@ -319,7 +344,7 @@ DocRef Fmt(const TypeAlias& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.equals());
   pieces.push_back(arena.break1());
   pieces.push_back(Fmt(n.type_annotation(), comments, arena));
-  return ConcatNGroup(arena, pieces);
+  return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
 }
 
 DocRef Fmt(const NameDef& n, const Comments& comments, DocArena& arena) {
@@ -1911,6 +1936,10 @@ static void FmtStructMembers(const StructDef& n, const Comments& comments,
 static DocRef Fmt(const StructDef& n, const Comments& comments,
                   DocArena& arena) {
   std::vector<DocRef> pieces;
+  std::optional<DocRef> attr;
+  if (n.extern_type_name()) {
+    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena);
+  }
   if (n.is_public()) {
     pieces.push_back(arena.Make(Keyword::kPub));
     pieces.push_back(arena.space());
@@ -1933,7 +1962,7 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
   FmtStructMembers(n, comments, arena, pieces);
 
   pieces.push_back(arena.ccurl());
-  return ConcatNGroup(arena, pieces);
+  return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
 }
 
 static DocRef Fmt(const ConstantDef& n, const Comments& comments,
@@ -1972,6 +2001,10 @@ static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,
 
 static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
+  std::optional<DocRef> attr;
+  if (n.extern_type_name()) {
+    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena);
+  }
   if (n.is_public()) {
     pieces.push_back(arena.Make(Keyword::kPub));
     pieces.push_back(arena.space());
@@ -2039,7 +2072,7 @@ static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.MakeNest(nested_ref));
   pieces.push_back(arena.hard_line());
   pieces.push_back(arena.ccurl());
-  return ConcatN(arena, pieces);
+  return JoinWithAttr(attr, ConcatN(arena, pieces), arena);
 }
 
 static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {

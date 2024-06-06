@@ -369,6 +369,28 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
               [&](QuickCheck* qc) {
                 return module_->AddTop(qc, MakeModuleTopCollisionError);
               },
+              [&](TypeDefinition def) {
+                return absl::visit(
+                    Visitor{
+                        [&](ColonRef* c) {
+                          return absl::InternalError(
+                              "colon-ref annotated with attribute");
+                        },
+                        [&](TypeAlias* t) {
+                          return module_->AddTop(t,
+                                                 MakeModuleTopCollisionError);
+                        },
+                        [&](StructDef* t) {
+                          return module_->AddTop(t,
+                                                 MakeModuleTopCollisionError);
+                        },
+                        [&](EnumDef* t) {
+                          return module_->AddTop(t,
+                                                 MakeModuleTopCollisionError);
+                        },
+                    },
+                    def);
+              },
               [&](std::nullptr_t) { return absl::OkStatus(); },
           },
           attribute));
@@ -472,7 +494,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 }
 
 absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
-                            std::nullptr_t>>
+                            TypeDefinition, std::nullptr_t>>
 Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings& bindings, const Pos& hash_pos) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
@@ -530,6 +552,44 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     XLS_ASSIGN_OR_RETURN(QuickCheck * n,
                          ParseQuickCheck(name_to_fn, bindings, hash_pos));
     return n;
+  }
+  if (directive_name == "sv_type") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    Pos ident_start = GetPos();
+    Pos ident_limit;
+    XLS_ASSIGN_OR_RETURN(
+        Token sv_type_id,
+        PopTokenOrError(TokenKind::kString, /*start=*/&directive_tok,
+                        "sv_type identifier", &ident_limit));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    XLS_ASSIGN_OR_RETURN(const Token* t, PeekToken());
+    bool is_pub = false;
+    if (t->IsKeyword(Keyword::kPub)) {
+      is_pub = true;
+      XLS_RETURN_IF_ERROR(PopToken().status());
+      XLS_ASSIGN_OR_RETURN(t, PeekToken());
+    }
+    if (t->IsKeyword(Keyword::kType)) {
+      XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
+                           ParseTypeAlias(is_pub, bindings));
+      type_alias->set_extern_type_name(sv_type_id.GetStringValue());
+      return type_alias;
+    }
+    if (t->IsKeyword(Keyword::kStruct)) {
+      XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                           ParseStruct(is_pub, bindings));
+      struct_def->set_extern_type_name(sv_type_id.GetStringValue());
+      return struct_def;
+    }
+    if (t->IsKeyword(Keyword::kEnum)) {
+      XLS_ASSIGN_OR_RETURN(EnumDef * enum_def, ParseEnumDef(is_pub, bindings));
+      enum_def->set_extern_type_name(sv_type_id.GetStringValue());
+      return enum_def;
+    }
+    return ParseErrorStatus(directive_tok.span(),
+                            "#[sv_type(\"name\")] is only valid on type-alias, "
+                            "struct or enum definitions");
   }
   return ParseErrorStatus(
       directive_tok.span(),

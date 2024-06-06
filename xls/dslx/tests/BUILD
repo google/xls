@@ -616,6 +616,14 @@ dslx_lang_test(name = "basic_struct_parameter")
 
 dslx_lang_test(name = "basic_struct_attr")
 
+dslx_lang_test(name = "basic_sv_alias_attr")
+
+dslx_lang_test(name = "basic_sv_enum_attr")
+
+dslx_lang_test(name = "basic_sv_struct_attr")
+
+dslx_lang_test(name = "basic_sv_multiline_struct_attr")
+
 dslx_lang_test(
     name = "struct_equality",
     # TODO(https://github.com/google/xls/issues/1083): No struct equality
