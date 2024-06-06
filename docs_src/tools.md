@@ -307,7 +307,7 @@ NOTE: Currently an error code is returned if it cannot be proven, but it does
 not dump a counterexample to terminal. A temporary workaround is to use
 `--alsologtostderr --v=1` until that functionality is completed.
 
-## [`dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc)
+## [`dslx/dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc)
 
 Auto-formatter for DSLX code (i.e. `.x` files). This is analogous to rustfmt /
 clang-format.
@@ -339,6 +339,25 @@ xls_dslx_fmt_test(
 
 Also see the
 [Bazel rule documentation for `xls_dslx_fmt_test`](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_fmt_test).
+
+## [`dslx/ir_convert/ir_converter_main`](https://github.com/google/xls/tree/main/xls/dslx/ir_convert/ir_converter_main.cc)
+
+Tool for converting DSLX code (i.e. whole `.x` files or functions/procs inside
+of `.x` files) into XLS IR.
+
+```
+$ bazel build -c opt //xls/dslx/ir_convert:ir_converter_main
+$ echo 'fn f(x:u32)->u32{x}' > /tmp/my_file.x
+$ ./bazel-bin/xls/dslx/ir_convert/ir_converter_main /tmp/my_file.x > /tmp/my_file.ir
+$ cat /tmp/my_file.ir
+package my_file
+
+file_number 0 "/tmp/my_file.x"
+
+fn __my_file__f(x: bits[32]) -> bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+```
 
 ## [`proto_to_dslx_main`](https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc)
 
