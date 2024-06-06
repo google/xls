@@ -1,0 +1,68 @@
+name: Modules (ZSTD)
+on:
+  # Avoid triggering on pushes to /all/ open PR branches.
+  push:
+    branches:
+      - main
+    paths:
+      - 'xls/modules/zstd/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'xls/modules/zstd/**'
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test ZSTD module (opt)
+    runs-on:
+      labels: ubuntu-22.04-64core
+    timeout-minutes: 600
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Restore Nightly Bazel Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-nightly-${{ runner.os }}-${{ github.sha }}
+          restore-keys: bazel-cache-nightly-${{ runner.os }}-
+
+      - name: Install dependencies via apt
+        run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
+
+      - name: Bazel Build Tools (opt)
+        run: |
+          bazel build -c opt --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
+
+      - name: Build ZSTD Module (opt)
+        run: |
+          bazel build -c opt --test_output=errors -- //xls/modules/zstd:all
+
+      - name: Test ZSTD Module (opt)
+        if: ${{ !cancelled() }}
+        run: |
+          bazel test -c opt --test_output=errors -- //xls/modules/zstd:all
+
+      - name: Build ZSTD verilog targets (opt)
+        if: ${{ !cancelled() }}
+        run: |
+          bazel build -c opt -- $(bazel query 'filter(".*_verilog", kind(rule, //xls/modules/zstd/...))')
+
+      - name: Build and run ZSTD IR benchmark rules (opt)
+        if: ${{ !cancelled() }}
+        run: |
+          bazel run -c opt -- $(bazel query 'filter(".*_ir_benchmark", kind(rule, //xls/modules/zstd/...))')
+
+      - name: Build and run synthesis benchmarks of the ZSTD module (opt)
+        if: ${{ !cancelled() }}
+        run: |
+          bazel run -c opt -- $(bazel query 'filter(".*_benchmark_synth", kind(rule, //xls/modules/zstd/...))')
+
+      - name: Build ZSTD place and route targets (opt)
+        if: ${{ !cancelled() }}
+        run: |
+          bazel build -c opt -- $(bazel query 'filter(".*_place_and_route", kind(rule, //xls/modules/zstd/...))')
