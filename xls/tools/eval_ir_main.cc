@@ -75,6 +75,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -753,8 +754,9 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
                        dslx::ParseAndTypecheck(validator_dslx, "fake_path",
                                                kPackageName, &import_data));
   XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<Package> package,
+      dslx::PackageConversionData data,
       dslx::ConvertModuleToPackage(module.module, &import_data, {}));
+  std::unique_ptr<Package> package = std::move(data).package;
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
                        dslx::MangleDslxName(kPackageName, kPackageName,
                                             dslx::CallingConvention::kTypical));

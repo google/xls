@@ -30,10 +30,12 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
@@ -160,7 +162,7 @@ absl::StatusOr<Package*> IrWrapper::GetIrPackage() const {
 absl::StatusOr<IrWrapper> IrWrapper::Create(
     std::string_view ir_package_name, DslxModuleAndPath top_module,
     std::vector<DslxModuleAndPath> import_modules, IrWrapper::Flags flags) {
-  IrWrapper ir_wrapper(ir_package_name);
+  IrWrapper ir_wrapper;
 
   // Compile DSLX
   for (DslxModuleAndPath& module_and_path : import_modules) {
@@ -188,9 +190,13 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
   const dslx::ConvertOptions convert_options = {
       .emit_positions = true, .emit_fail_as_assert = true, .verify_ir = true};
 
-  XLS_RET_CHECK_OK(dslx::ConvertModuleIntoPackage(
-      ir_wrapper.top_module_, &ir_wrapper.import_data_, convert_options,
-      ir_wrapper.package_.get()));
+  dslx::PackageConversionData data{
+      .package = std::make_unique<Package>(ir_package_name)};
+  XLS_RET_CHECK_OK(dslx::ConvertModuleIntoPackage(ir_wrapper.top_module_,
+                                                  &ir_wrapper.import_data_,
+                                                  convert_options, &data));
+
+  ir_wrapper.package_ = std::move(data).package;
 
   VLOG(3) << "IrWrapper Package (pre-opt):";
   XLS_VLOG_LINES(3, ir_wrapper.package_->DumpIr());

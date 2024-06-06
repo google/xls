@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
@@ -1187,6 +1188,8 @@ class TypeRef : public AstNode {
   const TypeDefinition& type_definition() const { return type_definition_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
+
+  std::optional<std::string> extern_type_name() const;
 
  private:
   Span span_;

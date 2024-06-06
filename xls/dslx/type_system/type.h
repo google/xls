@@ -245,10 +245,12 @@ class Type {
   bool IsUnit() const;
   bool IsToken() const;
   bool IsStruct() const;
+  bool IsEnum() const;
   bool IsArray() const;
   bool IsMeta() const;
 
   const StructType& AsStruct() const;
+  const EnumType& AsEnum() const;
   const ArrayType& AsArray() const;
 
  protected:

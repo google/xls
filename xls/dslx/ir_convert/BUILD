@@ -27,6 +27,15 @@ package(
 )
 
 cc_library(
+    name = "conversion_info",
+    hdrs = ["conversion_info.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:xls_ir_interface_cc_proto",
+    ],
+)
+
+cc_library(
     name = "ir_conversion_utils",
     srcs = ["ir_conversion_utils.cc"],
     hdrs = ["ir_conversion_utils.h"],
@@ -70,6 +79,7 @@ cc_library(
     srcs = ["proc_config_ir_converter.cc"],
     hdrs = ["proc_config_ir_converter.h"],
     deps = [
+        ":conversion_info",
         ":extract_conversion_order",
         ":ir_conversion_utils",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -101,6 +111,7 @@ cc_test(
     name = "proc_config_ir_converter_test",
     srcs = ["proc_config_ir_converter_test.cc"],
     deps = [
+        ":conversion_info",
         ":convert_options",
         ":extract_conversion_order",
         ":ir_converter",
@@ -166,6 +177,7 @@ cc_library(
     srcs = ["function_converter.cc"],
     hdrs = ["function_converter.h"],
     deps = [
+        ":conversion_info",
         ":convert_format_macro",
         ":convert_options",
         ":extract_conversion_order",
@@ -211,6 +223,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:verifier",
+        "//xls/ir:xls_ir_interface_cc_proto",
     ],
 )
 
@@ -218,8 +231,10 @@ cc_test(
     name = "function_converter_test",
     srcs = ["function_converter_test.cc"],
     deps = [
+        ":conversion_info",
         ":convert_options",
         ":function_converter",
+        "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -227,6 +242,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/ir",
+        "//xls/ir:xls_ir_interface_cc_proto",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -236,11 +252,13 @@ cc_library(
     srcs = ["ir_converter.cc"],
     hdrs = ["ir_converter.h"],
     deps = [
+        ":conversion_info",
         ":convert_options",
         ":extract_conversion_order",
         ":function_converter",
         ":ir_conversion_utils",
         ":proc_config_ir_converter",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -249,6 +267,8 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -275,6 +295,7 @@ cc_library(
         "//xls/ir:ir_scanner",
         "//xls/ir:value",
         "//xls/ir:verifier",
+        "//xls/ir:xls_ir_interface_cc_proto",
     ],
 )
 
@@ -354,6 +375,7 @@ cc_binary(
     srcs = ["ir_converter_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":conversion_info",
         ":convert_options",
         ":ir_converter",
         "@com_google_absl//absl/flags:flag",
@@ -364,21 +386,36 @@ cc_binary(
         "@com_google_absl//absl/types:span",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:warning_kind",
         "//xls/ir",
+        "@com_google_protobuf//:protobuf",
     ],
+)
+
+filegroup(
+    name = "sv_types_testfiles",
+    testonly = True,
+    srcs = glob(["testdata/sv_types/*.x"]),
+    visibility = ["//visibility:private"],
 )
 
 py_test(
     name = "ir_converter_main_test",
     srcs = ["ir_converter_main_test.py"],
-    data = [":ir_converter_main"],
+    data = [
+        ":ir_converter_main",
+        ":sv_types_testfiles",
+    ],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/ir:xls_ir_interface_py_pb2",
+        "//xls/ir:xls_type_py_pb2",
     ],
 )

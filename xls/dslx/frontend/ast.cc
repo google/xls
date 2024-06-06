@@ -788,6 +788,17 @@ std::string TypeRef::ToString() const {
 
 TypeRef::~TypeRef() = default;
 
+std::optional<std::string> TypeRef::extern_type_name() const {
+  using Res = std::optional<std::string>;
+  return absl::visit(
+      Visitor{
+          [](TypeAlias* ta) -> Res { return ta->extern_type_name(); },
+          [](StructDef* sd) -> Res { return sd->extern_type_name(); },
+          [](EnumDef* ed) -> Res { return ed->extern_type_name(); },
+          [](ColonRef* cr) -> Res { return std::nullopt; },
+      },
+      type_definition_);
+}
 // -- class Import
 
 Import::Import(Module* owner, Span span, std::vector<std::string> subject,

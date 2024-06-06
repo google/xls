@@ -74,6 +74,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::dslx {
 namespace {
@@ -117,14 +118,18 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(
 }  // namespace
 
 absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
-    xls::Function* implicit_token_f, dslx::Function* dslx_function,
-    bool is_top) {
+    xls::Function* implicit_token_f, dslx::Function* dslx_function, bool is_top,
+    PackageInterfaceProto* interface_proto,
+    const PackageInterfaceProto::Function& implicit_token_proto) {
   XLS_RET_CHECK_GE(implicit_token_f->params().size(), 2);
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(dslx_function->owner()->name(),
                      dslx_function->identifier(), CallingConvention::kTypical,
                      /*free_keys=*/{}, /*parametric_env=*/nullptr));
+  PackageInterfaceProto::Function* wrapper_proto =
+      interface_proto->add_functions();
+  wrapper_proto->mutable_base()->set_name(mangled_name);
   FunctionBuilder fb(mangled_name, implicit_token_f->package(), true);
   fb.SetForeignFunctionData(dslx_function->extern_verilog_module());
   // Entry is a top entity.
@@ -135,6 +140,16 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
   std::vector<BValue> params;
   for (const xls::Param* p : implicit_token_f->params().subspan(2)) {
     params.push_back(fb.Param(p->name(), p->GetType()));
+    auto* param = wrapper_proto->add_parameters();
+    param->set_name(p->name());
+    *param->mutable_type() = p->GetType()->ToProto();
+  }
+  // Copy sv data
+  for (int64_t i = 0; i < implicit_token_f->params().size() - 2; ++i) {
+    if (implicit_token_proto.parameters(i + 2).has_sv_type()) {
+      wrapper_proto->mutable_parameters(i)->set_sv_type(
+          implicit_token_proto.parameters(i + 2).sv_type());
+    }
   }
 
   // Invoke the function with the primordial "implicit token" values.
@@ -385,7 +400,7 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
       import_data_(import_data),
       options_(options),
       fileno_(module->fs_path().has_value()
-                  ? package_data.package->GetOrCreateFileno(
+                  ? package_data.conversion_info->package->GetOrCreateFileno(
                         std::string{module->fs_path().value()})
                   : Fileno(0)),
       proc_data_(proc_data),
@@ -400,6 +415,23 @@ bool FunctionConverter::GetRequiresImplicitToken(dslx::Function* f) const {
 void FunctionConverter::SetFunctionBuilder(
     std::unique_ptr<BuilderBase> builder) {
   CHECK(function_builder_ == nullptr);
+  function_proto_.reset();
+  proc_proto_.reset();
+  PackageInterfaceProto::FunctionBase* base;
+  if (builder->function()->IsFunction()) {
+    function_proto_ =
+        package_data_.conversion_info->interface.add_functions();
+    base = function_proto_.value()->mutable_base();
+  } else {
+    CHECK(builder->function()->IsProc())
+        << "Building of block interfaces unsupported.";
+    proc_proto_ = package_data_.conversion_info->interface.add_procs();
+    base = proc_proto_.value()->mutable_base();
+  }
+  *base->mutable_name() = builder->function()->name();
+  if (is_top_) {
+    base->set_top(true);
+  }
   function_builder_ = std::move(builder);
 }
 
@@ -647,6 +679,16 @@ absl::Status FunctionConverter::HandleParam(const Param* node) {
   Def(node->name_def(), [&](const SourceInfo& loc) {
     return function_builder_->Param(node->identifier(), type);
   });
+  XLS_RET_CHECK(function_proto_);
+  PackageInterfaceProto::NamedValue* param =
+      function_proto_.value()->add_parameters();
+  param->set_name(node->identifier());
+  *param->mutable_type() = type->ToProto();
+  XLS_ASSIGN_OR_RETURN(std::optional<std::string> sv_value,
+                       current_type_info_->FindSvType(node->type_annotation()));
+  if (sv_value) {
+    param->set_sv_type(*sv_value);
+  }
   return absl::OkStatus();
 }
 
@@ -1149,12 +1191,11 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
             XLS_RET_CHECK(name_def != nullptr);
             XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type,
                                  ResolveTypeToIr(name_def));
-            return body_converter.function_builder_->Param(
-                name_def->identifier(), ivar_type);
+            return body_converter.AddParam(name_def->identifier(), ivar_type);
           },
           [&](WildcardPattern* ivar) -> absl::StatusOr<BValue> {
             XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(ivar));
-            return body_converter.function_builder_->Param("__", ivar_type);
+            return body_converter.AddParam("__", ivar_type);
           },
           [&](Range*) -> absl::StatusOr<BValue> {
             return absl::InternalError("Induction variable cannot be a range");
@@ -1200,8 +1241,8 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
       BValue unwrapped = body_converter.AddTokenWrappedParam(type);
       body_converter.SetNodeToIr(carry_name_def, unwrapped);
     } else {
-      BValue param = body_converter.function_builder_->Param(
-          carry_name_def->identifier(), type);
+      BValue param =
+          body_converter.AddParam(carry_name_def->identifier(), type);
       body_converter.SetNodeToIr(carry_name_def, param);
     }
   } else {
@@ -1211,15 +1252,14 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     // still want to make the loop with the same pattern.
     AstNode* accum = carry_node;
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> carry_type, ResolveType(accum));
-    XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type,
-                         TypeToIr(package_data_.package, *carry_type,
-                                  ParametricEnv(parametric_env_map_)));
+    XLS_ASSIGN_OR_RETURN(
+        xls::Type * carry_ir_type,
+        TypeToIr(package(), *carry_type, ParametricEnv(parametric_env_map_)));
     BValue carry;
     if (implicit_token_data_.has_value()) {
       carry = body_converter.AddTokenWrappedParam(carry_ir_type);
     } else {
-      carry = body_converter.function_builder_->Param("__loop_carry",
-                                                      carry_ir_type);
+      carry = body_converter.AddParam("__loop_carry", carry_ir_type);
     }
     body_converter.SetNodeToIr(accum, carry);
     // This will destructure the names for us in the body of the anonymous
@@ -1279,11 +1319,11 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
       // Otherwise, pass in the variable to the loop body function as
       // a parameter.
       relevant_name_defs.push_back(freevar_name_def);
-      XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type,
-                           TypeToIr(package_data_.package, **type,
-                                    ParametricEnv(parametric_env_map_)));
+      XLS_ASSIGN_OR_RETURN(
+          xls::Type * name_def_type,
+          TypeToIr(package(), **type, ParametricEnv(parametric_env_map_)));
       body_converter.SetNodeToIr(
-          freevar_name_def, body_converter.function_builder_->Param(
+          freevar_name_def, body_converter.AddParam(
                                 freevar_name_def->identifier(), name_def_type));
     }
   }
@@ -1463,6 +1503,7 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
   std::optional<xls::Function*> f = package()->TryGetFunction(mangled_name);
   if (!f.has_value()) {
     FunctionBuilder fb(mangled_name, package());
+
     BValue param = fb.Param("arg", array_type->element_type());
     const std::string& builtin_name = node->identifier();
     BValue result;
@@ -1474,6 +1515,14 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
       return absl::InternalError("Invalid builtin name for map: " +
                                  builtin_name);
     }
+    // Add an interface entry.
+    PackageInterfaceProto::Function* fp =
+        package_data_.conversion_info->interface.add_functions();
+    *fp->mutable_base()->mutable_name() = mangled_name;
+    auto* param_proto = fp->add_parameters();
+    param_proto->set_name("arg");
+    *param_proto->mutable_type() = array_type->element_type()->ToProto();
+    *fp->mutable_result_type() = result.GetType()->ToProto();
     XLS_ASSIGN_OR_RETURN(f, fb.Build());
   }
 
@@ -2266,6 +2315,14 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
     // is whether this function has been activated at all.
     return implicit_token_data_->activated;
   };
+  XLS_RET_CHECK(function_proto_);
+
+  auto* tok_param = function_proto_.value()->add_parameters();
+  tok_param->set_name("__token");
+  *tok_param->mutable_type() = package()->GetTokenType()->ToProto();
+  auto* act_param = function_proto_.value()->add_parameters();
+  act_param->set_name("__activated");
+  *act_param->mutable_type() = package()->GetBitsType(1)->ToProto();
 
   return absl::OkStatus();
 }
@@ -2363,6 +2420,14 @@ absl::Status FunctionConverter::HandleFunction(
 
   XLS_ASSIGN_OR_RETURN(xls::Function * ir_fn,
                        builder_ptr->BuildWithReturnValue(return_value));
+  XLS_RET_CHECK(function_proto_);
+  *function_proto_.value()->mutable_result_type() =
+      return_value.GetType()->ToProto();
+  XLS_ASSIGN_OR_RETURN(std::optional<std::string> sv_type,
+                       current_type_info_->FindSvType(f.return_type()));
+  if (sv_type) {
+    *function_proto_.value()->mutable_sv_result_type() = *sv_type;
+  }
   VLOG(5) << "Built function: " << ir_fn->name();
   XLS_RETURN_IF_ERROR(VerifyFunction(ir_fn));
 
@@ -2378,10 +2443,14 @@ absl::Status FunctionConverter::HandleFunction(
   // forgo exposing them here.
   if (requires_implicit_token && (node->is_public() || is_top_) &&
       !node->IsParametric()) {
-    XLS_ASSIGN_OR_RETURN(xls::Function * wrapper,
-                         EmitImplicitTokenEntryWrapper(ir_fn, node, is_top_));
+    XLS_ASSIGN_OR_RETURN(
+        xls::Function * wrapper,
+        EmitImplicitTokenEntryWrapper(
+            ir_fn, node, is_top_, &package_data_.conversion_info->interface,
+            **function_proto_));
     package_data_.wrappers.insert(wrapper);
   }
+  function_proto_.reset();
 
   package_data_.ir_to_dslx[ir_fn] = node;
   return absl::OkStatus();
@@ -2416,7 +2485,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   auto builder = std::make_unique<ProcBuilder>(mangled_name, package());
   auto implicit_token =
       builder->Literal(Value::Token(), SourceInfo(), token_name);
-  builder->StateElement(state_name, initial_element);
+  BValue state = builder->StateElement(state_name, initial_element);
   tokens_.push_back(implicit_token);
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
@@ -2424,6 +2493,15 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   if (is_top_) {
     XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
   }
+
+  // Set the one state element.
+  XLS_RET_CHECK(proc_proto_);
+  PackageInterfaceProto::NamedValue* state_proto =
+      proc_proto_.value()->add_state();
+  *state_proto->mutable_name() = state_name;
+  *state_proto->mutable_type() = state.GetType()->ToProto();
+  // State elements aren't emitted in an observable way so no need to track sv
+  // types.
 
   // We make an implicit token in case any downstream functions need it; if it's
   // unused, it'll be optimized out later.
@@ -2435,7 +2513,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   };
 
   // Bind the recurrent state element.
-  BValue state = builder_ptr->GetStateParam(0);
   XLS_RET_CHECK_EQ(f->params().size(), 1);
   SetNodeToIr(f->params()[0]->name_def(), state);
 
@@ -3374,7 +3451,7 @@ absl::Status FunctionConverter::HandleConstantArray(const ConstantArray* node) {
 absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(
     const AstNode* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, ResolveType(node));
-  return TypeToIr(package_data_.package, *type,
+  return TypeToIr(package_data_.conversion_info->package.get(), *type,
                   ParametricEnv(parametric_env_map_));
 }
 

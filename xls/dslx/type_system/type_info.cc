@@ -30,8 +30,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -221,6 +223,65 @@ bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) const {
   }
 
   return false;
+}
+
+absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
+    TypeDefinition source) {
+  return absl::visit(
+      Visitor{
+          [this](StructDef* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return TypeInfo::TypeSource{.type_info = this, .definition = sd};
+          },
+          [this](TypeAlias* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return TypeInfo::TypeSource{.type_info = this, .definition = sd};
+          },
+          [this](EnumDef* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return TypeInfo::TypeSource{.type_info = this, .definition = sd};
+          },
+          [this](ColonRef* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return ResolveTypeDefinition(sd);
+          },
+      },
+      source);
+}
+absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
+    ColonRef* source) {
+  // Resolve the colon-ref to the import it comes from.
+  std::optional<Import*> import = source->ResolveImportSubject();
+  XLS_RET_CHECK(import) << "Invalid colonref in type position";
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported,
+                       GetImportedOrError(*import));
+  XLS_ASSIGN_OR_RETURN(TypeDefinition imported_def,
+                       imported->module->GetTypeDefinition(source->attr()));
+  return imported->type_info->ResolveTypeDefinition(imported_def);
+}
+absl::StatusOr<std::optional<std::string>> TypeInfo::FindSvType(
+    TypeAnnotation* source) {
+  auto* ref_type = dynamic_cast<TypeRefTypeAnnotation*>(source);
+  // builtin/explicit tuples etc can't have an sv type.
+  if (ref_type == nullptr) {
+    return std::nullopt;
+  }
+  XLS_ASSIGN_OR_RETURN(
+      TypeInfo::TypeSource src,
+      ResolveTypeDefinition(ref_type->type_ref()->type_definition()));
+  using Res = absl::StatusOr<std::optional<std::string>>;
+  return absl::visit(
+      Visitor{
+          // Base cases
+          [](StructDef* sd) -> Res { return sd->extern_type_name(); },
+          [](EnumDef* sd) -> Res { return sd->extern_type_name(); },
+          [src](TypeAlias* ta) -> Res {
+            std::optional<std::string> sv_type = ta->extern_type_name();
+            if (sv_type) {
+              // Found one.
+              return sv_type;
+            }
+            // Not annotated. Try the source type.
+            return src.type_info->FindSvType(&ta->type_annotation());
+          },
+      },
+      src.definition);
 }
 
 bool TypeInfo::Contains(AstNode* key) const {
@@ -469,8 +530,7 @@ void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
   GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 
-std::optional<const ImportedInfo*> TypeInfo::GetImported(
-    Import* import) const {
+std::optional<const ImportedInfo*> TypeInfo::GetImported(Import* import) const {
   CHECK_EQ(import->owner(), module_)
       << "Import node from: " << import->owner()->name() << " vs TypeInfo for "
       << module_->name();

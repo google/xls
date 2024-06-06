@@ -27,6 +27,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
@@ -48,6 +49,10 @@ using ::testing::HasSubstr;
 using ::xls::status_testing::StatusIs;
 
 namespace m = ::xls::op_matchers;
+
+PackageConversionData MakeConversionData(std::string_view n) {
+  return {.package = std::make_unique<Package>(n)};
+}
 
 TEST(ProcConfigIrConverterTest, BasicConversion) {
   constexpr std::string_view kModule = R"(
@@ -90,10 +95,10 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
 
-  Package package("the_package");
+  PackageConversionData conv = MakeConversionData("the_package");
   ChannelMetadataProto metadata;
   StreamingChannel channel("the_channel", /*id=*/0, ChannelOps::kSendReceive,
-                           package.GetBitsType(32), {},
+                           conv.package->GetBitsType(32), {},
                            /*fifo_config=*/std::nullopt, FlowControl::kNone,
                            ChannelStrictness::kProvenMutuallyExclusive,
                            metadata);
@@ -102,7 +107,7 @@ proc main {
   proc_data.id_to_config_args[proc_id].push_back(&channel);
   proc_data.id_to_config_args[proc_id].push_back(Value(UBits(8, 32)));
 
-  ProcConfigIrConverter converter(&package, f, tm.type_info, &import_data,
+  ProcConfigIrConverter converter(&conv, f, tm.type_info, &import_data,
                                   &proc_data, bindings, proc_id);
   XLS_EXPECT_OK(f->Accept(&converter));
 }
@@ -146,9 +151,9 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
 
-  Package package("the_package");
+  PackageConversionData conv = MakeConversionData("the_package");
   ProcConversionData proc_data;
-  ProcConfigIrConverter converter(&package, f, tm.type_info, &import_data,
+  ProcConfigIrConverter converter(&conv, f, tm.type_info, &import_data,
                                   &proc_data, bindings, proc_id);
   EXPECT_THAT(f->Accept(&converter),
               StatusIs(absl::StatusCode::kInternal,
@@ -209,13 +214,13 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Package> package,
+      PackageConversionData conv,
       ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
 
-  EXPECT_THAT(package->channels(),
+  EXPECT_THAT(conv.package->channels(),
               Contains(m::Channel("test_module__my_chan")));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
-                           package->GetChannel("test_module__my_chan"));
+                           conv.package->GetChannel("test_module__my_chan"));
   ASSERT_EQ(channel->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(down_cast<StreamingChannel*>(channel)->GetFifoDepth(), 7);
 }
@@ -256,10 +261,10 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Package> package,
+      PackageConversionData conv,
       ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
 
-  EXPECT_THAT(package->channels(),
+  EXPECT_THAT(conv.package->channels(),
               AllOf(Contains(m::Channel("test_module__my_chan")),
                     Contains(m::Channel("test_module__my_chan__1"))));
 }
@@ -311,10 +316,10 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Package> package,
+      PackageConversionData conv,
       ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
 
-  EXPECT_THAT(package->channels(),
+  EXPECT_THAT(conv.package->channels(),
               AllOf(Contains(m::Channel("test_module__my_chan")),
                     Contains(m::Channel("test_module__my_chan__1"))));
 }

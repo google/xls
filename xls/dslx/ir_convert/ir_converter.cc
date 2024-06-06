@@ -30,8 +30,10 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -41,9 +43,11 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -54,6 +58,7 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"
@@ -72,6 +77,7 @@
 #include "xls/ir/ir_scanner.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::dslx {
 namespace {
@@ -123,7 +129,7 @@ absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
                                       ImportData* import_data,
                                       const ConvertOptions& options) {
   absl::StatusOr<xls::Function*> entry_or =
-      GetEntryFunction(package_data.package);
+      GetEntryFunction(package_data.conversion_info->package.get());
   if (!entry_or.ok()) {  // Entry point not found.
     XLS_RET_CHECK_EQ(entry_or.status().code(), absl::StatusCode::kNotFound);
     return absl::OkStatus();
@@ -140,7 +146,15 @@ absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
   XLS_RET_CHECK(dslx_entry != nullptr);
   if (GetRequiresImplicitToken(*dslx_entry, import_data, options)) {
     // Only create implicit token wrapper.
-    return EmitImplicitTokenEntryWrapper(entry, dslx_entry, /*is_top=*/false)
+    auto implicit_entry_proto =
+        absl::c_find_if(package_data.conversion_info->interface.functions(),
+                        [&](const PackageInterfaceProto::Function& f) {
+                          return f.base().name() == entry->name();
+                        });
+    return EmitImplicitTokenEntryWrapper(
+               entry, dslx_entry,
+               /*is_top=*/false, &package_data.conversion_info->interface,
+               *implicit_entry_proto)
         .status();
   }
   return absl::OkStatus();
@@ -168,8 +182,8 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   if (f->tag() == FunctionTag::kProcConfig) {
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter config_converter(
-        package_data.package, f, record.type_info(), import_data, proc_data,
-        record.parametric_env(), record.proc_id().value());
+        package_data.conversion_info, f, record.type_info(), import_data,
+        proc_data, record.parametric_env(), record.proc_id().value());
     XLS_RETURN_IF_ERROR(f->Accept(&config_converter));
     XLS_RETURN_IF_ERROR(config_converter.Finalize());
     return absl::OkStatus();
@@ -215,17 +229,33 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
       auto maybe_type = type_info->GetItem(channel_type->payload());
       XLS_RET_CHECK(maybe_type.has_value());
       Type* ct = maybe_type.value();
-      XLS_ASSIGN_OR_RETURN(xls::Type * ir_type, TypeToIr(package_data.package,
-                                                         *ct, ParametricEnv()));
+      XLS_ASSIGN_OR_RETURN(xls::Type * ir_type,
+                           TypeToIr(package_data.conversion_info->package.get(),
+                                    *ct, ParametricEnv()));
       ChannelOps op = channel_type->direction() == ChannelDirection::kIn
                           ? ChannelOps::kReceiveOnly
                           : ChannelOps::kSendOnly;
       std::string channel_name =
-          absl::StrCat(package_data.package->name(), "__", param->identifier());
-      XLS_ASSIGN_OR_RETURN(StreamingChannel * channel,
-                           package_data.package->CreateStreamingChannel(
-                               channel_name, op, ir_type));
+          absl::StrCat(package_data.conversion_info->package->name(), "__",
+                       param->identifier());
+      XLS_ASSIGN_OR_RETURN(
+          StreamingChannel * channel,
+          package_data.conversion_info->package->CreateStreamingChannel(
+              channel_name, op, ir_type));
       proc_data->id_to_config_args[proc_id].push_back(channel);
+      PackageInterfaceProto::Channel* proto_chan =
+          package_data.conversion_info->interface.add_channels();
+      *proto_chan->mutable_name() = channel_name;
+      *proto_chan->mutable_type() = ir_type->ToProto();
+      proto_chan->set_direction(channel_type->direction() ==
+                                        ChannelDirection::kIn
+                                    ? PackageInterfaceProto::Channel::IN
+                                    : PackageInterfaceProto::Channel::OUT);
+      XLS_ASSIGN_OR_RETURN(std::optional<std::string> first_sv_type,
+                           type_info->FindSvType(channel_type->payload()));
+      if (first_sv_type) {
+        *proto_chan->mutable_sv_type() = *first_sv_type;
+      }
     }
   }
   return absl::OkStatus();
@@ -251,11 +281,11 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
           << "]";
   // We need to convert Functions before procs: Channels are declared inside
   // Functions, but exist as "global" entities in the IR. By processing
-  // Functions first, we can collect the declarations of these global data so we
-  // can resolve them when processing Procs. GetOrder() (in
+  // Functions first, we can collect the declarations of these global data so
+  // we can resolve them when processing Procs. GetOrder() (in
   // extract_conversion_order.h) handles evaluation ordering. In addition, for
-  // procs, the config block must be evaluated before the next block, as config
-  // sets channels and constants needed by next. This is handled inside
+  // procs, the config block must be evaluated before the next block, as
+  // config sets channels and constants needed by next. This is handled inside
   // ConvertOneFunctionInternal().
   ProcConversionData proc_data;
 
@@ -314,7 +344,8 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
 
   VLOG(3) << "Verifying converted package";
   if (options.verify_ir) {
-    XLS_RETURN_IF_ERROR(VerifyPackage(package_data.package));
+    XLS_RETURN_IF_ERROR(
+        VerifyPackage(package_data.conversion_info->package.get()));
   }
   return absl::OkStatus();
 }
@@ -323,7 +354,7 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
 
 absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
                                       const ConvertOptions& options,
-                                      Package* package) {
+                                      PackageConversionData* package) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
                        import_data->GetRootTypeInfo(module));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
@@ -338,32 +369,32 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
+absl::StatusOr<PackageConversionData> ConvertModuleToPackage(
     Module* module, ImportData* import_data, const ConvertOptions& options) {
-  auto package = std::make_unique<Package>(module->name());
+  PackageConversionData p{.package = std::make_unique<Package>(module->name())};
   XLS_RETURN_IF_ERROR(
-      ConvertModuleIntoPackage(module, import_data, options, package.get()));
-  return package;
+      ConvertModuleIntoPackage(module, import_data, options, &p));
+  return p;
 }
 
 absl::StatusOr<std::string> ConvertModule(Module* module,
                                           ImportData* import_data,
                                           const ConvertOptions& options) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+  XLS_ASSIGN_OR_RETURN(PackageConversionData conv,
                        ConvertModuleToPackage(module, import_data, options));
-  return package->DumpIr();
+  return conv.DumpIr();
 }
 
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     Module* module, BlockT* block, ImportData* import_data,
     const ParametricEnv* parametric_env, const ConvertOptions& options,
-    Package* package) {
+    PackageConversionData* conv) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
                        GetOrderForEntry(block, func_type_info));
-  PackageData package_data{package};
+  PackageData package_data{.conversion_info = conv};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
   return absl::OkStatus();
@@ -373,9 +404,9 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module, Function* fn,
                                            ImportData* import_data,
                                            const ParametricEnv* parametric_env,
                                            const ConvertOptions& options,
-                                           Package* package) {
-  return ConvertOneFunctionIntoPackageInternal(
-      module, fn, import_data, parametric_env, options, package);
+                                           PackageConversionData* conv) {
+  return ConvertOneFunctionIntoPackageInternal(module, fn, import_data,
+                                               parametric_env, options, conv);
 }
 
 absl::Status ConvertOneFunctionIntoPackage(Module* module,
@@ -383,17 +414,17 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            ImportData* import_data,
                                            const ParametricEnv* parametric_env,
                                            const ConvertOptions& options,
-                                           Package* package) {
+                                           PackageConversionData* conv) {
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {
     return ConvertOneFunctionIntoPackageInternal(
-        module, fn_or.value(), import_data, parametric_env, options, package);
+        module, fn_or.value(), import_data, parametric_env, options, conv);
   }
 
   auto proc_or = module->GetMemberOrError<Proc>(entry_function_name);
   if (proc_or.ok()) {
     return ConvertOneFunctionIntoPackageInternal(
-        module, proc_or.value(), import_data, parametric_env, options, package);
+        module, proc_or.value(), import_data, parametric_env, options, conv);
   }
 
   return absl::InvalidArgumentError(
@@ -406,11 +437,12 @@ absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, std::string_view entry_function_name,
     ImportData* import_data, const ParametricEnv* parametric_env,
     const ConvertOptions& options) {
-  Package package(module->name());
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>(module->name())};
   XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(module, entry_function_name,
                                                     import_data, parametric_env,
-                                                    options, &package));
-  return package.DumpIr();
+                                                    options, &conv));
+  return conv.DumpIr();
 }
 
 namespace {
@@ -445,13 +477,11 @@ absl::Status CheckPackageName(std::string_view name) {
 // now we throw it away for each file and re-derive it (we need to refactor to
 // make the modules outlive any given AddPathToPackage() if we want to
 // appropriately reuse things in ImportData).
-absl::Status AddContentsToPackage(std::string_view file_contents,
-                                  std::string_view module_name,
-                                  std::optional<std::string_view> path,
-                                  std::optional<std::string_view> entry,
-                                  const ConvertOptions& convert_options,
-                                  ImportData* import_data, Package* package,
-                                  bool* printed_error) {
+absl::Status AddContentsToPackage(
+    std::string_view file_contents, std::string_view module_name,
+    std::optional<std::string_view> path, std::optional<std::string_view> entry,
+    const ConvertOptions& convert_options, ImportData* import_data,
+    PackageConversionData* conv, bool* printed_error) {
   // Parse the module text.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> module,
@@ -477,17 +507,17 @@ absl::Status AddContentsToPackage(std::string_view file_contents,
   if (entry.has_value()) {
     XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
         module.get(), entry.value(), /*import_data=*/import_data,
-        /*parametric_env=*/nullptr, convert_options, package));
+        /*parametric_env=*/nullptr, convert_options, conv));
   } else {
     XLS_RETURN_IF_ERROR(ConvertModuleIntoPackage(module.get(), import_data,
-                                                 convert_options, package));
+                                                 convert_options, conv));
   }
   return absl::OkStatus();
 }
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
+absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
     absl::Span<const std::string_view> paths, const std::string& stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths,
     const ConvertOptions& convert_options, std::optional<std::string_view> top,
@@ -505,8 +535,13 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
     XLS_ASSIGN_OR_RETURN(resolved_package_name, PathToName(paths[0]));
   }
   XLS_RETURN_IF_ERROR(CheckPackageName(resolved_package_name));
-  auto package =
-      std::make_unique<xls::Package>(std::move(resolved_package_name));
+  PackageConversionData conversion_data{
+      .package =
+          std::make_unique<xls::Package>(std::move(resolved_package_name))};
+  *conversion_data.interface.mutable_name() = resolved_package_name;
+  for (std::string_view p : paths) {
+    *conversion_data.interface.add_files() = p;
+  }
 
   if (paths.size() > 1 && top.has_value()) {
     return absl::InvalidArgumentError(
@@ -520,10 +555,9 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
     XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
     XLS_RETURN_IF_ERROR(AddContentsToPackage(
         text, module_name, /*path=*/path, /*entry=*/top, convert_options,
-        &import_data, package.get(), printed_error));
+        &import_data, &conversion_data, printed_error));
   }
-
-  return package;
+  return conversion_data;
 }
 
 }  // namespace xls::dslx

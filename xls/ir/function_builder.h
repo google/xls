@@ -146,6 +146,10 @@ class BuilderBase {
   // Set function as top to package.
   absl::Status SetAsTop();
 
+  bool IsFunction() const { return function_->IsFunction(); }
+  bool IsBlock() const { return function_->IsBlock(); }
+  bool IsProc() const { return function_->IsProc(); }
+
   // Set information about foreign function if the underlying function is
   // a foreign function.
   void SetForeignFunctionData(const std::optional<ForeignFunctionData>& ff);

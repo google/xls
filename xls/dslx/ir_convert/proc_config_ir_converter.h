@@ -22,6 +22,7 @@
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -56,8 +57,9 @@ struct ProcConversionData {
 // instead they define constants and bind channels to Proc members.
 class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
  public:
-  ProcConfigIrConverter(Package* package, Function* f, TypeInfo* type_info,
-                        ImportData* import_data, ProcConversionData* proc_data,
+  ProcConfigIrConverter(PackageConversionData* conversion_info, Function* f,
+                        TypeInfo* type_info, ImportData* import_data,
+                        ProcConversionData* proc_data,
                         const ParametricEnv& bindings, const ProcId& proc_id);
 
   absl::Status HandleBlock(const Block* node) override;
@@ -79,7 +81,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   absl::Status Finalize();
 
  private:
-  Package* package_;
+  PackageConversionData* conversion_info_;
   Function* f_;
   TypeInfo* type_info_;
   ImportData* import_data_;

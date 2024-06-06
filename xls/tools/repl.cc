@@ -51,6 +51,7 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
@@ -264,10 +265,11 @@ Trie PopulateIdentifierTrie() {
 // `GetSingletonGlobals().module`.
 absl::Status UpdateIr() {
   Globals& globals = GetSingletonGlobals();
-  XLS_ASSIGN_OR_RETURN(globals.ir_package,
+  XLS_ASSIGN_OR_RETURN(dslx::PackageConversionData data,
                        ConvertModuleToPackage(globals.dslx->module.get(),
                                               &globals.dslx->import_data,
                                               dslx::ConvertOptions{}));
+  globals.ir_package = std::move(data).package;
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
                        dslx::MangleDslxName(globals.dslx->module.get()->name(),
                                             "main", /*convention=*/{}));

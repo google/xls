@@ -23,6 +23,8 @@ message PackageInterfaceProto {
   message NamedValue {
     optional string name = 1;
     optional TypeProto type = 2;
+    // If present the corresponding sv type for this value.
+    optional string sv_type = 3;
   }
 
   message Channel {
@@ -38,6 +40,8 @@ message PackageInterfaceProto {
     optional string name = 1;
     optional TypeProto type = 2;
     optional Direction direction = 3;
+    // If present the corresponding sv type for this channel.
+    optional string sv_type = 4;
   }
 
   // Common fields to all types of executables.
@@ -50,6 +54,8 @@ message PackageInterfaceProto {
     optional FunctionBase base = 1;
     repeated NamedValue parameters = 2;
     optional TypeProto result_type = 3;
+    // If present the corresponding sv type for the result of this function.
+    optional string sv_result_type = 4;
   }
 
   message Proc {

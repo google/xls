@@ -27,6 +27,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -35,6 +36,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
@@ -48,7 +50,9 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::dslx {
 
@@ -73,13 +77,14 @@ bool GetRequiresImplicitToken(dslx::Function& f, ImportData* import_data,
 // normal function, so it can be called by the outside world in a typical
 // fashion as an entry point (e.g. the IR JIT, Verilog module signature, etc).
 absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
-    xls::Function* implicit_token_f, dslx::Function* dslx_function,
-    bool is_top);
+    xls::Function* implicit_token_f, dslx::Function* dslx_function, bool is_top,
+    PackageInterfaceProto* interface_proto,
+    const PackageInterfaceProto::Function& implicit_token_proto);
 
 // Bundles together a package pointer with a supplementary map we keep that
 // shows the DSLX function that led to IR functions in the package.
 struct PackageData {
-  Package* package;
+  PackageConversionData* conversion_info;
   absl::flat_hash_map<xls::FunctionBase*, dslx::Function*> ir_to_dslx;
   absl::flat_hash_set<xls::Function*> wrappers;
 };
@@ -160,6 +165,17 @@ class FunctionConverter {
     return package->GetTupleType({token_type, u1_type, type});
   }
 
+  // Helper function used for adding a parameter type in for-loops and similar.
+  BValue AddParam(std::string_view name, xls::Type* type) {
+    CHECK(function_proto_);
+    auto* param_proto = function_proto_.value()->add_parameters();
+    param_proto->set_name(name);
+    *param_proto->mutable_type() = type->ToProto();
+    // This is only for internal 'for-loop' and similar impl functions so they
+    // won't ever be emitted as verilog.
+    return function_builder_->Param(name, type);
+  }
+
   // Helper function used for adding a parameter type wrapped up in a
   // token/activation boolean.
   BValue AddTokenWrappedParam(xls::Type* type) {
@@ -172,6 +188,10 @@ class FunctionConverter {
     implicit_token_data_ =
         ImplicitTokenData{entry_token, activated, create_control_predicate};
     BValue unwrapped = fb->TupleIndex(param, 2);
+    CHECK(function_proto_);
+    auto* param_proto = function_proto_.value()->add_parameters();
+    param_proto->set_name(param.GetName());
+    *param_proto->mutable_type() = param.GetType()->ToProto();
     return unwrapped;
   }
 
@@ -496,7 +516,9 @@ class FunctionConverter {
   // when needed).
   BValue CreateControlPredicate();
 
-  Package* package() const { return package_data_.package; }
+  Package* package() const {
+    return package_data_.conversion_info->package.get();
+  }
 
   // Package that IR is being generated into.
   PackageData& package_data_;
@@ -524,6 +546,11 @@ class FunctionConverter {
 
   // Function builder being used to create BValues.
   std::unique_ptr<BuilderBase> function_builder_;
+
+  // The in-progress proto describing types of the function.
+  std::optional<PackageInterfaceProto::Function*> function_proto_;
+  // The in-progress proto describing types of the proc.
+  std::optional<PackageInterfaceProto::Proc*> proc_proto_;
 
   // When we have a fail!() operation we implicitly need to thread a token /
   // activation boolean -- the data for this is kept here if necessary.

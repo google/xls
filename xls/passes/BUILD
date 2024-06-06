@@ -2307,6 +2307,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:conversion_info",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/examples:sample_packages",
         "//xls/interpreter:ir_interpreter",

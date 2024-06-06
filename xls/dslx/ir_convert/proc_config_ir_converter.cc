@@ -34,6 +34,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -55,13 +56,11 @@ std::string ProcStackToId(const std::vector<Proc*>& stack) {
 
 }  // namespace
 
-ProcConfigIrConverter::ProcConfigIrConverter(Package* package, Function* f,
-                                             TypeInfo* type_info,
-                                             ImportData* import_data,
-                                             ProcConversionData* proc_data,
-                                             const ParametricEnv& bindings,
-                                             const ProcId& proc_id)
-    : package_(package),
+ProcConfigIrConverter::ProcConfigIrConverter(
+    PackageConversionData* conversion_info, Function* f, TypeInfo* type_info,
+    ImportData* import_data, ProcConversionData* proc_data,
+    const ParametricEnv& bindings, const ProcId& proc_id)
+    : conversion_info_(conversion_info),
       f_(f),
       type_info_(type_info),
       import_data_(import_data),
@@ -72,7 +71,7 @@ ProcConfigIrConverter::ProcConfigIrConverter(Package* package, Function* f,
       final_tuple_(nullptr) {
   proc_data->id_to_members[proc_id_] = {};
   // Populate channel name uniquer with pre-existing channel names.
-  for (Channel* channel : package_->channels()) {
+  for (Channel* channel : conversion_info_->package->channels()) {
     channel_name_uniquer_.GetSanitizedUniqueName(channel->name());
   }
 }
@@ -119,11 +118,12 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
   XLS_ASSIGN_OR_RETURN(std::string channel_name,
                        InterpValueAsString(name_interp_value));
   channel_name = channel_name_uniquer_.GetSanitizedUniqueName(
-      absl::StrCat(package_->name(), "__", channel_name));
+      absl::StrCat(conversion_info_->package->name(), "__", channel_name));
   auto maybe_type = type_info_->GetItem(node->type());
   XLS_RET_CHECK(maybe_type.has_value());
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
-                       TypeToIr(package_, *maybe_type.value(), bindings_));
+                       TypeToIr(conversion_info_->package.get(),
+                                *maybe_type.value(), bindings_));
 
   std::optional<int64_t> fifo_depth;
   if (node->fifo_depth().has_value()) {
@@ -158,7 +158,7 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
         /*register_pop_outputs=*/false));
   }
   XLS_ASSIGN_OR_RETURN(StreamingChannel * channel,
-                       package_->CreateStreamingChannel(
+                       conversion_info_->package->CreateStreamingChannel(
                            channel_name, ChannelOps::kSendReceive, type,
                            /*initial_values=*/{},
                            /*fifo_config=*/fifo_config));

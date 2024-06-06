@@ -43,6 +43,7 @@ cc_library(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/ir_convert:conversion_info",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",

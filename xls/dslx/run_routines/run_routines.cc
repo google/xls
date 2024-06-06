@@ -59,6 +59,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
+#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
@@ -484,11 +485,13 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
                              .timestamp = test_case_start});
       continue;
     }
-    Package package(entry_module->name());
+    dslx::PackageConversionData conv{
+        .package = std::make_unique<Package>(entry_module->name())};
+    Package& package = *conv.package;
 
     status = ConvertOneFunctionIntoPackage(entry_module, f, &import_data,
                                            /*parametric_env=*/nullptr,
-                                           ConvertOptions{}, &package);
+                                           ConvertOptions{}, &conv);
     if (!status.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
                   absl::Now() - start, /*is_quickcheck=*/true);
@@ -636,7 +639,7 @@ absl::StatusOr<TestResultData> ParseAndTest(
   std::unique_ptr<Package> ir_package;
   PostFnEvalHook post_fn_eval_hook;
   if (options.run_comparator != nullptr) {
-    absl::StatusOr<std::unique_ptr<Package>> ir_package_or =
+    absl::StatusOr<dslx::PackageConversionData> ir_package_or =
         ConvertModuleToPackage(entry_module, &import_data,
                                options.convert_options);
     if (!ir_package_or.ok()) {
@@ -646,7 +649,7 @@ absl::StatusOr<TestResultData> ParseAndTest(
       }
       return ir_package_or.status();
     }
-    ir_package = std::move(ir_package_or).value();
+    ir_package = std::move(ir_package_or).value().package;
     post_fn_eval_hook = [&ir_package, &import_data, &options](
                             const Function* f,
                             absl::Span<const InterpValue> args,

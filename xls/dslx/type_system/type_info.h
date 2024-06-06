@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -28,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/variant.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -225,6 +227,20 @@ class TypeInfo {
   absl::StatusOr<T*> GetItemAs(const AstNode* key) const;
 
   bool Contains(AstNode* key) const;
+
+  struct TypeSource {
+    TypeInfo* type_info;
+    std::variant<StructDef*, EnumDef*, TypeAlias*> definition;
+  };
+
+  // Get the actual instructions which provided the given type-definition with
+  // its name.
+  absl::StatusOr<TypeSource> ResolveTypeDefinition(TypeDefinition source);
+  absl::StatusOr<TypeSource> ResolveTypeDefinition(ColonRef* source);
+
+  // Find the first annotated sv_type for the given type reference, assuming one
+  // exists
+  absl::StatusOr<std::optional<std::string>> FindSvType(TypeAnnotation* source);
 
   // Import AST node based information.
   //

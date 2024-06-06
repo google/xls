@@ -320,6 +320,10 @@ bool Type::IsStruct() const {
   return dynamic_cast<const StructType*>(this) != nullptr;
 }
 
+bool Type::IsEnum() const {
+  return dynamic_cast<const EnumType*>(this) != nullptr;
+}
+
 bool Type::IsArray() const {
   return dynamic_cast<const ArrayType*>(this) != nullptr;
 }
@@ -330,6 +334,12 @@ bool Type::IsMeta() const {
 
 bool Type::IsToken() const {
   return dynamic_cast<const TokenType*>(this) != nullptr;
+}
+
+const EnumType& Type::AsEnum() const {
+  auto* s = dynamic_cast<const EnumType*>(this);
+  CHECK(s != nullptr) << "Type is not a enum: " << ToString();
+  return *s;
 }
 
 const StructType& Type::AsStruct() const {
