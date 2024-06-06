@@ -48,9 +48,11 @@ load(
 )
 load(
     "//xls/build_rules:xls_providers.bzl",
-    "ConvIRInfo",
+    "CodegenInfo",
+    "ConvIrInfo",
     "DslxInfo",
-    "OptIRInfo",
+    "IrFileInfo",
+    "OptIrArgInfo",
 )
 load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attrs")
 
@@ -70,21 +72,23 @@ def _xls_dslx_opt_ir_impl(ctx):
       ctx: The current rule's context object.
     Returns:
       A tuple with the following elements in the order presented:
+        1. The IrFileInfo of the resulting opt ir.
         1. The DslxInfo provider
-        1. The ConvIRInfo provider
-        1. The OptIRInfo provider
+        1. The ConvIrInfo provider
+        1. The OptIrArgInfo provider
         1. The list of built files.
         1. The runfiles.
     """
-    dslx_info, ir_conv_info, ir_built_files, ir_runfiles = (
+    dslx_conv_result_ir, dslx_info, ir_conv_info, ir_built_files, ir_runfiles = (
         xls_dslx_ir_impl(ctx)
     )
-    ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
+    opt_result_ir, ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
         ctx,
-        ir_conv_info.conv_ir_file,
+        dslx_conv_result_ir,
         ir_conv_info.original_input_files,
     )
     return [
+        opt_result_ir,
         dslx_info,
         ir_conv_info,
         ir_opt_info,
@@ -100,15 +104,17 @@ def _xls_dslx_opt_ir_impl_wrapper(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
+      IrFileInfo provider.
       DslxInfo provider.
-      ConvIRInfo provider.
-      OptIRInfo provider.
+      ConvIrInfo provider.
+      OptIrArgInfo provider.
       DefaultInfo provider.
     """
-    dslx_info, ir_conv_info, ir_opt_info, built_files, runfiles = (
+    result_ir, dslx_info, ir_conv_info, ir_opt_info, built_files, runfiles = (
         _xls_dslx_opt_ir_impl(ctx)
     )
     return [
+        result_ir,
         dslx_info,
         ir_conv_info,
         ir_opt_info,
@@ -157,8 +163,8 @@ def _xls_dslx_opt_ir_test_impl(ctx):
       DefaultInfo provider
     """
     dslx_test_file = ctx.attr.dep[DslxInfo].target_dslx_source_files
-    conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
-    opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
+    conv_ir_file = ctx.attr.dep[OptIrArgInfo].unopt_ir
+    opt_ir_file = ctx.attr.dep[CodegenInfo].input_ir if CodegenInfo in ctx.attr.dep else ctx.attr.dep[IrFileInfo]
     runfiles = ctx.runfiles(files = ctx.attr.dep[DslxInfo].dslx_source_files
         .to_list())
 
@@ -222,8 +228,8 @@ _xls_dslx_opt_ir_test_impl_attrs = {
         doc = "The xls_dslx_opt_ir target to test.",
         providers = [
             DslxInfo,
-            ConvIRInfo,
-            OptIRInfo,
+            ConvIrInfo,
+            OptIrArgInfo,
         ],
     ),
 }
@@ -284,6 +290,7 @@ def _xls_dslx_verilog_impl(ctx):
       DefaultInfo provider.
     """
     (
+        ir_result,
         dslx_info,
         ir_conv_info,
         ir_opt_info,
@@ -292,8 +299,8 @@ def _xls_dslx_verilog_impl(ctx):
     ) = _xls_dslx_opt_ir_impl(ctx)
     codegen_info, verilog_built_files, verilog_runfiles = xls_ir_verilog_impl(
         ctx,
-        ir_opt_info.opt_ir_file,
-        ir_opt_info.original_input_files,
+        ir_result,
+        ir_conv_info.original_input_files,
     )
     return [
         dslx_info,

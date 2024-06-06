@@ -16,8 +16,9 @@
 
 load(
     "//xls/build_rules:xls_providers.bzl",
-    "ConvIRInfo",
-    "OptIRInfo",
+    "ConvIrInfo",
+    "IrFileInfo",
+    "OptIrArgInfo",
 )
 
 def append_default_to_args(arguments, default_arguments):
@@ -184,11 +185,29 @@ def split_filename(filename):
         return [filename, None]
     return filename.rsplit(".", 1)
 
+def get_src_like_ir_file_for_xls(attr, files_attr):
+    """Returns the src IR file from a ctx.
+
+    If attr is a IrFileInfo it returns that otherwise returns the single file in the files_attr.
+
+    Args:
+      attr: The attribute to check for an IrFileInfo.
+      files_attr: The files to check for a single file.
+
+    Returns:
+      The src IrFileInfo for the current rule.
+    """
+    if IrFileInfo in attr:
+        return attr[IrFileInfo]
+    elif len(files_attr) == 1:
+        return IrFileInfo(ir_file = files_attr[0])
+    else:
+        fail(msg = "Expected exactly one \"src\" file, found " + str(len(files_attr)))
+
 def get_src_ir_for_xls(ctx):
     """Returns the src IR file from a ctx.
 
-    Assumes the ctx has a `src` attr, with a ConvIRInfo provider, an OptIRInfo provider, or exactly
-    one file. If the providers are available, uses the appropriate field for the source file.
+    Assumes the ctx has a `src` attr, with an IrFileInfo, or exactly one file.
 
     If no supported provider is available, fails unless the `src` contains exactly one file.
 
@@ -196,51 +215,44 @@ def get_src_ir_for_xls(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      The src file for the current rule.
+      The src IrFileInfo for the current rule.
     """
-    src = None
-
-    is_conv_ir = ConvIRInfo in ctx.attr.src
-    is_opt_ir = OptIRInfo in ctx.attr.src
-    if is_conv_ir and is_opt_ir:
-        fail(msg = "Expected \"src\" to have only one provider; found both ConvIRInfo and OptIRInfo on: " + str(ctx.attr.src))
-
-    if is_conv_ir:
-        src = ctx.attr.src[ConvIRInfo].conv_ir_file
-    elif is_opt_ir:
-        src = ctx.attr.src[OptIRInfo].opt_ir_file
-    else:
-        if len(ctx.files.src) != 1:
-            fail(msg = "Expected exactly one \"src\" file, found " + str(len(ctx.files.src)))
-        src = ctx.files.src[0]
-    return src
+    return get_src_like_ir_file_for_xls(ctx.attr.src, ctx.files.src)
 
 def get_original_input_files_for_xls(ctx):
     """Returns the src IR file from a ctx.
 
-    Assumes the ctx has a `src` attr, with a ConvIRInfo provider, an OptIRInfo provider, or exactly
-    one file. If the providers are available, uses the appropriate field for the source file.
+    Assumes the ctx has a `src` attr, with a ConvIrInfo provider, or some number
+    of files.  If the providers are available, uses the appropriate field for
+    the source file.
 
     Args:
       ctx: The current rule's context object.
 
     Returns:
-      The src file for the current rule.
+      The files for the current rule.
     """
-    original_input_files = []
 
-    is_conv_ir = ConvIRInfo in ctx.attr.src
-    is_opt_ir = OptIRInfo in ctx.attr.src
-    if is_conv_ir and is_opt_ir:
-        fail(msg = "Expected \"src\" to have only one provider; found both ConvIRInfo and OptIRInfo on: " + str(ctx.attr.src))
-
-    if is_conv_ir:
-        original_input_files = ctx.attr.src[ConvIRInfo].original_input_files
-    elif is_opt_ir:
-        original_input_files = ctx.attr.src[OptIRInfo].original_input_files
+    if ConvIrInfo in ctx.attr.src:
+        return ctx.attr.src[ConvIrInfo].original_input_files
     else:
-        original_input_files = ctx.files.src
-    return original_input_files
+        return ctx.files.src
+
+def get_input_infos(value):
+    """Returns the ConvIrInfo and OptIrInfo if present.
+
+    Args:
+      value: A source attribute.
+
+    Returns:
+      A list of ConvIrInfo and OptIrInfo if present.
+    """
+    out = []
+    if OptIrArgInfo in value:
+        out.append(value[OptIrArgInfo])
+    if ConvIrInfo in value:
+        out.append(value[ConvIrInfo])
+    return out
 
 def get_runfiles_for_xls(ctx, additional_runfiles_list, additional_files_list):
     """Returns the runfiles from a ctx.

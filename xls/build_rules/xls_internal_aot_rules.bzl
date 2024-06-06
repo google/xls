@@ -20,6 +20,7 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
+    "get_input_infos",
     "get_src_ir_for_xls",
 )
 load(
@@ -81,7 +82,7 @@ def _xls_aot_generate_impl(ctx):
     proto_file = ctx.actions.declare_file(out_proto_filename)
     obj_file = ctx.actions.declare_file(out_obj_filename)
     args = ctx.actions.args()
-    args.add("-input", src.path)
+    args.add("-input", src.ir_file.path)
     args.add("-top", ctx.attr.top)
     args.add("-output_object", obj_file.path)
     args.add("-output_proto", proto_file.path)
@@ -107,7 +108,7 @@ def _xls_aot_generate_impl(ctx):
         args.add("--include_msan=false")
     ctx.actions.run(
         outputs = [proto_file, obj_file] + extra_files,
-        inputs = [src],
+        inputs = [src.ir_file],
         arguments = [args],
         executable = aot_compiler,
         mnemonic = "AOTCompiling",
@@ -132,7 +133,7 @@ def _xls_aot_generate_impl(ctx):
         AotCompileInfo(object_file = obj_file, proto_file = proto_file),
         DefaultInfo(files = depset([obj_file, proto_file] + extra_files)),
         CcInfo(linking_context = linking_context),
-    ]
+    ] + get_input_infos(ctx.attr.src)
 
 _xls_aot_generate = rule(
     implementation = _xls_aot_generate_impl,

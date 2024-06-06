@@ -38,27 +38,33 @@ DslxInfo = provider(
     },
 )
 
-ConvIRInfo = provider(
+IrFileInfo = provider(
+    doc = "A provider containing a single IR file (and any associated metadata as might be " +
+          "required). Anything that generates IR should return exactly one of these.",
+    fields = {
+        "ir_file": "File: The ir file",
+    },
+)
+
+ConvIrInfo = provider(
     doc = "A provider containing IR conversion file information for the " +
           "target. It is created and returned by the xls_dslx_ir rule.",
     fields = {
         "original_input_files": "List[File]: The original source files.",
-        "conv_ir_file": "File: The IR file converted from a source file.",
     },
 )
 
-OptIRInfo = provider(
+OptIrArgInfo = provider(
     doc = "A provider containing IR optimization file information for the " +
           "target. It is created and returned by the xls_ir_opt_ir rule.",
     fields = {
-        "original_input_files": "List[File]: The original source files.",
-        "input_ir_file": "File: The IR file input file.",
         "opt_ir_args": "Dictionary: The arguments for the IR optimizer.",
-        "opt_ir_file": "File: The IR optimized file.",
+        "unopt_ir": "IrFileInfo: The unoptimized input.",
     },
 )
 
 CODEGEN_FIELDS = {
+    "input_ir": "IrFileInfo: The ir set for codegen",
     "top": "String: Name of top level block in the IR.",
     "generator": "The generator to use when emitting the device function.",
     "input_valid_signal": "If specified, the emitted module will use an " +
@@ -185,10 +191,11 @@ _VERILOG_FIELDS = {
     "verilog_file": "File: The Verilog file.",
 }
 
+_CODEGEN_FIELDS = dicts.add(CODEGEN_FIELDS, SCHEDULING_FIELDS, _VERILOG_FIELDS)
 CodegenInfo = provider(
     doc = "A provider containing Codegen file information for the target. It " +
           "is created and returned by the xls_ir_verilog rule.",
-    fields = dicts.add(CODEGEN_FIELDS, SCHEDULING_FIELDS, _VERILOG_FIELDS),
+    fields = _CODEGEN_FIELDS,
 )
 
 JitWrapperInfo = provider(

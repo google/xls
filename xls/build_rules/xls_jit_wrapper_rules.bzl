@@ -124,7 +124,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
 
     # source file
     src = get_src_ir_for_xls(ctx)
-    jit_wrapper_flags.add("--ir_path", src.path)
+    jit_wrapper_flags.add("--ir_path", src.ir_file.path)
 
     # Retrieve basename and extension from filename
     source_filename = ctx.outputs.source_file.basename
@@ -167,7 +167,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
 
     # Get runfiles
     jit_wrapper_tool_runfiles = ctx.attr._xls_jit_wrapper_tool[DefaultInfo].default_runfiles
-    runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [src, aot_info_file])
+    runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [src.ir_file, aot_info_file])
 
     ctx.actions.run(
         outputs = my_generated_files,
@@ -176,7 +176,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
         arguments = [jit_wrapper_flags],
         executable = jit_wrapper_tool.path,
         mnemonic = "IRJITWrapper",
-        progress_message = "Building JIT wrapper for source file: %s" % (src.path),
+        progress_message = "Building JIT wrapper for source file: %s" % (src.ir_file.path),
         toolchain = None,
     )
     return [

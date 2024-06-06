@@ -21,6 +21,7 @@ load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_default_to_args",
     "args_to_string",
+    "get_input_infos",
     "get_original_input_files_for_xls",
     "get_output_filename_value",
     "get_runfiles_for_xls",
@@ -35,7 +36,6 @@ load(
     "//xls/build_rules:xls_providers.bzl",
     "CODEGEN_FIELDS",
     "CodegenInfo",
-    "OptIRInfo",
     "SCHEDULING_FIELDS",
 )
 load(
@@ -356,7 +356,7 @@ def xls_ir_verilog_impl(ctx, src, original_input_files):
     # Get runfiles
     codegen_tool_runfiles = ctx.attr._xls_codegen_tool[DefaultInfo].default_runfiles
 
-    runfiles_list = [src] + original_input_files
+    runfiles_list = [src.ir_file] + original_input_files
     if ctx.file.codegen_options_proto:
         final_args += " --codegen_options_proto={}".format(ctx.file.codegen_options_proto.path)
         runfiles_list.append(ctx.file.codegen_options_proto)
@@ -404,7 +404,7 @@ def xls_ir_verilog_impl(ctx, src, original_input_files):
         inputs = runfiles.files,
         command = "{} {} {} 2>&1 | tee {}".format(
             codegen_tool.path,
-            src.path,
+            src.ir_file.path,
             final_args,
             log_file.path,
         ),
@@ -419,6 +419,7 @@ def xls_ir_verilog_impl(ctx, src, original_input_files):
         codegen_args["top"] = codegen_args["module_name"]
     return [
         CodegenInfo(
+            input_ir = src,
             verilog_file = verilog_file,
             module_sig_file = module_sig_file,
             verilog_line_map_file = verilog_line_map_file,
@@ -460,7 +461,7 @@ def _xls_ir_verilog_impl_wrapper(ctx):
             ),
             runfiles = runfiles,
         ),
-    ]
+    ] + get_input_infos(ctx.attr.src)
 
 xls_ir_verilog = rule(
     doc = """A build rule that generates a Verilog file from an IR file.
@@ -506,12 +507,12 @@ def _xls_benchmark_verilog_impl(ctx):
     """
     benchmark_codegen_tool = ctx.executable._xls_benchmark_codegen_tool
     codegen_info = ctx.attr.verilog_target[CodegenInfo]
-    opt_ir_info = ctx.attr.verilog_target[OptIRInfo]
+    opt_ir_info = codegen_info.input_ir
     if not hasattr(codegen_info, "top"):
         fail("Verilog target '%s' does not provide a top value" %
              ctx.attr.verilog_target.label.name)
     cmd = "{tool} {opt_ir} {block_ir} {verilog} --top={top}".format(
-        opt_ir = opt_ir_info.opt_ir_file.short_path,
+        opt_ir = opt_ir_info.ir_file.short_path,
         verilog = codegen_info.verilog_file.short_path,
         top = codegen_info.top,
         tool = benchmark_codegen_tool.short_path,
@@ -534,7 +535,7 @@ def _xls_benchmark_verilog_impl(ctx):
         ctx,
         [benchmark_codegen_tool_runfiles],
         [
-            opt_ir_info.opt_ir_file,
+            opt_ir_info.ir_file,
             codegen_info.block_ir_file,
             codegen_info.verilog_file,
         ],
@@ -562,7 +563,7 @@ def _xls_benchmark_verilog_impl(ctx):
             ),
             executable = executable_file,
         ),
-    ]
+    ] + get_input_infos(ctx.attr.verilog_target)
 
 xls_benchmark_verilog_attrs = {
     "verilog_target": attr.label(

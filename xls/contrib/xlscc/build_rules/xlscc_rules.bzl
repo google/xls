@@ -41,7 +41,11 @@ load(
     "xls_ir_opt_ir_attrs",
     "xls_ir_opt_ir_impl",
 )
-load("//xls/build_rules:xls_providers.bzl", "ConvIRInfo")
+load(
+    "//xls/build_rules:xls_providers.bzl",
+    "ConvIrInfo",
+    "IrFileInfo",
+)
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "xls_toolchain_attrs",
@@ -178,7 +182,8 @@ def _xls_cc_ir_impl(ctx):
 
     Returns:
       A tuple with the following elements in the order presented:
-        1. The ConvIRInfo provider
+        1. The IrFileInfo provider
+        1. The ConvIrInfo provider
         1. The list of built files.
         1. The runfiles.
         1. The XlsccInfo provider (transitive C++ headers)
@@ -301,7 +306,8 @@ def _xls_cc_ir_impl(ctx):
         progress_message = "Converting XLSCC file: %s" % (ctx.file.src.path),
     )
     return [
-        ConvIRInfo(original_input_files = _get_xls_cc_ir_source_files(ctx), conv_ir_file = ir_file),
+        IrFileInfo(ir_file = ir_file),
+        ConvIrInfo(original_input_files = _get_xls_cc_ir_source_files(ctx)),
         outputs,
         runfiles,
         XlsccInfo(cc_headers = cc_headers),
@@ -400,12 +406,14 @@ def _xls_cc_ir_impl_wrapper(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      ConvIRInfo provider
+      IrFileInfo provider
+      ConvIrInfo provider
       DefaultInfo provider
       XlsccInfo provider
     """
-    ir_conv_info, built_files, runfiles, xlscc_info = _xls_cc_ir_impl(ctx)
+    ir_result, ir_conv_info, built_files, runfiles, xlscc_info = _xls_cc_ir_impl(ctx)
     return [
+        ir_result,
         ir_conv_info,
         DefaultInfo(
             files = depset(
@@ -545,21 +553,21 @@ def _xls_cc_verilog_impl(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
-      ConvIRInfo provider.
-      OptIRInfo provider.
+      ConvIrInfo provider.
+      OptIrArgInfo provider.
       CodegenInfo provider.
       DefaultInfo provider.
     """
-    ir_conv_info, ir_conv_built_files, ir_conv_runfiles, _xlscc_info = _xls_cc_ir_impl(ctx)
-    ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
+    cc_ir_result, ir_conv_info, ir_conv_built_files, ir_conv_runfiles, _xlscc_info = _xls_cc_ir_impl(ctx)
+    opt_ir_result, ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
         ctx,
-        ir_conv_info.conv_ir_file,
+        cc_ir_result,
         ir_conv_info.original_input_files,
     )
     codegen_info, verilog_built_files, verilog_runfiles = xls_ir_verilog_impl(
         ctx,
-        ir_opt_info.opt_ir_file,
-        ir_opt_info.original_input_files,
+        opt_ir_result,
+        ir_conv_info.original_input_files,
     )
     runfiles = ir_conv_runfiles.merge_all([opt_ir_runfiles, verilog_runfiles])
     return [

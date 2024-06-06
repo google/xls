@@ -390,8 +390,8 @@ xls_eval_ir_test(
 
 xls_ir_equivalence_test(
     name = "chaining_example_ir_equivalence_test",
-    src_0 = ":chaining_example_ir.ir",
-    src_1 = ":chaining_example_opt_ir.opt.ir",
+    src_0 = ":chaining_example_ir",
+    src_1 = ":chaining_example_opt_ir",
 )
 
 xls_benchmark_ir(
@@ -528,8 +528,8 @@ xls_ir_opt_ir(
 
 xls_ir_equivalence_test(
     name = "chaining_example_triple_ir_equivalence_test",
-    src_0 = ":chaining_example_triple_run_only_opt_ir.opt.ir",
-    src_1 = ":chaining_example_triple_skip_passes_opt_ir.opt.ir",
+    src_0 = ":chaining_example_triple_run_only_opt_ir",
+    src_1 = ":chaining_example_triple_skip_passes_opt_ir",
     top = get_mangled_ir_symbol("chaining_example", "triple"),
 )
 
