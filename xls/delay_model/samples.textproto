@@ -1315,8 +1315,10 @@ op_samples {
     }
   }
 }
+# "kArraySlice" alias "kArrayIndex"
 
 # TODO kArrayUpdate
+# "kArrayUpdate" alias "kSel"
 
 op_samples {
   op: "kSel"
@@ -1577,6 +1579,7 @@ op_samples {
   samples { result_width: 1  operand_widths: 47  operand_widths: 47 }
   samples { result_width: 1  operand_widths: 64  operand_widths: 64 }
 }
+# "kULe" alias "kSLe"
 op_samples {
   op: "kSLt"
   samples { result_width: 1  operand_widths:  4  operand_widths:  4 }
@@ -1589,6 +1592,7 @@ op_samples {
   samples { result_width: 1  operand_widths: 47  operand_widths: 47 }
   samples { result_width: 1  operand_widths: 64  operand_widths: 64 }
 }
+# "kULt" alias "kSLt"
 op_samples {
   op: "kSGt"
   samples { result_width: 1  operand_widths:  4  operand_widths:  4 }
@@ -1601,6 +1605,7 @@ op_samples {
   samples { result_width: 1  operand_widths: 47  operand_widths: 47 }
   samples { result_width: 1  operand_widths: 64  operand_widths: 64 }
 }
+# "kUGt" alias "kSGt"
 op_samples {
   op: "kSGe"
   samples { result_width: 1  operand_widths:  4  operand_widths:  4 }
@@ -1613,7 +1618,7 @@ op_samples {
   samples { result_width: 1  operand_widths: 47  operand_widths: 47 }
   samples { result_width: 1  operand_widths: 64  operand_widths: 64 }
 }
-# "kSLt" "kSGe" "kSGt" "kULe" "kULt" "kUGe" "kUGt" alias "kSLe"
+# "kUGe" alias "kSGe"
 
 op_samples {
   op: "kEq"
