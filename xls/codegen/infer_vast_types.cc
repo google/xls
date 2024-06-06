@@ -52,6 +52,58 @@ absl::flat_hash_map<std::string, DataType*> BuildSystemFunctionReturnTypes(
           {"isunknown", scalar_type}};
 }
 
+// Returns the enum represented by the given type, if it is either an actual
+// `Enum` or a `TypedefType` referring to one. Otherwise, returns `nullptr`.
+std::optional<Enum*> MaybeGetEnum(verilog::DataType* data_type) {
+  if (auto* enum_def = dynamic_cast<Enum*>(data_type); enum_def) {
+    return enum_def;
+  }
+  if (auto* typedef_type = dynamic_cast<TypedefType*>(data_type);
+      typedef_type) {
+    return MaybeGetEnum(typedef_type->type_def()->data_type());
+  }
+  return std::nullopt;
+}
+
+// Returns an ID for the given type node, that is the same whether the type is
+// from the original tree or a constant-folded derivative. For example,
+// constant folding will produce a new `Typedef` object with new parts for
+// something like `typedef logic[WordMsb:0] word_t`, but that new `Typedef` and
+// its parts will have the same loc as their original counterparts, and
+// therefore we use the loc to satisfy this property.
+std::string ConstantFoldProofId(std::optional<verilog::DataType*> data_type) {
+  if (!data_type.has_value()) {
+    return "<null>";
+  }
+  QCHECK(!(*data_type)->loc().Empty());
+  return (*data_type)->loc().ToString();
+}
+
+// Checks if the two given types have any cast compatibility impediments due to
+// rules governing user-defined types. Returns false if they are incompatible.
+// Passing in two types that are not user-defined yields a vacuously true
+// result.
+bool CheckUserDefinedTypeCompatibility(verilog::DataType* a,
+                                       verilog::DataType* b) {
+  // If two different enums that are physically compatible are mixed in an expr,
+  // don't just cast from one to the other, because it would be confusing. Note
+  // that enums are special cased here because the members of the enum, which
+  // are of type `Enum`, are considered type-equivalent to variables of a
+  // `TypedefType` pointing to the same enum.
+  if (ConstantFoldProofId(MaybeGetEnum(a)) !=
+      ConstantFoldProofId(MaybeGetEnum(b))) {
+    return false;
+  }
+  // Don't cast from one non-enum typedef to another, but allow casting between
+  // a generic type and a compatible typedef.
+  if (a->IsUserDefined() && b->IsUserDefined() &&
+      ConstantFoldProofId(a) != ConstantFoldProofId(b) &&
+      !MaybeGetEnum(a).has_value()) {
+    return false;
+  }
+  return true;
+}
+
 // A utility that helps build a map of inferred types.
 class TypeInferenceVisitor {
  public:
@@ -471,19 +523,23 @@ class TypeInferenceVisitor {
     int64_t result_bit_count;
     DataType* result;
     // Prefer the larger type, but if they are equivalent:
-    // 1. Prefer the integer type, if any, as it's more precise as to intent.
-    // 2. Prefer the RHS in a case of sign mismatch without reconciliation.
+    // 1. Prefer the user-named type, if any, as it's more precise as to intent.
+    // 2. Prefer the integer type, if any, for the same reason.
+    // 3. Prefer the RHS in a case of sign mismatch without reconciliation.
     if (a_bit_count > b_bit_count ||
         (a_bit_count == b_bit_count && a->is_signed() == b->is_signed() &&
-         !b_int)) {
+         (!b_int || a->IsUserDefined()) && !b->IsUserDefined())) {
       result = folded_a;
       result_bit_count = a_bit_count;
     } else {
       result = folded_b;
       result_bit_count = b_bit_count;
     }
-    // Don't propagate user-defined types where the user didn't use them.
-    if (dynamic_cast<Struct*>(result) || dynamic_cast<TypedefType*>(result)) {
+    // Don't contradict user-specified types in a case where e.g. foo_t
+    // arbitrarily beats bar_t of the same size. Instead, promote them both
+    // to a generic type.
+    if (result->IsUserDefined() &&
+        !CheckUserDefinedTypeCompatibility(folded_a, folded_b)) {
       result = result->file()->BitVectorType(result_bit_count, result->loc());
     }
     // According to 11.8.1, if any operand is unsigned, the result is unsigned.

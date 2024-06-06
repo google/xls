@@ -163,8 +163,18 @@ class ConstantFoldingContext {
       return struct_def->file()->Make<Struct>(struct_def->loc(),
                                               folded_member_defs);
     }
-    if (auto* type_def = dynamic_cast<TypedefType*>(data_type); type_def) {
-      return FoldConstants(type_def->BaseType());
+    if (auto* type_def_type = dynamic_cast<TypedefType*>(data_type);
+        type_def_type) {
+      VerilogFile* file = type_def_type->file();
+      Typedef* type_def = type_def_type->type_def();
+      XLS_ASSIGN_OR_RETURN(DataType * folded_base_type,
+                           FoldConstants(type_def_type->BaseType()));
+      return file->Make<TypedefType>(
+          type_def_type->loc(),
+          file->Make<Typedef>(
+              type_def->loc(),
+              file->Make<Def>(type_def->loc(), type_def->GetName(),
+                              type_def->data_kind(), folded_base_type)));
     }
     return absl::InternalError(absl::StrCat("Could not constant-fold type: ",
                                             data_type->Emit(nullptr)));

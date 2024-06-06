@@ -195,6 +195,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/ir:format_preference",
+        "//xls/ir:source_location",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/numeric:bits",
         "@com_google_absl//absl/status",

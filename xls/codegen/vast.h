@@ -1082,6 +1082,8 @@ class Typedef : public VastNode {
 
   DataType* data_type() const { return def_->data_type(); }
 
+  DataKind data_kind() const { return def_->data_kind(); }
+
  private:
   Def* def_;
 };

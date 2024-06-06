@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -33,6 +32,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/source_location.h"
@@ -153,7 +153,13 @@ class InferVastTypesTest : public ::testing::Test {
                                /*declared_as_signed=*/false);
   }
 
+  SourceInfo NextLoc() {
+    return SourceInfo(
+        SourceLocation(Fileno(0), Lineno(++next_loc_lineno_), Colno(0)));
+  }
+
   VerilogFile file_;
+  int next_loc_lineno_ = 0;
   Module* module_;
   Literal* uint16_max_;
   Literal* u3_zero_;
@@ -161,25 +167,26 @@ class InferVastTypesTest : public ::testing::Test {
 };
 
 TEST_F(InferVastTypesTest, PlainLiteralParameter) {
-  SourceInfo loc;
-  module_->AddParameter("foo", file_.PlainLiteral(3, loc), loc);
+  module_->AddParameter("foo", file_.PlainLiteral(3, NextLoc()), NextLoc());
   file_.PlainLiteral(3, SourceInfo());
   EXPECT_EQ(InferTypesToString(), "3 : integer");
 }
 
 TEST_F(InferVastTypesTest, BrokenShiftAddExampleFromSpec) {
   // answer = (a + b) >> 1, where all parameters are logic [15:0].
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      uint16_max_, loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      uint16_max_, loc);
-  module_->AddParameter(
-      file_.Make<Def>(loc, "answer", DataKind::kLogic,
-                      file_.BitVectorType(16, loc)),
-      file_.Shrl(file_.Add(a, b, loc), file_.PlainLiteral(1, loc), loc), loc);
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            uint16_max_, NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            uint16_max_, NextLoc());
+  module_->AddParameter(file_.Make<Def>(NextLoc(), "answer", DataKind::kLogic,
+                                        file_.BitVectorType(16, NextLoc())),
+                        file_.Shrl(file_.Add(a, b, NextLoc()),
+                                   file_.PlainLiteral(1, NextLoc()), NextLoc()),
+                        NextLoc());
   EXPECT_EQ(InferTypesToString(), R"(
 1 : integer
 65535 : [15:0]
@@ -195,19 +202,21 @@ TEST_F(InferVastTypesTest, FixedShiftAddExampleFromSpec) {
   // The zero, being s32 as a bare literal, should promote the size of a and b.
   // However, the unsigned a and b undo the automatic signedness of the 0, by
   // the rules in 11.8.1.
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      uint16_max_, loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      uint16_max_, loc);
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            uint16_max_, NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            uint16_max_, NextLoc());
   module_->AddParameter(
-      file_.Make<Def>(loc, "answer", DataKind::kLogic,
-                      file_.BitVectorType(16, loc)),
-      file_.Shrl(file_.Add(a, file_.Add(b, BareLiteral(0), loc), loc),
-                 file_.PlainLiteral(1, loc), loc),
-      loc);
+      file_.Make<Def>(NextLoc(), "answer", DataKind::kLogic,
+                      file_.BitVectorType(16, NextLoc())),
+      file_.Shrl(
+          file_.Add(a, file_.Add(b, BareLiteral(0), NextLoc()), NextLoc()),
+          file_.PlainLiteral(1, NextLoc()), NextLoc()),
+      NextLoc());
   EXPECT_EQ(InferTypesToString(), R"(
 0 : unsigned
 1 : integer
@@ -224,22 +233,25 @@ TEST_F(InferVastTypesTest, TernaryExampleFromSpec) {
   // c ? (a & b) : d, where all are 3 bits, except d, which is 4 bits.
   // d should promote the whole other branch of the ternary, but not the
   // condition.
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
-  auto* c = module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
-  auto* d = module_->AddParameter(
-      file_.Make<Def>(loc, "d", DataKind::kLogic, file_.BitVectorType(5, loc)),
-      UnsignedZero(5), loc);
-  EXPECT_EQ(
-      InferTypesToString(file_.Ternary(c, file_.BitwiseAnd(a, b, loc), d, loc)),
-      R"(
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
+  auto* c =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
+  auto* d =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "d", DataKind::kLogic,
+                                            file_.BitVectorType(5, NextLoc())),
+                            UnsignedZero(5), NextLoc());
+  EXPECT_EQ(InferTypesToString(file_.Ternary(
+                c, file_.BitwiseAnd(a, b, NextLoc()), d, NextLoc())),
+            R"(
 a : [4:0]
 b : [4:0]
 c : [3:0]
@@ -253,21 +265,23 @@ TEST_F(InferVastTypesTest, ComplexTernary) {
   // (a > b) ? a : ((b < c) ? b : c)
   // where a is 3 bits, b is 4 bits, and c is 5 bits. The point here is mainly
   // to make sure all the refs to each variable get their own inferred type.
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(3, loc)),
-      UnsignedZero(3), loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
-  auto* c = module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(5, loc)),
-      UnsignedZero(5), loc);
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(3, NextLoc())),
+                            UnsignedZero(3), NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
+  auto* c =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                                            file_.BitVectorType(5, NextLoc())),
+                            UnsignedZero(5), NextLoc());
   EXPECT_EQ(InferTypesToString(file_.Ternary(
-                file_.GreaterThan(a, b, loc), a->Duplicate(),
-                file_.Ternary(file_.LessThan(b->Duplicate(), c, loc),
-                              b->Duplicate(), c->Duplicate(), loc),
-                loc)),
+                file_.GreaterThan(a, b, NextLoc()), a->Duplicate(),
+                file_.Ternary(file_.LessThan(b->Duplicate(), c, NextLoc()),
+                              b->Duplicate(), c->Duplicate(), NextLoc()),
+                NextLoc())),
             R"(
 a : [3:0]
 a : [4:0]
@@ -284,14 +298,15 @@ b < c ? b : c : [4:0]
 }
 
 TEST_F(InferVastTypesTest, SimpleMultiplicationFromSpec) {
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(6, loc)),
-      UnsignedZero(6), loc);
-  EXPECT_EQ(InferTypesToString(file_.Mul(a, b, loc)),
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(6, NextLoc())),
+                            UnsignedZero(6), NextLoc());
+  EXPECT_EQ(InferTypesToString(file_.Mul(a, b, NextLoc())),
             R"(
 a : [5:0]
 b : [5:0]
@@ -303,16 +318,18 @@ TEST_F(InferVastTypesTest, PowerWrappedInConcatFromSpec) {
   // c = {a ** b}, with a..c being of increasing width. The concat blocks
   // promotion, and the power operator doesn't promote its RHS, so nothing is
   // affected.
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(6, loc)),
-      UnsignedZero(6), loc);
-  module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      file_.Concat({file_.Power(a, b, loc)}, loc), loc);
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(6, NextLoc())),
+                            UnsignedZero(6), NextLoc());
+  module_->AddParameter(file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                                        file_.BitVectorType(16, NextLoc())),
+                        file_.Concat({file_.Power(a, b, NextLoc())}, NextLoc()),
+                        NextLoc());
   EXPECT_EQ(InferTypesToString(), R"(
 0 : [3:0]
 0 : [5:0]
@@ -326,16 +343,17 @@ a ** b : [3:0]
 TEST_F(InferVastTypesTest, PowerNotWrappedInConcatFromSpec) {
   // c = a ** b, with a..c being of increasing width. c should promote a but
   // not b.
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(6, loc)),
-      UnsignedZero(6), loc);
-  module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      file_.Power(a, b, loc), loc);
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(6, NextLoc())),
+                            UnsignedZero(6), NextLoc());
+  module_->AddParameter(file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                                        file_.BitVectorType(16, NextLoc())),
+                        file_.Power(a, b, NextLoc()), NextLoc());
   EXPECT_EQ(InferTypesToString(), R"(
 0 : [3:0]
 0 : [5:0]
@@ -346,15 +364,16 @@ a ** b : [15:0]
 }
 
 TEST_F(InferVastTypesTest, MultiFile) {
-  SourceInfo loc;
   VerilogFile file2(FileType::kSystemVerilog);
-  Module* module2 = file2.AddModule("module2", loc);
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(4, loc)),
-      UnsignedZero(4), loc);
+  Module* module2 = file2.AddModule("module2", NextLoc());
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(4, NextLoc())),
+                            UnsignedZero(4), NextLoc());
   module2->AddParameter(
-      file2.Make<Def>(loc, "b", DataKind::kLogic, file2.BitVectorType(6, loc)),
-      file2.Add(file2.PlainLiteral(50, loc), a, loc), loc);
+      file2.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                      file2.BitVectorType(6, NextLoc())),
+      file2.Add(file2.PlainLiteral(50, NextLoc()), a, NextLoc()), NextLoc());
   std::vector<VerilogFile*> files = {&file_, &file2};
   auto types = InferVastTypes(files);
   XLS_ASSERT_OK(types);
@@ -368,26 +387,27 @@ a : unsigned
 }
 
 TEST_F(InferVastTypesTest, BigConstants) {
-  SourceInfo loc;
   // parameter int unsigned GiB = 1024 * 1024 * 1024;
   // Note that according to 11.8.1, it appears the automatic signedness of the
   // 1024's is not affected by the unsigned LHS until we are ready to actually
   // put the result into the LHS.
   auto* gib = module_->AddParameter(
-      file_.Make<Def>(loc, "GiB", DataKind::kInteger,
-                      file_.Make<IntegerType>(loc, /*signed=*/false)),
+      file_.Make<Def>(NextLoc(), "GiB", DataKind::kInteger,
+                      file_.Make<IntegerType>(NextLoc(), /*signed=*/false)),
       file_.Mul(BareLiteral(1024),
-                file_.Mul(BareLiteral(1024), BareLiteral(1024), loc), loc),
-      loc);
+                file_.Mul(BareLiteral(1024), BareLiteral(1024), NextLoc()),
+                NextLoc()),
+      NextLoc());
   // parameter logic [63:0] hundredGiB = 100 * GiB;
-  module_->AddParameter(file_.Make<Def>(loc, "hundredGiB", DataKind::kLogic,
-                                        file_.BitVectorType(64, loc)),
-                        file_.Mul(BareLiteral(100), gib, loc), loc);
+  module_->AddParameter(
+      file_.Make<Def>(NextLoc(), "hundredGiB", DataKind::kLogic,
+                      file_.BitVectorType(64, NextLoc())),
+      file_.Mul(BareLiteral(100), gib, NextLoc()), NextLoc());
   // parameter logic [63:0] other_hundredGiB = 64'h1900000000;
   module_->AddParameter(
-      file_.Make<Def>(loc, "other_hundredGiB", DataKind::kLogic,
-                      file_.BitVectorType(64, loc)),
-      Uint64Literal(0x1900000000), loc);
+      file_.Make<Def>(NextLoc(), "other_hundredGiB", DataKind::kLogic,
+                      file_.BitVectorType(64, NextLoc())),
+      Uint64Literal(0x1900000000), NextLoc());
   // Note: the GiB that appears here is the rvalue in the hundredGiB line.
   EXPECT_EQ(InferTypesToString(), R"(
 100 : [63:0]
@@ -403,23 +423,22 @@ GiB : [63:0]
 }
 
 TEST_F(InferVastTypesTest, NonLiteralArrayDim) {
-  SourceInfo loc;
   // parameter foo = 24;
   // parameter logic[foo - 1:0] bar = 55;
   // parameter logic[63:0] baz = bar + 1;
-  auto* foo = module_->AddParameter("foo", BareLiteral(24), loc);
+  auto* foo = module_->AddParameter("foo", BareLiteral(24), NextLoc());
   auto* bar = module_->AddParameter(
-      file_.Make<Def>(loc, "bar", DataKind::kLogic,
+      file_.Make<Def>(NextLoc(), "bar", DataKind::kLogic,
                       file_.Make<BitVectorType>(
-                          loc, file_.Sub(foo, BareLiteral(1), loc),
+                          NextLoc(), file_.Sub(foo, BareLiteral(1), NextLoc()),
                           /*is_signed=*/false, /*size_expr_is_max=*/true)),
-      BareLiteral(55), loc);
+      BareLiteral(55), NextLoc());
   module_->AddParameter(
-      file_.Make<Def>(
-          loc, "baz", DataKind::kLogic,
-          file_.Make<BitVectorType>(loc, BareLiteral(63), /*is_signed=*/false,
-                                    /*size_expr_is_max=*/true)),
-      file_.Add(bar, BareLiteral(1), loc), loc);
+      file_.Make<Def>(NextLoc(), "baz", DataKind::kLogic,
+                      file_.Make<BitVectorType>(NextLoc(), BareLiteral(63),
+                                                /*is_signed=*/false,
+                                                /*size_expr_is_max=*/true)),
+      file_.Add(bar, BareLiteral(1), NextLoc()), NextLoc());
   EXPECT_EQ(InferTypesToString(), R"(
 1 : [63:0]
 1 : integer
@@ -439,24 +458,24 @@ TEST_F(InferVastTypesTest, FunctionCall) {
   //   ...
   // endfunction
   // 1 + fn(50, 25 + 4'0)
-  SourceInfo loc;
-  VerilogFunction* fn =
-      file_.Make<VerilogFunction>(loc, "fn", file_.BitVectorType(16, loc));
-  fn->AddArgument(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(8, loc)),
-      loc);
-  fn->AddArgument(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(64, loc)),
-      loc);
-  EXPECT_EQ(InferTypesToString(file_.Add(
-                BareLiteral(1),
-                file_.Make<VerilogFunctionCall>(
-                    loc, fn,
-                    std::vector<Expression*>{
-                        BareLiteral(50),
-                        file_.Add(BareLiteral(25), UnsignedZero(4), loc)}),
-                loc)),
-            R"(
+  VerilogFunction* fn = file_.Make<VerilogFunction>(
+      NextLoc(), "fn", file_.BitVectorType(16, NextLoc()));
+  fn->AddArgument(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                  file_.BitVectorType(8, NextLoc())),
+                  NextLoc());
+  fn->AddArgument(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                  file_.BitVectorType(64, NextLoc())),
+                  NextLoc());
+  EXPECT_EQ(
+      InferTypesToString(file_.Add(
+          BareLiteral(1),
+          file_.Make<VerilogFunctionCall>(
+              NextLoc(), fn,
+              std::vector<Expression*>{
+                  BareLiteral(50),
+                  file_.Add(BareLiteral(25), UnsignedZero(4), NextLoc())}),
+          NextLoc())),
+      R"(
 0 : [63:0]
 1 : unsigned
 25 : [63:0]
@@ -469,14 +488,13 @@ fn(50, 25 + 0) : unsigned
 
 TEST_F(InferVastTypesTest, SystemFunctionCall) {
   // 1 + clog2(25 + 4'0)
-  SourceInfo loc;
-  EXPECT_EQ(InferTypesToString(
-                file_.Add(BareLiteral(1),
-                          file_.Make<SystemFunctionCall>(
-                              loc, "clog2",
-                              std::vector<Expression*>{file_.Add(
-                                  BareLiteral(25), UnsignedZero(4), loc)}),
-                          loc)),
+  EXPECT_EQ(InferTypesToString(file_.Add(
+                BareLiteral(1),
+                file_.Make<SystemFunctionCall>(
+                    NextLoc(), "clog2",
+                    std::vector<Expression*>{file_.Add(
+                        BareLiteral(25), UnsignedZero(4), NextLoc())}),
+                NextLoc())),
             R"(
 0 : unsigned
 1 : integer
@@ -492,17 +510,17 @@ TEST_F(InferVastTypesTest, EnumPromotion) {
   //   foo = 2
   // } enum_t;
   // parameter unsigned foo_plus_one = foo + 1;
-  SourceInfo loc;
-  Enum* enum_def =
-      file_.Make<Enum>(loc, DataKind::kLogic, file_.BitVectorType(12, loc));
-  EnumMemberRef* foo = enum_def->AddMember("foo", BareLiteral(2), loc);
+  Enum* enum_def = file_.Make<Enum>(NextLoc(), DataKind::kLogic,
+                                    file_.BitVectorType(12, NextLoc()));
+  EnumMemberRef* foo = enum_def->AddMember("foo", BareLiteral(2), NextLoc());
   Typedef* type_def = file_.Make<Typedef>(
-      loc, file_.Make<Def>(loc, "enum_t", DataKind::kUser, enum_def));
+      NextLoc(),
+      file_.Make<Def>(NextLoc(), "enum_t", DataKind::kUser, enum_def));
   module_->AddModuleMember(type_def);
   module_->AddParameter(
-      file_.Make<Def>(loc, "foo_plus_one", DataKind::kLogic,
-                      file_.Make<IntegerType>(loc, /*signed=*/false)),
-      file_.Add(foo, BareLiteral(1), loc), loc);
+      file_.Make<Def>(NextLoc(), "foo_plus_one", DataKind::kLogic,
+                      file_.Make<IntegerType>(NextLoc(), /*signed=*/false)),
+      file_.Add(foo, BareLiteral(1), NextLoc()), NextLoc());
   EXPECT_EQ(InferTypesToString(),
             R"(
 1 : unsigned
@@ -517,30 +535,31 @@ TEST_F(InferVastTypesTest, PromotionToFoldedTypedef) {
   // typedef logic[size - 1:0] foo_t;
   // parameter mb = 1024 * 1024;
   // parameter foo_t bar = 50 * mb;
-  SourceInfo loc;
-  auto* size = module_->AddParameter("size", BareLiteral(50), loc);
+  auto* size = module_->AddParameter("size", BareLiteral(50), NextLoc());
   Typedef* type_def = file_.Make<Typedef>(
-      loc,
-      file_.Make<Def>(loc, "foo_t", DataKind::kLogic,
+      NextLoc(),
+      file_.Make<Def>(NextLoc(), "foo_t", DataKind::kLogic,
                       file_.Make<BitVectorType>(
-                          loc, file_.Sub(size, BareLiteral(1), loc),
+                          NextLoc(), file_.Sub(size, BareLiteral(1), NextLoc()),
                           /*is_signed=*/false, /*size_expr_is_max=*/true)));
   module_->AddModuleMember(type_def);
   auto* mb = module_->AddParameter(
-      "mb", file_.Mul(BareLiteral(1024), BareLiteral(1024), loc), loc);
-  module_->AddParameter(file_.Make<Def>(loc, "bar", DataKind::kUser,
-                                        file_.Make<TypedefType>(loc, type_def)),
-                        file_.Mul(BareLiteral(50), mb, loc), loc);
+      "mb", file_.Mul(BareLiteral(1024), BareLiteral(1024), NextLoc()),
+      NextLoc());
+  module_->AddParameter(
+      file_.Make<Def>(NextLoc(), "bar", DataKind::kUser,
+                      file_.Make<TypedefType>(NextLoc(), type_def)),
+      file_.Mul(BareLiteral(50), mb, NextLoc()), NextLoc());
   EXPECT_EQ(InferTypesToString(),
             R"(
 1 : integer
-50 : [49:0]
+50 : foo_t
 50 : integer
 1024 : integer
 1024 : integer
-mb : [49:0]
+mb : foo_t
 size : integer
-50 * mb : [49:0]
+50 * mb : foo_t
 size - 1 : integer
 1024 * 1024 : integer
 )");
@@ -552,26 +571,25 @@ TEST_F(InferVastTypesTest, ConcatWithFoldedTypedef) {
   // parameter foo_t foo = 3;
   // parameter integer bar = 4;
   // {foo, bar}
-  SourceInfo loc;
-  auto* size = module_->AddParameter("size", BareLiteral(50), loc);
+  auto* size = module_->AddParameter("size", BareLiteral(50), NextLoc());
   Typedef* type_def = file_.Make<Typedef>(
-      loc,
-      file_.Make<Def>(loc, "foo_t", DataKind::kLogic,
+      NextLoc(),
+      file_.Make<Def>(NextLoc(), "foo_t", DataKind::kLogic,
                       file_.Make<BitVectorType>(
-                          loc, file_.Sub(size, BareLiteral(1), loc),
+                          NextLoc(), file_.Sub(size, BareLiteral(1), NextLoc()),
                           /*is_signed=*/false, /*size_expr_is_max=*/true)));
   module_->AddModuleMember(type_def);
   auto* foo = module_->AddParameter(
-      file_.Make<Def>(loc, "foo", DataKind::kUser,
-                      file_.Make<TypedefType>(loc, type_def)),
-      BareLiteral(3), loc);
-  auto* bar =
-      module_->AddParameter(file_.Make<Def>(loc, "bar", DataKind::kInteger,
-                                            file_.Make<IntegerType>(loc)),
-                            BareLiteral(4), loc);
-  EXPECT_EQ(
-      InferTypesToString(file_.Concat(std::vector<Expression*>{foo, bar}, loc)),
-      R"(
+      file_.Make<Def>(NextLoc(), "foo", DataKind::kUser,
+                      file_.Make<TypedefType>(NextLoc(), type_def)),
+      BareLiteral(3), NextLoc());
+  auto* bar = module_->AddParameter(
+      file_.Make<Def>(NextLoc(), "bar", DataKind::kInteger,
+                      file_.Make<IntegerType>(NextLoc())),
+      BareLiteral(4), NextLoc());
+  EXPECT_EQ(InferTypesToString(
+                file_.Concat(std::vector<Expression*>{foo, bar}, NextLoc())),
+            R"(
 bar : integer
 foo : foo_t
 {foo, bar} : [81:0]
@@ -589,38 +607,41 @@ TEST_F(InferVastTypesTest, PackedStruct) {
   // parameter logic[23:0] c;
   // a + b should promote a
   // a + c should promote c
-  SourceInfo loc;
   Struct* struct_def = file_.Make<Struct>(
-      loc, std::vector<Def*>{file_.Make<Def>(loc, "foo", DataKind::kLogic,
-                                             file_.ScalarType(loc)),
-                             file_.Make<Def>(loc, "bar", DataKind::kInteger,
-                                             file_.IntegerType(loc)),
-                             file_.Make<Def>(loc, "baz", DataKind::kLogic,
-                                             file_.BitVectorType(16, loc))});
+      NextLoc(),
+      std::vector<Def*>{file_.Make<Def>(NextLoc(), "foo", DataKind::kLogic,
+                                        file_.ScalarType(NextLoc())),
+                        file_.Make<Def>(NextLoc(), "bar", DataKind::kInteger,
+                                        file_.IntegerType(NextLoc())),
+                        file_.Make<Def>(NextLoc(), "baz", DataKind::kLogic,
+                                        file_.BitVectorType(16, NextLoc()))});
   Typedef* type_def = file_.Make<Typedef>(
-      loc, file_.Make<Def>(loc, "struct_t", DataKind::kUser, struct_def));
+      NextLoc(),
+      file_.Make<Def>(NextLoc(), "struct_t", DataKind::kUser, struct_def));
   module_->AddModuleMember(type_def);
   ParameterRef* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kUser,
-                      file_.Make<TypedefType>(loc, type_def)),
-      BareLiteral(0), loc);
-  ParameterRef* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(64, loc)),
-      BareLiteral(0), loc);
-  ParameterRef* c = module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(23, loc)),
-      BareLiteral(0), loc);
-  EXPECT_EQ(InferTypesToString(file_.Add(a, b, loc)),
+      file_.Make<Def>(NextLoc(), "a", DataKind::kUser,
+                      file_.Make<TypedefType>(NextLoc(), type_def)),
+      BareLiteral(0), NextLoc());
+  ParameterRef* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(64, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  ParameterRef* c =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                                            file_.BitVectorType(23, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  EXPECT_EQ(InferTypesToString(file_.Add(a, b, NextLoc())),
             R"(
 a : [63:0]
 b : [63:0]
 a + b : [63:0]
 )");
-  EXPECT_EQ(InferTypesToString(file_.Add(a, c, loc)),
+  EXPECT_EQ(InferTypesToString(file_.Add(a, c, NextLoc())),
             R"(
-a : [48:0]
-c : [48:0]
-a + c : [48:0]
+a : struct_t
+c : struct_t
+a + c : struct_t
 )");
 }
 
@@ -631,20 +652,19 @@ TEST_F(InferVastTypesTest, UnpackedArray) {
   // a == b
   // There's not much you can do with unpacked arrays that is valid. We
   // basically want to make sure we don't crash on them.
-  SourceInfo loc;
-  LogicRef* a =
-      module_->AddReg("a", file_.UnpackedArrayType(16, {2, 4}, loc), loc);
-  LogicRef* b =
-      module_->AddReg("b", file_.UnpackedArrayType(16, {2, 4}, loc), loc);
+  LogicRef* a = module_->AddReg(
+      "a", file_.UnpackedArrayType(16, {2, 4}, NextLoc()), NextLoc());
+  LogicRef* b = module_->AddReg(
+      "b", file_.UnpackedArrayType(16, {2, 4}, NextLoc()), NextLoc());
   module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic,
-                      file_.UnpackedArrayType(16, {2, 4}, loc)),
-      a, loc);
+      file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                      file_.UnpackedArrayType(16, {2, 4}, NextLoc())),
+      a, NextLoc());
 
   // The `a` ref in the init of `c`.
   EXPECT_EQ(InferTypesToString(), "a : [15:0] [2][4]");
 
-  EXPECT_EQ(InferTypesToString(file_.Equals(a, b, loc)),
+  EXPECT_EQ(InferTypesToString(file_.Equals(a, b, NextLoc())),
             R"(
 a : [15:0] [2][4]
 b : [15:0] [2][4]
@@ -657,13 +677,14 @@ TEST_F(InferVastTypesTest, ReturnTypeCoercion) {
   //    logic[23:0] a);
   //   return a + 1;
   // endfunction
-  SourceInfo loc;
-  VerilogFunction* fn =
-      file_.Make<VerilogFunction>(loc, "fn", file_.BitVectorType(16, loc));
-  LogicRef* a = fn->AddArgument(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(24, loc)),
-      loc);
-  fn->AddStatement<ReturnStatement>(loc, file_.Add(a, BareLiteral(1), loc));
+  VerilogFunction* fn = file_.Make<VerilogFunction>(
+      NextLoc(), "fn", file_.BitVectorType(16, NextLoc()));
+  LogicRef* a =
+      fn->AddArgument(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                      file_.BitVectorType(24, NextLoc())),
+                      NextLoc());
+  fn->AddStatement<ReturnStatement>(NextLoc(),
+                                    file_.Add(a, BareLiteral(1), NextLoc()));
   module_->top()->AddModuleMember(fn);
   EXPECT_EQ(InferTypesToString(),
             R"(
@@ -682,41 +703,106 @@ TEST_F(InferVastTypesTest, TypedefReturnType) {
   // endfunction
   // Getting this right requires constant folding the definition of `word_t` and
   // promoting the 3-bit value.
-  SourceInfo loc;
-  auto* width = module_->AddParameter("width", BareLiteral(24), loc);
+  auto* width = module_->AddParameter("width", BareLiteral(24), NextLoc());
   Typedef* word_t = module_->AddTypedef(
-      file_.Make<Def>(loc, "word_t", DataKind::kLogic,
-                      file_.Make<BitVectorType>(
-                          loc, file_.Sub(width, BareLiteral(1), loc),
-                          /*is_signed=*/false, /*size_expr_is_max=*/true)),
-      loc);
-  TypedefType* word_t_type = file_.Make<TypedefType>(loc, word_t);
-  VerilogFunction* fn = file_.Make<VerilogFunction>(loc, "fn", word_t_type);
+      file_.Make<Def>(
+          NextLoc(), "word_t", DataKind::kLogic,
+          file_.Make<BitVectorType>(
+              NextLoc(), file_.Sub(width, BareLiteral(1), NextLoc()),
+              /*is_signed=*/false, /*size_expr_is_max=*/true)),
+      NextLoc());
+  TypedefType* word_t_type = file_.Make<TypedefType>(NextLoc(), word_t);
+  VerilogFunction* fn =
+      file_.Make<VerilogFunction>(NextLoc(), "fn", word_t_type);
   LogicRef* a = fn->AddArgument(
-      file_.Make<Def>(loc, "a", DataKind::kUser, word_t_type), loc);
-  fn->AddStatement<ReturnStatement>(loc, file_.Add(a, UnsignedZero(3), loc));
+      file_.Make<Def>(NextLoc(), "a", DataKind::kUser, word_t_type), NextLoc());
+  fn->AddStatement<ReturnStatement>(NextLoc(),
+                                    file_.Add(a, UnsignedZero(3), NextLoc()));
   module_->top()->AddModuleMember(fn);
   EXPECT_EQ(InferTypesToString(),
             R"(
-0 : [23:0]
+0 : word_t
 1 : integer
 24 : integer
-a : [23:0]
-a + 0 : [23:0]
+a : word_t
+a + 0 : word_t
 width : integer
 width - 1 : integer
 )");
 }
 
+TEST_F(InferVastTypesTest, PreserveSameTypedef) {
+  // typedef logic[23:0] word_t;
+  // parameter word_t a = 3;
+  // parameter word_t b = 4;
+  // a + b
+  Typedef* word_t = module_->AddTypedef(
+      file_.Make<Def>(NextLoc(), "word_t", DataKind::kLogic,
+                      file_.Make<BitVectorType>(NextLoc(), BareLiteral(23),
+                                                /*is_signed=*/false,
+                                                /*size_expr_is_max=*/true)),
+      NextLoc());
+  TypedefType* word_t_type = file_.Make<TypedefType>(NextLoc(), word_t);
+  auto* a = module_->AddParameter(
+      file_.Make<Def>(NextLoc(), "a", DataKind::kUser, word_t_type),
+      BareLiteral(3), NextLoc());
+  auto* b = module_->AddParameter(
+      file_.Make<Def>(NextLoc(), "b", DataKind::kUser, word_t_type),
+      BareLiteral(4), NextLoc());
+  EXPECT_EQ(InferTypesToString(file_.Add(a, b, NextLoc())),
+            R"(
+a : word_t
+b : word_t
+a + b : word_t
+)");
+}
+
+TEST_F(InferVastTypesTest, GenerifyDifferentTypedefs) {
+  // typedef logic[23:0] word_t;
+  // typedef logic[23:0] thing_t;
+  // parameter word_t a = 3;
+  // parameter thing_t b = 4;
+  // a + b
+  // should "promote" them both to the generic type.
+  Typedef* word_t = module_->AddTypedef(
+      file_.Make<Def>(NextLoc(), "word_t", DataKind::kLogic,
+                      file_.Make<BitVectorType>(NextLoc(), BareLiteral(23),
+                                                /*is_signed=*/false,
+                                                /*size_expr_is_max=*/true)),
+      NextLoc());
+  Typedef* thing_t = module_->AddTypedef(
+      file_.Make<Def>(NextLoc(), "thing_t", DataKind::kLogic,
+                      file_.Make<BitVectorType>(NextLoc(), BareLiteral(23),
+                                                /*is_signed=*/false,
+                                                /*size_expr_is_max=*/true)),
+      NextLoc());
+  auto* a = module_->AddParameter(
+      file_.Make<Def>(NextLoc(), "a", DataKind::kUser,
+                      file_.Make<TypedefType>(NextLoc(), word_t)),
+      BareLiteral(3), NextLoc());
+  auto* b = module_->AddParameter(
+      file_.Make<Def>(NextLoc(), "b", DataKind::kUser,
+                      file_.Make<TypedefType>(NextLoc(), thing_t)),
+      BareLiteral(4), NextLoc());
+  EXPECT_EQ(InferTypesToString(file_.Add(a, b, NextLoc())),
+            R"(
+a : [23:0]
+b : [23:0]
+a + b : [23:0]
+)");
+}
+
 TEST_F(InferVastTypesTest, ContextDependentUnary) {
   // b = ~(a + 0) where all parameters are logic [15:0].
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      uint16_max_, loc);
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            uint16_max_, NextLoc());
   module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      file_.BitwiseNot(file_.Add(a, BareLiteral(0), loc), loc), loc);
+      file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                      file_.BitVectorType(16, NextLoc())),
+      file_.BitwiseNot(file_.Add(a, BareLiteral(0), NextLoc()), NextLoc()),
+      NextLoc());
   EXPECT_EQ(InferTypesToString(), R"(
 0 : unsigned
 65535 : [15:0]
@@ -730,17 +816,20 @@ TEST_F(InferVastTypesTest, Comparison) {
   // a + (b > c)
   // where a is 1 bit, b is 3 bits, and c is 2 bits. c should be promoted but
   // the comparison itself should have a scalar type.
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.ScalarType(loc)),
-      BareLiteral(0), loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(3, loc)),
-      BareLiteral(0), loc);
-  auto* c = module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(2, loc)),
-      BareLiteral(0), loc);
-  EXPECT_EQ(InferTypesToString(file_.Add(a, file_.GreaterThan(b, c, loc), loc)),
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.ScalarType(NextLoc())),
+                            BareLiteral(0), NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(3, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  auto* c =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                                            file_.BitVectorType(2, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  EXPECT_EQ(InferTypesToString(
+                file_.Add(a, file_.GreaterThan(b, c, NextLoc()), NextLoc())),
             R"(
 a : logic
 b : [2:0]
@@ -753,15 +842,16 @@ a + (b > c) : logic
 TEST_F(InferVastTypesTest, LogicalAnd) {
   // a && (b + 1)
   // where a and b are 16 bits. b should be promoted and a should not.
-  SourceInfo loc;
-  auto* a = module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      BareLiteral(0), loc);
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      BareLiteral(0), loc);
-  EXPECT_EQ(InferTypesToString(
-                file_.LogicalAnd(a, file_.Add(b, BareLiteral(1), loc), loc)),
+  auto* a =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  EXPECT_EQ(InferTypesToString(file_.LogicalAnd(
+                a, file_.Add(b, BareLiteral(1), NextLoc()), NextLoc())),
             R"(
 1 : unsigned
 a : [15:0]
@@ -774,16 +864,18 @@ a && b + 1 : logic
 TEST_F(InferVastTypesTest, SelfDeterminedUnary) {
   // a = &(b + c), where a and b are 16 bits, and c is 32 bits. b should be
   // promoted, but b + c is an independent expr from the rest.
-  SourceInfo loc;
-  auto* b = module_->AddParameter(
-      file_.Make<Def>(loc, "b", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      BareLiteral(0), loc);
-  auto* c = module_->AddParameter(
-      file_.Make<Def>(loc, "c", DataKind::kLogic, file_.BitVectorType(32, loc)),
-      BareLiteral(0), loc);
-  module_->AddParameter(
-      file_.Make<Def>(loc, "a", DataKind::kLogic, file_.BitVectorType(16, loc)),
-      file_.AndReduce(file_.Add(b, c, loc), loc), loc);
+  auto* b =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "b", DataKind::kLogic,
+                                            file_.BitVectorType(16, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  auto* c =
+      module_->AddParameter(file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+                                            file_.BitVectorType(32, NextLoc())),
+                            BareLiteral(0), NextLoc());
+  module_->AddParameter(file_.Make<Def>(NextLoc(), "a", DataKind::kLogic,
+                                        file_.BitVectorType(16, NextLoc())),
+                        file_.AndReduce(file_.Add(b, c, NextLoc()), NextLoc()),
+                        NextLoc());
   EXPECT_EQ(InferTypesToString(),
             R"(
 0 : [15:0]
@@ -796,9 +888,9 @@ b + c : [31:0]
 }
 
 TEST_F(InferVastTypesTest, UseOfUntypedParameter) {
-  SourceInfo loc;
-  auto* foo = module_->AddParameter("foo", UnsignedZero(4), loc);
-  module_->AddParameter("bar", file_.Add(UnsignedZero(2), foo, loc), loc);
+  auto* foo = module_->AddParameter("foo", UnsignedZero(4), NextLoc());
+  module_->AddParameter("bar", file_.Add(UnsignedZero(2), foo, NextLoc()),
+                        NextLoc());
   file_.PlainLiteral(3, SourceInfo());
   EXPECT_EQ(InferTypesToString(), R"(
 0 : [3:0]
