@@ -24,6 +24,7 @@ load(
     "xls_dslx_test",
     "xls_eval_ir_test",
     "xls_ir_cc_library",
+    "xls_ir_equivalence_test",
 )
 
 package(
@@ -117,7 +118,15 @@ xls_dslx_opt_ir(
     library = "bfloat16_dslx",
 )
 
-# TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
+# TODO: xls_ir_equivalence_test takes a long time. Tag enormous and manual.
+xls_ir_equivalence_test(
+    name = "bfloat16_add_ir_opt_equivalence_test",
+    size = "enormous",
+    src_0 = ":bfloat16_add.ir",
+    src_1 = ":bfloat16_add.opt.ir",
+    tags = ["manual"],
+)
+
 xls_eval_ir_test(
     name = "bfloat16_add_eval_ir_test",
     src = ":bfloat16_add.ir",
@@ -135,7 +144,15 @@ xls_dslx_opt_ir(
     library = "bfloat16_dslx",
 )
 
-# TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
+# TODO: xls_ir_equivalence_test takes a long time. Tag enormous and manual.
+xls_ir_equivalence_test(
+    name = "bfloat16_sub_ir_opt_equivalence_test",
+    size = "enormous",
+    src_0 = ":bfloat16_sub.ir",
+    src_1 = ":bfloat16_sub.opt.ir",
+    tags = ["manual"],
+)
+
 xls_eval_ir_test(
     name = "bfloat16_sub_eval_ir_test",
     src = ":bfloat16_sub.ir",
@@ -179,14 +196,21 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_add.opt.ir",
 )
 
+# TODO: xls_ir_equivalence_test takes a long time. Tag enormous and manual.
+xls_ir_equivalence_test(
+    name = "float32_add_ir_opt_equivalence_test",
+    size = "enormous",
+    src_0 = ":float32_add.ir",
+    src_1 = ":float32_add.opt.ir",
+    tags = ["manual"],
+)
+
 xls_ir_cc_library(
     name = "float32_add_cc",
     src = ":float32_add.opt.ir",
     namespaces = "xls,fp",
 )
 
-# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
-# xls_ir_equivalence_test.
 xls_eval_ir_test(
     name = "float32_add_eval_ir_test",
     src = ":float32_add.ir",
@@ -249,8 +273,15 @@ xls_dslx_opt_ir(
     opt_ir_file = "float32_sub.opt.ir",
 )
 
-# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
-# xls_ir_equivalence_test.
+# TODO: xls_ir_equivalence_test takes a long time. Tag enormous and manual.
+xls_ir_equivalence_test(
+    name = "float32_sub_ir_opt_equivalence_test",
+    size = "enormous",
+    src_0 = ":float32_sub.ir",
+    src_1 = ":float32_sub.opt.ir",
+    tags = ["manual"],
+)
+
 xls_eval_ir_test(
     name = "float32_sub_eval_ir_test",
     src = ":float32_sub.ir",
@@ -451,8 +482,8 @@ xls_ir_cc_library(
     namespaces = "xls,fp",
 )
 
-# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
-# xls_ir_equivalence_test.
+# TODO(b/152546795): xls_ir_equivalence_test won't work because of
+# https://github.com/google/xls/issues/365
 xls_eval_ir_test(
     name = "float32_fma_eval_ir_test",
     src = ":float32_fma.ir",
@@ -740,8 +771,8 @@ xls_dslx_opt_ir(
     opt_ir_file = "float64_fma.opt.ir",
 )
 
-# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
-# xls_ir_equivalence_test.
+# TODO(b/152546795): xls_ir_equivalence_test won't work because of
+# https://github.com/google/xls/issues/365
 xls_eval_ir_test(
     name = "float64_fma_eval_ir_test",
     src = ":float64_fma.ir",
