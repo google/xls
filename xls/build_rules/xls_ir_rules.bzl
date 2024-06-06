@@ -231,7 +231,9 @@ def _optimize_ir(ctx, src, original_input_files):
     args.add(src.ir_file)
 
     for flag, value in opt_ir_args.items():
-        args.add("--" + flag, value)
+        # Need to handle that some flag values are things like 'true' and
+        # 'false' that need to be handled carefully.
+        args.add("--{}={}".format(flag, value))
 
     if ctx.attr.ram_rewrites:
         ram_rewrites = []
