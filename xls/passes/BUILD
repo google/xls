@@ -1080,9 +1080,11 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/status:status_macros",
         "//xls/data_structures:binary_decision_diagram",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:ternary",
     ],
 )
 
@@ -1549,6 +1551,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:ternary",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
     ],
 )
 

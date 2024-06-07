@@ -28,6 +28,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
+#include "xls/ir/ternary.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/query_engine.h"
 
@@ -141,6 +142,18 @@ bool BddQueryEngine::Implies(const TreeBitLocation& a,
 std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
+  std::optional<TernaryVector> implied_ternary =
+      ImpliedNodeTernary(predicate_bit_values, node);
+  if (!implied_ternary.has_value() ||
+      !ternary_ops::IsFullyKnown(*implied_ternary)) {
+    return std::nullopt;
+  }
+  return ternary_ops::ToKnownBitsValues(*implied_ternary);
+}
+
+std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
+    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+    Node* node) const {
   if (!IsTracked(node) || !node->GetType()->IsBits()) {
     return std::nullopt;
   }
@@ -168,21 +181,20 @@ std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
     return Implies(bdd_predicate_bit, qualified_bdd_node_bit);
   };
 
-  // Check if bdd_predicate_bit implies that node has a particular value for
-  // all bits.
+  // Check if bdd_predicate_bit implies anything about the node.
   CHECK(node->GetType()->IsBits());
-  BitsRope bit_rope(node->BitCountOrDie());
+  TernaryVector ternary(node->BitCountOrDie(), TernaryValue::kUnknown);
   for (int node_idx = 0; node_idx < node->BitCountOrDie(); ++node_idx) {
     if (implied_true_or_false(node_idx, true)) {
-      bit_rope.push_back(true);
+      ternary[node_idx] = TernaryValue::kKnownOne;
     } else if (implied_true_or_false(node_idx, false)) {
-      bit_rope.push_back(false);
-    } else {
-      return std::nullopt;
+      ternary[node_idx] = TernaryValue::kKnownZero;
     }
   }
-
-  return bit_rope.Build();
+  if (ternary_ops::AllUnknown(ternary)) {
+    return std::nullopt;
+  }
+  return ternary;
 }
 
 bool BddQueryEngine::KnownEquals(const TreeBitLocation& a,

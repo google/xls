@@ -27,10 +27,12 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/ternary.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/query_engine.h"
 
@@ -75,6 +77,9 @@ class BddQueryEngine : public QueryEngine {
   bool Implies(const TreeBitLocation& a,
                const TreeBitLocation& b) const override;
   std::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override;
+  std::optional<TernaryVector> ImpliedNodeTernary(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override;
   bool KnownEquals(const TreeBitLocation& a,

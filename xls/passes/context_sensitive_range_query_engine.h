@@ -102,6 +102,16 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
     return base_case_ranges_.ImpliedNodeValue(predicate_bit_values, node);
   }
 
+  // NB This is implemented by BDD engine. The meaning of predicate_bit_values
+  // here is literally just specific bits in various nodes each having a
+  // particular value. The naming collision with PredicateState (ie the select
+  // cases that are active) is unfortunate.
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return base_case_ranges_.ImpliedNodeTernary(predicate_bit_values, node);
+  }
+
   // Specialize the query engine for the given predicate. For now only a state
   // set with a single element is supported. This is CHECK'd internally to avoid
   // surprising non-deterministic behavior. In the future we might relax this

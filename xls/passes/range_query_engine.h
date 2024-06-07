@@ -209,6 +209,12 @@ class RangeQueryEngine : public QueryEngine {
     return std::nullopt;
   }
 
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return std::nullopt;
+  }
+
   // Get the intervals associated with each leaf node in the type tree
   // associated with this node.
   IntervalSetTree GetIntervalSetTree(Node* node) const;

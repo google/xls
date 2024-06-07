@@ -178,4 +178,22 @@ std::optional<Bits> UnownedUnionQueryEngine::ImpliedNodeValue(
   return std::nullopt;
 }
 
+std::optional<TernaryVector> UnownedUnionQueryEngine::ImpliedNodeTernary(
+    absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+    Node* node) const {
+  std::optional<TernaryVector> result = std::nullopt;
+  for (const auto& engine : engines_) {
+    if (std::optional<TernaryVector> implied =
+            engine->ImpliedNodeTernary(predicate_bit_values, node);
+        implied.has_value()) {
+      if (result.has_value()) {
+        CHECK_OK(ternary_ops::UpdateWithUnion(*result, *implied));
+      } else {
+        result = std::move(implied);
+      }
+    }
+  }
+  return result;
+}
+
 }  // namespace xls

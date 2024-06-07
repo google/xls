@@ -91,6 +91,17 @@ class FakeQueryEngine : public QueryEngine {
     return std::nullopt;
   }
 
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    std::vector<std::pair<TreeBitLocation, bool>> vec(
+        predicate_bit_values.begin(), predicate_bit_values.end());
+    if (implied_node_ternaries_.contains({vec, node})) {
+      return implied_node_ternaries_.at({vec, node});
+    }
+    return std::nullopt;
+  }
+
   bool KnownEquals(const TreeBitLocation& a,
                    const TreeBitLocation& b) const override {
     if (equality_states_.contains({a, b})) {
@@ -212,6 +223,10 @@ class FakeQueryEngine : public QueryEngine {
   absl::flat_hash_map<
       std::pair<std::vector<std::pair<TreeBitLocation, bool>>, Node*>, Bits>
       implied_node_values_;
+  absl::flat_hash_map<
+      std::pair<std::vector<std::pair<TreeBitLocation, bool>>, Node*>,
+      TernaryVector>
+      implied_node_ternaries_;
   absl::flat_hash_map<std::pair<TreeBitLocation, TreeBitLocation>,
                       EqualityState>
       equality_states_;

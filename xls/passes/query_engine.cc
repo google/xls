@@ -350,6 +350,12 @@ class ForwardingQueryEngine final : public QueryEngine {
     return real_.ImpliedNodeValue(predicate_bit_values, node);
   }
 
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return real_.ImpliedNodeTernary(predicate_bit_values, node);
+  }
+
   bool KnownEquals(const TreeBitLocation& a,
                    const TreeBitLocation& b) const override {
     return real_.KnownEquals(a, b);

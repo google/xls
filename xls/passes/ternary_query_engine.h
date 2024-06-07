@@ -75,6 +75,12 @@ class TernaryQueryEngine : public QueryEngine {
     return std::nullopt;
   }
 
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return std::nullopt;
+  }
+
   bool IsFullyKnown(Node* n) const override {
     if (!IsTracked(n) || TypeHasToken(n->GetType())) {
       return false;

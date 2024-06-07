@@ -132,6 +132,13 @@ class QueryEngine {
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const = 0;
 
+  // If we learn any bits of 'node' (true or false for all bits) when the bits
+  // in 'predicate_bit_values' have the given values, the corresponding
+  // TernaryVector is returned.
+  virtual std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const = 0;
+
   // Returns true if 'a' equals 'b'
   virtual bool KnownEquals(const TreeBitLocation& a,
                            const TreeBitLocation& b) const = 0;

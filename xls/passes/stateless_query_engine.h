@@ -28,6 +28,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/passes/query_engine.h"
@@ -79,6 +80,13 @@ class StatelessQueryEngine : public QueryEngine {
       return std::nullopt;
     }
     return literal->value().bits();
+  }
+
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    CHECK(node->GetType()->IsBits());
+    return GetTernary(node).Get({});
   }
 
   bool IsFullyKnown(Node* n) const override;

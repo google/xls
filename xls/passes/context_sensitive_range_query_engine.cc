@@ -436,6 +436,11 @@ class ProxyContextQueryEngine final : public QueryEngine {
       Node* node) const override {
     return std::nullopt;
   }
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return std::nullopt;
+  }
 
   bool KnownEquals(const TreeBitLocation& a,
                    const TreeBitLocation& b) const override {
