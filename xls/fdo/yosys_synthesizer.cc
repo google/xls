@@ -68,8 +68,8 @@ YosysSynthesizerFactory::CreateSynthesizer(
   YosysSynthesizerParameters yosys_synthesizer_parameters(
       scheduling_options.fdo_yosys_path(), scheduling_options.fdo_sta_path(),
       scheduling_options.fdo_synthesis_libraries(),
-      /*default_driver_cell=*/"",
-      /*default_load=*/"");
+      scheduling_options.fdo_default_driver_cell(),
+      scheduling_options.fdo_default_load());
   return CreateSynthesizer(yosys_synthesizer_parameters);
 }
 

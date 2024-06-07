@@ -181,6 +181,8 @@ SCHEDULING_FIELDS = {
     "fdo_yosys_path": "Absolute path of Yosys.",
     "fdo_sta_path": "Absolute path of OpenSTA.",
     "fdo_synthesis_libraries": "Synthesis and STA libraries.",
+    "fdo_default_driver_cell": "Cell to assume is driving primary inputs.",
+    "fdo_default_load": "Cell to assume is being driven by primary outputs.",
     "multi_proc": "If true, schedule all procs and codegen them all.",
 }
 

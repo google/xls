@@ -267,13 +267,16 @@ TEST_F(PipelineSchedulingPassTest, FdoWithMultipleProcs) {
       std::filesystem::path lib_path,
       GetXlsRunfilePath("@com_google_skywater_pdk_sky130_fd_sc_hd/timing/"
                         "sky130_fd_sc_hd__ff_100C_1v95.lib"));
-  auto scheduling_options = SchedulingOptions()
-                                .pipeline_stages(4)
-                                .clock_period_ps(2000)
-                                .use_fdo(true)
-                                .fdo_yosys_path(yosys_path.c_str())
-                                .fdo_sta_path(sta_path.c_str())
-                                .fdo_synthesis_libraries(lib_path.c_str());
+  auto scheduling_options =
+      SchedulingOptions()
+          .pipeline_stages(4)
+          .clock_period_ps(2000)
+          .use_fdo(true)
+          .fdo_yosys_path(yosys_path.c_str())
+          .fdo_sta_path(sta_path.c_str())
+          .fdo_synthesis_libraries(lib_path.c_str())
+          .fdo_default_driver_cell("sky130_fd_sc_hd__buf_2")
+          .fdo_default_load("sky130_fd_sc_hd__dfxtp_2");
   XLS_ASSERT_OK_AND_ASSIGN(::xls::synthesis::Synthesizer * synthesizer,
                            SetUpSynthesizer(scheduling_options));
 

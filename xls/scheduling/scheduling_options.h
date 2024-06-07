@@ -491,6 +491,22 @@ class SchedulingOptions {
     return fdo_synthesis_libraries_;
   }
 
+  // Cell to assume is driving primary inputs
+  SchedulingOptions& fdo_default_driver_cell(std::string_view value) {
+    fdo_default_driver_cell_ = value;
+    return *this;
+  }
+  std::string fdo_default_driver_cell() const {
+    return fdo_default_driver_cell_;
+  }
+
+  // Cell to assume is being driven by primary outputs
+  SchedulingOptions& fdo_default_load(std::string_view value) {
+    fdo_default_load_ = value;
+    return *this;
+  }
+  std::string fdo_default_load() const { return fdo_default_load_; }
+
   SchedulingOptions& schedule_all_procs(bool value) {
     schedule_all_procs_ = value;
     return *this;
@@ -525,6 +541,8 @@ class SchedulingOptions {
   std::string fdo_yosys_path_;
   std::string fdo_sta_path_;
   std::string fdo_synthesis_libraries_;
+  std::string fdo_default_driver_cell_;
+  std::string fdo_default_load_;
   bool schedule_all_procs_;
 };
 

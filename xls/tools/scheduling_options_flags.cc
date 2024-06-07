@@ -156,6 +156,10 @@ ABSL_FLAG(std::string, fdo_yosys_path, "", "Absolute path of yosys.");
 ABSL_FLAG(std::string, fdo_sta_path, "", "Absolute path of OpenSTA.");
 ABSL_FLAG(std::string, fdo_synthesis_libraries, "",
           "Synthesis and STA libraries.");
+ABSL_FLAG(std::string, fdo_default_driver_cell, "",
+          "Cell to assume is driving primary inputs");
+ABSL_FLAG(std::string, fdo_default_load, "",
+          "Cell to assume is being driven by primary outputs");
 // TODO: google/xls#869 - Remove when proc-scoped channels supplant old-style
 // procs.
 ABSL_FLAG(bool, multi_proc, false,
@@ -218,6 +222,8 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(fdo_yosys_path);
   POPULATE_FLAG(fdo_sta_path);
   POPULATE_FLAG(fdo_synthesis_libraries);
+  POPULATE_FLAG(fdo_default_driver_cell);
+  POPULATE_FLAG(fdo_default_load);
   POPULATE_FLAG(multi_proc);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
@@ -447,6 +453,8 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   scheduling_options.fdo_yosys_path(proto.fdo_yosys_path());
   scheduling_options.fdo_sta_path(proto.fdo_sta_path());
   scheduling_options.fdo_synthesis_libraries(proto.fdo_synthesis_libraries());
+  scheduling_options.fdo_default_driver_cell(proto.fdo_default_driver_cell());
+  scheduling_options.fdo_default_load(proto.fdo_default_load());
 
   scheduling_options.schedule_all_procs(proto.multi_proc());
 
