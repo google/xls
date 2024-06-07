@@ -46,9 +46,9 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
         sta_path_(sta_path),
         synthesis_libraries_(synthesis_libraries),
         sta_libraries_(sta_libraries),
-        save_temps_(save_temps),
         default_driver_cell_(default_driver_cell),
         default_load_(default_load),
+        save_temps_(save_temps),
         return_netlist_(return_netlist),
         synthesis_only_(synthesis_only) {}
 
