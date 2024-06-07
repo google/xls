@@ -311,6 +311,215 @@ absl::StatusOr<std::vector<OneHotSelect*>> MaybeSplitOneHotSelect(
   return new_ohses;
 }
 
+// Any type of select with only one non-literal-zero arm can be replaced with
+// an AND.
+//
+//  sel(p, cases=[x, 0]) => and(sign_ext(p == 0), x)
+//  sel(p, cases=[0, x]) => and(sign_ext(p == 1), x)
+//  one_hot_select(p, cases=[x, 0]) => and(sign_ext(p[0]), x)
+//  one_hot_select(p, cases=[0, x]) => and(sign_ext(p[1]), x)
+//  priority_select(p, cases=[x, 0]) => and(sign_ext(p[0]), x)
+//  priority_select(p, cases=[0, x]) => and(sign_ext(p == 2), x)
+//
+//  sel(p, cases=[x], default_value=0) => and(sign_ext(p == 0), x)
+//  one_hot_select(p, cases=[x])       => and(sign_ext(p[0]), x)
+//  priority_select(p, cases=[x])      => and(sign_ext(p), x)
+//
+//  sel(p, cases=[0], default_value=x) => and(sign_ext(p != 0), x)
+//
+// If the result is not bits-typed, we can still reduce it to a two-arm select
+// against a literal zero. (If a non-bits-typed select only has two arms,
+// there's no benefit, so we won't simplify the node.)
+//
+absl::StatusOr<bool> MaybeConvertSelectToMask(Node* node,
+                                              const QueryEngine& query_engine) {
+  if (!node->OpIn({Op::kSel, Op::kOneHotSel, Op::kPrioritySel})) {
+    return false;
+  }
+  if (!node->GetType()->IsBits() && node->operands().size() <= 3) {
+    // We already have a select with at most two arms; we can't simplify this
+    // any further for non-bits-typed operands.
+    return false;
+  }
+
+  std::optional<Node*> only_nonzero_value = std::nullopt;
+  Node* nonzero_condition = nullptr;
+  switch (node->op()) {
+    default:
+      return false;
+    case Op::kSel: {
+      Select* sel = node->As<Select>();
+      std::optional<int64_t> nonzero_arm = std::nullopt;
+      if (sel->default_value().has_value() &&
+          !query_engine.IsAllZeros(*sel->default_value())) {
+        nonzero_arm = -1;
+        only_nonzero_value = sel->default_value();
+      }
+      for (int64_t arm = 0; arm < sel->cases().size(); ++arm) {
+        Node* case_value = sel->get_case(arm);
+        if (query_engine.IsAllZeros(case_value)) {
+          continue;
+        }
+        if (only_nonzero_value.has_value()) {
+          // More than one non-zero value;
+          return false;
+        }
+
+        nonzero_arm = arm;
+        only_nonzero_value = case_value;
+      }
+      if (nonzero_arm.has_value()) {
+        VLOG(2) << absl::StrFormat("Select with one non-zero case: %s",
+                                   node->ToString());
+        if (*nonzero_arm == -1) {
+          XLS_ASSIGN_OR_RETURN(
+              Node * num_cases,
+              node->function_base()->MakeNode<Literal>(
+                  node->loc(), Value(UBits(sel->cases().size(),
+                                           sel->selector()->BitCountOrDie()))));
+          XLS_ASSIGN_OR_RETURN(
+              nonzero_condition,
+              node->function_base()->MakeNode<CompareOp>(
+                  sel->loc(), sel->selector(), num_cases, Op::kUGe));
+        } else if (sel->selector()->BitCountOrDie() == 1) {
+          if (*nonzero_arm == 0) {
+            XLS_ASSIGN_OR_RETURN(nonzero_condition,
+                                 node->function_base()->MakeNode<UnOp>(
+                                     sel->loc(), sel->selector(), Op::kNot));
+          } else {
+            XLS_RET_CHECK_EQ(*nonzero_arm, 1);
+            nonzero_condition = sel->selector();
+          }
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              Node * arm_number,
+              node->function_base()->MakeNode<Literal>(
+                  node->loc(), Value(UBits(*nonzero_arm,
+                                           sel->selector()->BitCountOrDie()))));
+          XLS_ASSIGN_OR_RETURN(
+              nonzero_condition,
+              node->function_base()->MakeNode<CompareOp>(
+                  sel->loc(), sel->selector(), arm_number, Op::kEq));
+        }
+      }
+      break;
+    }
+    case Op::kOneHotSel: {
+      OneHotSelect* sel = node->As<OneHotSelect>();
+      std::optional<int64_t> nonzero_arm = std::nullopt;
+      for (int64_t arm = 0; arm < sel->cases().size(); ++arm) {
+        Node* case_value = sel->get_case(arm);
+        if (query_engine.IsAllZeros(case_value)) {
+          continue;
+        }
+        if (only_nonzero_value.has_value()) {
+          // More than one non-zero value;
+          return false;
+        }
+
+        nonzero_arm = arm;
+        only_nonzero_value = case_value;
+      }
+      if (nonzero_arm.has_value()) {
+        VLOG(2) << absl::StrFormat("One-hot select with one non-zero case: %s",
+                                   node->ToString());
+        if (sel->selector()->BitCountOrDie() == 1) {
+          XLS_RET_CHECK_EQ(*nonzero_arm, 0);
+          nonzero_condition = sel->selector();
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              nonzero_condition,
+              node->function_base()->MakeNode<BitSlice>(
+                  sel->loc(), sel->selector(), /*start=*/*nonzero_arm,
+                  /*width=*/1));
+        }
+      }
+      break;
+    }
+    case Op::kPrioritySel: {
+      PrioritySelect* sel = node->As<PrioritySelect>();
+      std::optional<int64_t> nonzero_arm = std::nullopt;
+      for (int64_t arm = 0; arm < sel->cases().size(); ++arm) {
+        Node* case_value = sel->get_case(arm);
+        if (query_engine.IsAllZeros(case_value)) {
+          continue;
+        }
+        if (only_nonzero_value.has_value()) {
+          // More than one non-zero value;
+          return false;
+        }
+
+        nonzero_arm = arm;
+        only_nonzero_value = case_value;
+      }
+      if (nonzero_arm.has_value()) {
+        VLOG(2) << absl::StrFormat("Priority select with one non-zero case: %s",
+                                   node->ToString());
+        Node* truncated_selector;
+        if (sel->selector()->BitCountOrDie() == 1) {
+          truncated_selector = sel->selector();
+        } else {
+          XLS_ASSIGN_OR_RETURN(truncated_selector,
+                               node->function_base()->MakeNode<BitSlice>(
+                                   sel->loc(), sel->selector(), /*start=*/0,
+                                   /*width=*/*nonzero_arm + 1));
+        }
+        if (*nonzero_arm == 0) {
+          nonzero_condition = truncated_selector;
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              Node * matching_value,
+              node->function_base()->MakeNode<Literal>(
+                  sel->loc(),
+                  Value(Bits::PowerOfTwo(*nonzero_arm, *nonzero_arm + 1))));
+          XLS_ASSIGN_OR_RETURN(
+              nonzero_condition,
+              node->function_base()->MakeNode<CompareOp>(
+                  sel->loc(), truncated_selector, matching_value, Op::kEq));
+        }
+      }
+      break;
+    }
+  }
+
+  if (!only_nonzero_value.has_value()) {
+    // The select can't return any non-zero value.
+    VLOG(2) << absl::StrFormat("select with no non-zero cases: %s",
+                               node->ToString());
+    XLS_RETURN_IF_ERROR(
+        node->ReplaceUsesWithNew<Literal>(ZeroOfType(node->GetType()))
+            .status());
+    return true;
+  }
+
+  XLS_RET_CHECK_NE(nonzero_condition, nullptr);
+  if (node->GetType()->IsBits()) {
+    Node* mask;
+    if (node->BitCountOrDie() == 1) {
+      mask = nonzero_condition;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          mask, node->function_base()->MakeNode<ExtendOp>(
+                    node->loc(), nonzero_condition,
+                    /*new_bit_count=*/node->BitCountOrDie(), Op::kSignExt));
+    }
+    XLS_RETURN_IF_ERROR(
+        node->ReplaceUsesWithNew<NaryOp>(
+                std::vector<Node*>{*only_nonzero_value, mask}, Op::kAnd)
+            .status());
+    return true;
+  }
+  XLS_ASSIGN_OR_RETURN(Node * literal_zero,
+                       node->function_base()->MakeNode<Literal>(
+                           node->loc(), ZeroOfType(node->GetType())));
+  XLS_RETURN_IF_ERROR(
+      node->ReplaceUsesWithNew<Select>(nonzero_condition,
+                                       std::vector<Node*>({literal_zero}),
+                                       /*default_value=*/*only_nonzero_value)
+          .status());
+  return true;
+}
+
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                   int64_t opt_level) {
   // Select with a constant selector can be replaced with the respective
@@ -701,6 +910,17 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
+  // Since masking with an 'and' can't be reasoned through as easily (e.g., by
+  // conditional specialization), we want to avoid doing this until fairly late
+  // in the pipeline.
+  if (SplitsEnabled(opt_level)) {
+    XLS_ASSIGN_OR_RETURN(bool converted_to_mask,
+                         MaybeConvertSelectToMask(node, query_engine));
+    if (converted_to_mask) {
+      return true;
+    }
+  }
+
   // Literal zero cases or positions where the selector is zero can be removed
   // from OneHotSelects and priority selects.
   if (SplitsEnabled(opt_level) &&
@@ -759,47 +979,6 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         return true;
       }
     }
-  }
-
-  // A two-way select with one arm which is literal zero can be replaced with an
-  // AND.
-  //
-  //  sel(p cases=[x, 0]) => and(sign_ext(p), x)
-  //
-  // Since 'and' can't be reasoned through by conditional specialization and
-  // other passes as easily we want to avoid doing this until fairly late in the
-  // pipeline.
-  auto is_select_with_zero = [&](Node* n) {
-    if (!n->Is<Select>()) {
-      return false;
-    }
-    Select* sel = n->As<Select>();
-    return sel->GetType()->IsBits() && sel->selector()->BitCountOrDie() == 1 &&
-           sel->cases().size() == 2 &&
-           (IsLiteralZero(sel->get_case(0)) || IsLiteralZero(sel->get_case(1)));
-  };
-  if (SplitsEnabled(opt_level) && is_select_with_zero(node)) {
-    Select* sel = node->As<Select>();
-    int64_t nonzero_case_no = IsLiteralZero(sel->get_case(0)) ? 1 : 0;
-    Node* selector = sel->selector();
-    if (nonzero_case_no == 0) {
-      XLS_ASSIGN_OR_RETURN(selector, sel->function_base()->MakeNode<UnOp>(
-                                         sel->loc(), selector, Op::kNot));
-    }
-    XLS_ASSIGN_OR_RETURN(
-        Node * sign_ext_selector,
-        node->function_base()->MakeNode<ExtendOp>(
-            node->loc(), selector,
-            /*new_bit_count=*/sel->BitCountOrDie(), Op::kSignExt));
-    VLOG(2) << absl::StrFormat("Binary select with zero case: %s",
-                               node->ToString());
-    XLS_RETURN_IF_ERROR(
-        node->ReplaceUsesWithNew<NaryOp>(
-                std::vector<Node*>{sel->get_case(nonzero_case_no),
-                                   sign_ext_selector},
-                Op::kAnd)
-            .status());
-    return true;
   }
 
   // "Squeeze" the width of the mux when bits are known to reduce the cost of
@@ -872,8 +1051,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
            n->As<Select>()->cases().size() == 2;
   };
   if (is_2way_select(node)) {
-    //  The variable names correspond to the names of the nodes in the diagrams
-    //  below.
+    //  The variable names correspond to the names of the nodes in the
+    //  diagrams below.
     Select* sel0 = node->As<Select>();
     Node* p0 = sel0->selector();
     // The values below are by each matching cases below.
@@ -1054,8 +1233,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           Node * zero,
           node->function_base()->MakeNode<Literal>(
               node->loc(),
-              Value(
-                  UBits(0, /*bit_count=*/node->operand(0)->BitCountOrDie()))));
+              Value(UBits(0,
+                          /*bit_count=*/node->operand(0)->BitCountOrDie()))));
       XLS_ASSIGN_OR_RETURN(Node * operand_eq_zero,
                            node->function_base()->MakeNode<CompareOp>(
                                node->loc(), node->operand(0), zero, Op::kEq));
@@ -1073,9 +1252,9 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
             query_engine.ExactlyOneBitUnknown(node->operand(0));
         unknown_bit.has_value()) {
       Node* input = node->operand(0);
-      // When only one bit is unknown there are only two possible values, so we
-      // can strength reduce this to a select between the two possible values
-      // based on the unknown bit, which should unblock more subsequent
+      // When only one bit is unknown there are only two possible values, so
+      // we can strength reduce this to a select between the two possible
+      // values based on the unknown bit, which should unblock more subsequent
       // optimizations.
       // 1. Determine the unknown bit (for use as a selector).
       XLS_ASSIGN_OR_RETURN(
@@ -1089,8 +1268,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       const int64_t input_bit_count =
           input->GetType()->AsBitsOrDie()->bit_count();
 
-      // Build up inputs for the case where the unknown value is true and false,
-      // respectively.
+      // Build up inputs for the case where the unknown value is true and
+      // false, respectively.
       InlineBitmap input_on_true(input_bit_count);
       InlineBitmap input_on_false(input_bit_count);
       int64_t seen_unknown = 0;
@@ -1111,8 +1290,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           << "Query engine noted exactly one bit was unknown; saw unexpected "
              "number of unknown bits";
 
-      // Wrapper lambda that invokes the right priority for the one hot op based
-      // on the node metadata.
+      // Wrapper lambda that invokes the right priority for the one hot op
+      // based on the node metadata.
       auto do_one_hot = [&](const Bits& input) {
         OneHot* one_hot = node->As<OneHot>();
         if (one_hot->priority() == LsbOrMsb::kLsb) {

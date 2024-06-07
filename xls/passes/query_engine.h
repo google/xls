@@ -180,8 +180,8 @@ class QueryEngine {
   bool IsOne(const TreeBitLocation& bit) const;
   bool IsZero(const TreeBitLocation& bit) const;
 
-  // Returns whether every bit in the output of the given node is definitely one
-  // (or zero).
+  // Returns whether every bit in the output of the given node is definitely
+  // zero (or one). Always returns false if the node includes a token.
   bool IsAllZeros(Node* node) const;
   bool IsAllOnes(Node* node) const;
 

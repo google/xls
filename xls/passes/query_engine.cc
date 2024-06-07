@@ -211,31 +211,23 @@ bool QueryEngine::GetKnownMsb(Node* node) const {
 }
 
 bool QueryEngine::IsAllZeros(Node* node) const {
-  CHECK(node->GetType()->IsBits());
-  if (!IsTracked(node)) {
+  if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return false;
   }
-  TernaryVector ternary = GetTernary(node).Get({});
-  for (TernaryValue t : ternary) {
-    if (t != TernaryValue::kKnownZero) {
-      return false;
-    }
-  }
-  return true;
+  LeafTypeTree<TernaryVector> ternary_value = GetTernary(node);
+  return absl::c_all_of(ternary_value.elements(), [](const TernaryVector& v) {
+    return ternary_ops::IsKnownZero(v);
+  });
 }
 
 bool QueryEngine::IsAllOnes(Node* node) const {
-  CHECK(node->GetType()->IsBits());
-  if (!IsTracked(node)) {
+  if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return false;
   }
-  TernaryVector ternary = GetTernary(node).Get({});
-  for (TernaryValue t : ternary) {
-    if (t != TernaryValue::kKnownOne) {
-      return false;
-    }
-  }
-  return true;
+  LeafTypeTree<TernaryVector> ternary_value = GetTernary(node);
+  return absl::c_all_of(ternary_value.elements(), [](const TernaryVector& v) {
+    return ternary_ops::IsKnownOne(v);
+  });
 }
 
 bool QueryEngine::IsFullyKnown(Node* node) const {
