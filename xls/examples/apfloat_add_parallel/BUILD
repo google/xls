@@ -51,7 +51,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "apfloat_add_parallel_jit_wrapper",
-    src = ":apfloat_add_parallel.opt.ir",
+    src = ":apfloat_add_parallel_opt_ir",
     jit_wrapper_args = {
         "class_name": "Float32AddSe",
         "namespace": "xls::examples",

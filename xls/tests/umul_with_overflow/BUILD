@@ -38,7 +38,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "umul_with_overflow_21_21_18_jit_wrapper",
-    src = ":umul_with_overflow_21_21_18.opt.ir",
+    src = ":umul_with_overflow_21_21_18",
     jit_wrapper_args = {
         "class_name": "UmulWithOverflow212118",
         "function": "umul_with_overflow_21_21_18",
@@ -54,7 +54,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "umul_with_overflow_35_32_18_jit_wrapper",
-    src = ":umul_with_overflow_35_32_18.opt.ir",
+    src = ":umul_with_overflow_35_32_18",
     jit_wrapper_args = {
         "class_name": "UmulWithOverflow353218",
         "function": "umul_with_overflow_35_32_18",

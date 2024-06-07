@@ -370,13 +370,13 @@ xls_dslx_ir(
 
 xls_ir_opt_ir(
     name = "chaining_example_opt_ir",
-    src = ":chaining_example_ir.ir",
+    src = ":chaining_example_ir",
     opt_ir_file = "chaining_example_opt_ir.opt.ir",
 )
 
 xls_ir_verilog(
     name = "chaining_example_verilog",
-    src = ":chaining_example_opt_ir.opt.ir",
+    src = ":chaining_example_opt_ir",
     codegen_args = {
         "pipeline_stages": "1",
     },
@@ -385,7 +385,7 @@ xls_ir_verilog(
 
 xls_eval_ir_test(
     name = "chaining_example_eval_ir_test",
-    src = ":chaining_example_ir.ir",
+    src = ":chaining_example_ir",
 )
 
 xls_ir_equivalence_test(
@@ -396,7 +396,7 @@ xls_ir_equivalence_test(
 
 xls_benchmark_ir(
     name = "chaining_example_benchmark_ir",
-    src = ":chaining_example_opt_ir.opt.ir",
+    src = ":chaining_example_opt_ir",
 )
 
 ################################################################################
@@ -483,7 +483,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "chaining_example_opt_ir_jit_wrapper_main_cc",
-    src = ":chaining_example_opt_ir.opt.ir",
+    src = ":chaining_example_opt_ir",
     jit_wrapper_args = {
         "namespace": "not_xls::test",
     },
@@ -491,14 +491,14 @@ cc_xls_ir_jit_wrapper(
 
 xls_ir_opt_ir(
     name = "chaining_example_double_opt_ir",
-    src = ":chaining_example_ir.ir",
+    src = ":chaining_example_ir",
     opt_ir_file = "chaining_example_double_opt_ir.opt.ir",
     top = get_mangled_ir_symbol("chaining_example", "double"),
 )
 
 cc_xls_ir_jit_wrapper(
     name = "chaining_example_opt_ir_jit_wrapper_double_cc",
-    src = ":chaining_example_double_opt_ir.opt.ir",
+    src = ":chaining_example_double_opt_ir",
     jit_wrapper_args = {
         "class_name": "ChainingExample",
         "function": get_mangled_ir_symbol("chaining_example", "double"),
@@ -508,7 +508,7 @@ cc_xls_ir_jit_wrapper(
 
 xls_ir_opt_ir(
     name = "chaining_example_triple_run_only_opt_ir",
-    src = ":chaining_example_ir.ir",
+    src = ":chaining_example_ir",
     opt_ir_args = {
         "passes": "arith_simp",
     },
@@ -518,7 +518,7 @@ xls_ir_opt_ir(
 
 xls_ir_opt_ir(
     name = "chaining_example_triple_skip_passes_opt_ir",
-    src = ":chaining_example_triple_run_only_opt_ir.opt.ir",
+    src = ":chaining_example_triple_run_only_opt_ir",
     opt_ir_args = {
         "skip_passes": "arith_simp",
     },
@@ -668,14 +668,14 @@ xls_dslx_ir_native_rule(
 # The target is the native rule form of the 'chaining_example_opt_ir' target.
 xls_ir_opt_ir_native_rule(
     name = "chaining_example_opt_ir_native_rule",
-    src = ":chaining_example_ir.ir",
+    src = ":chaining_example_ir",
     top = get_mangled_ir_symbol("chaining_example", "main"),
 )
 
 # The target is the native rule form of the 'chaining_example_verilog' target.
 xls_ir_verilog_native_rule(
     name = "chaining_example_verilog_native_rule",
-    src = ":chaining_example_opt_ir.opt.ir",
+    src = ":chaining_example_opt_ir",
     codegen_args = {
         "pipeline_stages": "1",
     },
@@ -731,6 +731,12 @@ xls_ir_opt_ir(
     opt_ir_file = "xls_ir_opt_ir.opt.ir",
 )
 
+xls_ir_opt_ir(
+    name = "user_defined_output_filename_std_target_opt_ir",
+    src = ":user_defined_output_filename_ir",
+    opt_ir_file = "xls_ir_opt_ir_std_target.opt.ir",
+)
+
 xls_ir_verilog(
     name = "user_defined_output_filename_verilog",
     src = ":xls_ir_opt_ir.opt.ir",
@@ -740,6 +746,17 @@ xls_ir_verilog(
     module_sig_file = "xls_ir_verilog.sig.textproto",
     schedule_file = "xls_ir_verilog.schedule.textproto",
     verilog_file = "xls_ir_verilog.sv",
+)
+
+xls_ir_verilog(
+    name = "user_defined_output_filename_std_target_verilog",
+    src = ":user_defined_output_filename_std_target_opt_ir",
+    codegen_args = {
+        "pipeline_stages": "1",
+    },
+    module_sig_file = "xls_ir_verilog_std_target.sig.textproto",
+    schedule_file = "xls_ir_verilog_std_target.schedule.textproto",
+    verilog_file = "xls_ir_verilog_std_target.sv",
 )
 
 xls_dslx_ir_native_rule(
@@ -890,5 +907,5 @@ xls_dslx_cpp_type_library(
 ################################################################################
 xls_ir_cc_library(
     name = "die_if_odd_cc",
-    src = ":die_if_odd.opt.ir",
+    src = ":die_if_odd",
 )

@@ -89,7 +89,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "some_caps_opt_jit_wrapper",
-    src = ":manaul_chan_caps_streaming_configured_opt_ir.opt.ir",
+    src = ":manaul_chan_caps_streaming_configured_opt_ir",
     jit_wrapper_args = {
         "class_name": "SomeCapsOpt",
         "namespace": "xls::examples",

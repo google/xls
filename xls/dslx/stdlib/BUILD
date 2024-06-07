@@ -207,7 +207,7 @@ xls_ir_equivalence_test(
 
 xls_ir_cc_library(
     name = "float32_add_cc",
-    src = ":float32_add.opt.ir",
+    src = ":float32_add",
     namespaces = "xls,fp",
 )
 
@@ -223,7 +223,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_add_jit_wrapper",
-    src = ":float32_add.opt.ir",
+    src = ":float32_add",
     jit_wrapper_args = {
         "class_name": "Float32Add",
         "namespace": "xls::fp",
@@ -313,7 +313,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_mul_jit_wrapper",
-    src = ":float32_mul.opt.ir",
+    src = ":float32_mul",
     jit_wrapper_args = {
         "class_name": "Float32Mul",
         "namespace": "xls::fp",
@@ -355,7 +355,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_upcast_jit_wrapper",
-    src = ":float32_upcast.opt.ir",
+    src = ":float32_upcast",
     jit_wrapper_args = {
         "class_name": "F32ToF64",
         "namespace": "xls::fp",
@@ -398,7 +398,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_to_int32_wrapper",
-    src = ":float32_to_int32.opt.ir",
+    src = ":float32_to_int32",
     jit_wrapper_args = {
         "class_name": "Float32ToInt32",
         "function": get_mangled_ir_symbol("float32", "to_int32"),
@@ -417,7 +417,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_from_int32_wrapper",
-    src = ":float32_from_int32.opt.ir",
+    src = ":float32_from_int32",
     jit_wrapper_args = {
         "class_name": "Float32FromInt32",
         "function": get_mangled_ir_symbol("float32", "from_int32"),
@@ -478,7 +478,7 @@ xls_dslx_opt_ir(
 
 xls_ir_cc_library(
     name = "float32_fma_cc",
-    src = ":float32_fma.opt.ir",
+    src = ":float32_fma",
     namespaces = "xls,fp",
 )
 
@@ -496,7 +496,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_fma_jit_wrapper",
-    src = ":float32_fma.opt.ir",
+    src = ":float32_fma",
     jit_wrapper_args = {
         "class_name": "Float32Fma",
         "namespace": "xls::fp",
@@ -536,7 +536,7 @@ xls_dslx_opt_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_ldexp_jit_wrapper",
-    src = ":float32_ldexp.opt.ir",
+    src = ":float32_ldexp",
     jit_wrapper_args = {
         "class_name": "Float32Ldexp",
         "namespace": "xls::fp",
@@ -588,7 +588,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float32_fast_rsqrt_jit_wrapper",
-    src = ":float32_fast_rsqrt.opt.ir",
+    src = ":float32_fast_rsqrt",
     jit_wrapper_args = {
         "class_name": "Float32FastRsqrt",
         "namespace": "xls::fp",
@@ -663,7 +663,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float64_add_jit_wrapper",
-    src = ":float64_add.opt.ir",
+    src = ":float64_add",
     jit_wrapper_args = {
         "class_name": "Float64Add",
         "namespace": "xls::fp",
@@ -736,7 +736,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float64_mul_jit_wrapper",
-    src = ":float64_mul.opt.ir",
+    src = ":float64_mul",
     jit_wrapper_args = {
         "class_name": "Float64Mul",
         "namespace": "xls::fp",
@@ -785,7 +785,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "float64_fma_jit_wrapper",
-    src = ":float64_fma.opt.ir",
+    src = ":float64_fma",
     jit_wrapper_args = {
         "class_name": "Float64Fma",
         "namespace": "xls::fp",

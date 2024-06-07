@@ -73,7 +73,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "design_verilog",
-    src = ":design_opt_ir.opt.ir",
+    src = ":design_opt_ir",
     codegen_args = {
         "module_name": "design_top",
         "delay_model": "unit",

@@ -70,7 +70,7 @@ xls_dslx_opt_ir_test(
 
 cc_xls_ir_jit_wrapper(
     name = "crc32_jit_wrapper",
-    src = ":crc32.opt.ir",
+    src = ":crc32",
     jit_wrapper_args = {
         "class_name": "Crc32",
         "namespace": "xls::examples",

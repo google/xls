@@ -250,7 +250,7 @@ xls_benchmark_ir(
 
 cc_xls_ir_jit_wrapper(
     name = "sha256_jit_wrapper",
-    src = ":sha256.opt.ir",
+    src = ":sha256",
     jit_wrapper_args = {
         "class_name": "Sha256",
         "function": "main",
@@ -400,7 +400,7 @@ xls_ir_opt_ir(
     (
         xls_ir_verilog(
             name = "proc_iota_" + procmodule + "_sv",
-            src = ":proc_iota_" + procmodule + "_opt_ir.opt.ir",
+            src = ":proc_iota_" + procmodule + "_opt_ir",
             codegen_args = {
                 "module_name": "proc_iota_" + procmodule,
                 "generator": "pipeline",
@@ -586,7 +586,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "delay_sv",
-    src = ":delay_opt_ir.opt.ir",
+    src = ":delay_opt_ir",
     codegen_args = {
         "module_name": "delay_top",
         "generator": "pipeline",
@@ -668,7 +668,7 @@ xls_ir_opt_ir(
 
 xls_benchmark_ir(
     name = "delay_loopback_channel_benchmark_ir",
-    src = ":delay_loopback_channel_opt_ir.opt.ir",
+    src = ":delay_loopback_channel_opt_ir",
     benchmark_ir_args = {
         # TODO: With schedule generation this generates InstantiationOutput
         # nodes which are not supported by the block-jit. For now just disable
@@ -681,7 +681,7 @@ xls_benchmark_ir(
 
 xls_ir_verilog(
     name = "delay_loopback_channel_sv",
-    src = ":delay_loopback_channel_opt_ir.opt.ir",
+    src = ":delay_loopback_channel_opt_ir",
     codegen_args = {
         "module_name": "delay_top",
         "generator": "pipeline",
@@ -752,7 +752,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "constraint_sv",
-    src = ":constraint_opt_ir.opt.ir",
+    src = ":constraint_opt_ir",
     codegen_args = {
         "module_name": "constraint_top",
         "generator": "pipeline",
@@ -937,7 +937,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "serialized_decomposer_sv",
-    src = ":serialized_decomposer_opt_ir.opt.ir",
+    src = ":serialized_decomposer_opt_ir",
     codegen_args = {
         "module_name": "serialized_decomposer_top",
         "generator": "pipeline",

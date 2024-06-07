@@ -134,7 +134,7 @@ xls_cc_ir(
         ),
         xls_ir_verilog(
             name = "mem_iterated_read_{iterations}_v".format(iterations = read_iterations),
-            src = "mem_iterated_read_{iterations}.opt.ir".format(iterations = read_iterations),
+            src = "mem_iterated_read_{iterations}_opt_ir".format(iterations = read_iterations),
             codegen_args = {
                 "module_name": "mem_iterated_read",
                 "pipeline_stages": "2",
@@ -188,25 +188,24 @@ xls_cc_ir(
 
 xls_ir_opt_ir(
     name = "mux3_opt_ir",
-    src = ":mux3.ir",
-    opt_ir_file = "mux3_opt_ir.opt.ir",
+    src = ":mux3_ir",
 )
 
 xls_ir_opt_ir(
     name = "switch_opt_ir",
-    src = ":switch.ir",
+    src = ":switch_ir",
     opt_ir_file = "switch_opt_ir.opt.ir",
 )
 
 xls_ir_opt_ir(
     name = "mux1to2_opt_ir",
-    src = ":mux1to2.ir",
+    src = ":mux1to2_ir",
     opt_ir_file = "mux1to2_opt_ir.opt.ir",
 )
 
 xls_ir_opt_ir(
     name = "delay1rw_raw_opt_ir",
-    src = ":delay_raw.ir",
+    src = ":delay_raw_ir",
     opt_ir_args = {
         "inline_procs": "true",
     },
@@ -218,7 +217,7 @@ xls_ir_opt_ir(
 
 xls_ir_opt_ir(
     name = "delay1rw_rxw_opt_ir",
-    src = ":delay_rxw.ir",
+    src = ":delay_rxw_ir",
     opt_ir_args = {
         "inline_procs": "true",
     },
@@ -230,7 +229,7 @@ xls_ir_opt_ir(
 
 xls_ir_opt_ir(
     name = "delay_raw_1r1w_opt_ir",
-    src = ":delay_raw.ir",
+    src = ":delay_raw_ir",
     opt_ir_file = "delay_raw_1r1w.opt.ir",
     ram_rewrites = [
         ":delay_raw_ram1r1w_rewrites.textproto",
@@ -239,7 +238,7 @@ xls_ir_opt_ir(
 
 xls_ir_opt_ir(
     name = "delay_rxw_1r1w_opt_ir",
-    src = ":delay_rxw.ir",
+    src = ":delay_rxw_ir",
     opt_ir_file = "delay_rxw_1r1w.opt.ir",
     ram_rewrites = [
         ":delay_rxw_ram1r1w_rewrites.textproto",
@@ -248,13 +247,13 @@ xls_ir_opt_ir(
 
 xls_ir_opt_ir(
     name = "block_from_class_opt_ir",
-    src = ":block_from_class.ir",
+    src = ":block_from_class_ir",
     opt_ir_file = "block_from_class.opt.ir",
 )
 
 xls_ir_verilog(
     name = "mux3_comb_v",
-    src = ":mux3_opt_ir.opt.ir",
+    src = ":mux3_opt_ir",
     codegen_args = {
         "generator": "combinational",
         "module_name": "mux3_comb",
@@ -265,7 +264,7 @@ xls_ir_verilog(
 
 xls_ir_verilog(
     name = "mux3_stages_5_v",
-    src = ":mux3_opt_ir.opt.ir",
+    src = ":mux3_opt_ir",
     codegen_args = {
         "module_name": "mux3_stages_5",
         "pipeline_stages": "5",
@@ -285,7 +284,7 @@ xls_ir_verilog(
 
 xls_ir_verilog(
     name = "mux1to2_stages_5_v",
-    src = ":mux1to2_opt_ir.opt.ir",
+    src = ":mux1to2_opt_ir",
     codegen_args = {
         "module_name": "mux1to2_stages_5",
         "pipeline_stages": "5",
@@ -306,7 +305,7 @@ xls_ir_verilog(
 # Read-and-write delay variant with single-port external RAM.
 xls_ir_verilog(
     name = "delay_raw_1rw_v",
-    src = ":delay_raw_1rw.opt.ir",
+    src = ":delay1rw_raw_opt_ir",
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
@@ -333,7 +332,7 @@ xls_ir_verilog(
 
 xls_ir_verilog(
     name = "delay_rxw_1rw_v",
-    src = ":delay_rxw_1rw.opt.ir",
+    src = ":delay1rw_rxw_opt_ir",
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
@@ -360,7 +359,7 @@ xls_ir_verilog(
 
 xls_ir_verilog(
     name = "delay_raw_1r1w_v",
-    src = ":delay_raw_1r1w.opt.ir",
+    src = ":delay_raw_1r1w_opt_ir",
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
@@ -387,7 +386,7 @@ xls_ir_verilog(
 
 xls_ir_verilog(
     name = "delay_rxw_1r1w_v",
-    src = ":delay_rxw_1r1w.opt.ir",
+    src = ":delay_rxw_1r1w_opt_ir",
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
@@ -439,7 +438,7 @@ verilog_library(
 
 xls_ir_verilog(
     name = "block_from_class_v",
-    src = ":block_from_class.opt.ir",
+    src = ":block_from_class_opt_ir",
     codegen_args = {
         "module_name": "block_from_class",
         "pipeline_stages": "1",

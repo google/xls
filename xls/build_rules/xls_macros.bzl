@@ -634,7 +634,7 @@ Examples:
     verilog_file = codegen_target + ".v"
     xls_ir_verilog(
         name = codegen_target,
-        src = ":{}.opt.ir".format(opt_ir_target),
+        src = ":{}".format(opt_ir_target),
         codegen_args = codegen_args,
         verilog_file = verilog_file,
     )

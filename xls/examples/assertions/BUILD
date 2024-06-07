@@ -58,7 +58,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "assertions_comb_sv",
-    src = ":assertions_opt_ir.opt.ir",
+    src = ":assertions_opt_ir",
     codegen_args = {
         "module_name": "assertions_top",
         "generator": "combinational",
@@ -70,7 +70,7 @@ xls_ir_verilog(
 
 xls_ir_verilog(
     name = "assertions_4_stages_sv",
-    src = ":assertions_opt_ir.opt.ir",
+    src = ":assertions_opt_ir",
     codegen_args = {
         "module_name": "assertions_top",
         "generator": "pipeline",

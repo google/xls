@@ -19,7 +19,6 @@ load(
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
-    "get_input_infos",
     "get_original_input_files_for_xls",
     "get_output_filename_value",
     "get_runfiles_for_xls",
@@ -756,6 +755,13 @@ def _xls_ir_opt_ir_impl_wrapper(ctx):
         get_original_input_files_for_xls(ctx),
     )
 
+    existing_infos = []
+
+    # Some of our macros end up calling this on already opt-ed IR. This works
+    # fine but it could mean multiple OptIrArgInfos in the list if we use the
+    # normal get_input_infos
+    if ConvIrInfo in ctx.attr.src:
+        existing_infos.append(ctx.attr.src[ConvIrInfo])
     return [
         ir_result,
         ir_opt_info,
@@ -769,7 +775,7 @@ def _xls_ir_opt_ir_impl_wrapper(ctx):
             ),
             runfiles = runfiles,
         ),
-    ] + get_input_infos(ctx.attr.src)
+    ] + existing_infos
 
 xls_ir_opt_ir = rule(
     doc = """A build rule that optimizes an IR file.

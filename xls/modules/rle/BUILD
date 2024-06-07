@@ -95,7 +95,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "rle_enc_verilog",
-    src = ":rle_enc_opt_ir.opt.ir",
+    src = ":rle_enc_opt_ir",
     codegen_args = {
         "module_name": "rle_enc",
         "pipeline_stages": "2",
@@ -165,7 +165,7 @@ gds_write(
 
 xls_benchmark_ir(
     name = "rle_enc_ir_benchmark",
-    src = ":rle_enc_opt_ir.opt.ir",
+    src = ":rle_enc_opt_ir",
     benchmark_ir_args = {
         "pipeline_stages": "2",
     },
@@ -220,7 +220,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "rle_dec_verilog",
-    src = ":rle_dec_opt_ir.opt.ir",
+    src = ":rle_dec_opt_ir",
     codegen_args = {
         "module_name": "rle_dec",
         "delay_model": "unit",
@@ -291,7 +291,7 @@ gds_write(
 
 xls_benchmark_ir(
     name = "rle_dec_ir_benchmark",
-    src = ":rle_dec_opt_ir.opt.ir",
+    src = ":rle_dec_opt_ir",
     benchmark_ir_args = {
         "pipeline_stages": "2",
         "delay_model": "unit",

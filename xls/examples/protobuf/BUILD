@@ -57,7 +57,7 @@ xls_ir_opt_ir(
 
 xls_ir_verilog(
     name = "varint_encode_sv",
-    src = ":varint_encode_opt_ir.opt.ir",
+    src = ":varint_encode_opt_ir",
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "asap7",
@@ -109,7 +109,7 @@ xls_dslx_test(
 #
 # xls_ir_verilog(
 #     name = "varint_streaming_decode_sv",
-#     src = ":varint_streaming_decode_opt_ir.opt.ir",
+#     src = ":varint_streaming_decode_opt_ir",
 #     codegen_args = {
 #         "module_name": "varint_streaming_decode",
 #         "generator": "pipeline",
