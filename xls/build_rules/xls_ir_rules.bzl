@@ -131,6 +131,7 @@ def _convert_to_ir(ctx, src):
       A tuple with the following elements in the order presented:
         1. The runfiles to convert the IR file.
         1. The converted IR file.
+        1. The binary ir-interface proto
     """
     ir_converter_tool = ctx.executable._xls_ir_converter_tool
     IR_CONV_FLAGS = (
@@ -175,6 +176,8 @@ def _convert_to_ir(ctx, src):
         ctx.attr.name + _IR_FILE_EXTENSION,
     )
     ir_file = ctx.actions.declare_file(ir_filename)
+    interface_proto = ctx.actions.declare_file(ctx.attr.name + ".interface.binpb")
+    my_args.add("-interface_proto_file", interface_proto.path)
     my_args.add("-output_file", ir_file.path)
     my_args.add(src.path)
 
@@ -182,7 +185,7 @@ def _convert_to_ir(ctx, src):
     runfiles = get_runfiles_for_xls(ctx, [], [src])
 
     ctx.actions.run(
-        outputs = [ir_file],
+        outputs = [ir_file, interface_proto],
         # The IR converter executable is a tool needed by the action.
         tools = [ir_converter_tool],
         # The files required for converting the DSLX source file.
@@ -193,7 +196,7 @@ def _convert_to_ir(ctx, src):
         progress_message = "Converting DSLX file to XLS IR: %s" % (src.path),
         toolchain = None,
     )
-    return runfiles, ir_file
+    return runfiles, ir_file, interface_proto
 
 def _optimize_ir(ctx, src, original_input_files):
     """Returns the runfiles and a File referencing the optimized IR file.
@@ -613,13 +616,13 @@ def xls_dslx_ir_impl(ctx):
 
     src = srcs[0]
 
-    runfiles, ir_file = _convert_to_ir(ctx, src)
+    runfiles, ir_file, interface_proto = _convert_to_ir(ctx, src)
 
     dslx_info = get_DslxInfo_from_dslx_library_as_input(ctx)
     return [
         IrFileInfo(ir_file = ir_file),
         dslx_info,
-        ConvIrInfo(original_input_files = srcs),
+        ConvIrInfo(original_input_files = srcs, ir_interface = interface_proto),
         [ir_file],
         runfiles,
     ]

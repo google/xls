@@ -51,6 +51,8 @@ ConvIrInfo = provider(
           "target. It is created and returned by the xls_dslx_ir rule.",
     fields = {
         "original_input_files": "List[File]: The original source files.",
+        "ir_interface": "File: The IR interface file containing metadata about shape of the " +
+                        "design and sv metadata.",
     },
 )
 
