@@ -61,6 +61,10 @@ ABSL_FLAG(std::string, synthesis_libraries, "",
 ABSL_FLAG(
     std::string, sta_libraries, "",
     "The technology library/libraries file to target for STA; *.lib * lib.gz");
+ABSL_FLAG(std::string, default_driver_cell, "",
+          "The default driver cell to use during synthesis.");
+ABSL_FLAG(std::string, default_load, "",
+          "The default load cell to use during synthesis.");
 
 namespace xls {
 namespace synthesis {
@@ -106,7 +110,8 @@ void RealMain() {
   std::string server_address = absl::StrCat("0.0.0.0:", port);
   YosysSynthesisServiceImpl service(
       yosys_path, nextpnr_path, synthesis_target, sta_path, synthesis_libraries,
-      sta_libraries, absl::GetFlag(FLAGS_save_temps),
+      sta_libraries, absl::GetFlag(FLAGS_default_driver_cell),
+      absl::GetFlag(FLAGS_default_load), absl::GetFlag(FLAGS_save_temps),
       absl::GetFlag(FLAGS_return_netlist), synthesis_only);
 
   ::grpc::ServerBuilder builder;

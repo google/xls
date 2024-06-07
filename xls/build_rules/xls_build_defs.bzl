@@ -58,7 +58,6 @@ load(
 )
 load(
     "//xls/build_rules:xls_macros.bzl",
-    _xls_delay_model_generation = "xls_delay_model_generation",
     _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
     _xls_dslx_fmt_test_macro = "xls_dslx_fmt_test_macro",
     _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
@@ -68,6 +67,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
+    _xls_delay_model_generation = "xls_delay_model_generation",
     _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
 )
 load(

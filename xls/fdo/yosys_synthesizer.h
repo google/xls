@@ -39,10 +39,13 @@ class YosysSynthesizer : public Synthesizer {
  public:
   explicit YosysSynthesizer(std::string_view yosys_path,
                             std::string_view sta_path,
-                            std::string_view synthesis_libraries)
+                            std::string_view synthesis_libraries,
+                            std::string_view default_driver_cell,
+                            std::string_view default_load)
       : Synthesizer("yosys"),
         service_(yosys_path, /*nextpnr_path=*/"", /*synthesis_target=*/"",
                  sta_path, synthesis_libraries, synthesis_libraries,
+                 default_driver_cell, default_load,
                  /*save_temps=*/false, /*return_netlist=*/false,
                  /*synthesis_only=*/false) {}
 
@@ -59,21 +62,29 @@ class YosysSynthesizerParameters : public SynthesizerParameters {
  public:
   explicit YosysSynthesizerParameters(std::string_view yosys_path,
                                       std::string_view sta_path,
-                                      std::string_view synthesis_libraries)
+                                      std::string_view synthesis_libraries,
+                                      std::string_view default_driver_cell,
+                                      std::string_view default_load)
       : SynthesizerParameters("yosys"),
         yosys_path_(yosys_path),
         sta_path_(sta_path),
-        synthesis_libraries_(synthesis_libraries) {}
+        synthesis_libraries_(synthesis_libraries),
+        default_driver_cell_(default_driver_cell),
+        default_load_(default_load) {}
   ~YosysSynthesizerParameters() override = default;
 
   std::string yosys_path() const { return yosys_path_; }
   std::string sta_path() const { return sta_path_; }
   std::string synthesis_libraries() const { return synthesis_libraries_; }
+  std::string default_driver_cell() const { return default_driver_cell_; }
+  std::string default_load() const { return default_load_; }
 
  private:
   std::string yosys_path_;
   std::string sta_path_;
   std::string synthesis_libraries_;
+  std::string default_driver_cell_;
+  std::string default_load_;
 };
 
 // An abstract class that can construct synthesizers. Meant to be passed to the

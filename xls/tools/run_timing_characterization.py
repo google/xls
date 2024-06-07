@@ -79,6 +79,16 @@ _STA_LIBS = flags.DEFINE_string(
     'Path to static timing library or libraries; '
     'only needed if different from synth_libs',
 )
+_DEFAULT_DRIVER_CELL = flags.DEFINE_string(
+    'default_driver_cell',
+    '',
+    'The default driver cell to use during synthesis',
+)
+_DEFAULT_LOAD = flags.DEFINE_string(
+    'default_load',
+    '',
+    'The default load cell to use during synthesis',
+)
 _OUT_PATH = flags.DEFINE_string('out_path', None, 'Path for output text proto')
 
 # The options below are used when bazel_bin_path is NOT specified
@@ -281,28 +291,32 @@ def _do_worker_task(config: WorkerConfig):
     logging.info('  Using Yosys  : %s', config.yosys_bin)
     logging.info('  Using STA    : %s', config.sta_bin)
 
-  server = [config.server_bin]
-  server.append(f'--yosys_path={config.yosys_bin}')
-  server.append(f"--synthesis_libraries={' '.join(config.synthesis_libraries)}")
+  server = [repr(config.server_bin)]
+  server.append(f'--yosys_path={config.yosys_bin!r}')
+  server.append(
+      f"--synthesis_libraries={' '.join(config.synthesis_libraries)!r}"
+  )
   server.append('--return_netlist=false')
 
-  server.append(f'--sta_path={config.sta_bin}')
-  server.append(f"--sta_libraries=\"{' '.join(config.sta_libraries)}\"")
+  server.append(f'--sta_path={config.sta_bin!r}')
+  server.append(f"--sta_libraries={' '.join(config.sta_libraries)!r}")
+  if _DEFAULT_DRIVER_CELL.value:
+    server.append(f'--default_driver_cell={_DEFAULT_DRIVER_CELL.value!r}')
+  if _DEFAULT_LOAD.value:
+    server.append(f'--default_load={_DEFAULT_LOAD.value!r}')
 
   server.append(f'--port={config.rpc_port}')
-  server.append(' '.join(config.server_extra_args))
+  server.extend(repr(arg) for arg in config.server_extra_args)
 
-  server_cmd = repr(' '.join(server))
-  server_cmd = server_cmd.replace("'", '')
+  server_cmd = ' '.join(server)
 
-  client = [config.client_bin]
-  client.append(f'--checkpoint_path {config.client_checkpoint_file}')
-  client.append(' '.join(config.client_args))
-  client.append(' '.join(config.client_extra_args))
+  client = [repr(config.client_bin)]
+  client.append(f'--checkpoint_path {config.client_checkpoint_file!r}')
+  client.extend(repr(arg) for arg in config.client_args)
+  client.extend(repr(arg) for arg in config.client_extra_args)
   client.append(f'--port={config.rpc_port}')
 
-  client_cmd = repr(' '.join(client))
-  client_cmd = client_cmd.replace("'", '')
+  client_cmd = ' '.join(client)
 
   # create a checkpoint file if not allready there
   with open(config.client_checkpoint_file, 'w') as f:

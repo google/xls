@@ -91,9 +91,34 @@ YosysSynthesisServiceImpl::RunSubprocess(
   return stdout_stderr_status;
 }
 
+// Build ABC constraints file contents for stdcell backend
+std::string YosysSynthesisServiceImpl::BuildAbcConstraints(
+    const CompileRequest* request) const {
+  std::vector<std::string> abc_constr_vec;
+  std::string abc_constr;
+
+  if (!default_driver_cell_.empty()) {
+    std::string set_default_driver =
+        absl::StrFormat("set_driving_cell %s", default_driver_cell_);
+    abc_constr_vec.push_back(set_default_driver);
+  }
+
+  if (!default_load_.empty()) {
+    std::string set_default_load =
+        absl::StrFormat("set_load %s", default_load_);
+    abc_constr_vec.push_back(set_default_load);
+  }
+
+  abc_constr = absl::StrJoin(abc_constr_vec, "\n");
+
+  VLOG(1) << "about to start, ABC constraints: " << abc_constr;
+  return abc_constr;
+}
+
 // Build yosys synthesis script contents for stdcell backend
 std::string YosysSynthesisServiceImpl::BuildYosysTcl(
-    const CompileRequest* request, const std::filesystem::path& verilog_path,
+    const CompileRequest* request, const std::filesystem::path& abc_constr_path,
+    const std::filesystem::path& verilog_path,
     const std::filesystem::path& json_path,
     const std::filesystem::path& netlist_path) const {
   std::vector<std::string> yosys_tcl_vec;
@@ -124,8 +149,9 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
       "\"+strash;fraig;scorr;retime,%s;strash;dch,-f;map,-M,1,%s;"
       "topo;stime;buffer;topo;stime;minsize;"
       "stime;upsize;stime;dnsize;stime\""
-      " {*}$::env(DONT_USE_ARGS)",
-      delay_target, synthesis_libraries_, delay_target, delay_target);
+      " -constr %s {*}$::env(DONT_USE_ARGS)",
+      delay_target, synthesis_libraries_, delay_target, delay_target,
+      abc_constr_path.string());
   const std::string perform_cleanup =
       "setundef -zero\n" "splitnets";
   const std::string perform_optimizations =
@@ -196,9 +222,14 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
         RunSubprocess({yosys_path_, "-p", yosys_cmd, verilog_path.string()}));
   } else {
     // Yosys for stdcell backend
+    std::filesystem::path abc_constr_path =
+        temp_dir_path / "abc_constraints.constr";
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(abc_constr_path, BuildAbcConstraints(request)));
     std::filesystem::path yosys_tcl_path = temp_dir_path / "yosys.tcl";
-    std::string yosys_tcl = BuildYosysTcl(request, verilog_path,
-                                           synth_json_path, synth_verilog_path);
+    std::string yosys_tcl =
+        BuildYosysTcl(request, abc_constr_path, verilog_path, synth_json_path,
+                      synth_verilog_path);
     XLS_RETURN_IF_ERROR(SetFileContents(yosys_tcl_path, yosys_tcl));
     LOG(INFO) << "Running Yosys:  command file: " << yosys_tcl_path;
     XLS_ASSIGN_OR_RETURN(string_pair,
@@ -331,7 +362,7 @@ std::string YosysSynthesisServiceImpl::BuildSTACmds(
       absl::StrFormat("report_tns report_wns");
 
   const std::string perform_report_checks = absl::StrFormat(
-      "report_checks -path_delay min_max -fields {slew cap input nets"
+      "report_checks -path_delay min_max -fields {slew cap input nets "
       "fanout} -format full_clock_expanded");
 
   const std::string perform_exit = absl::StrFormat("exit");

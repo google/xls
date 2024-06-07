@@ -38,6 +38,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
       std::string_view yosys_path, std::string_view nextpnr_path,
       std::string_view synthesis_target, std::string_view sta_path,
       std::string_view synthesis_libraries, std::string_view sta_libraries,
+      std::string_view default_driver_cell, std::string_view default_load,
       bool save_temps, bool return_netlist, bool synthesis_only)
       : yosys_path_(yosys_path),
         nextpnr_path_(nextpnr_path),
@@ -46,6 +47,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
         synthesis_libraries_(synthesis_libraries),
         sta_libraries_(sta_libraries),
         save_temps_(save_temps),
+        default_driver_cell_(default_driver_cell),
+        default_load_(default_load),
         return_netlist_(return_netlist),
         synthesis_only_(synthesis_only) {}
 
@@ -61,11 +64,15 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
   absl::StatusOr<std::pair<std::string, std::string>> RunSubprocess(
       absl::Span<const std::string> args) const;
 
+  // Build ABC constraints file contents for stdcell backend
+  std::string BuildAbcConstraints(const CompileRequest* request) const;
+
   // Build yosys synthesis script contents for stdcell backend
   std::string BuildYosysTcl(const CompileRequest* request,
-                             const std::filesystem::path& verilog_path,
-                             const std::filesystem::path& json_path,
-                             const std::filesystem::path& netlist_path) const;
+                            const std::filesystem::path& abc_constr_path,
+                            const std::filesystem::path& verilog_path,
+                            const std::filesystem::path& json_path,
+                            const std::filesystem::path& netlist_path) const;
 
   // Invokes yosys and nextpnr to synthesis the verilog given in the
   // CompileRequest.
@@ -91,6 +98,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
   std::string sta_path_;
   std::string synthesis_libraries_;
   std::string sta_libraries_;
+  std::string default_driver_cell_;
+  std::string default_load_;
   bool save_temps_;
   bool return_netlist_;
   bool synthesis_only_;

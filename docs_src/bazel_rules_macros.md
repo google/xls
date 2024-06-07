@@ -187,6 +187,45 @@ Example:
 | <a id="xls_benchmark_verilog-verilog_target"></a>verilog_target |  The verilog target to benchmark.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 
+<a id="xls_delay_model_generation"></a>
+
+## xls_delay_model_generation
+
+<pre>
+xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-samples_file">samples_file</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>)
+</pre>
+
+Builds a script to generate an XLS delay model for one PDK corner.
+
+This rule gathers the locations of the required dependencies
+(Yosys, OpenSTA, helper scripts, and cell libraries) and
+generates a wrapper script that invokes "run_timing_characterization"
+with the dependency locations provided as args.
+
+Any extra runtime args will get passed in to the
+"run_timing_characterization" script (e.g. "--debug" or "--quick_run").
+
+The script must be "run" from the root of the workspace
+to perform the timing characterization.  The output textproto
+will be produced in the current directory (which, as just
+stated, must be the root of the workspace).
+
+Currently, only a subset of XLS operators are characterized,
+including most arithmetic, logical, and shift operators.
+However, many common operators such as "concat", "bit_slice",
+and "encode" are missing, and so the delay model that is
+currently produced should be considered INCOMPLETE.
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="xls_delay_model_generation-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="xls_delay_model_generation-samples_file"></a>samples_file |  Proto providing sample points.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_delay_model_generation-standard_cells"></a>standard_cells |  Target for the PDK; will use the target's default corner.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+
+
 <a id="xls_dslx_library"></a>
 
 ## xls_dslx_library
@@ -687,47 +726,6 @@ Examples:
 | <a id="xls_benchmark_ir-ir_tags"></a>ir_tags |  <p align="center"> - </p>   |  `None` |
 | <a id="xls_benchmark_ir-synth_tags"></a>synth_tags |  <p align="center"> - </p>   |  `None` |
 | <a id="xls_benchmark_ir-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
-
-
-<a id="xls_delay_model_generation"></a>
-
-## xls_delay_model_generation
-
-<pre>
-xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>, <a href="#xls_delay_model_generation-samples_file">samples_file</a>, <a href="#xls_delay_model_generation-kwargs">kwargs</a>)
-</pre>
-
-Generate an XLS delay model for one PDK corner.
-
-This macro gathers the locations of the required dependencies
-(Yosys, OpenSTA, helper scripts, and cell libraries) and
-generates a wrapper script that invokes "run_timing_characterization"
-with the dependency locations provided as args.
-
-Any extra runtime args will get passed in to the
-"run_timing_characterization" script (e.g. "--debug" or "--quick_run").
-
-The script must be "run" from the root of the workspace
-to perform the timing characterization.  The output textproto
-will be produced in the current directory (which, as just
-stated, must be the root of the workspace).
-
-Currently, only a subset of XLS operators are characterized,
-including most arithmetic, logical, and shift operators.
-However, many common operators such as "concat", "bit_slice",
-and "encode" are missing, and so the delay model that is
-currently produced should be considered INCOMPLETE.
-
-
-**PARAMETERS**
-
-
-| Name  | Description | Default Value |
-| :------------- | :------------- | :------------- |
-| <a id="xls_delay_model_generation-name"></a>name |  Used as basename for both the script and the output textproto.   |  none |
-| <a id="xls_delay_model_generation-standard_cells"></a>standard_cells |  Label for the PDK (possibly specifying a non-default corner), with the assumption that $location will return the timing (Liberty) library for the PDK corner.   |  none |
-| <a id="xls_delay_model_generation-samples_file"></a>samples_file |  Path to proto providing sample points.   |  none |
-| <a id="xls_delay_model_generation-kwargs"></a>kwargs |  Accepts add'l keyword arguments. Passed to native.genrule().   |  none |
 
 
 <a id="xls_dslx_cpp_type_library"></a>
