@@ -579,10 +579,10 @@ corresponding source position:
 ```
 [...]
 [ RUN UNITTEST  ] test_shifty
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] x: 42 y: 4
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] y as s8: 4
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] x: 42 y: 7
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] y as s8: -1
+I0607 10:11:02.897455  810431 shifty.x:6] x: 42 y: 4
+I0607 10:11:02.897462  810431 shifty.x:8] y as s8: 0
+I0607 10:11:02.908182  810431 shifty.x:6] x: 42 y: 7
+I0607 10:11:02.908208  810431 shifty.x:8] y as s8: -1
 [            OK ]
 [...]
 ```
