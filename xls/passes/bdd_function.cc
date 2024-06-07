@@ -500,7 +500,7 @@ bool IsCheapForBdds(const Node* node) {
 
   auto is_cheap_when_narrow = [](const Node* node) {
     return node->Is<CompareOp>() || node->Is<OneHot>() ||
-           node->Is<OneHotSelect>();
+           node->Is<OneHotSelect>() || node->Is<PrioritySelect>();
   };
 
   int64_t width = node->GetType()->GetFlatBitCount();

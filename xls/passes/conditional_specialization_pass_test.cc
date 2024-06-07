@@ -34,6 +34,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -294,6 +295,113 @@ fn f(s: bits[1], x: bits[8], y: bits[8]) -> bits[8] {
   EXPECT_THAT(
       f->return_value(),
       m::Select(m::Param("s"), {m::Neg(m::Neg(m::Param("x"))), m::Param("y")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, SpecializePrioritySelectSimple) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[2], b: bits[30], case0: bits[32]) -> bits[32] {
+  case1: bits[32] = concat(a, b)
+  ret priority_sel.2: bits[32] = priority_sel(a, cases=[case0, case1])
+}
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Param("a"),
+                  {m::Param("case0"),
+                   m::Concat(m::Literal("bits[2]:0b10"), m::Param("b"))}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       SpecializePrioritySelectMultipleBranches) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[3], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+  a_p0: bits[1] = bit_slice(a, start=0, width=1)
+  addend0: bits[32] = zero_ext(a_p0, new_bit_count=32)
+  a_p1: bits[2] = bit_slice(a, start=0, width=2)
+  addend1: bits[32] = zero_ext(a_p1, new_bit_count=32)
+  addend2: bits[32] = zero_ext(a, new_bit_count=32)
+  case0: bits[32] = add(addend0, x)
+  case1: bits[32] = add(addend1, y)
+  case2: bits[32] = add(addend2, z)
+  ret priority_sel.4: bits[32] = priority_sel(a, cases=[case0, case1, case2])
+}
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::Param("a"), {m::Add(m::Literal(1), m::Param("x")),
+                                        m::Add(m::Literal(2), m::Param("y")),
+                                        m::Add(m::Literal(4), m::Param("z"))}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       SpecializePrioritySelectSelectorExpression) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32], x: bits[1]) -> bits[1] {
+  literal.1: bits[32] = literal(value=7)
+  ult.2: bits[1] = ult(a, literal.1)
+  not.3: bits[1] = not(ult.2)
+  selector: bits[2] = concat(not.3, ult.2)
+  ret priority_sel.5: bits[1] = priority_sel(selector, cases=[ult.2, x])
+}
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Concat(m::Not(), m::ULt(m::Param("a"), m::Literal(7))),
+                  {m::Literal(1), m::Param("x")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       SpecializePrioritySelectSelectorExpressionNegative) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32], x: bits[1]) -> bits[1] {
+  literal.1: bits[32] = literal(value=7)
+  ult.2: bits[1] = ult(a, literal.1)
+  not.3: bits[1] = not(ult.2)
+  selector: bits[2] = concat(ult.2, not.3)
+  ret priority_sel.5: bits[1] = priority_sel(selector, cases=[ult.2, x])
+}
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Concat(m::ULt(m::Param("a"), m::Literal(7)), m::Not()),
+                  {m::Literal(0), m::Param("x")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       SpecializePrioritySelectWithDuplicateCaseArms) {
+  // If an expression is used as more than one arm of the select it should not
+  // be transformed because the same expression is used for multiple case
+  // values.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[2], y: bits[32]) -> bits[32] {
+  zero_ext.1: bits[32] = zero_ext(a, new_bit_count=32)
+  add: bits[32] = add(zero_ext.1, y)
+  ret sel: bits[32] = priority_sel(a, cases=[add, add])
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(ConditionalSpecializationPassTest, LongSelectChain) {
