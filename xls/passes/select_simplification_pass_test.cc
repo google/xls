@@ -584,6 +584,48 @@ TEST_F(SelectSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
+TEST_F(SelectSimplificationPassTest, PrioritySelectFeedingPrioritySelect) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y])
+       ret priority_sel.2: bits[32] = priority_sel(p1, cases=[priority_sel.1, z])
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Concat(
+              m::BitSlice(m::Param("p1"), /*start=*/Eq(1), /*width=*/Eq(1)),
+              m::And(m::BitSlice(m::Param("p1"), /*start=*/Eq(0),
+                                 /*width=*/Eq(1)),
+                     m::Eq(m::Param("p0"), m::Literal(0))),
+              m::And(m::SignExt(m::BitSlice(m::Param("p1"), /*start=*/Eq(0),
+                                            /*width=*/Eq(1))),
+                     m::Param("p0"))),
+          /*cases=*/{m::Param("x"), m::Param("y"), m::Literal(0),
+                     m::Param("z")}));
+}
+
+TEST_F(SelectSimplificationPassTest,
+       PrioritySelectFeedingPrioritySelectWithMultipleUses) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y])
+       neg.2: bits[32] = neg(priority_sel.1)
+       priority_sel.3: bits[32] = priority_sel(p1, cases=[priority_sel.1, z])
+       ret add.4: bits[32] = add(neg.2, priority_sel.3)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
 TEST_F(SelectSimplificationPassTest, OneHotSelectChain) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
