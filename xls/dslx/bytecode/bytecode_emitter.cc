@@ -1071,8 +1071,8 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       XLS_RETURN_IF_ERROR(node->args().at(0)->AcceptExpr(this));
 
       std::vector<FormatStep> steps;
-      steps.push_back(absl::StrCat("trace of ", node->args()[0]->ToString(),
-                                   " @ ", node->span().ToString(), ": "));
+      steps.push_back(
+          absl::StrCat("trace of ", node->args()[0]->ToString(), ": "));
       steps.push_back(options_.format_preference);
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kTrace,
                                    Bytecode::TraceData(std::move(steps), {})));

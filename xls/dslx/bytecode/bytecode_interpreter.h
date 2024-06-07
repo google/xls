@@ -45,11 +45,14 @@ class ProcInstance;
 using PostFnEvalHook = std::function<absl::Status(
     const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
     const InterpValue& got)>;
-using TraceHook = std::function<void(std::string_view)>;
+using TraceHook =
+    std::function<void(/*entry=*/std::string_view, /*file=*/std::string_view,
+                       /*line=*/int)>;
 
 // Trace hook which logs trace messages to INFO.
-inline void InfoLoggingTraceHook(std::string_view entry) {
-  XLS_LOG_LINES(INFO, entry);
+inline void InfoLoggingTraceHook(std::string_view entry, std::string_view file,
+                                 int line) {
+  XLS_LOG_LINES_LOC(INFO, entry, file, line);
 }
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"

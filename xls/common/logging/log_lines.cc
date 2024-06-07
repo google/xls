@@ -24,7 +24,7 @@ namespace xls {
 namespace logging {
 
 void LogLines(absl::LogSeverity severity, std::string_view text,
-              const char* file_name, int line_number) {
+              std::string_view file_name, int line_number) {
   // Since there are multiple lines, using FATAL will cause only
   // the first line to be printed, so downgrade to ERROR, but
   // remember that it is FATAL so that we abort after logging everything.
