@@ -42,7 +42,8 @@ namespace xls::dslx {
 
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
-    ImportData* import_data, std::vector<CommentData>* comments) {
+    ImportData* import_data, std::vector<CommentData>* comments,
+    DslxParserOptions options) {
   XLS_RET_CHECK(import_data != nullptr);
 
   // The outermost import doesn't have a real import statement associated with
@@ -55,15 +56,15 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
   };
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                       ParseModule(text, path, module_name, comments));
+                       ParseModule(text, path, module_name, comments, options));
   return TypecheckModule(std::move(module), path, import_data);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     std::string_view text, std::string_view path, std::string_view module_name,
-    std::vector<CommentData>* comments) {
+    std::vector<CommentData>* comments, DslxParserOptions options) {
   Scanner scanner{std::string{path}, std::string{text}};
-  Parser parser(std::string{module_name}, &scanner);
+  Parser parser(std::string{module_name}, &scanner, options);
   XLS_ASSIGN_OR_RETURN(auto module, parser.ParseModule());
   if (comments != nullptr) {
     *comments = scanner.PopComments();

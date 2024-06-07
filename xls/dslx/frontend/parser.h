@@ -82,7 +82,7 @@ struct DslxParserOptions {
   // TODO(https://github.com/google/xls/issues/1401): Remove support for the
   // false token-param option.
   ProcNextImplicitTokenStyle proc_next_implicit_token_style =
-      ProcNextImplicitTokenStyle::kConvert;
+      ProcNextImplicitTokenStyle::kBlock;
 };
 
 class Parser : public TokenParser {

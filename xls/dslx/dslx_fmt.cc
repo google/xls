@@ -37,6 +37,7 @@
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
+#include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/warning_kind.h"
@@ -48,6 +49,9 @@ ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(std::string, mode, "autofmt",
           "whether to use reflowing auto-formatter");
+ABSL_FLAG(bool, convert_to_new_style_proc_next, true,
+          "whether to convert to proc-next functions to the new style (no "
+          "default token parameter)");
 ABSL_FLAG(
     bool, opportunistic_postcondition, false,
     "whether to check the autoformatter postcondition for debug purposes (not "
@@ -66,6 +70,7 @@ Formats the DSLX source code present inside of a `.x` file.
 absl::Status RealMain(std::string_view input_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       bool in_place, bool opportunistic_postcondition,
+                      bool convert_to_new_style_proc_next,
                       const std::string& mode) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
@@ -76,11 +81,16 @@ absl::Status RealMain(std::string_view input_path,
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
 
   std::string formatted;
+  DslxParserOptions parser_options = {
+      .proc_next_implicit_token_style =
+          convert_to_new_style_proc_next ? ProcNextImplicitTokenStyle::kConvert
+                                         : ProcNextImplicitTokenStyle::kBlock,
+  };
   if (mode == "autofmt") {
     std::vector<CommentData> comments;
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<Module> module,
-        ParseModule(contents, path.c_str(), module_name, &comments));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                         ParseModule(contents, path.c_str(), module_name,
+                                     &comments, parser_options));
     formatted = AutoFmt(*module, Comments::Create(comments));
   } else if (mode == "typecheck") {
     // Note: we don't flag any warnings in this binary as we're just formatting
@@ -90,11 +100,13 @@ absl::Status RealMain(std::string_view input_path,
                          /*additional_search_paths=*/{}, kNoWarningsSet);
     XLS_ASSIGN_OR_RETURN(
         TypecheckedModule tm,
-        ParseAndTypecheck(contents, path.c_str(), module_name, &import_data));
+        ParseAndTypecheck(contents, path.c_str(), module_name, &import_data,
+                          /*comments=*/nullptr, parser_options));
     formatted = tm.module->ToString();
   } else if (mode == "parse") {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                         ParseModule(contents, path.c_str(), module_name));
+                         ParseModule(contents, path.c_str(), module_name,
+                                     /*comments=*/nullptr, parser_options));
     formatted = module->ToString();
   } else {
     return absl::InvalidArgumentError(absl::StrCat("Invalid mode: ", mode));
@@ -148,6 +160,8 @@ int main(int argc, char* argv[]) {
                           /*in_place=*/absl::GetFlag(FLAGS_i),
                           /*opportunistic_postcondition=*/
                           absl::GetFlag(FLAGS_opportunistic_postcondition),
+                          /*convert_to_new_style_proc_next=*/
+                          absl::GetFlag(FLAGS_convert_to_new_style_proc_next),
                           /*mode=*/absl::GetFlag(FLAGS_mode));
   return xls::ExitStatus(status);
 }

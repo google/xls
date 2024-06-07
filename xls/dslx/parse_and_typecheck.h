@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
+#include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
@@ -43,7 +44,8 @@ struct TypecheckedModule {
 // get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
-    ImportData* import_data, std::vector<CommentData>* comments = nullptr);
+    ImportData* import_data, std::vector<CommentData>* comments = nullptr,
+    DslxParserOptions options = {});
 
 // Helper that parses and creates a new module from the given "text".
 //
@@ -51,7 +53,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 // given to the returned `TypecheckedModule::module`.
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     std::string_view text, std::string_view path, std::string_view module_name,
-    std::vector<CommentData>* comments = nullptr);
+    std::vector<CommentData>* comments = nullptr,
+    DslxParserOptions options = {});
 
 // Helper that parses and created a new Module from the given DSLX file path.
 //   path - path to the file to read and parse.

@@ -25,8 +25,8 @@ proc Passthrough {
 
     init { () }
 
-    next(tok: token, state: ()) {
-        let (tok, data) = recv(tok, data_r);
+    next(state: ()) {
+        let (tok, data) = recv(join(), data_r);
         let tok = send(tok, data_s, data);
     }
 }
@@ -45,7 +45,8 @@ proc PassthroughTest {
 
     init { u32:10 }
 
-    next(tok: token, count: u32) {
+    next(count: u32) {
+        let tok: token = join();
         let data_to_send = count * count;
         let tok = send(tok, data_s, data_to_send);
         let (tok, received_data) = recv(tok, data_r);
