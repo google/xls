@@ -83,6 +83,7 @@ cc_test(
     deps = [
         ":run_comparator",
         ":run_routines",
+        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
@@ -91,7 +92,6 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "@com_googlesource_code_re2//:re2",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -113,9 +113,9 @@ cc_test(
     srcs = ["test_xml_test.cc"],
     deps = [
         ":test_xml",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/time",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 

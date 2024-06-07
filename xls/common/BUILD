@@ -21,7 +21,7 @@ package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     features = [
-        #"layering_check",  TODO(google/xls#1411)
+        "layering_check",
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
@@ -54,6 +54,9 @@ cc_library(
     name = "proto_test_utils",
     testonly = True,
     hdrs = ["proto_test_utils.h"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
@@ -74,6 +77,9 @@ cc_proto_library(
 cc_test(
     name = "proto_test_utils_test",
     srcs = ["proto_test_utils_test.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":matcher_test_messages_cc_proto",
         ":proto_test_utils",

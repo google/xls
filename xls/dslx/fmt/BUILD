@@ -47,8 +47,8 @@ cc_test(
     srcs = ["pretty_print_test.cc"],
     deps = [
         ":pretty_print",
-        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
+        "//xls/common:xls_gunit_main",
     ],
 )
 
@@ -85,6 +85,7 @@ cc_test(
     deps = [
         ":ast_fmt",
         ":pretty_print",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -101,7 +102,6 @@ cc_test(
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -111,6 +111,7 @@ cc_test(
     shard_count = 50,
     deps = [
         ":ast_fmt",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
         "//xls/common:xls_gunit_main",
@@ -120,6 +121,5 @@ cc_test(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
         "//xls/fuzzer:ast_generator",
-        "@com_google_googletest//:gtest",
     ],
 )

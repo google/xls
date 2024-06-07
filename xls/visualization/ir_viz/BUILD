@@ -24,7 +24,7 @@ load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 package(
     default_applicable_licenses = ["//:license"],
     features = [
-        #"layering_check",  TODO(google/xls#1411)
+        "layering_check",
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
@@ -148,6 +148,9 @@ cc_library(
     name = "ir_to_json",
     srcs = ["ir_to_json.cc"],
     hdrs = ["ir_to_json.h"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":ir_to_proto",
         ":visualization_cc_proto",

@@ -64,12 +64,12 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":apfloat_add_parallel_jit_wrapper",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )

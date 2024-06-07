@@ -133,6 +133,7 @@ cc_test(
     deps = [
         ":bytecode",
         ":bytecode_emitter",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
@@ -149,7 +150,6 @@ cc_test(
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "@com_googlesource_code_re2//:re2",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -170,11 +170,11 @@ cc_test(
     srcs = ["interpreter_stack_test.cc"],
     deps = [
         ":interpreter_stack",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -287,6 +287,7 @@ cc_test(
         ":bytecode_interpreter",
         ":bytecode_interpreter_options",
         ":interpreter_stack",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -308,6 +309,5 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
-        "@com_google_googletest//:gtest",
     ],
 )

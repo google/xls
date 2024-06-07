@@ -18,7 +18,7 @@ load("//xls/contrib/xlscc/build_rules:cc_generator.bzl", "xls_ac_fuzz_binaries")
 package(
     default_applicable_licenses = ["//:license"],
     features = [
-        #"layering_check",  TODO(google/xls#1411)
+        "layering_check",
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
@@ -120,6 +120,9 @@ cc_test(
 cc_test(
     name = "translator_memory_test",
     srcs = ["translator_memory_test.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     shard_count = 32,
     deps = [
         ":unit_test",
@@ -139,6 +142,9 @@ cc_test(
 cc_test(
     name = "translator_proc_test",
     srcs = ["translator_proc_test.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     shard_count = 32,
     deps = [
         ":unit_test",
@@ -205,6 +211,9 @@ cc_test(
     data = [
         "//xls/contrib/xlscc:synth_only_headers",
         "@com_github_hlslibs_ac_types//:ac_types_as_data",
+    ],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
     ],
     deps = [
         ":unit_test",

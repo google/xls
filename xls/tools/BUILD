@@ -22,7 +22,7 @@ package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     features = [
-        #"layering_check",  TODO(google/xls#1411)
+        "layering_check",
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
@@ -129,6 +129,9 @@ cc_library(
 cc_binary(
     name = "extract_interface_main",
     srcs = ["extract_interface_main.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":extract_interface",
         "//xls/common:exit_status",
@@ -400,6 +403,9 @@ cc_library(
     name = "proto_to_dslx",
     srcs = ["proto_to_dslx.cc"],
     hdrs = ["proto_to_dslx.h"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         "//xls/common:math_util",
         "//xls/common:proto_adaptor_utils",
@@ -445,6 +451,9 @@ cc_binary(
 cc_test(
     name = "proto_to_dslx_test",
     srcs = ["proto_to_dslx_test.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":proto_to_dslx",
         "//xls/common:xls_gunit_main",
@@ -671,6 +680,9 @@ cc_library(
 cc_test(
     name = "eval_utils_test",
     srcs = ["eval_utils_test.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":eval_utils",
         ":proc_channel_values_cc_proto",

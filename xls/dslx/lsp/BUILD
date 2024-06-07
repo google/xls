@@ -26,8 +26,8 @@ cc_library(
     srcs = ["lsp_type_utils.cc"],
     hdrs = ["lsp_type_utils.h"],
     deps = [
-        "//xls/dslx/frontend:pos",
         "@verible//common/lsp:lsp-protocol",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -58,6 +58,9 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@verible//common/lsp:lsp-file-utils",
+        "@verible//common/lsp:lsp-protocol",
+        "@verible//common/lsp:lsp-protocol-enums",
         "//xls/common:indent",
         "//xls/dslx:create_import_data",
         "//xls/dslx:extract_module_name",
@@ -72,9 +75,6 @@ cc_library(
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "@verible//common/lsp:lsp-file-utils",
-        "@verible//common/lsp:lsp-protocol",
-        "@verible//common/lsp:lsp-protocol-enums",
     ],
 )
 
@@ -83,14 +83,14 @@ cc_test(
     srcs = ["language_server_adapter_test.cc"],
     deps = [
         ":language_server_adapter",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@verible//common/lsp:lsp-protocol",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
-        "@com_google_googletest//:gtest",
-        "@verible//common/lsp:lsp-protocol",
     ],
 )
 
@@ -104,13 +104,13 @@ cc_binary(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@jsonhpp//:json",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/dslx:default_dslx_stdlib_path",
         "@verible//common/lsp:json-rpc-dispatcher",
         "@verible//common/lsp:lsp-protocol",
         "@verible//common/lsp:lsp-text-buffer",
         "@verible//common/lsp:message-stream-splitter",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/dslx:default_dslx_stdlib_path",
     ],
 )
 
@@ -122,10 +122,10 @@ cc_library(
         ":lsp_type_utils",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:variant",
+        "@verible//common/lsp:lsp-protocol",
+        "@verible//common/lsp:lsp-protocol-enums",
         "//xls/common:visitor",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
-        "@verible//common/lsp:lsp-protocol",
-        "@verible//common/lsp:lsp-protocol-enums",
     ],
 )

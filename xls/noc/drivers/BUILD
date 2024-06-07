@@ -72,6 +72,7 @@ cc_test(
     deps = [
         ":experiment",
         ":experiment_factory",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -82,7 +83,6 @@ cc_test(
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:flit",
         "//xls/noc/simulation:traffic_description",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -106,6 +106,7 @@ cc_test(
         ":experiment",
         ":experiment_factory",
         ":sample_experiments",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
@@ -113,6 +114,5 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:flit",
-        "@com_google_googletest//:gtest",
     ],
 )

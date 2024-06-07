@@ -24,7 +24,7 @@ package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     features = [
-        #"layering_check",  TODO(google/xls#1411)
+        "layering_check",
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
@@ -235,6 +235,9 @@ cc_library(
 cc_binary(
     name = "synthesis_client_main",
     srcs = ["synthesis_client_main.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":synthesis_cc_proto",
         ":synthesis_client",

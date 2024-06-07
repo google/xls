@@ -50,12 +50,12 @@ cc_test(
     srcs = ["trace_fmt_array_test.cc"],
     deps = [
         ":test_target_wrapper",
+        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:events",
         "//xls/ir:value",
         "//xls/ir:value_builder",
-        "@com_google_googletest//:gtest",
     ],
 )

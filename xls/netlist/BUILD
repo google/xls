@@ -18,7 +18,7 @@ package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     features = [
-        #"layering_check",  TODO(google/xls#1411)
+        "layering_check",
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
@@ -186,6 +186,9 @@ cc_library(
 cc_test(
     name = "cell_library_test",
     srcs = ["cell_library_test.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":cell_library",
         ":netlist_cc_proto",
@@ -345,6 +348,9 @@ cc_library(
 cc_binary(
     name = "function_extractor_main",
     srcs = ["function_extractor_main.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":function_extractor",
         ":lib_parser",

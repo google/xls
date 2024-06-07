@@ -25,7 +25,7 @@ package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     features = [
-        #"layering_check",  TODO(google/xls#1411)
+        "layering_check",
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
@@ -55,6 +55,9 @@ cc_library(
     data = [
         ":sample_runner_main",
         ":summarize_ir_main",
+    ],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
     ],
     deps = [
         ":ast_generator",
@@ -459,6 +462,9 @@ cc_library(
     name = "sample",
     srcs = ["sample.cc"],
     hdrs = ["sample.h"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":sample_cc_proto",
         ":scrub_crasher",
@@ -519,6 +525,9 @@ cc_binary(
 cc_binary(
     name = "summarize_ir_main",
     srcs = ["summarize_ir_main.cc"],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
+    ],
     deps = [
         ":sample_summary_cc_proto",
         "//xls/common:exit_status",
@@ -936,6 +945,9 @@ cc_library(
         ":find_failing_input_main",
         ":sample_runner_main",
         "//xls/tools:ir_minimizer_main",
+    ],
+    features = [
+        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
     ],
     deps = [
         ":sample",

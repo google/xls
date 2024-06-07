@@ -39,9 +39,9 @@ cc_test(
     srcs = ["common_test.cc"],
     deps = [
         ":common",
+        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -59,8 +59,8 @@ cc_test(
     srcs = ["units_test.cc"],
     deps = [
         ":units",
-        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
+        "//xls/common:xls_gunit_main",
     ],
 )
 
@@ -86,8 +86,8 @@ cc_test(
     deps = [
         ":common",
         ":network_graph",
-        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
+        "//xls/common:xls_gunit_main",
     ],
 )
 
@@ -111,12 +111,12 @@ cc_test(
     deps = [
         ":common",
         ":parameters",
+        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/noc/config:link_config_proto_builder",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -146,12 +146,12 @@ cc_test(
         ":network_graph",
         ":network_graph_builder",
         ":parameters",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/log",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -198,12 +198,12 @@ cc_test(
         ":common",
         ":indexer",
         ":parameters",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -237,6 +237,7 @@ cc_test(
         ":network_graph_builder",
         ":parameters",
         ":sample_network_graphs",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
@@ -246,7 +247,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -301,13 +301,13 @@ cc_test(
         ":parameters",
         ":sample_network_graphs",
         ":sim_objects",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/noc/config:network_config_cc_proto",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -338,12 +338,12 @@ cc_test(
     deps = [
         ":flit",
         ":packetizer",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -360,13 +360,13 @@ cc_test(
         ":parameters",
         ":sample_network_graphs",
         ":sim_objects",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/noc/config:network_config_cc_proto",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -389,9 +389,9 @@ cc_test(
     deps = [
         ":common",
         ":traffic_description",
+        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -409,8 +409,8 @@ cc_test(
     srcs = ["random_number_interface_test.cc"],
     deps = [
         ":random_number_interface",
-        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
+        "//xls/common:xls_gunit_main",
     ],
 )
 
@@ -438,11 +438,11 @@ cc_test(
         ":packetizer",
         ":random_number_interface",
         ":traffic_models",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -525,6 +525,7 @@ cc_test(
         ":simulator_shims",
         ":traffic_description",
         ":traffic_models",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
@@ -532,7 +533,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -552,10 +552,10 @@ cc_test(
         ":simulator_to_link_monitor_shim",
         ":simulator_to_traffic_injector_shim",
         ":traffic_description",
+        "@com_google_googletest//:gtest",
         "@com_google_absl//absl/container:flat_hash_map",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/noc/config:network_config_cc_proto",
-        "@com_google_googletest//:gtest",
     ],
 )

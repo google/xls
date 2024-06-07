@@ -49,6 +49,7 @@ cc_test(
     name = "basic_integration_algorithm_test",
     srcs = ["basic_integration_algorithm_test.cc"],
     deps = [
+        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/integrator:integration_builder",
@@ -59,6 +60,5 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:verifier",
-        "@com_google_googletest//:gtest",
     ],
 )
