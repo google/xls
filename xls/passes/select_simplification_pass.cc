@@ -936,10 +936,20 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       // For one-hot-selects if either the selector bit or the case value is
       // zero, the case can be removed. For priority selects, the case can be
       // removed only if the selector bit is zero.
+      bool all_later_cases_removable = false;
       auto is_removable_case = [&](int64_t c) {
-        return (node->Is<OneHotSelect>() && cases[c]->GetType()->IsBits() &&
-                query_engine.IsAllZeros(cases[c])) ||
-               selector_bits[c] == TernaryValue::kKnownZero;
+        if (all_later_cases_removable) {
+          return true;
+        }
+        if (node->Is<PrioritySelect>() &&
+            selector_bits[c] == TernaryValue::kKnownOne) {
+          all_later_cases_removable = true;
+          return false;
+        }
+        if (selector_bits[c] == TernaryValue::kKnownZero) {
+          return true;
+        }
+        return node->Is<OneHotSelect>() && query_engine.IsAllZeros(cases[c]);
       };
       bool has_removable_case = false;
       std::vector<int64_t> nonzero_indices;

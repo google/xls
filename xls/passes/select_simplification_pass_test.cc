@@ -278,7 +278,10 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitSet) {
   EXPECT_TRUE(f->return_value()->Is<PrioritySelect>());
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
-  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::BitSlice(m::Or()), {m::Param("x"), m::Param("y")}));
 }
 
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitSet) {
