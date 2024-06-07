@@ -332,6 +332,33 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     return true;
   }
 
+  // Priority select where we know the selector ends with a one followed by
+  // zeros can be replaced with the selected case.
+  if (node->Is<PrioritySelect>()) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    XLS_RET_CHECK(sel->selector()->GetType()->IsBits());
+    const TernaryVector selector =
+        query_engine.GetTernary(sel->selector()).Get({});
+    auto first_nonzero_case = absl::c_find_if(
+        selector, [](TernaryValue v) { return v != TernaryValue::kKnownZero; });
+    if (first_nonzero_case == selector.end()) {
+      // All zeros; priority select with a zero selector returns zero.
+      XLS_RETURN_IF_ERROR(
+          sel->ReplaceUsesWithNew<Literal>(ZeroOfType(sel->GetType()))
+              .status());
+      return true;
+    }
+    if (*first_nonzero_case == TernaryValue::kKnownOne) {
+      // Ends with a one followed by zeros; returns the corresponding case.
+      int64_t case_num = std::distance(selector.begin(), first_nonzero_case);
+      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(case_num)));
+      return true;
+    }
+    // Has an unknown bit before the first known one, so the result is unknown.
+    // TODO(https://github.com/google/xls/issues/1446): Trim out all cases that
+    // are known-zero or after the first known one.
+  }
+
   // One-hot-select with a constant selector can be replaced with OR of the
   // activated cases.
   if (node->Is<OneHotSelect>() &&
@@ -378,41 +405,45 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
-  // OneHotSelect with identical cases can be replaced with a select between one
-  // of the identical case and the value zero where the selector is: original
-  // selector == 0
-  if (node->Is<OneHotSelect>() && node->GetType()->IsBits()) {
-    OneHotSelect* sel = node->As<OneHotSelect>();
-    if (std::all_of(sel->cases().begin(), sel->cases().end(),
-                    [&](Node* c) { return c == sel->get_case(0); })) {
+  // OneHotSelect & PrioritySelect with identical cases can be replaced with a
+  // select between one of the identical case and the value zero where the
+  // selector is: original selector == 0
+  if (node->OpIn({Op::kOneHotSel, Op::kPrioritySel}) &&
+      node->GetType()->IsBits()) {
+    Node* selector = node->Is<OneHotSelect>()
+                         ? node->As<OneHotSelect>()->selector()
+                         : node->As<PrioritySelect>()->selector();
+    absl::Span<Node* const> cases = node->Is<OneHotSelect>()
+                                        ? node->As<OneHotSelect>()->cases()
+                                        : node->As<PrioritySelect>()->cases();
+    if (absl::c_all_of(cases, [&](Node* c) { return c == cases[0]; })) {
       FunctionBase* f = node->function_base();
       XLS_ASSIGN_OR_RETURN(
           Node * selector_zero,
-          f->MakeNode<Literal>(
-              node->loc(), Value(UBits(0, sel->selector()->BitCountOrDie()))));
+          f->MakeNode<Literal>(node->loc(), ZeroOfType(selector->GetType())));
       XLS_ASSIGN_OR_RETURN(Node * is_zero,
-                           f->MakeNode<CompareOp>(node->loc(), sel->selector(),
+                           f->MakeNode<CompareOp>(node->loc(), selector,
                                                   selector_zero, Op::kEq));
       XLS_ASSIGN_OR_RETURN(
           Node * selected_zero,
-          f->MakeNode<Literal>(node->loc(),
-                               Value(UBits(0, sel->BitCountOrDie()))));
+          f->MakeNode<Literal>(node->loc(), ZeroOfType(node->GetType())));
       VLOG(2) << absl::StrFormat(
-          "Simplifying one-hot-select with identical cases: %s",
+          "Simplifying %s-select with identical cases: %s",
+          (node->Is<OneHotSelect>() ? "one-hot" : "priority"),
           node->ToString());
-      XLS_RETURN_IF_ERROR(
-          node->ReplaceUsesWithNew<Select>(
-                  is_zero, std::vector<Node*>{sel->get_case(0), selected_zero},
-                  /*default_value=*/std::nullopt)
-              .status());
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Select>(
+                                  is_zero,
+                                  std::vector<Node*>{cases[0], selected_zero},
+                                  /*default_value=*/std::nullopt)
+                              .status());
       return true;
     }
   }
 
-  // Replace a select among tuples to a tuple of selects. Handles both
-  // kOneHotSelect and kSelect.
-  if ((node->Is<Select>() || node->Is<OneHotSelect>()) &&
-      node->GetType()->IsTuple()) {
+  // Replace a select among tuples to a tuple of selects. Handles all of select,
+  // one-hot-select, and priority-select.
+  if (node->GetType()->IsTuple() &&
+      node->OpIn({Op::kSel, Op::kOneHotSel, Op::kPrioritySel})) {
     // Construct a vector containing the element at 'tuple_index' for each
     // case of the select.
     auto elements_at_tuple_index =
@@ -465,6 +496,24 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         selected_elements.push_back(selected_element);
       }
       VLOG(2) << absl::StrFormat("Decomposing tuple-typed select: %s",
+                                 node->ToString());
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<Tuple>(selected_elements).status());
+      return true;
+    }
+
+    if (node->Is<PrioritySelect>()) {
+      PrioritySelect* sel = node->As<PrioritySelect>();
+      std::vector<Node*> selected_elements;
+      for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(std::vector<Node*> case_elements,
+                             elements_at_tuple_index(sel->cases(), i));
+        XLS_ASSIGN_OR_RETURN(Node * selected_element,
+                             node->function_base()->MakeNode<PrioritySelect>(
+                                 node->loc(), sel->selector(), case_elements));
+        selected_elements.push_back(selected_element);
+      }
+      VLOG(2) << absl::StrFormat("Decomposing tuple-typed priority select: %s",
                                  node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Tuple>(selected_elements).status());
@@ -525,7 +574,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   // * At least one of the selected values is a constant.
   // * One of the selected values is also the selector.
   //
-  // TODO(meheff): Handle one-hot select here as well.
+  // TODO(meheff): Handle one-hot select and priority-select here as well.
   auto is_one_bit_mux = [&] {
     return node->Is<Select>() && node->GetType()->IsBits() &&
            node->BitCountOrDie() == 1 && node->operand(0)->BitCountOrDie() == 1;
@@ -804,7 +853,6 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // Collapse consecutive two-ways selects which have share a common case. For
-
   // example:
   //
   //   s1 = select(p1, [y, x])
