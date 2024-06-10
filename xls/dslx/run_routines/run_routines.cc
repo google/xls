@@ -376,7 +376,7 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
 }
 
 static absl::Status RunQuickChecksIfJitEnabled(
-    Module* entry_module, TypeInfo* type_info,
+    const RE2* test_filter, Module* entry_module, TypeInfo* type_info,
     AbstractRunComparator* run_comparator, Package* ir_package,
     std::optional<int64_t> seed, TestResultData& result) {
   if (run_comparator == nullptr) {
@@ -391,27 +391,49 @@ static absl::Status RunQuickChecksIfJitEnabled(
     // for rationale.
     seed = static_cast<int64_t>(getpid()) * static_cast<int64_t>(time(nullptr));
   }
-  std::cerr << absl::StreamFormat("[ SEED %*d ]", kQuickcheckSpaces + 1, *seed)
-            << "\n";
+  bool any_quicktest_run = false;
   for (QuickCheck* quickcheck : entry_module->GetQuickChecks()) {
-    const std::string& test_name = quickcheck->identifier();
-    std::cerr << "[ RUN QUICKCHECK        ] " << test_name
-              << " count: " << quickcheck->GetTestCountOrDefault() << "\n";
-    auto start = absl::Now();
-    absl::Status status =
-        RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
-    auto end = absl::Now();
-    auto duration = end - start;
+    const std::string& quickcheck_name = quickcheck->identifier();
     const Pos& start_pos = quickcheck->span().start();
+    const absl::Time test_case_start = absl::Now();
+    if (!TestMatchesFilter(quickcheck_name, test_filter)) {
+      auto test_case_end = absl::Now();
+      result.AddTestCase(
+          test_xml::TestCase{.name = quickcheck_name,
+                             .file = start_pos.filename(),
+                             .line = start_pos.GetHumanLineno(),
+                             .status = test_xml::RunStatus::kRun,
+                             .result = test_xml::RunResult::kFiltered,
+                             .time = test_case_end - test_case_start,
+                             .timestamp = test_case_start});
+      continue;
+    }
+
+    if (!any_quicktest_run) {
+      // Only print the SEED if there is actually a test that is executed.
+      std::cerr << absl::StreamFormat("[ SEED %*d ]\n", kQuickcheckSpaces + 1,
+                                      *seed);
+      any_quicktest_run = true;
+    }
+    std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name
+              << " count: " << quickcheck->GetTestCountOrDefault() << "\n";
+    const absl::Status status =
+        RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
+    const absl::Duration duration = absl::Now() - test_case_start;
     if (!status.ok()) {
-      HandleError(result, status, test_name, start_pos, start, duration,
+      HandleError(result, status, quickcheck_name, start_pos, test_case_start,
+                  duration,
                   /*is_quickcheck=*/true);
     } else {
-      result.AddTestCase(test_xml::TestCase{
-          test_name, start_pos.filename(), start_pos.GetHumanLineno(),
-          test_xml::RunStatus::kRun, test_xml::RunResult::kCompleted, duration,
-          start});
-      std::cerr << "[                    OK ] " << test_name << "\n";
+      result.AddTestCase(
+          test_xml::TestCase{.name = quickcheck_name,
+                             .file = start_pos.filename(),
+                             .line = start_pos.GetHumanLineno(),
+                             .status = test_xml::RunStatus::kRun,
+                             .result = test_xml::RunResult::kCompleted,
+                             .time = duration,
+                             .timestamp = test_case_start});
+      std::cerr << "[                    OK ] " << quickcheck_name << "\n";
     }
   }
   std::cerr << absl::StreamFormat(
@@ -675,10 +697,14 @@ absl::StatusOr<TestResultData> ParseAndTest(
 
     if (!TestMatchesFilter(test_name, options.test_filter)) {
       auto test_case_end = absl::Now();
-      result.AddTestCase(test_xml::TestCase{
-          test_name, start_pos.filename(), start_pos.GetHumanLineno(),
-          test_xml::RunStatus::kRun, test_xml::RunResult::kFiltered,
-          test_case_end - test_case_start, test_case_start});
+      result.AddTestCase(
+          test_xml::TestCase{.name = test_name,
+                             .file = start_pos.filename(),
+                             .line = start_pos.GetHumanLineno(),
+                             .status = test_xml::RunStatus::kRun,
+                             .result = test_xml::RunResult::kFiltered,
+                             .time = test_case_end - test_case_start,
+                             .timestamp = test_case_start});
       continue;
     }
 
@@ -703,11 +729,14 @@ absl::StatusOr<TestResultData> ParseAndTest(
 
     if (status.ok()) {
       // Add to the tracking data.
-      result.AddTestCase(test_xml::TestCase{
-          test_name, start_pos.filename(), start_pos.GetHumanLineno(),
-          test_xml::RunStatus::kRun, test_xml::RunResult::kCompleted,
-          test_case_end - test_case_start, test_case_start});
-
+      result.AddTestCase(
+          test_xml::TestCase{.name = test_name,
+                             .file = start_pos.filename(),
+                             .line = start_pos.GetHumanLineno(),
+                             .status = test_xml::RunStatus::kRun,
+                             .result = test_xml::RunResult::kCompleted,
+                             .time = test_case_end - test_case_start,
+                             .timestamp = test_case_start});
       std::cerr << "[            OK ]" << '\n';
     } else {
       HandleError(result, status, test_name, start_pos, test_case_start,
@@ -725,8 +754,8 @@ absl::StatusOr<TestResultData> ParseAndTest(
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
-        entry_module, tm_or.value().type_info, options.run_comparator,
-        ir_package.get(), options.seed, result));
+        options.test_filter, entry_module, tm_or.value().type_info,
+        options.run_comparator, ir_package.get(), options.seed, result));
   }
 
   result.Finish(
