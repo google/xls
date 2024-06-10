@@ -323,11 +323,11 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
         final_args += " --fdo_yosys_path={}".format(yosys_tool.path)
         final_args += " --fdo_sta_path={}".format(sta_tool.path)
         final_args += " --fdo_synthesis_libraries={}".format(synth_lib.path)
-        if ctx.attr.standard_cells[StandardCellInfo].default_input_driver_cell != "":
+        if getattr(ctx.attr.standard_cells[StandardCellInfo], "default_input_driver_cell", "") != "":
             final_args += " --fdo_default_driver_cell='{}'".format(
                 ctx.attr.standard_cells[StandardCellInfo].default_input_driver_cell,
             )
-        if ctx.attr.standard_cells[StandardCellInfo].default_output_load != "":
+        if getattr(ctx.attr.standard_cells[StandardCellInfo], "default_output_load", "") != "":
             final_args += " --fdo_default_load='{}'".format(
                 ctx.attr.standard_cells[StandardCellInfo].default_output_load,
             )
