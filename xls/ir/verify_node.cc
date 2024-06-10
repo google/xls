@@ -868,8 +868,8 @@ class NodeChecker : public DfsVisitor {
     int64_t selector_width = sel->selector()->BitCountOrDie();
     if (selector_width != sel->cases().size()) {
       return absl::InternalError(
-          absl::StrFormat("Selector has %d bits for %d cases", selector_width,
-                          sel->cases().size()));
+          absl::StrFormat("One hot selector has %d bits for %d cases",
+                          selector_width, sel->cases().size()));
     }
     return absl::OkStatus();
   }
@@ -884,8 +884,8 @@ class NodeChecker : public DfsVisitor {
     int64_t selector_width = sel->selector()->BitCountOrDie();
     if (selector_width != sel->cases().size()) {
       return absl::InternalError(
-          absl::StrFormat("Selector has %d bits for %d cases", selector_width,
-                          sel->cases().size()));
+          absl::StrFormat("Priority selector has %d bits for %d cases",
+                          selector_width, sel->cases().size()));
     }
     return absl::OkStatus();
   }
