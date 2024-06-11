@@ -36,8 +36,7 @@ using PostFnEvalHook = std::function<absl::Status(
     const InterpValue& got)>;
 
 using TraceHook =
-    std::function<void(/*entry=*/std::string_view, /*file=*/std::string_view,
-                       /*line=*/int)>;
+    std::function<void(const Span& source_location, std::string_view message)>;
 
 using RolloverHook = std::function<void(const Span&)>;
 

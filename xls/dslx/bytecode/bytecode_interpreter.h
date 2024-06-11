@@ -32,6 +32,7 @@
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -45,14 +46,12 @@ class ProcInstance;
 using PostFnEvalHook = std::function<absl::Status(
     const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
     const InterpValue& got)>;
-using TraceHook =
-    std::function<void(/*entry=*/std::string_view, /*file=*/std::string_view,
-                       /*line=*/int)>;
 
 // Trace hook which logs trace messages to INFO.
-inline void InfoLoggingTraceHook(std::string_view entry, std::string_view file,
-                                 int line) {
-  XLS_LOG_LINES_LOC(INFO, entry, file, line);
+inline void InfoLoggingTraceHook(const Span& source_location,
+                                 std::string_view message) {
+  XLS_LOG_LINES_LOC(INFO, message, source_location.filename(),
+                    source_location.start().GetHumanLineno());
 }
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
