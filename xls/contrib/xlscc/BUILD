@@ -199,6 +199,7 @@ filegroup(
         "synth_only/assert.h",
         "synth_only/cassert",
         "synth_only/cmath",
+        "synth_only/cstddef",
         "synth_only/cstdint",
         "synth_only/cstdlib",
         "synth_only/inttypes.h",
