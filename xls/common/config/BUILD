@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("//xls/build_rules:xls_utilities.bzl", "bool_config_setting")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -35,7 +36,7 @@ cc_library(
     hdrs = ["xls_config.h"],
 )
 
-config_setting(
+bool_config_setting(
     name = "save_temps_is_requested",
     values = {"save_temps": "true"},
     visibility = ["//xls:xls_internal"],

@@ -68,7 +68,10 @@ bzl_library(
 bzl_library(
     name = "xls_utilities_bzl",
     srcs = ["xls_utilities.bzl"],
-    deps = [":xls_common_rules_bzl"],
+    deps = [
+        ":xls_common_rules_bzl",
+        "@bazel_skylib//lib:dicts",
+    ],
 )
 
 bzl_library(
@@ -266,6 +269,7 @@ bzl_library(
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
+        ":xls_utilities_bzl",
         "@bazel_skylib//lib:dicts",
         "@bazel_skylib//rules:common_settings",
     ],

@@ -14,6 +14,8 @@
 
 """This module contains helper rules."""
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
+
 load("@rules_proto//proto:defs.bzl", "ProtoInfo")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
@@ -384,3 +386,49 @@ proto_to_dslx = rule(
     implementation = _proto_to_dslx_impl,
     attrs = _proto_to_dslx_attrs,
 )
+
+BoolConfigSettingInfo = provider(
+    doc = "A true/false bit containing whether a config setting is enabled.",
+    fields = ["value"],
+)
+
+def _bool_config_setting_impl(ctx):
+    """The implementation of the 'bool_config_setting' rule.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      BoolConfigSetting provider
+    """
+    return [BoolConfigSettingInfo(value = ctx.attr.value)]
+
+_bool_config_setting_adapter = rule(
+    implementation = _bool_config_setting_impl,
+    attrs = {
+        "value": attr.bool(mandatory = True, doc = "Is the config setting enabled"),
+    },
+)
+
+def bool_config_setting(name, **kwargs):
+    """Creates a config_setting readable by rules.
+
+    Args:
+      name: The name of the bool_config_setting.
+      **kwargs: Arguments to config_setting (except visibility which is used only on the final rule)
+    """
+    config_setting_attrs = ["constraint_values", "define_values", "flag_values", "values"]
+    native_config_name = name + "_real_config_setting"
+    native.config_setting(
+        name = native_config_name,
+        visibility = ["//visibility:private"],
+        **dicts.omit(kwargs, ["visibility"])
+    )
+    _bool_config_setting_adapter(
+        name = name,
+        value = select({
+            native_config_name: True,
+            "//conditions:default": False,
+        }),
+        **dicts.omit(kwargs, config_setting_attrs)
+    )
