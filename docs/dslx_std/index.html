@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.26">
     
     
       
@@ -153,7 +153,7 @@
       
     </form>
     <div class="md-search__output">
-      <div class="md-search__scrollwrap" data-md-scrollfix>
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
             Initializing search
@@ -3793,12 +3793,15 @@ facilities that normal functions are not capable of. This is intended to help
 the user discern when they're calling "something that will behave like a normal
 function" versus "something that has special abilities beyond normal functions,
 e.g. special side-effects".</p>
-<p>NOTE: A brief note on "Parallel Primitives": the DSL is expected to grow
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A brief note on "Parallel Primitives": the DSL is expected to grow
 additional support for use of high-level parallel primitives over time, adding
 operators for order-insensitive reductions, scans, groupings, and similar. By
 making these operations known to the compiler in their high level form, we
 potentially enable optimizations and analyses on their higher level ("lifted")
 form. As of now, <code>map</code> is the sole parallel-primitive-oriented built-in.</p>
+</div>
 <h3 id="add_with_carry"><code>add_with_carry</code></h3>
 <p>Operation that produces the result of the add, as well as the carry bit as an
 output. The binary add operators works similar to software programming
@@ -3981,8 +3984,11 @@ set, the second if the next least significant bit and so on. If no selector bits
 are set this evaluates to zero. This function is not generally used directly
 though the compiler will when possible synthesize the equivalent code from a
 <code>match</code> expression.</p>
-<p>NOTE: This is included largely for testing purposes and for bespoke
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is included largely for testing purposes and for bespoke
 'intrinsic-style programming' use cases.</p>
+</div>
 <h3 id="priority_sel"><code>priority_sel</code></h3>
 <p>Implements a priority selector. Has the following signature:</p>
 <div class="highlight"><pre><span></span><code>fn priority_sel(selector: uN[N], cases: xN[S][M][N]) -&gt; xN[S][M]
@@ -3992,9 +3998,12 @@ though the compiler will when possible synthesize the equivalent code from a
 <p>If the selector is zero, the zero-value (of the result type) is returned.</p>
 <p>Example usage:
 <a href="https://github.com/google/xls/tree/main/xls/dslx/tests/priority_sel.x"><code>dslx/tests/priority_sel.x</code></a>.</p>
-<p>NOTE: This operator is only defined for bits types because other types do not
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This operator is only defined for bits types because other types do not
 have defined or-operators, and conceptually <code>priority_sel</code> desugars to a masked
 or-reduction, which is why it produces the zero value when nothing is selected.</p>
+</div>
 <h3 id="range"><code>range</code></h3>
 <p>Returns an array filled with the sequence from inclusive <code>START</code> to exclusive
 <code>LIMIT</code>. Note that <code>START</code> and <code>LIMIT</code> must be compile-time-constant values (AKA
@@ -4207,10 +4216,10 @@ dumping of current values to stdout. For example:</p>
 corresponding source position:</p>
 <div class="highlight"><pre><span></span><code>[...]
 [ RUN UNITTEST  ] test_shifty
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] x: 42 y: 4
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] y as s8: 4
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] x: 42 y: 7
-I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] y as s8: -1
+I0607 10:11:02.897455  810431 shifty.x:6] x: 42 y: 4
+I0607 10:11:02.897462  810431 shifty.x:8] y as s8: 0
+I0607 10:11:02.908182  810431 shifty.x:6] x: 42 y: 7
+I0607 10:11:02.908208  810431 shifty.x:8] y as s8: -1
 [            OK ]
 [...]
 </code></pre></div>
@@ -4274,9 +4283,12 @@ gates which did not insert fatal-error-indicating hardware.</p>
 Verilog identifier and is used for identifying the failure when lowered to
 SystemVerilog. At higher levels in the stack, it's unused.</p>
 <h3 id="cover"><code>cover!</code></h3>
-<p>NOTE: Currently, <code>cover!</code> has no effect in RTL simulators supported in XLS open
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Currently, <code>cover!</code> has no effect in RTL simulators supported in XLS open
 source (i.e. iverilog). See
 <a href="https://github.com/google/xls/issues/436">google/xls#436</a>.</p>
+</div>
 <p>The <code>cover!</code> builtin tracks how often some condition is satisfied. It desugars
 into SystemVerilog cover points. Its signature is:</p>
 <div class="highlight"><pre><span></span><code>cover!(&lt;name&gt;, &lt;condition&gt;);
@@ -4317,7 +4329,10 @@ begin.</p>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">joined</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">(</span><span class="n">token0</span><span class="p">,</span><span class="w"> </span><span class="n">token1</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">token2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">joined</span><span class="p">,</span><span class="w"> </span><span class="n">chan2</span><span class="p">,</span><span class="w"> </span><span class="n">another_value</span><span class="p">);</span>
 </code></pre></div>
-<p>NOTE: this routine can only be used in the body of a <code>proc</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>this routine can only be used in the body of a <code>proc</code>.</p>
+</div>
 <h3 id="send-send-a-value-on-a-channel"><code>send</code>: send a value on a channel</h3>
 <p>The <code>send</code> builtin sends a value on a channel, taking an I/O sequencing token
 and producing a new I/O sequencing token (which can be used to order
@@ -4348,10 +4363,13 @@ indicates whether the value originated from the channel (i.e. <code>true</code> 
 value came from the channel).</p>
 <div class="highlight"><pre><span></span><code>recv_non_blocking(tok: token, c: chan&lt;T&gt; in, default_value: T) -&gt; (token, T, bool)
 </code></pre></div>
-<p>NOTE: non-blocking operations make a block latency sensitive and can no longer
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>non-blocking operations make a block latency sensitive and can no longer
 be described as pure "Kahn Process Networks", which means that the design's
 correctness is more sensitive to the chosen schedule, and thus design
 verification should occur on the scheduled design.</p>
+</div>
 <h3 id="recv_if_non_blocking-conditional-non-blocking-receive-of-a-value-from-a-channel"><code>recv_if_non_blocking</code>: conditional non-blocking receive of a value from a channel</h3>
 <p>As <code>recv_non_blocking</code> is above, but with an additional predicate that indicates
 whether we should attempt to do the nonblocking receive from the channel. If
@@ -4658,7 +4676,7 @@ non-negative 32-bit integers, which range from <code>0</code> to <code>2^31-1</c
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.081f42fc.min.js"></script>
+      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       

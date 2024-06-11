@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.26">
     
     
       
@@ -153,7 +153,7 @@
       
     </form>
     <div class="md-search__output">
-      <div class="md-search__scrollwrap" data-md-scrollfix>
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
             Initializing search
@@ -1661,9 +1661,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#dslx_fmt" class="md-nav__link">
+  <a href="#dslxdslx_fmt" class="md-nav__link">
     <span class="md-ellipsis">
-      dslx_fmt
+      dslx/dslx_fmt
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dslxir_convertir_converter_main" class="md-nav__link">
+    <span class="md-ellipsis">
+      dslx/ir_convert/ir_converter_main
     </span>
   </a>
   
@@ -2500,9 +2509,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#dslx_fmt" class="md-nav__link">
+  <a href="#dslxdslx_fmt" class="md-nav__link">
     <span class="md-ellipsis">
-      dslx_fmt
+      dslx/dslx_fmt
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dslxir_convertir_converter_main" class="md-nav__link">
+    <span class="md-ellipsis">
+      dslx/ir_convert/ir_converter_main
     </span>
   </a>
   
@@ -2888,10 +2906,13 @@ domain. Example:</p>
 <div class="highlight"><pre><span></span><code>$ bazel run -c opt //xls/dslx:prove_quickcheck_main -- $PWD/xls/dslx/stdlib/std.x convert_to_from_bools
 Proven! elapsed: 115.419669ms
 </code></pre></div>
-<p>NOTE: Currently an error code is returned if it cannot be proven, but it does
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Currently an error code is returned if it cannot be proven, but it does
 not dump a counterexample to terminal. A temporary workaround is to use
 <code>--alsologtostderr --v=1</code> until that functionality is completed.</p>
-<h2 id="dslx_fmt"><a href="https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc"><code>dslx_fmt</code></a></h2>
+</div>
+<h2 id="dslxdslx_fmt"><a href="https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc"><code>dslx/dslx_fmt</code></a></h2>
 <p>Auto-formatter for DSLX code (i.e. <code>.x</code> files). This is analogous to rustfmt /
 clang-format.</p>
 <p>To format a file in-place, use the <code>-i</code> flag:</p>
@@ -2914,6 +2935,21 @@ xls_dslx_fmt_test(
 </code></pre></div>
 <p>Also see the
 <a href="https://google.github.io/xls/bazel_rules_macros/#xls_dslx_fmt_test">Bazel rule documentation for <code>xls_dslx_fmt_test</code></a>.</p>
+<h2 id="dslxir_convertir_converter_main"><a href="https://github.com/google/xls/tree/main/xls/dslx/ir_convert/ir_converter_main.cc"><code>dslx/ir_convert/ir_converter_main</code></a></h2>
+<p>Tool for converting DSLX code (i.e. whole <code>.x</code> files or functions/procs inside
+of <code>.x</code> files) into XLS IR.</p>
+<div class="highlight"><pre><span></span><code>$ bazel build -c opt //xls/dslx/ir_convert:ir_converter_main
+$ echo &#39;fn f(x:u32)-&gt;u32{x}&#39; &gt; /tmp/my_file.x
+$ ./bazel-bin/xls/dslx/ir_convert/ir_converter_main /tmp/my_file.x &gt; /tmp/my_file.ir
+$ cat /tmp/my_file.ir
+package my_file
+
+file_number 0 &quot;/tmp/my_file.x&quot;
+
+fn __my_file__f(x: bits[32]) -&gt; bits[32] {
+  ret x: bits[32] = param(name=x)
+}
+</code></pre></div>
 <h2 id="proto_to_dslx_main"><a href="https://github.com/google/xls/tree/main/xls/tools/proto_to_dslx_main.cc"><code>proto_to_dslx_main</code></a></h2>
 <p>Takes in a proto schema and a textproto instance thereof and outputs a DSLX
 module containing a DSLX type and constant matching both inputs, respectively.</p>
@@ -3086,7 +3122,7 @@ for what the interface contains.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.081f42fc.min.js"></script>
+      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       

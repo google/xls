@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.26">
     
     
       
@@ -153,7 +153,7 @@
       
     </form>
     <div class="md-search__output">
-      <div class="md-search__scrollwrap" data-md-scrollfix>
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
             Initializing search
@@ -1508,6 +1508,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#xls_delay_model_generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      xls_delay_model_generation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#xls_dslx_library" class="md-nav__link">
     <span class="md-ellipsis">
       xls_dslx_library
@@ -1592,15 +1601,6 @@
   <a href="#xls_benchmark_ir" class="md-nav__link">
     <span class="md-ellipsis">
       xls_benchmark_ir
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#xls_delay_model_generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      xls_delay_model_generation
     </span>
   </a>
   
@@ -2335,6 +2335,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#xls_delay_model_generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      xls_delay_model_generation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#xls_dslx_library" class="md-nav__link">
     <span class="md-ellipsis">
       xls_dslx_library
@@ -2419,15 +2428,6 @@
   <a href="#xls_benchmark_ir" class="md-nav__link">
     <span class="md-ellipsis">
       xls_benchmark_ir
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#xls_delay_model_generation" class="md-nav__link">
-    <span class="md-ellipsis">
-      xls_delay_model_generation
     </span>
   </a>
   
@@ -2791,6 +2791,63 @@ xls_benchmark_verilog(<a href="#xls_benchmark_verilog-name">name</a>, <a href="#
 <tr>
 <td style="text-align: left;"><a id="xls_benchmark_verilog-verilog_target"></a>verilog_target</td>
 <td style="text-align: left;">The verilog target to benchmark.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+</tbody>
+</table>
+<p><a id="xls_delay_model_generation"></a></p>
+<h2 id="xls_delay_model_generation">xls_delay_model_generation</h2>
+<pre>
+xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-samples_file">samples_file</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>)
+</pre>
+
+<p>Builds a script to generate an XLS delay model for one PDK corner.</p>
+<p>This rule gathers the locations of the required dependencies
+(Yosys, OpenSTA, helper scripts, and cell libraries) and
+generates a wrapper script that invokes "run_timing_characterization"
+with the dependency locations provided as args.</p>
+<p>Any extra runtime args will get passed in to the
+"run_timing_characterization" script (e.g. "--debug" or "--quick_run").</p>
+<p>The script must be "run" from the root of the workspace
+to perform the timing characterization.  The output textproto
+will be produced in the current directory (which, as just
+stated, must be the root of the workspace).</p>
+<p>Currently, only a subset of XLS operators are characterized,
+including most arithmetic, logical, and shift operators.
+However, many common operators such as "concat", "bit_slice",
+and "encode" are missing, and so the delay model that is
+currently produced should be considered INCOMPLETE.</p>
+<p><strong>ATTRIBUTES</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Name</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Mandatory</th>
+<th style="text-align: left;">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><a id="xls_delay_model_generation-name"></a>name</td>
+<td style="text-align: left;">A unique name for this target.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels#target-names">Name</a></td>
+<td style="text-align: left;">required</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_delay_model_generation-samples_file"></a>samples_file</td>
+<td style="text-align: left;">Proto providing sample points.</td>
+<td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
+<td style="text-align: left;">optional</td>
+<td style="text-align: left;"><code>None</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_delay_model_generation-standard_cells"></a>standard_cells</td>
+<td style="text-align: left;">Target for the PDK; will use the target's default corner.</td>
 <td style="text-align: left;"><a href="https://bazel.build/concepts/labels">Label</a></td>
 <td style="text-align: left;">optional</td>
 <td style="text-align: left;"><code>None</code></td>
@@ -3696,60 +3753,6 @@ xls_benchmark_ir(
 </tr>
 </tbody>
 </table>
-<p><a id="xls_delay_model_generation"></a></p>
-<h2 id="xls_delay_model_generation">xls_delay_model_generation</h2>
-<pre>
-xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>, <a href="#xls_delay_model_generation-samples_file">samples_file</a>, <a href="#xls_delay_model_generation-kwargs">kwargs</a>)
-</pre>
-
-<p>Generate an XLS delay model for one PDK corner.</p>
-<p>This macro gathers the locations of the required dependencies
-(Yosys, OpenSTA, helper scripts, and cell libraries) and
-generates a wrapper script that invokes "run_timing_characterization"
-with the dependency locations provided as args.</p>
-<p>Any extra runtime args will get passed in to the
-"run_timing_characterization" script (e.g. "--debug" or "--quick_run").</p>
-<p>The script must be "run" from the root of the workspace
-to perform the timing characterization.  The output textproto
-will be produced in the current directory (which, as just
-stated, must be the root of the workspace).</p>
-<p>Currently, only a subset of XLS operators are characterized,
-including most arithmetic, logical, and shift operators.
-However, many common operators such as "concat", "bit_slice",
-and "encode" are missing, and so the delay model that is
-currently produced should be considered INCOMPLETE.</p>
-<p><strong>PARAMETERS</strong></p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">Name</th>
-<th style="text-align: left;">Description</th>
-<th style="text-align: left;">Default Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><a id="xls_delay_model_generation-name"></a>name</td>
-<td style="text-align: left;">Used as basename for both the script and the output textproto.</td>
-<td style="text-align: left;">none</td>
-</tr>
-<tr>
-<td style="text-align: left;"><a id="xls_delay_model_generation-standard_cells"></a>standard_cells</td>
-<td style="text-align: left;">Label for the PDK (possibly specifying a non-default corner), with the assumption that $location will return the timing (Liberty) library for the PDK corner.</td>
-<td style="text-align: left;">none</td>
-</tr>
-<tr>
-<td style="text-align: left;"><a id="xls_delay_model_generation-samples_file"></a>samples_file</td>
-<td style="text-align: left;">Path to proto providing sample points.</td>
-<td style="text-align: left;">none</td>
-</tr>
-<tr>
-<td style="text-align: left;"><a id="xls_delay_model_generation-kwargs"></a>kwargs</td>
-<td style="text-align: left;">Accepts add'l keyword arguments. Passed to native.genrule().</td>
-<td style="text-align: left;">none</td>
-</tr>
-</tbody>
-</table>
 <p><a id="xls_dslx_cpp_type_library"></a></p>
 <h2 id="xls_dslx_cpp_type_library">xls_dslx_cpp_type_library</h2>
 <pre>
@@ -4405,7 +4408,7 @@ Recognized metrics from OpenSTA log:
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.081f42fc.min.js"></script>
+      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       

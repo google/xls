@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.25">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.26">
     
     
       
@@ -153,7 +153,7 @@
       
     </form>
     <div class="md-search__output">
-      <div class="md-search__scrollwrap" data-md-scrollfix>
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
         <div class="md-search-result" data-md-component="search-result">
           <div class="md-search-result__meta">
             Initializing search
@@ -5212,8 +5212,9 @@ where channels are connected and the communicating process hierarchy is created.
 <p>A proc can create a sub-proc via the <code>spawn</code> keyword, and this "spawning"
 happens at configuration time, whereas <code>next</code> reflects the "runtime" execution;
 e.g.</p>
-<blockquote>
-<p>WARNING: Though DSLX organizes procs into a tree based on <code>spawn</code>s the
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Though DSLX organizes procs into a tree based on <code>spawn</code>s the
 underlying IR does not (yet) do so. This will be added with
 <a href="../design_docs/proc_scoped_channels/">proc-scoped channels</a>
 but until then a proc is only considered to be connected to another proc if
@@ -5224,8 +5225,10 @@ of other procs with no channels of their own - have somewhat strange
 interactions with optimization. This most often causes spawned procs
 to be removed from opt-ir outputs. This can be worked around by manually
 setting top to a spawned procs. See below for more information.</p>
-</blockquote>
-<p>NOTE: If one wishes to spawn procs one may use an empty proc with only spawns in
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If one wishes to spawn procs one may use an empty proc with only spawns in
 the <code>config</code>, however one must manually set the <code>dslx_top</code> to the mangled name
 of the spawned proc and have a separate <code>xls_ir_opt_ir</code> target for each spawned
 proc independent group of procs. This can be used to instantiate a proc with
@@ -5238,6 +5241,7 @@ identifiers in the build-files instead of simply using the existing 'main' proc
 to spawn them both. In almost all cases simply picking any random proc
 instantiated in the proc-tree of the true <code>top</code> to act as <code>dslx_top</code> is
 sufficient.</p>
+</div>
 <div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Top</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="c1">// Channel where we&#39;ll receive values from `CountUp`.</span>
 <span class="w">    </span><span class="n">from_count_up</span><span class="p">:</span><span class="w"> </span><span class="nc">chan</span><span class="o">&lt;</span><span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
@@ -5317,7 +5321,7 @@ sufficient.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.081f42fc.min.js"></script>
+      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       
