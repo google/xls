@@ -26,7 +26,7 @@ fn numerical_conversions() {
     assert_eq(s32:0xfe, u8_m2 as s32);
     // Nop (bitwidth is unchanged).
     assert_eq(s8:-2, s8_m2 as s8);
-    assert_eq(s8:-2, u8_m2 as s8);
+    assert_eq(u8:0xfe, s8_m2 as u8);
     assert_eq(u8:0xfe, u8_m2 as u8);
     assert_eq(s8:-2, u8_m2 as s8);
 }
