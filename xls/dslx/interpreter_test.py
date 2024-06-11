@@ -242,8 +242,8 @@ class InterpreterTest(test_base.TestCase):
         alsologtostderr=True,
         warnings_as_errors=False,
     )
-    self.assertIn(':4] trace of x: 4', stderr)
-    self.assertIn(':6] trace of x: -1', stderr)
+    self.assertIn(':5] trace of x: 4', stderr)
+    self.assertIn(':7] trace of x: -1', stderr)
 
   def test_trace_fmt_hello(self):
     """Tests that basic trace formatting works."""

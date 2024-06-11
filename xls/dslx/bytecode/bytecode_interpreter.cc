@@ -1050,7 +1050,7 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
       options_.trace_hook()(
           absl::StrFormat("Received data on channel `%s`:\n%s",
                           channel_data->channel_name(), formatted_data),
-          span.filename(), span.start().lineno());
+          span.filename(), span.start().GetHumanLineno());
     }
     stack_.Push(InterpValue::MakeTuple(
         {token, channel->front(), InterpValue::MakeBool(true)}));
@@ -1092,7 +1092,7 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
       options_.trace_hook()(
           absl::StrFormat("Received data on channel `%s`:\n%s",
                           channel_data->channel_name(), formatted_data),
-          span.filename(), span.start().lineno());
+          span.filename(), span.start().GetHumanLineno());
     }
     stack_.Push(InterpValue::MakeTuple({token, channel->front()}));
     channel->pop_front();
@@ -1122,7 +1122,7 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
       options_.trace_hook()(
           absl::StrFormat("Sent data on channel `%s`:\n%s",
                           channel_data->channel_name(), formatted_data),
-          span.filename(), span.start().lineno());
+          span.filename(), span.start().GetHumanLineno());
     }
     channel->push_back(payload);
   }
@@ -1311,7 +1311,8 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
                        TraceDataToString(*trace_data, stack_));
   if (options_.trace_hook() != nullptr) {
     Span span = bytecode.source_span();
-    options_.trace_hook()(message, span.filename(), span.start().lineno());
+    options_.trace_hook()(message, span.filename(),
+                          span.start().GetHumanLineno());
   }
   stack_.Push(InterpValue::MakeToken());
   return absl::OkStatus();
