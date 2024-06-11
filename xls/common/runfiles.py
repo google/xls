@@ -38,5 +38,10 @@ def get_contents_as_text(relpath: str) -> str:
     return f.read()
 
 
+def get_contents_as_bytes(relpath: str) -> bytes:
+  with open(get_path(relpath), 'rb', encoding=None) as f:
+    return f.read()
+
+
 def walk_resources(relpath: str) -> Iterable[str]:
   return os.walk(get_path(relpath))

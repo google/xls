@@ -453,8 +453,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   XLS_ASSIGN_OR_RETURN(
       PipelinedLoopSubProc sub_proc,
       GenerateIR_PipelinedLoopBody(
-          cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
-          context_struct_xls_type, context_lvals_xls_type,
+          cond_expr, inc, body, initiation_interval_arg, always_first_iter, ctx,
+          name_prefix, context_struct_xls_type, context_lvals_xls_type,
           context_cvars_struct_ctype, &lvalues_out, context_field_indices,
           variable_fields_order, &uses_on_reset, loc));
 
@@ -750,9 +750,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
 absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
-    std::string_view name_prefix, xls::Type* context_struct_xls_type,
-    xls::Type* context_lvals_xls_type,
+    const clang::Stmt* body, int64_t init_interval, bool always_first_iter,
+    clang::ASTContext& ctx, std::string_view name_prefix,
+    xls::Type* context_struct_xls_type, xls::Type* context_lvals_xls_type,
     const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
     absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
         lvalues_out,
@@ -881,6 +881,21 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
           DeclareVariable(decl, prev_var, loc, /*check_unique_ids=*/false));
     }
 
+    // Generate initial loop condition, before body, for narrowing
+    xls::BValue initial_loop_cond = context().fb->Literal(xls::UBits(1, 1));
+
+    // always_first_iter = true for do loops, and this optimization opportunity
+    // doesn't apply to them
+    if (cond_expr != nullptr && !always_first_iter) {
+      // This context pop will top generate selects
+      PushContextGuard context_guard(*this, loc);
+
+      XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
+      CHECK(cond_cval.type()->Is<CBoolType>());
+
+      initial_loop_cond = cond_cval.rvalue();
+    }
+
     xls::BValue do_break = context().fb->Literal(xls::UBits(0, 1));
 
     // Generate body
@@ -941,7 +956,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
     xls::BValue ret_ctx =
         MakeStructXLS(tuple_values, *context_cvars_struct_ctype, loc);
-    std::vector<xls::BValue> return_bvals = {ret_ctx, do_break};
+    std::vector<xls::BValue> return_bvals = {ret_ctx, do_break,
+                                             initial_loop_cond};
 
     // For GenerateIRBlock_Prepare() / GenerateInvokeWithIO()
     extra_return_count += return_bvals.size();
@@ -1327,6 +1343,9 @@ Translator::GenerateIR_PipelinedLoopContents(
   xls::BValue do_break = pb.TupleIndex(
       fsm_ret.return_value, 1, loc,
       /*name=*/absl::StrFormat("%s_do_break_from_func", name_prefix));
+  xls::BValue initial_loop_cond = pb.TupleIndex(
+      fsm_ret.return_value, 2, loc,
+      /*name=*/absl::StrFormat("%s_initial_loop_cond", name_prefix));
 
   if (in_fsm) {
     do_break =
@@ -1398,7 +1417,13 @@ Translator::GenerateIR_PipelinedLoopContents(
     xls::BValue out_bval = val;
 
     if (in_fsm) {
-      next_state_value.condition = update_state_elements;
+      // Could add loop condition here.. but it's FSM only
+      xls::BValue guarded_update_state_elements = pb.And(
+          update_state_elements, initial_loop_cond, loc, /*name=*/
+          absl::StrFormat("%s_guarded_update_state_elements", name_prefix));
+
+      next_state_value.condition = guarded_update_state_elements;
+
       out_bval =
           pb.Select(update_state_elements,
                     /*on_true=*/val,

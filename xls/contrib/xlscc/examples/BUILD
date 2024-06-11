@@ -100,6 +100,26 @@ xls_cc_ir(
 )
 
 xls_cc_ir(
+    name = "simple_unsigned_pipelined_loop_fsm_ir",
+    src = "simple_unsigned_pipelined_loop.cc",
+    block_from_class = "MyBlock",
+    block_pb_out = "simple_unsigned_pipelined_loop_fsm.pbtxt",
+    ir_file = "simple_unsigned_pipelined_loop_fsm.ir",
+    xlscc_args = {
+        "generate_fsms_for_pipelined_loops": "true",
+    },
+)
+
+xls_ir_opt_ir(
+    name = "simple_unsigned_pipelined_loop_fsm_opt_ir",
+    src = "simple_unsigned_pipelined_loop_fsm.ir",
+    opt_ir_args = {
+        "inline_procs": "True",
+    },
+    opt_ir_file = "simple_unsigned_pipelined_loop_fsm.opt.ir",
+)
+
+xls_cc_ir(
     name = "simple_pipelined_loop_fsm_ir",
     src = "simple_pipelined_loop.cc",
     block_from_class = "MyBlock",

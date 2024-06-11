@@ -1853,9 +1853,9 @@ class Translator {
 
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
-      const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
-      std::string_view name_prefix, xls::Type* context_struct_xls_type,
-      xls::Type* context_lvals_xls_type,
+      const clang::Stmt* body, int64_t init_interval, bool always_first_iter,
+      clang::ASTContext& ctx, std::string_view name_prefix,
+      xls::Type* context_struct_xls_type, xls::Type* context_lvals_xls_type,
       const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
       absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
           lvalues_out,
