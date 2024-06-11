@@ -64,20 +64,26 @@ class ModuleBuilder {
   Module* module() { return module_; }
 
   // Add an input port of the given XLS type to the module.
-  absl::StatusOr<LogicRef*> AddInputPort(std::string_view name, Type* type);
+  absl::StatusOr<LogicRef*> AddInputPort(
+      std::string_view name, Type* type,
+      std::optional<std::string_view> sv_type = std::nullopt);
 
   // Add an input port of the given width.
-  LogicRef* AddInputPort(std::string_view name, int64_t bit_count);
+  LogicRef* AddInputPort(
+      std::string_view name, int64_t bit_count,
+      std::optional<std::string_view> sv_type = std::nullopt);
 
   // Add an output port of the given XLS type to the module. The output is
   // assigned the given value.
-  absl::Status AddOutputPort(std::string_view name, Type* type,
-                             Expression* value);
+  absl::Status AddOutputPort(
+      std::string_view name, Type* type, Expression* value,
+      std::optional<std::string_view> sv_type = std::nullopt);
 
   // Add an output port of the given width to the module. The output is assigned
   // the given value.
-  absl::Status AddOutputPort(std::string_view name, int64_t bit_count,
-                             Expression* value);
+  absl::Status AddOutputPort(
+      std::string_view name, int64_t bit_count, Expression* value,
+      std::optional<std::string_view> sv_type = std::nullopt);
 
   // Returns whether the given node can be emitted as an inline expression in
   // Verilog (the alternative is to assign the expression of node to a temporary
@@ -188,6 +194,8 @@ class ModuleBuilder {
   // For organization (not functionality) the module is divided into several
   // sections. The emitted module has the following structure:
   //
+  //   { includes_section }
+  //
   //   module foo(
   //     ...
   //   );
@@ -218,6 +226,7 @@ class ModuleBuilder {
   // current declaration and assignment sections.
   void NewDeclarationAndAssignmentSections();
 
+  ModuleSection* include_section() const { return includes_section_; }
   // Methods to returns one of the various sections in the module.
   ModuleSection* declaration_section() const {
     return declaration_subsections_.back();
@@ -335,6 +344,7 @@ class ModuleBuilder {
   std::optional<Reset> rst_;
 
   Module* module_;
+  ModuleSection* includes_section_;
   ModuleSection* functions_section_;
   ModuleSection* constants_section_;
   ModuleSection* input_section_;

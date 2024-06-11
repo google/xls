@@ -1105,6 +1105,19 @@ class TypedefType : public UserDefinedAliasType {
   Typedef* type_def_;
 };
 
+class ExternType : public UserDefinedAliasType {
+ public:
+  explicit ExternType(DataType* bitvec_repr, std::string_view name,
+                      VerilogFile* file, const SourceInfo& loc)
+      : UserDefinedAliasType(bitvec_repr, file, loc), name_(name) {}
+
+  // Just emits the name_
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  std::string name_;
+};
+
 // Represents the definition of a member of an enum.
 class EnumMember : public NamedTrait {
  public:
@@ -2467,6 +2480,9 @@ class VerilogFile {
   // are represented as Verilog scalars.
   DataType* BitVectorType(int64_t bit_count, const SourceInfo& loc,
                           bool is_signed = false);
+
+  DataType* ExternType(DataType* punable_type, std::string_view name,
+                       const SourceInfo& loc);
 
   // As above, but does not produce a scalar value when the bit_count is 1.
   //

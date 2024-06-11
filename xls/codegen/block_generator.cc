@@ -320,8 +320,11 @@ class BlockGenerator {
  public:
   // Generates (System)Verilog from the given block into the given Verilog file
   // using the given options.
-  static absl::Status Generate(Block* block, VerilogFile* file,
-                               const CodegenOptions& options) {
+  static absl::Status Generate(
+      Block* block, VerilogFile* file, const CodegenOptions& options,
+      const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types,
+      const absl::flat_hash_map<OutputPort*, std::string>&
+          output_port_sv_types) {
     XLS_ASSIGN_OR_RETURN(std::optional<ResetProto> reset_proto,
                          GetBlockResetProto(block));
     if (reset_proto.has_value()) {
@@ -338,18 +341,24 @@ class BlockGenerator {
           "Block has registers but no clock port");
     }
 
-    BlockGenerator generator(block, options, clock_name, reset_proto, file);
+    BlockGenerator generator(block, options, clock_name, reset_proto,
+                             input_port_sv_types, output_port_sv_types, file);
     return generator.Emit();
   }
 
  private:
-  BlockGenerator(Block* block, const CodegenOptions& options,
-                 std::optional<std::string_view> clock_name,
-                 const std::optional<ResetProto>& reset_proto,
-                 VerilogFile* file)
+  BlockGenerator(
+      Block* block, const CodegenOptions& options,
+      std::optional<std::string_view> clock_name,
+      const std::optional<ResetProto>& reset_proto,
+      const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types,
+      const absl::flat_hash_map<OutputPort*, std::string>& output_port_sv_types,
+      VerilogFile* file)
       : block_(block),
         options_(options),
         reset_proto_(reset_proto),
+        input_port_sv_types_(input_port_sv_types),
+        output_port_sv_types_(output_port_sv_types),
         file_(file),
         mb_(block->name(), file_, options, clock_name, reset_proto) {}
 
@@ -403,6 +412,18 @@ class BlockGenerator {
     return absl::OkStatus();
   }
 
+  std::optional<std::string_view> GetSvType(Node* n) const {
+    if (n->Is<InputPort>() &&
+        input_port_sv_types_.contains(n->As<InputPort>())) {
+      return input_port_sv_types_.at(n->As<InputPort>());
+    }
+    if (n->Is<OutputPort>() &&
+        output_port_sv_types_.contains(n->As<OutputPort>())) {
+      return output_port_sv_types_.at(n->As<OutputPort>());
+    }
+    return std::nullopt;
+  }
+
   absl::Status EmitInputPorts() {
     for (const Block::Port& port : block_->GetPorts()) {
       if (std::holds_alternative<InputPort*>(port)) {
@@ -414,7 +435,8 @@ class BlockGenerator {
         } else {
           XLS_ASSIGN_OR_RETURN(
               Expression * port_expr,
-              mb_.AddInputPort(input_port->GetName(), input_port->GetType()));
+              mb_.AddInputPort(input_port->GetName(), input_port->GetType(),
+                               GetSvType(input_port)));
           node_exprs_[input_port] = port_expr;
         }
       }
@@ -718,7 +740,8 @@ class BlockGenerator {
         XLS_RET_CHECK(std::holds_alternative<Expression*>(output_expr));
         XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
             output_port->GetName(), output_port->operand(0)->GetType(),
-            std::get<Expression*>(output_expr)));
+            std::get<Expression*>(output_expr),
+            GetSvType(output_port)));
         node_exprs_[output_port] = UnrepresentedSentinel();
       }
     }
@@ -859,6 +882,8 @@ class BlockGenerator {
   Block* block_;
   const CodegenOptions& options_;
   std::optional<ResetProto> reset_proto_;
+  const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types_;
+  const absl::flat_hash_map<OutputPort*, std::string>& output_port_sv_types_;
 
   VerilogFile* file_;
   ModuleBuilder mb_;
@@ -915,9 +940,10 @@ absl::StatusOr<std::vector<Block*>> GatherInstantiatedBlocks(Block* top) {
 
 }  // namespace
 
-absl::StatusOr<std::string> GenerateVerilog(Block* top,
-                                            const CodegenOptions& options,
-                                            VerilogLineMap* verilog_line_map) {
+absl::StatusOr<std::string> GenerateVerilog(
+    Block* top, const CodegenOptions& options, VerilogLineMap* verilog_line_map,
+    const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types,
+    const absl::flat_hash_map<OutputPort*, std::string>& output_port_sv_types) {
   VLOG(2) << absl::StreamFormat(
       "Generating Verilog for packge with with top level block `%s`:",
       top->name());
@@ -928,7 +954,8 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
   VerilogFile file(options.use_system_verilog() ? FileType::kSystemVerilog
                                                 : FileType::kVerilog);
   for (Block* block : blocks) {
-    XLS_RETURN_IF_ERROR(BlockGenerator::Generate(block, &file, options));
+    XLS_RETURN_IF_ERROR(BlockGenerator::Generate(
+        block, &file, options, input_port_sv_types, output_port_sv_types));
     if (block != blocks.back()) {
       file.Add(file.Make<BlankLine>(SourceInfo()));
       file.Add(file.Make<BlankLine>(SourceInfo()));

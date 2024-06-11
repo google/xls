@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -220,6 +221,9 @@ struct StreamingIOPipeline {
 
   // Map from node to stage.
   absl::flat_hash_map<Node*, Stage> node_to_stage_map;
+
+  absl::flat_hash_map<InputPort*, std::string> input_port_sv_type;
+  absl::flat_hash_map<OutputPort*, std::string> output_port_sv_type;
 };
 
 // Plumbs a valid signal through the block. This includes:

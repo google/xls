@@ -330,6 +330,12 @@ std::string Include::Emit(LineInfo* line_info) const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
+DataType* VerilogFile::ExternType(DataType* punable_type,
+                                  std::string_view name,
+                                  const SourceInfo& loc) {
+  return Make<verilog::ExternType>(loc, punable_type, name);
+}
+
 BitVectorType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
                                                   const SourceInfo& loc,
                                                   bool is_signed) {
@@ -1242,6 +1248,13 @@ std::string Typedef::Emit(LineInfo* line_info) const {
 std::string TypedefType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = type_def_->GetName();
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string ExternType::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = absl::StrCat(" ", name_);
   LineInfoEnd(line_info, this);
   return result;
 }

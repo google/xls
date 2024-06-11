@@ -17,10 +17,12 @@
 
 #include <string>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/ir/block.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 namespace verilog {
@@ -30,7 +32,11 @@ namespace verilog {
 // block as well as module definitions for any instantiated blocks.
 absl::StatusOr<std::string> GenerateVerilog(
     Block* top, const CodegenOptions& options,
-    VerilogLineMap* verilog_line_map = nullptr);
+    VerilogLineMap* verilog_line_map = nullptr,
+    const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types =
+        {},
+    const absl::flat_hash_map<OutputPort*, std::string>& output_port_sv_types =
+        {});
 
 }  // namespace verilog
 }  // namespace xls

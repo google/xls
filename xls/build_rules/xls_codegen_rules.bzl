@@ -22,7 +22,6 @@ load(
     "append_default_to_args",
     "args_to_string",
     "get_input_infos",
-    "get_original_input_files_for_xls",
     "get_output_filename_value",
     "get_runfiles_for_xls",
     "get_src_ir_for_xls",
@@ -36,6 +35,7 @@ load(
     "//xls/build_rules:xls_providers.bzl",
     "CODEGEN_FIELDS",
     "CodegenInfo",
+    "ConvIrInfo",
     "SCHEDULING_FIELDS",
 )
 load(
@@ -249,7 +249,7 @@ def validate_verilog_filename(verilog_filename, use_system_verilog):
         fail("Verilog filename must contain the '%s' extension." %
              _VERILOG_FILE_EXTENSION)
 
-def xls_ir_verilog_impl(ctx, src, original_input_files):
+def xls_ir_verilog_impl(ctx, src, conv_info):
     """The core implementation of the 'xls_ir_verilog' rule.
 
     Generates a Verilog file, module signature file, block file, Verilog line
@@ -258,7 +258,7 @@ def xls_ir_verilog_impl(ctx, src, original_input_files):
     Args:
       ctx: The current rule's context object.
       src: The source file.
-      original_input_files: All original source files that produced this IR file (used for errors).
+      conv_info: The ConvIrInfo for the source containing original input files and any interface proto.
 
     Returns:
       A tuple with the following elements in the order presented:
@@ -268,6 +268,7 @@ def xls_ir_verilog_impl(ctx, src, original_input_files):
     """
     codegen_tool = ctx.executable._xls_codegen_tool
     my_generated_files = []
+    runfiles_list = [src.ir_file] + conv_info.original_input_files
 
     # default arguments
     if ctx.file.codegen_options_proto == None:
@@ -290,6 +291,12 @@ def xls_ir_verilog_impl(ctx, src, original_input_files):
     codegen_str_args = args_to_string(codegen_args, _CODEGEN_FLAGS + _SCHEDULING_FLAGS)
     uses_combinational_generator = _is_combinational_generator(codegen_args)
     final_args = codegen_str_args
+    if (ctx.file.codegen_options_proto == None and conv_info.ir_interface != None):
+        # Mixing proto options and normal ones is not supported. If proto
+        # options are being used the user will need to have put the interface
+        # proto in manually.
+        final_args += " --ir_interface_proto={}".format(conv_info.ir_interface.path)
+        runfiles_list.append(conv_info.ir_interface)
 
     uses_fdo = _uses_fdo(codegen_args)
     if (uses_fdo):
@@ -356,7 +363,6 @@ def xls_ir_verilog_impl(ctx, src, original_input_files):
     # Get runfiles
     codegen_tool_runfiles = ctx.attr._xls_codegen_tool[DefaultInfo].default_runfiles
 
-    runfiles_list = [src.ir_file] + original_input_files
     if ctx.file.codegen_options_proto:
         final_args += " --codegen_options_proto={}".format(ctx.file.codegen_options_proto.path)
         runfiles_list.append(ctx.file.codegen_options_proto)
@@ -443,10 +449,15 @@ def _xls_ir_verilog_impl_wrapper(ctx):
       CodegenInfo provider
       DefaultInfo provider
     """
+    if ConvIrInfo in ctx.attr.src:
+        conv_info = ctx.attr.src[ConvIrInfo]
+    else:
+        conv_info = ConvIrInfo(original_input_files = ctx.files.src, ir_interface = None)
+
     codegen_info, built_files_list, runfiles = xls_ir_verilog_impl(
         ctx,
         get_src_ir_for_xls(ctx),
-        get_original_input_files_for_xls(ctx),
+        conv_info,
     )
 
     return [

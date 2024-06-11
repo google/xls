@@ -1028,6 +1028,7 @@ proto_library(
     name = "codegen_flags_proto",
     srcs = ["codegen_flags.proto"],
     visibility = ["//xls:xls_users"],
+    deps = ["//xls/ir:xls_ir_interface_proto"],
 )
 
 py_proto_library(
@@ -1049,7 +1050,9 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/ir:xls_ir_interface_cc_proto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

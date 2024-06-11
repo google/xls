@@ -307,7 +307,7 @@ def _xls_cc_ir_impl(ctx):
     )
     return [
         IrFileInfo(ir_file = ir_file),
-        ConvIrInfo(original_input_files = _get_xls_cc_ir_source_files(ctx)),
+        ConvIrInfo(original_input_files = _get_xls_cc_ir_source_files(ctx), ir_interface = None),
         outputs,
         runfiles,
         XlsccInfo(cc_headers = cc_headers),
@@ -567,7 +567,7 @@ def _xls_cc_verilog_impl(ctx):
     codegen_info, verilog_built_files, verilog_runfiles = xls_ir_verilog_impl(
         ctx,
         opt_ir_result,
-        ir_conv_info.original_input_files,
+        ir_conv_info,
     )
     runfiles = ir_conv_runfiles.merge_all([opt_ir_runfiles, verilog_runfiles])
     return [

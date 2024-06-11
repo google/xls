@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package xls;
 
+import "xls/ir/xls_ir_interface.proto";
+
 enum GeneratorKind {
   GENERATOR_KIND_INVALID = 0;
   GENERATOR_KIND_PIPELINE = 1;
@@ -70,4 +72,8 @@ message CodegenFlagsProto {
   optional bool array_index_bounds_checking = 29;
   optional RegisterMergeStrategyProto register_merge_strategy = 30;
   optional int64 max_trace_verbosity = 31;
+  // If present details about the interface requested. Eg specific sv types to
+  // use for arguments etc. Only the 'top' and channels are interpreted. Unknown
+  // interface elements are ignored.
+  optional PackageInterfaceProto package_interface = 32;
 }

@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -29,6 +30,7 @@
 #include "xls/codegen/ram_configuration.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::verilog {
 
@@ -83,9 +85,7 @@ class CodegenOptions {
   // Name to use for the generated module. If not given, the name of the XLS
   // function/proc is used.
   CodegenOptions& module_name(std::string_view name);
-  std::optional<std::string_view> module_name() const {
-    return module_name_;
-  }
+  std::optional<std::string_view> module_name() const { return module_name_; }
 
   // Name to use for the output port name (only applies to fonctions).
   CodegenOptions& output_port_name(std::string_view name);
@@ -259,6 +259,15 @@ class CodegenOptions {
     return *this;
   }
 
+  const std::optional<PackageInterfaceProto>& package_interface() const {
+    return package_interface_;
+  }
+
+  CodegenOptions& package_interface(PackageInterfaceProto p) {
+    package_interface_ = std::move(p);
+    return *this;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -286,6 +295,8 @@ class CodegenOptions {
   int64_t max_trace_verbosity_ = 0;
   RegisterMergeStrategy register_merge_strategy_ =
       RegisterMergeStrategy::kDefault;
+  std::optional<PackageInterfaceProto> package_interface_;
+  std::vector<std::string> includes_;
 };
 
 template <typename Sink>

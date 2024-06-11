@@ -151,6 +151,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     }
   }
 
+  if (p.has_package_interface()) {
+    options.package_interface(p.package_interface());
+  }
+
   if (!p.module_name().empty()) {
     options.module_name(p.module_name());
   }

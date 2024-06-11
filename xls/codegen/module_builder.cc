@@ -341,10 +341,11 @@ absl::Status ModuleBuilder::AssignFromSlice(
   return absl::OkStatus();
 }
 
-absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(std::string_view name,
-                                                      Type* type) {
+absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
+    std::string_view name, Type* type,
+    std::optional<std::string_view> sv_type) {
   LogicRef* port =
-      AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount());
+      AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount(), sv_type);
   if (!type->IsArray()) {
     return port;
   }
@@ -363,19 +364,32 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(std::string_view name,
   return ar;
 }
 
-LogicRef* ModuleBuilder::AddInputPort(std::string_view name,
-                                      int64_t bit_count) {
-  return module_->AddInput(SanitizeIdentifier(name),
-                           file_->BitVectorType(bit_count, SourceInfo()),
+LogicRef* ModuleBuilder::AddInputPort(std::string_view name, int64_t bit_count,
+                                      std::optional<std::string_view> sv_type) {
+  auto* raw_bits_type = file_->BitVectorType(bit_count, SourceInfo());
+  if (sv_type) {
+    return module_->AddInput(
+        SanitizeIdentifier(name),
+        file_->ExternType(raw_bits_type, *sv_type, SourceInfo()), SourceInfo());
+  }
+  return module_->AddInput(SanitizeIdentifier(name), raw_bits_type,
                            SourceInfo());
 }
 
-absl::Status ModuleBuilder::AddOutputPort(std::string_view name, Type* type,
-                                          Expression* value) {
-  LogicRef* output_port = module_->AddOutput(
-      SanitizeIdentifier(name),
-      file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
-      SourceInfo());
+absl::Status ModuleBuilder::AddOutputPort(
+    std::string_view name, Type* type, Expression* value,
+    std::optional<std::string_view> sv_type) {
+  LogicRef* output_port;
+  DataType* bits_type =
+      file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
+  if (sv_type) {
+    output_port = module_->AddOutput(
+        SanitizeIdentifier(name),
+        file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());
+  } else {
+    output_port =
+        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo());
+  }
 
   if (type->IsArray()) {
     // The output is flattened so flatten arrays with a sequence of assignments.
@@ -391,12 +405,20 @@ absl::Status ModuleBuilder::AddOutputPort(std::string_view name, Type* type,
   return absl::OkStatus();
 }
 
-absl::Status ModuleBuilder::AddOutputPort(std::string_view name,
-                                          int64_t bit_count,
-                                          Expression* value) {
-  LogicRef* output_port = module_->AddOutput(
-      SanitizeIdentifier(name), file_->BitVectorType(bit_count, SourceInfo()),
-      SourceInfo());
+absl::Status ModuleBuilder::AddOutputPort(
+    std::string_view name, int64_t bit_count, Expression* value,
+    std::optional<std::string_view> sv_type) {
+  LogicRef* output_port;
+  DataType* bits_type = file_->BitVectorType(bit_count, SourceInfo());
+  if (sv_type) {
+    output_port = module_->AddOutput(
+        SanitizeIdentifier(name),
+        file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());
+  } else {
+    output_port = module_->AddOutput(
+        SanitizeIdentifier(name), bits_type,
+        SourceInfo());
+  }
   output_section()->Add<ContinuousAssignment>(SourceInfo(), output_port, value);
   return absl::OkStatus();
 }

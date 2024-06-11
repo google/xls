@@ -301,7 +301,7 @@ def _xls_dslx_verilog_impl(ctx):
     codegen_info, verilog_built_files, verilog_runfiles = xls_ir_verilog_impl(
         ctx,
         ir_result,
-        ir_conv_info.original_input_files,
+        ir_conv_info,
     )
     return [
         dslx_info,

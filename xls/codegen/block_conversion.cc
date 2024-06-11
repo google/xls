@@ -14,7 +14,6 @@
 
 #include "xls/codegen/block_conversion.h"
 
-
 #include <algorithm>
 #include <cstdint>
 #include <initializer_list>
@@ -71,6 +70,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/pass_base.h"
@@ -81,6 +81,52 @@
 namespace xls {
 namespace verilog {
 namespace {
+
+std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
+    const std::optional<PackageInterfaceProto>& src,
+    std::string_view func_name) {
+  if (!src) {
+    return std::nullopt;
+  }
+  auto it = absl::c_find_if(src->functions(),
+                            [&](const PackageInterfaceProto::Function& f) {
+                              return f.base().name() == func_name;
+                            });
+  if (it != src->functions().end()) {
+    return *it;
+  }
+  return std::nullopt;
+}
+std::optional<PackageInterfaceProto::Proc> FindProcInterface(
+    const std::optional<PackageInterfaceProto>& src,
+    std::string_view proc_name) {
+  if (!src) {
+    return std::nullopt;
+  }
+  auto it =
+      absl::c_find_if(src->procs(), [&](const PackageInterfaceProto::Proc& f) {
+        return f.base().name() == proc_name;
+      });
+  if (it != src->procs().end()) {
+    return *it;
+  }
+  return std::nullopt;
+}
+std::optional<PackageInterfaceProto::Channel> FindChannelInterface(
+    const std::optional<PackageInterfaceProto>& src,
+    std::string_view chan_name) {
+  if (!src) {
+    return std::nullopt;
+  }
+  auto it = absl::c_find_if(src->channels(),
+                            [&](const PackageInterfaceProto::Channel& f) {
+                              return f.name() == chan_name;
+                            });
+  if (it != src->channels().end()) {
+    return *it;
+  }
+  return std::nullopt;
+}
 
 // If options specify it, adds and returns an input for a reset signal.
 static absl::Status MaybeAddResetPort(Block* block,
@@ -132,10 +178,8 @@ MakePipelineStagesForValid(
 // zero-th element is the input port and subsequent elements are the pipelined
 // valid signal from each stage.
 static absl::Status MakePipelineStagesForValidIO(
-    StreamingIOPipeline& streaming_io,
-    absl::Span<Node* const> recvs_valid,
-    absl::Span<Node* const> states_valid,
-    absl::Span<Node* const> sends_ready,
+    StreamingIOPipeline& streaming_io, absl::Span<Node* const> recvs_valid,
+    absl::Span<Node* const> states_valid, absl::Span<Node* const> sends_ready,
     const std::optional<xls::Reset>& reset_behavior, Block* block) {
   std::vector<PipelineStageRegisters>& pipeline_registers =
       streaming_io.pipeline_registers;
@@ -2228,10 +2272,18 @@ class CloneNodesIntoBlockHandler {
   absl::Status AddOutputPortsIfFunction(std::string_view output_port_name) {
     if (!is_proc_) {
       Function* function = function_base_->AsFunctionOrDie();
-      return block()
-          ->AddOutputPort(output_port_name,
-                          node_map_.at(function->return_value()))
-          .status();
+      XLS_ASSIGN_OR_RETURN(
+          OutputPort * port,
+          block()->AddOutputPort(output_port_name,
+                                 node_map_.at(function->return_value())));
+      if (std::optional<PackageInterfaceProto::Function> f =
+              FindFunctionInterface(options_.package_interface(),
+                                    function_base_->name());
+          f && f->has_sv_result_type()) {
+        // Record sv-type associated with this port.
+        result_.output_port_sv_type[port] = f->sv_result_type();
+      }
+      return absl::OkStatus();
     }
 
     return absl::OkStatus();
@@ -2312,8 +2364,22 @@ class CloneNodesIntoBlockHandler {
   // Replace function parameters with input ports.
   absl::StatusOr<Node*> HandleFunctionParam(Node* node) {
     Param* param = node->As<Param>();
-    return block()->AddInputPort(param->GetName(), param->GetType(),
-                                 param->loc());
+    XLS_ASSIGN_OR_RETURN(InputPort * res,
+                         block()->AddInputPort(param->GetName(),
+                                               param->GetType(), param->loc()));
+    if (std::optional<PackageInterfaceProto::Function> f =
+            FindFunctionInterface(options_.package_interface(),
+                                  function_base_->name())) {
+      // Record sv-type associated with this port.
+      auto it = absl::c_find_if(
+          f->parameters(), [&](const PackageInterfaceProto::NamedValue& p) {
+            return p.name() == param->name();
+          });
+      if (it != f->parameters().end() && it->has_sv_type()) {
+        result_.input_port_sv_type[res] = it->sv_type();
+      }
+    }
+    return res;
   }
 
   // Replace next values with a RegisterWrite.
@@ -2421,6 +2487,12 @@ class CloneNodesIntoBlockHandler {
         InputPort * input_port,
         block()->AddInputPort(absl::StrCat(channel->name(), data_suffix),
                               channel->type()));
+
+    if (std::optional<PackageInterfaceProto::Channel> c =
+            FindChannelInterface(options_.package_interface(), channel->name());
+        c && c->has_sv_type()) {
+      result_.input_port_sv_type[input_port] = c->sv_type();
+    }
 
     XLS_ASSIGN_OR_RETURN(
         Node * literal_1,
@@ -2553,6 +2625,12 @@ class CloneNodesIntoBlockHandler {
         OutputPort * output_port,
         block()->AddOutputPort(absl::StrCat(channel->name(), data_suffix),
                                node_map_.at(send->data())));
+
+    if (std::optional<PackageInterfaceProto::Channel> c =
+            FindChannelInterface(options_.package_interface(), channel->name());
+        c && c->has_sv_type()) {
+      result_.output_port_sv_type[output_port] = c->sv_type();
+    }
     // Map the Send node to the token operand of the Send in the
     // block.
     next_node = node_map_.at(send->token());
@@ -3353,13 +3431,30 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
 
   // A map from the nodes in 'f' to their corresponding node in the block.
   absl::flat_hash_map<Node*, Node*> node_map;
+  CodegenPassUnit unit(block->package(), block);
 
   // Emit the parameters first to ensure the their order is preserved in the
   // block.
+  auto func_interface =
+      FindFunctionInterface(options.package_interface(), f->name());
   for (Param* param : f->params()) {
     XLS_ASSIGN_OR_RETURN(
         node_map[param],
         block->AddInputPort(param->GetName(), param->GetType(), param->loc()));
+
+    if (func_interface) {
+      auto name =
+          absl::c_find_if(func_interface->parameters(),
+                          [&](const PackageInterfaceProto::NamedValue& p) {
+                            return p.name() == param->name();
+                          });
+      if (name != func_interface->parameters().end() && name->has_sv_type()) {
+        unit.metadata[block]
+            .streaming_io_and_pipeline
+            .input_port_sv_type[node_map[param]->As<InputPort>()] =
+            name->sv_type();
+      }
+    }
   }
 
   for (Node* node : TopoSort(f)) {
@@ -3376,12 +3471,14 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
     node_map[node] = block_node;
   }
 
-  XLS_RETURN_IF_ERROR(block
-                          ->AddOutputPort(options.output_port_name(),
-                                          node_map.at(f->return_value()))
-                          .status());
+  XLS_ASSIGN_OR_RETURN(OutputPort * output,
+                       block->AddOutputPort(options.output_port_name(),
+                                            node_map.at(f->return_value())));
+  if (func_interface && func_interface->has_sv_result_type()) {
+    unit.metadata[block].streaming_io_and_pipeline.output_port_sv_type[output] =
+        func_interface->sv_result_type();
+  }
 
-  CodegenPassUnit unit(block->package(), block);
   unit.metadata[block]
       .conversion_metadata.emplace<FunctionConversionMetadata>();
   unit.GcMetadata();

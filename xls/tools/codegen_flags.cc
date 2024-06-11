@@ -25,7 +25,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/tools/codegen_flags.pb.h"
 
 // LINT.IfChange
@@ -154,6 +156,12 @@ ABSL_FLAG(std::string, register_merge_strategy, "IdentityOnly",
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
 // )
+// This flag should only be specified by the build-system itself and cannot be
+// manually configured.
+ABSL_FLAG(
+    std::optional<std::string>, ir_interface_proto, std::nullopt,
+    "An optional proto which includes details from the original DSLX about the "
+    "interface. For example it holds the sv types we want modules to generate");
 
 namespace xls {
 namespace {
@@ -259,6 +267,17 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
       MergeStrategyFromString(absl::GetFlag(FLAGS_register_merge_strategy)));
   any_flags_set |= FLAGS_register_merge_strategy.IsSpecifiedOnCommandLine();
   proto.set_register_merge_strategy(merge_strategy);
+
+  // Misc
+  if (absl::GetFlag(FLAGS_ir_interface_proto)) {
+    XLS_ASSIGN_OR_RETURN(
+        std::string interface_bytes,
+        GetFileContents(*absl::GetFlag(FLAGS_ir_interface_proto)));
+    XLS_RET_CHECK(
+        proto.mutable_package_interface()->ParseFromString(interface_bytes));
+    any_flags_set = true;
+    CHECK(proto.has_package_interface());
+  }
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
   return any_flags_set;
