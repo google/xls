@@ -22,12 +22,13 @@ the user discern when they're calling "something that will behave like a normal
 function" versus "something that has special abilities beyond normal functions,
 e.g. special side-effects".
 
-NOTE: A brief note on "Parallel Primitives": the DSL is expected to grow
-additional support for use of high-level parallel primitives over time, adding
-operators for order-insensitive reductions, scans, groupings, and similar. By
-making these operations known to the compiler in their high level form, we
-potentially enable optimizations and analyses on their higher level ("lifted")
-form. As of now, `map` is the sole parallel-primitive-oriented built-in.
+!!! NOTE
+    A brief note on "Parallel Primitives": the DSL is expected to grow
+    additional support for use of high-level parallel primitives over time, adding
+    operators for order-insensitive reductions, scans, groupings, and similar. By
+    making these operations known to the compiler in their high level form, we
+    potentially enable optimizations and analyses on their higher level ("lifted")
+    form. As of now, `map` is the sole parallel-primitive-oriented built-in.
 
 ### `add_with_carry`
 
@@ -291,8 +292,9 @@ are set this evaluates to zero. This function is not generally used directly
 though the compiler will when possible synthesize the equivalent code from a
 `match` expression.
 
-NOTE: This is included largely for testing purposes and for bespoke
-'intrinsic-style programming' use cases.
+!!! NOTE
+    This is included largely for testing purposes and for bespoke
+    'intrinsic-style programming' use cases.
 
 ### `priority_sel`
 
@@ -310,9 +312,10 @@ If the selector is zero, the zero-value (of the result type) is returned.
 Example usage:
 [`dslx/tests/priority_sel.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/priority_sel.x).
 
-NOTE: This operator is only defined for bits types because other types do not
-have defined or-operators, and conceptually `priority_sel` desugars to a masked
-or-reduction, which is why it produces the zero value when nothing is selected.
+!!! NOTE
+    This operator is only defined for bits types because other types do not
+    have defined or-operators, and conceptually `priority_sel` desugars to a masked
+    or-reduction, which is why it produces the zero value when nothing is selected.
 
 ### `range`
 
@@ -669,9 +672,10 @@ SystemVerilog. At higher levels in the stack, it's unused.
 
 ### `cover!`
 
-NOTE: Currently, `cover!` has no effect in RTL simulators supported in XLS open
-source (i.e. iverilog). See
-[google/xls#436](https://github.com/google/xls/issues/436).
+!!! NOTE
+    Currently, `cover!` has no effect in RTL simulators supported in XLS open
+    source (i.e. iverilog). See
+    [google/xls#436](https://github.com/google/xls/issues/436).
 
 The `cover!` builtin tracks how often some condition is satisfied. It desugars
 into SystemVerilog cover points. Its signature is:
@@ -731,7 +735,8 @@ begin.
     let token2 = send(joined, chan2, another_value);
 ```
 
-NOTE: this routine can only be used in the body of a `proc`.
+!!! NOTE
+    this routine can only be used in the body of a `proc`.
 
 ### `send`: send a value on a channel
 
@@ -783,10 +788,11 @@ value came from the channel).
 recv_non_blocking(tok: token, c: chan<T> in, default_value: T) -> (token, T, bool)
 ```
 
-NOTE: non-blocking operations make a block latency sensitive and can no longer
-be described as pure "Kahn Process Networks", which means that the design's
-correctness is more sensitive to the chosen schedule, and thus design
-verification should occur on the scheduled design.
+!!! NOTE
+    non-blocking operations make a block latency sensitive and can no longer
+    be described as pure "Kahn Process Networks", which means that the design's
+    correctness is more sensitive to the chosen schedule, and thus design
+    verification should occur on the scheduled design.
 
 ### `recv_if_non_blocking`: conditional non-blocking receive of a value from a channel
 

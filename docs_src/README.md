@@ -163,9 +163,10 @@ echo "build --disk_cache=$(realpath ~/.bazel_disk_cache)" >> ~/.bazelrc
 echo "test --disk_cache=$(realpath ~/.bazel_disk_cache)" >> ~/.bazelrc
 ```
 
-WARNING: Bazel does not automate garbage collection of this directory, so it
-will grow over time without bounds. You will need to clean it up periodically,
-either manually or with an automated script.
+!!! WARNING
+    Bazel does not automate garbage collection of this directory, so it
+    will grow over time without bounds. You will need to clean it up periodically,
+    either manually or with an automated script.
 
 Alternatively, you can add a [remote cache](https://bazel.build/remote/caching)
 that takes care of garbage collection for you. This can be hosted on a personal

@@ -7,8 +7,9 @@ state can be captured as `{PC, stack}` instead of some traversal state
 in native execution, which makes it very suitable for modeling independent
 processes, such as `Proc`s.
 
-NOTE: The bytecode interpreter system is under active construction and does not
-yet support the full set of DSLX functionality.
+!!! NOTE
+    The bytecode interpreter system is under active construction and does not
+    yet support the full set of DSLX functionality.
 
 [TOC]
 

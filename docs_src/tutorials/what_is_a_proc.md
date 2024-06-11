@@ -33,16 +33,15 @@ channels A and B, then write their sum as the first value on channel C. The
 second activation will read the second number from each of channels A and B,
 then write their sum as the second value on channel C... and so on.
 
-> [!NOTE] \
-> XLS guarantees that, for each I/O operation X, the first activation's action
-> (X<sub>0</sub>) will happen before the second activation's action
-> (X<sub>1</sub>), and so on. Therefore, the first activation will read the
-> first numbers on channels A and B, and write the first number on channel C.
-> However, if a proc includes multiple I/O operations - even on the same
-> channel - and these operations need to happen in a specific order (whether in
-> the same activation or between activations), there is no ordering guarantee by
-> default. Instead, you can express that using **tokens**, as we'll discuss
-> later.
+!!! NOTE
+    XLS guarantees that, for each I/O operation X, the first activation's
+    action (X<sub>0</sub>) will happen before the second activation's action
+    (X<sub>1</sub>), and so on. Therefore, the first activation will read the first
+    numbers on channels A and B, and write the first number on channel C. However,
+    if a proc includes multiple I/O operations - even on the same channel - and
+    these operations need to happen in a specific order (whether in the same
+    activation or between activations), there is no ordering guarantee by default.
+    Instead, you can express that using **tokens**, as we'll discuss later.
 
 ## Channels
 
@@ -82,13 +81,13 @@ Sends, by contrast, are considered to be **non-blocking** operations; by
 default, XLS models channels as if they used infinite-depth queues, so sends can
 always complete.
 
-> [!NOTE] \
-> In reality, when compiled to RTL, hardware FIFOs have finite depth. By
-> default, XLS allows for **backpressure** on finite-depth channels. If the
-> channel is not able to receive new data when the send should trigger, the
-> activation will stall until the channel is ready. This always produces correct
-> behavior in the absence of deadlocks, but can introduce deadlocks in RTL that
-> did not exist at higher levels.
+!!! NOTE
+    In reality, when compiled to RTL, hardware FIFOs have finite depth. By
+    default, XLS allows for **backpressure** on finite-depth channels. If the
+    channel is not able to receive new data when the send should trigger, the
+    activation will stall until the channel is ready. This always produces correct
+    behavior in the absence of deadlocks, but can introduce deadlocks in RTL that
+    did not exist at higher levels.
 
 Using these, we can implement our first example, which reads from two channels
 and writes the sum to a third:
@@ -170,11 +169,11 @@ pub proc fallback {
 }
 ```
 
-> [!NOTE] \
-> You might be surprised that we didn't simply put the `data_B` conditional
-> receive inside the correct branch of our `if` expression. DSLX does not
-> currently allow receives to happen in conditional expressions, so we need to
-> control them separately.
+!!! NOTE
+    You might be surprised that we didn't simply put the `data_B` conditional
+    receive inside the correct branch of our `if` expression. DSLX does not
+    currently allow receives to happen in conditional expressions, so we need to
+    control them separately.
 
 ### State
 
@@ -354,9 +353,9 @@ to pass it to the *next* activation to make sure it doesn't start serializing
 `B` until `A` is finished. (i.e., we want to prevent orders like `[A1, A2, B1,
 ...]`.) Using tokens in our state, we can write:
 
-> [!NOTE] \
-> This example will not work as written until DSLX supports multiple I/O
-> operations per channel per activation.
+!!! NOTE
+    This example will not work as written until DSLX supports multiple I/O
+    operations per channel per activation.
 
 ```dslx-snippet
 pub proc serialize {
@@ -385,17 +384,17 @@ pub proc serialize {
 
 ### Timing-Sensitive Operations
 
-> [!WARNING] \
-> Using timing-sensitive operations means that your circuit's behavior can
-> depend on the exact details of scheduling. It is possible to write correct XLS
-> code under these constraints, but the logic **must** work no matter how
-> operations are pipelined, and **should** (within reason) be designed to be
-> correct even if the number of stages in the pipeline varies. Testing/DV is
-> substantially more difficult for timing-sensitive procs. As such, similar to
-> how *unsafe* operations work in Rust, we recommend that you avoid using
-> timing-sensitive operations except where strictly necessary. It's good
-> practice to keep them confined to small well-understood procs that implement
-> certain necessary behaviors.
+!!! WARNING
+    Using timing-sensitive operations means that your circuit's behavior
+    can depend on the exact details of scheduling. It is possible to write correct
+    XLS code under these constraints, but the logic **must** work no matter how
+    operations are pipelined, and **should** (within reason) be designed to be
+    correct even if the number of stages in the pipeline varies. Testing/DV is
+    substantially more difficult for timing-sensitive procs. As such, similar to how
+    *unsafe* operations work in Rust, we recommend that you avoid using
+    timing-sensitive operations except where strictly necessary. It's good practice
+    to keep them confined to small well-understood procs that implement certain
+    necessary behaviors.
 
 Using streaming channels as documented above, there are some circuits that are
 simply impossible to implement; for example, you cannot implement an

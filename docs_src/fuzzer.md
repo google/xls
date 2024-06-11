@@ -10,9 +10,10 @@ bazel run -c opt \
   -- --crash_path=/tmp/crashers-$(date +'%Y-%m-%d') --seed=0 --duration=8h
 ```
 
-NOTE: The `--seed=0` flag makes the fuzzer run from a deterministic seed, so the
-same sequence of examples will be tested each time command line invocation. To
-run non-deterministically, do not provide the `--seed` flag.
+!!! NOTE
+    The `--seed=0` flag makes the fuzzer run from a deterministic seed, so the
+    same sequence of examples will be tested each time command line invocation. To
+    run non-deterministically, do not provide the `--seed` flag.
 
 The XLS fuzzer generates a sequence of randomly generated DSLX functions and a
 set of random inputs to each function often with interesting bit patterns.

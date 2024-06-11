@@ -303,9 +303,10 @@ $ bazel run -c opt //xls/dslx:prove_quickcheck_main -- $PWD/xls/dslx/stdlib/std.
 Proven! elapsed: 115.419669ms
 ```
 
-NOTE: Currently an error code is returned if it cannot be proven, but it does
-not dump a counterexample to terminal. A temporary workaround is to use
-`--alsologtostderr --v=1` until that functionality is completed.
+!!! NOTE
+    Currently an error code is returned if it cannot be proven, but it does
+    not dump a counterexample to terminal. A temporary workaround is to use
+    `--alsologtostderr --v=1` until that functionality is completed.
 
 ## [`dslx/dslx_fmt`](https://github.com/google/xls/tree/main/xls/dslx/dslx_fmt.cc)
 
