@@ -30,14 +30,14 @@ pub proc serialized_decomposer {
   result3: chan<u32> out;
   result4: chan<u32> out;
 
-  init { join() }
+  init { token() }
 
   config(ch_in: chan<uN[128]> in, result1: chan<u32> out, result2: chan<u32> out, result3: chan<u32> out, result4: chan<u32> out) {
     (ch_in, result1, result2, result3, result4)
   }
 
   next(tok: token) {
-    let (input_tok, val) = recv(join(), ch_in);
+    let (input_tok, val) = recv(token(), ch_in);
     let tok = join(tok, input_tok);
     let tok = send(tok, result1, val[0:32]);
     let tok = send(tok, result2, val[32:64]);
@@ -70,7 +70,7 @@ proc serialized_decomposer_smoke_test {
     }
 
     next(st: ()) {
-        let tok = send(join(), data_in_s, uN[128]:18446744073709551616);
+        let tok = send(token(), data_in_s, uN[128]:18446744073709551616);
         let (tok, v1) = recv(tok, data_out_1_r);
         assert_eq(v1, u32:0);
         let (tok, v2) = recv(tok, data_out_2_r);

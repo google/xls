@@ -263,7 +263,8 @@ class Parser : public TokenParser {
   absl::StatusOr<ColonRef*> ParseColonRef(Bindings& bindings,
                                           ColonRef::Subject subject);
 
-  absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstance(Bindings& bindings);
+  absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstanceOrToken(
+      Bindings& bindings);
 
   absl::StatusOr<Expr*> ParseStructInstance(Bindings& bindings,
                                             TypeAnnotation* type = nullptr);

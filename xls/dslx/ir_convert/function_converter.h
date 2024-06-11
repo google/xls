@@ -410,6 +410,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinXorReduce(const Invocation* node);
 
   absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinToken(const Invocation* node);
   absl::Status HandleBuiltinSend(const Invocation* node);
   absl::Status HandleBuiltinSendIf(const Invocation* node);
   absl::Status HandleBuiltinRecv(const Invocation* node);

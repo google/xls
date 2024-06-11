@@ -1940,6 +1940,9 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   if (called_name == "join") {
     return HandleBuiltinJoin(node);
   }
+  if (called_name == "token") {
+    return HandleBuiltinToken(node);
+  }
 
   // The rest of the builtins have "handle" methods we can resolve.
   absl::flat_hash_map<std::string,
@@ -2298,6 +2301,21 @@ absl::Status FunctionConverter::HandleBuiltinJoin(const Invocation* node) {
     ir_tokens.push_back(ir_token);
   }
   BValue value = builder_ptr->AfterAll(ir_tokens);
+  node_to_ir_[node] = value;
+  tokens_.push_back(value);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinToken(const Invocation* node) {
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Token nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  BValue value = function_builder_->Literal(Value::Token());
   node_to_ir_[node] = value;
   tokens_.push_back(value);
   return absl::OkStatus();

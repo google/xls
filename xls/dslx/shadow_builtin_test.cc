@@ -58,6 +58,9 @@ fn test_main() {
     if (name == "assert_eq") {
       continue;  // Used in our expectation.
     }
+    if (name == "token") {
+      continue;  // Type name, cannot be shadowed.
+    }
     LOG(INFO) << "builtin: " << name;
     std::string program = absl::StrFormat(kTemplate, name, name);
     ParseAndTestOptions options;
@@ -90,6 +93,9 @@ fn test_main() {
   for (const std::string& name : builtins_names) {
     if (name == "assert_eq") {
       continue;  // Used in our expectation.
+    }
+    if (name == "token") {
+      continue;  // Type name, cannot be shadowed.
     }
     LOG(INFO) << "builtin: " << name;
     std::string program = absl::StrFormat(kTemplate, name, name);

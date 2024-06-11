@@ -591,6 +591,11 @@ absl::Status BytecodeEmitter::HandleBuiltinJoin(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinToken(const Invocation* node) {
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeToken()));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinRecvNonBlocking(
     const Invocation* node) {
   Expr* token = node->args()[0];
@@ -1110,6 +1115,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     }
     if (name_ref->identifier() == "join") {
       return HandleBuiltinJoin(node);
+    }
+    if (name_ref->identifier() == "token") {
+      return HandleBuiltinToken(node);
     }
   }
 

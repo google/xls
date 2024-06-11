@@ -127,6 +127,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinToken(const Invocation* node);
 
   absl::StatusOr<InterpValue> HandleColonRefToEnum(const ColonRef* colon_ref,
                                                    EnumDef* enum_def,

@@ -1441,6 +1441,7 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     // Implementation note: some of these operations are implemented via
     // bytecodes; e.g. see `BytecodeEmitter::HandleBuiltin*`
     case Builtin::kJoin:
+    case Builtin::kToken:
     case Builtin::kSend:
     case Builtin::kSendIf:
     case Builtin::kRecv:

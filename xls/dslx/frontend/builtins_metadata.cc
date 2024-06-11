@@ -116,6 +116,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
             .is_ast_node = false}},
 
           {"join", {.signature = "(token...) -> token", .is_ast_node = false}},
+          {"token", {.signature = "() -> token", .is_ast_node = false}},
       });
 
   return *map;

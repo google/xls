@@ -572,6 +572,16 @@ absl::StatusOr<TypeAndParametricEnv> CheckJoinSignature(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
+absl::StatusOr<TypeAndParametricEnv> CheckTokenSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx);
+  XLS_RETURN_IF_ERROR(checker.Len(0).status());
+  XLS_RETURN_IF_ERROR(checker.status());
+  auto return_type = std::make_unique<TokenType>();
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
+      std::vector<std::unique_ptr<Type>>{}, std::move(return_type))};
+}
+
 static void AddUnaryArbitraryTypeIdentitySignature(
     absl::flat_hash_map<std::string, SignatureFn>& map) {
   map["(T) -> T"] = [](const SignatureData& data,
@@ -1205,6 +1215,8 @@ PopulateSignatureToLambdaMap() {
   map["(token, send_chan<T>, bool, T) -> token"] = CheckSendIfSignature;
   // join
   map["(token...) -> token"] = CheckJoinSignature;
+  // join
+  map["() -> token"] = CheckTokenSignature;
   return map;
 }
 

@@ -62,6 +62,7 @@ namespace xls::dslx {
   X("update", kUpdate)                    \
   X("xor_reduce", kXorReduce)             \
   X("join", kJoin)                        \
+  X("token", kToken)                      \
   /* send/recv routines */                \
   X("send", kSend)                        \
   X("send_if", kSendIf)                   \
