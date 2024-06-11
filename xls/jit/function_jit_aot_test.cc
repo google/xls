@@ -55,7 +55,6 @@ namespace xls {
 namespace {
 using status_testing::StatusIs;
 using testing::ContainsRegex;
-using testing::ElementsAre;
 using testing::UnorderedElementsAre;
 
 static_assert(
