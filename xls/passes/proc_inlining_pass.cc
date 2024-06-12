@@ -985,7 +985,7 @@ class ProcThread {
         inlined_proc_->NextState().begin(), inlined_proc_->NextState().end());
 
     std::vector<Receive*> receives;
-    for (auto [receive, nodes] : receive_data_deps) {
+    for (const auto& [receive, nodes] : receive_data_deps) {
       receives.push_back(receive);
     }
     SortByNodeId(&receives);

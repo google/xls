@@ -227,7 +227,7 @@ class Analysis {
     // arm and selector are identical
     absl::flat_hash_map<SelectorAndArm, EquivalenceSet> equivalences;
     equivalences.reserve(interesting.state_and_nodes.size());
-    for (auto [state, interesting_nodes] : interesting.state_and_nodes) {
+    for (const auto& [state, interesting_nodes] : interesting.state_and_nodes) {
       EquivalenceSet& cur =
           equivalences
               .try_emplace(

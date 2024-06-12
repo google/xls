@@ -176,7 +176,7 @@ absl::StatusOr<InterProcConnectivityGraph> MakeInterProcConnectivityGraph(
   // FunctionBase. Now, add edges between sends and receives on the same
   // channel. If there are multiple sends or receives on the same channel, add
   // an edge from every send to each receive.
-  for (auto [channel_id, send_nodes] : channel_id_to_internal_send) {
+  for (const auto& [channel_id, send_nodes] : channel_id_to_internal_send) {
     auto itr = channel_id_to_internal_receive.find(channel_id);
     if (itr == channel_id_to_internal_receive.end()) {
       XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
