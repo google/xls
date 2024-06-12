@@ -260,7 +260,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
 absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
                                                  int64_t opt_level) {
   std::unique_ptr<OptimizationCompoundPass> pipeline =
-      CreateOptimizationPassPipeline();
+      CreateOptimizationPassPipeline(opt_level);
   PassResults results;
   return pipeline->Run(package, OptimizationPassOptions(), &results);
 }
