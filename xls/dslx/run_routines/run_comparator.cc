@@ -77,8 +77,7 @@ absl::Status RunComparator::RunComparison(Package* ir_package,
   //
   // TODO(amfv): 2021-03-18 Extend IR conversion to include those functions.
   if (!get_result.has_value()) {
-    LOG(WARNING) << "Could not find " << ir_name
-                 << " function for JIT comparison";
+    VLOG(1) << "Could not find " << ir_name << " function for JIT comparison";
     return absl::OkStatus();
   }
 
