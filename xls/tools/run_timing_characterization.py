@@ -50,6 +50,17 @@ _OP_INCLUDE_LIST = flags.DEFINE_list(
     'Names of ops from samples textproto to generate data points for. If empty,'
     ' all of them are included. Note that kIdentity is always included',
 )
+_MAX_THREADS = flags.DEFINE_integer(
+    'max_threads',
+    max(os.cpu_count() // 2, 1),
+    'Max number of threads for parallelizing the generation of data points.',
+)
+_CHECKPOINT_PATH = flags.DEFINE_string(
+    'checkpoint_path',
+    '',
+    'Optional file path for partial output, which enables resuming an'
+    ' interrupted run.',
+)
 _BAZEL_BIN_PATH = flags.DEFINE_string(
     'bazel_bin_path', None, 'Root directory of bazel-bin'
 )
@@ -123,17 +134,20 @@ class WorkerConfig:
   client_args = []
   client_extra_args = []
   client_checkpoint_file: str
+  client_out_file: str
 
 
 def _do_config_task(config: WorkerConfig):
   """Extract configs from args and environment."""
+  config.client_checkpoint_file = (
+      _CHECKPOINT_PATH.value if _CHECKPOINT_PATH.value else ''
+  )
+
   if config.openroad_path:
     # Expect OpenROAD-flow-scripts to hold tools
     config.yosys_bin = f'{config.openroad_path}/tools/install/yosys/bin/yosys'
     config.sta_bin = f'{config.openroad_path}/tools/install/OpenROAD/bin/sta'
-    config.client_checkpoint_file = (
-        f'../../{config.target}_checkpoint.textproto'
-    )
+    config.client_out_file = f'../../{config.target}_checkpoint.textproto'
   else:
     if not _YOSYS_PATH.value:
       raise app.UsageError(
@@ -163,7 +177,7 @@ def _do_config_task(config: WorkerConfig):
     if _OUT_PATH.value:
       out_path = _OUT_PATH.value
       assert out_path is not None
-      config.client_checkpoint_file = out_path
+      config.client_out_file = out_path
     else:
       raise app.UsageError(
           'If not using --openroad_path, then must provide --out_path.'
@@ -193,7 +207,8 @@ def _do_config_task(config: WorkerConfig):
   print('server bin path:', config.server_bin)
   print('client bin path:', config.client_bin)
   print(
-      'output checkpoint path:', os.path.realpath(config.client_checkpoint_file)
+      'output checkpoint path:',
+      os.path.realpath(config.client_checkpoint_file),
   )
 
   if not os.path.isfile(config.yosys_bin):
@@ -223,6 +238,9 @@ def _do_config_task(config: WorkerConfig):
   if _SAMPLES_PATH.value:
     config.samples_path = os.path.realpath(_SAMPLES_PATH.value)
     config.client_extra_args.append(f'--samples_path={config.samples_path}')
+    config.client_extra_args.append(
+        '--max_threads={}'.format(_MAX_THREADS.value)
+    )
     config.client_extra_args.append(
         '--op_include_list=' + ','.join(_OP_INCLUDE_LIST.value)
     )
@@ -311,16 +329,21 @@ def _do_worker_task(config: WorkerConfig):
   server_cmd = ' '.join(server)
 
   client = [repr(config.client_bin)]
-  client.append(f'--checkpoint_path {config.client_checkpoint_file!r}')
+  if config.client_checkpoint_file:
+    client.append(f'--checkpoint_path {config.client_checkpoint_file!r}')
+  client.append(f'--out_path {config.client_out_file!r}')
   client.extend(repr(arg) for arg in config.client_args)
   client.extend(repr(arg) for arg in config.client_extra_args)
   client.append(f'--port={config.rpc_port}')
 
   client_cmd = ' '.join(client)
 
-  # create a checkpoint file if not allready there
-  with open(config.client_checkpoint_file, 'w') as f:
-    f.write('')
+  # create a checkpoint file if not already there
+  if config.client_checkpoint_file and not os.path.isfile(
+      config.client_checkpoint_file
+  ):
+    with open(config.client_checkpoint_file, 'w') as f:
+      f.write('')
 
   start = datetime.datetime.now()
 

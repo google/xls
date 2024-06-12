@@ -14,7 +14,7 @@
 # limitations under the License.
 """Tests for xls.synthesis.timing_characterization_client_main."""
 
-import collections
+import multiprocessing as mp
 import tempfile
 
 from absl.testing import absltest
@@ -28,15 +28,14 @@ class TimingCharacterizationClientMainTest(absltest.TestCase):
 
     results = delay_model_pb2.DataPoints()
     # Maps an op name to the set of bit configurations we've run that op with.
-    data_points = collections.defaultdict(set)
 
     # Set up some fake data.
     ops = ["op_a", "op_b", "op_c", "op_d", "op_e"]
     bit_configs = ["3, 1, 1", "4, 1, 2", "5, 2, 1", "6, 2, 2"]
+    tf = tempfile.NamedTemporaryFile()
+    lock = mp.Lock()
     for op in ops:
-      data_points[op] = set()
       for bit_config in bit_configs:
-        data_points[op].add(bit_config)
         result = delay_model_pb2.DataPoint()
         result.operation.op = op
         for elem in bit_config.split(",")[1:]:
@@ -46,20 +45,20 @@ class TimingCharacterizationClientMainTest(absltest.TestCase):
         result.operation.bit_count = int(bit_config[0])
         result.delay = 5
         results.data_points.append(result)
-    tf = tempfile.NamedTemporaryFile()
-    client.save_checkpoint(results, tf.name)
-    loaded_data_points, loaded_results = client.init_data(tf.name)
+        client.save_checkpoint(result, tf.name, lock)
 
+    saved_results_dict = client.results_to_dict(results.data_points)
+    loaded_results = client.load_checkpoints(tf.name)
     self.assertEqual(results, loaded_results)
+    loaded_results_dict = client.results_to_dict(loaded_results.data_points)
     # Fancy equality checking so we get clearer error messages on
     # mismatch.
-    for op in ops:
-      self.assertIn(op, loaded_data_points)
-      loaded_op = loaded_data_points[op]
-      for bit_config in bit_configs:
-        self.assertIn(bit_config, loaded_op)
-        self.assertIn(bit_config, data_points[op])
-    self.assertEqual(data_points, loaded_data_points)
+    for point in results.data_points:
+      request_key = client.get_request_key(client.data_point_to_request(point))
+      self.assertIn(request_key, loaded_results_dict)
+      self.assertIn(request_key, saved_results_dict)
+    self.assertEqual(len(results.data_points), len(loaded_results_dict))
+    self.assertEqual(saved_results_dict, loaded_results_dict)
 
 
 if __name__ == "__main__":
