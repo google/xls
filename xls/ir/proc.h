@@ -141,7 +141,7 @@ class Proc : public FunctionBase {
   class StateElementTransformer {
    public:
     virtual ~StateElementTransformer() = default;
-    // Caled with the new_param node and the old param_node. Must return a node
+    // Called with the new_param node and the old param_node. Must return a node
     // which adapts the new_param's type to the old_params type.
     virtual absl::StatusOr<Node*> TransformParamRead(Proc* proc,
                                                      Param* new_param,
@@ -149,7 +149,7 @@ class Proc : public FunctionBase {
       XLS_RET_CHECK(new_param->GetType() == old_param->GetType());
       return new_param;
     }
-    // Caled with the new_param node and the next-node (Without any updates
+    // Called with the new_param node and the next-node (Without any updates
     // applied to it). Must return a node which adapts the old_next's value()
     // node to the value of the corresponding next on new_param.
     virtual absl::StatusOr<Node*> TransformNextValue(Proc* proc,

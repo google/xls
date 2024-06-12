@@ -294,8 +294,8 @@ TEST_F(ArraySimplificationPassTest, SequentialArrayUpdatesToSameLocation) {
 
 TEST_F(ArraySimplificationPassTest,
        SequentialArrayUpdatesToSameLocationWithMultipleUses) {
-  // Cannot squash the first update of seqential updates to the same location if
-  // one of the updates in the chain has multiple uses.
+  // Cannot squash the first update of sequential updates to the same location
+  // if one of the updates in the chain has multiple uses.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn func(a: bits[32][7], idx0: bits[32], idx1: bits[32], x: bits[32], y: bits[32]) -> (bits[32][7], bits[32][7]) {
