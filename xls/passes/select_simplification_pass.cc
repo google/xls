@@ -767,10 +767,85 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       std::reverse(new_selectors.begin(), new_selectors.end());
       XLS_ASSIGN_OR_RETURN(Node * new_selector,
                            f->MakeNode<Concat>(node->loc(), new_selectors));
-      VLOG(2) << absl::StrFormat("Select with equivalent cases: %s",
+      VLOG(2) << absl::StrFormat("One-hot select with equivalent cases: %s",
                                  node->ToString());
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
+              .status());
+      return true;
+    }
+  }
+
+  // Common out equivalent cases in a priority select.
+  if (SplitsEnabled(opt_level) && node->Is<PrioritySelect>() &&
+      !node->As<PrioritySelect>()->cases().empty()) {
+    FunctionBase* f = node->function_base();
+    PrioritySelect* sel = node->As<PrioritySelect>();
+
+    // We can merge adjacent cases with the same outputs by OR-ing together
+    // the relevant bits of the selector.
+    struct SelectorRange {
+      int64_t start;
+      int64_t width = 1;
+    };
+    std::vector<SelectorRange> new_selector_ranges;
+    std::vector<Node*> new_cases;
+    new_selector_ranges.push_back({.start = 0});
+    new_cases.push_back(sel->get_case(0));
+    for (int64_t i = 1; i < sel->cases().size(); ++i) {
+      Node* old_case = sel->get_case(i);
+      if (old_case == new_cases.back()) {
+        new_selector_ranges.back().width++;
+      } else {
+        new_selector_ranges.push_back({.start = i});
+        new_cases.push_back(old_case);
+      }
+    }
+    if (new_cases.size() < sel->cases().size()) {
+      std::vector<Node*> new_selector_slices;
+      std::optional<SelectorRange> current_original_slice = std::nullopt;
+      auto commit_original_slice = [&]() -> absl::Status {
+        if (!current_original_slice.has_value()) {
+          return absl::OkStatus();
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Node * selector_slice,
+            f->MakeNode<BitSlice>(node->loc(), sel->selector(),
+                                  current_original_slice->start,
+                                  current_original_slice->width));
+        new_selector_slices.push_back(selector_slice);
+        current_original_slice.reset();
+        return absl::OkStatus();
+      };
+      for (const SelectorRange& range : new_selector_ranges) {
+        if (range.width == 1 && current_original_slice.has_value()) {
+          current_original_slice->width++;
+          continue;
+        }
+
+        XLS_RETURN_IF_ERROR(commit_original_slice());
+        if (range.width == 1) {
+          current_original_slice = SelectorRange{.start = range.start};
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              Node * selector_slice,
+              f->MakeNode<BitSlice>(node->loc(), sel->selector(), range.start,
+                                    range.width));
+          XLS_ASSIGN_OR_RETURN(Node * selector_bit,
+                               f->MakeNode<BitwiseReductionOp>(
+                                   node->loc(), selector_slice, Op::kOrReduce));
+          new_selector_slices.push_back(selector_bit);
+        }
+      }
+      XLS_RETURN_IF_ERROR(commit_original_slice());
+      absl::c_reverse(new_selector_slices);
+      XLS_ASSIGN_OR_RETURN(
+          Node * new_selector,
+          f->MakeNode<Concat>(node->loc(), new_selector_slices));
+      VLOG(2) << absl::StrFormat("Priority select with equivalent cases: %s",
+                                 node->ToString());
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<PrioritySelect>(new_selector, new_cases)
               .status());
       return true;
     }
@@ -844,8 +919,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       std::vector<Node*> new_selector_parts;
       // When iterating through the cases to perform this optimization, cases
       // which are to remain unmodified (ie, not a single-use one-hot-select)
-      // are passed over. This lambda gathers the passed over cases and updates
-      // new_cases and new_selector_parts.
+      // are passed over. This lambda gathers the passed over cases and
+      // updates new_cases and new_selector_parts.
       int64_t unhandled_selector_bits = 0;
       auto add_unhandled_selector_bits = [&](int64_t index) -> absl::Status {
         if (unhandled_selector_bits != 0) {
@@ -910,8 +985,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           new_selector_parts.push_back(masked_selector);
           absl::c_copy(operand_cases, std::back_inserter(new_cases));
           if (node->Is<PrioritySelect>()) {
-            // We also need to handle the scenario where this case is selected,
-            // but the case evaluates to its default value (zero).
+            // We also need to handle the scenario where this case is
+            // selected, but the case evaluates to its default value (zero).
             Node* operand_selector_is_zero;
             if (operand_selector->BitCountOrDie() == 1) {
               XLS_ASSIGN_OR_RETURN(
@@ -972,8 +1047,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   }
 
   // Since masking with an 'and' can't be reasoned through as easily (e.g., by
-  // conditional specialization), we want to avoid doing this until fairly late
-  // in the pipeline.
+  // conditional specialization), we want to avoid doing this until fairly
+  // late in the pipeline.
   if (SplitsEnabled(opt_level)) {
     XLS_ASSIGN_OR_RETURN(bool converted_to_mask,
                          MaybeConvertSelectToMask(node, query_engine));
@@ -984,7 +1059,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
   // Literal zero cases or positions where the selector is zero can be removed
   // from OneHotSelects and priority selects.
-  if (SplitsEnabled(opt_level) &&
+  if (NarrowingEnabled(opt_level) &&
       (node->Is<OneHotSelect>() || node->Is<PrioritySelect>())) {
     Node* selector = node->Is<OneHotSelect>()
                          ? node->As<OneHotSelect>()->selector()
@@ -996,7 +1071,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       TernaryVector selector_bits = query_engine.GetTernary(selector).Get({});
       // For one-hot-selects if either the selector bit or the case value is
       // zero, the case can be removed. For priority selects, the case can be
-      // removed only if the selector bit is zero.
+      // removed only if the selector bit is zero, or if *all later* cases are
+      // removable.
       bool all_later_cases_removable = false;
       auto is_removable_case = [&](int64_t c) {
         if (all_later_cases_removable) {
@@ -1013,18 +1089,40 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         return node->Is<OneHotSelect>() && query_engine.IsAllZeros(cases[c]);
       };
       bool has_removable_case = false;
-      std::vector<int64_t> nonzero_indices;
+      std::vector<int64_t> nonremovable_indices;
       for (int64_t i = 0; i < cases.size(); ++i) {
         if (is_removable_case(i)) {
           has_removable_case = true;
         } else {
-          nonzero_indices.push_back(i);
+          nonremovable_indices.push_back(i);
+        }
+      }
+      if (node->Is<PrioritySelect>()) {
+        // Go back and check the trailing cases; we can remove trailing zeros.
+        while (!nonremovable_indices.empty() &&
+               query_engine.IsAllZeros(cases[nonremovable_indices.back()])) {
+          nonremovable_indices.pop_back();
+        }
+      }
+      if (!SplitsEnabled(opt_level) && !nonremovable_indices.empty() &&
+          has_removable_case) {
+        // No splitting, so we can only remove the leading and trailing cases.
+        int64_t first_nonremovable_index = nonremovable_indices.front();
+        int64_t last_nonremovable_index = nonremovable_indices.back();
+        nonremovable_indices.clear();
+        for (int64_t i = first_nonremovable_index; i <= last_nonremovable_index;
+             ++i) {
+          nonremovable_indices.push_back(i);
+        }
+        if (nonremovable_indices.size() == cases.size()) {
+          // No cases are removable.
+          has_removable_case = false;
         }
       }
       if (has_removable_case) {
         // Assemble the slices of the selector which correspond to non-zero
         // cases.
-        if (nonzero_indices.empty()) {
+        if (nonremovable_indices.empty()) {
           // If all cases were zeros, just replace the op with literal zero.
           XLS_RETURN_IF_ERROR(
               node->ReplaceUsesWithNew<Literal>(ZeroOfType(node->GetType()))
@@ -1032,9 +1130,9 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           return true;
         }
         XLS_ASSIGN_OR_RETURN(Node * new_selector,
-                             GatherBits(selector, nonzero_indices));
+                             GatherBits(selector, nonremovable_indices));
         std::vector<Node*> new_cases =
-            GatherFromSequence(cases, nonzero_indices);
+            GatherFromSequence(cases, nonremovable_indices);
         VLOG(2) << absl::StrFormat(
             "Literal zero cases removed from %s-select: %s",
             node->Is<OneHotSelect>() ? "one-hot" : "priority",

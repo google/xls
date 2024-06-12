@@ -553,6 +553,25 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectCommoning) {
                       /*cases=*/{m::Param("x"), m::Param("y")}));
 }
 
+TEST_F(SelectSimplificationPassTest, PrioritySelectCommoning) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(s: bits[6], x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
+  ret priority_sel.2: bits[3] = priority_sel(s, cases=[x, y, y, y, z, z])
+}
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Concat(m::OrReduce(m::BitSlice(/*start=*/4, /*width=*/2)),
+                            m::OrReduce(m::BitSlice(/*start=*/1, /*width=*/3)),
+                            m::BitSlice(/*start=*/0, /*width=*/1)),
+                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
+}
+
 TEST_F(SelectSimplificationPassTest, OneHotSelectFeedingOneHotSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -701,18 +720,21 @@ TEST_F(SelectSimplificationPassTest,
 }
 
 TEST_F(SelectSimplificationPassTest,
-       PrioritySelectWithLiteralZeroArmAndZeroSelectorBits) {
+       PrioritySelectWithLiteralZeroArmsAndZeroSelectorBits) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(p: bits[5], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+     fn f(p: bits[7], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
        zero0: bits[32] = literal(value=0)
        zero1: bits[32] = literal(value=0)
-       mask: bits[5] = literal(value=0b10111)
-       masked_p: bits[5] = and(p, mask)
-       ret result: bits[32] = priority_sel(masked_p, cases=[zero0, x, zero1, y, z])
+       zero2: bits[32] = literal(value=0)
+       zero3: bits[32] = literal(value=0)
+       mask: bits[7] = literal(value=0b1110111)
+       masked_p: bits[7] = and(p, mask)
+       ret result: bits[32] = priority_sel(masked_p, cases=[zero0, x, zero1, y, z, zero2, zero3])
      }
   )",
                                                        p.get()));
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(m::Concat(),
@@ -783,8 +805,7 @@ TEST_F(SelectSimplificationPassTest,
   )",
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::PrioritySelect(m::Concat(), {m::Literal(0), m::Literal(0)}));
+  EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
 
 TEST_F(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseZero) {
