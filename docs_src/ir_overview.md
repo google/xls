@@ -13,7 +13,7 @@ to be introduced. Specifically:
 
 *   XLS has a single IR representation which is used from the front-end down to
     the RTL-level. A single representation throughout the compiler enables
-    maximal resuse of analysis and transformation components. Often compilers
+    maximal reuse of analysis and transformation components. Often compilers
     have different specialized IRs (or "dialects") for different levels of
     abstraction which can add complexity and inhibit reusability. However, in
     XLS this tradeoff between specialization and reusability is unnecessary

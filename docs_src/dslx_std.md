@@ -126,8 +126,9 @@ built-in -- in language implementor parlance it is a *higher order function*.
 Implementation note: Functions are not first class values in the DSL, so the
 name of the function must be referred to directly.
 
-Note: Novel higher order functions (e.g. if a user wanted to write their own
-`map`) cannot currently be written in user-level DSL code.
+!!! NOTE
+    Novel higher order functions (e.g. if a user wanted to write their own
+    `map`) cannot currently be written in user-level DSL code.
 
 ### `zip`
 
@@ -590,9 +591,10 @@ I0607 10:11:02.908208  810431 shifty.x:8] y as s8: -1
 [...]
 ```
 
-Note: `trace!` currently exists as a builtin but is in the process of being
-removed, as it provided the user with only a "global flag" way of specifying the
-desired format for output values -- `trace_fmt!` is more powerful.
+!!! NOTE
+    `trace!` currently exists as a builtin but is in the process of being
+    removed, as it provided the user with only a "global flag" way of specifying the
+    desired format for output values -- `trace_fmt!` is more powerful.
 
 ### `fail!` / `assert!`: assertion failure
 
@@ -613,9 +615,10 @@ assert!(predicate: bool, label: u8[N]) -> ()
 These can be thought of as "fatal assertions", and convert to
 Verilog/SytemVerilog assertions in generated code.
 
-Note: XLS hopes to permit users to optionally insert fatal-error-signaling
-hardware that correspond to these operations. See
-https://github.com/google/xls/issues/1352
+!!! NOTE
+    XLS hopes to permit users to optionally insert fatal-error-signaling
+    hardware that correspond to these operations. See
+    https://github.com/google/xls/issues/1352
 
 `fail!` indicates a **control path that should not be reachable**, `assert!`
 gives a **predicate that should always be true** when the statement is reached.
