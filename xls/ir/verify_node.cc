@@ -752,7 +752,9 @@ class NodeChecker : public DfsVisitor {
 
     Type* operand_element_type =
         map->operand(0)->GetType()->AsArrayOrDie()->element_type();
-    XLS_RET_CHECK_EQ(1, map->to_apply()->params().size());
+    XLS_RET_CHECK_EQ(1, map->to_apply()->params().size())
+        << map->to_apply()->name() << "() should have exactly one argument. "
+        << "https://github.com/google/xls/issues/1477 ?";
     XLS_RETURN_IF_ERROR(ExpectSameType(
         map->operand(0), operand_element_type, map->to_apply()->params()[0],
         map->to_apply()->params()[0]->GetType(), "map operand element",
