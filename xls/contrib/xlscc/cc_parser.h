@@ -29,6 +29,7 @@
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/ir/package.h"
@@ -70,6 +71,7 @@ class CCParser;
 class LibToolVisitor;
 class DiagnosticInterceptor;
 class LibToolFrontendAction;
+class LibToolPPCallback;
 
 // Needs to be here because std::unique uses sizeof()
 class LibToolThread {
@@ -97,6 +99,7 @@ class CCParser {
   friend class LibToolVisitor;
   friend class DiagnosticInterceptor;
   friend class LibToolFrontendAction;
+  friend class LibToolPPCallback;
 
  public:
   // Deletes the AST
@@ -165,10 +168,13 @@ class CCParser {
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
   absl::Status VisitVarDecl(const clang::VarDecl* funcdecl);
   absl::Status ScanFileForPragmas(std::string_view filename);
+  void PreprocessorPragmaCallback(const clang::PresumedLoc& spelling_loc,
+                                  const clang::PresumedLoc& file_loc);
 
   using PragmaLoc = std::tuple<std::string, int>;
   absl::flat_hash_map<PragmaLoc, Pragma> hls_pragmas_;
   absl::flat_hash_set<std::string> files_scanned_for_pragmas_;
+  absl::flat_hash_set<PragmaLoc> pragma_locations_seen_by_preprocessor_;
 
   const clang::FunctionDecl* top_function_ = nullptr;
   std::string_view top_function_name_ = "";

@@ -70,8 +70,8 @@ namespace xlscc {
 
 class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
  public:
-  explicit LibToolVisitor(clang::CompilerInstance& CI, CCParser& translator)
-      : ast_context_(&(CI.getASTContext())), parser_(translator) {}
+  explicit LibToolVisitor(clang::CompilerInstance& CI, CCParser& parser)
+      : ast_context_(&(CI.getASTContext())), parser_(parser) {}
   virtual ~LibToolVisitor() = default;
   virtual bool VisitVarDecl(clang::VarDecl* decl) {
     return parser_.LibToolVisitVarDecl(decl);
@@ -85,10 +85,39 @@ class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
   clang::ASTContext* ast_context_;
   CCParser& parser_;
 };
+
+class LibToolPPCallback : public clang::PPCallbacks {
+ public:
+  LibToolPPCallback(clang::CompilerInstance* pCI, CCParser& parser)
+      : pCI_(pCI), parser_(parser) {}
+
+  // Callback invoked when starting to read any pragma directive.
+  void PragmaDirective(clang::SourceLocation Loc,
+                       clang::PragmaIntroducerKind Introducer) override {
+    clang::SourceLocation spelling_loc =
+        pCI_->getSourceManager().getSpellingLoc(Loc);
+
+    const clang::PresumedLoc presumed_spelling_loc =
+        pCI_->getSourceManager().getPresumedLoc(spelling_loc);
+
+    clang::SourceLocation file_loc =
+        pCI_->getSourceManager().getSpellingLoc(Loc);
+
+    const clang::PresumedLoc presumed_file_loc =
+        pCI_->getSourceManager().getPresumedLoc(file_loc);
+
+    parser_.PreprocessorPragmaCallback(presumed_spelling_loc,
+                                       presumed_file_loc);
+  }
+
+  clang::CompilerInstance* pCI_ = nullptr;
+  CCParser& parser_;
+};
+
 class LibToolASTConsumer : public clang::ASTConsumer {
  public:
-  explicit LibToolASTConsumer(clang::CompilerInstance& CI, CCParser& translator)
-      : visitor_(new LibToolVisitor(CI, translator)) {}
+  explicit LibToolASTConsumer(clang::CompilerInstance& CI, CCParser& parser)
+      : visitor_(new LibToolVisitor(CI, parser)) {}
 
   void HandleTranslationUnit(clang::ASTContext& Context) override {
     visitor_->TraverseDecl(Context.getTranslationUnitDecl());
@@ -99,16 +128,23 @@ class LibToolASTConsumer : public clang::ASTConsumer {
 };
 class LibToolFrontendAction : public clang::ASTFrontendAction {
  public:
-  explicit LibToolFrontendAction(CCParser& translator) : parser_(translator) {}
+  explicit LibToolFrontendAction(CCParser& parser) : parser_(parser) {}
   void EndSourceFileAction() override;
   std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
       clang::CompilerInstance& CI, clang::StringRef /*file*/) override {
+    pCI_ = &CI;
     return std::unique_ptr<clang::ASTConsumer>(
         new LibToolASTConsumer(CI, parser_));
+  }
+  void ExecuteAction() override {
+    getCompilerInstance().getPreprocessor().addPPCallbacks(
+        std::make_unique<LibToolPPCallback>(pCI_, parser_));
+    clang::ASTFrontendAction::ExecuteAction();
   }
 
  private:
   CCParser& parser_;
+  clang::CompilerInstance* pCI_ = nullptr;
 };
 class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
  public:
@@ -271,6 +307,7 @@ absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
       return Pragma(Pragma_Null);
     }
   }
+
   return hls_pragmas_.at(loc);
 }
 
@@ -314,6 +351,13 @@ std::optional<PragmaLine> ExtractPragma(std::string_view line) {
 }
 }  // namespace
 
+void CCParser::PreprocessorPragmaCallback(
+    const clang::PresumedLoc& spelling_loc,
+    const clang::PresumedLoc& file_loc) {
+  pragma_locations_seen_by_preprocessor_.insert(
+      PragmaLoc(spelling_loc.getFilename(), spelling_loc.getLine()));
+}
+
 absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
   std::ifstream fin(std::string(filename).c_str());
   if (!fin.good()) {
@@ -356,6 +400,15 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
       std::map<std::string, PragmaType>::iterator it =
           pragmas.find(absl::AsciiStrToLower(name));
       if (it != pragmas.end()) {
+        PragmaType pragma_val = it->second;
+        const PragmaLoc location(filename, lineno);
+        // Check that the preprocessor actually saw the pragmas (not #ifdef'd
+        // away) #ifdef'ing labels isn't supported
+        if (!pragma_locations_seen_by_preprocessor_.contains(location) &&
+            pragma_val != Pragma_Label) {
+          continue;
+        }
+
         if (name != absl::AsciiStrToLower(name)) {
           LOG(WARNING) << "#pragma must be lowercase: " << line;
           continue;
@@ -376,9 +429,7 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
                               ",")
                        << "' that will be ignored";
         }
-        const PragmaLoc location(filename, lineno);
         prev_location = location;
-        PragmaType pragma_val = it->second;
         int64_t arg = -1;
         std::string_view params =
             pragma_line->args.empty() ? "" : pragma_line->args.front();
