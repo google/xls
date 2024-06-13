@@ -222,6 +222,18 @@ op_models {
       }
     }
   }
+  specializations {
+    # If the selector is literal, this will compile down to pure wires.
+    kind: HAS_LITERAL_OPERAND
+    details {
+      literal_operand_details {
+        required_literal_operand: 0
+      }
+    }
+    estimator {
+      fixed: 0
+    }
+  }
 }
 
 # Multiplier operators
@@ -527,6 +539,18 @@ op_models {
           }
         }
       }
+    }
+  }
+  specializations {
+    # If the index is fully literal, this will compile down to pure wires.
+    kind: HAS_LITERAL_OPERAND
+    details {
+      literal_operand_details {
+        allowed_nonliteral_operand: 0
+      }
+    }
+    estimator {
+      fixed: 0
     }
   }
 }
