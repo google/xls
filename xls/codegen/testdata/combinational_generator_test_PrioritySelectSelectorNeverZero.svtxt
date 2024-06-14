@@ -6,12 +6,23 @@ module main(
 );
   function automatic [15:0] priority_sel_16b_2way_snz (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1);
     begin
-      casez (sel)
+      unique casez (sel)
         2'b?1: begin
           priority_sel_16b_2way_snz = case0;
         end
         2'b10: begin
           priority_sel_16b_2way_snz = case1;
+        end
+        2'b00: begin
+          `ifndef SYNTHESIS
+            $error("Zero selector not allowed.");
+          `endif
+          // Never taken, propagate X
+          priority_sel_16b_2way_snz = 'X;
+        end
+        default: begin
+          // Propagate X
+          priority_sel_16b_2way_snz = 'X;
         end
       endcase
     end

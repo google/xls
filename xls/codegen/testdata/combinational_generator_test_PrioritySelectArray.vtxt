@@ -13,8 +13,12 @@ module main(
         2'b10: begin
           priority_sel_64b_2way_element16 = case1;
         end
+        2'b00: begin
+          priority_sel_64b_2way_element16 = '0;
+        end
         default: begin
-          priority_sel_64b_2way_element16 = 16'h0000;
+          // Propagate X
+          priority_sel_64b_2way_element16 = 16'dx;
         end
       endcase
     end

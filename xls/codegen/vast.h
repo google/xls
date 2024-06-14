@@ -654,6 +654,25 @@ class StatementBlock : public VastNode {
   std::vector<Statement*> statements_;
 };
 
+// Similar to statement block,  but for use if `ifdef `else `endif blocks (no
+// "begin" or "end").
+class MacroStatementBlock : public VastNode {
+ public:
+  using VastNode::VastNode;
+  // Constructs and adds a statement to the block. Ownership is maintained by
+  // the parent VerilogFile. Example:
+  //   Case* c = Add<Case>(subject);
+  template <typename T, typename... Args>
+  inline T* Add(const SourceInfo& loc, Args&&... args);
+
+  std::string Emit(LineInfo* line_info) const override;
+
+  absl::Span<Statement* const> statements() const { return statements_; }
+
+ private:
+  std::vector<Statement*> statements_;
+};
+
 // Represents a 'default' case arm label.
 struct DefaultSentinel {};
 
@@ -673,12 +692,12 @@ class CaseArm : public VastNode {
   StatementBlock* statements_;
 };
 
-enum class CaseKeyword {
+enum class CaseKeyword : uint8_t {
   kCase,
   kCasez,
 };
 
-enum class CaseModifier {
+enum class CaseModifier : uint8_t {
   kUnique,
 };
 
@@ -737,6 +756,45 @@ class Conditional : public Statement {
   // then the alternate is unconditional ("else"). This can only appear as the
   // final alternate.
   std::vector<std::pair<Expression*, StatementBlock*>> alternates_;
+};
+
+enum class ConditionalDirectiveKind : uint8_t {
+  kIfdef,
+  kIfndef,
+};
+
+std::string ConditionalDirectiveKindToString(ConditionalDirectiveKind kind);
+inline std::ostream& operator<<(std::ostream& os,
+                                ConditionalDirectiveKind kind) {
+  os << ConditionalDirectiveKindToString(kind);
+  return os;
+}
+
+// Represents an `ifdef block.
+class ConditionalDirective : public Statement {
+ public:
+  ConditionalDirective(ConditionalDirectiveKind kind, std::string identifier,
+                       VerilogFile* file, const SourceInfo& loc);
+
+  // Returns a pointer to the statement block of the consequent.
+  MacroStatementBlock* consequent() const { return consequent_; }
+
+  // Adds an alternate clause ("`elsif" or "`else") and returns a pointer to the
+  // consequent. The alternate is final (an "`else") if identifier is empty.
+  // Dies if a final alternate ("`else") clause has been previously added.
+  MacroStatementBlock* AddAlternate(std::string identifier = "");
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  ConditionalDirectiveKind kind_;
+  std::string identifier_;
+  MacroStatementBlock* consequent_;
+
+  // The alternate clauses ("`elsif" and "`else"). If the string is empty then
+  // the alternate is unconditional ("`else"). This can only appear as the final
+  // alternate.
+  std::vector<std::pair<std::string, MacroStatementBlock*>> alternates_;
 };
 
 // Represents a while loop construct.
@@ -1603,6 +1661,13 @@ class XLiteral : public Expression {
   using Expression::Expression;
 
   std::string Emit(LineInfo* line_info) const override { return "'X"; }
+};
+
+class ZeroLiteral : public Expression {
+ public:
+  using Expression::Expression;
+
+  std::string Emit(LineInfo* line_info) const override { return "'0"; }
 };
 
 // Represents a Verilog slice expression; e.g.
@@ -2535,6 +2600,13 @@ class VerilogFile {
 
 template <typename T, typename... Args>
 inline T* StatementBlock::Add(const SourceInfo& loc, Args&&... args) {
+  T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
+  statements_.push_back(ptr);
+  return ptr;
+}
+
+template <typename T, typename... Args>
+inline T* MacroStatementBlock::Add(const SourceInfo& loc, Args&&... args) {
   T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
   statements_.push_back(ptr);
   return ptr;

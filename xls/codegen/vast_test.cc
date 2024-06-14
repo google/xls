@@ -769,6 +769,140 @@ TEST_P(VastTest, CaseWithHighZ) {
 endcase)");
 }
 
+TEST_P(VastTest, IfdefAndIfndefInCase) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  LogicRef* thing_next =
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  LogicRef* thing =
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  LogicRef* my_state =
+      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo());
+  AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
+  Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), my_state);
+  FourValueBinaryLiteral* msb_set = f.Make<FourValueBinaryLiteral>(
+      SourceInfo(), std::vector({FourValueBit::kOne, FourValueBit::kHighZ}));
+  MacroStatementBlock* one_block =
+      case_statement->AddCaseArm(msb_set)
+          ->Add<ConditionalDirective>(
+              SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS")
+          ->consequent();
+  one_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
+  FourValueBinaryLiteral* lsb_unset = f.Make<FourValueBinaryLiteral>(
+      SourceInfo(), std::vector({FourValueBit::kUnknown, FourValueBit::kZero}));
+  MacroStatementBlock* zero_block =
+      case_statement->AddCaseArm(lsb_unset)
+          ->Add<ConditionalDirective>(
+              SourceInfo(), ConditionalDirectiveKind::kIfndef, "SYNTHESIS")
+          ->consequent();
+  zero_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
+  StatementBlock* default_block = case_statement->AddCaseArm(DefaultSentinel());
+  default_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
+                                         f.Make<XSentinel>(SourceInfo(), 2));
+
+  EXPECT_EQ(case_statement->Emit(nullptr),
+            R"(case (my_state)
+  2'b1?: begin
+    `ifdef SYNTHESIS
+      thing_next = thing;
+    `endif
+  end
+  2'bX0: begin
+    `ifndef SYNTHESIS
+      thing_next = thing;
+    `endif
+  end
+  default: begin
+    thing_next = 2'dx;
+  end
+endcase)");
+}
+
+TEST_P(VastTest, IfdefWithElsif) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  LogicRef* thing_next =
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  LogicRef* thing =
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  Initial* initial = m->Add<Initial>(SourceInfo());
+  ConditionalDirective* ifdef =
+      initial->statements()->Add<ConditionalDirective>(
+          SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS");
+  MacroStatementBlock* ifdef_block = ifdef->consequent();
+  MacroStatementBlock* elsif_block = ifdef->AddAlternate("SYNTHESIS2");
+  ifdef_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
+  elsif_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
+                                        f.Make<XSentinel>(SourceInfo(), 2));
+
+  EXPECT_EQ(initial->Emit(nullptr),
+            R"(initial begin
+  `ifdef SYNTHESIS
+    thing_next = thing;
+  `elsif SYNTHESIS2
+    thing_next = 2'dx;
+  `endif
+end)");
+}
+
+TEST_P(VastTest, IfdefWithElse) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  LogicRef* thing_next =
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  LogicRef* thing =
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  Initial* initial = m->Add<Initial>(SourceInfo());
+  ConditionalDirective* ifdef =
+      initial->statements()->Add<ConditionalDirective>(
+          SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS");
+  MacroStatementBlock* ifdef_block = ifdef->consequent();
+  MacroStatementBlock* else_block = ifdef->AddAlternate();
+  ifdef_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
+  else_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
+                                      f.Make<XSentinel>(SourceInfo(), 2));
+
+  EXPECT_EQ(initial->Emit(nullptr),
+            R"(initial begin
+  `ifdef SYNTHESIS
+    thing_next = thing;
+  `else
+    thing_next = 2'dx;
+  `endif
+end)");
+}
+
+TEST_P(VastTest, IfdefWithElsifAndElse) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  LogicRef* thing_next =
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  LogicRef* thing =
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  Initial* initial = m->Add<Initial>(SourceInfo());
+  ConditionalDirective* ifdef =
+      initial->statements()->Add<ConditionalDirective>(
+          SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS");
+  MacroStatementBlock* ifdef_block = ifdef->consequent();
+  MacroStatementBlock* elsif_block = ifdef->AddAlternate("SYNTHESIS2");
+  MacroStatementBlock* else_block = ifdef->AddAlternate();
+  ifdef_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
+  elsif_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing_next);
+  else_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
+                                      f.Make<XSentinel>(SourceInfo(), 2));
+
+  EXPECT_EQ(initial->Emit(nullptr),
+            R"(initial begin
+  `ifdef SYNTHESIS
+    thing_next = thing;
+  `elsif SYNTHESIS2
+    thing_next = thing_next;
+  `else
+    thing_next = 2'dx;
+  `endif
+end)");
+}
+
 TEST_P(VastTest, AlwaysFlopTestNoReset) {
   std::vector<std::string> fsm_signals = {
       "rx_byte_done",

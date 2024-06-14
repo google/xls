@@ -45,6 +45,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -170,14 +171,17 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
   }
 
   CaseType case_type(CaseKeyword::kCasez);
-  FourValueBit case_label_top_bits = FourValueBit::kHighZ;
-  if (selector_properties.one_hot) {
-    case_type.keyword = CaseKeyword::kCase;
-    case_label_top_bits = FourValueBit::kZero;
-  }
-  if ((selector_properties.one_hot || selector_properties.never_zero) &&
-      use_system_verilog) {
+  const FourValueBit case_label_top_bits = FourValueBit::kHighZ;
+  FourValueBit case_label_bottom_bits = FourValueBit::kZero;
+  if (use_system_verilog) {
+    // If using system verilog, always use the "unique" keyword.
     case_type.modifier = CaseModifier::kUnique;
+    // If the selector is one hot, our case labels can be ???1???. The unique
+    // keyword (SystemVerilog only) will generate an error if the selector is
+    // not one hot.
+    if (selector_properties.one_hot) {
+      case_label_bottom_bits = FourValueBit::kHighZ;
+    }
   }
 
   Case* case_statement =
@@ -192,7 +196,7 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
               case_label_top_bits);
   ternary_vector.push_back(FourValueBit::kOne);
   std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
-              FourValueBit::kZero);
+              case_label_bottom_bits);
   absl::Span<FourValueBit const> ternary_span = ternary_vector;
 
   for (size_t i = 0; i < cases.size(); ++i) {
@@ -204,13 +208,50 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
         case_statement->AddCaseArm(label_expression.value());
     block->Add<BlockingAssignment>(loc, func->return_value_ref(), cases[i]);
   }
-
-  // Add default case that returns zero
-  if (!selector_properties.never_zero) {
-    Expression* zero = file->Literal(0, tpe->GetFlatBitCount(), loc);
-    case_statement->AddCaseArm(DefaultSentinel())
-        ->Add<BlockingAssignment>(loc, func->return_value_ref(), zero);
+  Expression* zero_label = file->Literal(0, selector->BitCountOrDie(), loc,
+                                         FormatPreference::kBinary);
+  Expression* x_literal;
+  if (use_system_verilog) {
+    // Use 'X when generating SystemVerilog.
+    x_literal = file->Make<XLiteral>(loc);
+  } else {
+    // Verilog doesn't support 'X, so use the less desirable 16'dxxxx format.
+    x_literal = file->Make<XSentinel>(loc, tpe->GetFlatBitCount());
   }
+  if (!selector_properties.never_zero) {
+    // If the selector can be zero, make the default zero.
+    // Use `'0` here as it's more idiomatic and will not ever be part of a
+    // larger expression.
+    Expression* zero = file->Make<ZeroLiteral>(loc);
+    case_statement->AddCaseArm(zero_label)
+        ->Add<BlockingAssignment>(loc, func->return_value_ref(), zero);
+  } else {
+    // If the selector cannot be zero, throw an error if we see zero.
+    // We still explicitly propagate X (like the default case below) for
+    // synthesis.
+    // TODO: github/xls#1481 - this should really be an assert (or assume)
+    // predicated on selector being valid, but it's a bit tricky to do. For now,
+    // it seems better to have an overactive error rather than silently
+    // propagate X.
+    Expression* error_message =
+        file->Make<QuotedString>(loc, "Zero selector not allowed.");
+    StatementBlock* case_block = case_statement->AddCaseArm(zero_label);
+    MacroStatementBlock* ifndef_block =
+        case_block
+            ->Add<ConditionalDirective>(loc, ConditionalDirectiveKind::kIfndef,
+                                        "SYNTHESIS")
+            ->consequent();
+    ifndef_block->Add<SystemTaskCall>(
+        loc, "error", std::initializer_list<Expression*>{error_message});
+    case_block->Add<Comment>(loc, "Never taken, propagate X");
+    case_block->Add<BlockingAssignment>(loc, func->return_value_ref(),
+                                        x_literal);
+  }
+
+  // Add a default case that propagates X.
+  StatementBlock* case_block = case_statement->AddCaseArm(DefaultSentinel());
+  case_block->Add<Comment>(loc, "Propagate X");
+  case_block->Add<BlockingAssignment>(loc, func->return_value_ref(), x_literal);
 
   return func;
 }

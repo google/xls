@@ -13,6 +13,17 @@ module main(
         2'b10: begin
           priority_sel_16b_2way_snz = case1;
         end
+        2'b00: begin
+          `ifndef SYNTHESIS
+            $error("Zero selector not allowed.");
+          `endif
+          // Never taken, propagate X
+          priority_sel_16b_2way_snz = 16'dx;
+        end
+        default: begin
+          // Propagate X
+          priority_sel_16b_2way_snz = 16'dx;
+        end
       endcase
     end
   endfunction
@@ -25,8 +36,12 @@ module main(
         2'b10: begin
           priority_sel_16b_2way = case1;
         end
+        2'b00: begin
+          priority_sel_16b_2way = '0;
+        end
         default: begin
-          priority_sel_16b_2way = 16'h0000;
+          // Propagate X
+          priority_sel_16b_2way = 16'dx;
         end
       endcase
     end

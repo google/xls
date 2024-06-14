@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -432,6 +433,17 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
     LineInfoIncrease(line_info, 1);
   }
   absl::StrAppend(&result, Indent(absl::StrJoin(lines, "\n")), "\nend");
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string MacroStatementBlock::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result;
+  for (const auto& statement : statements_) {
+    absl::StrAppend(&result, Indent(statement->Emit(line_info)), "\n");
+    LineInfoIncrease(line_info, 1);
+  }
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -1501,6 +1513,59 @@ std::string Conditional::Emit(LineInfo* line_info) const {
     absl::StrAppend(&result, alternate.second->Emit(line_info));
   }
   LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string ConditionalDirectiveKindToString(ConditionalDirectiveKind kind) {
+  switch (kind) {
+    case ConditionalDirectiveKind::kIfdef:
+      return "`ifdef";
+    case ConditionalDirectiveKind::kIfndef:
+      return "`ifndef";
+  }
+  LOG(ERROR) << "Unexpected ConditionalDirectiveKind with value "
+             << static_cast<int>(kind);
+  return "";
+}
+
+ConditionalDirective::ConditionalDirective(ConditionalDirectiveKind kind,
+                                           std::string identifier,
+                                           VerilogFile* file,
+                                           const SourceInfo& loc)
+    : Statement(file, loc),
+      kind_(kind),
+      identifier_(std::move(identifier)),
+      consequent_(file->Make<MacroStatementBlock>(loc)) {}
+
+MacroStatementBlock* ConditionalDirective::AddAlternate(
+    std::string identifier) {
+  CHECK(alternates_.empty() || !alternates_.back().first.empty());
+  alternates_.push_back(
+      {std::move(identifier), file()->Make<MacroStatementBlock>(SourceInfo())});
+  return alternates_.back().second;
+}
+
+std::string ConditionalDirective::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result;
+
+  absl::StrAppend(&result, ConditionalDirectiveKindToString(kind_), " ",
+                  identifier_, "\n", consequent_->Emit(line_info));
+  LineInfoIncrease(line_info, 2);
+
+  for (const auto& [identifier, block] : alternates_) {
+    if (identifier.empty()) {
+      absl::StrAppend(&result, "`else\n", block->Emit(line_info));
+    } else {
+      absl::StrAppend(&result, "`elsif ", identifier, "\n",
+                      block->Emit(line_info));
+    }
+    LineInfoIncrease(line_info, 2);
+  }
+  absl::StrAppend(&result, "`endif");
+  LineInfoIncrease(line_info, 1);
+  LineInfoEnd(line_info, this);
+
   return result;
 }
 

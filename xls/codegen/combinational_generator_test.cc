@@ -508,9 +508,9 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
               IsOkAndHolds(Value(UBits(0xf1ef, 16))));
 }
 
-TEST_P(CombinationalGeneratorTest, PrioritySelectNoDefault) {
+TEST_P(CombinationalGeneratorTest, PrioritySelectSelectorNeverZero) {
   std::string text = R"(
-package PrioritySelectNoDefault
+package PrioritySelectSelectorNeverZero
 
 top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
 
@@ -723,9 +723,9 @@ top fn main(p: bits[2], x_short: bits[16][2], x_long: bits[16][4], y_short: bits
               IsOkAndHolds(Value::Tuple({x_short_value, x_long_value})));
 }
 
-TEST_P(CombinationalGeneratorTest, PrioritySelectArrayNoDefault) {
+TEST_P(CombinationalGeneratorTest, PrioritySelectArraySelectorNeverZero) {
   std::string text = R"(
-package PrioritySelectArrayNoDefault
+package PrioritySelectArraySelectorNeverZero
 
 top fn main(p: bits[2], x: bits[16][4], y: bits[16][4]) -> bits[16][4] {
 

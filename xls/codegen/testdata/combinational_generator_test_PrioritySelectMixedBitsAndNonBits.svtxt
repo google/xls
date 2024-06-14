@@ -6,15 +6,19 @@ module main(
 );
   function automatic [31:0] priority_sel_32b_2way (input reg [1:0] sel, input reg [31:0] case0, input reg [31:0] case1);
     begin
-      casez (sel)
+      unique casez (sel)
         2'b?1: begin
           priority_sel_32b_2way = case0;
         end
         2'b10: begin
           priority_sel_32b_2way = case1;
         end
+        2'b00: begin
+          priority_sel_32b_2way = '0;
+        end
         default: begin
-          priority_sel_32b_2way = 32'h0000_0000;
+          // Propagate X
+          priority_sel_32b_2way = 'X;
         end
       endcase
     end
