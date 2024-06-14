@@ -1378,6 +1378,13 @@ fn f(t: (u8, (u16, u32))) -> u32 {
 Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.
 
+!!! WARNING
+    This "catch all" (i.e. an
+    [irrefutable pattern](https://doc.rust-lang.org/book/ch18-02-refutability.html))
+    is [currently required](https://github.com/google/xls/issues/204) in **all**
+    match expressions, even if the other match arms form an exhaustive set of
+    refutable patterns (e.g. matching against fully specified enumerators).
+
 We can also match on ranges of values using the range syntax:
 
 ```dslx
