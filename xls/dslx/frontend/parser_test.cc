@@ -2204,4 +2204,22 @@ TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
   EXPECT_EQ(p->ToString(), text);
 }
 
+// TODO: google/xls#1412 - Enable this test once parametric instantiations can
+// be parsed like values.
+TEST_F(ParserTest, DISABLED_ParseParametericInMapBuiltin) {
+  constexpr std::string_view kProgram = R"(
+fn truncate<OUT: u32, IN: u32>(x: bits[IN]) -> bits[OUT] {
+    x[0:OUT]
+}
+
+fn main(x: u32[64]) -> u16[64] {
+    map(x, truncate<16>)
+}
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  XLS_EXPECT_OK(parser.ParseModule());
+}
+
 }  // namespace xls::dslx
