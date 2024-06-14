@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -134,11 +135,21 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
           absl::StrFormat("'next' input and output state types differ."));
     }
 
+    auto type_mismatch_error_msg = absl::StrFormat(
+        "Return type of function body for '%s' did not match "
+        "the annotated return type.",
+        f.identifier());
+    if (body_type->IsUnit() && f.body()->trailing_semi()) {
+      absl::StrAppend(&type_mismatch_error_msg,
+                      " Did you intend to add a trailing semicolon to the last "
+                      "expression in the function body? If the last expression "
+                      "is terminated with a semicolon, it is discarded, and "
+                      "the function implicitly returns ().");
+    }
+
     return ctx->TypeMismatchError(
         f.body()->span(), f.body(), *body_type, f.return_type(), *return_type,
-        absl::StrFormat("Return type of function body for '%s' did not match "
-                        "the annotated return type.",
-                        f.identifier()));
+        type_mismatch_error_msg);
   }
 
   if (return_type->HasParametricDims()) {
