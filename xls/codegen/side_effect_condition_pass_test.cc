@@ -392,7 +392,7 @@ TEST_P(SideEffectConditionPassTest, FunctionCoverWorks) {
   constexpr std::string_view ir_text = R"(package test
 top fn f(x: bits[32], y: bits[32]) -> bits[32] {
   not_x_gt_y: bits[1] = ule(x, y)
-  cover: () = cover(not_x_gt_y, label="not_x_gt_y")
+  cover_: () = cover(not_x_gt_y, label="not_x_gt_y")
   ret sum: bits[32] = add(x, y)
 }
     )";
@@ -411,7 +411,7 @@ top fn f(x: bits[32], y: bits[32]) -> bits[32] {
       Run(package.get(), CodegenOptions().valid_control("in_vld", "out_vld")),
       IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock("f"));
-  XLS_ASSERT_OK_AND_ASSIGN(Node * cover, block->GetNode("cover"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * cover, block->GetNode("cover_"));
   ASSERT_NE(cover, nullptr);
   Node* condition = cover->As<xls::Cover>()->condition();
   EXPECT_THAT(condition,

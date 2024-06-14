@@ -27,6 +27,7 @@
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/ffi_instantiation_pass.h"
 #include "xls/codegen/mulp_combining_pass.h"
+#include "xls/codegen/name_legalization_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
 #include "xls/codegen/ram_rewrite_pass.h"
 #include "xls/codegen/register_combining_pass.h"
@@ -100,6 +101,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
   top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+
+  // Legalize names.
+  top->Add<NameLegalizationPass>();
 
   // Final metrics collection for the final block.
   top->Add<BlockMetricsGenerationPass>();

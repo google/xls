@@ -1,0 +1,13 @@
+module test_module(
+  input wire [31:0] a,
+  input wire [31:0] b,
+  output wire [31:0] out
+);
+  wire [31:0] unique0__1;
+  wire [31:0] output__1;
+  wire [31:0] add_5;
+  assign unique0__1 = a + b;
+  assign output__1 = a + b;
+  assign add_5 = unique0__1 + output__1;
+  assign out = add_5;
+endmodule
