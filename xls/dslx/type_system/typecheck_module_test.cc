@@ -918,6 +918,20 @@ fn caller() {
 )"));
 }
 
+TEST(TypecheckErrorTest, WidthSliceWithANonType) {
+  EXPECT_THAT(
+      Typecheck(R"(import float32;
+
+fn f(x: u32) -> u2 {
+  x[0 +: float32::F32_EXP_SZ]  // Note this is a constant not a type.
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Expected type-reference to refer to a type definition, but "
+                   "this did not resolve to a type; instead got: `uN[32]`")));
+}
+
 // This test adds a literal u5 to a parametric-typed number -- which only works
 // when that parametric-type number is also coincidentally a u5.
 TEST(TypecheckErrorTest, ParametricMapNonPolymorphic) {

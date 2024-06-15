@@ -1175,6 +1175,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'The program being interpreted failed! always_fail_assert', stderr
     )
 
+  def test_width_slice_of_non_type_size(self):
+    stderr = self._run('xls/dslx/tests/errors/gh_1472.x')
+    self.assertIn(
+        'Expected type-reference to refer to a type definition', stderr
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

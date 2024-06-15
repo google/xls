@@ -237,7 +237,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRef(const TypeRef* node,
                                                     DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                        ctx->Deduce(ToAstNode(node->type_definition())));
-  XLS_RET_CHECK(type->IsMeta()) << type->ToString();
+  if (!type->IsMeta()) {
+    return TypeInferenceErrorStatus(
+        node->span(), type.get(),
+        absl::StrFormat(
+            "Expected type-reference to refer to a type definition, but this "
+            "did not resolve to a type; instead got: `%s`.",
+            type->ToString()));
+  }
   return type;
 }
 
