@@ -650,10 +650,11 @@ absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
       Expr * test,
       ParseExpression(bindings,
                       MakeRestrictions({ExprRestriction::kNoStructLiteral})));
-  XLS_ASSIGN_OR_RETURN(Block * consequent, ParseBlockExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(StatementBlock * consequent,
+                       ParseBlockExpression(bindings));
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kElse));
 
-  std::variant<Block*, Conditional*> alternate;
+  std::variant<StatementBlock*, Conditional*> alternate;
 
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
@@ -1539,7 +1540,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
     XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
   }
 
-  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body, ParseBlockExpression(bindings));
   Function* f = module_->Make<Function>(
       Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
       params, return_type, body, FunctionTag::kNormal, is_public);
@@ -2198,7 +2199,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_params,
                        ParseParams(bindings));
 
-  XLS_ASSIGN_OR_RETURN(Block * block, ParseBlockExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(StatementBlock * block, ParseBlockExpression(bindings));
 
   if (block->empty() || block->trailing_semi()) {
     // Implicitly nil tuple as a result.
@@ -2338,7 +2339,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   XLS_ASSIGN_OR_RETURN(
       TypeAnnotation * return_type,
       CloneNodeSansTypeDefinitions(state_param->type_annotation()));
-  XLS_ASSIGN_OR_RETURN(Block * body,
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings, prologue));
   Span span(oparen.span().start(), GetPos());
   NameDef* name_def =
@@ -2368,7 +2369,8 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   NameDef* name_def = module_->Make<NameDef>(
       init_identifier.span(), absl::StrCat(proc_name, ".init"), nullptr);
 
-  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(inner_bindings));
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
+                       ParseBlockExpression(inner_bindings));
   Span span(init_identifier.span().start(), GetPos());
   Function* init = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings), std::vector<Param*>(),
@@ -2783,7 +2785,8 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings& bindings) {
       Expr * iterable,
       ParseExpression(bindings,
                       MakeRestrictions({ExprRestriction::kNoStructLiteral})));
-  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(for_bindings));
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
+                       ParseBlockExpression(for_bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(
       TokenKind::kOParen, &for_,
       "Need an initial accumulator value to start the for loop."));
@@ -2814,7 +2817,8 @@ absl::StatusOr<UnrollFor*> Parser::ParseUnrollFor(Bindings& bindings) {
 
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
   XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
-  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(for_bindings));
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body,
+                       ParseBlockExpression(for_bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   XLS_ASSIGN_OR_RETURN(Expr * init, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
@@ -3003,7 +3007,7 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
   return module_->Make<NameDefTree>(span, std::move(members));
 }
 
-absl::StatusOr<Block*> Parser::ParseBlockExpression(
+absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(
     Bindings& bindings, std::vector<Statement*> prologue) {
   Bindings block_bindings(&bindings);
   Pos start_pos = GetPos();
@@ -3047,8 +3051,8 @@ absl::StatusOr<Block*> Parser::ParseBlockExpression(
       }
     }
   }
-  return module_->Make<Block>(Span(start_pos, GetPos()), stmts,
-                              last_expr_had_trailing_semi);
+  return module_->Make<StatementBlock>(Span(start_pos, GetPos()), stmts,
+                                       last_expr_had_trailing_semi);
 }
 
 absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(

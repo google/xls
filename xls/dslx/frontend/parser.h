@@ -116,7 +116,7 @@ class Parser : public TokenParser {
   // Takes an optional `prologue` of statements to prepend to the block.
   // TODO(https://github.com/google/xls/issues/1401): Remove `prologue` once
   // we've finished migrating away from the implicit token param.
-  absl::StatusOr<Block*> ParseBlockExpression(
+  absl::StatusOr<StatementBlock*> ParseBlockExpression(
       Bindings& bindings, std::vector<Statement*> prologue = {});
 
   absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings& bindings);

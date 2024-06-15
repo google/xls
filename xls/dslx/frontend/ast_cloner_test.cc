@@ -49,7 +49,7 @@ fn main() -> u32 {
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  Block* body_expr = f->body();
+  StatementBlock* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(body_expr, clone));
@@ -71,7 +71,7 @@ fn main() -> u32 {
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  Block* body_expr = f->body();
+  StatementBlock* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(body_expr, clone));
@@ -96,7 +96,7 @@ fn main() -> (u32, u32) {
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  Block* body_expr = f->body();
+  StatementBlock* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(body_expr, clone));
@@ -647,7 +647,7 @@ fn bar() -> u32{
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * main,
                            module->GetMemberOrError<Function>("bar"));
-  Block* body_expr = main->body();
+  StatementBlock* body_expr = main->body();
   ASSERT_EQ(body_expr->statements().size(), 1);
   ASSERT_TRUE(
       std::holds_alternative<Expr*>(body_expr->statements().at(0)->wrapped()));

@@ -83,7 +83,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleArray(const Array* node) override;
   absl::Status HandleAttr(const Attr* node) override;
   absl::Status HandleBinop(const Binop* node) override;
-  absl::Status HandleBlock(const Block* node) override;
   absl::Status HandleCast(const Cast* node) override;
   absl::Status HandleChannelDecl(const ChannelDecl* node) override;
   absl::Status HandleColonRef(const ColonRef* node) override;
@@ -112,6 +111,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleSplatStructInstance(
       const SplatStructInstance* node) override;
   absl::Status HandleConditional(const Conditional* node) override;
+  absl::Status HandleStatementBlock(const StatementBlock* node) override;
   absl::Status HandleTupleIndex(const TupleIndex* node) override;
   absl::Status HandleUnop(const Unop* node) override;
   absl::Status HandleUnrollFor(const UnrollFor* node) override;

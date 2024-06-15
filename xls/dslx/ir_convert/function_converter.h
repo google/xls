@@ -323,7 +323,7 @@ class FunctionConverter {
   // AstNode handlers that recur "manually" internal to the handler.
   absl::Status HandleArray(const Array* node);
   absl::Status HandleAttr(const Attr* node);
-  absl::Status HandleBlock(const Block* node);
+  absl::Status HandleStatementBlock(const StatementBlock* node);
   absl::Status HandleCast(const Cast* node);
   absl::Status HandleColonRef(const ColonRef* node);
   absl::Status HandleConstantArray(const ConstantArray* node);

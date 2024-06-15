@@ -99,15 +99,15 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleBlock(const Block* n) override {
+  absl::Status HandleStatementBlock(const StatementBlock* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     std::vector<Statement*> new_statements;
     new_statements.reserve(n->statements().size());
     for (Statement* old : n->statements()) {
       new_statements.push_back(down_cast<Statement*>(old_to_new_.at(old)));
     }
-    old_to_new_[n] = module_->Make<Block>(n->span(), std::move(new_statements),
-                                          n->trailing_semi());
+    old_to_new_[n] = module_->Make<StatementBlock>(
+        n->span(), std::move(new_statements), n->trailing_semi());
     return absl::OkStatus();
   }
 
@@ -280,7 +280,7 @@ class AstCloner : public AstNodeVisitor {
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
         down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
         down_cast<Expr*>(old_to_new_.at(n->iterable())),
-        down_cast<Block*>(old_to_new_.at(n->body())),
+        down_cast<StatementBlock*>(old_to_new_.at(n->body())),
         down_cast<Expr*>(old_to_new_.at(n->init())));
     return absl::OkStatus();
   }
@@ -341,8 +341,8 @@ class AstCloner : public AstNodeVisitor {
     }
     old_to_new_[n] = module_->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
-        new_return_type, down_cast<Block*>(old_to_new_.at(n->body())), n->tag(),
-        n->is_public());
+        new_return_type, down_cast<StatementBlock*>(old_to_new_.at(n->body())),
+        n->tag(), n->is_public());
     new_name_def->set_definer(old_to_new_.at(n));
     return absl::OkStatus();
   }
@@ -711,9 +711,9 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleConditional(const Conditional* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    std::variant<Block*, Conditional*> new_alternate;
+    std::variant<StatementBlock*, Conditional*> new_alternate;
     AstNode* new_alternate_node = old_to_new_.at(ToAstNode(n->alternate()));
-    if (auto* block = down_cast<Block*>(new_alternate_node)) {
+    if (auto* block = down_cast<StatementBlock*>(new_alternate_node)) {
       new_alternate = block;
     } else if (auto* cond = down_cast<Conditional*>(new_alternate_node)) {
       new_alternate = cond;
@@ -723,7 +723,8 @@ class AstCloner : public AstNodeVisitor {
 
     old_to_new_[n] = module_->Make<Conditional>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->test())),
-        down_cast<Block*>(old_to_new_.at(n->consequent())), new_alternate);
+        down_cast<StatementBlock*>(old_to_new_.at(n->consequent())),
+        new_alternate);
     return absl::OkStatus();
   }
 

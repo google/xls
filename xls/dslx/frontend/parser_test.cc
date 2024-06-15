@@ -193,7 +193,7 @@ TEST_F(ParserTest, TestIdentityFunctionWithLet) {
   ASSERT_TRUE(maybe_f.has_value());
   Function* f = maybe_f.value();
   ASSERT_NE(f, nullptr);
-  Block* f_body = f->body();
+  StatementBlock* f_body = f->body();
   ASSERT_EQ(f_body->statements().size(), 2);
 }
 
@@ -215,7 +215,7 @@ TEST_F(ParserTest, TestBlockOfTwoUnits) {
     ()
 })");
   ASSERT_NE(e, nullptr);
-  auto* block = dynamic_cast<Block*>(e);
+  auto* block = dynamic_cast<StatementBlock*>(e);
   ASSERT_NE(block, nullptr);
   ASSERT_EQ(block->statements().size(), 2);
   EXPECT_TRUE(
@@ -269,7 +269,7 @@ TEST_F(ParserTest, ParseLet) {
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
   Bindings b;
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
                            p.ParseBlockExpression(/*bindings=*/b));
 
   absl::Span<Statement* const> stmts = block->statements();
@@ -293,7 +293,7 @@ TEST_F(ParserTest, ParseLetWildcardBinding) {
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
   Bindings b;
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
                            p.ParseBlockExpression(/*bindings=*/b));
 
   ASSERT_TRUE(block->trailing_semi());
@@ -319,7 +319,7 @@ TEST_F(ParserTest, ParseLetExpressionWithShadowing) {
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
   Bindings b;
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
                            p.ParseBlockExpression(/*bindings=*/b));
 
   absl::Span<Statement* const> stmts = block->statements();
@@ -346,7 +346,7 @@ TEST_F(ParserTest, ParseBlockMultiLet) {
   Module& mod = p.module();
   bindings.Add("f", mod.GetOrCreateBuiltinNameDef("f"));
   bindings.Add("g", mod.GetOrCreateBuiltinNameDef("g"));
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
                            p.ParseBlockExpression(/*bindings=*/bindings));
 
   EXPECT_EQ(3, block->statements().size());
@@ -372,7 +372,7 @@ TEST_F(ParserTest, ParseIdentityFunction) {
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
 
-  Block* block = f->body();
+  StatementBlock* block = f->body();
   ASSERT_TRUE(block != nullptr);
   absl::Span<Statement* const> stmts = block->statements();
   ASSERT_EQ(stmts.size(), 1);
@@ -853,7 +853,7 @@ fn f(p: Point) -> Point {
   ASSERT_TRUE(std::holds_alternative<StructDef*>(c));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, m->GetMemberOrError<Function>("f"));
 
-  Block* block = f->body();
+  StatementBlock* block = f->body();
   absl::Span<Statement* const> stmts = block->statements();
   ASSERT_EQ(stmts.size(), 1);
   Statement* stmt = stmts.at(0);
@@ -879,7 +879,7 @@ TEST_F(ParserTest, ConcatFunction) {
       p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
   EXPECT_EQ(f->params().size(), 2);
 
-  Block* block = f->body();
+  StatementBlock* block = f->body();
   absl::Span<Statement* const> stmts = block->statements();
   ASSERT_EQ(stmts.size(), 1);
   Statement* stmt = stmts.at(0);
@@ -927,7 +927,7 @@ fn f(x: u32) -> u8 {
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
 
-  Block* block = f->body();
+  StatementBlock* block = f->body();
   absl::Span<Statement* const> stmts = block->statements();
   ASSERT_EQ(stmts.size(), 1);
   Statement* stmt = stmts.at(0);
@@ -953,7 +953,7 @@ TEST_F(ParserTest, LocalConstBinding) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
-  Block* body = f->body();
+  StatementBlock* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
   ASSERT_EQ(stmts.size(), 2);
 
@@ -1701,7 +1701,7 @@ fn f(x: u32) -> u8 {
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
 
-  Block* body = f->body();
+  StatementBlock* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
   ASSERT_EQ(stmts.size(), 1);
 
@@ -1943,7 +1943,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
 
-  Block* body = f->body();
+  StatementBlock* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
   ASSERT_EQ(stmts.size(), 4);
 

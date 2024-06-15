@@ -1363,7 +1363,7 @@ proc Parent {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * child,
                            tm.module->GetMemberOrError<Proc>("Child"));
 
-  Block* config_body = parent->config().body();
+  StatementBlock* config_body = parent->config().body();
   EXPECT_EQ(config_body->statements().size(), 3);
   Spawn* spawn = down_cast<Spawn*>(
       std::get<Expr*>(config_body->statements().at(1)->wrapped()));

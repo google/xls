@@ -288,8 +288,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "tuple";
     case AstNodeKind::kFor:
       return "for";
-    case AstNodeKind::kBlock:
-      return "block";
+    case AstNodeKind::kStatementBlock:
+      return "statement-block";
     case AstNodeKind::kCast:
       return "cast";
     case AstNodeKind::kConstantDef:
@@ -587,8 +587,8 @@ NameDef::~NameDef() = default;
 // -- class Conditional
 
 Conditional::Conditional(Module* owner, Span span, Expr* test,
-                         Block* consequent,
-                         std::variant<Block*, Conditional*> alternate)
+                         StatementBlock* consequent,
+                         std::variant<StatementBlock*, Conditional*> alternate)
     : Expr(owner, std::move(span)),
       test_(test),
       consequent_(consequent),
@@ -612,13 +612,14 @@ bool Conditional::HasMultiStatementBlocks() const {
   if (consequent_->size() > 1) {
     return true;
   }
-  return absl::visit(Visitor{
-                         [](const Block* block) { return block->size() > 1; },
-                         [](const Conditional* elseif) {
-                           return elseif->HasMultiStatementBlocks();
-                         },
-                     },
-                     alternate_);
+  return absl::visit(
+      Visitor{
+          [](const StatementBlock* block) { return block->size() > 1; },
+          [](const Conditional* elseif) {
+            return elseif->HasMultiStatementBlocks();
+          },
+      },
+      alternate_);
 }
 
 // -- class Attr
@@ -700,8 +701,8 @@ std::string For::ToStringInternal() const {
 }
 
 UnrollFor::UnrollFor(Module* owner, Span span, NameDefTree* names,
-                     TypeAnnotation* types, Expr* iterable, Block* body,
-                     Expr* init)
+                     TypeAnnotation* types, Expr* iterable,
+                     StatementBlock* body, Expr* init)
     : Expr(owner, std::move(span)),
       names_(names),
       types_(types),
@@ -1532,10 +1533,11 @@ std::string Binop::ToStringInternal() const {
   return absl::StrFormat("%s %s %s", lhs, BinopKindFormat(binop_kind_), rhs);
 }
 
-// -- class Block
+// -- class StatementBlock
 
-Block::Block(Module* owner, Span span, std::vector<Statement*> statements,
-             bool trailing_semi)
+StatementBlock::StatementBlock(Module* owner, Span span,
+                               std::vector<Statement*> statements,
+                               bool trailing_semi)
     : Expr(owner, std::move(span)),
       statements_(std::move(statements)),
       trailing_semi_(trailing_semi) {
@@ -1544,9 +1546,9 @@ Block::Block(Module* owner, Span span, std::vector<Statement*> statements,
   }
 }
 
-Block::~Block() = default;
+StatementBlock::~StatementBlock() = default;
 
-std::string Block::ToInlineString() const {
+std::string StatementBlock::ToInlineString() const {
   // A formatting special case: if there are no statements (and implicitly a
   // trailing semi since an empty block gives unit type) we just give back
   // braces without any semicolon inside.
@@ -1567,7 +1569,7 @@ std::string Block::ToInlineString() const {
   return s;
 }
 
-std::string Block::ToStringInternal() const {
+std::string StatementBlock::ToStringInternal() const {
   // A formatting special case: if there are no statements (and implicitly a
   // trailing semi since an empty block gives unit type) we just give back
   // braces without any semicolon inside.
@@ -1596,7 +1598,7 @@ std::string Block::ToStringInternal() const {
 // -- class For
 
 For::For(Module* owner, Span span, NameDefTree* names,
-         TypeAnnotation* type_annotation, Expr* iterable, Block* body,
+         TypeAnnotation* type_annotation, Expr* iterable, StatementBlock* body,
          Expr* init)
     : Expr(owner, std::move(span)),
       names_(names),
@@ -1623,7 +1625,7 @@ std::vector<AstNode*> For::GetChildren(bool want_types) const {
 Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
-                   Block* body, FunctionTag tag, bool is_public)
+                   StatementBlock* body, FunctionTag tag, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),

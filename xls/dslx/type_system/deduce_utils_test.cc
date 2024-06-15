@@ -74,9 +74,9 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       module.Make<Number>(Span::Fake(), "7", NumberKind::kOther, nullptr);
   Statement* body_stmt = module.Make<Statement>(body);
 
-  Block* block =
-      module.Make<Block>(Span::Fake(), std::vector<Statement*>{body_stmt},
-                         /*trailing_semi=*/false);
+  StatementBlock* block = module.Make<StatementBlock>(
+      Span::Fake(), std::vector<Statement*>{body_stmt},
+      /*trailing_semi=*/false);
 
   Function* config = module.Make<Function>(
       Span::Fake(), config_name_def,
@@ -139,9 +139,9 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
                                              NumberKind::kOther, nullptr);
   Statement* body_stmt = import_module->Make<Statement>(body);
 
-  Block* block = import_module->Make<Block>(Span::Fake(),
-                                            std::vector<Statement*>{body_stmt},
-                                            /*trailing_semi=*/false);
+  StatementBlock* block = import_module->Make<StatementBlock>(
+      Span::Fake(), std::vector<Statement*>{body_stmt},
+      /*trailing_semi=*/false);
 
   Function* config = import_module->Make<Function>(
       Span::Fake(), config_name_def,

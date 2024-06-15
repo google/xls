@@ -1123,12 +1123,12 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
                                  /*type=*/mulp.type, /*rhs=*/mulp.expr,
                                  /*is_const=*/false);
   auto* body_stmt = module_->Make<Statement>(let);
-  auto* block = module_->Make<Block>(fake_span_,
-                                     std::vector<Statement*>{
-                                         body_stmt,
-                                         module_->Make<Statement>(sum),
-                                     },
-                                     /*trailing_semi=*/false);
+  auto* block = module_->Make<StatementBlock>(fake_span_,
+                                              std::vector<Statement*>{
+                                                  body_stmt,
+                                                  module_->Make<Statement>(sum),
+                                              },
+                                              /*trailing_semi=*/false);
   return TypedExpr{.expr = block,
                    .type = lhs_cast.type,
                    .last_delaying_op = mulp.last_delaying_op,
@@ -1783,7 +1783,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
   }
 
   Statement* body_stmt = module_->Make<Statement>(body);
-  Block* block = module_->Make<Block>(
+  auto* block = module_->Make<StatementBlock>(
       fake_span_, std::vector<Statement*>{body_stmt}, /*trailing_semi=*/false);
   For* for_ = module_->Make<For>(fake_span_, name_def_tree, tree_type, iterable,
                                  block, /*init=*/e.expr);
@@ -2704,8 +2704,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
                            : GenerateRetval(ctx));
   statements.push_back(module_->Make<Statement>(retval.expr));
 
-  Block* block =
-      module_->Make<Block>(fake_span_, statements, /*trailing_semi=*/false);
+  auto* block = module_->Make<StatementBlock>(fake_span_, statements,
+                                              /*trailing_semi=*/false);
   return TypedExpr{.expr = block,
                    .type = retval.type,
                    .last_delaying_op = retval.last_delaying_op,
@@ -2749,9 +2749,9 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Statement* retval_statement = module_->Make<Statement>(retval.expr);
-  Block* block = module_->Make<Block>(fake_span_,
-                                      std::vector<Statement*>{retval_statement},
-                                      /*trailing_semi=*/false);
+  auto* block = module_->Make<StatementBlock>(
+      fake_span_, std::vector<Statement*>{retval_statement},
+      /*trailing_semi=*/false);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/parametric_bindings,
@@ -2814,7 +2814,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
   XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members,
                                                 /*has_trailing_comma=*/false);
   Statement* ret_stmt = module_->Make<Statement>(ret_tuple);
-  Block* block = module_->Make<Block>(
+  auto* block = module_->Make<StatementBlock>(
       fake_span_, std::vector<Statement*>{ret_stmt}, /*trailing_semi=*/false);
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
@@ -2852,9 +2852,9 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Statement* retval_stmt = module_->Make<Statement>(retval.expr);
-  Block* block =
-      module_->Make<Block>(fake_span_, std::vector<Statement*>{retval_stmt},
-                           /*trailing_semi=*/false);
+  auto* block = module_->Make<StatementBlock>(
+      fake_span_, std::vector<Statement*>{retval_stmt},
+      /*trailing_semi=*/false);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
@@ -2877,8 +2877,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
       Expr * init_constant,
       GenerateDslxConstant(bit_gen_, module_.get(), return_type));
   Statement* s = module_->Make<Statement>(init_constant);
-  Block* b = module_->Make<Block>(fake_span_, std::vector<Statement*>{s},
-                                  /*trailing_semi=*/false);
+  auto* b =
+      module_->Make<StatementBlock>(fake_span_, std::vector<Statement*>{s},
+                                    /*trailing_semi=*/false);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),

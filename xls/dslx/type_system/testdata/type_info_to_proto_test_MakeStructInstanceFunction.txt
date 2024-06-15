@@ -9,7 +9,7 @@
 2:3-2:4: NAME_DEF :: `f` :: () -> S { x: uN[32] }
 2:10-2:11: TYPE_REF :: `S` :: typeof(S { x: uN[32] })
 2:10-2:12: TYPE_ANNOTATION :: `S` :: typeof(S { x: uN[32] })
-2:12-2:31: BLOCK :: `{
+2:12-2:31: STATEMENT_BLOCK :: `{
     S { x: u32:42 }
 }` :: S { x: uN[32] }
 2:14-2:15: TYPE_REF :: `S` :: typeof(S { x: uN[32] })

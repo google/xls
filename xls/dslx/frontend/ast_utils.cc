@@ -274,7 +274,7 @@ int64_t DetermineIndentLevel(const AstNode& n) {
   switch (n.kind()) {
     case AstNodeKind::kModule:
       return 0;
-    case AstNodeKind::kBlock: {
+    case AstNodeKind::kStatementBlock: {
       CHECK(n.parent() != nullptr);
       return DetermineIndentLevel(*n.parent()) + 1;
     }

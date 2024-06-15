@@ -6,7 +6,7 @@
 0:5-0:13: PARAM :: `x: token` :: token
 0:8-0:13: TYPE_ANNOTATION :: `token` :: typeof(token)
 0:18-0:23: TYPE_ANNOTATION :: `token` :: typeof(token)
-0:24-0:29: BLOCK :: `{
+0:24-0:29: STATEMENT_BLOCK :: `{
     x
 }` :: token
 0:26-0:27: NAME_REF :: `x` :: token

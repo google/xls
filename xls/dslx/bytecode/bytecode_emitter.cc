@@ -342,8 +342,8 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
-  VLOG(5) << "BytecodeEmitter::HandleBlock @ " << node->span()
+absl::Status BytecodeEmitter::HandleStatementBlock(const StatementBlock* node) {
+  VLOG(5) << "BytecodeEmitter::HandleStatementBlock @ " << node->span()
           << " trailing semi? " << node->trailing_semi();
   const Expr* last_expression = nullptr;
   for (const Statement* s : node->statements()) {

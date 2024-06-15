@@ -236,7 +236,8 @@ int64_t Block::CountEntries(std::string_view target) const {
     if (const KVEntry* kv = absl::get_if<KVEntry>(&entry)) {
       count += static_cast<int64_t>(kv->key == target);
     } else {
-      const Block* block = std::get<std::unique_ptr<Block>>(entry).get();
+      const StatementBlock* block =
+          std::get<std::unique_ptr<Block>>(entry).get();
       count += static_cast<int64_t>(block->kind == target);
     }
   }

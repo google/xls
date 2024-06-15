@@ -1026,7 +1026,7 @@ struct Block {
 void Run(__xls_channel<int, __xls_channel_dir_In>& in,
          __xls_channel<int, __xls_channel_dir_Out>& out) {
 
-  Block block = {.in = in, .out = out};
+  StatementBlock* block = {.in = in, .out = out};
   block.out.write(block.in.read() * 3);
 }
 )";
@@ -1051,7 +1051,7 @@ class Block {
 #pragma hls_top
 void Run(__xls_channel<int, __xls_channel_dir_In>& in,
          __xls_channel<int, __xls_channel_dir_Out>& out) {
-  Block block = {.in = in, .out = out};
+  StatementBlock* block = {.in = in, .out = out};
   block.Run();
 }
 )";

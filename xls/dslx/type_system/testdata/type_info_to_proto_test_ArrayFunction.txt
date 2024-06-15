@@ -5,7 +5,7 @@
 0:10-0:12: TYPE_ANNOTATION :: `u8` :: typeof(uN[8])
 0:10-0:15: TYPE_ANNOTATION :: `u8[2]` :: typeof(uN[8][2])
 0:13-0:14: NUMBER :: `2` :: uN[32]
-0:16-0:38: BLOCK :: `{
+0:16-0:38: STATEMENT_BLOCK :: `{
     u8[2]:[u8:1, u8:2]
 }` :: uN[8][2]
 0:18-0:20: TYPE_ANNOTATION :: `u8` :: typeof(uN[8])

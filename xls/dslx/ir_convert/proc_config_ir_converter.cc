@@ -94,9 +94,10 @@ absl::Status ProcConfigIrConverter::Finalize() {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleBlock(const Block* node) {
-  VLOG(4) << "ProcConfigIrConverter::HandleBlock: " << node->ToString() << " : "
-          << node->span().ToString();
+absl::Status ProcConfigIrConverter::HandleStatementBlock(
+    const StatementBlock* node) {
+  VLOG(4) << "ProcConfigIrConverter::HandleStatementBlock: " << node->ToString()
+          << " : " << node->span().ToString();
   for (const Statement* statement : node->statements()) {
     XLS_RETURN_IF_ERROR(statement->Accept(this));
   }

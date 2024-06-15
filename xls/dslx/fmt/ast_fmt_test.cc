@@ -144,7 +144,8 @@ TEST(AstFmtTest, FormatLet) {
   Scanner s{"fake.x", "{ let x: u32 = u32:42; }"};
   Parser p("fake", &s);
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block, p.ParseBlockExpression(bindings));
+  XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
+                           p.ParseBlockExpression(bindings));
   Statement* stmt = block->statements().at(0);
 
   Comments comments = Comments::Create(s.comments());

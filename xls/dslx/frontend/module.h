@@ -308,17 +308,8 @@ class Module : public AstNode {
 
 // Helper for making a ternary expression conditional. This avoids the user
 // needing to hand-craft the block nodes and such.
-inline Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
-                                Expr* consequent, Expr* alternate) {
-  return module->Make<Conditional>(
-      span, test,
-      module->Make<Block>(
-          consequent->span(),
-          std::vector<Statement*>{module->Make<Statement>(consequent)}, false),
-      module->Make<Block>(
-          alternate->span(),
-          std::vector<Statement*>{module->Make<Statement>(alternate)}, false));
-}
+Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
+                         Expr* consequent, Expr* alternate);
 
 // Returns whether the given module member is annotated as public.
 bool IsPublic(const ModuleMember& member);

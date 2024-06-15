@@ -15,7 +15,7 @@
 2:6-2:12: PARAM :: `x: u32` :: uN[32]
 2:9-2:12: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
 2:17-2:20: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
-2:21-2:39: BLOCK :: `{
+2:21-2:39: STATEMENT_BLOCK :: `{
     pid<u32:32>(x)
 }` :: uN[32]
 2:23-2:26: NAME_REF :: `pid` :: (uN[32]) -> uN[32]

@@ -423,4 +423,16 @@ Pos GetPos(const ModuleMember& module_member) {
   return span->start();
 }
 
+Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
+                         Expr* consequent, Expr* alternate) {
+  return module->Make<Conditional>(
+      span, test,
+      module->Make<StatementBlock>(
+          consequent->span(),
+          std::vector<Statement*>{module->Make<Statement>(consequent)}, false),
+      module->Make<StatementBlock>(
+          alternate->span(),
+          std::vector<Statement*>{module->Make<Statement>(alternate)}, false));
+}
+
 }  // namespace xls::dslx
