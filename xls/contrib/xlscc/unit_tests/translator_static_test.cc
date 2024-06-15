@@ -914,7 +914,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInSubroutine) {
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
                        __xls_channel<int>& out) {
-         StatementBlock* block;
+         Block block;
          block.Run(in, out);
        })";
 
@@ -958,7 +958,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInSubroutine2) {
        #pragma hls_top
        void my_package(__xls_channel<int>& in,
                        __xls_channel<int>& out) {
-         StatementBlock* block;
+         Block block;
          block.Run(in, out);
        })";
 
