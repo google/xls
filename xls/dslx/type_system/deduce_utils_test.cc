@@ -94,7 +94,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       /*params=*/std::vector<Param*>(), return_type, block,
       FunctionTag::kProcNext, /*is_public=*/true);
   const std::vector<ParametricBinding*> bindings;
-  const ProcBody proc_body{
+  const ProcLikeBody proc_body{
       .stmts = {},
       .config = config,
       .next = next,
@@ -160,7 +160,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       FunctionTag::kProcInit, /*is_public=*/true);
   std::vector<ProcMember*> members;
   std::vector<ParametricBinding*> bindings;
-  ProcBody proc_body = {
+  ProcLikeBody proc_body = {
       .stmts = {},
       .config = config,
       .next = next,

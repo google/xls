@@ -2913,7 +2913,7 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
     proc_stmts.push_back(member);
   }
 
-  ProcBody body = {
+  ProcLikeBody body = {
       .stmts = proc_stmts,
       .config = config_function,
       .next = next_function.function,

@@ -78,7 +78,7 @@ absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n);
 
 // Constructs that we encountered during parsing that are present within a
 // proc's body scope.
-struct ProcBody {
+struct ProcLikeBody {
   // Note: this is the statements in the proc as parsed in order -- the fields
   // below are specially extracted items from these statements.
   std::vector<ProcStmt> stmts;
@@ -91,26 +91,16 @@ struct ProcBody {
 
 // Note: linear time, expected only to be used only under error conditions where
 // we don't mind taking time reporting.
-bool HasMemberNamed(const ProcBody& proc_body, std::string_view name);
+bool HasMemberNamed(const ProcLikeBody& proc_body, std::string_view name);
 
-// Represents a parsed 'process' (i.e. communicating sequential process)
-// specification in the DSL.
-class Proc : public AstNode {
+class ProcLike : public AstNode {
  public:
-  static std::string_view GetDebugTypeName() { return "proc"; }
+  ProcLike(Module* owner, Span span, NameDef* name_def,
+           std::vector<ParametricBinding*> parametric_bindings,
+           ProcLikeBody body, bool is_public);
 
-  Proc(Module* owner, Span span, NameDef* name_def,
-       std::vector<ParametricBinding*> parametric_bindings, ProcBody body,
-       bool is_public);
+  ~ProcLike() override;
 
-  ~Proc() override;
-
-  AstNodeKind kind() const override { return AstNodeKind::kProc; }
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleProc(this);
-  }
-  std::string_view GetNodeTypeName() const override { return "Proc"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -163,8 +153,24 @@ class Proc : public AstNode {
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
 
-  ProcBody body_;
+  ProcLikeBody body_;
   bool is_public_;
+};
+
+// Represents a parsed 'process' (i.e. communicating sequential process)
+// specification in the DSL.
+class Proc : public ProcLike {
+ public:
+  using ProcLike::ProcLike;
+
+  static std::string_view GetDebugTypeName() { return "proc"; }
+
+  AstNodeKind kind() const override { return AstNodeKind::kProc; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleProc(this);
+  }
+  std::string_view GetNodeTypeName() const override { return "Proc"; }
 };
 
 // Represents a construct to unit test a Proc. Analogous to TestFunction, but

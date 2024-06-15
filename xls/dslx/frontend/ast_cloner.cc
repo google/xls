@@ -570,7 +570,7 @@ class AstCloner : public AstNodeVisitor {
     }
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
-    ProcBody new_body = {
+    ProcLikeBody new_body = {
         .stmts = new_stmts,
         .config = down_cast<Function*>(old_to_new_.at(&n->config())),
         .next = down_cast<Function*>(old_to_new_.at(&n->next())),

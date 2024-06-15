@@ -594,6 +594,11 @@ class Parser : public TokenParser {
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       std::string_view proc_name);
 
+  // Parses a proc-like entity (i.e. either a Proc or a Block).
+  template <typename T>
+  absl::StatusOr<T*> ParseProcLike(bool is_public, Bindings& outer_bindings,
+                                   Keyword keyword);
+
   DslxParserOptions options_;
 
   std::unique_ptr<Module> module_;

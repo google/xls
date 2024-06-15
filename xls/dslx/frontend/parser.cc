@@ -2378,9 +2378,11 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   return init;
 }
 
-absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
-                                        Bindings& outer_bindings) {
-  XLS_ASSIGN_OR_RETURN(Token proc_token, PopKeywordOrError(Keyword::kProc));
+template <typename T>
+absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
+                                         Bindings& outer_bindings,
+                                         Keyword keyword) {
+  XLS_ASSIGN_OR_RETURN(Token leading_token, PopKeywordOrError(keyword));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
 
   // Bindings for "within the proc" scope.
@@ -2421,7 +2423,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
     return absl::OkStatus();
   };
 
-  ProcBody proc_body = {
+  ProcLikeBody proc_like_body = {
       .config = nullptr,
       .next = nullptr,
       .init = nullptr,
@@ -2431,25 +2433,26 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
     if (peek->IsKeyword(Keyword::kType)) {
       XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
                            ParseTypeAlias(/*is_public=*/false, proc_bindings));
-      proc_body.stmts.push_back(type_alias);
+      proc_like_body.stmts.push_back(type_alias);
     } else if (peek->IsIdentifier("config")) {
-      XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_body.config, peek));
+      XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_like_body.config, peek));
 
       // Note: the config function does not have access to the proc members,
       // because that's what it is defining. It does, however, have access to
       // type aliases and similar. As a result, we use `proc_bindings` instead
       // of `member_bindings` as the base bindings here.
       Bindings this_bindings(&proc_bindings);
-      absl::StatusOr<Function*> config_or =
-          ParseProcConfig(this_bindings, parametric_bindings, proc_body.members,
-                          name_def->identifier(), is_public);
+      absl::StatusOr<Function*> config_or = ParseProcConfig(
+          this_bindings, parametric_bindings, proc_like_body.members,
+          name_def->identifier(), is_public);
 
       // We make a more specific/helpful error message when you try to refer to
       // a name that the config function is supposed to define from within the
       // config function.
       if (std::optional<std::string_view> bad_name =
               MaybeExtractParseNameError(config_or.status());
-          bad_name.has_value() && HasMemberNamed(proc_body, bad_name.value())) {
+          bad_name.has_value() &&
+          HasMemberNamed(proc_like_body, bad_name.value())) {
         xabsl::StatusBuilder builder(config_or.status());
         builder << absl::StreamFormat(
             "\"%s\" is a proc member, "
@@ -2461,7 +2464,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 
       XLS_RETURN_IF_ERROR(config_or.status());
       Function* config = config_or.value();
-      proc_body.config = config;
+      proc_like_body.config = config;
 
       // TODO(https://github.com/google/xls/issues/1029): 2024-03-25 this is a
       // bit of a kluge -- we add a function identifier that uses a reserved
@@ -2470,16 +2473,16 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       outer_bindings.Add(config->name_def()->identifier(), config->name_def());
 
       XLS_RETURN_IF_ERROR(module_->AddTop(config, MakeModuleTopCollisionError));
-      proc_body.stmts.push_back(config);
+      proc_like_body.stmts.push_back(config);
     } else if (peek->IsIdentifier("next")) {
-      XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_body.next, peek));
+      XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_like_body.next, peek));
 
       // Note: parsing of the `next()` function does have access to members,
       // unlike `config()`.
       XLS_ASSIGN_OR_RETURN(Function * next,
                            ParseProcNext(member_bindings, parametric_bindings,
                                          name_def->identifier(), is_public));
-      proc_body.next = next;
+      proc_like_body.next = next;
       XLS_RETURN_IF_ERROR(module_->AddTop(next, MakeModuleTopCollisionError));
 
       // TODO(https://github.com/google/xls/issues/1029): 2024-03-25 this is a
@@ -2487,14 +2490,14 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       // character to the outer (e.g. module-level) bindings to avoid
       // collisions.
       outer_bindings.Add(next->name_def()->identifier(), next->name_def());
-      proc_body.stmts.push_back(next);
+      proc_like_body.stmts.push_back(next);
     } else if (peek->IsIdentifier("init")) {
-      XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_body.init, peek));
+      XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_like_body.init, peek));
 
       XLS_ASSIGN_OR_RETURN(Function * init,
                            ParseProcInit(member_bindings, parametric_bindings,
                                          name_def->identifier()));
-      proc_body.init = init;
+      proc_like_body.init = init;
       XLS_RETURN_IF_ERROR(module_->AddTop(init, MakeModuleTopCollisionError));
 
       // TODO(https://github.com/google/xls/issues/1029): 2024-03-25 this is a
@@ -2502,7 +2505,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       // character to the outer (e.g. module-level) bindings to avoid
       // collisions.
       outer_bindings.Add(init->name_def()->identifier(), init->name_def());
-      proc_body.stmts.push_back(init);
+      proc_like_body.stmts.push_back(init);
     } else if (peek->kind() == TokenKind::kIdentifier) {
       XLS_ASSIGN_OR_RETURN(Token identifier_tok, PopToken());
       XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
@@ -2517,12 +2520,12 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
             DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
                              "Expected a ';' after proc member"));
 
-        proc_body.members.push_back(member);
-        proc_body.stmts.push_back(member);
+        proc_like_body.members.push_back(member);
+        proc_like_body.stmts.push_back(member);
       } else if (identifier_tok.IsIdentifier(kConstAssertIdentifier)) {
         XLS_ASSIGN_OR_RETURN(ConstAssert * const_assert,
                              ParseConstAssert(proc_bindings, &identifier_tok));
-        proc_body.stmts.push_back(const_assert);
+        proc_like_body.stmts.push_back(const_assert);
       } else {
         return ParseErrorStatus(
             peek->span(),
@@ -2542,20 +2545,20 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
     XLS_ASSIGN_OR_RETURN(peek, PeekToken());
   }
 
-  if (proc_body.config == nullptr || proc_body.next == nullptr ||
-      proc_body.init == nullptr) {
+  if (proc_like_body.config == nullptr || proc_like_body.next == nullptr ||
+      proc_like_body.init == nullptr) {
     std::vector<std::string_view> missing;
-    if (proc_body.init == nullptr) {
+    if (proc_like_body.init == nullptr) {
       missing.push_back("\"init\"");
     }
-    if (proc_body.config == nullptr) {
+    if (proc_like_body.config == nullptr) {
       missing.push_back("\"config\"");
     }
-    if (proc_body.next == nullptr) {
+    if (proc_like_body.next == nullptr) {
       missing.push_back("\"next\"");
     }
     return ParseErrorStatus(
-        Span(proc_token.span().start(), GetPos()),
+        Span(leading_token.span().start(), GetPos()),
         absl::StrFormat("Procs must define \"init\", \"config\" and \"next\" "
                         "functions; missing: %s.",
                         absl::StrJoin(missing, ", ")));
@@ -2565,24 +2568,31 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   // type, to avoid parent/child relationship violations.
   XLS_ASSIGN_OR_RETURN(
       auto* init_return_type,
-      CloneNodeSansTypeDefinitions(proc_body.next->return_type()));
+      CloneNodeSansTypeDefinitions(proc_like_body.next->return_type()));
   init_return_type->SetParentage();
-  proc_body.init->set_return_type(down_cast<TypeAnnotation*>(init_return_type));
-  proc_body.init->SetParentage();
+  proc_like_body.init->set_return_type(
+      down_cast<TypeAnnotation*>(init_return_type));
+  proc_like_body.init->SetParentage();
 
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
-  const Span span(proc_token.span().start(), cbrace.span().limit());
-  auto proc = module_->Make<Proc>(
-      span, name_def, std::move(parametric_bindings), proc_body, is_public);
+  const Span span(leading_token.span().start(), cbrace.span().limit());
+  auto* proc_like =
+      module_->Make<T>(span, name_def, std::move(parametric_bindings),
+                       proc_like_body, is_public);
 
   // Now that the proc is defined we can set a bunch of links to point at it.
-  proc_body.config->set_proc(proc);
-  proc_body.next->set_proc(proc);
-  proc_body.init->set_proc(proc);
-  name_def->set_definer(proc);
+  proc_like_body.config->set_proc(proc_like);
+  proc_like_body.next->set_proc(proc_like);
+  proc_like_body.init->set_proc(proc_like);
+  name_def->set_definer(proc_like);
 
-  XLS_RETURN_IF_ERROR(VerifyParentage(proc));
-  return proc;
+  XLS_RETURN_IF_ERROR(VerifyParentage(proc_like));
+  return proc_like;
+}
+
+absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
+                                        Bindings& outer_bindings) {
+  return ParseProcLike<Proc>(is_public, outer_bindings, Keyword::kProc);
 }
 
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
