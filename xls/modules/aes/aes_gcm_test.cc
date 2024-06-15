@@ -142,8 +142,7 @@ static absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
       continue;
     }
 
-    XLS_ASSIGN_OR_RETURN(StatementBlock * block,
-                         ValueToBlock(maybe_value.value()));
+    XLS_ASSIGN_OR_RETURN(Block block, ValueToBlock(maybe_value.value()));
     if (msg_blocks_left > 0) {
       result.output_data.push_back(block);
       msg_blocks_left--;

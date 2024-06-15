@@ -104,7 +104,7 @@ static absl::StatusOr<Result> RunGcm(const Sample& sample) {
 }
 
 static Block CreateDataBlock(absl::BitGen* bitgen) {
-  StatementBlock* block;
+  Block block;
   for (int i = 0; i < kBlockBytes; i++) {
     block[i] = absl::Uniform(*bitgen, 0, 256);
   }
