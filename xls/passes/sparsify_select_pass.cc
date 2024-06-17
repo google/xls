@@ -80,17 +80,11 @@ static absl::Status SparsifySelect(FunctionBase* f, Select* select,
     {
       absl::Status failure = absl::OkStatus();
       interval.ForEachElement([&](const Bits& bits) -> bool {
-        absl::StatusOr<uint64_t> value = bits.ToUint64();
-        if (!value.ok()) {
-          // This won't ever happen because of the way SparsifySelect
-          // gets called in this pass (we check for it before calling the
-          // function).
-          failure = value.status();
-          return true;
-        }
-        uint64_t index = *value;
-        if (index < select->cases().size()) {
-          cases_in_range.push_back(select->cases()[*value]);
+        std::optional<uint64_t> index =
+            bits.FitsInUint64() ? std::make_optional(*bits.ToUint64())
+                                : std::nullopt;
+        if (index.has_value() && *index < select->cases().size()) {
+          cases_in_range.push_back(select->cases()[*index]);
         } else if (select->default_value().has_value()) {
           cases_in_range.push_back(select->default_value().value());
         } else {

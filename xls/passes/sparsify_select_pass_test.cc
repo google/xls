@@ -15,6 +15,7 @@
 #include "xls/passes/sparsify_select_pass.h"
 
 #include <cstdint>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -30,6 +31,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -386,6 +388,49 @@ TEST_F(SparsifySelectPassTest, DefaultValue) {
                                    m::Literal("bits[4]:12"),
                                },
                                /*default_value=*/m::Literal("bits[4]:0"))}));
+}
+
+TEST_F(SparsifySelectPassTest, LargeSelector) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn func(x1: bits[2], x2: bits[2]) -> bits[2] {
+       literal.1: bits[2042] = literal(value=0x20_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000, id=1)
+       literal.2: bits[2042] = literal(value=0x0, id=2)
+       s: bits[2042] = one_hot_sel(x1, cases=[literal.1, literal.2], id=3)
+       literal.4: bits[2] = literal(value=0, id=4)
+       ret sel.5: bits[2] = sel(s, cases=[x2, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4, literal.4], default=literal.4, id=5)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence sve(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  testing::Matcher<const Node*> selector =
+      m::OneHotSelect(m::Param("x1"),
+                      /*cases=*/{m::Literal(), m::Literal()});
+  constexpr std::string_view kLargeLiteral =
+      "bits[2042]:0x20_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_"
+      "0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_"
+      "0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_"
+      "0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_"
+      "0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000";
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(
+          m::And(m::UGe(selector, m::Literal(kLargeLiteral)),
+                 m::ULe(selector, m::Literal(kLargeLiteral))),
+          /*cases=*/{m::Select(m::Sub(selector, m::Literal("bits[2042]:0x0")),
+                               /*cases=*/
+                               {
+                                   m::Param("x2"),
+                               },
+                               /*default_value=*/m::Literal("bits[2]:0x0")),
+                     m::Select(m::Sub(selector, m::Literal(kLargeLiteral)),
+                               /*cases=*/
+                               {
+                                   m::Literal("bits[2]:0x0"),
+                               },
+                               /*default_value=*/m::Literal("bits[2]:0x0"))}));
 }
 
 }  // namespace
