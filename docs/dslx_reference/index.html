@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.26">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
     
     
       
@@ -4627,6 +4627,14 @@ constants; For example, consider this variation on the above:</p>
 </code></pre></div>
 <p>Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This "catch all" (i.e. an
+<a href="https://doc.rust-lang.org/book/ch18-02-refutability.html">irrefutable pattern</a>)
+is <a href="https://github.com/google/xls/issues/204">currently required</a> in <strong>all</strong>
+match expressions, even if the other match arms form an exhaustive set of
+refutable patterns (e.g. matching against fully specified enumerators).</p>
+</div>
 <p>We can also match on ranges of values using the range syntax:</p>
 <div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">match</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">{</span>
@@ -4821,7 +4829,7 @@ for semantics of numeric casts:</p>
 
 <span class="w">  </span><span class="c1">// Nop (bitwidth is unchanged).</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
-<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span><span class="p">:</span><span class="mh">0xfe</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span><span class="p">:</span><span class="mh">0xfe</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
 <span class="p">}</span>

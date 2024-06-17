@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.26">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
     
     
       
@@ -2541,11 +2541,11 @@ colab notebooks:</p>
 <h2 id="index-install-latest-release">Install Latest Release</h2>
 <p>The following downloads the latest github repo release binaries for an x64 Linux machine:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Determine the url of the latest release tarball.</span>
-<span class="nv">LATEST_XLS_RELEASE_TARBALL_URL</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-L<span class="w"> </span><span class="se">\</span>
+<span class="nv">LATEST_XLS_RELEASE_TARBALL_URL</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-s<span class="w"> </span>-L<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Accept: application/vnd.github+json&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;X-GitHub-Api-Version: 2022-11-28&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>https://api.github.com/repos/google/xls/releases<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;import json; import sys; print(json.load(sys.stdin)[0][&quot;assets&quot;][0][&quot;browser_download_url&quot;])&#39;</span><span class="k">)</span>
+<span class="w">  </span>grep<span class="w"> </span>-m<span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span><span class="s1">&#39;https://.*/releases/download/.*\.tar\.gz&#39;</span><span class="k">)</span>
 
 <span class="c1"># Download the tarball and unpack it, observe the version numbers for each of the included tools.</span>
 curl<span class="w"> </span>-O<span class="w"> </span>-L<span class="w"> </span><span class="si">${</span><span class="nv">LATEST_XLS_RELEASE_TARBALL_URL</span><span class="si">}</span>
@@ -4925,7 +4925,7 @@ to be introduced. Specifically:</p>
 <ul>
 <li>XLS has a single IR representation which is used from the front-end down to
     the RTL-level. A single representation throughout the compiler enables
-    maximal resuse of analysis and transformation components. Often compilers
+    maximal reuse of analysis and transformation components. Often compilers
     have different specialized IRs (or "dialects") for different levels of
     abstraction which can add complexity and inhibit reusability. However, in
     XLS this tradeoff between specialization and reusability is unnecessary
@@ -10266,6 +10266,14 @@ constants; For example, consider this variation on the above:</p>
 </code></pre></div>
 <p>Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This "catch all" (i.e. an
+<a href="https://doc.rust-lang.org/book/ch18-02-refutability.html">irrefutable pattern</a>)
+is <a href="https://github.com/google/xls/issues/204">currently required</a> in <strong>all</strong>
+match expressions, even if the other match arms form an exhaustive set of
+refutable patterns (e.g. matching against fully specified enumerators).</p>
+</div>
 <p>We can also match on ranges of values using the range syntax:</p>
 <div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">match</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">{</span>
@@ -10460,7 +10468,7 @@ for semantics of numeric casts:</p>
 
 <span class="w">  </span><span class="c1">// Nop (bitwidth is unchanged).</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
-<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span><span class="p">:</span><span class="mh">0xfe</span><span class="p">,</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span><span class="p">:</span><span class="mh">0xfe</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u8</span><span class="p">);</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s8</span><span class="p">);</span>
 <span class="p">}</span>
@@ -11109,8 +11117,11 @@ value. As a function that "takes" a function as an argument, <code>map</code> is
 built-in -- in language implementor parlance it is a <em>higher order function</em>.</p>
 <p>Implementation note: Functions are not first class values in the DSL, so the
 name of the function must be referred to directly.</p>
-<p>Note: Novel higher order functions (e.g. if a user wanted to write their own
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Novel higher order functions (e.g. if a user wanted to write their own
 <code>map</code>) cannot currently be written in user-level DSL code.</p>
+</div>
 <h3 id="dslx_std-zip"><code>zip</code></h3>
 <p><code>zip</code> places elements of two same-sized arrays together in an array of 2-tuples.</p>
 <p>Its signature is: <code>zip(lhs: T[N], rhs: U[N]) -&gt; (T, U)[N]</code>.</p>
@@ -11461,9 +11472,12 @@ I0607 10:11:02.908208  810431 shifty.x:8] y as s8: -1
 [            OK ]
 [...]
 </code></pre></div>
-<p>Note: <code>trace!</code> currently exists as a builtin but is in the process of being
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>trace!</code> currently exists as a builtin but is in the process of being
 removed, as it provided the user with only a "global flag" way of specifying the
 desired format for output values -- <code>trace_fmt!</code> is more powerful.</p>
+</div>
 <h3 id="dslx_std-fail-assert-assertion-failure"><code>fail!</code> / <code>assert!</code>: assertion failure</h3>
 <p>The <code>fail!</code> builtin indicates a path that should not be reachable in practice.
 Its general signature is:</p>
@@ -11475,9 +11489,12 @@ produce a value:</p>
 </code></pre></div>
 <p>These can be thought of as "fatal assertions", and convert to
 Verilog/SytemVerilog assertions in generated code.</p>
-<p>Note: XLS hopes to permit users to optionally insert fatal-error-signaling
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>XLS hopes to permit users to optionally insert fatal-error-signaling
 hardware that correspond to these operations. See
 https://github.com/google/xls/issues/1352</p>
+</div>
 <p><code>fail!</code> indicates a <strong>control path that should not be reachable</strong>, <code>assert!</code>
 gives a <strong>predicate that should always be true</strong> when the statement is reached.</p>
 <p>If triggered, these raise a fatal error in simulation (e.g. via a JIT-execution

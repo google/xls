@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.26">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
     
     
       
@@ -3871,8 +3871,11 @@ value. As a function that "takes" a function as an argument, <code>map</code> is
 built-in -- in language implementor parlance it is a <em>higher order function</em>.</p>
 <p>Implementation note: Functions are not first class values in the DSL, so the
 name of the function must be referred to directly.</p>
-<p>Note: Novel higher order functions (e.g. if a user wanted to write their own
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Novel higher order functions (e.g. if a user wanted to write their own
 <code>map</code>) cannot currently be written in user-level DSL code.</p>
+</div>
 <h3 id="zip"><code>zip</code></h3>
 <p><code>zip</code> places elements of two same-sized arrays together in an array of 2-tuples.</p>
 <p>Its signature is: <code>zip(lhs: T[N], rhs: U[N]) -&gt; (T, U)[N]</code>.</p>
@@ -4223,9 +4226,12 @@ I0607 10:11:02.908208  810431 shifty.x:8] y as s8: -1
 [            OK ]
 [...]
 </code></pre></div>
-<p>Note: <code>trace!</code> currently exists as a builtin but is in the process of being
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>trace!</code> currently exists as a builtin but is in the process of being
 removed, as it provided the user with only a "global flag" way of specifying the
 desired format for output values -- <code>trace_fmt!</code> is more powerful.</p>
+</div>
 <h3 id="fail-assert-assertion-failure"><code>fail!</code> / <code>assert!</code>: assertion failure</h3>
 <p>The <code>fail!</code> builtin indicates a path that should not be reachable in practice.
 Its general signature is:</p>
@@ -4237,9 +4243,12 @@ produce a value:</p>
 </code></pre></div>
 <p>These can be thought of as "fatal assertions", and convert to
 Verilog/SytemVerilog assertions in generated code.</p>
-<p>Note: XLS hopes to permit users to optionally insert fatal-error-signaling
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>XLS hopes to permit users to optionally insert fatal-error-signaling
 hardware that correspond to these operations. See
 https://github.com/google/xls/issues/1352</p>
+</div>
 <p><code>fail!</code> indicates a <strong>control path that should not be reachable</strong>, <code>assert!</code>
 gives a <strong>predicate that should always be true</strong> when the statement is reached.</p>
 <p>If triggered, these raise a fatal error in simulation (e.g. via a JIT-execution
