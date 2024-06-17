@@ -120,6 +120,10 @@ class BackPropagate : public DfsVisitorWithDefault {
   absl::Status HandleSub(BinOp* sub) final { return UnifyMath(sub); }
   absl::Status HandleNot(UnOp* not_op) final {
     const IntervalSet& value = GetIntervals(not_op);
+    if (value.IsEmpty()) {
+      // We're already in an impossible case; don't try to do anything more.
+      return absl::OkStatus();
+    }
     if (value.IsMaximal()) {
       // If we have no bounds there's no additional info we can get by looking
       // at our arguments.
