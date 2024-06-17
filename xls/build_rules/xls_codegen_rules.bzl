@@ -530,7 +530,7 @@ def _xls_benchmark_verilog_impl(ctx):
         block_ir = codegen_info.block_ir_file.short_path,
     )
     for flag in _CODEGEN_FLAGS + _SCHEDULING_FLAGS:
-        if flag in ["top", "verilog_file", "block_ir_file"]:
+        if flag in ["input_ir", "top", "verilog_file", "block_ir_file"]:
             # already handled above
             continue
         value = getattr(codegen_info, flag, None)
