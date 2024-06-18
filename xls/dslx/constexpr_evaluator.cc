@@ -726,7 +726,7 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
   }
 
   // Collect all the freevars that are constexpr.
-  FreeVariables freevars = GetFreeVariables(node);
+  FreeVariables freevars = GetFreeVariablesByPos(node);
   VLOG(5) << "freevar count for `" << node->ToString()
           << "`: " << freevars.GetFreeVariableCount();
   freevars = freevars.DropBuiltinDefs();

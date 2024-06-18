@@ -315,6 +315,57 @@ fn f() -> bool { p < u32:42 }
                                  "not being invoked")));
 }
 
+// X is not bound in this example but it's also not used anywhere -- currently
+// this is accepted.
+//
+// TODO(https://github.com/google/xls/issues/1495): We'd like this to be an
+// error in the future.
+TEST(TypecheckTest, Gh1473_UnboundButAlsoUnusedParametricNoDefaultExpr) {
+  std::string program = R"(
+fn p<X: u32, Y: u32>(y: uN[Y]) -> u32 { Y }
+fn f() -> u32 { p(u7:0) }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
+TEST(TypecheckErrorTest, Gh1473_UnboundButAlsoUnusedParametricWithDefaultExpr) {
+  std::string program = R"(
+fn p<X: u32, Y: u32 = {X+X}>(y: uN[Y]) -> u32 { Y }
+fn f() -> u32 { p(u7:0) }
+)";
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Parametric expression `X + X` refered to `X` which "
+                         "is not present in the parametric environment")));
+}
+
+// In this example we do not bind X via the arguments, but we try to use it in
+// forming a return type.
+TEST(TypecheckErrorTest, Gh1473_UnboundAndUsedParametric) {
+  std::string program = R"(
+fn p<X: u32, Y: u32>(y: uN[Y]) -> uN[X] { Y }
+fn f() -> u32 { p(u7:0) }
+)";
+  EXPECT_THAT(Typecheck(program),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("uN[X] Instantiated return type did not have "
+                                 "all parametrics resolved")));
+}
+
+// In this example we do not bind X via the arguments, but we try to use it in
+// the body of the function.
+//
+// TODO(https://github.com/google/xls/issues/1495): This surprisingly works in
+// type checking but fails when we try to IR convert it, we should fix that.
+TEST(TypecheckTest, Gh1473_UnboundAndUsedParametricInBody) {
+  std::string program = R"(
+fn p<X: u32, Y: u32>(y: uN[Y]) -> bool { uN[X]:0 == uN[X]:1 }
+fn f() -> bool { p(u7:0) }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckTest, MapOfParametric) {
   std::string program = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x }
