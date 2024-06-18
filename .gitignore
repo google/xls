@@ -5,3 +5,4 @@ __pycache__
 compile_commands.json
 xls_clang-tidy.out
 user.bazelrc
+.vscode
