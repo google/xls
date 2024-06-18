@@ -11,7 +11,7 @@
 2:3-2:4: NAME_DEF :: `f` :: () -> E
 2:10-2:11: TYPE_REF :: `E` :: typeof(E)
 2:10-2:12: TYPE_ANNOTATION :: `E` :: typeof(E)
-2:12-2:20: BLOCK :: `{
+2:12-2:20: STATEMENT_BLOCK :: `{
     E::A
 }` :: E
 2:15-2:18: COLON_REF :: `E::A` :: E

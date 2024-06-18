@@ -167,8 +167,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_PARAMETRIC_BINDING;
     case AstNodeKind::kTupleIndex:
       return AST_NODE_KIND_TUPLE_INDEX;
-    case AstNodeKind::kBlock:
-      return AST_NODE_KIND_BLOCK;
+    case AstNodeKind::kStatementBlock:
+      return AST_NODE_KIND_STATEMENT_BLOCK;
     case AstNodeKind::kStatement:
       return AST_NODE_KIND_STATEMENT;
     case AstNodeKind::kUnrollFor:
@@ -711,8 +711,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kParametricBinding;
     case AST_NODE_KIND_TUPLE_INDEX:
       return AstNodeKind::kTupleIndex;
-    case AST_NODE_KIND_BLOCK:
-      return AstNodeKind::kBlock;
+    case AST_NODE_KIND_STATEMENT_BLOCK:
+      return AstNodeKind::kStatementBlock;
     case AST_NODE_KIND_UNROLL_FOR:
       return AstNodeKind::kUnrollFor;
     case AST_NODE_KIND_STATEMENT:

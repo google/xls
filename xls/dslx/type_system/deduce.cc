@@ -608,7 +608,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStatement(const Statement* node,
 //      foo;
 //      ()  <-- useless, semi on previous statement implies it
 //    }
-static void DetectUselessTrailingTuplePattern(const Block* block,
+static void DetectUselessTrailingTuplePattern(const StatementBlock* block,
                                               DeduceCtx* ctx) {
   // TODO(https://github.com/google/xls/issues/1124) 2023-08-31 Proc config
   // parsing functions synthesize a tuple at the end, and we don't want to flag
@@ -661,8 +661,8 @@ static void DetectUselessTrailingTuplePattern(const Block* block,
                       "semicolon -- this is implied, please remove it"));
 }
 
-absl::StatusOr<std::unique_ptr<Type>> DeduceBlock(const Block* node,
-                                                  DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<Type>> DeduceStatementBlock(
+    const StatementBlock* node, DeduceCtx* ctx) {
   std::unique_ptr<Type> last;
   for (const Statement* s : node->statements()) {
     XLS_ASSIGN_OR_RETURN(last, ctx->Deduce(s));
@@ -1926,7 +1926,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(StructDef, DeduceStructDef)
   DEDUCE_DISPATCH(Array, DeduceArray)
   DEDUCE_DISPATCH(Attr, DeduceAttr)
-  DEDUCE_DISPATCH(Block, DeduceBlock)
+  DEDUCE_DISPATCH(StatementBlock, DeduceStatementBlock)
   DEDUCE_DISPATCH(ChannelDecl, DeduceChannelDecl)
   DEDUCE_DISPATCH(ConstantArray, DeduceConstantArray)
   DEDUCE_DISPATCH(ColonRef, DeduceColonRef)

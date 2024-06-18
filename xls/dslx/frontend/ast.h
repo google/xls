@@ -50,7 +50,7 @@
   X(Array)                         \
   X(Attr)                          \
   X(Binop)                         \
-  X(Block)                         \
+  X(StatementBlock)                \
   X(Cast)                          \
   X(ChannelDecl)                   \
   X(ColonRef)                      \
@@ -765,10 +765,27 @@ class Statement final : public AstNode {
   Wrapped wrapped_;
 };
 
-// Represents a block expression, e.g.,
+// Represents a block of statements, which is itself an expression in the
+// language (i.e. it results in its last expression-statement, if there is no
+// trailing semicolon).
+//
+// This is also sometimes called a block expression, e.g.,
+//
+// ```dslx-snippet
 // let i = {
-//   u32:5
+//     let x = f();
+//     x + u32:42
 // };
+// ```
+//
+// We also reuse this AST node in places where we just need a statement block
+// construct, such as a function body:
+//
+// `fn f() { u32:42 }`
+// --------^~~~~~~~~^ represented via a `StatementBlock`
+//
+// Even though that's not really a block expression it's a natural place to use
+// the same construct.
 //
 // Attrs:
 //  statements: Sequence of statements contained within the block.
@@ -777,25 +794,25 @@ class Statement final : public AstNode {
 //
 // Invariant: in the degenerate case where there are no statements in the block,
 // trailing_semi is always true.
-class Block : public Expr {
+class StatementBlock : public Expr {
  public:
-  Block(Module* owner, Span span, std::vector<Statement*> statements,
-        bool trailing_semi);
+  StatementBlock(Module* owner, Span span, std::vector<Statement*> statements,
+                 bool trailing_semi);
 
-  ~Block() override;
+  ~StatementBlock() override;
 
   bool IsBlockedExprNoLeader() const override { return true; }
 
   std::string ToInlineString() const override;
 
-  AstNodeKind kind() const override { return AstNodeKind::kBlock; }
+  AstNodeKind kind() const override { return AstNodeKind::kStatementBlock; }
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleBlock(this);
+    return v->HandleStatementBlock(this);
   }
   absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleBlock(this);
+    return v->HandleStatementBlock(this);
   }
-  std::string_view GetNodeTypeName() const override { return "Block"; }
+  std::string_view GetNodeTypeName() const override { return "StatementBlock"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return std::vector<AstNode*>(statements_.begin(), statements_.end());
   }
@@ -1483,8 +1500,8 @@ class Binop : public Expr {
 // `Conditional` expression instead of a `Block`.
 class Conditional : public Expr {
  public:
-  Conditional(Module* owner, Span span, Expr* test, Block* consequent,
-              std::variant<Block*, Conditional*> alternate);
+  Conditional(Module* owner, Span span, Expr* test, StatementBlock* consequent,
+              std::variant<StatementBlock*, Conditional*> alternate);
 
   ~Conditional() override;
 
@@ -1507,8 +1524,10 @@ class Conditional : public Expr {
   }
 
   Expr* test() const { return test_; }
-  Block* consequent() const { return consequent_; }
-  std::variant<Block*, Conditional*> alternate() const { return alternate_; }
+  StatementBlock* consequent() const { return consequent_; }
+  std::variant<StatementBlock*, Conditional*> alternate() const {
+    return alternate_;
+  }
 
   bool HasElseIf() const {
     return std::holds_alternative<Conditional*>(alternate());
@@ -1526,8 +1545,8 @@ class Conditional : public Expr {
   std::string ToStringInternal() const final;
 
   Expr* test_;
-  Block* consequent_;
-  std::variant<Block*, Conditional*> alternate_;
+  StatementBlock* consequent_;
+  std::variant<StatementBlock*, Conditional*> alternate_;
 };
 
 // Represents a member in a parametric binding list.
@@ -1613,8 +1632,8 @@ class Function : public AstNode {
 
   Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
-           std::vector<Param*> params, TypeAnnotation* return_type, Block* body,
-           FunctionTag tag, bool is_public);
+           std::vector<Param*> params, TypeAnnotation* return_type,
+           StatementBlock* body, FunctionTag tag, bool is_public);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -1641,7 +1660,7 @@ class Function : public AstNode {
 
   // The body of the function is a block (sequence of statements that yields a
   // final expression).
-  Block* body() const { return body_; }
+  StatementBlock* body() const { return body_; }
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
@@ -1696,7 +1715,7 @@ class Function : public AstNode {
   absl::flat_hash_set<std::string> parametric_keys_;
   std::vector<Param*> params_;
   TypeAnnotation* return_type_;  // May be null.
-  Block* body_;
+  StatementBlock* body_;
   const FunctionTag tag_;
   std::optional<Proc*> proc_;
 
@@ -2652,7 +2671,7 @@ class XlsTuple : public Expr {
 class For : public Expr {
  public:
   For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
-      Expr* iterable, Block* body, Expr* init);
+      Expr* iterable, StatementBlock* body, Expr* init);
 
   ~For() override;
 
@@ -2682,7 +2701,7 @@ class For : public Expr {
   Expr* iterable() const { return iterable_; }
 
   // Expression for the loop body.
-  Block* body() const { return body_; }
+  StatementBlock* body() const { return body_; }
 
   // Initial expression for the loop (start values expr).
   Expr* init() const { return init_; }
@@ -2697,7 +2716,7 @@ class For : public Expr {
   NameDefTree* names_;
   TypeAnnotation* type_annotation_;
   Expr* iterable_;
-  Block* body_;
+  StatementBlock* body_;
   Expr* init_;
 };
 
@@ -2706,7 +2725,7 @@ class For : public Expr {
 class UnrollFor : public Expr {
  public:
   UnrollFor(Module* owner, Span span, NameDefTree* names, TypeAnnotation* types,
-            Expr* iterable, Block* body, Expr* init);
+            Expr* iterable, StatementBlock* body, Expr* init);
   ~UnrollFor() override;
 
   bool IsBlockedExprWithLeader() const override { return true; }
@@ -2724,7 +2743,7 @@ class UnrollFor : public Expr {
   NameDefTree* names() const { return names_; }
   TypeAnnotation* types() const { return types_; }
   Expr* iterable() const { return iterable_; }
-  Block* body() const { return body_; }
+  StatementBlock* body() const { return body_; }
   Expr* init() const { return init_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
@@ -2737,7 +2756,7 @@ class UnrollFor : public Expr {
   NameDefTree* names_;
   TypeAnnotation* types_;
   Expr* iterable_;
-  Block* body_;
+  StatementBlock* body_;
   Expr* init_;
 };
 

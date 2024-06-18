@@ -594,7 +594,7 @@ static Pos AdjustCommentLimit(const Span& comment_span, DocArena& arena,
              std::numeric_limits<int32_t>::max());
 }
 
-static DocRef FmtSingleStatementBlockInline(const Block& n,
+static DocRef FmtSingleStatementBlockInline(const StatementBlock& n,
                                             const Comments& comments,
                                             bool add_curls, DocArena& arena) {
   std::vector<DocRef> pieces;
@@ -614,7 +614,7 @@ static DocRef FmtSingleStatementBlockInline(const Block& n,
 }
 
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
-static DocRef FmtBlock(const Block& n, const Comments& comments,
+static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
                        DocArena& arena, bool add_curls,
                        bool force_multiline = false) {
   bool has_comments = comments.HasComments(n.span());
@@ -760,7 +760,7 @@ static DocRef FmtBlock(const Block& n, const Comments& comments,
   return ConcatNGroup(arena, top);
 }
 
-DocRef Fmt(const Block& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const StatementBlock& n, const Comments& comments, DocArena& arena) {
   return FmtBlock(n, comments, arena, /*add_curls=*/true);
 }
 
@@ -1233,7 +1233,7 @@ static DocRef FmtConditionalMultiline(const Conditional& n,
       FmtBlock(*n.consequent(), comments, arena, /*add_curls=*/false),
       arena.hard_line()};
 
-  std::variant<Block*, Conditional*> alternate = n.alternate();
+  std::variant<StatementBlock*, Conditional*> alternate = n.alternate();
   while (std::holds_alternative<Conditional*>(alternate)) {
     Conditional* elseif = std::get<Conditional*>(alternate);
     alternate = elseif->alternate();
@@ -1248,9 +1248,9 @@ static DocRef FmtConditionalMultiline(const Conditional& n,
     pieces.push_back(arena.hard_line());
   }
 
-  CHECK(std::holds_alternative<Block*>(alternate));
+  CHECK(std::holds_alternative<StatementBlock*>(alternate));
 
-  Block* else_block = std::get<Block*>(alternate);
+  StatementBlock* else_block = std::get<StatementBlock*>(alternate);
   pieces.push_back(arena.ccurl());
   pieces.push_back(arena.space());
   pieces.push_back(arena.Make(Keyword::kElse));
@@ -1278,8 +1278,8 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
       arena.break1(),
   };
 
-  CHECK(std::holds_alternative<Block*>(n.alternate()));
-  const Block* else_block = std::get<Block*>(n.alternate());
+  CHECK(std::holds_alternative<StatementBlock*>(n.alternate()));
+  const StatementBlock* else_block = std::get<StatementBlock*>(n.alternate());
   pieces.push_back(arena.ccurl());
   pieces.push_back(arena.space());
   pieces.push_back(arena.Make(Keyword::kElse));

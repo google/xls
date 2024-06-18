@@ -3,7 +3,7 @@
 }` :: () -> ()
 0:3-0:4: NAME_DEF :: `f` :: () -> ()
 0:10-0:12: TYPE_ANNOTATION :: `()` :: typeof(())
-0:13-0:19: BLOCK :: `{
+0:13-0:19: STATEMENT_BLOCK :: `{
     ()
 }` :: ()
 0:15-0:17: STATEMENT :: `()` :: ()

@@ -300,7 +300,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   NO_TRAVERSE_DISPATCH_VISIT(Attr)
   NO_TRAVERSE_DISPATCH_VISIT(Array)
-  NO_TRAVERSE_DISPATCH_VISIT(Block)
+  NO_TRAVERSE_DISPATCH_VISIT(StatementBlock)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantArray)
   NO_TRAVERSE_DISPATCH_VISIT(Cast)
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
@@ -2914,8 +2914,10 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBlock(const Block* node) {
-  VLOG(5) << "FunctionConverter::HandleBlock; node: " << node->ToString();
+absl::Status FunctionConverter::HandleStatementBlock(
+    const StatementBlock* node) {
+  VLOG(5) << "FunctionConverter::HandleStatementBlock; node: "
+          << node->ToString();
   Expr* last_expr = nullptr;
 
   for (const Statement* s : node->statements()) {

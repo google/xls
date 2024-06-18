@@ -88,7 +88,7 @@ absl::Status MaybeExplainError(const TypeMismatchErrorData& data) {
 
   const NameDef* name_def = std::get<const NameDef*>(any_name_def);
   const AstNode* definer = name_def->definer();
-  const Block* block = dynamic_cast<const Block*>(definer);
+  const auto* block = dynamic_cast<const StatementBlock*>(definer);
   VLOG(10) << absl::StreamFormat("name_def: %s definer: %p block: %p",
                                  name_def->ToString(), definer, block);
   if (block == nullptr || !block->trailing_semi()) {

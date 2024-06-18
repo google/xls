@@ -199,7 +199,7 @@ class InvocationVisitor : public ExprVisitor {
     return expr->rhs()->AcceptExpr(this);
   }
 
-  absl::Status HandleBlock(const Block* expr) override {
+  absl::Status HandleStatementBlock(const StatementBlock* expr) override {
     for (Statement* stmt : expr->statements()) {
       XLS_RETURN_IF_ERROR(
           absl::visit(Visitor{

@@ -243,7 +243,8 @@ absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
   return InterpretExpr(expr);
 }
 
-absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
+absl::Status ConstexprEvaluator::HandleStatementBlock(
+    const StatementBlock* expr) {
   bool all_statements_constexpr = true;
   Expr* last_expr = nullptr;
   for (Statement* stmt : expr->statements()) {

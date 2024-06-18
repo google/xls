@@ -46,7 +46,7 @@ namespace xls::dslx {
 namespace {
 
 Expr* GetSingleBodyExpr(Function* f) {
-  Block* body = f->body();
+  StatementBlock* body = f->body();
   CHECK_EQ(body->statements().size(), 1);
   return std::get<Expr*>(body->statements().at(0)->wrapped());
 }

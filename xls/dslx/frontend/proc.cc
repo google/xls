@@ -32,7 +32,7 @@
 
 namespace xls::dslx {
 
-bool HasMemberNamed(const ProcBody& proc_body, std::string_view name) {
+bool HasMemberNamed(const ProcLikeBody& proc_body, std::string_view name) {
   for (const ProcMember* member : proc_body.members) {
     if (member->name_def()->identifier() == name) {
       return true;
@@ -52,11 +52,11 @@ absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n) {
       "Node is not a valid ProcStmt; type: ", n->GetNodeTypeName()));
 }
 
-// -- class Proc
+// -- class ProcLike
 
-Proc::Proc(Module* owner, Span span, NameDef* name_def,
-           std::vector<ParametricBinding*> parametric_bindings, ProcBody body,
-           bool is_public)
+ProcLike::ProcLike(Module* owner, Span span, NameDef* name_def,
+                   std::vector<ParametricBinding*> parametric_bindings,
+                   ProcLikeBody body, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -68,9 +68,9 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
   CHECK(body_.init != nullptr);
 }
 
-Proc::~Proc() = default;
+ProcLike::~ProcLike() = default;
 
-const XlsTuple* Proc::GetConfigTuple() const {
+const XlsTuple* ProcLike::GetConfigTuple() const {
   const Function& config_fn = config();
   // Note: when the block is empty, trailing_semi is always true as an
   // invariant.
@@ -84,7 +84,7 @@ const XlsTuple* Proc::GetConfigTuple() const {
   return tuple;
 }
 
-std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
+std::vector<AstNode*> ProcLike::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def()};
   for (ParametricBinding* pb : parametric_bindings_) {
     results.push_back(pb);
@@ -95,7 +95,7 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   return results;
 }
 
-std::string Proc::ToString() const {
+std::string ProcLike::ToString() const {
   std::string pub_str = is_public() ? "pub " : "";
   std::string parametric_str;
   if (!parametric_bindings().empty()) {
