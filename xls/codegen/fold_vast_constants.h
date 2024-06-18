@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_FOLD_VAST_CONSTANTS_H_
 #define XLS_CODEGEN_FOLD_VAST_CONSTANTS_H_
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast.h"
@@ -32,6 +34,12 @@ namespace verilog {
 // failure. The folding logic currently supported is focused on what is needed
 // for typical data type folding.
 absl::StatusOr<Expression*> FoldVastConstants(
+    Expression* expr,
+    const absl::flat_hash_map<Expression*, DataType*>& type_map = {});
+
+// Like FoldVastConstants(), but folds the expression all the way to a single
+// constant or fails.
+absl::StatusOr<int64_t> FoldEntireVastExpr(
     Expression* expr,
     const absl::flat_hash_map<Expression*, DataType*>& type_map = {});
 

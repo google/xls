@@ -331,8 +331,7 @@ std::string Include::Emit(LineInfo* line_info) const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
-DataType* VerilogFile::ExternType(DataType* punable_type,
-                                  std::string_view name,
+DataType* VerilogFile::ExternType(DataType* punable_type, std::string_view name,
                                   const SourceInfo& loc) {
   return Make<verilog::ExternType>(loc, punable_type, name);
 }
@@ -798,7 +797,7 @@ absl::StatusOr<int64_t> PackedArrayType::FlatBitCountAsInt64() const {
     }
     XLS_ASSIGN_OR_RETURN(int64_t dim_size,
                          dim->AsLiteralOrDie()->bits().ToUint64());
-    bit_count = bit_count * dim_size;
+    bit_count *= dim_size + (dims_are_max() ? 1 : 0);
   }
   return bit_count;
 }
@@ -838,7 +837,7 @@ absl::StatusOr<int64_t> UnpackedArrayType::FlatBitCountAsInt64() const {
     }
     XLS_ASSIGN_OR_RETURN(int64_t dim_size,
                          dim->AsLiteralOrDie()->bits().ToUint64());
-    bit_count = bit_count * dim_size;
+    bit_count *= dim_size + (dims_are_max() ? 1 : 0);
   }
   return bit_count;
 }

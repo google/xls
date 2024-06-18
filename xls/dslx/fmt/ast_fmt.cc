@@ -531,7 +531,12 @@ static std::optional<DocRef> EmitCommentsBetween(
   if (!start_pos.has_value()) {
     start_pos = Pos(limit_pos.filename(), 0, 0);
   }
-  CHECK_LE(start_pos.value(), limit_pos);
+  // Due to the hack in AdjustCommentLimit, we can end up looking for a comment
+  // between the fictitious end of a comment and the end of a block. Just don't
+  // return anything in that case.
+  if (start_pos >= limit_pos) {
+    return std::nullopt;
+  }
   const Span span(start_pos.value(), limit_pos);
 
   VLOG(3) << "Looking for comments in span: " << span;

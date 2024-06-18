@@ -1612,8 +1612,10 @@ class Literal : public Expression {
   const Bits& bits() const { return bits_; }
 
   absl::StatusOr<int64_t> ToInt64() const {
-    if (effective_bit_count() != bits_.bit_count()) {
-      return bits_ops::ZeroExtend(bits_, effective_bit_count()).ToInt64();
+    if (bits_.bit_count() != 64 &&
+        !(declared_as_signed_ && bits_.bit_count() == effective_bit_count() &&
+          bits_.Get(bits_.bit_count() - 1))) {
+      return bits_ops::ZeroExtend(bits_, 64).ToInt64();
     }
     return bits_.ToInt64();
   }

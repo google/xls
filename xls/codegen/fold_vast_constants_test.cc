@@ -300,6 +300,8 @@ TEST_F(FoldVastConstantsTest, FoldEnumBaseType) {
 
 TEST_F(FoldVastConstantsTest, FoldComplexPackedArraySpec) {
   SourceInfo loc;
+  // parameter foo = 3;
+  // logic [4 * (foo + 2)][foo - 1:0]
   auto* foo = module_->AddParameter("foo", BareLiteral(3), loc);
   EXPECT_THAT(FoldConstantsAndGetBitCount(file_.Make<PackedArrayType>(
                   loc,
@@ -310,7 +312,7 @@ TEST_F(FoldVastConstantsTest, FoldComplexPackedArraySpec) {
                       /*is_signed=*/false, /*size_expr_is_max=*/false),
                   std::vector<Expression*>{file_.Sub(foo, BareLiteral(1), loc)},
                   /*dims_are_max=*/true)),
-              IsOkAndHolds(40));
+              IsOkAndHolds(60));
 }
 
 TEST_F(FoldVastConstantsTest, FoldStructDef) {
@@ -327,6 +329,17 @@ TEST_F(FoldVastConstantsTest, FoldStructDef) {
                             file_.Make<Def>(loc, "member2", DataKind::kLogic,
                                             bit_vector_type)})),
       IsOkAndHolds(40));
+}
+
+TEST_F(FoldVastConstantsTest, FoldToInt64WithZeroExtension) {
+  SourceInfo loc;
+  auto* ref = module_->AddParameter(
+      "foo",
+      file_.Make<Literal>(loc, Bits::AllOnes(2), FormatPreference::kHex, 2,
+                          /*emit_bit_count=*/true,
+                          /*declared_as_signed=*/false),
+      loc);
+  XLS_EXPECT_OK_AND_EQ(FoldEntireVastExpr(ref), 3);
 }
 
 }  // namespace

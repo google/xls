@@ -217,9 +217,9 @@ class ConstantFoldingContext {
     Literal* lhs_literal = folded_lhs->AsLiteralOrDie();
     Literal* rhs_literal = folded_rhs->AsLiteralOrDie();
     XLS_ASSIGN_OR_RETURN(int64_t lhs_value,
-                         folded_lhs->AsLiteralOrDie()->ToInt64());
+                         lhs_literal->ToInt64());
     XLS_ASSIGN_OR_RETURN(int64_t rhs_value,
-                         folded_rhs->AsLiteralOrDie()->ToInt64());
+                         rhs_literal->ToInt64());
     bool signed_input = lhs_literal->is_declared_as_signed() &&
                         rhs_literal->is_declared_as_signed();
     std::optional<bool> bool_result;
@@ -289,6 +289,13 @@ absl::StatusOr<DataType*> FoldVastConstants(
     const absl::flat_hash_map<Expression*, DataType*>& type_map) {
   auto context = std::make_unique<ConstantFoldingContext>(type_map);
   return context->FoldConstants(data_type);
+}
+
+absl::StatusOr<int64_t> FoldEntireVastExpr(
+    Expression* expr,
+    const absl::flat_hash_map<Expression*, DataType*>& type_map) {
+  auto context = std::make_unique<ConstantFoldingContext>(type_map);
+  return context->FoldEntireExpr(expr);
 }
 
 absl::StatusOr<Expression*> FoldVastConstants(
