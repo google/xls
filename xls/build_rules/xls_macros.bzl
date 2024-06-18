@@ -275,6 +275,7 @@ def xls_dslx_verilog_build_and_test(
     build_test(
         name = "__" + name,
         targets = [":" + name],
+        tags = kwargs["tags"] if "tags" in kwargs else [],
     )
 
 def xls_dslx_opt_ir_macro(
@@ -628,6 +629,7 @@ Examples:
         name = opt_ir_target,
         src = src,
         opt_ir_args = full_opt_args,
+        tags = tags,
     )
 
     codegen_target = "{}.default_{}.codegen".format(name, delay_model)
@@ -637,6 +639,7 @@ Examples:
         src = ":{}".format(opt_ir_target),
         codegen_args = codegen_args,
         verilog_file = verilog_file,
+        tags = tags,
     )
     verilog_target = "{}.default_{}.verilog".format(name, delay_model)
     verilog_library(
@@ -644,6 +647,7 @@ Examples:
         srcs = [
             ":" + verilog_file,
         ],
+        tags = tags,
     )
     synth_target = "{}.default_{}.synth".format(name, delay_model)
     synthesize_rtl(
