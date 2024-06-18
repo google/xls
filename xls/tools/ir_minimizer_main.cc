@@ -68,7 +68,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -91,6 +90,7 @@
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/unroll_pass.h"
+#include "xls/tools/extract_segment.h"
 
 static constexpr std::string_view kUsage = R"(
 Tool for reducing IR to a minimal test case based on an external test.
@@ -1026,7 +1026,6 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
   SimplifiedIr failure{.result = SimplificationResult::kDidNotChange,
                        .ir_data = f->package(),
                        .node_count = f->node_count()};
-  Package new_pkg = Package(f->package()->name());
   auto it = f->nodes().begin();
   auto off = absl::Uniform(rng, 0, f->node_count());
   VLOG(3) << "Attempting to extract node " << off << " from " << f->DumpIr();
@@ -1046,99 +1045,24 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
     // Don't want to deal with these nodes.
     return failure;
   }
-  // Find all nodes which feed into this one.
-  absl::flat_hash_set<Node*> marked;
-  std::vector<Node*> to_check{to_extract};
-  while (!to_check.empty()) {
-    Node* cur = to_check.back();
-    if (cur->Is<Invoke>() || cur->Is<Map>() || cur->Is<CountedFor>() ||
-        cur->Is<DynamicCountedFor>()) {
-      // TODO: Support copying the invokes too. This makes it way more annoying
-      // so not worth it right now.
-      return failure;
-    }
-    to_check.pop_back();
-    if (marked.contains(cur)) {
-      continue;
-    }
-    marked.insert(cur);
-    for (Node* op : cur->operands()) {
-      if (op->GetType()->IsToken()) {
-        // No tokens.
-        continue;
-      }
-      // Sends/after-all shouldn't be reached since only accessible through
-      // token path, reg-write should not have any dependents.
-      CHECK(!op->Is<Send>() && !op->Is<AfterAll>() && !op->Is<RegisterWrite>())
-          << op->ToString();
-      if (marked.contains(op)) {
-        continue;
-      }
-      to_check.push_back(op);
-    }
+  auto maybe_new_pkg = ExtractSegmentInNewPackage(
+      f, /*source_nodes=*/{}, /*sink_nodes=*/{to_extract},
+      /*extracted_package_name=*/f->package()->name(),
+      /*extracted_function_name=*/f->package()->GetTop()
+          ? f->package()->GetTop().value()->name()
+          : "extracted_func",
+      true);
+  // If we failed ot extract a segment because we hit an unimplemented node we
+  // should just continue on and try other substitutions.
+  if (absl::IsUnimplemented(maybe_new_pkg.status())) {
+    return failure;
   }
-  absl::flat_hash_map<Node*, Node*> old_to_new_map;
-  Function* new_func = new_pkg.AddFunction(std::make_unique<Function>(
-      f->package()->GetTop() ? f->package()->GetTop().value()->name()
-                             : "extracted_func",
-      &new_pkg));
-  for (Node* n : TopoSort(f)) {
-    if (!marked.contains(n)) {
-      continue;
-    }
-    if (n->Is<Receive>()) {
-      // Replace token with bits[1].
-      std::vector<Type*> types;
-      types.push_back(new_pkg.GetBitsType(1));
-      for (Type* other_type :
-           n->GetType()->AsTupleOrDie()->element_types().subspan(1)) {
-        auto maybe_type = new_pkg.MapTypeFromOtherPackage(other_type);
-        if (!maybe_type.ok()) {
-          VLOG(1) << "     unable to map type" << other_type->ToString()
-                  << " due to " << maybe_type.status();
-          return failure;
-        }
-        types.push_back(*maybe_type);
-      }
-      XLS_ASSIGN_OR_RETURN(
-          old_to_new_map[n],
-          new_func->MakeNodeWithName<Param>(
-              SourceInfo(), new_pkg.GetTupleType(types),
-              absl::StrCat("param_wrapper_for_recieve_", n->GetName())));
-    } else if (n->Is<RegisterRead>()) {
-      auto maybe_type = new_pkg.MapTypeFromOtherPackage(n->GetType());
-      if (!maybe_type.ok()) {
-        VLOG(1) << "     unable to map type" << n->GetType()->ToString()
-                << " due to " << maybe_type.status();
-        return failure;
-      }
-      XLS_ASSIGN_OR_RETURN(
-          old_to_new_map[n],
-          new_func->MakeNodeWithName<Param>(
-              SourceInfo(), *maybe_type,
-              absl::StrCat("param_wrapper_for_reg_read_", n->GetName())));
-    } else {
-      std::vector<Node*> new_ops;
-      for (Node* op : n->operands()) {
-        XLS_RET_CHECK(old_to_new_map.contains(op))
-            << op->ToString() << " in " << n->ToString() << " while removing "
-            << to_extract->ToString();
-        new_ops.push_back(old_to_new_map.at(op));
-      }
-      auto maybe_node = n->CloneInNewFunction(new_ops, new_func);
-      if (!maybe_node.ok()) {
-        VLOG(1) << "     unable to clone type" << n->ToString() << " due to "
-                << maybe_node.status();
-        return failure;
-      }
-      old_to_new_map[n] = *maybe_node;
-    }
-  }
-  XLS_RETURN_IF_ERROR(new_func->set_return_value(old_to_new_map[to_extract]));
-  XLS_RETURN_IF_ERROR(new_pkg.SetTop(new_func));
-  return SimplifiedIr{.result = SimplificationResult::kDidChange,
-                      .ir_data = new_pkg.DumpIr(),
-                      .node_count = new_func->node_count()};
+  XLS_ASSIGN_OR_RETURN(auto new_pkg, std::move(maybe_new_pkg));
+  return SimplifiedIr{
+      .result = SimplificationResult::kDidChange,
+      .ir_data = new_pkg->DumpIr(),
+      .node_count =
+          new_pkg->GetTopAsFunction().value()->node_count()};
 }
 
 absl::StatusOr<SimplifiedIr> Simplify(FunctionBase* f,

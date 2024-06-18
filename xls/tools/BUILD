@@ -164,6 +164,75 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "extract_segment",
+    srcs = ["extract_segment.cc"],
+    hdrs = ["extract_segment.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:type",
+        "//xls/passes:node_dependency_analysis",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_binary(
+    name = "extract_segment_main",
+    srcs = ["extract_segment_main.cc"],
+    deps = [
+        ":extract_segment",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+py_test(
+    name = "extract_segment_main_test",
+    srcs = ["extract_segment_main_test.py"],
+    data = [":extract_segment_main"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+cc_test(
+    name = "extract_segment_test",
+    srcs = ["extract_segment_test.cc"],
+    deps = [
+        ":extract_segment",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_binary(
     name = "booleanify_main",
     srcs = ["booleanify_main.cc"],
@@ -810,6 +879,7 @@ cc_binary(
         ":opt_main",
     ],
     deps = [
+        ":extract_segment",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
