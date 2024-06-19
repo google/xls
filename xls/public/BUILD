@@ -159,6 +159,7 @@ cc_library(
         ":runtime_build_actions",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:init_xls",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:events",

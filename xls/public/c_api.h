@@ -42,6 +42,8 @@ struct xls_value;
 struct xls_package;
 struct xls_function;
 
+void xls_init_xls(const char* usage, int argc, char *argv[]);
+
 bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
                             const char* module_name,
                             const char* dslx_stdlib_path,

@@ -27,6 +27,7 @@
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "xls/common/init_xls.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
@@ -69,6 +70,10 @@ bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
 }  // namespace
 
 extern "C" {
+
+void xls_init_xls(const char* usage, int argc, char *argv[]) {
+  (void)(xls::InitXls(usage, argc, argv));
+}
 
 bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
                             const char* module_name,
