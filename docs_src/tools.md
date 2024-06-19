@@ -288,7 +288,7 @@ pointing at installation locations where DSLX modules have been placed.
 In a Bazel environment this binary is encapsulated in
 [an `xls_dslx_test` target](https://google.github.io/xls/bazel_rules_macros/#xls_dslx_test)
 
-## [`dslx/prove_quickcheck_test`](https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_test.cc)
+## [`dslx/prove_quickcheck_main`](https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_main.cc)
 
 Command line utility for attempting to prove a quickcheck property via SMT
 translation. Invoke this tool as:
