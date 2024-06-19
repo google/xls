@@ -234,6 +234,7 @@ TEST(XlsCApiTest, ValueToStringFormatPreferences) {
   char* error = nullptr;
   struct xls_value* value = nullptr;
   ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error, &value));
+  absl::Cleanup free_value([value] { xls_value_free(value); });
 
   struct TestCase {
     std::string name;
