@@ -66,6 +66,38 @@ bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
   return false;
 }
 
+bool FormatPreferenceFromC(xls_format_preference c_pref,
+                           xls::FormatPreference* cpp_pref, char** error_out) {
+  switch (c_pref) {
+    case xls_format_preference_default:
+      *cpp_pref = xls::FormatPreference::kDefault;
+      break;
+    case xls_format_preference_binary:
+      *cpp_pref = xls::FormatPreference::kBinary;
+      break;
+    case xls_format_preference_signed_decimal:
+      *cpp_pref = xls::FormatPreference::kSignedDecimal;
+      break;
+    case xls_format_preference_unsigned_decimal:
+      *cpp_pref = xls::FormatPreference::kUnsignedDecimal;
+      break;
+    case xls_format_preference_hex:
+      *cpp_pref = xls::FormatPreference::kHex;
+      break;
+    case xls_format_preference_plain_binary:
+      *cpp_pref = xls::FormatPreference::kPlainBinary;
+      break;
+    case xls_format_preference_plain_hex:
+      *cpp_pref = xls::FormatPreference::kPlainHex;
+      break;
+    default:
+      *error_out = ToOwnedCString(
+          absl::StrFormat("Invalid format preference value: %d", c_pref));
+      return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 extern "C" {
@@ -164,6 +196,23 @@ bool xls_value_to_string(const struct xls_value* v, char** string_out) {
   return *string_out != nullptr;
 }
 
+bool xls_value_to_string_format_preference(
+    const struct xls_value* v, xls_format_preference format_preference,
+    char** error_out, char** result_out) {
+  CHECK(v != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+
+  xls::FormatPreference cpp_pref;
+  if (!FormatPreferenceFromC(format_preference, &cpp_pref, error_out)) {
+    return false;
+  }
+
+  std::string s = reinterpret_cast<const xls::Value*>(v)->ToString(cpp_pref);
+  *result_out = ToOwnedCString(s);
+  return true;
+}
+
 bool xls_value_eq(const struct xls_value* v, const struct xls_value* w) {
   CHECK(v != nullptr);
   CHECK(w != nullptr);
@@ -171,6 +220,38 @@ bool xls_value_eq(const struct xls_value* v, const struct xls_value* w) {
   const auto* lhs = reinterpret_cast<const xls::Value*>(v);
   const auto* rhs = reinterpret_cast<const xls::Value*>(w);
   return *lhs == *rhs;
+}
+
+bool xls_format_preference_from_string(const char* s, char** error_out,
+                                       xls_format_preference* result_out) {
+  CHECK(s != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+
+  std::string_view got(s);
+  if (got == "default") {
+    *result_out = xls_format_preference_default;
+  } else if (got == "binary") {
+    *result_out = xls_format_preference_binary;
+  } else if (got == "signed_decimal") {
+    *result_out = xls_format_preference_signed_decimal;
+  } else if (got == "unsigned_decimal") {
+    *result_out = xls_format_preference_unsigned_decimal;
+  } else if (got == "hex") {
+    *result_out = xls_format_preference_hex;
+  } else if (got == "plain_binary") {
+    *result_out = xls_format_preference_plain_binary;
+  } else if (got == "plain_hex") {
+    *result_out = xls_format_preference_plain_hex;
+  } else {
+    absl::Status error = absl::InvalidArgumentError(absl::StrFormat(
+        "Invalid value for conversion to XLS format preference: `%s`", s));
+    *error_out = ToOwnedCString(error.ToString());
+    return false;
+  }
+
+  *error_out = nullptr;
+  return true;
 }
 
 bool xls_package_to_string(const struct xls_package* p, char** string_out) {
@@ -220,6 +301,67 @@ bool xls_package_get_function(struct xls_package* package,
   *result_out = nullptr;
   *error_out = ToOwnedCString(function_or.status().ToString());
   return false;
+}
+
+bool xls_package_get_type_for_value(struct xls_package* package,
+                                    struct xls_value* value, char** error_out,
+                                    struct xls_type** result_out) {
+  CHECK(package != nullptr);
+  CHECK(value != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  xls::Package* xls_package = reinterpret_cast<xls::Package*>(package);
+  xls::Value* xls_value = reinterpret_cast<xls::Value*>(value);
+  xls::Type* type = xls_package->GetTypeForValue(*xls_value);
+  *result_out = reinterpret_cast<struct xls_type*>(type);
+  return true;
+}
+
+bool xls_type_to_string(struct xls_type* type, char** error_out,
+                        char** result_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  *error_out = nullptr;
+  *result_out = ToOwnedCString(xls_type->ToString());
+  return true;
+}
+
+bool xls_function_get_name(struct xls_function* function, char** error_out,
+                           char** string_out) {
+  CHECK(function != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(string_out != nullptr);
+  xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
+
+  *error_out = nullptr;
+  *string_out = ToOwnedCString(xls_function->name());
+  return true;
+}
+
+bool xls_function_get_type(struct xls_function* function, char** error_out,
+                           xls_function_type** result_out) {
+  CHECK(function != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
+  xls::FunctionType* type = xls_function->GetType();
+
+  *error_out = nullptr;
+  *result_out = reinterpret_cast<xls_function_type*>(type);
+  return true;
+}
+
+bool xls_function_type_to_string(struct xls_function_type* type,
+                                 char** error_out, char** string_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(string_out != nullptr);
+  xls::FunctionType* ft = reinterpret_cast<xls::FunctionType*>(type);
+  *error_out = nullptr;
+  *string_out = ToOwnedCString(ft->ToString());
+  return true;
 }
 
 bool xls_interpret_function(struct xls_function* function, size_t argc,

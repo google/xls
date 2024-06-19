@@ -116,6 +116,15 @@ TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
   ASSERT_TRUE(xls_value_to_string(value, &string_out));
   EXPECT_EQ(std::string{string_out}, "bits[32]:66");
   free(string_out);
+  string_out = nullptr;
+
+  // Also to-string it via a format preference.
+  xls_format_preference fmt_pref;
+  ASSERT_TRUE(xls_format_preference_from_string("hex", &error, &fmt_pref));
+  ASSERT_TRUE(xls_value_to_string_format_preference(value, fmt_pref, &error,
+                                                    &string_out));
+  EXPECT_EQ(std::string{string_out}, "bits[32]:0x42");
+  free(string_out);
 
   xls_value_free(value);
 }
@@ -142,9 +151,34 @@ fn f(x: bits[32]) -> bits[32] {
   struct xls_function* function = nullptr;
   ASSERT_TRUE(xls_package_get_function(package, "f", &error, &function));
 
+  // Test out the get_name functionality on the function.
+  char* name = nullptr;
+  ASSERT_TRUE(xls_function_get_name(function, &error, &name));
+  absl::Cleanup free_name([name] { free(name); });
+  EXPECT_EQ(std::string_view(name), "f");
+
+  // Test out the get_type functionality on the function.
+  struct xls_function_type* f_type = nullptr;
+  ASSERT_TRUE(xls_function_get_type(function, &error, &f_type));
+
+  char* type_str = nullptr;
+  ASSERT_TRUE(xls_function_type_to_string(f_type, &error, &type_str));
+  absl::Cleanup free_type_str([type_str] { free(type_str); });
+  EXPECT_EQ(std::string_view(type_str), "(bits[32]) -> bits[32]");
+
   struct xls_value* ft = nullptr;
   ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error, &ft));
   absl::Cleanup free_ft([ft] { xls_value_free(ft); });
+
+  // Check that we can get the type of the value.
+  struct xls_type* ft_type = nullptr;
+  ASSERT_TRUE(xls_package_get_type_for_value(package, ft, &error, &ft_type));
+
+  // Now convert that type to a string so we can observe it.
+  char* ft_type_str = nullptr;
+  ASSERT_TRUE(xls_type_to_string(ft_type, &error, &ft_type_str));
+  absl::Cleanup free_ft_type_str([ft_type_str] { free(ft_type_str); });
+  EXPECT_EQ(std::string_view(ft_type_str), "bits[32]");
 
   const struct xls_value* args[] = {ft};
 
@@ -194,6 +228,37 @@ TEST(XlsCApiTest, MangleDslxName) {
   absl::Cleanup free_mangled([mangled] { free(mangled); });
 
   EXPECT_EQ(std::string_view(mangled), "__foo_bar__baz_bat");
+}
+
+TEST(XlsCApiTest, ValueToStringFormatPreferences) {
+  char* error = nullptr;
+  struct xls_value* value = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error, &value));
+
+  struct TestCase {
+    std::string name;
+    std::string want;
+  } kTestCases[] = {
+      {.name = "default", .want = "bits[32]:66"},
+      {.name = "binary", .want = "bits[32]:0b100_0010"},
+      {.name = "signed_decimal", .want = "bits[32]:66"},
+      {.name = "unsigned_decimal", .want = "bits[32]:66"},
+      {.name = "hex", .want = "bits[32]:0x42"},
+      {.name = "plain_binary", .want = "bits[32]:1000010"},
+      {.name = "plain_hex", .want = "bits[32]:42"},
+  };
+
+  for (const auto& [name, want] : kTestCases) {
+    xls_format_preference fmt_pref;
+    ASSERT_TRUE(
+        xls_format_preference_from_string(name.c_str(), &error, &fmt_pref));
+
+    char* string_out = nullptr;
+    ASSERT_TRUE(xls_value_to_string_format_preference(value, fmt_pref, &error,
+                                                      &string_out));
+    absl::Cleanup free_string_out([string_out] { free(string_out); });
+    EXPECT_EQ(std::string{string_out}, want);
+  }
 }
 
 }  // namespace
