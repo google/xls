@@ -32,11 +32,11 @@ namespace {
 template <int rem>
 static const int Log2Floor = (rem <= 1) ? 0 : (1 + Log2Floor<rem / 2>);
 template <>
-static const int Log2Floor<0> = 0;
+const int Log2Floor<0> = 0;
 template <int n>
 static const int Log2Ceil = Log2Floor<n> + (((1 << Log2Floor<n>) == n) ? 0 : 1);
 template <>
-static const int Log2Ceil<1> = 1;
+const int Log2Ceil<1> = 1;
 
 static_assert(Log2Ceil<1> == 1);
 static_assert(Log2Ceil<2> == 1);
