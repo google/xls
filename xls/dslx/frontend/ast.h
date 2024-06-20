@@ -236,8 +236,15 @@ FreeVariables GetFreeVariablesByLambda(
 //    const FOO = u32:42;
 //    fn main(x: u32) { FOO+x }
 //
-// And using the starting point of the function as the start_pos, the FOO will
-// be flagged as a free variable and returned.
+// And *using the starting point of the function* as the `start_pos`, the `FOO`
+// will be flagged as a free variable and returned.
+//
+// Note: the start_pos given is a way to approximate "free variable with
+// respect to this AST construct". i.e. all the references with defs that are
+// defined before this start_pos point are considered free. This gives an easy
+// way to say "everything defined inside the body we don't need to worry about,
+// only tell me about references to things before this lexical position in the
+// file.
 FreeVariables GetFreeVariablesByPos(const AstNode* node,
                                     const Pos* start_pos = nullptr);
 
