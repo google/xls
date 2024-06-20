@@ -1,0 +1,32 @@
+# proto-file: xls/ir/ram_rewrite.proto
+# proto-message: RamRewrites
+
+rewrites {
+  from_config {
+    kind: RAM_ABSTRACT
+    depth: 65536
+    word_partition_size: 8
+  }
+  to_config {
+    kind: RAM_1R1W
+    depth: 65536
+    word_partition_size: 8
+  }
+  from_channels_logical_to_physical: {
+    key: "abstract_read_req"
+    value: "lz4_decoder__ram_hb_rd_req"
+  }
+  from_channels_logical_to_physical: {
+    key: "abstract_read_resp"
+    value: "lz4_decoder__ram_hb_rd_resp"
+  }
+  from_channels_logical_to_physical: {
+    key: "abstract_write_req"
+    value: "lz4_decoder__ram_hb_wr_req"
+  }
+  from_channels_logical_to_physical: {
+    key: "write_completion"
+    value: "lz4_decoder__ram_hb_wr_comp"
+  }
+  to_name_prefix: "ram_hb"
+}
