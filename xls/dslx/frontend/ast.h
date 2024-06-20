@@ -242,9 +242,10 @@ FreeVariables GetFreeVariablesByLambda(
 // Note: the start_pos given is a way to approximate "free variable with
 // respect to this AST construct". i.e. all the references with defs that are
 // defined before this start_pos point are considered free. This gives an easy
-// way to say "everything defined inside the body we don't need to worry about,
-// only tell me about references to things before this lexical position in the
-// file.
+// way to say "everything defined inside the body we don't need to worry about
+// -- only tell me about references to things before this lexical position in
+// the file" -- "lexical position in the file" is an approximation for
+// "everything defined outside of (before) this AST construct".
 FreeVariables GetFreeVariablesByPos(const AstNode* node,
                                     const Pos* start_pos = nullptr);
 
