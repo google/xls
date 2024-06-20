@@ -64,7 +64,8 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
   VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Function %s wants %d arguments, got %d.", function->name(),
+        "Function `%s` (type: `%s`) wants %d arguments, got %d.",
+        function->name(), function->GetType()->ToString(),
         function->params().size(), args.size()));
   }
   for (int64_t argno = 0; argno < args.size(); ++argno) {
