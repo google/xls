@@ -79,6 +79,12 @@ KnownBits ExtractKnownBits(const IntervalSet& intervals,
 // much distance is between 2 intervals might provide better results.
 IntervalSet MinimizeIntervals(IntervalSet interval_set, int64_t size);
 
+// How many bits are needed to cover all values in the interval.
+int64_t MinimumBitCount(const IntervalSet& a);
+
+// How many bits are needed to cover all *signed* integer values in the range.
+int64_t MinimumSignedBitCount(const IntervalSet& a);
+
 // Arithmetic
 IntervalSet Add(const IntervalSet& a, const IntervalSet& b);
 IntervalSet Sub(const IntervalSet& a, const IntervalSet& b);

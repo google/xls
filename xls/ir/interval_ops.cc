@@ -964,4 +964,38 @@ IntervalSet OneHot(const IntervalSet& val, LsbOrMsb lsb_or_msb,
   return FromTernary(res, max_interval_bits);
 }
 
+int64_t MinimumBitCount(const IntervalSet& a) {
+  if (a.IsEmpty()) {
+    return 0;
+  }
+  return a.BitCount() - a.UpperBound()->CountLeadingZeros();
+}
+
+int64_t MinimumSignedBitCount(const IntervalSet& a) {
+  // Handle the extreme cases manually. No values or only the zero value are a
+  // 0-bit integer.
+  if (a.IsEmpty() || (a.GetPreciseValue() && a.GetPreciseValue()->IsZero())) {
+    return 0;
+  }
+  if (a.Covers(Bits::MinSigned(a.BitCount())) ||
+      a.Covers(Bits::MaxSigned(a.BitCount()))) {
+    return a.BitCount();
+  }
+  IntervalSet positive = IntervalSet::Intersect(
+      a, IntervalSet::Of({Interval::Closed(SBits(0, a.BitCount()),
+                                           Bits::MaxSigned(a.BitCount()))}));
+  // NB Intervals are unsigned and sbits are represented 2s complement so -1 is
+  // the highest value possible in this bit-width. MinSigned is the next value
+  // after MaxSigned in 2s complement representation.
+  IntervalSet negative = IntervalSet::Intersect(
+      a, IntervalSet::Of({Interval::Closed(Bits::MinSigned(a.BitCount()),
+                                           SBits(-1, a.BitCount()))}));
+  return std::max(positive.IsEmpty() ? 0 : MinimumBitCount(positive),
+                  negative.IsEmpty()
+                      ? 0
+                      : (negative.BitCount() -
+                         negative.LowerBound()->CountLeadingOnes())) +
+         1;
+}
+
 }  // namespace xls::interval_ops

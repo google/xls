@@ -106,6 +106,15 @@ TEST(IntervalOpsTest, MiddleOutTernary) {
   EXPECT_EQ(known, expected);
 }
 
+IntervalSet FromSignedRanges(
+    absl::Span<std::pair<int64_t, int64_t> const> ranges, int64_t bits) {
+  IntervalSet res(bits);
+  for (const auto& [l, h] : ranges) {
+    res.AddInterval(Interval::Closed(SBits(l, bits), SBits(h, bits)));
+  }
+  res.Normalize();
+  return res;
+}
 IntervalSet FromRanges(absl::Span<std::pair<int64_t, int64_t> const> ranges,
                        int64_t bits) {
   IntervalSet res(bits);
@@ -740,6 +749,24 @@ void UGtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 }
 FUZZ_TEST(IntervalOpsTest, UGtZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+TEST(IntervalOpsTest, MinimumBitCount) {
+  EXPECT_EQ(MinimumBitCount(IntervalSet(32)), 0);
+  EXPECT_EQ(MinimumBitCount(IntervalSet::Precise(UBits(0, 32))), 0);
+  EXPECT_EQ(MinimumBitCount(IntervalSet::Precise(UBits(32, 32))), 6);
+  EXPECT_EQ(MinimumBitCount(FromRanges({{0, 3}, {4, 5}, {30, 33}}, 32)), 6);
+}
+
+TEST(IntervalOpsTest, MinimumSignedBitCount) {
+  EXPECT_EQ(MinimumSignedBitCount(IntervalSet(32)), 0);
+  EXPECT_EQ(MinimumSignedBitCount(IntervalSet::Precise(UBits(0, 32))), 0);
+  EXPECT_EQ(MinimumSignedBitCount(IntervalSet::Precise(UBits(32, 32))), 7);
+  EXPECT_EQ(MinimumSignedBitCount(IntervalSet::Precise(SBits(-33, 32))), 7);
+  EXPECT_EQ(MinimumSignedBitCount(FromSignedRanges({{-1, 0}}, 32)), 1);
+  EXPECT_EQ(MinimumSignedBitCount(
+                FromSignedRanges({{0, 3}, {4, 5}, {30, 33}, {-34, -2}}, 32)),
+            7);
+}
 
 TEST(MinimizeIntervalsTest, PrefersEarlyIntervals) {
   // All 32 6-bit [0, 63] even numbers.
