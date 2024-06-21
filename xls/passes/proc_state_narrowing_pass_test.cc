@@ -417,5 +417,53 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
                   AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
 }
 
+TEST_F(ProcStateNarrowingPassTest, DecrementToZeroUnsigned) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(7, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  auto cont = pb.UGt(state, pb.Literal(UBits(0, 32)));
+  pb.Next(state, pb.Literal(UBits(7, 32)), pb.Not(cont));
+  pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+}
+
+TEST_F(ProcStateNarrowingPassTest, DecrementToZeroSigned) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(7, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  auto cont = pb.SGt(state, pb.Literal(UBits(0, 32)));
+  pb.Next(state, pb.Literal(UBits(7, 32)), pb.Not(cont));
+  pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+}
+
 }  // namespace
 }  // namespace xls

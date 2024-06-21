@@ -33,6 +33,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
@@ -252,6 +253,7 @@ class SegmentRangeData : public RangeDataProvider {
       : dependencies_(std::move(dependencies)),
         ground_truth_(ground_truth),
         data_source_(data_source),
+        current_segments_(data_source->BitCountOrDie()),
         topo_sort_(topo_sort) {}
   std::vector<DependencyBitmap> dependencies_;
   const absl::flat_hash_map<Param*, RangeData>& ground_truth_;
@@ -284,7 +286,24 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
       remaining_intervals,
       [&](const Interval& i) { return i.Covers(init_value.bits()); });
   remaining_intervals.erase(initial_interval);
-  IntervalSet active_intervals = IntervalSet::Of({initial_interval});
+  // Split the initial interval into 3 segments [<Before initial value>,
+  // <initial value>, <after initial value>]. We start with only the initial
+  // value in the active segment. After this we assume that any value in a
+  // segment makes the entire segment active. This is to handle values which go
+  // down to 0.
+  IntervalSet active_intervals = IntervalSet::Precise(init_value.bits());
+  if (!initial_interval.IsPrecise()) {
+    if (init_value.bits() != initial_interval.LowerBound()) {
+      remaining_intervals.insert(
+          Interval::Closed(initial_interval.LowerBound(),
+                           bits_ops::Decrement(init_value.bits())));
+    }
+    if (init_value.bits() != initial_interval.UpperBound()) {
+      remaining_intervals.insert(
+          Interval::Closed(bits_ops::Increment(init_value.bits()),
+                           initial_interval.UpperBound()));
+    }
+  }
   XLS_ASSIGN_OR_RETURN(
       SegmentRangeData limiter,
       SegmentRangeData::Create(nda, ground_truth, param, topo_sort));
@@ -471,8 +490,10 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
     int64_t known_leading =
         ternary_ops::ToKnownBits(*ternary).CountLeadingOnes();
     // If we have known leading bits from the ternary analysis use that. These
-    // are usually good enough except with signed integer things.
-    if (known_leading > 0) {
+    // are usually good enough except with signed integer things (identified as
+    // only being able to eliminate the sign bit or not being able to eliminate
+    // anything).
+    if (known_leading > 1) {
       VLOG(2) << "Narrowed " << orig_param << " to "
               << (orig_param->BitCountOrDie() - known_leading)
               << " bits (savings: " << known_leading
@@ -481,15 +502,11 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
       final_transformation_list[orig_param] = t;
       continue;
     }
-    // We can't remove segments if there are no segments. Since there was also
-    // no known high bits no need to do anything.
-    if (interval_set.Get({}).Intervals().size() <= 1) {
-      VLOG(2) << "Unable to narrow " << orig_param << ". "
-              << (interval_set.Get({}).IsMaximal()
-                      ? "Value is unconstrained."
-                      : "High bits set and unable to walk segments due to "
-                        "single interval.")
-              << " Interval is: " << interval_set.Get({});
+    // We can't remove segments from a 1 bit value.
+    if (interval_set.Get({}).BitCount() < 2) {
+      VLOG(2) << "Unable to narrow " << orig_param
+              << ". Value is unconstrained. Interval is: "
+              << interval_set.Get({});
       continue;
     }
     // Try for signed value compression. We *only* do this if there are no

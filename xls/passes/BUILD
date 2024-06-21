@@ -1623,6 +1623,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:interval",
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
