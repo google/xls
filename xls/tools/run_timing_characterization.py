@@ -50,6 +50,12 @@ _OP_INCLUDE_LIST = flags.DEFINE_list(
     'Names of ops from samples textproto to generate data points for. If empty,'
     ' all of them are included. Note that kIdentity is always included',
 )
+_RPC_PORT = flags.DEFINE_integer(
+    'rpc_port',
+    None,
+    'Endpoint port for a separately running synthesis server. If not provided,'
+    ' yosys_server_main will be started internally.',
+)
 _MAX_THREADS = flags.DEFINE_integer(
     'max_threads',
     max(os.cpu_count() // 2, 1),
@@ -109,6 +115,10 @@ _CLIENT = flags.DEFINE_string(
 _SERVER = flags.DEFINE_string(
     'server', None, 'Path for timing characterization server executable'
 )
+
+# How long to wait before trying to connect a client to an internally-started
+# synthesis server.
+_SERVER_STARTUP_WAIT_SECS = 5
 
 
 class WorkerConfig:
@@ -204,7 +214,11 @@ def _do_config_task(config: WorkerConfig):
       raise app.UsageError('Must provide either --bazel_bin_path or --client.')
     config.client_bin = os.path.realpath(_CLIENT.value)
 
-  print('server bin path:', config.server_bin)
+  if _RPC_PORT.value is None:
+    if not os.path.isfile(config.server_bin):
+      raise app.UsageError(f'Server tool not found with {config.server_bin}')
+    print('server bin path:', config.server_bin)
+
   print('client bin path:', config.client_bin)
   print(
       'output checkpoint path:',
@@ -217,13 +231,14 @@ def _do_config_task(config: WorkerConfig):
   if not os.path.isfile(config.sta_bin):
     raise app.UsageError(f'STA tool not found with {config.sta_bin}')
 
-  if not os.path.isfile(config.server_bin):
-    raise app.UsageError(f'Server tool not found with {config.server_bin}')
-
   if not os.path.isfile(config.client_bin):
     raise app.UsageError(f'Client tool not found with {config.client_bin}')
 
-  config.rpc_port = portpicker.pick_unused_port()
+  config.rpc_port = (
+      _RPC_PORT.value
+      if _RPC_PORT.value is not None
+      else portpicker.pick_unused_port()
+  )
 
   if config.debug:
     config.server_extra_args = ['--save_temps', '--v 1', '--alsologtostderr']
@@ -298,17 +313,8 @@ def _do_config_sky130(config: WorkerConfig):
   config.client_args.append('--max_ps=10000')
 
 
-def _do_worker_task(config: WorkerConfig):
-  """Run the worker task."""
-  logging.info('Running Target   : {config.target}')
-
-  if config.debug:
-    logging.info('  OpenROAD dir : %s', config.openroad_path)
-    logging.info('  Server       : %s', config.server_bin)
-    logging.info('  Client       : %s', config.client_bin)
-    logging.info('  Using Yosys  : %s', config.yosys_bin)
-    logging.info('  Using STA    : %s', config.sta_bin)
-
+def _start_server(config: WorkerConfig) -> subprocess.Popen[bytes]:
+  """Starts a Yosys synthesis server locally using the given config."""
   server = [repr(config.server_bin)]
   server.append(f'--yosys_path={config.yosys_bin!r}')
   server.append(
@@ -328,6 +334,29 @@ def _do_worker_task(config: WorkerConfig):
 
   server_cmd = ' '.join(server)
 
+  # start non-blocking process
+  server_proc = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True)
+  time.sleep(_SERVER_STARTUP_WAIT_SECS)
+  return server_proc
+
+
+def _do_worker_task(config: WorkerConfig):
+  """Run the worker task."""
+  logging.info('Running Target   : {config.target}')
+
+  if config.debug:
+    logging.info('  Client       : %s', config.client_bin)
+    if _RPC_PORT.value is not None:
+      logging.info('  External RPC port : %s', config.rpc_port)
+    else:
+      logging.info('  OpenROAD dir : %s', config.openroad_path)
+      logging.info('  Server       : %s', config.server_bin)
+      logging.info('  Using Yosys  : %s', config.yosys_bin)
+      logging.info('  Using STA    : %s', config.sta_bin)
+
+  start = datetime.datetime.now()
+  server_proc = None if _RPC_PORT.value is not None else _start_server(config)
+
   client = [repr(config.client_bin)]
   if config.client_checkpoint_file:
     client.append(f'--checkpoint_path {config.client_checkpoint_file!r}')
@@ -337,20 +366,12 @@ def _do_worker_task(config: WorkerConfig):
   client.append(f'--port={config.rpc_port}')
 
   client_cmd = ' '.join(client)
-
   # create a checkpoint file if not already there
   if config.client_checkpoint_file and not os.path.isfile(
       config.client_checkpoint_file
   ):
     with open(config.client_checkpoint_file, 'w') as f:
       f.write('')
-
-  start = datetime.datetime.now()
-
-  # start non-blocking process
-  server_proc = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True)
-
-  time.sleep(5)
 
   client_process = subprocess.Popen(
       client_cmd, stdout=subprocess.PIPE, shell=True, text=True
@@ -364,9 +385,10 @@ def _do_worker_task(config: WorkerConfig):
       ' Total elapsed time for worker (%s) : %s', config.target, elapsed
   )
 
-  # clean up
-  server_proc.kill()
-  server_proc.communicate()
+  if server_proc is not None:
+    # clean up
+    server_proc.kill()
+    server_proc.communicate()
 
 
 def main(_):
