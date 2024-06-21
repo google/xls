@@ -21,7 +21,7 @@ from absl.testing import absltest
 from xls.common import runfiles
 from xls.ir import xls_ir_interface_pb2
 
-_INTEGRATION_TESTS_DIR = "xls/contrib/xlscc/integration_tests/"
+_INTEGRATION_TESTS_DIR = "xls/contrib/xlscc/integration_tests"
 _INPUT_UNSIGNED_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_unsigned_pipelined_loop_fsm.ir.interface.binpb"
 _OUTPUT_UNSIGNED_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_unsigned_pipelined_loop_fsm.opt.ir.interface.binpb"
 _INPUT_UNSIGNED_NESTED_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_unsigned_nested_pipelined_loop_fsm.ir.interface.binpb"
