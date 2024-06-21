@@ -230,5 +230,192 @@ TEST_F(ProcStateNarrowingPassTest, MultiPath) {
                   AllOf(m::Param("the_state"), m::Type(p->GetBitsType(4)))));
 }
 
+TEST_F(ProcStateNarrowingPassTest, SignedCompareUnreachableNegatives) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(0, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  // State just counts up 1 to 7 then repeats
+  // NB Limit is exactly 7 and comparison is LT so that however the transform is
+  // done the state fits in 3 bits.
+  // NB This is a signed comparison so naieve contextual narrowing will see
+  // range as [[0, 7], [INT_MIN, -1]].
+  auto in_loop = pb.SLt(state, pb.Literal(UBits(7, 32)));
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 32))), in_loop);
+  // If we aren't looping the value just goes back to beginning
+  pb.Next(state, pb.Literal(UBits(0, 32)), pb.Not(in_loop));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+}
+
+TEST_F(ProcStateNarrowingPassTest, StateExplorationIsPerformed) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  // State counts [0, 3] -> [32] -> [120, 128]
+  // NB Checks are SLt to gain all of the high bits since otherwise we'd not
+  // even try state-exploration (guessing correctly that its unlikely to find
+  // anything).
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(0, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  auto succ = pb.Add(state, pb.Literal(UBits(1, 32)));
+  pb.Next(state, succ, pb.SLt(succ, pb.Literal(UBits(4, 32))));
+  pb.Next(state, pb.Literal(UBits(32, 32)),
+          pb.Eq(succ, pb.Literal(UBits(4, 32))));
+  pb.Next(state, pb.Literal(UBits(120, 32)),
+          pb.Eq(state, pb.Literal(UBits(32, 32))));
+  pb.Next(state, succ,
+          pb.And(pb.SGe(state, pb.Literal(UBits(120, 32))),
+                 pb.SLe(state, pb.Literal(UBits(127, 32)))));
+  pb.Next(state, pb.Literal(UBits(0, 32)),
+          pb.Eq(state, pb.Literal(UBits(128, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(8)))));
+}
+
+TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPauses) {
+  // Check that having an always available X' = X transition doesn't break state
+  // exploration.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* pause_chan,
+      p->CreateStreamingChannel("do_pause", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(1)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(0, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  auto paused =
+      pb.TupleIndex(pb.Receive(pause_chan, pb.Literal(Value::Token())), 1);
+  // State just counts up 1 to 7 then repeats
+  // NB Limit is exactly 7 and comparison is LT so that however the transform is
+  // done the state fits in 3 bits.
+  // NB This is a signed comparison so naieve contextual narrowing will see
+  // range as [[0, 7], [INT_MIN, -1]].
+  auto in_loop = pb.SLt(state, pb.Literal(UBits(7, 32)));
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 32))),
+          pb.And(pb.Not(paused), in_loop));
+  // If we aren't looping the value just goes back to 0
+  pb.Next(state, pb.Literal(UBits(0, 32)),
+          pb.And(pb.Not(paused), pb.Not(in_loop)));
+  pb.Next(state, state, paused);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+}
+
+TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
+  // TODO(allight): Technically a valid transform would be to narrow this with a
+  // sign-extend. We don't have the ability to see this transformation in our
+  // analysis at the moment however.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(0, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  // State just counts up 1 to 7 then goes from -7 to 7 repeating
+  // NB Limit is exactly 7 and comparison is LT so that however the transform is
+  // done the state fits in 3 bits.
+  // NB This is a signed comparison so naieve contextual narrowing will see
+  // range as [[0, 7], [INT_MIN, -1]].
+  auto in_loop = pb.SLt(state, pb.Literal(UBits(7, 32)));
+  pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 32))), in_loop);
+  // If we aren't looping the value goes to -8
+  pb.Next(state, pb.Literal(SBits(-7, 32)), pb.Not(in_loop));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(32)))));
+}
+
+TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
+  // Check that having an always available X' = X transition doesn't break state
+  // exploration when update check doesn't reach all the way back to 'X'.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* half_chan,
+      p->CreateStreamingChannel("do_half", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* pause_chan,
+      p->CreateStreamingChannel("do_pause", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(1)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(0, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  auto halve =
+      pb.TupleIndex(pb.Receive(half_chan, pb.Literal(Value::Token())), 1);
+  auto pause =
+      pb.TupleIndex(pb.Receive(pause_chan, pb.Literal(Value::Token())), 1);
+  // NB by having the state halved through a select the back-prop doesn't reach
+  // all the way to the state so the input state itself is considered
+  // unconstrained.
+  auto next_state = pb.Add(
+      pb.Literal(UBits(1, 32)),
+      pb.Select(halve, {state, pb.Shrl(state, pb.Literal(UBits(1, 32)))}));
+  auto cont = pb.SLt(next_state, pb.Literal(UBits(8, 32)));
+  pb.Next(state, state, pause);
+  pb.Next(state, next_state, pb.And(pb.Not(pause), cont));
+  pb.Next(state, pb.Literal(UBits(0, 32)), pb.And(pb.Not(pause), pb.Not(cont)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/8,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+}
+
 }  // namespace
 }  // namespace xls
