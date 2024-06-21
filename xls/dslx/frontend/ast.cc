@@ -339,6 +339,13 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
                       node->GetNodeTypeName(), node->ToString()));
 }
 
+const Span& FreeVariables::GetFirstNameRefSpan(
+    std::string_view identifier) const {
+  std::vector<const NameRef*> name_refs = values_.at(identifier);
+  CHECK(!name_refs.empty());
+  return name_refs.at(0)->span();
+}
+
 FreeVariables FreeVariables::DropBuiltinDefs() const {
   FreeVariables result;
   for (const auto& [identifier, name_refs] : values_) {
@@ -401,26 +408,31 @@ absl::flat_hash_set<std::string> FreeVariables::Keys() const {
   return result;
 }
 
-FreeVariables GetFreeVariables(const AstNode* node, const Pos* start_pos) {
+FreeVariables GetFreeVariablesByLambda(
+    const AstNode* node,
+    const std::function<bool(const NameRef&)>& consider_free) {
   DfsIteratorNoTypes it(node);
   FreeVariables freevars;
   while (it.HasNext()) {
     const AstNode* n = it.Next();
     if (const auto* name_ref = dynamic_cast<const NameRef*>(n)) {
-      // If a start position was given we test whether the name definition
-      // occurs before that start position. (If none was given we accept all
-      // name refs.)
-      if (start_pos == nullptr) {
+      if (consider_free == nullptr || consider_free(*name_ref)) {
         freevars.Add(name_ref->identifier(), name_ref);
-      } else {
-        std::optional<Pos> name_def_start = name_ref->GetNameDefStart();
-        if (!name_def_start.has_value() || *name_def_start < *start_pos) {
-          freevars.Add(name_ref->identifier(), name_ref);
-        }
       }
     }
   }
   return freevars;
+}
+
+FreeVariables GetFreeVariablesByPos(const AstNode* node, const Pos* start_pos) {
+  std::function<bool(const NameRef&)> consider_free = nullptr;
+  if (start_pos != nullptr) {
+    consider_free = [start_pos](const NameRef& name_ref) {
+      std::optional<Pos> name_def_start = name_ref.GetNameDefStart();
+      return !name_def_start.has_value() || name_def_start.value() < *start_pos;
+    };
+  }
+  return GetFreeVariablesByLambda(node, consider_free);
 }
 
 std::string BuiltinTypeToString(BuiltinType t) {

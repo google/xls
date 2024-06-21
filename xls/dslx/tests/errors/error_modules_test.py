@@ -1181,6 +1181,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'Expected type-reference to refer to a type definition', stderr
     )
 
+  def test_gh_1473(self):
+    stderr = self._run('xls/dslx/tests/errors/gh_1473.x')
+    self.assertIn(
+        'Parametric expression `umax(MAX_N_M, V)` refered to `V`'
+        ' which is not present in the parametric environment', stderr
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

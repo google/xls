@@ -213,9 +213,20 @@ class FreeVariables {
   // references, but the number of free variables).
   int64_t GetFreeVariableCount() const { return values_.size(); }
 
+  // Returns the span of the first `NameRef` that is referring to `identifier`
+  // in this free variables set.
+  const Span& GetFirstNameRefSpan(std::string_view identifier) const;
+
  private:
   absl::flat_hash_map<std::string, std::vector<const NameRef*>> values_;
 };
+
+// Generalized form of `GetFreeVariablesByPos()` below -- takes a lambda that
+// helps us determine if a `NameRef` present in the `node` should be considered
+// free.
+FreeVariables GetFreeVariablesByLambda(
+    const AstNode* node,
+    const std::function<bool(const NameRef&)>& consider_free = nullptr);
 
 // Retrieves all the free variables (references to names that are defined
 // prior to start_pos) that are transitively in this AST subtree.
@@ -225,10 +236,18 @@ class FreeVariables {
 //    const FOO = u32:42;
 //    fn main(x: u32) { FOO+x }
 //
-// And using the starting point of the function as the start_pos, the FOO will
-// be flagged as a free variable and returned.
-FreeVariables GetFreeVariables(const AstNode* node,
-                               const Pos* start_pos = nullptr);
+// And *using the starting point of the function* as the `start_pos`, the `FOO`
+// will be flagged as a free variable and returned.
+//
+// Note: the start_pos given is a way to approximate "free variable with
+// respect to this AST construct". i.e. all the references with defs that are
+// defined before this start_pos point are considered free. This gives an easy
+// way to say "everything defined inside the body we don't need to worry about
+// -- only tell me about references to things before this lexical position in
+// the file" -- "lexical position in the file" is an approximation for
+// "everything defined outside of (before) this AST construct".
+FreeVariables GetFreeVariablesByPos(const AstNode* node,
+                                    const Pos* start_pos = nullptr);
 
 // Analogous to ToAstNode(), but for Expr base.
 template <typename... Types>
@@ -1708,6 +1727,14 @@ class Function : public AstNode {
   void set_proc(Proc* proc) { proc_ = proc; }
   bool IsInProc() const { return proc_.has_value(); }
 
+  std::optional<Span> GetParametricBindingsSpan() const {
+    if (parametric_bindings_.empty()) {
+      return std::nullopt;
+    }
+    return Span(parametric_bindings_.front()->span().start(),
+                parametric_bindings_.back()->span().limit());
+  }
+
  private:
   Span span_;
   NameDef* name_def_;
@@ -2277,6 +2304,14 @@ class StructDef : public AstNode {
   }
   const std::optional<std::string>& extern_type_name() const {
     return extern_type_name_;
+  }
+
+  std::optional<Span> GetParametricBindingsSpan() const {
+    if (parametric_bindings_.empty()) {
+      return std::nullopt;
+    }
+    return Span(parametric_bindings_.front()->span().start(),
+                parametric_bindings_.back()->span().limit());
   }
 
  private:

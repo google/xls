@@ -144,7 +144,15 @@ absl::Status EagerlyPopulateParametricEnvMap(
     absl::Span<const ParametricWithType> typed_parametrics,
     const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs,
     absl::flat_hash_map<std::string, InterpValue>& parametric_env_map,
-    const Span& span, std::string_view kind_name, DeduceCtx* ctx) {
+    const std::optional<Span>& parametrics_span, const Span& span,
+    std::string_view kind_name, DeduceCtx* ctx) {
+  // If there are no parametric bindings being instantiated (in the callee) we
+  // should have already typechecked that there are no parametrics being
+  // applied by the caller.
+  if (!parametrics_span.has_value()) {
+    XLS_RET_CHECK(typed_parametrics.empty());
+  }
+
   // Attempt to interpret the parametric "default expressions" in order.
   for (const ParametricWithType& typed_parametric : typed_parametrics) {
     std::string_view name = typed_parametric.identifier();
@@ -180,6 +188,38 @@ absl::Status EagerlyPopulateParametricEnvMap(
     VLOG(5) << absl::StreamFormat("Evaluating expr: `%s` in env: %s",
                                   expr->ToString(), env.ToString());
 
+    // If the expression requires variables that were not bound in the
+    // environment yet, we give an error message.
+    FreeVariables freevars =
+        GetFreeVariablesByLambda(expr, [&](const NameRef& name_ref) {
+          // If the name def is in the parametrics span, we consider it a
+          // freevar.
+          AnyNameDef any_name_def = name_ref.name_def();
+          if (!std::holds_alternative<const NameDef*>(any_name_def)) {
+            return false;
+          }
+          const NameDef* name_def = std::get<const NameDef*>(any_name_def);
+          Span definition_span = name_def->GetSpan().value();
+          if (definition_span.filename() != parametrics_span->filename()) {
+            return false;
+          }
+          return parametrics_span->Contains(definition_span);
+        });
+
+    auto keys_unsorted = freevars.Keys();
+    absl::btree_set<std::string> keys_sorted(keys_unsorted.begin(),
+                                             keys_unsorted.end());
+    for (const std::string& key : keys_sorted) {
+      if (!parametric_env_map.contains(key)) {
+        return TypeInferenceErrorStatus(
+            freevars.GetFirstNameRefSpan(key), nullptr,
+            absl::StrFormat(
+                "Parametric expression `%s` refered to `%s` which is not "
+                "present in the parametric environment; instantiated from %s",
+                expr->ToString(), key, span.ToString()));
+      }
+    }
+
     absl::StatusOr<InterpValue> result = InterpretExpr(ctx, expr, env);
 
     VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ " << expr->span()
@@ -209,18 +249,36 @@ absl::Status EagerlyPopulateParametricEnvMap(
       parametric_env_map.insert({std::string{name}, result.value()});
     }
   }
+
+  // TODO(https://github.com/google/xls/issues/1495): 2024-06-18 We would like
+  // to enable this invariant to tighten up what is accepted by the type
+  // system, but that requires some investigation into failing samples.
+  if (false) {
+    // Check that all parametric bindings are present in the env.
+    for (const auto& [parametric_binding_name, _] : parametric_default_exprs) {
+      if (!parametric_env_map.contains(parametric_binding_name)) {
+        return TypeInferenceErrorStatus(
+            span, nullptr,
+            absl::StrFormat("Caller did not supply parametric value for `%s`",
+                            parametric_binding_name));
+      }
+    }
+  }
+
   return absl::OkStatus();
 }
 
 }  // namespace
 
 ParametricInstantiator::ParametricInstantiator(
-    Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
+    Span span, std::optional<Span> parametrics_span,
+    absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
     absl::Span<absl::Nonnull<const ParametricBinding*> const>
         parametric_bindings)
     : span_(std::move(span)),
+      parametrics_span_(std::move(parametrics_span)),
       args_(args),
       ctx_(ABSL_DIE_IF_NULL(ctx)),
       typed_parametrics_(typed_parametrics),
@@ -339,7 +397,7 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
 
   XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
       typed_parametrics(), parametric_default_exprs(), parametric_env_map(),
-      span(), GetKindName(), &ctx()));
+      parametrics_span(), span(), GetKindName(), &ctx()));
 
   // Phase 2: resolve and check.
   VLOG(10) << "Phase 2: resolve-and-check";
@@ -404,7 +462,7 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
 
   XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
       typed_parametrics(), parametric_default_exprs(), parametric_env_map(),
-      span(), GetKindName(), &ctx()));
+      parametrics_span(), span(), GetKindName(), &ctx()));
 
   // Phase 2: resolve and check.
   for (int64_t i = 0; i < member_types_.size(); ++i) {
