@@ -2,9 +2,10 @@ module main(
   input wire [1:0] p,
   input wire [15:0] x,
   input wire [15:0] y,
+  input wire [15:0] d,
   output wire [15:0] out
 );
-  function automatic [15:0] priority_sel_16b_2way (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1);
+  function automatic [15:0] priority_sel_16b_2way (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
     begin
       unique casez (sel)
         2'b?1: begin
@@ -14,7 +15,7 @@ module main(
           priority_sel_16b_2way = case1;
         end
         2'b00: begin
-          priority_sel_16b_2way = '0;
+          priority_sel_16b_2way = default_value;
         end
         default: begin
           // Propagate X
@@ -23,7 +24,7 @@ module main(
       endcase
     end
   endfunction
-  wire [15:0] add_12;
-  assign add_12 = priority_sel_16b_2way(p, x, y) + priority_sel_16b_2way(p, y, x);
-  assign out = add_12;
+  wire [15:0] add_14;
+  assign add_14 = priority_sel_16b_2way(p, x, y, d) + priority_sel_16b_2way(p, y, x, d);
+  assign out = add_14;
 endmodule

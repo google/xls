@@ -200,12 +200,14 @@ TEST(IrMatchersTest, PrioritySelect) {
   auto pred = fb.Param("pred", p.GetBitsType(2));
   auto x = fb.Param("x", p.GetBitsType(32));
   auto y = fb.Param("y", p.GetBitsType(32));
-  fb.PrioritySelect(pred, {x, y});
+  auto z = fb.Param("z", p.GetBitsType(32));
+  fb.PrioritySelect(pred, {x, y}, z);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(f->return_value(), m::PrioritySelect());
   EXPECT_THAT(f->return_value(),
-              m::PrioritySelect(m::Name("pred"), {m::Name("x"), m::Name("y")}));
+              m::PrioritySelect(m::Name("pred"), {m::Name("x"), m::Name("y")},
+                                m::Name("z")));
 }
 
 TEST(IrMatchersTest, OneHotSelectDoesNotMatchPrioritySelect) {
@@ -228,7 +230,8 @@ TEST(IrMatchersTest, PrioritySelectDoesNotMatchOneHotSelect) {
   auto pred = fb.Param("pred", p.GetBitsType(2));
   auto x = fb.Param("x", p.GetBitsType(32));
   auto y = fb.Param("y", p.GetBitsType(32));
-  fb.PrioritySelect(pred, {x, y});
+  auto z = fb.Param("z", p.GetBitsType(32));
+  fb.PrioritySelect(pred, {x, y}, z);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(f->return_value(), ::testing::Not(m::OneHotSelect()));

@@ -238,12 +238,14 @@ TEST(FunctionBuilderTest, PrioritySelectOp) {
   BValue x = b.Param("x", value_type);
   BValue y = b.Param("y", value_type);
   BValue z = b.Param("z", value_type);
-  b.PrioritySelect(sel, {x, y, z});
+  BValue d = b.Param("d", value_type);
+  b.PrioritySelect(sel, {x, y, z}, d);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  EXPECT_THAT(f->return_value(),
-              m::PrioritySelect(
-                  m::Param("sel"),
-                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::Param("sel"),
+                        /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")},
+                        /*default_value=*/m::Param("d")));
 }
 
 TEST(FunctionBuilderTest, ConcatTuples) {

@@ -200,14 +200,10 @@ absl::StatusOr<Node*> PrioritySelect::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  std::optional<Node*> new_default_value =
-    default_value().has_value()
-    ? std::optional<Node*>(new_operands.back())
-    : std::nullopt;
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<PrioritySelect>(loc(), new_operands[0],
                                         new_operands.subspan(1, cases_size_),
-                                        new_default_value,
+                                        new_operands.back(),
                                         name_);
 }
 

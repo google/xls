@@ -709,20 +709,22 @@ TEST_F(TernaryQueryEngineTest, PrioritySel) {
   constexpr std::string_view kP2Value = "0b00001X10";
   constexpr std::string_view kP3Value = "0b001X1000";
   constexpr std::string_view kP4Value = "0b1X100000";
-  // NB Join with implicit 0 value leads to all 4 being Xs
+  constexpr std::string_view kDefaultValue = "0b00000000";
+  // NB Join with 0 value leads to all 4 being Xs
   constexpr std::string_view kP1Or2Value = "0b0000_XXXX";
   // Bits
   {
     auto p = CreatePackage();
     FunctionBuilder fb(TestName(), p.get());
-    auto out =
-        fb.PrioritySelect(MakeValueWithKnownBits("selector", "0b00XX", &fb),
-                          {
-                              MakeValueWithKnownBits("p1", kP1Value, &fb),
-                              MakeValueWithKnownBits("p2", kP2Value, &fb),
-                              MakeValueWithKnownBits("p3", kP3Value, &fb),
-                              MakeValueWithKnownBits("p4", kP4Value, &fb),
-                          });
+    auto out = fb.PrioritySelect(
+        MakeValueWithKnownBits("selector", "0b00XX", &fb),
+        {
+            MakeValueWithKnownBits("p1", kP1Value, &fb),
+            MakeValueWithKnownBits("p2", kP2Value, &fb),
+            MakeValueWithKnownBits("p3", kP3Value, &fb),
+            MakeValueWithKnownBits("p4", kP4Value, &fb),
+        },
+        MakeValueWithKnownBits("default", kDefaultValue, &fb));
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
     TernaryQueryEngine tqe;
     XLS_ASSERT_OK(tqe.Populate(f).status());
@@ -756,8 +758,15 @@ TEST_F(TernaryQueryEngineTest, PrioritySel) {
             "p4",
             TValue::Tuple({kP4Value, TValue::Array({kP4Value, kP4Value})}),
             &fb));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto d,
+        MakeValueWithKnownBits(
+            "default",
+            TValue::Tuple(
+                {kDefaultValue, TValue::Array({kDefaultValue, kDefaultValue})}),
+            &fb));
     auto out = fb.PrioritySelect(
-        MakeValueWithKnownBits("selector", "0b00XX", &fb), {p1, p2, p3, p4});
+        MakeValueWithKnownBits("selector", "0b00XX", &fb), {p1, p2, p3, p4}, d);
     auto tup_v = fb.TupleIndex(out, 0);
     auto tup_arr = fb.TupleIndex(out, 1);
     auto arr_0 = fb.ArrayIndex(tup_arr, {fb.Literal(UBits(0, 1))});
@@ -776,6 +785,7 @@ TEST_F(TernaryQueryEngineTest, PrioritySelWithOneHot) {
   constexpr std::string_view kP2Value = "0b00001X10";
   constexpr std::string_view kP3Value = "0b001X1000";
   constexpr std::string_view kP4Value = "0b1X101010";
+  constexpr std::string_view kDefaultValue = "0b00000000";
   constexpr std::string_view kP1Or2Value = "0bXXX0_XX1X";
   // Bits
   {
@@ -789,7 +799,8 @@ TEST_F(TernaryQueryEngineTest, PrioritySelWithOneHot) {
             MakeValueWithKnownBits("p2", kP2Value, &fb),
             MakeValueWithKnownBits("p3", kP3Value, &fb),
             MakeValueWithKnownBits("p4", kP4Value, &fb),
-        });
+        },
+        MakeValueWithKnownBits("default", kDefaultValue, &fb));
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
     TernaryQueryEngine tqe;
     XLS_ASSERT_OK(tqe.Populate(f).status());
@@ -823,10 +834,17 @@ TEST_F(TernaryQueryEngineTest, PrioritySelWithOneHot) {
             "p4",
             TValue::Tuple({kP4Value, TValue::Array({kP4Value, kP4Value})}),
             &fb));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto d,
+        MakeValueWithKnownBits(
+            "d",
+            TValue::Tuple(
+                {kDefaultValue, TValue::Array({kDefaultValue, kDefaultValue})}),
+            &fb));
     auto out = fb.PrioritySelect(
         fb.OneHot(MakeValueWithKnownBits("selector", "0b0XX", &fb),
                   LsbOrMsb::kMsb),
-        {p1, p2, p3, p4});
+        {p1, p2, p3, p4}, d);
     auto tup_v = fb.TupleIndex(out, 0);
     auto tup_arr = fb.TupleIndex(out, 1);
     auto arr_0 = fb.ArrayIndex(tup_arr, {fb.Literal(UBits(0, 1))});
@@ -846,19 +864,21 @@ TEST_F(TernaryQueryEngineTest, PrioritySelWithKnownBit) {
   constexpr std::string_view kP2Value = "0b0000_1X10";
   constexpr std::string_view kP3Value = "0b001X_1000";
   constexpr std::string_view kP4Value = "0b1X10_0000";
+  constexpr std::string_view kDefaultValue = "0b0000_0000";
   constexpr std::string_view kP1Or2Value = "0b0000_XXXX";
   // Bits
   {
     auto p = CreatePackage();
     FunctionBuilder fb(TestName(), p.get());
-    auto out =
-        fb.PrioritySelect(MakeValueWithKnownBits("selector", "0b0X1X", &fb),
-                          {
-                              MakeValueWithKnownBits("p1", kP1Value, &fb),
-                              MakeValueWithKnownBits("p2", kP2Value, &fb),
-                              MakeValueWithKnownBits("p3", kP3Value, &fb),
-                              MakeValueWithKnownBits("p4", kP4Value, &fb),
-                          });
+    auto out = fb.PrioritySelect(
+        MakeValueWithKnownBits("selector", "0b0X1X", &fb),
+        {
+            MakeValueWithKnownBits("p1", kP1Value, &fb),
+            MakeValueWithKnownBits("p2", kP2Value, &fb),
+            MakeValueWithKnownBits("p3", kP3Value, &fb),
+            MakeValueWithKnownBits("p4", kP4Value, &fb),
+        },
+        MakeValueWithKnownBits("default", kDefaultValue, &fb));
     XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
     TernaryQueryEngine tqe;
     XLS_ASSERT_OK(tqe.Populate(f).status());
@@ -892,8 +912,15 @@ TEST_F(TernaryQueryEngineTest, PrioritySelWithKnownBit) {
             "p4",
             TValue::Tuple({kP4Value, TValue::Array({kP4Value, kP4Value})}),
             &fb));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto d,
+        MakeValueWithKnownBits(
+            "d",
+            TValue::Tuple(
+                {kDefaultValue, TValue::Array({kDefaultValue, kDefaultValue})}),
+            &fb));
     auto out = fb.PrioritySelect(
-        MakeValueWithKnownBits("selector", "0b0X1X", &fb), {p1, p2, p3, p4});
+        MakeValueWithKnownBits("selector", "0b0X1X", &fb), {p1, p2, p3, p4}, d);
     auto tup_v = fb.TupleIndex(out, 0);
     auto tup_arr = fb.TupleIndex(out, 1);
     auto arr_0 = fb.ArrayIndex(tup_arr, {fb.Literal(UBits(0, 1))});

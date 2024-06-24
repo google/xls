@@ -2,9 +2,10 @@ module main(
   input wire p,
   input wire [15:0] x,
   input wire [15:0] y,
+  input wire [15:0] d,
   output wire [15:0] out
 );
-  function automatic [15:0] priority_sel_16b_2way_soh_snz (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1);
+  function automatic [15:0] priority_sel_16b_2way_soh_snz (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
     begin
       casez (sel)
         2'b?1: begin
@@ -28,5 +29,5 @@ module main(
     end
   endfunction
 
-  assign out = priority_sel_16b_2way_soh_snz({!p, p}, x, y);
+  assign out = priority_sel_16b_2way_soh_snz({!p, p}, x, y, d);
 endmodule

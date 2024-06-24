@@ -2138,10 +2138,6 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
       std::vector<xls::BValue> values;
       values.reserve(next_state_values_sorted_by_priority.size() + 1);
 
-      // Default to no change of state when all selectors are 0
-      conditions.push_back(pb.Literal(xls::UBits(1, 1), loc));
-      values.push_back(elem_bval);
-
       for (const NextStateValue& next_value :
            next_state_values_sorted_by_priority) {
         conditions.push_back(next_value.condition);
@@ -2156,8 +2152,9 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
           conditions, loc,
           /*name=*/absl::StrFormat("%s_all_conditions", elem->name()));
 
+      // Default to no change of state when all selectors are 0
       next_state_value_bval = pb.PrioritySelect(
-          selector, values, /*default_value=*/std::nullopt, loc,
+          selector, values, /*default_value=*/elem_bval, loc,
           /*name=*/absl::StrFormat("%s_select_next_value", elem->name()));
     }
 

@@ -601,13 +601,16 @@ inline ::testing::Matcher<const ::xls::Node*> OneHotSelect() {
 //
 //   EXPECT_THAT(foo, m::PrioritySelect());
 //   EXPECT_THAT(foo, m::PrioritySelect(m::Param(),
-//                                    /*cases=*/{m::Xor(), m::And});
+//                                      /*cases=*/{m::Xor(), m::And},
+//                                      /*default_value=*/m::Literal());
 inline ::testing::Matcher<const ::xls::Node*> PrioritySelect(
     const ::testing::Matcher<const Node*>& selector,
-    std::vector<::testing::Matcher<const Node*>> cases) {
+    std::vector<::testing::Matcher<const Node*>> cases,
+    const ::testing::Matcher<const Node*>& default_value) {
   std::vector<::testing::Matcher<const Node*>> operands;
   operands.push_back(selector);
   operands.insert(operands.end(), cases.begin(), cases.end());
+  operands.push_back(default_value);
   return ::xls::op_matchers::NodeMatcher(Op::kPrioritySel, operands);
 }
 

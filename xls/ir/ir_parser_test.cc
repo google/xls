@@ -1165,8 +1165,8 @@ TEST(IrParserTest, ParsePrioritySelect) {
   const std::string input = R"(
 package ParsePrioritySel
 
-fn sel_wrapper(p: bits[3], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-  ret priority_sel.1: bits[32] = priority_sel(p, cases=[x, y, z], id=1)
+fn sel_wrapper(p: bits[3], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+  ret priority_sel.1: bits[32] = priority_sel(p, cases=[x, y, z], default=d, id=1)
 }
   )";
   ParsePackageAndCheckDump(input);

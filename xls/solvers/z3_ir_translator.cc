@@ -1264,11 +1264,8 @@ absl::Status IrTranslator::HandlePrioritySel(PrioritySelect* sel) {
                                const std::vector<Z3_ast>& selector,
                                const std::vector<std::vector<Z3_ast>>& cases) {
     // Calculate the Z3-ified default value, if any.
-    std::optional<std::vector<Z3_ast>> default_value = std::nullopt;
-    if (sel->default_value()) {
-      default_value = FlattenValue(sel->default_value().value()->GetType(),
-                                   GetValue(sel->default_value().value()));
-    }
+    std::vector<Z3_ast> default_value = FlattenValue(
+        sel->default_value()->GetType(), GetValue(sel->default_value()));
     return evaluator.PrioritySelect(
         selector, evaluator.SpanOfVectorsToVectorOfSpans(cases),
         /*selector_can_be_zero=*/true, default_value);

@@ -978,16 +978,11 @@ OpClass.kinds['PRIORITY_SELECT'] = OpClass(
     operands=[
         Operand('selector'),
         OperandSpan('cases'),
-        OptionalOperand('default_value', manual_optional_implementation=True),
+        Operand('default_value'),
     ],
     xls_type_expression='cases[0]->GetType()',
     extra_data_members=[
         DataMember(name='cases_size_', cpp_type='int64_t', init='cases.size()'),
-        DataMember(
-            name='has_default_value_',
-            cpp_type='bool',
-            init='default_value.has_value()',
-        ),
     ],
     extra_methods=[
         Method(
@@ -1006,8 +1001,8 @@ OpClass.kinds['PRIORITY_SELECT'] = OpClass(
         ),
         Method(
             name='default_value',
-            return_cpp_type='std::optional<Node*>',
-            expression="""has_default_value_ ? std::optional<Node*>(operands().back()) : std::nullopt""",
+            return_cpp_type='Node*',
+            expression='operand(1 + cases_size_)',
         ),
     ],
     custom_clone_method=True,

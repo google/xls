@@ -811,8 +811,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
     case Op::kPrioritySel: {
       std::vector<BValue>* case_args =
           arg_parser.AddKeywordArg<std::vector<BValue>>("cases");
-      std::optional<BValue>* default_value =
-          arg_parser.AddOptionalKeywordArg<BValue>("default");
+      BValue* default_value = arg_parser.AddKeywordArg<BValue>("default");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       if (case_args->empty()) {
         return absl::InvalidArgumentError(absl::StrFormat(

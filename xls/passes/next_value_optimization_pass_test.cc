@@ -118,8 +118,10 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 3)));
   BValue priority_select = pb.PrioritySelect(
-      x, std::vector{pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
-                     pb.Literal(UBits(2, 3))});
+      x,
+      std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
+                   pb.Literal(UBits(2, 3))}),
+      pb.Literal(UBits(0, 3)));
   pb.Next(/*param=*/x, /*value=*/priority_select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
@@ -146,8 +148,10 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectLegacyNextValue) {
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 3)));
   BValue priority_select = pb.PrioritySelect(
-      x, std::vector{pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
-                     pb.Literal(UBits(2, 3))});
+      x,
+      std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
+                   pb.Literal(UBits(2, 3))}),
+      pb.Literal(UBits(0, 3)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({priority_select}));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));

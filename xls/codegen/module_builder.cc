@@ -152,10 +152,9 @@ absl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
 // Defines and returns a function which implements the given PrioritySelect
 // node.
 absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
-    Node* selector, Type* tpe, int64_t num_cases, bool has_default_value,
-    const SourceInfo& loc, std::string_view function_name,
-    ModuleSection* section, SelectorProperties selector_properties,
-    bool use_system_verilog) {
+    Node* selector, Type* tpe, int64_t num_cases, const SourceInfo& loc,
+    std::string_view function_name, ModuleSection* section,
+    SelectorProperties selector_properties, bool use_system_verilog) {
   VerilogFile* file = section->file();
 
   VerilogFunction* func = section->Add<VerilogFunction>(
@@ -171,11 +170,8 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
         file->BitVectorType(tpe->GetFlatBitCount(), loc), loc));
   }
 
-  std::optional<Expression*> default_value = std::nullopt;
-  if (has_default_value) {
-    default_value = func->AddArgument(
-        "default_value", file->BitVectorType(tpe->GetFlatBitCount(), loc), loc);
-  }
+  Expression* default_value = func->AddArgument(
+      "default_value", file->BitVectorType(tpe->GetFlatBitCount(), loc), loc);
 
   CaseType case_type(CaseKeyword::kCasez);
   const FourValueBit case_label_top_bits = FourValueBit::kHighZ;
@@ -225,17 +221,7 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
     // Verilog doesn't support 'X, so use the less desirable 16'dxxxx format.
     x_literal = file->Make<XSentinel>(loc, tpe->GetFlatBitCount());
   }
-  if (!selector_properties.never_zero) {
-    // If the selector can be zero, return the default value.
-    if (!default_value.has_value()) {
-      // If the default value defaults to zero, use `'0` here as it's more
-      // idiomatic and will not ever be part of a larger expression.
-      default_value = file->Make<ZeroLiteral>(loc);
-    }
-    case_statement->AddCaseArm(zero_label)
-        ->Add<BlockingAssignment>(loc, func->return_value_ref(),
-                                  *default_value);
-  } else {
+  if (selector_properties.never_zero) {
     // If the selector cannot be zero, throw an error if we see zero.
     // We still explicitly propagate X (like the default case below) for
     // synthesis.
@@ -256,6 +242,9 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
     case_block->Add<Comment>(loc, "Never taken, propagate X");
     case_block->Add<BlockingAssignment>(loc, func->return_value_ref(),
                                         x_literal);
+  } else {
+    case_statement->AddCaseArm(zero_label)
+        ->Add<BlockingAssignment>(loc, func->return_value_ref(), default_value);
   }
 
   // Add a default case that propagates X.
@@ -1044,8 +1033,6 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
               DefinePrioritySelectFunction(
                   node->As<PrioritySelect>()->selector(), /*tpe=*/element_type,
                   /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
-                  /*has_default_value=*/
-                  node->As<PrioritySelect>()->default_value().has_value(),
                   /*loc=*/node->loc(), function_name, functions_section_,
                   selector_properties, options_.use_system_verilog()));
         }
@@ -1919,8 +1906,6 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
           DefinePrioritySelectFunction(
               node->As<PrioritySelect>()->selector(), /*tpe=*/node->GetType(),
               /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
-              /*has_default_value=*/
-              node->As<PrioritySelect>()->default_value().has_value(),
               /*loc=*/node->loc(), function_name, functions_section_,
               selector_properties, options_.use_system_verilog()));
       break;

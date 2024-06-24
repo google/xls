@@ -198,9 +198,8 @@ class AbstractEvaluator {
     return OneHotSelectInternal(selector, cases, selector_can_be_zero);
   }
 
-  Vector PrioritySelect(
-      Span selector, SpanOfSpan cases, bool selector_can_be_zero,
-      std::optional<const Span> default_value = std::nullopt) {
+  Vector PrioritySelect(Span selector, SpanOfSpan cases,
+                        bool selector_can_be_zero, Span default_value) {
     return PrioritySelectInternal(selector, cases, selector_can_be_zero,
                                   default_value);
   }
@@ -624,15 +623,12 @@ class AbstractEvaluator {
   // spans of the same underlying vector as is used in the shift implementation.
   Vector PrioritySelectInternal(
       Span selector, absl::Span<const absl::Span<const Element>> cases,
-      bool selector_can_be_zero, std::optional<const Span> default_value) {
+      bool selector_can_be_zero, Span default_value) {
     CHECK_EQ(selector.size(), cases.size());
     CHECK_GT(selector.size(), 0);
     int64_t width = cases.front().size();
-    Vector result(width, Zero());
-    if (default_value.has_value()) {
-      CHECK_EQ(default_value->size(), width);
-      result.assign(default_value->begin(), default_value->end());
-    }
+    CHECK_EQ(default_value.size(), width);
+    Vector result(default_value.begin(), default_value.end());
     for (int64_t i = selector.size() - 1; i >= 0; --i) {
       for (int64_t j = 0; j < width; ++j) {
         result[j] =

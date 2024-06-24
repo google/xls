@@ -1048,14 +1048,12 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
   INITIALIZE_OR_SKIP(sel);
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(selector_intervals, sel->selector());
 
-  std::optional<IntervalSetTreeView> default_value;
+  std::optional<IntervalSetTreeView> default_value =
+      MaybeGetIntervalSetTreeView(sel->default_value());
   std::optional<IntervalSetTree> default_value_storage;
-  if (sel->default_value().has_value()) {
-    default_value = MaybeGetIntervalSetTreeView(*sel->default_value());
-    if (!default_value.has_value()) {
-      default_value_storage = UnconstrainedIntervalSetTree(sel->GetType());
-      default_value = default_value_storage->AsView();
-    }
+  if (!default_value.has_value()) {
+    default_value_storage = UnconstrainedIntervalSetTree(sel->GetType());
+    default_value = default_value_storage->AsView();
   }
 
   // Initialize all interval sets to empty - or to the default value if the
@@ -1065,10 +1063,8 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
     result = EmptyIntervalSetTree(sel->GetType());
   } else if (default_value_storage.has_value()) {
     result = *std::move(default_value_storage);
-  } else if (default_value.has_value()) {
-    result = leaf_type_tree::Clone(*default_value);
   } else {
-    result = ZeroIntervalSetTree(sel->GetType());
+    result = leaf_type_tree::Clone(*default_value);
   }
 
   TernaryVector case_pattern(sel->cases().size(), TernaryValue::kUnknown);

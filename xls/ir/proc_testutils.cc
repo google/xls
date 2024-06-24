@@ -224,8 +224,9 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
         // materialize the next values into a select.
         // Need to reverse to keep the LSB is case 0 etc.
         absl::c_reverse(selectors);
-        values[{param, activation}] =
-            fb.PrioritySelect(fb.Concat(selectors), cases);
+        values[{param, activation}] = fb.PrioritySelect(
+            fb.Concat(selectors), cases,
+            /*default_value=*/values[{param, activation - 1}]);
       }
     }
     states.push_back(values[{param, activation}]);

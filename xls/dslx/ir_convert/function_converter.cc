@@ -73,6 +73,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/ir/verifier.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -3231,8 +3232,11 @@ absl::Status FunctionConverter::HandleBuiltinPrioritySel(
       cases.push_back(bvalue_case);
     }
 
-    return function_builder_->PrioritySelect(
-        selector, cases, /*default_value=*/std::nullopt, loc);
+    BValue default_value = function_builder_->Literal(
+        ZeroOfType(cases_arg_type->element_type()), loc);
+
+    return function_builder_->PrioritySelect(selector, cases, default_value,
+                                             loc);
   });
 
   return absl::OkStatus();

@@ -1602,7 +1602,8 @@ TEST_F(RangeQueryEngineTest, PrioritySel) {
   BValue x = fb.Param("x", p->GetBitsType(10));
   BValue y = fb.Param("y", p->GetBitsType(10));
   BValue z = fb.Param("z", p->GetBitsType(10));
-  BValue expr = fb.PrioritySelect(selector, {x, y, z});
+  BValue d = fb.Literal(UBits(0, 10));
+  BValue expr = fb.PrioritySelect(selector, {x, y, z}, d);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   // Usual test case where only part of the valid inputs are covered.

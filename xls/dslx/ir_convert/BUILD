@@ -222,6 +222,7 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
         "//xls/ir:verifier",
         "//xls/ir:xls_ir_interface_cc_proto",
     ],

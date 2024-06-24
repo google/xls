@@ -517,10 +517,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args = {operand(0)->GetName()};
       args.push_back(
           absl::StrFormat("cases=[%s]", absl::StrJoin(sel->cases(), ", ")));
-      if (sel->default_value().has_value()) {
-        args.push_back(
-            absl::StrFormat("default=%v", (*sel->default_value())->GetName()));
-      }
+      args.push_back(
+          absl::StrFormat("default=%v", sel->default_value()->GetName()));
       break;
     }
     case Op::kSel: {

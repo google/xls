@@ -2,9 +2,10 @@ module main(
   input wire [1:0] p,
   input wire [63:0] x,
   input wire [63:0] y,
+  input wire [63:0] d,
   output wire [63:0] out
 );
-  function automatic [15:0] priority_sel_64b_2way_element16 (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1);
+  function automatic [15:0] priority_sel_64b_2way_element16 (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
     begin
       unique casez (sel)
         2'b?1: begin
@@ -14,7 +15,7 @@ module main(
           priority_sel_64b_2way_element16 = case1;
         end
         2'b00: begin
-          priority_sel_64b_2way_element16 = '0;
+          priority_sel_64b_2way_element16 = default_value;
         end
         default: begin
           // Propagate X
@@ -33,10 +34,15 @@ module main(
   assign y_unflattened[1] = y[31:16];
   assign y_unflattened[2] = y[47:32];
   assign y_unflattened[3] = y[63:48];
-  wire [15:0] priority_sel_8[4];
-  assign priority_sel_8[0] = priority_sel_64b_2way_element16(p, x_unflattened[0], y_unflattened[0]);
-  assign priority_sel_8[1] = priority_sel_64b_2way_element16(p, x_unflattened[1], y_unflattened[1]);
-  assign priority_sel_8[2] = priority_sel_64b_2way_element16(p, x_unflattened[2], y_unflattened[2]);
-  assign priority_sel_8[3] = priority_sel_64b_2way_element16(p, x_unflattened[3], y_unflattened[3]);
-  assign out = {priority_sel_8[3], priority_sel_8[2], priority_sel_8[1], priority_sel_8[0]};
+  wire [15:0] d_unflattened[4];
+  assign d_unflattened[0] = d[15:0];
+  assign d_unflattened[1] = d[31:16];
+  assign d_unflattened[2] = d[47:32];
+  assign d_unflattened[3] = d[63:48];
+  wire [15:0] priority_sel_10[4];
+  assign priority_sel_10[0] = priority_sel_64b_2way_element16(p, x_unflattened[0], y_unflattened[0], d_unflattened[0]);
+  assign priority_sel_10[1] = priority_sel_64b_2way_element16(p, x_unflattened[1], y_unflattened[1], d_unflattened[1]);
+  assign priority_sel_10[2] = priority_sel_64b_2way_element16(p, x_unflattened[2], y_unflattened[2], d_unflattened[2]);
+  assign priority_sel_10[3] = priority_sel_64b_2way_element16(p, x_unflattened[3], y_unflattened[3], d_unflattened[3]);
+  assign out = {priority_sel_10[3], priority_sel_10[2], priority_sel_10[1], priority_sel_10[0]};
 endmodule

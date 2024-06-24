@@ -1941,8 +1941,9 @@ TEST_F(Z3IrTranslatorTest, HandlePrioritySelect) {
 fn f(idx: bits[1]) -> bits[4] {
   literal.1: bits[4] = literal(value=0xf)
   literal.2: bits[4] = literal(value=0x5)
+  literal.3: bits[4] = literal(value=0x0)
   one_hot.4: bits[2] = one_hot(idx, lsb_prio=true)
-  ret priority_sel.3: bits[4] = priority_sel(one_hot.4, cases=[literal.1, literal.2])
+  ret priority_sel.5: bits[4] = priority_sel(one_hot.4, cases=[literal.1, literal.2], default=literal.3)
 })";
 
   std::unique_ptr<Package> package = CreatePackage();

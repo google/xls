@@ -1752,14 +1752,15 @@ TEST_P(IrEvaluatorTestBase, InterpretPrioritySelect) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
-  fn one_hot(p: bits[3], x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {
-    ret priority_sel.1: bits[8] = priority_sel(p, cases=[x, y, z])
+  fn one_hot(p: bits[3], x: bits[8], y: bits[8], z: bits[8], d: bits[8]) -> bits[8] {
+    ret priority_sel.1: bits[8] = priority_sel(p, cases=[x, y, z], default=d)
   }
   )"));
   absl::flat_hash_map<std::string, Value> args_map = {
       {"x", Value(UBits(0b00001111, 8))},
       {"y", Value(UBits(0b00110011, 8))},
-      {"z", Value(UBits(0b01010101, 8))}};
+      {"z", Value(UBits(0b01010101, 8))},
+      {"d", Value(UBits(0b00000000, 8))}};
 
   struct Example {
     Bits p;
@@ -1782,6 +1783,7 @@ TEST_P(IrEvaluatorTestBase, InterpretPrioritySelect) {
     args.push_back(args_map["x"]);
     args.push_back(args_map["y"]);
     args.push_back(args_map["z"]);
+    args.push_back(args_map["d"]);
     EXPECT_THAT(RunWithNoEvents(function, args),
                 IsOkAndHolds(Value(example.output)));
   }
@@ -1791,13 +1793,14 @@ TEST_P(IrEvaluatorTestBase, InterpretPriorityNestedTuple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
-  fn priority(p: bits[2], x: (bits[3], (bits[8])), y: (bits[3], (bits[8]))) -> (bits[3], (bits[8])) {
-    ret priority_sel.1: (bits[3], (bits[8])) = priority_sel(p, cases=[x, y])
+  fn priority(p: bits[2], x: (bits[3], (bits[8])), y: (bits[3], (bits[8])), d: (bits[3], (bits[8]))) -> (bits[3], (bits[8])) {
+    ret priority_sel.1: (bits[3], (bits[8])) = priority_sel(p, cases=[x, y], default=d)
   }
   )"));
   absl::flat_hash_map<std::string, Value> args = {
       {"x", AsValue("(bits[3]:0b101, (bits[8]:0b11001100))")},
-      {"y", AsValue("(bits[3]:0b001, (bits[8]:0b00001111))")}};
+      {"y", AsValue("(bits[3]:0b001, (bits[8]:0b00001111))")},
+      {"d", AsValue("(bits[3]:0b000, (bits[8]:0b00000000))")}};
 
   args["p"] = AsValue("bits[2]: 0b00");
   EXPECT_THAT(RunWithKwargsNoEvents(function, args),
@@ -1817,13 +1820,14 @@ TEST_P(IrEvaluatorTestBase, InterpretPriorityArray) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            ParseAndGetFunction(&package, R"(
-  fn priority(p: bits[2], x: bits[4][3], y: bits[4][3]) -> bits[4][3] {
-    ret priority_sel.1: bits[4][3] = priority_sel(p, cases=[x, y])
+  fn priority(p: bits[2], x: bits[4][3], y: bits[4][3], d: bits[4][3]) -> bits[4][3] {
+    ret priority_sel.1: bits[4][3] = priority_sel(p, cases=[x, y], default=d)
   }
   )"));
   absl::flat_hash_map<std::string, Value> args = {
       {"x", AsValue("[bits[4]:0b0001, bits[4]:0b0010, bits[4]:0b0100]")},
-      {"y", AsValue("[bits[4]:0b1100, bits[4]:0b0101, bits[4]:0b1110]")}};
+      {"y", AsValue("[bits[4]:0b1100, bits[4]:0b0101, bits[4]:0b1110]")},
+      {"d", AsValue("[bits[4]:0b0000, bits[4]:0b0000, bits[4]:0b0000]")}};
 
   args["p"] = AsValue("bits[2]: 0b00");
   EXPECT_THAT(RunWithKwargsNoEvents(function, args),

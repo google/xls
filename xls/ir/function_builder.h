@@ -349,7 +349,7 @@ class BuilderBase {
   // Creates a select operation which uses a one-hot selector (rather than a
   // binary encoded selector as used in Select).
   BValue PrioritySelect(BValue selector, absl::Span<const BValue> cases,
-                        std::optional<BValue> default_value = std::nullopt,
+                        BValue default_value,
                         const SourceInfo& loc = SourceInfo(),
                         std::string_view name = "");
 

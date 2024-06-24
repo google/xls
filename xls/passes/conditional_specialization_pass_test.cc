@@ -300,36 +300,9 @@ fn f(s: bits[1], x: bits[8], y: bits[8]) -> bits[8] {
 TEST_F(ConditionalSpecializationPassTest, SpecializePrioritySelectSimple) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-fn f(a: bits[2], b: bits[30], case0: bits[32]) -> bits[32] {
+fn f(a: bits[2], b: bits[30], case0: bits[32], case_d: bits[32]) -> bits[32] {
   case1: bits[32] = concat(a, b)
-  ret priority_sel.2: bits[32] = priority_sel(a, cases=[case0, case1])
-}
-  )",
-                                                       p.get()));
-
-  solvers::z3::ScopedVerifyEquivalence sve{f};
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::PrioritySelect(
-                  m::Param("a"),
-                  {m::Param("case0"),
-                   m::Concat(m::Literal("bits[2]:0b10"), m::Param("b"))}));
-}
-
-TEST_F(ConditionalSpecializationPassTest,
-       SpecializePrioritySelectMultipleBranches) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-fn f(a: bits[3], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-  a_p0: bits[1] = bit_slice(a, start=0, width=1)
-  addend0: bits[32] = zero_ext(a_p0, new_bit_count=32)
-  a_p1: bits[2] = bit_slice(a, start=0, width=2)
-  addend1: bits[32] = zero_ext(a_p1, new_bit_count=32)
-  addend2: bits[32] = zero_ext(a, new_bit_count=32)
-  case0: bits[32] = add(addend0, x)
-  case1: bits[32] = add(addend1, y)
-  case2: bits[32] = add(addend2, z)
-  ret priority_sel.4: bits[32] = priority_sel(a, cases=[case0, case1, case2])
+  ret priority_sel.2: bits[32] = priority_sel(a, cases=[case0, case1], default=case_d)
 }
   )",
                                                        p.get()));
@@ -338,9 +311,40 @@ fn f(a: bits[3], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::PrioritySelect(m::Param("a"), {m::Add(m::Literal(1), m::Param("x")),
-                                        m::Add(m::Literal(2), m::Param("y")),
-                                        m::Add(m::Literal(4), m::Param("z"))}));
+      m::PrioritySelect(m::Param("a"),
+                        /*cases=*/
+                        {m::Param("case0"),
+                         m::Concat(m::Literal("bits[2]:0b10"), m::Param("b"))},
+                        /*default_value=*/m::Param("case_d")));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       SpecializePrioritySelectMultipleBranches) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[3], x: bits[32], y: bits[32], z: bits[32], q: bits[32]) -> bits[32] {
+  a_p0: bits[1] = bit_slice(a, start=0, width=1)
+  addend0: bits[32] = zero_ext(a_p0, new_bit_count=32)
+  a_p1: bits[2] = bit_slice(a, start=0, width=2)
+  addend1: bits[32] = zero_ext(a_p1, new_bit_count=32)
+  addend2: bits[32] = zero_ext(a, new_bit_count=32)
+  case0: bits[32] = add(addend0, x)
+  case1: bits[32] = add(addend1, y)
+  case2: bits[32] = add(addend2, z)
+  case_d: bits[32] = add(addend2, q)
+  ret priority_sel.4: bits[32] = priority_sel(a, cases=[case0, case1, case2], default=case_d)
+}
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Param("a"),
+                                {m::Add(m::Literal(1), m::Param("x")),
+                                 m::Add(m::Literal(2), m::Param("y")),
+                                 m::Add(m::Literal(4), m::Param("z"))},
+                                m::Add(m::Literal(0), m::Param("q"))));
 }
 
 TEST_F(ConditionalSpecializationPassTest,
@@ -352,7 +356,7 @@ fn f(a: bits[32], x: bits[1]) -> bits[1] {
   ult.2: bits[1] = ult(a, literal.1)
   not.3: bits[1] = not(ult.2)
   selector: bits[2] = concat(not.3, ult.2)
-  ret priority_sel.5: bits[1] = priority_sel(selector, cases=[ult.2, x])
+  ret priority_sel.5: bits[1] = priority_sel(selector, cases=[ult.2, x], default=x)
 }
   )",
                                                        p.get()));
@@ -362,7 +366,7 @@ fn f(a: bits[32], x: bits[1]) -> bits[1] {
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
                   m::Concat(m::Not(), m::ULt(m::Param("a"), m::Literal(7))),
-                  {m::Literal(1), m::Param("x")}));
+                  {m::Literal(1), m::Param("x")}, m::Param("x")));
 }
 
 TEST_F(ConditionalSpecializationPassTest,
@@ -374,7 +378,7 @@ fn f(a: bits[32], x: bits[1]) -> bits[1] {
   ult.2: bits[1] = ult(a, literal.1)
   not.3: bits[1] = not(ult.2)
   selector: bits[2] = concat(ult.2, not.3)
-  ret priority_sel.5: bits[1] = priority_sel(selector, cases=[ult.2, x])
+  ret priority_sel.5: bits[1] = priority_sel(selector, cases=[ult.2, x], default=x)
 }
   )",
                                                        p.get()));
@@ -384,7 +388,7 @@ fn f(a: bits[32], x: bits[1]) -> bits[1] {
   EXPECT_THAT(f->return_value(),
               m::PrioritySelect(
                   m::Concat(m::ULt(m::Param("a"), m::Literal(7)), m::Not()),
-                  {m::Literal(0), m::Param("x")}));
+                  {m::Literal(0), m::Param("x")}, m::Param("x")));
 }
 
 TEST_F(ConditionalSpecializationPassTest,
@@ -397,7 +401,7 @@ TEST_F(ConditionalSpecializationPassTest,
 fn f(a: bits[2], y: bits[32]) -> bits[32] {
   zero_ext.1: bits[32] = zero_ext(a, new_bit_count=32)
   add: bits[32] = add(zero_ext.1, y)
-  ret sel: bits[32] = priority_sel(a, cases=[add, add])
+  ret sel: bits[32] = priority_sel(a, cases=[add, add], default=add)
 }
   )",
                                                        p.get()));
@@ -688,8 +692,10 @@ TEST_F(ConditionalSpecializationPassTest,
 
   BValue r_or_s = fb.Or(r, s);
   BValue other_value = fb.Literal(UBits(42, 32));
-  BValue sel1 = fb.PrioritySelect(r_or_s, {a, other_value});
-  BValue sel0 = fb.PrioritySelect(r, {sel1, other_value});
+  BValue sel1 =
+      fb.PrioritySelect(r_or_s, {a, other_value}, fb.Literal(UBits(0, 32)));
+  BValue sel0 =
+      fb.PrioritySelect(r, {sel1, other_value}, fb.Literal(UBits(0, 32)));
 
   // Keep r_or_s alive to the return value to avoid replacing r in the
   // expression with one (this is not what we're testing).
@@ -701,10 +707,12 @@ TEST_F(ConditionalSpecializationPassTest,
 
   EXPECT_THAT(f->return_value()->operand(0),
               m::PrioritySelect(m::Param("r"),
-                                /*cases=*/{m::Param("a"), m::Literal(42)}));
+                                /*cases=*/{m::Param("a"), m::Literal(42)},
+                                /*default_value=*/m::Literal(0)));
   EXPECT_THAT(f->return_value()->operand(1),
               m::PrioritySelect(m::Or(m::Param("r"), m::Param("s")),
-                                /*cases=*/{m::Param("a"), m::Literal(42)}));
+                                /*cases=*/{m::Param("a"), m::Literal(42)},
+                                /*default_value=*/m::Literal(0)));
 }
 
 TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {

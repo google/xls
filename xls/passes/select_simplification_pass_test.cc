@@ -107,7 +107,8 @@ TEST_F(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
      fn f(p: bits[2], x: bits[8], y: bits[8], z: bits[8]) -> (bits[8], bits[8]) {
         tuple.1: (bits[8], bits[8]) = tuple(x, y)
         tuple.2: (bits[8], bits[8]) = tuple(y, z)
-        ret result: (bits[8], bits[8]) = priority_sel(p, cases=[tuple.2, tuple.1])
+        tuple.3: (bits[8], bits[8]) = tuple(x, z)
+        ret result: (bits[8], bits[8]) = priority_sel(p, cases=[tuple.2, tuple.1], default=tuple.3)
      }
   )",
                                                        p.get()));
@@ -118,12 +119,16 @@ TEST_F(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::Tuple(m::PrioritySelect(m::Param("p"),
-                                 /*cases=*/{m::TupleIndex(m::Tuple(), 0),
-                                            m::TupleIndex(m::Tuple(), 0)}),
-               m::PrioritySelect(m::Param("p"),
-                                 /*cases=*/{m::TupleIndex(m::Tuple(), 1),
-                                            m::TupleIndex(m::Tuple(), 1)})));
+      m::Tuple(m::PrioritySelect(
+                   m::Param("p"),
+                   /*cases=*/
+                   {m::TupleIndex(m::Tuple(), 0), m::TupleIndex(m::Tuple(), 0)},
+                   /*default_value=*/m::TupleIndex(m::Tuple(), 0)),
+               m::PrioritySelect(
+                   m::Param("p"),
+                   /*cases=*/
+                   {m::TupleIndex(m::Tuple(), 1), m::TupleIndex(m::Tuple(), 1)},
+                   /*default_value=*/m::TupleIndex(m::Tuple(), 1))));
 }
 
 TEST_F(SelectSimplificationPassTest, FourWayTupleSelect) {
@@ -187,9 +192,9 @@ TEST_F(SelectSimplificationPassTest, SelectWithConstantOneSelector) {
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantZeroSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
+     fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
         literal.1: bits[3] = literal(value=0)
-        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z])
+        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z], default=d)
      }
   )",
                                                        p.get()));
@@ -197,15 +202,15 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantZeroSelector) {
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Literal(0));
+  EXPECT_THAT(f->return_value(), m::Param("d"));
 }
 
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantOneSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
+     fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
         literal.1: bits[3] = literal(value=1)
-        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z])
+        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z], default=d)
      }
   )",
                                                        p.get()));
@@ -219,9 +224,9 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantOneSelector) {
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantTwoSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
+     fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
         literal.1: bits[3] = literal(value=2)
-        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z])
+        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z], default=d)
      }
   )",
                                                        p.get()));
@@ -235,9 +240,9 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantTwoSelector) {
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantThreeSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
+     fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
         literal.1: bits[3] = literal(value=3)
-        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z])
+        ret priority_sel.2: bits[42] = priority_sel(literal.1, cases=[x, y, z], default=d)
      }
   )",
                                                        p.get()));
@@ -251,10 +256,10 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantThreeSelector) {
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitSet) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
+     fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
         literal.1: bits[3] = literal(value=1)
         or.2: bits[3] = or(s, literal.1)
-        ret priority_sel.3: bits[42] = priority_sel(or.2, cases=[x, y, z])
+        ret priority_sel.3: bits[42] = priority_sel(or.2, cases=[x, y, z], default=d)
      }
   )",
                                                        p.get()));
@@ -268,10 +273,10 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitSet) {
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitSet) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
+     fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
         literal.1: bits[3] = literal(value=2)
         or.2: bits[3] = or(s, literal.1)
-        ret priority_sel.3: bits[42] = priority_sel(or.2, cases=[x, y, z])
+        ret priority_sel.3: bits[42] = priority_sel(or.2, cases=[x, y, z], default=d)
      }
   )",
                                                        p.get()));
@@ -279,18 +284,18 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitSet) {
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::PrioritySelect(m::BitSlice(m::Or()), {m::Param("x"), m::Param("y")}));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::BitSlice(m::Or()),
+                                {m::Param("x"), m::Param("y")}, m::Param("d")));
 }
 
 TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitSet) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42]) -> bits[42] {
+     fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
         literal.1: bits[3] = literal(value=4)
         or.2: bits[3] = or(s, literal.1)
-        ret priority_sel.3: bits[42] = priority_sel(or.2, cases=[x, y, z])
+        ret priority_sel.3: bits[42] = priority_sel(or.2, cases=[x, y, z], default=d)
      }
   )",
                                                        p.get()));
@@ -357,7 +362,8 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithIdenticalCases) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[2], x: bits[42]) -> bits[42] {
-        ret result: bits[42] = priority_sel(s, cases=[x, x])
+        literal.1: bits[42] = literal(value=0)
+        ret result: bits[42] = priority_sel(s, cases=[x, x], default=literal.1)
      }
   )",
                                                        p.get()));
@@ -557,7 +563,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectCommoning) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(s: bits[6], x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
-  ret priority_sel.2: bits[3] = priority_sel(s, cases=[x, y, y, y, z, z])
+  ret priority_sel.2: bits[3] = priority_sel(s, cases=[x, y, y, y, z, z], default=z)
 }
   )",
                                                        p.get()));
@@ -569,7 +575,8 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectCommoning) {
                   m::Concat(m::OrReduce(m::BitSlice(/*start=*/4, /*width=*/2)),
                             m::OrReduce(m::BitSlice(/*start=*/1, /*width=*/3)),
                             m::BitSlice(/*start=*/0, /*width=*/1)),
-                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
+                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")},
+                  /*default_value=*/m::Param("z")));
 }
 
 TEST_F(SelectSimplificationPassTest, OneHotSelectFeedingOneHotSelect) {
@@ -606,9 +613,10 @@ TEST_F(SelectSimplificationPassTest,
 TEST_F(SelectSimplificationPassTest, PrioritySelectFeedingPrioritySelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y])
-       ret priority_sel.2: bits[32] = priority_sel(p1, cases=[priority_sel.1, z])
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y], default=d)
+       literal.2: bits[32] = literal(value=0)
+       ret priority_sel.3: bits[32] = priority_sel(p1, cases=[priority_sel.1, z], default=literal.2)
      }
   )",
                                                        p.get()));
@@ -626,19 +634,21 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectFeedingPrioritySelect) {
               m::And(m::SignExt(m::BitSlice(m::Param("p1"), /*start=*/Eq(0),
                                             /*width=*/Eq(1))),
                      m::Param("p0"))),
-          /*cases=*/{m::Param("x"), m::Param("y"), m::Literal(0),
-                     m::Param("z")}));
+          /*cases=*/
+          {m::Param("x"), m::Param("y"), m::Param("d"), m::Param("z")},
+          /*default_value=*/m::Literal(0)));
 }
 
 TEST_F(SelectSimplificationPassTest,
        PrioritySelectFeedingPrioritySelectWithMultipleUses) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y])
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y], default=d)
        neg.2: bits[32] = neg(priority_sel.1)
-       priority_sel.3: bits[32] = priority_sel(p1, cases=[priority_sel.1, z])
-       ret add.4: bits[32] = add(neg.2, priority_sel.3)
+       literal.3: bits[32] = literal(value=0)
+       priority_sel.4: bits[32] = priority_sel(p1, cases=[priority_sel.1, z], default=literal.3)
+       ret add.5: bits[32] = add(neg.2, priority_sel.4)
      }
   )",
                                                        p.get()));
@@ -723,23 +733,22 @@ TEST_F(SelectSimplificationPassTest,
        PrioritySelectWithLiteralZeroArmsAndZeroSelectorBits) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(p: bits[7], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
-       zero0: bits[32] = literal(value=0)
-       zero1: bits[32] = literal(value=0)
-       zero2: bits[32] = literal(value=0)
-       zero3: bits[32] = literal(value=0)
-       mask: bits[7] = literal(value=0b1110111)
-       masked_p: bits[7] = and(p, mask)
-       ret result: bits[32] = priority_sel(masked_p, cases=[zero0, x, zero1, y, z, zero2, zero3])
+     fn f(p: bits[6], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       zero: bits[32] = literal(value=0)
+       mask: bits[6] = literal(value=0b110111)
+       masked_p: bits[6] = and(p, mask)
+       ret result: bits[32] = priority_sel(masked_p, cases=[zero, x, zero, y, z, zero], default=zero)
      }
   )",
                                                        p.get()));
   solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::PrioritySelect(m::Concat(),
-                                /*cases=*/{m::Literal(0), m::Param("x"),
-                                           m::Literal(0), m::Param("z")}));
+              m::PrioritySelect(
+                  m::Concat(),
+                  /*cases=*/
+                  {m::Literal(0), m::Param("x"), m::Literal(0), m::Param("z")},
+                  /*default_value=*/m::Literal(0)));
 }
 
 TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyLiteralZeroArms) {
@@ -764,7 +773,8 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyLiteralZeroArms) {
        literal.1: bits[32] = literal(value=0)
        literal.2: bits[32] = literal(value=0)
        literal.3: bits[32] = literal(value=0)
-       ret result: bits[32] = priority_sel(p, cases=[literal.1, literal.2, literal.3])
+       literal.4: bits[32] = literal(value=0)
+       ret result: bits[32] = priority_sel(p, cases=[literal.1, literal.2, literal.3], default=literal.4)
      }
   )",
                                                        p.get()));
@@ -798,12 +808,14 @@ TEST_F(SelectSimplificationPassTest,
      fn f(p: bits[5], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
        zero0: bits[32] = literal(value=0)
        zero1: bits[32] = literal(value=0)
+       zero2: bits[32] = literal(value=0)
        mask: bits[5] = literal(value=0b00101)
        masked_p: bits[5] = and(p, mask)
-       ret result: bits[32] = priority_sel(masked_p, cases=[zero0, x, zero1, y, z])
+       ret result: bits[32] = priority_sel(masked_p, cases=[zero0, x, zero1, y, z], default=zero2)
      }
   )",
                                                        p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
@@ -932,7 +944,8 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseZero) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
        literal.1: bits[32] = literal(value=0)
-       ret priority_sel.2: bits[32] = priority_sel(p, cases=[x, literal.1])
+       literal.2: bits[32] = literal(value=0)
+       ret priority_sel.3: bits[32] = priority_sel(p, cases=[x, literal.1], default=literal.2)
      }
   )",
                                                        p.get()));
@@ -950,7 +963,8 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseOne) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
        literal.1: bits[32] = literal(value=0)
-       ret priority_sel.2: bits[32] = priority_sel(p, cases=[literal.1, x])
+       literal.2: bits[32] = literal(value=0)
+       ret priority_sel.3: bits[32] = priority_sel(p, cases=[literal.1, x], default=literal.2)
      }
   )",
                                                        p.get()));
@@ -960,6 +974,24 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseOne) {
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
                      m::SignExt(m::Eq(m::Param("p"), m::Literal(0b10)))));
+}
+
+TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseDefault) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[2], x: bits[32]) -> bits[32] {
+       literal.1: bits[32] = literal(value=0)
+       literal.2: bits[32] = literal(value=0)
+       ret priority_sel.3: bits[32] = priority_sel(p, cases=[literal.1, literal.2], default=x)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("x"),
+                     m::SignExt(m::Eq(m::Param("p"), m::Literal(0b00)))));
 }
 
 TEST_F(SelectSimplificationPassTest, TwoWayOneHotSelectWhichIsNotOneHot) {

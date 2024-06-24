@@ -497,18 +497,16 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
         }
-        if (select->default_value().has_value()) {
-          ConditionSet edge_set = set;
-          // If the default value is selected, we know all the bits of the
-          // selector are zero.
-          edge_set.AddCondition(Condition{
-              .node = select->selector(),
-              .value = TernaryVector(select->selector()->BitCountOrDie(),
-                                     TernaryValue::kKnownZero),
-          });
-          condition_map.SetEdgeConditionSet(node, select->cases().size() + 1,
-                                            std::move(edge_set));
-        }
+        ConditionSet edge_set = set;
+        // If the default value is selected, we know all the bits of the
+        // selector are zero.
+        edge_set.AddCondition(Condition{
+            .node = select->selector(),
+            .value = TernaryVector(select->selector()->BitCountOrDie(),
+                                   TernaryValue::kKnownZero),
+        });
+        condition_map.SetEdgeConditionSet(node, select->cases().size() + 1,
+                                          std::move(edge_set));
       }
     }
     // The operands of single-bit logical operations may not be observable

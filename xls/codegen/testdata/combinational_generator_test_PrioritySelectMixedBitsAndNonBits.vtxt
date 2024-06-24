@@ -2,9 +2,10 @@ module main(
   input wire [1:0] p,
   input wire [31:0] x,
   input wire [31:0] y,
+  input wire [31:0] d,
   output wire [63:0] out
 );
-  function automatic [31:0] priority_sel_32b_2way (input reg [1:0] sel, input reg [31:0] case0, input reg [31:0] case1);
+  function automatic [31:0] priority_sel_32b_2way (input reg [1:0] sel, input reg [31:0] case0, input reg [31:0] case1, input reg [31:0] default_value);
     begin
       casez (sel)
         2'b?1: begin
@@ -14,7 +15,7 @@ module main(
           priority_sel_32b_2way = case1;
         end
         2'b00: begin
-          priority_sel_32b_2way = '0;
+          priority_sel_32b_2way = default_value;
         end
         default: begin
           // Propagate X
@@ -23,7 +24,7 @@ module main(
       endcase
     end
   endfunction
-  wire [31:0] priority_sel_24;
-  assign priority_sel_24 = priority_sel_32b_2way(p, x, y);
-  assign out = {priority_sel_32b_2way(p, {x[31:16], x[15:0]}, {y[31:16], y[15:0]}), priority_sel_24[31:16], priority_sel_24[15:0]};
+  wire [31:0] priority_sel_32;
+  assign priority_sel_32 = priority_sel_32b_2way(p, x, y, d);
+  assign out = {priority_sel_32b_2way(p, {x[31:16], x[15:0]}, {y[31:16], y[15:0]}, {d[31:16], d[15:0]}), priority_sel_32[31:16], priority_sel_32[15:0]};
 endmodule

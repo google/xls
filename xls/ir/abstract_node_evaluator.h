@@ -317,11 +317,7 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(auto selector, GetValue(sel->selector()));
     if (sel->GetType()->IsBits()) {
       XLS_ASSIGN_OR_RETURN(auto args, GetValueList(sel->cases()));
-      std::optional<typename AbstractEvaluatorT::Span> default_value =
-          std::nullopt;
-      if (sel->default_value().has_value()) {
-        XLS_ASSIGN_OR_RETURN(default_value, GetValue(*sel->default_value()));
-      }
+      XLS_ASSIGN_OR_RETURN(auto default_value, GetValue(sel->default_value()));
       return SetValue(
           sel, evaluator_.PrioritySelect(selector, args, selector_can_be_zero,
                                          default_value));
@@ -334,12 +330,8 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
             typename AbstractEvaluatorT::Vector {
               absl::Span<typename AbstractEvaluatorT::Span const> case_values =
                   values;
-              std::optional<typename AbstractEvaluatorT::Span> default_value =
-                  std::nullopt;
-              if (sel->default_value().has_value()) {
-                default_value = case_values.back();
-                case_values.remove_suffix(1);
-              }
+              auto default_value = case_values.back();
+              case_values.remove_suffix(1);
               return evaluator().PrioritySelect(
                   selector, case_values, selector_can_be_zero, default_value);
             }));

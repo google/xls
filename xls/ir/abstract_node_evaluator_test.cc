@@ -428,8 +428,8 @@ TEST_F(AbstractNodeEvaluatorTest, OneHotSel) {
 }
 
 TEST_F(AbstractNodeEvaluatorTest, PrioritySel) {
-  auto test_with = [&](Value selector,
-                       absl::Span<Value const> cases) -> absl::StatusOr<Value> {
+  auto test_with = [&](Value selector, absl::Span<Value const> cases,
+                       Value default_value) -> absl::StatusOr<Value> {
     auto p = CreatePackage();
     FunctionBuilder fb(TestName(), p.get());
     std::vector<BValue> vals;
@@ -437,20 +437,24 @@ TEST_F(AbstractNodeEvaluatorTest, PrioritySel) {
     for (const auto& v : cases) {
       vals.push_back(fb.Literal(v));
     }
-    auto res = fb.PrioritySelect(fb.Literal(std::move(selector)), vals);
+    auto res = fb.PrioritySelect(fb.Literal(std::move(selector)), vals,
+                                 fb.Literal(std::move(default_value)));
     XLS_RETURN_IF_ERROR(fb.Build().status());
     return AbstractEvaluate(res);
   };
   EXPECT_THAT(test_with(Value(UBits(0b0010, 4)),
                         {Value(UBits(0, 4)), Value(UBits(1, 4)),
-                         Value(UBits(2, 4)), Value(UBits(3, 4))}),
+                         Value(UBits(2, 4)), Value(UBits(3, 4))},
+                        Value(UBits(8, 4))),
               status_testing::IsOkAndHolds(Value(UBits(1, 4))));
-  EXPECT_THAT(test_with(Value(UBits(0b00, 2)),
-                        {Value(UBits(1, 4)), Value(UBits(2, 4))}),
-              status_testing::IsOkAndHolds(Value(UBits(0, 4))));
-  EXPECT_THAT(test_with(Value(UBits(0b11, 2)),
-                        {Value(UBits(1, 4)), Value(UBits(2, 4))}),
-              status_testing::IsOkAndHolds(Value(UBits(1, 4))));
+  EXPECT_THAT(
+      test_with(Value(UBits(0b00, 2)), {Value(UBits(1, 4)), Value(UBits(2, 4))},
+                Value(UBits(8, 4))),
+      status_testing::IsOkAndHolds(Value(UBits(8, 4))));
+  EXPECT_THAT(
+      test_with(Value(UBits(0b11, 2)), {Value(UBits(1, 4)), Value(UBits(2, 4))},
+                Value(UBits(8, 4))),
+      status_testing::IsOkAndHolds(Value(UBits(1, 4))));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value zero,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
@@ -471,11 +475,11 @@ TEST_F(AbstractNodeEvaluatorTest, PrioritySel) {
       VB::Tuple({VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(3, 6))}),
                  VB::UBits2DArray({{3, 3, 3}, {3, 3, 3}}, 8)})
           .Build());
-  EXPECT_THAT(test_with(Value(UBits(0b0010, 4)), {zero, one, two, three}),
+  EXPECT_THAT(test_with(Value(UBits(0b0010, 4)), {zero, one, two, three}, zero),
               status_testing::IsOkAndHolds(one));
-  EXPECT_THAT(test_with(Value(UBits(0, 2)), {one, two}),
+  EXPECT_THAT(test_with(Value(UBits(0, 2)), {one, two}, zero),
               status_testing::IsOkAndHolds(zero));
-  EXPECT_THAT(test_with(Value(UBits(0b11, 2)), {one, two}),
+  EXPECT_THAT(test_with(Value(UBits(0b11, 2)), {one, two}, zero),
               status_testing::IsOkAndHolds(one));
 }
 
