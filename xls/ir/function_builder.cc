@@ -232,6 +232,7 @@ BValue BuilderBase::OneHotSelect(BValue selector,
 
 BValue BuilderBase::PrioritySelect(BValue selector,
                                    absl::Span<const BValue> cases,
+                                   std::optional<BValue> default_value,
                                    const SourceInfo& loc,
                                    std::string_view name) {
   if (ErrorPending()) {
@@ -242,7 +243,12 @@ BValue BuilderBase::PrioritySelect(BValue selector,
     CHECK_EQ(selector.builder(), bvalue.builder());
     cases_nodes.push_back(bvalue.node());
   }
-  return AddNode<xls::PrioritySelect>(loc, selector.node(), cases_nodes, name);
+  std::optional<Node*> default_value_node = std::nullopt;
+  if (default_value.has_value()) {
+    default_value_node = default_value->node();
+  }
+  return AddNode<xls::PrioritySelect>(loc, selector.node(), cases_nodes,
+                                      default_value_node, name);
 }
 
 BValue BuilderBase::Clz(BValue x, const SourceInfo& loc,

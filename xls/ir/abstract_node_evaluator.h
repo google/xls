@@ -317,17 +317,31 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(auto selector, GetValue(sel->selector()));
     if (sel->GetType()->IsBits()) {
       XLS_ASSIGN_OR_RETURN(auto args, GetValueList(sel->cases()));
+      std::optional<typename AbstractEvaluatorT::Span> default_value =
+          std::nullopt;
+      if (sel->default_value().has_value()) {
+        XLS_ASSIGN_OR_RETURN(default_value, GetValue(*sel->default_value()));
+      }
       return SetValue(
-          sel, evaluator_.PrioritySelect(selector, args, selector_can_be_zero));
+          sel, evaluator_.PrioritySelect(selector, args, selector_can_be_zero,
+                                         default_value));
     }
     XLS_ASSIGN_OR_RETURN(
         LeafTypeTree<LeafValueT> result,
         ZipPiecewise(
-            sel->GetType(), sel->cases(),
+            sel->GetType(), sel->operands().subspan(1),
             [&](absl::Span<typename AbstractEvaluatorT::Span const> values) ->
             typename AbstractEvaluatorT::Vector {
-              return evaluator().PrioritySelect(selector, values,
-                                                selector_can_be_zero);
+              absl::Span<typename AbstractEvaluatorT::Span const> case_values =
+                  values;
+              std::optional<typename AbstractEvaluatorT::Span> default_value =
+                  std::nullopt;
+              if (sel->default_value().has_value()) {
+                default_value = case_values.back();
+                case_values.remove_suffix(1);
+              }
+              return evaluator().PrioritySelect(
+                  selector, case_values, selector_can_be_zero, default_value);
             }));
     return SetValue(sel, std::move(result));
   }

@@ -2696,23 +2696,32 @@ absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
 }
 
 absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
-  XLS_ASSIGN_OR_RETURN(
-      NodeIrContext node_context,
-      NewNodeIrContext(
-          sel, ConcatVectors({"selector"},
-                             NumberedStrings("case", sel->cases().size()))));
+  std::vector<std::string> operand_names =
+      ConcatVectors({"selector"}, NumberedStrings("case", sel->cases().size()));
+  if (sel->default_value().has_value()) {
+    operand_names.push_back("default");
+  }
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewNodeIrContext(sel, operand_names));
+
   llvm::IRBuilder<>& b = node_context.entry_builder();
   llvm::Value* selector = node_context.LoadOperand(0);
 
   std::vector<llvm::Value*> cases;
-  for (int64_t i = 1; i < sel->operand_count(); ++i) {
-    cases.push_back(node_context.GetOperandPtr(i));
+  for (int64_t i = 0; i < sel->cases().size(); ++i) {
+    cases.push_back(node_context.GetOperandPtr(1 + i));
   }
   llvm::Type* sel_type = type_converter()->ConvertToLlvmType(sel->GetType());
 
-  // Create a base case of a buffer containing all zeros.
-  llvm::Value* typed_zero = b.CreateAlloca(sel_type);
-  b.CreateStore(LlvmTypeConverter::ZeroOfType(sel_type), typed_zero);
+  llvm::Value* default_value;
+  if (sel->default_value().has_value()) {
+    default_value = node_context.GetOperandPtr(sel->operand_count() - 1);
+  } else {
+    // Create a base case of a buffer containing all zeros.
+    default_value = b.CreateAlloca(sel_type);
+    b.CreateStore(LlvmTypeConverter::ZeroOfType(sel_type), default_value);
+  }
+
   llvm::Value* llvm_false = b.getFalse();
 
   // Get index to select by counting trailing zeros
@@ -2722,8 +2731,8 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
 
   // Sel is implemented by a cascading series of select ops, e.g.,
   // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
-  llvm::Value* llvm_sel = typed_zero;
-  for (int i = sel->cases().size() - 1; i >= 0; i--) {
+  llvm::Value* llvm_sel = default_value;
+  for (int i = cases.size() - 1; i >= 0; i--) {
     llvm::Value* current_index = llvm::ConstantInt::get(selector->getType(), i);
     llvm::Value* cmp = b.CreateICmpEQ(selected_index, current_index);
     llvm_sel = b.CreateSelect(cmp, cases.at(i), llvm_sel);
@@ -2731,7 +2740,7 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
 
   llvm::Value* selector_is_zero =
       b.CreateICmpEQ(selector, llvm::ConstantInt::get(selector->getType(), 0));
-  llvm_sel = b.CreateSelect(selector_is_zero, typed_zero, llvm_sel);
+  llvm_sel = b.CreateSelect(selector_is_zero, default_value, llvm_sel);
   return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
                                                  llvm_sel);
 }

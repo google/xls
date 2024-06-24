@@ -267,10 +267,15 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
   }
   XLS_ASSIGN_OR_RETURN(Node * default_predicate,
                        NaryAndIfNeeded(proc, all_default_clauses));
-  XLS_ASSIGN_OR_RETURN(
-      Node * default_value,
-      proc->MakeNode<Literal>(SourceInfo(),
-                              ZeroOfType(selected_value->GetType())));
+  Node* default_value;
+  if (selected_value->default_value().has_value()) {
+    default_value = *selected_value->default_value();
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        default_value,
+        proc->MakeNode<Literal>(SourceInfo(),
+                                ZeroOfType(selected_value->GetType())));
+  }
 
   std::string name;
   if (next->HasAssignedName()) {

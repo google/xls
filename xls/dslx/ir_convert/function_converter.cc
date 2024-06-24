@@ -3231,7 +3231,8 @@ absl::Status FunctionConverter::HandleBuiltinPrioritySel(
       cases.push_back(bvalue_case);
     }
 
-    return function_builder_->PrioritySelect(selector, cases, loc);
+    return function_builder_->PrioritySelect(
+        selector, cases, /*default_value=*/std::nullopt, loc);
   });
 
   return absl::OkStatus();

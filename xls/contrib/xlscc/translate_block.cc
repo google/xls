@@ -2157,7 +2157,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
           /*name=*/absl::StrFormat("%s_all_conditions", elem->name()));
 
       next_state_value_bval = pb.PrioritySelect(
-          selector, values, loc,
+          selector, values, /*default_value=*/std::nullopt, loc,
           /*name=*/absl::StrFormat("%s_select_next_value", elem->name()));
     }
 

@@ -735,6 +735,9 @@ absl::Status IrInterpreter::HandlePrioritySel(PrioritySelect* sel) {
       return SetValueResult(sel, ResolveAsValue(sel->get_case(i)));
     }
   }
+  if (sel->default_value().has_value()) {
+    return SetValueResult(sel, ResolveAsValue(*sel->default_value()));
+  }
   return SetValueResult(sel, ZeroOfType(sel->GetType()));
 }
 

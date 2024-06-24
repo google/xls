@@ -957,12 +957,9 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseOne) {
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::And(m::Param("x"),
-             m::SignExt(m::Eq(m::BitSlice(m::Param("p"), /*start=*/Eq(0),
-                                          /*width=*/Eq(2)),
-                              m::Literal(0b10)))));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Param("x"),
+                     m::SignExt(m::Eq(m::Param("p"), m::Literal(0b10)))));
 }
 
 TEST_F(SelectSimplificationPassTest, TwoWayOneHotSelectWhichIsNotOneHot) {
