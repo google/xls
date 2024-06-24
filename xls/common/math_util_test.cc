@@ -225,11 +225,11 @@ TEST(MathUtil, IsEven) {
 }
 
 TEST(MathUtil, Exp2) {
-  EXPECT_EQ(Exp2<uint>(0), 1);
-  EXPECT_EQ(Exp2<uint>(1), 2);
-  EXPECT_EQ(Exp2<uint>(2), 4);
-  EXPECT_EQ(Exp2<uint>(3), 8);
-  EXPECT_EQ(Exp2<uint>(31), 2147483648);
+  EXPECT_EQ(Exp2<uint32_t>(0), 1);
+  EXPECT_EQ(Exp2<uint32_t>(1), 2);
+  EXPECT_EQ(Exp2<uint32_t>(2), 4);
+  EXPECT_EQ(Exp2<uint32_t>(3), 8);
+  EXPECT_EQ(Exp2<uint32_t>(31), 2147483648);
   EXPECT_EQ(Exp2<uint64_t>(63), 1ULL << 63);
 }
 

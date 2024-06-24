@@ -14,6 +14,7 @@
 
 #include "xls/common/status/status_builder.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -108,13 +109,13 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
     case Rep::LoggingMode::kLogEveryN: {
       struct LogSites {
         absl::Mutex mutex;
-        absl::flat_hash_map<std::pair<const void*, uint>, uint>
+        absl::flat_hash_map<std::pair<const void*, uint32_t>, uint32_t>
             counts_by_file_and_line ABSL_GUARDED_BY(mutex);
       };
       static auto* log_every_n_sites = new LogSites();
 
       log_every_n_sites->mutex.Lock();
-      const uint count =
+      const uint32_t count =
           log_every_n_sites
               ->counts_by_file_and_line[{loc_.file_name(), loc_.line()}]++;
       log_every_n_sites->mutex.Unlock();
@@ -127,7 +128,7 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
     case Rep::LoggingMode::kLogEveryPeriod: {
       struct LogSites {
         absl::Mutex mutex;
-        absl::flat_hash_map<std::pair<const void*, uint>, absl::Time>
+        absl::flat_hash_map<std::pair<const void*, uint32_t>, absl::Time>
             next_log_by_file_and_line ABSL_GUARDED_BY(mutex);
       };
       static auto* log_every_sites = new LogSites();
@@ -183,7 +184,7 @@ void StatusBuilder::SetStatusCode(absl::StatusCode canonical_code,
 
 void StatusBuilder::CopyPayloads(const absl::Status& src, absl::Status* dst) {
   src.ForEachPayload([&](std::string_view type_url, absl::Cord payload) {
-    dst->SetPayload(type_url, payload);
+    dst->SetPayload(type_url, std::move(payload));
   });
 }
 

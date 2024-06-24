@@ -902,7 +902,7 @@ void ArithSimplificationPassTest::CheckUnsignedDivide(int n, int divisor) {
 TEST_F(ArithSimplificationPassTest, UnsignedDivideAllNonPowersOfTwoExhaustive) {
   constexpr int kTestUpToN = 10;
   for (int divisor = 1; divisor < Exp2<int>(kTestUpToN); ++divisor) {
-    if (!IsPowerOfTwo(static_cast<uint>(divisor))) {
+    if (!IsPowerOfTwo(static_cast<unsigned int>(divisor))) {
       for (int n = Bits::MinBitCountUnsigned(divisor); n <= kTestUpToN; ++n) {
         CheckUnsignedDivide(n, divisor);
       }
@@ -1058,7 +1058,7 @@ void ArithSimplificationPassTest::CheckSignedDividePowerOfTwo(int n,
   };
 
   // N-1 because we create signed values
-  for (int i = 0; i < Exp2<uint>(n - 1); ++i) {
+  for (int i = 0; i < Exp2<unsigned int>(n - 1); ++i) {
     interp_and_check(i, div_rt0(i));
     interp_and_check(-i, div_rt0(-i));
   }
@@ -1066,7 +1066,7 @@ void ArithSimplificationPassTest::CheckSignedDividePowerOfTwo(int n,
   // Avoid overflow: -2^(N-1) * -1 = 2^(N-1) which won't fit in a signed N-bit
   // integer.
   if (divisor != -1) {
-    const int last = -Exp2<uint>(n - 1);
+    const int last = -Exp2<unsigned int>(n - 1);
     interp_and_check(last, div_rt0(last));
   }
 }
@@ -1125,11 +1125,11 @@ void ArithSimplificationPassTest::CheckSignedDivideNotPowerOfTwo(int n,
   };
 
   // N-1 because we create signed values
-  for (int i = 0; i < Exp2<uint>(n - 1); ++i) {
+  for (int i = 0; i < Exp2<unsigned int>(n - 1); ++i) {
     interp_and_check(i, div_rt0(i));
     interp_and_check(-i, div_rt0(-i));
   }
-  const int last = -Exp2<uint>(n - 1);
+  const int last = -Exp2<unsigned int>(n - 1);
   interp_and_check(last, div_rt0(last));
 }
 
@@ -1138,7 +1138,7 @@ void ArithSimplificationPassTest::CheckSignedDivideNotPowerOfTwo(int n,
 TEST_F(ArithSimplificationPassTest, SignedDivideAllNonPowersOfTwoExhaustive) {
   constexpr int kTestUpToN = 10;
   for (int divisor = 1; divisor < Exp2<int>(kTestUpToN - 1); ++divisor) {
-    if (!IsPowerOfTwo(static_cast<uint>(divisor))) {
+    if (!IsPowerOfTwo(static_cast<unsigned int>(divisor))) {
       for (int n = Bits::MinBitCountSigned(divisor); n <= kTestUpToN; ++n) {
         CheckSignedDivideNotPowerOfTwo(n, divisor);
         CheckSignedDivideNotPowerOfTwo(n, -divisor);
