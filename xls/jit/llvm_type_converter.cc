@@ -25,8 +25,15 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "llvm/include/llvm/ADT/ArrayRef.h"
+#include "llvm/include/llvm/IR/Constant.h"
+#include "llvm/include/llvm/IR/Constants.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/Type.h"
 #include "llvm/include/llvm/Support/Alignment.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -63,8 +70,8 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
 
     const TupleType* tuple_type = xls_type->AsTupleOrDie();
     for (Type* tuple_elem_type : tuple_type->element_types()) {
-      llvm::Type* llvm_type = ConvertToLlvmType(tuple_elem_type);
-      tuple_types.push_back(llvm_type);
+      llvm::Type* converted_llvm_type = ConvertToLlvmType(tuple_elem_type);
+      tuple_types.push_back(converted_llvm_type);
     }
 
     llvm_type = llvm::StructType::get(context_, tuple_types);
@@ -158,7 +165,7 @@ llvm::Constant* LlvmTypeConverter::ZeroOfType(llvm::Type* type) {
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
     llvm::Type* type, const Value& value) const {
-  Bits xls_bits = value.bits();
+  const Bits& xls_bits = value.bits();
 
   if (xls_bits.bit_count() > 64) {
     std::vector<uint8_t> bytes = xls_bits.ToBytes();
