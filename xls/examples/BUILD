@@ -219,6 +219,11 @@ xls_dslx_test(
     },
 )
 
+xls_dslx_fmt_test(
+    name = "riscv_simple_fmt_test",
+    src = "riscv_simple.x",
+)
+
 xls_dslx_opt_ir(
     name = "sha256",
     srcs = ["sha256.x"],
