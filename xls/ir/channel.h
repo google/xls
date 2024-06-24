@@ -56,8 +56,8 @@ class FifoConfig {
   bool register_push_outputs() const { return register_push_outputs_; }
   bool register_pop_outputs() const { return register_pop_outputs_; }
 
-  friend bool operator==(const FifoConfig& a, const FifoConfig& b) = default;
-  friend bool operator<=>(const FifoConfig& a, const FifoConfig& b) = default;
+  bool operator==(const FifoConfig& other) const = default;
+  bool operator<=>(const FifoConfig& other) const = default;
 
   FifoConfigProto ToProto(int64_t width) const;
 
