@@ -224,7 +224,6 @@ cc_test(
         ":extract_segment",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
