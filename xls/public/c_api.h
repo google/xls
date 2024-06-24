@@ -16,6 +16,7 @@
 #define XLS_PUBLIC_C_API_H_
 
 #include <stddef.h>  // NOLINT(modernize-deprecated-headers)
+#include <stdint.h>  // NOLINT(modernize-deprecated-headers)
 
 // C API that exposes the functionality in various public headers in a way that
 // C-based FFI facilities can easily wrap.
@@ -41,6 +42,8 @@ extern "C" {
 struct xls_value;
 struct xls_package;
 struct xls_function;
+struct xls_type;
+struct xls_function_type;
 
 void xls_init_xls(const char* usage, int argc, char *argv[]);
 
@@ -72,6 +75,32 @@ bool xls_value_to_string(const struct xls_value* v, char** string_out);
 // Returns whether `v` is equal to `w`.
 bool xls_value_eq(const struct xls_value* v, const struct xls_value* w);
 
+// Note: We define the format preference enum with a fixed width integer type
+// for clarity of the exposed ABI.
+typedef int32_t xls_format_preference;
+enum {
+  xls_format_preference_default,
+  xls_format_preference_binary,
+  xls_format_preference_signed_decimal,
+  xls_format_preference_unsigned_decimal,
+  xls_format_preference_hex,
+  xls_format_preference_plain_binary,
+  xls_format_preference_plain_hex,
+};
+
+// Returns a format preference enum value from a string specifier; i.e.
+// `xls_format_preference_from_string("hex")` returns the value of
+// `xls_format_preference_hex` -- this is particularly useful for language
+// bindings that don't parse the C headers to determine enumerated values.
+bool xls_format_preference_from_string(const char* s, char** error_out,
+                                       xls_format_preference* result_out);
+
+// Returns the given value `v` converted to a string by way of the given
+// `format_preference`.
+bool xls_value_to_string_format_preference(
+    const struct xls_value* v, xls_format_preference format_preference,
+    char** error_out, char** result_out);
+
 // Deallocates a value, e.g. one as created by `xls_parse_typed_value`.
 void xls_value_free(struct xls_value* v);
 
@@ -94,6 +123,34 @@ bool xls_parse_ir_package(const char* ir, const char* filename,
 bool xls_package_get_function(struct xls_package* package,
                               const char* function_name, char** error_out,
                               struct xls_function** result_out);
+
+// Returns the type of the given value, as owned by the given package.
+//
+// Note: the returned type does not need to be freed, it is tied to the
+// package's lifetime.
+bool xls_package_get_type_for_value(struct xls_package* package,
+                                    struct xls_value* value, char** error_out,
+                                    struct xls_type** result_out);
+
+// Returns the string representation of the type.
+bool xls_type_to_string(struct xls_type* type, char** error_out,
+                        char** result_out);
+
+// Returns the type of the given function.
+//
+// Note: the returned type does not need to be freed, it is tied to the
+// package's lifetime.
+bool xls_function_get_type(struct xls_function* function, char** error_out,
+                           struct xls_function_type** xls_fn_type_out);
+
+// Returns the name of the given function `function` -- `string_out` is owned
+// by the caller and must be freed.
+bool xls_function_get_name(struct xls_function* function, char** error_out,
+                           char** string_out);
+
+// Returns a string representation of the given `xls_function_type`.
+bool xls_function_type_to_string(struct xls_function_type* xls_function_type,
+                                 char** error_out, char** string_out);
 
 // Interprets the given `function` using the given `args` (an array of size
 // `argc`) -- interpretation runs to a function result placed in `result_out`,
