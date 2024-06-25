@@ -233,6 +233,13 @@ PostInliningPassGroup::PostInliningPassGroup(int64_t opt_level)
 
   Add<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
 
+  Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
+  Add<DeadCodeEliminationPass>();
+  Add<BddCsePass>();
+  Add<DeadCodeEliminationPass>();
+
+  Add<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
+
   Add<UselessAssertRemovalPass>();
   Add<UselessIORemovalPass>();
   Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
