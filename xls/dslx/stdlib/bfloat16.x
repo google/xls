@@ -156,3 +156,9 @@ pub fn sub(x: BF16, y: BF16) -> BF16 { apfloat::sub(x, y) }
 pub fn mul(x: BF16, y: BF16) -> BF16 { apfloat::mul(x, y) }
 
 pub fn fma(a: BF16, b: BF16, c: BF16) -> BF16 { apfloat::fma(a, b, c) }
+
+pub fn has_fractional_part(f: BF16) -> bool { apfloat::has_fractional_part(f) }
+
+pub fn has_negative_exponent(f: BF16) -> bool { apfloat::has_negative_exponent(f) }
+
+pub fn ceil(f: BF16) -> BF16 { apfloat::ceil(f) }

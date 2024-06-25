@@ -394,6 +394,32 @@ single-precision floating-point addition, with the following exceptions:
 In all other cases, results should be identical to other conforming
 implementations (modulo exact fraction values in the `NaN` case.
 
+### `apfloat::has_fractional_part`
+
+Returns whether or not the given APFloat has a fractional part.
+
+```dslx-snippet
+pub fn has_fractional_part<EXP_SZ: u32, FRACTION_SZ: u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
+```
+
+### `has_negative_exponent`
+
+Returns whether or not the given APFloat has an negative exponent.
+
+```dslx-snippet
+pub fn has_negative_exponent<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
+```
+
+### `apfloat::ceil`
+
+```dslx-snippet
+pub fn ceil<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Finds the nearest integral `APFloat` greater than or equal to `f`.
+
 #### Implementation details
 
 Floating-point addition, like any FP operation, is much more complicated than

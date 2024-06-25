@@ -815,6 +815,48 @@ cc_test(
     ],
 )
 
+xls_dslx_opt_ir(
+    name = "float32_ceil",
+    dslx_top = "ceil",
+    ir_file = "float32_ceil.ir",
+    library = ":float32_dslx",
+    opt_ir_file = "float32_ceil.opt.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "float32_ceil_jit_wrapper",
+    src = ":float32_ceil.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "F32Ceil",
+        "namespace": "xls::fp",
+    },
+)
+
+cc_test(
+    name = "float32_ceil_test_cc",
+    srcs = ["float32_ceil_test.cc"],
+    data = [
+        ":float32_ceil.ir",
+        ":float32_ceil.opt.ir",
+    ],
+    tags = ["optonly"],
+    deps = [
+        ":float32_ceil_jit_wrapper",
+        ":float32_test_utils",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_utils",
+        "//xls/ir:value_view_utils",
+        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
+    ],
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),

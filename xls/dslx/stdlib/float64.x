@@ -169,3 +169,9 @@ pub fn sub(x: F64, y: F64) -> F64 { apfloat::sub(x, y) }
 pub fn mul(x: F64, y: F64) -> F64 { apfloat::mul(x, y) }
 
 pub fn fma(a: F64, b: F64, c: F64) -> F64 { apfloat::fma(a, b, c) }
+
+pub fn has_fractional_part(f: F64) -> bool { apfloat::has_fractional_part(f) }
+
+pub fn has_negative_exponent(f: F64) -> bool { apfloat::has_negative_exponent(f) }
+
+pub fn ceil(f: F64) -> F64 { apfloat::ceil(f) }

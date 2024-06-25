@@ -2593,3 +2593,185 @@ fn fail_case_aa() {
     let actual = fma<u32:8, u32:23>(a, b, c);
     assert_eq(expected, actual)
 }
+
+// Returns whether or not the given APFloat has a fractional part.
+pub fn has_fractional_part<EXP_SZ: u32, FRACTION_SZ: u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
+    f.bexp < bias<EXP_SZ, FRACTION_SZ>(sN[EXP_SZ]:23)
+}
+
+#[test]
+fn has_fractional_part_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let big_f32 = F32 { sign: u1:0, bexp: bias(sN[EXP_SZ]:32), fraction: uN[FRACTION_SZ]:0x123 };
+    assert_eq(has_fractional_part(one_f32), true);
+    assert_eq(has_fractional_part(big_f32), false);
+}
+
+// Returns whether or not the given APFloat has an negative exponent.
+pub fn has_negative_exponent<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
+    f.bexp < bias<EXP_SZ, FRACTION_SZ>(sN[EXP_SZ]:0)
+}
+
+#[test]
+fn has_negative_exponent_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
+    let zero_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1), ..zero_f32 };
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(has_negative_exponent(zero_dot_5_f32), true);
+    assert_eq(has_negative_exponent(one_f32), false);
+}
+
+// Round up exponent and fraction integral part, ignoring the sign.
+fn round_up_no_sign_positive_exp<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+    // unbias expononent to signed (but in that case positive) integer.
+    let exp = unbiased_exponent(f);
+    // compute fractional mask according to unbiased exponent.
+    let fractional_mask = std::mask_bits<FRACTION_SZ>() >> (exp as u32);
+
+    // add mask to round up integral bits of the fraction.
+    // example: (bfloat3 w/ exp=3)
+    // S: sign
+    // E: biased exponent
+    // I: integral bits of the fraction
+    // F: fractional bits of the fraction
+
+    // APFloat<8, 7>:         SEEE EEEE EIII FFFF
+    // fraction:                         III FFFF
+    // fractional_mask:                  000 1111
+    // fraction carry:                    (1) if any of `F` is set
+    // bexp carry:                   (1) if III overflow.
+    //
+    // if any of the fractional bits (F) are set:
+    // adding the mask to the fraction causes the fractional bits to overflow and carry up to
+    // integral bits (I) of the fraction, incrementing it by 1 (rounding it up to the next integer).
+    let fraction_up =
+        f.fraction as uN[FRACTION_SZ + u32:1] + fractional_mask as uN[FRACTION_SZ + u32:1];
+
+    // if the integral bits of the fraction overflowed: forward the carry to the biased exponent.
+    let bexp_with_carry = f.bexp + fraction_up[FRACTION_SZ+:u1] as uN[EXP_SZ];
+    // mask out fractional part to get a round number.
+    let fraction_integral = fraction_up[0+:uN[FRACTION_SZ]] & !fractional_mask;
+    APFloat { sign: f.sign, bexp: bexp_with_carry, fraction: fraction_integral }
+}
+
+// Round down exponent and fraction integral part, ignoring the sign.
+fn round_down_no_sign_positive_exp<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+    // unbias expononent to signed (but in that case positive) integer.
+    let exp = unbiased_exponent(f);
+    // compute fractional mask according to unbiased exponent.
+    let fractional_mask = std::mask_bits<FRACTION_SZ>() >> (exp as u32);
+    // mask out fractional part to get a round number.
+    let fraction_integral = f.fraction & !fractional_mask;
+    APFloat { sign: f.sign, bexp: f.bexp, fraction: fraction_integral }
+}
+
+// Finds the nearest integral `APFloat` greater than or equal to `f`.
+pub fn ceil<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+
+    match tag(f) {
+        APFloatTag::NAN => qnan<EXP_SZ, FRACTION_SZ>(),
+        APFloatTag::INFINITY => inf<EXP_SZ, FRACTION_SZ>(f.sign),
+        APFloatTag::ZERO => zero<EXP_SZ, FRACTION_SZ>(f.sign),
+        _ => {
+            if !has_fractional_part(f) {
+                f  // if no fractional part: already rounded.
+            } else if has_negative_exponent(f) {
+                if f.sign != u1:0 {
+                    // if sign negative: round to -0.
+                    zero<EXP_SZ, FRACTION_SZ>(u1:1)
+                } else {
+                    // if sign positive: round to 1.
+                    one<EXP_SZ, FRACTION_SZ>(u1:0)
+                }
+            } else if f.sign == u1:0 {
+                // if positive: round down.
+                round_up_no_sign_positive_exp(f)
+            } else {
+                // if negative: round down.
+                round_down_no_sign_positive_exp(f)
+            }
+        },
+    }
+}
+
+#[test]
+fn ceil_fractional_midpoint_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let two_f32 = add(one_f32, one_f32);
+    let three_f32 = add(one_f32, two_f32);
+    let two_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1), ..two_f32 };
+    assert_eq(ceil(two_dot_5_f32), three_f32);
+}
+
+#[test]
+fn ceil_fractional_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let two_f32 = add(one_f32, one_f32);
+    let three_f32 = add(one_f32, two_f32);
+    let two_dot_0000002_f32 = F32 { fraction: uN[FRACTION_SZ]:1, ..two_f32 };
+    assert_eq(ceil(two_dot_0000002_f32), three_f32);
+}
+
+#[test]
+fn ceil_big_integral_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let big_f32 = F32 { sign: u1:0, bexp: bias(sN[EXP_SZ]:32), fraction: uN[FRACTION_SZ]:0x123 };
+    assert_eq(ceil(big_f32), big_f32);
+}
+
+#[test]
+fn ceil_already_round_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(ceil(one_f32), one_f32);
+}
+
+#[test]
+fn ceil_special() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let inf_f32 = inf<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(ceil(inf_f32), inf_f32);
+    let minus_inf_f32 = F32 { sign: u1:1, ..inf_f32 };
+    assert_eq(ceil(minus_inf_f32), minus_inf_f32);
+    let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(ceil(zero_f32), zero_f32);
+    let minus_zero_f32 = F32 { sign: u1:1, ..zero_f32 };
+    assert_eq(ceil(minus_zero_f32), minus_zero_f32);
+    let qnan_f32 = qnan<EXP_SZ, FRACTION_SZ>();
+    assert_eq(ceil(qnan_f32), qnan_f32);
+}
+
+#[test]
+fn ceil_zero_fractional_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
+    let zero_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1), ..zero_f32 };
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(ceil(zero_dot_5_f32), one_f32);
+    let minus_zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:1);
+    let minus_zero_dot_5_f32 = F32 { sign: u1:1, ..zero_dot_5_f32 };
+    assert_eq(ceil(minus_zero_dot_5_f32), minus_zero_f32);
+}

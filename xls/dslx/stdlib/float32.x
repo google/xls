@@ -389,3 +389,9 @@ fn fast_sqrt_test() {
     let neg_denormal = F32 { sign: u1:1, bexp: ExpBits:0, fraction: FractionBits:99 };
     assert_eq(fast_rsqrt(neg_denormal), inf(u1:1));
 }
+
+pub fn has_fractional_part(f: F32) -> bool { apfloat::has_fractional_part(f) }
+
+pub fn has_negative_exponent(f: F32) -> bool { apfloat::has_negative_exponent(f) }
+
+pub fn ceil(f: F32) -> F32 { apfloat::ceil(f) }
