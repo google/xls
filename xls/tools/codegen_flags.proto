@@ -76,4 +76,7 @@ message CodegenFlagsProto {
   // use for arguments etc. Only the 'top' and channels are interpreted. Unknown
   // interface elements are ignored.
   optional PackageInterfaceProto package_interface = 32;
+  // Should annotated arguments be emitted with the sv_types they are annotated
+  // with.
+  optional bool emit_sv_types = 33;
 }

@@ -194,6 +194,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.streaming_channel_valid_suffix(p.streaming_channel_valid_suffix());
   options.streaming_channel_ready_suffix(p.streaming_channel_ready_suffix());
 
+  if (p.has_emit_sv_types()) {
+    options.emit_sv_types(p.emit_sv_types());
+  }
+
   std::vector<std::unique_ptr<verilog::RamConfiguration>> ram_configurations;
   ram_configurations.reserve(p.ram_configurations_size());
   for (const std::string& config_text : p.ram_configurations()) {

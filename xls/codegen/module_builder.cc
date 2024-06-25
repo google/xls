@@ -407,7 +407,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
 LogicRef* ModuleBuilder::AddInputPort(std::string_view name, int64_t bit_count,
                                       std::optional<std::string_view> sv_type) {
   auto* raw_bits_type = file_->BitVectorType(bit_count, SourceInfo());
-  if (sv_type) {
+  if (sv_type && options_.emit_sv_types()) {
     return module_->AddInput(
         SanitizeIdentifier(name),
         file_->ExternType(raw_bits_type, *sv_type, SourceInfo()), SourceInfo());
@@ -422,7 +422,7 @@ absl::Status ModuleBuilder::AddOutputPort(
   LogicRef* output_port;
   DataType* bits_type =
       file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
-  if (sv_type) {
+  if (sv_type && options_.emit_sv_types()) {
     output_port = module_->AddOutput(
         SanitizeIdentifier(name),
         file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());
@@ -450,7 +450,7 @@ absl::Status ModuleBuilder::AddOutputPort(
     std::optional<std::string_view> sv_type) {
   LogicRef* output_port;
   DataType* bits_type = file_->BitVectorType(bit_count, SourceInfo());
-  if (sv_type) {
+  if (sv_type && options_.emit_sv_types()) {
     output_port = module_->AddOutput(
         SanitizeIdentifier(name),
         file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());

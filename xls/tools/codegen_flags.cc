@@ -151,6 +151,9 @@ ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
 ABSL_FLAG(std::string, register_merge_strategy, "IdentityOnly",
           "What strategy to use for merging registers. Options are "
           "'IdentityOnly' and, 'DontMerge'/'None'.");
+ABSL_FLAG(bool, emit_sv_types, true,
+          "Should types annotated with #[sv_type(NAME)] be emitted into "
+          "verilog as NAME.");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //xls/build_rules/xls_providers.bzl,
@@ -230,6 +233,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
   POPULATE_FLAG(manual_load_enable_signal);
   POPULATE_FLAG(flop_inputs);
   POPULATE_FLAG(flop_outputs);
+  POPULATE_FLAG(emit_sv_types);
 
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_inputs_kind,

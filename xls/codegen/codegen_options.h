@@ -268,6 +268,12 @@ class CodegenOptions {
     return *this;
   }
 
+  CodegenOptions& emit_sv_types(bool v) {
+    emit_sv_types_ = v;
+    return *this;
+  }
+  bool emit_sv_types() const { return emit_sv_types_; }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -297,6 +303,7 @@ class CodegenOptions {
       RegisterMergeStrategy::kDefault;
   std::optional<PackageInterfaceProto> package_interface_;
   std::vector<std::string> includes_;
+  bool emit_sv_types_ = true;
 };
 
 template <typename Sink>
