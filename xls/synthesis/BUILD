@@ -118,6 +118,7 @@ py_test(
     deps = [
         ":timing_characterization_client",
         "//xls/delay_model:delay_model_py_pb2",
+        "//xls/delay_model:delay_model_utils",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -193,6 +194,7 @@ py_library(
         ":synthesis_service_py_pb2_grpc",
         "//xls/common:gfile",
         "//xls/delay_model:delay_model_py_pb2",
+        "//xls/delay_model:delay_model_utils",
         "//xls/delay_model:op_module_generator",
         "//xls/ir:op_specification_typechecked",
         "@com_google_absl_py//absl/flags",

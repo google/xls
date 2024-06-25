@@ -19,13 +19,12 @@ These datapoints can be used in a delay model (where they will be interpolated)
 format.
 """
 
-import dataclasses
 import multiprocessing as mp
 import multiprocessing.pool as mp_pool
 import os
 import sys
 import textwrap
-from typing import Any, Dict, Sequence
+from typing import Any, Dict
 
 from absl import flags
 from absl import logging
@@ -33,6 +32,7 @@ from absl import logging
 from google.protobuf import text_format
 from xls.common import gfile
 from xls.delay_model import delay_model_pb2
+from xls.delay_model import delay_model_utils
 from xls.delay_model import op_module_generator
 from xls.ir.op_specification import OPS
 from xls.synthesis import synthesis_pb2
@@ -71,14 +71,6 @@ _MAX_THREADS = flags.DEFINE_integer(
 ENUM2NAME_MAP = dict((op.enum_name, op.name) for op in OPS)
 
 
-# A `Parameterization` proto message along with the containing `OpSamples`
-# message. This represents a request for the collection of one data point.
-@dataclasses.dataclass
-class Request(object):
-  op_samples: delay_model_pb2.OpSamples
-  point: delay_model_pb2.Parameterization
-
-
 def check_delay_offset(results: delay_model_pb2.DataPoints):
   # find the minimum nonzero delay, presumably from a reg-->reg connection
   minimum_delay = min([x.delay for x in results.data_points if x.delay])
@@ -99,43 +91,6 @@ def save_checkpoint(
         f.write('}\n')
     finally:
       write_lock.release()
-
-
-def get_request_key(request: Request) -> str:
-  """Returns a key that can be used to represent a request in a dict."""
-  bit_count_strs = []
-  for bit_count in list(request.point.operand_widths):
-    operand = delay_model_pb2.Operation.Operand(
-        bit_count=bit_count, element_count=0
-    )
-    bit_count_strs.append(str(operand))
-  # The key format is the same as historically used before parallelization,
-  # except that the op name is embedded in it to avoid the need for a 2-level
-  # dict/set.
-  key = (
-      request.op_samples.op
-      + ': '
-      + ', '.join([str(request.point.result_width)] + bit_count_strs)
-  )
-  if request.op_samples.specialization:
-    key = key + ' ' + str(request.op_samples.specialization)
-  return key
-
-
-def data_point_to_request(
-    data_point: delay_model_pb2.DataPoint,
-) -> Request:
-  """Converts a data point to a request (for interpreting checkpoints)."""
-  op_samples = delay_model_pb2.OpSamples()
-  op_samples.op = data_point.operation.op
-  if data_point.operation.specialization:
-    op_samples.specialization = data_point.operation.specialization
-  point = delay_model_pb2.Parameterization()
-  point.result_width = data_point.operation.bit_count
-  point.operand_widths.extend(
-      [operand.bit_count for operand in data_point.operation.operands]
-  )
-  return Request(op_samples, point)
 
 
 def _search_for_fmax_and_synth(
@@ -232,22 +187,22 @@ def _search_for_fmax_and_synth(
 def _synthesize_ir(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     ir_text: str,
-    request: Request,
+    spec: delay_model_utils.SampleSpec,
     operand_element_counts: Dict[int, int],
 ) -> delay_model_pb2.DataPoint:
   """Synthesizes the given IR text and checkpoint resulting data points."""
   logging.info(
       'Running %s with %d / %s',
-      request.op_samples.op,
-      request.point.result_width,
-      ', '.join([str(x) for x in list(request.point.operand_widths)]),
+      spec.op_samples.op,
+      spec.point.result_width,
+      ', '.join([str(x) for x in list(spec.point.operand_widths)]),
   )
   module_name = 'main'
   mod_generator_result = op_module_generator.generate_verilog_module(
       module_name, ir_text
   )
 
-  op_comment = '// op: ' + request.op_samples.op + ' \n'
+  op_comment = '// op: ' + spec.op_samples.op + ' \n'
   verilog_text = op_comment + mod_generator_result.verilog_text
 
   result = _search_for_fmax_and_synth(stub, verilog_text, module_name)
@@ -260,11 +215,11 @@ def _synthesize_ir(
 
   # Add a new record to the results proto
   result_dp = delay_model_pb2.DataPoint()
-  result_dp.operation.op = request.op_samples.op
-  result_dp.operation.bit_count = request.point.result_width
-  if request.op_samples.specialization:
-    result_dp.operation.specialization = request.op_samples.specialization
-  for bit_count in list(request.point.operand_widths):
+  result_dp.operation.op = spec.op_samples.op
+  result_dp.operation.bit_count = spec.point.result_width
+  if spec.op_samples.specialization:
+    result_dp.operation.specialization = spec.op_samples.specialization
+  for bit_count in list(spec.point.operand_widths):
     result_dp.operation.operands.add(bit_count=bit_count)
   for opnd_num, element_count in operand_element_counts.items():
     result_dp.operation.operands[opnd_num].element_count = element_count
@@ -275,30 +230,30 @@ def _synthesize_ir(
 
 
 def _run_point(
-    request: Request,
+    spec: delay_model_utils.SampleSpec,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     checkpoint_write_lock: Any,
 ) -> delay_model_pb2.DataPoint:
   """Generate IR and Verilog, run synthesis for one op parameterization."""
 
-  op = request.op_samples.op
-  specialization = request.op_samples.specialization
-  attributes = request.op_samples.attributes
+  op = spec.op_samples.op
+  specialization = spec.op_samples.specialization
+  attributes = spec.op_samples.attributes
 
   op_name = ENUM2NAME_MAP[op]
 
   # Result type - bitwidth and optionally element count(s)
-  res_bit_count = request.point.result_width
+  res_bit_count = spec.point.result_width
   res_type = f'bits[{res_bit_count}]'
-  for res_elem in request.point.result_element_counts:
+  for res_elem in spec.point.result_element_counts:
     res_type += f'[{res_elem}]'
 
   # Operand types - bitwidth and optionally element count(s)
   opnd_element_counts: Dict[int, int] = {}
   opnd_types = []
-  for bw in request.point.operand_widths:
+  for bw in spec.point.operand_widths:
     opnd_types.append(f'bits[{bw}]')
-  for opnd_elements in request.point.operand_element_counts:
+  for opnd_elements in spec.point.operand_element_counts:
     tot_elems = 1
     for count in opnd_elements.element_counts:
       opnd_types[opnd_elements.operand_number] += f'[{count}]'
@@ -326,7 +281,7 @@ def _run_point(
   result_dp = _synthesize_ir(
       stub,
       ir_text,
-      request,
+      spec,
       opnd_element_counts,
   )
 
@@ -351,22 +306,14 @@ def load_checkpoints(checkpoint_path: str) -> delay_model_pb2.DataPoints:
   return results
 
 
-def results_to_dict(
-    results: Sequence[delay_model_pb2.DataPoint],
-) -> Dict[str, delay_model_pb2.DataPoint]:
-  """Converts a bare sequence of result protos to a dict by request key."""
-  result_dict = {}
-  for result in results:
-    result_dict[get_request_key(data_point_to_request(result))] = result
-  return result_dict
-
-
 def run_characterization(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Run characterization with the given synthesis service."""
   checkpointed_results = load_checkpoints(_CHECKPOINT_PATH.value)
-  checkpoint_dict = results_to_dict(checkpointed_results.data_points)
+  checkpoint_dict = delay_model_utils.map_data_points_by_key(
+      checkpointed_results.data_points
+  )
   samples_file = _SAMPLES_PATH.value
   op_samples_list = delay_model_pb2.OpSamplesList()
   op_include_list = set()
@@ -374,30 +321,30 @@ def run_characterization(
     op_include_list.update(['kIdentity'] + _OP_INCLUDE_LIST.value)
   with gfile.open(samples_file, 'r') as f:
     op_samples_list = text_format.Parse(f.read(), op_samples_list)
-  requests_without_prior_checkpoints = []
-  all_request_keys_in_order = []
+  sample_specs_without_prior_checkpoints = []
+  all_sample_spec_keys_in_order = []
   for op_samples in op_samples_list.op_samples:
     if not op_include_list or op_samples.op in op_include_list:
       for point in op_samples.samples:
-        request = Request(op_samples, point)
-        request_key = get_request_key(request)
-        all_request_keys_in_order.append(request_key)
-        if request_key not in checkpoint_dict:
-          requests_without_prior_checkpoints.append(request)
+        spec = delay_model_utils.SampleSpec(op_samples, point)
+        spec_key = delay_model_utils.get_sample_spec_key(spec)
+        all_sample_spec_keys_in_order.append(spec_key)
+        if spec_key not in checkpoint_dict:
+          sample_specs_without_prior_checkpoints.append(spec)
   logging.debug('Using thread pool of size %d', _MAX_THREADS.value)
   pool = mp_pool.ThreadPool(_MAX_THREADS.value)
   checkpoint_write_lock = mp.Lock()
-  results_dict = results_to_dict(
+  results_dict = delay_model_utils.map_data_points_by_key(
       pool.starmap(
           _run_point,
           (
               (request, stub, checkpoint_write_lock)
-              for request in requests_without_prior_checkpoints
+              for request in sample_specs_without_prior_checkpoints
           ),
       )
   )
   data_points_proto = delay_model_pb2.DataPoints()
-  for request_key in all_request_keys_in_order:
+  for request_key in all_sample_spec_keys_in_order:
     if request_key in checkpoint_dict:
       data_points_proto.data_points.append(checkpoint_dict[request_key])
     else:

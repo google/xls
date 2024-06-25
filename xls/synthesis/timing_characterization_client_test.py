@@ -19,6 +19,7 @@ import tempfile
 
 from absl.testing import absltest
 from xls.delay_model import delay_model_pb2
+from xls.delay_model import delay_model_utils
 from xls.synthesis import timing_characterization_client as client
 
 
@@ -47,14 +48,18 @@ class TimingCharacterizationClientMainTest(absltest.TestCase):
         results.data_points.append(result)
         client.save_checkpoint(result, tf.name, lock)
 
-    saved_results_dict = client.results_to_dict(results.data_points)
+    saved_results_dict = delay_model_utils.map_data_points_by_key(
+        results.data_points
+    )
     loaded_results = client.load_checkpoints(tf.name)
     self.assertEqual(results, loaded_results)
-    loaded_results_dict = client.results_to_dict(loaded_results.data_points)
+    loaded_results_dict = delay_model_utils.map_data_points_by_key(
+        loaded_results.data_points
+    )
     # Fancy equality checking so we get clearer error messages on
     # mismatch.
     for point in results.data_points:
-      request_key = client.get_request_key(client.data_point_to_request(point))
+      request_key = delay_model_utils.get_data_point_key(point)
       self.assertIn(request_key, loaded_results_dict)
       self.assertIn(request_key, saved_results_dict)
     self.assertEqual(len(results.data_points), len(loaded_results_dict))
