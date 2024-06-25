@@ -135,6 +135,9 @@ fn decode_r_instruction(ins: u32) -> (u7, u5, u5, u3, u5, u7) {
     (funct7, rs2, rs1, funct3, rd, opcode)
 }
 
+// This test only tests if the decoder correctly splits the R-type instruction into subparts by
+// setting the LSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the R-type.
 #[test]
 fn decode_r_test_lsb_test() {
     let (funct7, rs2, rs1, funct3, rd, opcode) =
@@ -147,6 +150,9 @@ fn decode_r_test_lsb_test() {
     assert_eq(opcode, u7:1);
 }
 
+// This test only tests if the decoder correctly splits the R-type instruction into subparts by
+// setting the MSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the R-type.
 #[test]
 fn decode_r_test_msb_test() {
     let (funct7, rs2, rs1, funct3, rd, opcode) =
@@ -176,6 +182,9 @@ fn decode_i_instruction(ins: u32) -> (u12, u5, u3, u5, u7) {
     (imm_11_0, rs1, funct3, rd, opcode)
 }
 
+// This test only tests if the decoder correctly splits the I-type instruction into subparts by
+// setting the LSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the I-type.
 #[test]
 fn decode_i_test_lsb_test() {
     let (imm12, rs1, funct3, rd, opcode) =
@@ -187,6 +196,9 @@ fn decode_i_test_lsb_test() {
     assert_eq(opcode, u7:1);
 }
 
+// This test only tests if the decoder correctly splits the I-type instruction into subparts by
+// setting the MSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the I-type.
 #[test]
 fn decode_i_test_msb_test() {
     let (imm12, rs1, funct3, rd, opcode) =
@@ -217,6 +229,9 @@ fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
     (imm_11_5 ++ imm_4_0, rs2, rs1, funct3, opcode)
 }
 
+// This test only tests if the decoder correctly splits the S-type instruction into subparts by
+// setting the LSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the S-type.
 #[test]
 fn decode_s_test_lsb_test() {
     let (imm12, rs2, rs1, funct3, opcode) =
@@ -228,6 +243,9 @@ fn decode_s_test_lsb_test() {
     assert_eq(opcode, u7:1);
 }
 
+// This test only tests if the decoder correctly splits the S-type instruction into subparts by
+// setting the MSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the S-type.
 #[test]
 fn decode_s_test_msb_test() {
     let (imm12, rs2, rs1, funct3, opcode) =
@@ -252,6 +270,9 @@ fn decode_u_instruction(ins: u32) -> (u20, u5, u7) {
     (imm_31_12, rd, opcode)
 }
 
+// This test only tests if the decoder correctly splits the U-type instruction into subparts by
+// setting the LSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the U-type.
 #[test]
 fn decode_u_test_lsb_test() {
     let (imm20, rd, opcode) = decode_u_instruction(u32:0b00000000000000000001_00001_0000001);
@@ -260,6 +281,9 @@ fn decode_u_test_lsb_test() {
     assert_eq(opcode, u7:1);
 }
 
+// This test only tests if the decoder correctly splits the U-type instruction into subparts by
+// setting the MSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the U-type.
 #[test]
 fn decode_u_test_msb_test() {
     let (imm20, rd, opcode) = decode_u_instruction(u32:0b10000000000000000000_10000_1000000);
@@ -291,6 +315,9 @@ fn decode_b_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
     (imm_12 ++ imm_11 ++ imm_10_5 ++ imm_4_1, rs2, rs1, funct3, opcode)
 }
 
+// This test only tests if the decoder correctly splits the B-type instruction into subparts by
+// setting the LSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the B-type.
 #[test]
 fn decode_b_test() {
     let (imm12, rs2, rs1, funct3, opcode) =
@@ -321,6 +348,9 @@ fn decode_j_instruction(ins: u32) -> (u20, u5, u7) {
     (imm_20 ++ imm_19_12 ++ imm_11 ++ imm_10_1, rd, opcode)
 }
 
+// This test only tests if the decoder correctly splits the J-type instruction into subparts by
+// setting the LSB of each subpart to 1 and other bits to 0. So, the opcode does not match the
+// opcode of the J-type.
 #[test]
 fn decode_j_test() {
     let (imm20, rd, opcode) = decode_j_instruction(u32:0b1_0000000001_1_00000001_00001_0000001);
@@ -353,7 +383,7 @@ fn run_r_instruction
             _ => regs[rs1] >> regs[rs2],
         },
         // LD.R, ST.C (atomics) will not be implemented here.
-        _ => fail!("unmatched_func3", u32:0),
+        _ => fail!("unmatched_funct3", u32:0),
     };
     (pc + u32:4, update(regs, rd, new_value), dmem)
 }
@@ -374,7 +404,7 @@ fn run_i_instruction
                 SRAI => ((regs[rs1] as s32) >> (imm12 as u32)) as u32,
                 ORI => regs[rs1] | (imm12 as u32),
                 ANDI => regs[rs1] & (imm12 as u32),
-                _ => fail!("unmatched_I_ARITH_func3", u32:0),
+                _ => fail!("unmatched_I_ARITH_funct3", u32:0),
             };
             (pc, value)
         },
@@ -389,7 +419,7 @@ fn run_i_instruction
                     dmem[addr + u32:3],
                 LBU => dmem[regs[addr]] as u32,
                 LHU => (dmem[addr] ++ dmem[addr + u32:1]) as u32,
-                _ => fail!("unmatched_I_LD_func3", u32:0),
+                _ => fail!("unmatched_I_LD_funct3", u32:0),
             };
             (pc, value)
         },
@@ -471,7 +501,7 @@ fn run_b_instruction
         BGE => if (regs[rs1] as s32) >= (regs[rs2] as s32) { pc_imm } else { pc4 },
         BLTU => if regs[rs1] < regs[rs2] { pc_imm } else { pc4 },
         BGEU => if regs[rs1] >= regs[rs2] { pc_imm } else { pc4 },
-        _ => fail!("unsupported_func3", u32:0),
+        _ => fail!("unsupported_funct3", u32:0),
     };
     (new_pc, regs, dmem)
 }
@@ -489,7 +519,7 @@ fn run_instruction
         B_CLASS => run_b_instruction(pc, ins, regs, dmem),
         U_CLASS => run_u_instruction(pc, ins, regs, dmem),
         UJ_CLASS => run_uj_instruction(pc, ins, regs, dmem),
-        _ => fail!("unsupported_func3", (pc, regs, dmem)),
+        _ => fail!("unsupported_opcode", (pc, regs, dmem)),
     };
     (pc, update(regs, u32:0, u32:0), dmem)  // to ensure R0 == 0 at all times.
 }
