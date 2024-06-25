@@ -262,4 +262,49 @@ TEST(XlsCApiTest, ValueToStringFormatPreferences) {
   }
 }
 
+TEST(XlsCApiTest, InterpretDslxFailFunction) {
+  // Convert the DSLX function to IR.
+  const std::string kDslxModule = R"(fn just_fail() {
+  fail!("only_failure_here", ())
+})";
+
+  const char* additional_search_paths[] = {};
+  char* error = nullptr;
+  char* ir = nullptr;
+  ASSERT_TRUE(
+      xls_convert_dslx_to_ir(kDslxModule.c_str(), "my_module.x", "my_module",
+                             /*dslx_stdlib_path=*/xls::kDefaultDslxStdlibPath,
+                             additional_search_paths, 0, &error, &ir))
+      << error;
+
+  absl::Cleanup free_cstrs([&] {
+    free(error);
+    free(ir);
+  });
+
+  struct xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(ir, "p.ir", &error, &package))
+      << "xls_parse_ir_package error: " << error;
+  absl::Cleanup free_package([package] { xls_package_free(package); });
+
+  // Get the function.
+  struct xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "__itok__my_module__just_fail",
+                                       &error, &function));
+
+  struct xls_value* token = xls_value_make_token();
+  struct xls_value* activated = xls_value_make_true();
+  absl::Cleanup free_values([&] {
+    xls_value_free(token);
+    xls_value_free(activated);
+  });
+
+  const struct xls_value* args[] = {token, activated};
+  struct xls_value* result = nullptr;
+  ASSERT_FALSE(
+      xls_interpret_function(function, /*argc=*/2, args, &error, &result));
+  EXPECT_EQ(std::string{error},
+            "ABORTED: Assertion failure via fail! @ my_module.x:2:8-2:33");
+}
+
 }  // namespace

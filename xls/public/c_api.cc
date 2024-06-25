@@ -179,6 +179,21 @@ bool xls_parse_typed_value(const char* input, char** error_out,
   return false;
 }
 
+struct xls_value* xls_value_make_token() {
+  auto* value = new xls::Value(xls::Value::Token());
+  return reinterpret_cast<xls_value*>(value);
+}
+
+struct xls_value* xls_value_make_true() {
+  auto* value = new xls::Value(xls::Value::Bool(true));
+  return reinterpret_cast<xls_value*>(value);
+}
+
+struct xls_value* xls_value_make_false() {
+  auto* value = new xls::Value(xls::Value::Bool(false));
+  return reinterpret_cast<xls_value*>(value);
+}
+
 void xls_value_free(xls_value* v) {
   if (v == nullptr) {
     return;
@@ -386,19 +401,34 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
 
   absl::StatusOr<xls::InterpreterResult<xls::Value>> result_or =
       xls::InterpretFunction(xls_function, xls_args);
-  if (result_or.ok()) {
-    // TODO(cdleary): 2024-05-30 We should pass back interpreter events through
-    // this API instead of dropping them.
-    xls::Value result_value =
-        xls::DropInterpreterEvents(std::move(result_or)).value();
-    *result_out = reinterpret_cast<struct xls_value*>(
-        new xls::Value(std::move(result_value)));
-    return true;
+
+  auto return_status = [result_out, error_out](const absl::Status& status) {
+    *result_out = nullptr;
+    *error_out = ToOwnedCString(status.ToString());
+    return false;
+  };
+
+  if (!result_or.ok()) {
+    return return_status(result_or.status());
   }
 
-  *result_out = nullptr;
-  *error_out = ToOwnedCString(result_or.status().ToString());
-  return false;
+  // TODO(cdleary): 2024-05-30 We should pass back interpreter events through
+  // this API instead of dropping them.
+  xls::InterpreterResult<xls::Value> result = std::move(result_or).value();
+
+  // Note that DropInterpreterEvents reifies any assertions into an error
+  // status.
+  absl::StatusOr<xls::Value> result_value =
+      xls::InterpreterResultToStatusOrValue(result);
+
+  if (!result_value.ok()) {
+    return return_status(result_value.status());
+  }
+
+  *result_out = reinterpret_cast<struct xls_value*>(
+      new xls::Value(std::move(result_value.value())));
+  *error_out = nullptr;
+  return true;
 }
 
 }  // extern "C"
