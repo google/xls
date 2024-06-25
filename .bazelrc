@@ -1,3 +1,6 @@
+# We use bazel >= 6, but no bzlmod yet.
+common --noenable_bzlmod
+
 # Minimium c++ standard used.
 build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
 build --action_env=BAZEL_CXXOPTS=-std=c++20
