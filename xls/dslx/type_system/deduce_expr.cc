@@ -517,6 +517,11 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceConcat(const Binop* node,
   bool lhs_is_bits = lhs_bits != nullptr;
   bool rhs_is_bits = rhs_bits != nullptr;
   if (!lhs_is_bits || !rhs_is_bits) {
+    if (lhs->HasEnum() || rhs->HasEnum()) {
+      return ctx->TypeMismatchError(
+          node->span(), node->lhs(), *lhs, node->rhs(), *rhs,
+          "Enum values must be cast to unsigned bits before concatenation.");
+    }
     return ctx->TypeMismatchError(node->span(), node->lhs(), *lhs, node->rhs(),
                                   *rhs,
                                   "Concatenation requires operand types to be "

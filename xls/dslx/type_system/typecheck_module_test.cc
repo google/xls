@@ -2444,6 +2444,48 @@ TEST(TypecheckTest, ConcatNilNil) {
                            "be either both-arrays or both-bits")));
 }
 
+TEST(TypecheckTest, ConcatEnumU2) {
+  EXPECT_THAT(Typecheck(R"(
+enum MyEnum : u2 {
+  A = 1,
+  B = 2,
+}
+fn f(x: MyEnum, y: u2) -> () { x ++ y }
+)")
+                  .status(),
+              IsPosError("XlsTypeError",
+                         HasSubstr("MyEnum vs uN[2]: Enum values must be cast "
+                                   "to unsigned bits before concatenation.")));
+}
+
+TEST(TypecheckTest, ConcatU2Enum) {
+  EXPECT_THAT(Typecheck(R"(
+enum MyEnum : u2 {
+  A = 1,
+  B = 2,
+}
+fn f(x: u2, y: MyEnum) -> () { x ++ y }
+)")
+                  .status(),
+              IsPosError("XlsTypeError",
+                         HasSubstr("uN[2] vs MyEnum: Enum values must be cast "
+                                   "to unsigned bits before concatenation.")));
+}
+
+TEST(TypecheckTest, ConcatEnumEnum) {
+  EXPECT_THAT(Typecheck(R"(
+enum MyEnum : u2 {
+  A = 1,
+  B = 2,
+}
+fn f(x: MyEnum, y: MyEnum) -> () { x ++ y }
+)")
+                  .status(),
+              IsPosError("XlsTypeError",
+                         HasSubstr("Enum values must be cast "
+                                   "to unsigned bits before concatenation.")));
+}
+
 TEST(TypecheckTest, ConcatU1ArrayOfOneU8) {
   EXPECT_THAT(Typecheck("fn f(x: u1, y: u8[1]) -> () { x ++ y }").status(),
               IsPosError("XlsTypeError",
