@@ -413,12 +413,10 @@ fn run_i_instruction
             let addr: u32 = regs[rs1] + (imm12 as u32);
             let value: u32 = match funct3 {
                 LB => signex(dmem[addr], u32:0),
-                LH => signex(dmem[addr] ++ dmem[addr + u32:1], u32:0),
-                LW =>
-                    dmem[addr + u32:0] ++ dmem[addr + u32:1] ++ dmem[addr + u32:2] ++
-                    dmem[addr + u32:3],
+                LH => signex(dmem[addr + u32:1] ++ dmem[addr], u32:0),
+                LW => dmem[addr + u32:3] ++ dmem[addr + u32:2] ++ dmem[addr + u32:1] ++ dmem[addr],
                 LBU => dmem[regs[addr]] as u32,
-                LHU => (dmem[addr] ++ dmem[addr + u32:1]) as u32,
+                LHU => (dmem[addr + u32:1] ++ dmem[addr]) as u32,
                 _ => fail!("unmatched_I_LD_funct3", u32:0),
             };
             (pc, value)
@@ -453,16 +451,16 @@ fn run_s_instruction
     // will end up, which will resolve issues around alignment as well.
     let dmem = match funct3 {
         SW => {
-            let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32), regs[rs1][24+:u8]);
-            let dmem = update(dmem, regs[rs2] + u32:1 + (imm12 as u32), regs[rs1][16+:u8]);
-            let dmem = update(dmem, regs[rs2] + u32:2 + (imm12 as u32), regs[rs1][8+:u8]);
-            update(dmem, regs[rs2] + u32:3 + (imm12 as u32), regs[rs1][0+:u8])
+            let dmem = update(dmem, regs[rs1] + u32:0 + (imm12 as u32), regs[rs2][0+:u8]);
+            let dmem = update(dmem, regs[rs1] + u32:1 + (imm12 as u32), regs[rs2][8+:u8]);
+            let dmem = update(dmem, regs[rs1] + u32:2 + (imm12 as u32), regs[rs2][16+:u8]);
+            update(dmem, regs[rs1] + u32:3 + (imm12 as u32), regs[rs2][24+:u8])
         },
         SH => {
-            let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32), regs[rs1][8+:u8]);
-            update(dmem, regs[rs2] + u32:1 + (imm12 as u32), regs[rs1][0+:u8])
+            let dmem = update(dmem, regs[rs1] + u32:0 + (imm12 as u32), regs[rs2][0+:u8]);
+            update(dmem, regs[rs1] + u32:1 + (imm12 as u32), regs[rs2][8+:u8])
         },
-        SB => { update(dmem, regs[rs2] + u32:0 + (imm12 as u32), regs[rs1][0+:u8]) },
+        SB => { update(dmem, regs[rs1] + u32:0 + (imm12 as u32), regs[rs2][0+:u8]) },
         // Note: SD is a RV64I-only instruction.
         _ => { fail!("unsupported_funct3", dmem) },
     };
@@ -550,17 +548,14 @@ fn round_trip_r_insn_test() {
 }
 
 // Make an I-type instruction for I_ARITH and I_LD
-fn make_i_insn(op: u3, rdest: u5, R1: u5, imm12: u12) -> u32 {
-    let itype: u7 = match op {
-        ADDI | SLLI | XORI | SRLI | SRAI | ORI | ANDI => I_ARITH,
-        _ => I_LD,
-    };
-    imm12 ++ R1 ++ op ++ rdest ++ itype
+fn make_i_insn(op: u3, rdest: u5, rs1: u5, imm12: u12, isLoad: bool) -> u32 {
+    let itype: u7 = if isLoad { I_LD } else { I_ARITH };
+    imm12 ++ rs1 ++ op ++ rdest ++ itype
 }
 
 // Make an I-Type instruction for JALR.
-fn make_jalr_insn(op: u3, rdest: u5, R1: u5, imm12: u12) -> u32 {
-    imm12 ++ R1 ++ op ++ rdest ++ I_JALR
+fn make_jalr_insn(op: u3, rdest: u5, rs1: u5, imm12: u12) -> u32 {
+    imm12 ++ rs1 ++ op ++ rdest ++ I_JALR
 }
 
 // Make an S-type instruction.
@@ -579,6 +574,70 @@ fn make_u_insn(rdest: u5, imm20: u20) -> u32 { imm20 ++ rdest ++ U_CLASS }
 // Make a UJ-type instruction.
 fn make_uj_insn(rdest: u5, imm20: u20) -> u32 {
     imm20[19+:u1] ++ imm20[0+:u10] ++ imm20[11+:u1] ++ imm20[12+:u8] ++ rdest ++ UJ_CLASS
+}
+
+// Load/Store Tests
+// The below tests test if the endianness is little-endian.
+#[test]
+fn load_endianness_16bit_test() {
+    // This test is done by loading a 32-bit value from memory byte-by-byte.
+    let regs = u32[REG_COUNT]:[0, 0, 0, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0x71, 0x72, 0x73, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_i_insn(LH, R1, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[0], u8:0x70);
+    assert_eq(dmem[1], u8:0x71);
+    assert_eq(regs[R1], u32:0x7170);
+}
+
+#[test]
+fn load_endianness_32bit_test() {
+    // This test is done by loading a 32-bit value from memory byte-by-byte.
+    let regs = u32[REG_COUNT]:[0, 0, 0, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0x71, 0x72, 0x73, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_i_insn(LW, R1, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[0], u8:0x70);
+    assert_eq(dmem[1], u8:0x71);
+    assert_eq(dmem[2], u8:0x72);
+    assert_eq(dmem[3], u8:0x73);
+    assert_eq(regs[R1], u32:0x73727170);
+}
+
+#[test]
+fn store_endianness_16bit_test() {
+    // This test is done by storing a 16-bit value then loading from memory byte-by-byte.
+    let regs = u32[REG_COUNT]:[0, 0x7170, 0, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_s_insn(SH, R0, R1, u12:0), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LB, R2, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(regs[R2], u32:0x70);
+    let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LB, R2, R0, u12:1, true), regs, dmem);
+    assert_eq(pc, u32:0x0c);
+    assert_eq(regs[R2], u32:0x71);
+}
+
+#[test]
+fn store_endianness_32bit_test() {
+    // This test is done by storing a 16-bit value then loading from memory byte-by-byte.
+    let regs = u32[REG_COUNT]:[0, 0x73727170, 0, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_s_insn(SW, R0, R1, u12:0), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LB, R2, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(regs[R2], u32:0x70);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LB, R2, R0, u12:1, true), regs, dmem);
+    assert_eq(pc, u32:0x0c);
+    assert_eq(regs[R2], u32:0x71);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LB, R2, R0, u12:2, true), regs, dmem);
+    assert_eq(pc, u32:0x10);
+    assert_eq(regs[R2], u32:0x72);
+    let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LB, R2, R0, u12:3, true), regs, dmem);
+    assert_eq(pc, u32:0x14);
+    assert_eq(regs[R2], u32:0x73);
 }
 
 // To test all of the above, construct simple instructions
@@ -601,17 +660,17 @@ fn risc_v_example_test() {
     let PC: u32 = u32:0;
 
     // Run instructions in sequence
-    let (PC, regs, dmem) = run_instruction(PC, make_r_insn(XOR, R3, R1, R2), regs, dmem);  // 3
+    let (PC, regs, dmem) = run_instruction(PC, make_r_insn(XOR, R3, R1, R2), regs, dmem);
     assert_eq(regs[R3], u32:3);
-    let (PC, regs, dmem) = run_instruction(PC, make_r_insn(ADD, R6, R3, R3), regs, dmem);  // 6
+    let (PC, regs, dmem) = run_instruction(PC, make_r_insn(ADD, R6, R3, R3), regs, dmem);
     assert_eq(regs[R3], u32:3);
     assert_eq(regs[R6], u32:6);
-    let (PC, regs, dmem) = run_instruction(PC, make_s_insn(SW, R6, R0, u12:4), regs, dmem);  // 6
-    let (PC, regs, dmem) = run_instruction(PC, make_i_insn(ADDI, R7, R6, u12:1), regs, dmem);  // 7
+    let (PC, regs, dmem) = run_instruction(PC, make_s_insn(SW, R0, R6, u12:4), regs, dmem);
+    let (PC, regs, dmem) = run_instruction(PC, make_i_insn(ADDI, R7, R6, u12:1, false), regs, dmem);
     assert_eq(regs[R7], u32:7);
-    let (PC, regs, dmem) = run_instruction(PC, make_i_insn(LW, R8, R0, u12:4), regs, dmem);  // 6
+    let (PC, regs, dmem) = run_instruction(PC, make_i_insn(LW, R8, R0, u12:4, true), regs, dmem);
     assert_eq(regs[R8], u32:6);
-    let (PC, regs, dmem) = run_instruction(PC, make_r_insn(ADD, R6, R8, R7), regs, dmem);  // 13
+    let (PC, regs, dmem) = run_instruction(PC, make_r_insn(ADD, R6, R8, R7), regs, dmem);
     assert_eq(regs[R6], u32:13);
     let (PC, regs, dmem) = run_instruction(PC, make_jalr_insn(JALR, R1, R6, u12:128), regs, dmem);
     let (PC, regs, dmem) = run_instruction(PC, make_u_insn(R9, u20:0x80001), regs, dmem);
