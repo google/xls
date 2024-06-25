@@ -40,7 +40,7 @@ from xls.delay_model import delay_model_utils
 
 
 @enum.unique
-class UpdateMode(enum.StrEnum):
+class UpdateMode(enum.Enum):
   """Options for delay model update semantics."""
 
   # Replace the whole delay model.
