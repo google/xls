@@ -98,7 +98,7 @@ using filepath_contenthash_t = std::pair<fs::path, hash_t>;
 std::optional<std::string> GetCommandOutput(const std::string& prog) {
   auto result = xls::InvokeSubprocess({"/bin/sh", "-c", prog});
   if (result.ok()) {
-    return result->stdout;
+    return result->stdout_content;
   }
   std::cerr << result.status() << "\n";
   return std::nullopt;
@@ -193,7 +193,8 @@ class ClangTidyRunner {
           std::cerr << "clang-tidy invocation " << run_result.status() << "\n";
           continue;
         }
-        std::string output = RepairFilenameOccurences(run_result->stdout);
+        std::string output =
+            RepairFilenameOccurences(run_result->stdout_content);
         if (auto s = xls::SetFileContents(output_store.PathFor(work), output);
             !s.ok()) {
           std::cerr << "Failed to set output " << s << "\n";

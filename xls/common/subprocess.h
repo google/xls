@@ -29,8 +29,8 @@
 namespace xls {
 
 struct SubprocessResult {
-  std::string stdout;
-  std::string stderr;
+  std::string stdout_content;
+  std::string stderr_content;
   int exit_status;
 
   // The results of WIFEXITED for the subprocess.
@@ -53,7 +53,7 @@ inline void PrintTo(const SubprocessResult& result, std::ostream* os) {
       "SubprocessResult "
       "{\n\tstdout=%s\n\tstderr=%s\n\texit_status=%d\n\tnormal_termination=%"
       "d\n\ttimeout_expired=%d\n}}",
-      result.stdout, result.stderr, result.exit_status,
+      result.stdout_content, result.stderr_content, result.exit_status,
       result.normal_termination, result.timeout_expired);
 }
 

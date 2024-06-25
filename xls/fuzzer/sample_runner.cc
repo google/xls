@@ -220,14 +220,14 @@ absl::StatusOr<std::string> RunCommand(
   }
   absl::Duration elapsed = timer.GetElapsedTime();
   XLS_RETURN_IF_ERROR(SetFileContents(
-      run_dir / absl::StrCat(basename, ".stderr"), result.stderr));
+      run_dir / absl::StrCat(basename, ".stderr"), result.stderr_content));
   if (VLOG_IS_ON(4)) {
     // stdout and stderr can be long so split them by line to avoid clipping.
     VLOG(4) << basename << " stdout:";
-    XLS_VLOG_LINES(4, result.stdout);
+    XLS_VLOG_LINES(4, result.stdout_content);
 
     VLOG(4) << basename << " stderr:";
-    XLS_VLOG_LINES(4, result.stderr);
+    XLS_VLOG_LINES(4, result.stderr_content);
   }
   VLOG(1) << desc << " complete, elapsed " << elapsed;
   if (!result.normal_termination) {
@@ -236,7 +236,7 @@ absl::StatusOr<std::string> RunCommand(
   }
   if (result.exit_status != EXIT_SUCCESS) {
     if (absl::c_any_of(filters, [&](const std::shared_ptr<RE2>& re) {
-          return RE2::PartialMatch(result.stderr, *re);
+          return RE2::PartialMatch(result.stderr_content, *re);
         })) {
       return absl::FailedPreconditionError(
           absl::StrFormat("%s returned a non-zero exit status (%d) but failure "
@@ -247,7 +247,7 @@ absl::StatusOr<std::string> RunCommand(
         absl::StrCat(executable.string(), " returned non-zero exit status (",
                      result.exit_status, "): ", command_string));
   }
-  return result.stdout;
+  return result.stdout_content;
 }
 
 // Converts the DSLX file to an IR file with a function as the top whose

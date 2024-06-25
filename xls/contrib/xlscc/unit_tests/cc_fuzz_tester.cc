@@ -75,8 +75,8 @@ class GeneratedTester : public XlsccTestBase {
     XLS_ASSIGN_OR_RETURN(xls::SubprocessResult result_value,
                          xls::InvokeSubprocess({std::string(exec_filename)}));
 
-    std::string stripped_result =
-        absl::StrReplaceAll(result_value.stdout, {{"0b", ""}, {".", ""}});
+    std::string stripped_result = absl::StrReplaceAll(
+        result_value.stdout_content, {{"0b", ""}, {".", ""}});
     std::reverse(stripped_result.begin(), stripped_result.end());
     absl::InlinedVector<bool, 1> expected_in;
     expected_in.reserve(stripped_result.size());

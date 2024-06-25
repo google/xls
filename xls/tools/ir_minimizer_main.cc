@@ -288,8 +288,8 @@ absl::StatusOr<bool> StillFailsHelper(
                          InvokeSubprocess(argv));
 
     if (subproc_result.exit_status != 0) {
-      VLOG(2) << "stdout:  \"\"\"" << subproc_result.stdout << "\"\"\"";
-      VLOG(2) << "stderr:  \"\"\"" << subproc_result.stderr << "\"\"\"";
+      VLOG(2) << "stdout:  \"\"\"" << subproc_result.stdout_content << "\"\"\"";
+      VLOG(2) << "stderr:  \"\"\"" << subproc_result.stderr_content << "\"\"\"";
       VLOG(2) << "retcode: " << subproc_result.exit_status;
     }
     if (absl::GetFlag(FLAGS_test_executable_crash_is_bug)) {

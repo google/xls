@@ -330,8 +330,8 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
     release_watchdog = true;
   }
 
-  return SubprocessResult{.stdout = stdout_output,
-                          .stderr = stderr_output,
+  return SubprocessResult{.stdout_content = stdout_output,
+                          .stderr_content = stderr_output,
                           .exit_status = WEXITSTATUS(wait_status),
                           .normal_termination = WIFEXITED(wait_status),
                           .timeout_expired = timeout_expired.load()};
@@ -340,7 +340,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
 absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
     absl::StatusOr<SubprocessResult> result) {
   if (result.ok()) {
-    return std::make_pair(result->stdout, result->stderr);
+    return std::make_pair(result->stdout_content, result->stderr_content);
   }
   return result.status();
 }
@@ -355,13 +355,14 @@ absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
   return absl::InternalError(absl::StrFormat(
       "Subprocess exit_code: %d normal_termination: %d stdout: %s stderr: %s",
       result_or_status->exit_status, result_or_status->normal_termination,
-      result_or_status->stdout, result_or_status->stderr));
+      result_or_status->stdout_content, result_or_status->stderr_content));
 }
 
 std::ostream& operator<<(std::ostream& os, const SubprocessResult& other) {
   os << "exit_status:" << other.exit_status
      << " normal_termination:" << other.normal_termination
-     << "\nstdout:" << other.stdout << "\nstderr:" << other.stderr << "\n";
+     << "\nstdout:" << other.stdout_content
+     << "\nstderr:" << other.stderr_content << "\n";
   return os;
 }
 

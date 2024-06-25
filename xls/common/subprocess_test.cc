@@ -49,8 +49,8 @@ TEST(SubprocessTest, NonZeroExitWorks) {
                        std::nullopt);
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
-                          /*stdout=*/"hey",
-                          /*stderr=*/"hello",
+                          /*stdout_content=*/"hey",
+                          /*stderr_content=*/"hello",
                           /*exit_status=*/10,
                           /*normal_termination=*/true,
                           /*timeout_expired=*/false)));
@@ -63,8 +63,8 @@ TEST(SubprocessTest, CrashingExitWorks) {
                        std::nullopt);
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
-                          /*stdout=*/_,
-                          /*stderr=*/"hello",
+                          /*stdout_content=*/_,
+                          /*stderr_content=*/"hello",
                           /*exit_status=*/_,
                           /*normal_termination=*/false,
                           /*timeout_expired=*/false)));
@@ -77,8 +77,8 @@ TEST(SubprocessTest, WatchdogFastExitWorks) {
   absl::Duration duration = absl::Now() - start_time;
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
-                          /*stdout=*/"",
-                          /*stderr=*/"",
+                          /*stdout_content=*/"",
+                          /*stderr_content=*/"",
                           /*exit_status=*/0,
                           /*normal_termination=*/true,
                           /*timeout_expired=*/false)));
@@ -90,8 +90,8 @@ TEST(SubprocessTest, WatchdogWorks) {
                                  std::nullopt, absl::Milliseconds(50));
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
-                          /*stdout=*/"",
-                          /*stderr=*/"",
+                          /*stdout_content=*/"",
+                          /*stderr_content=*/"",
                           /*exit_status=*/_,
                           /*normal_termination=*/false,
                           /*timeout_expired=*/true)));
@@ -115,8 +115,8 @@ TEST(SubprocessTest, WorkingCommandWorks) {
           std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
-  EXPECT_EQ(result_or_status->stdout, "hey\n");
-  EXPECT_EQ(result_or_status->stderr, "hello\n");
+  EXPECT_EQ(result_or_status->stdout_content, "hey\n");
+  EXPECT_EQ(result_or_status->stderr_content, "hello\n");
 }
 
 TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
@@ -126,8 +126,8 @@ TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
                        std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
-  EXPECT_THAT(result_or_status->stdout, HasSubstr("\n10000\n"));
-  EXPECT_EQ(result_or_status->stderr, "hello\n");
+  EXPECT_THAT(result_or_status->stdout_content, HasSubstr("\n10000\n"));
+  EXPECT_EQ(result_or_status->stderr_content, "hello\n");
 }
 
 TEST(SubprocessTest, LargeOutputToStderrFirstWorks) {
@@ -137,13 +137,14 @@ TEST(SubprocessTest, LargeOutputToStderrFirstWorks) {
                        std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
-  EXPECT_EQ(result_or_status->stdout, "hello\n");
-  EXPECT_THAT(result_or_status->stderr, HasSubstr("\n10000\n"));
+  EXPECT_EQ(result_or_status->stdout_content, "hello\n");
+  EXPECT_THAT(result_or_status->stderr_content, HasSubstr("\n10000\n"));
 }
 
 TEST(SubprocessTest, ErrorAsStatusWorks) {
   // Translates abnormal termination.
-  SubprocessResult bad_exit{.stderr = "word_a", .normal_termination = false};
+  SubprocessResult bad_exit{.stderr_content = "word_a",
+                            .normal_termination = false};
   absl::StatusOr<SubprocessResult> exit_payload = bad_exit;
   absl::StatusOr<SubprocessResult> exit_result =
       SubprocessErrorAsStatus(exit_payload);
@@ -151,8 +152,8 @@ TEST(SubprocessTest, ErrorAsStatusWorks) {
               StatusIs(absl::StatusCode::kInternal, HasSubstr("word_a")));
 
   // Translates non-zero exit code.
-  SubprocessResult bad_code{.stdout = "word_c",
-                            .stderr = "word_d",
+  SubprocessResult bad_code{.stdout_content = "word_c",
+                            .stderr_content = "word_d",
                             .exit_status = 4,
                             .normal_termination = true};
   absl::StatusOr<SubprocessResult> code_payload = bad_code;
@@ -171,7 +172,8 @@ TEST(SubprocessTest, ErrorAsStatusWorks) {
 }
 
 TEST(SubprocessTest, ResultsUnpackToStringPair) {
-  SubprocessResult payload{.stdout = "hello", .stderr = "there"};
+  SubprocessResult payload{.stdout_content = "hello",
+                           .stderr_content = "there"};
   absl::StatusOr<SubprocessResult> result = payload;
   absl::StatusOr<std::pair<std::string, std::string>> transformed =
       SubprocessResultToStrings(result);
