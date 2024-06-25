@@ -467,6 +467,33 @@ endmodule)");
   }
 }
 
+TEST_P(VastTest, ModuleWithUserDataTypes) {
+  VerilogFile f(GetFileType());
+  Module* module = f.Make<Module>(SourceInfo(), "my_module");
+  LogicRef* out_ref = module->AddOutput(
+      "out",
+      f.Make<ExternType>(SourceInfo(), f.BitVectorType(64, SourceInfo()),
+                         "foobar"),
+      SourceInfo());
+  module->Add<ContinuousAssignment>(SourceInfo(), out_ref,
+                                    f.Literal(UBits(32, 64), SourceInfo()));
+  if (UseSystemVerilog()) {
+    EXPECT_EQ(module->Emit(nullptr),
+              R"(module my_module(
+  output  foobar out
+);
+  assign out = 64'h0000_0000_0000_0020;
+endmodule)");
+  } else {
+    EXPECT_EQ(module->Emit(nullptr),
+              R"(module my_module(
+  output  foobar out
+);
+  assign out = 64'h0000_0000_0000_0020;
+endmodule)");
+  }
+}
+
 TEST_P(VastTest, Literals) {
   VerilogFile f(GetFileType());
   EXPECT_EQ("32'd44", f.Literal(UBits(44, 32), SourceInfo(),
@@ -833,7 +860,7 @@ TEST_P(VastTest, IfdefWithElsif) {
   MacroStatementBlock* elsif_block = ifdef->AddAlternate("SYNTHESIS2");
   ifdef_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
   elsif_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
-                                        f.Make<XSentinel>(SourceInfo(), 2));
+                                       f.Make<XSentinel>(SourceInfo(), 2));
 
   EXPECT_EQ(initial->Emit(nullptr),
             R"(initial begin

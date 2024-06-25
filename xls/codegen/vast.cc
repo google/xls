@@ -537,14 +537,22 @@ LogicRef* Module::AddPortDef(Direction direction, Def* def,
 
 LogicRef* Module::AddInput(std::string_view name, DataType* type,
                            const SourceInfo& loc) {
-  return AddPortDef(Direction::kInput, file()->Make<WireDef>(loc, name, type),
-                    loc);
+  return AddPortDef(
+      Direction::kInput,
+      type->IsUserDefined()
+          ? static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type))
+          : static_cast<Def*>(file()->Make<WireDef>(loc, name, type)),
+      loc);
 }
 
 LogicRef* Module::AddOutput(std::string_view name, DataType* type,
                             const SourceInfo& loc) {
-  return AddPortDef(Direction::kOutput, file()->Make<WireDef>(loc, name, type),
-                    loc);
+  return AddPortDef(
+      Direction::kOutput,
+      type->IsUserDefined()
+          ? static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type))
+          : static_cast<Def*>(file()->Make<WireDef>(loc, name, type)),
+      loc);
 }
 
 LogicRef* Module::AddReg(std::string_view name, DataType* type,
