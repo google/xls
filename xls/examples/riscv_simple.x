@@ -410,13 +410,15 @@ fn run_i_instruction
         },
         I_LD => {
             let pc: u32 = pc + u32:4;
-            let addr: u32 = regs[rs1] + (imm12 as u32);
+            let base_addr: u32 = regs[rs1] + signex(imm12, u32:0);
             let value: u32 = match funct3 {
-                LB => signex(dmem[addr], u32:0),
-                LH => signex(dmem[addr + u32:1] ++ dmem[addr], u32:0),
-                LW => dmem[addr + u32:3] ++ dmem[addr + u32:2] ++ dmem[addr + u32:1] ++ dmem[addr],
-                LBU => dmem[regs[addr]] as u32,
-                LHU => (dmem[addr + u32:1] ++ dmem[addr]) as u32,
+                LB => signex(dmem[base_addr], u32:0),
+                LH => signex(dmem[base_addr + u32:1] ++ dmem[base_addr], u32:0),
+                LW =>
+                    dmem[base_addr + u32:3] ++ dmem[base_addr + u32:2] ++ dmem[base_addr + u32:1] ++
+                    dmem[base_addr],
+                LBU => dmem[base_addr] as u32,
+                LHU => (dmem[base_addr + u32:1] ++ dmem[base_addr]) as u32,
                 _ => fail!("unmatched_I_LD_funct3", u32:0),
             };
             (pc, value)
@@ -445,22 +447,23 @@ fn run_s_instruction
     (pc: u32, ins: u32, regs: u32[REG_COUNT], dmem: u8[DMEM_SIZE])
     -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
     let (imm12, rs2, rs1, funct3, _opcode) = decode_s_instruction(ins);
+    let base_addr: u32 = regs[rs1] + signex(imm12, u32:0);
 
     // Store various byte length to dmem.
     // This is where are much smarter load/store queue mechanism
     // will end up, which will resolve issues around alignment as well.
     let dmem = match funct3 {
         SW => {
-            let dmem = update(dmem, regs[rs1] + u32:0 + (imm12 as u32), regs[rs2][0+:u8]);
-            let dmem = update(dmem, regs[rs1] + u32:1 + (imm12 as u32), regs[rs2][8+:u8]);
-            let dmem = update(dmem, regs[rs1] + u32:2 + (imm12 as u32), regs[rs2][16+:u8]);
-            update(dmem, regs[rs1] + u32:3 + (imm12 as u32), regs[rs2][24+:u8])
+            let dmem = update(dmem, base_addr + u32:0, regs[rs2][0+:u8]);
+            let dmem = update(dmem, base_addr + u32:1, regs[rs2][8+:u8]);
+            let dmem = update(dmem, base_addr + u32:2, regs[rs2][16+:u8]);
+            update(dmem, base_addr + u32:3, regs[rs2][24+:u8])
         },
         SH => {
-            let dmem = update(dmem, regs[rs1] + u32:0 + (imm12 as u32), regs[rs2][0+:u8]);
-            update(dmem, regs[rs1] + u32:1 + (imm12 as u32), regs[rs2][8+:u8])
+            let dmem = update(dmem, base_addr + u32:0, regs[rs2][0+:u8]);
+            update(dmem, base_addr + u32:1, regs[rs2][8+:u8])
         },
-        SB => { update(dmem, regs[rs1] + u32:0 + (imm12 as u32), regs[rs2][0+:u8]) },
+        SB => { update(dmem, base_addr, regs[rs2][0+:u8]) },
         // Note: SD is a RV64I-only instruction.
         _ => { fail!("unsupported_funct3", dmem) },
     };
@@ -548,9 +551,11 @@ fn round_trip_r_insn_test() {
 }
 
 // Make an I-type instruction for I_ARITH and I_LD
-fn make_i_insn(op: u3, rdest: u5, rs1: u5, imm12: u12, isLoad: bool) -> u32 {
-    let itype: u7 = if isLoad { I_LD } else { I_ARITH };
-    imm12 ++ rs1 ++ op ++ rdest ++ itype
+// Load instructions and arithmetic instructions share the same I instruction format,
+// but the have different opcodes. The isLoad parameter is used to distinguish between the two.
+fn make_i_insn(funct3: u3, rdest: u5, rs1: u5, imm12: u12, isLoad: bool) -> u32 {
+    let opcode: u7 = if isLoad { I_LD } else { I_ARITH };
+    imm12 ++ rs1 ++ funct3 ++ rdest ++ opcode
 }
 
 // Make an I-Type instruction for JALR.
@@ -638,6 +643,169 @@ fn store_endianness_32bit_test() {
     let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LB, R2, R0, u12:3, true), regs, dmem);
     assert_eq(pc, u32:0x14);
     assert_eq(regs[R2], u32:0x73);
+}
+
+// The below tests test if the signed/unsigned load/store instructions are correctly implemented
+
+#[test]
+fn load_unsigned_8bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0, 4, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0xf1, 0x72, 0xf3, 0, ...];
+    let (pc, regs, dmem) =
+        run_instruction(u32:0, make_i_insn(LBU, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[0], u8:0x70);
+    assert_eq(regs[R15], u32:0x70);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LBU, R15, R1, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(dmem[1], u8:0xf1);
+    assert_eq(regs[R15], u32:0xf1);
+}
+
+#[test]
+fn load_signed_8bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0, 4, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0xf1, 0x72, 0xf3, 0, ...];
+    let (pc, regs, dmem) =
+        run_instruction(u32:0, make_i_insn(LB, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[0], u8:0x70);
+    assert_eq(regs[R15], u32:0x70);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LB, R15, R1, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(dmem[1], u8:0xf1);
+    assert_eq(regs[R15], u32:0xfffffff1);
+}
+
+#[test]
+fn load_unsigned_16bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0, 4, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0xf1, 0x72, 0xf3, 0, ...];
+    let (pc, regs, dmem) =
+        run_instruction(u32:0, make_i_insn(LHU, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[0], u8:0x70);
+    assert_eq(dmem[1], u8:0xf1);
+    assert_eq(regs[R15], u32:0xf170);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LHU, R15, R2, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(dmem[2], u8:0x72);
+    assert_eq(dmem[3], u8:0xf3);
+    assert_eq(regs[R15], u32:0xf372);
+}
+
+#[test]
+fn load_signed_16bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0, 4, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0xf1, 0x72, 0xf3, 0, ...];
+    let (pc, regs, dmem) =
+        run_instruction(u32:0, make_i_insn(LH, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[0], u8:0x70);
+    assert_eq(dmem[1], u8:0xf1);
+    assert_eq(regs[R15], u32:0xfffff170);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LH, R15, R1, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(dmem[1], u8:0xf1);
+    assert_eq(dmem[2], u8:0x72);
+    assert_eq(regs[R15], u32:0x72f1);
+}
+
+#[test]
+fn load_32bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0, 4, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0xf1, 0x72, 0xf3, 0, ...];
+    let (pc, regs, dmem) =
+        run_instruction(u32:0, make_i_insn(LW, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[0], u8:0x70);
+    assert_eq(dmem[1], u8:0xf1);
+    assert_eq(dmem[2], u8:0x72);
+    assert_eq(dmem[3], u8:0xf3);
+    assert_eq(regs[R15], u32:0xf372f170);
+}
+
+#[test]
+fn load_positive_immediate_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0, 4, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0xf1, 0x72, 0xf3, 0, ...];
+    let (pc, regs, dmem) =
+        run_instruction(u32:0, make_i_insn(LBU, R15, R0, u12:2, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[2], u8:0x72);
+    assert_eq(regs[R15], u32:0x72);
+}
+
+#[test]
+fn load_negative_immediate_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0, 4, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0x70, 0xf1, 0x72, 0xf3, 0, ...];
+    let (pc, regs, dmem) =
+        run_instruction(u32:0, make_i_insn(LBU, R15, R2, u12:0xfff, true), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    assert_eq(dmem[1], u8:0xf1);
+    assert_eq(regs[R15], u32:0xf1);
+}
+
+#[test]
+fn store_8bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0x87654321, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0xaa, 0xaa, 0xaa, 0xaa, 0, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_s_insn(SB, R0, R3, u12:0), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LW, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(regs[R15], u32:0xaaaaaa21);
+}
+
+#[test]
+fn store_16bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0x87654321, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0xaa, 0xaa, 0xaa, 0xaa, 0, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_s_insn(SH, R0, R3, u12:0), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LW, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(regs[R15], u32:0xaaaa4321);
+}
+
+#[test]
+fn store_32bit_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0x87654321, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0xaa, 0xaa, 0xaa, 0xaa, 0, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_s_insn(SW, R0, R3, u12:0), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LW, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(regs[R15], u32:0x87654321);
+}
+
+#[test]
+fn store_positive_immediate_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0x87654321, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0xaa, 0xaa, 0xaa, 0xaa, 0, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_s_insn(SH, R0, R3, u12:2), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LW, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(regs[R15], u32:0x4321aaaa);
+    let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LW, R15, R0, u12:4, true), regs, dmem);
+    assert_eq(pc, u32:0x0c);
+    assert_eq(regs[R15], u32:0x00000000);
+}
+
+#[test]
+fn store_negative_immediate_test() {
+    let regs = u32[REG_COUNT]:[0, 1, 2, 0x87654321, 0, ...];
+    let dmem = u8[DMEM_SIZE]:[0xaa, 0xaa, 0xaa, 0xaa, 0, ...];
+    let (pc, regs, dmem) = run_instruction(u32:0, make_s_insn(SH, R2, R3, u12:0xfff), regs, dmem);
+    assert_eq(pc, u32:0x04);
+    let (pc, regs, dmem) = run_instruction(pc, make_i_insn(LW, R15, R0, u12:0, true), regs, dmem);
+    assert_eq(pc, u32:0x08);
+    assert_eq(regs[R15], u32:0xaa4321aa);
+    let (pc, regs, _dmem) = run_instruction(pc, make_i_insn(LW, R15, R0, u12:4, true), regs, dmem);
+    assert_eq(pc, u32:0x0c);
+    assert_eq(regs[R15], u32:0x00000000);
 }
 
 // To test all of the above, construct simple instructions
