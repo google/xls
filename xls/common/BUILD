@@ -28,6 +28,17 @@ package(
 )
 
 cc_library(
+    name = "timeout_support",
+    srcs = ["timeout_support.cc"],
+    hdrs = ["timeout_support.h"],
+    deps = [
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
     name = "bits_util",
     hdrs = ["bits_util.h"],
     deps = [

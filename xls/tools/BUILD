@@ -28,6 +28,44 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+cc_library(
+    name = "tool_timeout",
+    srcs = ["tool_timeout.cc"],
+    hdrs = ["tool_timeout.h"],
+    deps = [
+        "//xls/common:timeout_support",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_binary(
+    name = "tool_timeout_test_main",
+    testonly = True,
+    srcs = ["tool_timeout_test_main.cc"],
+    deps = [
+        ":tool_timeout",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+py_test(
+    name = "tool_timeout_test",
+    srcs = ["tool_timeout_test.py"],
+    data = [":tool_timeout_test_main"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
 py_binary(
     name = "package_bazel_build",
     srcs = ["package_bazel_build.py"],
@@ -840,6 +878,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":opt",
+        ":tool_timeout",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -1176,6 +1215,7 @@ cc_binary(
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags",
         ":scheduling_options_flags_cc_proto",
+        ":tool_timeout",
         "//xls/codegen:module_signature",
         "//xls/common:exit_status",
         "//xls/common:init_xls",

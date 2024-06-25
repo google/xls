@@ -39,6 +39,7 @@
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/tool_timeout.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -60,6 +61,7 @@ namespace xls {
 namespace {
 
 absl::Status RealMain(std::string_view ir_path) {
+  auto timeout = StartTimeoutTimer();
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
   }
