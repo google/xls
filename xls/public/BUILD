@@ -80,6 +80,7 @@ cc_library(
     hdrs = ["function_builder.h"],
     deps = [
         "//xls/ir:function_builder",
+        "//xls/ir:source_location",
     ],
 )
 
