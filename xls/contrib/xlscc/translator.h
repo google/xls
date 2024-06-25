@@ -1457,7 +1457,6 @@ class Translator {
 
   // Scans for top-level function candidates
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
-  absl::Status ScanFileForPragmas(std::string filename);
 
   absl::flat_hash_map<const clang::FunctionDecl*, std::string>
       xls_names_for_functions_generated_;

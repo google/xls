@@ -100,6 +100,11 @@ class CCParser {
   friend class DiagnosticInterceptor;
   friend class LibToolFrontendAction;
   friend class LibToolPPCallback;
+  friend class HlsDesignPragmaHandler;
+  friend class HlsPipelineInitIntervalPragmaHandler;
+  friend class HlsUnrollPragmaHandler;
+  friend class HlsChannelStrictnessPragmaHandler;
+  friend class HlsNoParamPragmaHandler;
 
  public:
   // Deletes the AST
@@ -168,8 +173,6 @@ class CCParser {
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
   absl::Status VisitVarDecl(const clang::VarDecl* funcdecl);
   absl::Status ScanFileForPragmas(std::string_view filename);
-  void PreprocessorPragmaCallback(const clang::PresumedLoc& spelling_loc,
-                                  const clang::PresumedLoc& file_loc);
 
   using PragmaLoc = std::tuple<std::string, int>;
   absl::flat_hash_map<PragmaLoc, Pragma> hls_pragmas_;

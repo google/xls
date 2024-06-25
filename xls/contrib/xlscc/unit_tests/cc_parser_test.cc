@@ -840,4 +840,104 @@ TEST_F(CCParserTest, DesignUnknown) {
   EXPECT_THAT(top, xls::status_testing::StatusIs(absl::StatusCode::kNotFound));
 }
 
+TEST_F(CCParserTest, PragmasInDefines) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #define HLS_PRAGMA(x) _Pragma(x)
+    HLS_PRAGMA("hls_top")
+    int foo(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  EXPECT_NE(top_ptr, nullptr);
+}
+
+TEST_F(CCParserTest, PragmasInDefinesHonorComments) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #define HLS_PRAGMA(x) _Pragma(x)
+    HLS_PRAGMA(/* testing */"hls_top")
+    int foo(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  EXPECT_NE(top_ptr, nullptr);
+}
+
+TEST_F(CCParserTest, UnrollNoParameters) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int (&a)[5], int b) {
+      #pragma hls_unroll
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  clang::PresumedLoc func_loc = parser.GetPresumedLoc(*top_ptr);
+  clang::PresumedLoc loop_loc(func_loc.getFilename(), func_loc.getFileID(),
+                              func_loc.getLine() + 2, func_loc.getColumn(),
+                              func_loc.getIncludeLoc());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xlscc::Pragma pragma,
+      parser.FindPragmaForLoc(loop_loc, /*ignore_label=*/true));
+
+  EXPECT_EQ(pragma.type(), xlscc::Pragma_Unroll);
+  EXPECT_EQ(pragma.int_argument(), -1);
+}
+
+TEST_F(CCParserTest, PragmaPipelineInitIntervalParameterMustBeNumber) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_top
+    int foo(int a, int b) {
+      int foo = a;
+      #pragma hls_pipeline_init_interval test
+      for(int i=0;i<2;++i) {
+        foo += b;
+      }
+      return foo;
+    }
+  )";
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Must be an integer >= 1.")));
+}
+
+TEST_F(CCParserTest, PragmaUnrollParametersMustBeNumberIfNotYesOrNo) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int (&a)[5], int b) {
+      #pragma hls_unroll test
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Must be 'yes', 'no', or an integer.")));
+}
+
 }  // namespace
