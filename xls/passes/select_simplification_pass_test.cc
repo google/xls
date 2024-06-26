@@ -1053,6 +1053,46 @@ TEST_F(SelectSimplificationPassTest, SplittableOneHotSelect) {
                                      m::BitSlice(/*start=*/0, /*width=*/2)})));
 }
 
+TEST_F(SelectSimplificationPassTest, SplittablePrioritySelect) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[2], x: bits[8], y: bits[4]) -> bits[8] {
+       literal.1: bits[4] = literal(value=0b1001)
+       literal.2: bits[4] = literal(value=0b1000)
+       bit_slice.3: bits[2] = bit_slice(x, start=0, width=2)
+       concat.4: bits[8] = concat(literal.1, bit_slice.3, bit_slice.3)
+       concat.5: bits[8] = concat(literal.2, y)
+       ret result: bits[8] = priority_sel(p, cases=[concat.4, concat.5], default=x)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  // Should be split into a concat of three PrioritySelects. The first and
+  // last should select among two cases. The middle should select among three
+  // cases.
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::PrioritySelect(m::Param("p"),
+                                  /*cases=*/
+                                  {m::BitSlice(/*start=*/5, /*width=*/3),
+                                   m::BitSlice(/*start=*/5, /*width=*/3)},
+                                  /*default_value=*/
+                                  m::BitSlice(/*start=*/5, /*width=*/3)),
+                m::PrioritySelect(
+                    m::Param("p"),
+                    /*cases=*/
+                    {m::BitSlice(/*start=*/2, /*width=*/3),
+                     m::BitSlice(/*start=*/2, /*width=*/3)},
+                    /*default_value=*/m::BitSlice(/*start=*/2, /*width=*/3)),
+                m::PrioritySelect(
+                    m::Param("p"),
+                    /*cases=*/
+                    {m::BitSlice(/*start=*/0, /*width=*/2),
+                     m::BitSlice(/*start=*/0, /*width=*/2)},
+                    /*default_value=*/m::BitSlice(/*start=*/0, /*width=*/2))));
+}
+
 TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase0) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
