@@ -302,8 +302,8 @@ def _xls_cc_ir_impl(ctx):
             ir_file.path,
             log_file.path,
         ),
-        mnemonic = "ConvertXLSCC",
-        progress_message = "Converting XLSCC file: %s" % (ctx.file.src.path),
+        mnemonic = "CompileXLSCC",
+        progress_message = "Converting %s" % ir_file.short_path,
     )
     return [
         IrFileInfo(ir_file = ir_file),

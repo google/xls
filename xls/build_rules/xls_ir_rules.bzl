@@ -192,7 +192,7 @@ def _convert_to_ir(ctx, src):
         arguments = [my_args],
         executable = ir_converter_tool,
         mnemonic = "ConvertDSLX",
-        progress_message = "Converting DSLX file to XLS IR: %s" % (src.path),
+        progress_message = "Converting DSLX file to XLS IR: %s" % src.short_path,
         toolchain = None,
     )
     return runfiles, ir_file, interface_proto
@@ -276,7 +276,7 @@ def _optimize_ir(ctx, src, original_input_files):
         inputs = runfiles.files,
         arguments = [args],
         mnemonic = "OptimizeIR",
-        progress_message = "Optimizing IR file: %s" % (src.ir_file.path),
+        progress_message = "Optimizing IR %s" % src.ir_file.short_path,
         toolchain = None,
     )
     return runfiles, opt_ir_file
@@ -1160,7 +1160,7 @@ def _xls_ir_cc_library_impl(ctx):
         arguments = [aot_basic_function_args],
         executable = aot_basic_function_tool.path,
         mnemonic = "GenerateAotWrapper",
-        progress_message = "AOT Wrapping %s" % src.ir_file.path,
+        progress_message = "AOT Wrapping %s" % src.ir_file.short_path,
         toolchain = None,
     )
 
@@ -1168,7 +1168,7 @@ def _xls_ir_cc_library_impl(ctx):
         inputs = [unformatted_header_file],
         outputs = [header_file],
         tools = [ctx.executable._clang_format],
-        progress_message = "Formatting %s" % header_file.basename,
+        progress_message = "Formatting %s" % header_file.short_path,
         command = "{clang_format} {unformatted} > {formatted}".format(
             clang_format = ctx.executable._clang_format.path,
             unformatted = unformatted_header_file.path,
@@ -1181,7 +1181,7 @@ def _xls_ir_cc_library_impl(ctx):
         inputs = [unformatted_source_file],
         outputs = [source_file],
         tools = [ctx.executable._clang_format],
-        progress_message = "Formatting %s" % source_file.basename,
+        progress_message = "Formatting %s" % source_file.short_path,
         command = "{clang_format} {unformatted} > {formatted}".format(
             clang_format = ctx.executable._clang_format.path,
             unformatted = unformatted_source_file.path,
