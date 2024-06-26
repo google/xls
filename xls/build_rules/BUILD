@@ -151,6 +151,7 @@ bzl_library(
         "xls_codegen_fdo_rules.bzl",
         "xls_codegen_rules.bzl",
     ],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
