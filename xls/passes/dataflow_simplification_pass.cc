@@ -123,14 +123,21 @@ bool IsEmptyType(Type* type) {
 
 // Try to replace `node` with an Array operation whose elements consist entirely
 // of other node in the graph. Returns true if the transformation is successful.
+// Note this will not generate an array consisting entirely of 'array-index'
+// operations from a single source array in order since this is equivalent to
+// the original array and will cause an infinite loop with
+// array_simplification_pass.cc SimplifyArray.
 absl::StatusOr<bool> MaybeReplaceWithArrayOfExistingNodes(
     Node* node, LeafTypeTreeView<NodeSource> node_source,
     const absl::flat_hash_map<LeafTypeTreeView<NodeSource>, Node*>&
         source_map) {
   // Skip literals, arrays, and empty types. Replacing these is not beneficial
-  // and may result in inf-loops.
+  // and may result in inf-loops. Avoid ArrayIndex specifically for an infinite
+  // loop with array_simplification_pass.
+  // TODO(allight): It would be nice to have a better way to avoid this infinite
+  // loop since it can be a beneficial transform.
   if (!node->GetType()->IsArray() || node->Is<Literal>() || node->Is<Array>() ||
-      IsEmptyType(node->GetType())) {
+      node->Is<ArrayIndex>() || IsEmptyType(node->GetType())) {
     return false;
   }
 
@@ -145,9 +152,10 @@ absl::StatusOr<bool> MaybeReplaceWithArrayOfExistingNodes(
     }
     sources.push_back(it->second);
   }
-  XLS_RETURN_IF_ERROR(
-      node->ReplaceUsesWithNew<Array>(sources, array_type->element_type())
-          .status());
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_array,
+      node->ReplaceUsesWithNew<Array>(sources, array_type->element_type()));
+  VLOG(2) << "Replaced " << node << " with " << new_array;
   return true;
 }
 

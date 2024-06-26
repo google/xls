@@ -842,9 +842,13 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
     VLOG(2) << absl::StrFormat("Replace array of array-indexes with array: %s",
                                array->ToString());
     if (common_index_prefix->empty()) {
+      VLOG(3) << absl::StrFormat("  Replacing with original array %s",
+                                 origin_array->ToString());
       XLS_RETURN_IF_ERROR(array->ReplaceUsesWith(origin_array));
       return SimplifyResult::Changed({origin_array});
     }
+    VLOG(3) << absl::StrFormat("  Replacing with index on origin array %s",
+                               origin_array->ToString());
     XLS_ASSIGN_OR_RETURN(ArrayIndex * array_index,
                          array->ReplaceUsesWithNew<ArrayIndex>(
                              origin_array, common_index_prefix.value()));
