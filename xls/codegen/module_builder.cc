@@ -1035,6 +1035,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
                   /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
                   /*loc=*/node->loc(), function_name, functions_section_,
                   selector_properties, options_.use_system_verilog()));
+          node_functions_[function_name] = func;
         }
         auto priority_sel_element = [&](absl::Span<Expression* const> inputs) {
           std::vector<Expression*> selector_and_inputs{selector_expression};

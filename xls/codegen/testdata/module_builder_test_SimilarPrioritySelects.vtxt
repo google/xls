@@ -1,0 +1,34 @@
+module SimilarPrioritySelects(
+  input wire [1:0] s1,
+  input wire [1:0] s2,
+  input wire [31:0] x1,
+  input wire [31:0] x2,
+  input wire [31:0] y1,
+  input wire [31:0] y2,
+  input wire [31:0] d1,
+  input wire [31:0] d2
+);
+  function automatic [31:0] priority_sel_32b_2way (input reg [1:0] sel, input reg [31:0] case0, input reg [31:0] case1, input reg [31:0] default_value);
+    begin
+      casez (sel)
+        2'b?1: begin
+          priority_sel_32b_2way = case0;
+        end
+        2'b10: begin
+          priority_sel_32b_2way = case1;
+        end
+        2'b00: begin
+          priority_sel_32b_2way = default_value;
+        end
+        default: begin
+          // Propagate X
+          priority_sel_32b_2way = 32'dx;
+        end
+      endcase
+    end
+  endfunction
+  wire [31:0] priority_select1;
+  wire [31:0] priority_select2;
+  assign priority_select1 = priority_sel_32b_2way(s1, x1, y1, d1);
+  assign priority_select2 = priority_sel_32b_2way(s2, x2, y2, d2);
+endmodule
