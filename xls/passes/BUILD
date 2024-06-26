@@ -2821,6 +2821,7 @@ cc_library(
         ":stateless_query_engine",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

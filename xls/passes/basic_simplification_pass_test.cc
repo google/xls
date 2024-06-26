@@ -336,6 +336,60 @@ TEST_F(BasicSimplificationPassTest, SingleOperandOr) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
+TEST_F(BasicSimplificationPassTest, SingleBitAndReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.AddBitwiseReductionOp(Op::kAndReduce, fb.Param("x", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(BasicSimplificationPassTest, SingleBitOrReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.AddBitwiseReductionOp(Op::kOrReduce, fb.Param("x", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(BasicSimplificationPassTest, SingleBitXorReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.AddBitwiseReductionOp(Op::kXorReduce, fb.Param("x", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(BasicSimplificationPassTest, EmptyAndReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.AddBitwiseReductionOp(Op::kAndReduce, fb.Param("x", p->GetBitsType(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(1, 1));
+}
+
+TEST_F(BasicSimplificationPassTest, EmptyOrReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.AddBitwiseReductionOp(Op::kOrReduce, fb.Param("x", p->GetBitsType(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0, 1));
+}
+
+TEST_F(BasicSimplificationPassTest, EmptyXorReduce) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.AddBitwiseReductionOp(Op::kXorReduce, fb.Param("x", p->GetBitsType(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0, 1));
+}
+
 TEST_F(BasicSimplificationPassTest, AndWithDuplicateOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

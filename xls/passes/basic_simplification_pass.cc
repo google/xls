@@ -20,6 +20,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -156,6 +157,36 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
       // Odd number of operands. Replace with XOR operand.
       XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
     }
+    return true;
+  }
+
+  // Non-inverting bitwise reduction of a single bit is just the original bit.
+  if (n->OpIn({Op::kAndReduce, Op::kOrReduce, Op::kXorReduce}) &&
+      n->operand(0)->BitCountOrDie() == 1) {
+    VLOG(2) << "FOUND: replace " << OpToString(n->op()) << "(x) with x";
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
+  // Bitwise reduction of an empty operand is always the identity for the
+  // operation.
+  if (n->Is<BitwiseReductionOp>() && n->operand(0)->BitCountOrDie() == 0) {
+    Bits identity;
+    switch (n->op()) {
+      case Op::kAndReduce:
+        identity = UBits(1, 1);
+        break;
+      case Op::kOrReduce:
+      case Op::kXorReduce:
+        identity = UBits(0, 1);
+        break;
+      default:
+        return absl::InternalError("Unhandled bitwise reduction op");
+    }
+    VLOG(2) << "FOUND: replace " << OpToString(n->op())
+            << "(empty) with the identity for the operation";
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(identity)).status());
     return true;
   }
 
