@@ -21,7 +21,11 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "llvm/include/llvm/IR/Constant.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/IR/Type.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/type_layout.h"
