@@ -239,25 +239,6 @@ def load_external_repositories():
         urls = ["https://github.com/google/highwayhash/archive/276dd7b4b6d330e4734b756e97ccfb1b69cc2e12.zip"],
     )
 
-    # Needed by or-tools.
-    http_archive(
-        name = "glpk",
-        build_file = "@com_google_ortools//bazel:glpk.BUILD.bazel",
-        sha256 = "4a1013eebb50f728fc601bdd833b0b2870333c3b3e5a816eeba921d95bec6f15",
-        url = "http://ftp.gnu.org/gnu/glpk/glpk-5.0.tar.gz",
-    )
-
-    # Needed by or-tools.
-    http_archive(
-        name = "scip",
-        build_file = "@com_google_ortools//bazel:scip.BUILD.bazel",
-        patches = ["@com_google_ortools//bazel:scip.patch"],
-        patch_args = ["-p1"],
-        sha256 = "b6daf54c37d02564b12fb32ec3bb7a105710eb0026adeafc602af4435fa94685",
-        strip_prefix = "scip-810",
-        url = "https://github.com/scipopt/scip/archive/refs/tags/v810.tar.gz",
-    )
-
     http_archive(
         name = "bliss",
         build_file = "@com_google_ortools//bazel:bliss.BUILD.bazel",
@@ -266,16 +247,13 @@ def load_external_repositories():
         url = "https://github.com/google/or-tools/releases/download/v9.0/bliss-0.73.zip",
     )
 
-    # Released on 2023-11-28, current as of 2024-02-01.
-    # https://github.com/grpc/grpc/releases/tag/v1.60.0
-    # Can be updated to latest once https://github.com/grpc/grpc/issues/36132
-    # is fixed and made it into a grpc release.
+    # Released 2024-06-07, current as of 2024-06-26.
     # TODO(google/xls#1408) Once updated, fix related TODOs.
     http_archive(
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.60.0.tar.gz"],
-        integrity = "sha256-Q3BouLd307M52pTTSY8dwgZCrJv6dttDq91SIYaxVCs=",
-        strip_prefix = "grpc-1.60.0",
+        urls = ["https://github.com/grpc/grpc/archive/v1.64.2.tar.gz"],
+        sha256 = "c682fc39baefc6e804d735e6b48141157b7213602cc66dbe0bf375b904d8b5f9",
+        strip_prefix = "grpc-1.64.2",
         repo_mapping = {
             "@local_config_python": "@python39",
             "@system_python": "@python39",
@@ -301,21 +279,13 @@ def load_external_repositories():
         sha256 = "8150406605389ececb6da07cbcb509d5637a3ab9a24bc69b1101531367d89d74",
     )
 
-    # Released 2024-02-22, current as of 2024-02-22.
-    # TODO(rigge): switch back to stable releases when or-tools cuts a release
-    # against abseil w/ VLOG.
-    ORTOOLS_COMMIT = "05aa100b904d23da218b6f41bfab9d20b930a3b4"
+    # Released 2024-05-08, current as of 2024-06-26.
+    ORTOOLS_VERSION = "9.10"
     http_archive(
         name = "com_google_ortools",
-        urls = ["https://github.com/google/or-tools/archive/{commit}.tar.gz".format(commit = ORTOOLS_COMMIT)],
-        sha256 = "f0db745dca2da71038f1dffe58319906842d449e4d7f55823495be159d40c7f0",
-        strip_prefix = "or-tools-" + ORTOOLS_COMMIT,
-        patch_args = ["-p1"],
-        # Removes undesired dependencies like Eigen, BLISS, SCIP
-        patches = [
-            "//dependency_support/com_google_ortools:0001-Fix-GLPK-Eigen-and-SCIP-deps.patch",
-            "//dependency_support/com_google_ortools:0002-Remove-duplicate-logtostderr-flag.patch",
-        ],
+        urls = ["https://github.com/google/or-tools/archive/refs/tags/v{tag}.tar.gz".format(tag = ORTOOLS_VERSION)],
+        sha256 = "e7c27a832f3595d4ae1d7e53edae595d0347db55c82c309c8f24227e675fd378",
+        strip_prefix = "or-tools-" + ORTOOLS_VERSION,
     )
 
     # Released 2023-08-31, current as of 2024-03-14.
