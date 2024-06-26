@@ -715,6 +715,51 @@ TEST_F(ConditionalSpecializationPassTest,
                                 /*default_value=*/m::Literal(0)));
 }
 
+TEST_F(ConditionalSpecializationPassTest,
+       ImpliedPrioritySelectorDefaultValueWithOtherUses) {
+  // r implies r|s.
+  //
+  //        d                    d ------------
+  //       /                    /              \
+  //     sel1 ---- r&s        sel1 ---- r&s     \
+  //      | \                  |                |
+  //      |  ...         =>   ...               |
+  //      |                                     |
+  //     sel0 ---- r                          sel0 ---- r
+  //      |                                     |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue r = fb.Param("r", p->GetBitsType(2));
+  BValue s = fb.Param("s", p->GetBitsType(2));
+
+  BValue r_and_s = fb.And(r, s);
+  BValue other_value = fb.Literal(UBits(42, 32));
+  BValue sel1 = fb.PrioritySelect(r_and_s, {a, other_value},
+                                  /*default_value=*/fb.Literal(UBits(85, 32)));
+  BValue sel0 = fb.PrioritySelect(r, {a, other_value},
+                                  /*default_value=*/sel1);
+
+  // Keep r_and_s alive to the return value to avoid replacing r in the
+  // expression (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_and_s})));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::PrioritySelect(m::Param("r"),
+                                /*cases=*/{m::Param("a"), m::Literal(42)},
+                                /*default_value=*/m::Literal(85)));
+  EXPECT_THAT(f->return_value()->operand(1),
+              m::PrioritySelect(m::And(m::Param("r"), m::Param("s")),
+                                /*cases=*/{m::Param("a"), m::Literal(42)},
+                                /*default_value=*/m::Literal(85)));
+}
+
 TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
                            ParsePackageNoVerify(R"(

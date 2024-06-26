@@ -355,10 +355,8 @@ Node* GetSelectedCase(Select* select, const Bits& selector_value) {
   return select->get_case(selector_value.ToUint64().value());
 }
 
-struct ZeroValue : std::monostate {};
-using PrioritySelectCase = std::variant<Node*, ZeroValue>;
-std::optional<PrioritySelectCase> GetSelectedCase(
-    PrioritySelect* select, const TernaryVector& selector_value) {
+std::optional<Node*> GetSelectedCase(PrioritySelect* select,
+                                     const TernaryVector& selector_value) {
   for (int64_t i = 0; i < select->cases().size(); ++i) {
     if (selector_value[i] == TernaryValue::kUnknown) {
       // We can't be sure which case is selected.
@@ -369,7 +367,7 @@ std::optional<PrioritySelectCase> GetSelectedCase(
     }
   }
   // All bits of the selector are zero.
-  return ZeroValue();
+  return select->default_value();
 }
 
 }  // namespace
@@ -681,20 +679,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
             if (!implied_selector.has_value()) {
               break;
             }
-            std::optional<PrioritySelectCase> implied_case =
+            std::optional<Node*> implied_case =
                 GetSelectedCase(select, *implied_selector);
             if (!implied_case.has_value()) {
-              break;
-            }
-            if (std::holds_alternative<ZeroValue>(*implied_case)) {
-              VLOG(3) << absl::StreamFormat(
-                  "Conditions for edge (%s, %s) imply selector %s of select %s "
-                  "has zero value",
-                  operand->GetName(), node->GetName(),
-                  select->selector()->GetName(), select->GetName());
-              XLS_ASSIGN_OR_RETURN(
-                  replacement, node->function_base()->MakeNode<Literal>(
-                                   src->loc(), ZeroOfType(select->GetType())));
               break;
             }
             VLOG(3) << absl::StreamFormat(
@@ -703,7 +690,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                 operand->GetName(), node->GetName(),
                 select->selector()->GetName(), select->GetName(),
                 xls::ToString(*implied_selector));
-            src = std::get<Node*>(*implied_case);
+            src = *implied_case;
             replacement = src;
           }
         }
