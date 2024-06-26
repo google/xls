@@ -16,14 +16,17 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <thread>  // NOLINT(build/c++11)
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
@@ -31,17 +34,19 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/unroll_pass.h"
+#include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "xls/solvers/z3_utils.h"
 #include "external/z3/src/api/z3_api.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -67,26 +72,33 @@ ABSL_FLAG(absl::Duration, timeout, absl::InfiniteDuration(),
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
+namespace {
 
-using solvers::z3::IrTranslator;
-
-// To compare, simply take the output nodes of each function and compare them.
-static absl::StatusOr<Z3_ast> CreateComparisonFunction(
-    absl::Span<std::unique_ptr<IrTranslator>> translators,
-    const std::vector<Function*>& functions) {
-  Z3_context ctx = translators[0]->ctx();
-  Z3_ast result1 = translators[0]->GetReturnNode();
-  Z3_ast result2 = translators[1]->GetReturnNode();
-
-  Z3_sort opt_sort = Z3_get_sort(ctx, result1);
-  Z3_sort unopt_sort = Z3_get_sort(ctx, result2);
-  XLS_RET_CHECK(Z3_is_eq_sort(ctx, opt_sort, unopt_sort));
-
-  return Z3_mk_eq(ctx, result1, result2);
+absl::StatusOr<std::vector<std::string>> CounterexampleParams(
+    Function* f, const solvers::z3::ProvenFalse& proven_false) {
+  std::vector<std::string> counterexample;
+  using ParamValues = absl::flat_hash_map<const Param*, Value>;
+  XLS_ASSIGN_OR_RETURN(ParamValues counterexample_map,
+                       proven_false.counterexample);
+  for (const xls::Param* param : f->params()) {
+    bool missing = true;
+    for (const auto& [counterexample_param, value] : counterexample_map) {
+      if (counterexample_param->name() == param->name()) {
+        missing = false;
+        counterexample.push_back(value.ToString(FormatPreference::kHex));
+        break;
+      }
+    }
+    if (missing) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Counterexample includes no value for param: ", param->name()));
+    }
+  }
+  return counterexample;
 }
 
-static absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
-                             const std::string& entry, absl::Duration timeout) {
+absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
+                      const std::string& entry, absl::Duration timeout) {
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
     XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
@@ -126,48 +138,25 @@ static absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
     functions.push_back(func);
   }
 
-  std::vector<std::unique_ptr<IrTranslator>> translators;
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrTranslator> translator,
-                       IrTranslator::CreateAndTranslate(functions[0]));
-  translators.push_back(std::move(translator));
-
-  // Get the params for the first function, so we can map the second function's
-  // parameters to them.
-  Z3_context ctx = translators[0]->ctx();
-  std::vector<Z3_ast> z3_params;
-  for (const Param* param : functions[0]->params()) {
-    z3_params.push_back(translators[0]->GetTranslation(param));
+  XLS_ASSIGN_OR_RETURN(
+      solvers::z3::ProverResult result,
+      solvers::z3::TryProveEquivalence(functions[0], functions[1], timeout));
+  if (std::holds_alternative<solvers::z3::ProvenTrue>(result)) {
+    std::cout << "Verified equivalent\n";
+  } else {
+    XLS_RET_CHECK(std::holds_alternative<solvers::z3::ProvenFalse>(result));
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<std::string> params,
+        CounterexampleParams(functions[0],
+                             std::get<solvers::z3::ProvenFalse>(result)));
+    std::cout << "Verified NOT equivalent; results differ for input: "
+              << absl::StrJoin(params, ", ") << "\n";
   }
-
-  XLS_ASSIGN_OR_RETURN(
-      translator, IrTranslator::CreateAndTranslate(ctx, functions[1],
-                                                   absl::MakeSpan(z3_params)));
-  translators.push_back(std::move(translator));
-
-  XLS_ASSIGN_OR_RETURN(
-      Z3_ast results_equal,
-      CreateComparisonFunction(absl::MakeSpan(translators), functions));
-  translators[0]->SetTimeout(timeout);
-
-  Z3_solver solver =
-      solvers::z3::CreateSolver(ctx, std::thread::hardware_concurrency());
-
-  // Remember: we try to prove the condition by searching for a model that
-  // produces the opposite result. Thus, we want to find a model where the
-  // results are _not_ equal.
-  Z3_ast objective = Z3_mk_eq(ctx, Z3_mk_false(ctx), results_equal);
-  Z3_solver_assert(ctx, solver, objective);
-
-  // Finally, print the output to the terminal in gorgeous two-color ASCII.
-  Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
-  std::cout << solvers::z3::SolverResultToString(ctx, solver, satisfiable)
-            << '\n';
-
-  Z3_solver_dec_ref(ctx, solver);
 
   return absl::OkStatus();
 }
 
+}  // namespace
 }  // namespace xls
 
 int main(int argc, char** argv) {

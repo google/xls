@@ -483,7 +483,10 @@ absl::StatusOr<Z3_ast> ComputeNe(Z3_context ctx, Z3_ast lhs, Z3_ast rhs,
                 GetValueAtIndices(operand_type, ctx, rhs, indices));
             return t.Xor(lhs_at_indices, rhs_at_indices);
           }));
-  XLS_RET_CHECK(!ltt.elements().empty());
+  if (ltt.elements().empty()) {
+    // An empty type is a unit.
+    return Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, 1));
+  }
   Z3_ast concat = ltt.elements().front();
   for (Z3_ast element : ltt.elements().subspan(1)) {
     concat = Z3_mk_concat(ctx, concat, element);

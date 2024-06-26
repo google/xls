@@ -128,14 +128,10 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
                          n->CloneInNewFunction(new_ops, to_test_func));
   }
 
-  // Add check, coerce any tuples/arays into bit-arrays since z3 ir-translator
-  // doesn't support eq of tuples/arrays yet.
-  XLS_ASSIGN_OR_RETURN(
-      Node * original_result,
-      FlattenToBits(to_test_func, to_test_func->return_value()));
-  XLS_ASSIGN_OR_RETURN(
-      Node * transformed_result,
-      FlattenToBits(to_test_func, node_map[b->return_value()]));
+  // Add check
+
+  Node* original_result = to_test_func->return_value();
+  Node* transformed_result = node_map[b->return_value()];
   Node* new_ret = to_test_func->AddNode(std::make_unique<CompareOp>(
       SourceInfo(), original_result, transformed_result, Op::kEq, "TestCheck",
       to_test_func));
