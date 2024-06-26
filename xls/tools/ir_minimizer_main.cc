@@ -166,10 +166,14 @@ ABSL_FLAG(bool, test_executable_crash_is_bug, false,
 ABSL_FLAG(bool, test_llvm_jit, false,
           "Tests for differences between results from the JIT and the "
           "interpreter as the reduction test case. Must specify --input with "
-          "this flag.");
+          "this flag. Cannot be used with --test_optimizer.");
+ABSL_FLAG(bool, test_optimizer, false,
+          "Tests for differences between results from the unoptimized and "
+          "optimized IR as the reduction test case. Must specify --input with "
+          "this flag. Cannot be used with --test_llvm_jit.");
 ABSL_FLAG(std::string, input, "",
           "Input to use when invoking the JIT and the interpreter. Must be "
-          "used with --test_llvm_jit.");
+          "used with --test_llvm_jit or --test_optimizer.");
 ABSL_FLAG(
     std::string, test_only_inject_jit_result, "",
     "Test-only flag for injecting the result produced by the JIT. Used to "
@@ -275,6 +279,8 @@ absl::StatusOr<bool> StillFailsHelper(
 
     QCHECK(!absl::GetFlag(FLAGS_test_llvm_jit))
         << "Cannot specify --test_llvm_jit with --test_executable";
+    QCHECK(!absl::GetFlag(FLAGS_test_optimizer))
+        << "Cannot specify --test_optimizer with --test_executable";
     QCHECK(absl::GetFlag(FLAGS_input).empty())
         << "Cannot specify --input with --test_executable";
     std::vector<std::string> argv;
@@ -298,6 +304,40 @@ absl::StatusOr<bool> StillFailsHelper(
     return subproc_result.exit_status == 0;
   }
 
+  if (absl::GetFlag(FLAGS_test_optimizer)) {
+    // Test for bugs by comparing the results of the unoptimized & optimized IR.
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                         ParsePackage(ir_text));
+    XLS_RET_CHECK(inputs.has_value());
+    XLS_ASSIGN_OR_RETURN(Function * main, package->GetTopAsFunction());
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> unopt_jit,
+                         FunctionJit::Create(main));
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> unoptimized_result,
+                         unopt_jit->Run(*inputs));
+
+    std::unique_ptr<OptimizationCompoundPass> pipeline =
+        CreateOptimizationPassPipeline();
+    PassResults results;
+    XLS_RETURN_IF_ERROR(
+        pipeline->Run(package.get(), OptimizationPassOptions(), &results)
+            .status());
+
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> opt_jit,
+                         FunctionJit::Create(main));
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> optimized_result,
+                         opt_jit->Run(*inputs));
+
+    // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Also compare
+    // events once the JIT fully supports them. One potential concern in this
+    // area is making sure that the kind of mismatch (value, assertion failure
+    // or trace messages) stays the same as the code is minimized. Leaving the
+    // comparison value-only avoids that issue for now.
+    XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> interpreter_result,
+                         InterpretFunction(main, *inputs));
+    return unoptimized_result.value != optimized_result.value;
+  }
+
+  XLS_RET_CHECK(absl::GetFlag(FLAGS_test_llvm_jit));
   // Test for bugs by comparing the results of the JIT and interpreter.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package, ParsePackage(ir_text));
   XLS_RET_CHECK(inputs.has_value());
@@ -1061,8 +1101,7 @@ absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
   return SimplifiedIr{
       .result = SimplificationResult::kDidChange,
       .ir_data = new_pkg->DumpIr(),
-      .node_count =
-          new_pkg->GetTopAsFunction().value()->node_count()};
+      .node_count = new_pkg->GetTopAsFunction().value()->node_count()};
 }
 
 absl::StatusOr<SimplifiedIr> Simplify(FunctionBase* f,
@@ -1189,8 +1228,9 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
   std::optional<std::vector<xls::Value>> inputs;
   if (!absl::GetFlag(FLAGS_input).empty()) {
     inputs = std::vector<xls::Value>();
-    QCHECK(absl::GetFlag(FLAGS_test_llvm_jit))
-        << "Can only specify --input with --test_llvm_jit";
+    QCHECK(absl::GetFlag(FLAGS_test_llvm_jit) ||
+           absl::GetFlag(FLAGS_test_optimizer))
+        << "Can only specify --input with --test_llvm_jit or --test_optimizer";
     for (const std::string_view& value_string :
          absl::StrSplit(absl::GetFlag(FLAGS_input), ';')) {
       XLS_ASSIGN_OR_RETURN(Value input, Parser::ParseTypedValue(value_string));
@@ -1443,9 +1483,19 @@ int main(int argc, char** argv) {
                 << " <ir_path>";
   }
 
-  QCHECK(!absl::GetFlag(FLAGS_test_executable).empty() ^
-         absl::GetFlag(FLAGS_test_llvm_jit))
-      << "Must specify either --test_executable or --test_llvm_jit";
+  int test_flags = 0;
+  if (!absl::GetFlag(FLAGS_test_executable).empty()) {
+    test_flags++;
+  }
+  if (absl::GetFlag(FLAGS_test_llvm_jit)) {
+    test_flags++;
+  }
+  if (absl::GetFlag(FLAGS_test_optimizer)) {
+    test_flags++;
+  }
+  QCHECK_EQ(test_flags, 1)
+      << "Must specify exactly one of --test_executable, --test_llvm_jit, or "
+         "--test_optimizer";
 
   if (absl::GetFlag(FLAGS_can_extract_segments)) {
     std::vector<std::string> failures;
@@ -1461,6 +1511,7 @@ int main(int argc, char** argv) {
     check_flag(FLAGS_can_remove_sends, true);
     check_flag(FLAGS_can_remove_receives, true);
     check_flag(FLAGS_test_llvm_jit, false);
+    check_flag(FLAGS_test_optimizer, false);
     if (!absl::GetFlag(FLAGS_preserve_channels).empty()) {
       failures.push_back("no '--preserve_channels'");
       failed = true;
