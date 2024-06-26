@@ -1124,6 +1124,35 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
+  // Priority selects can be narrowed to the smallest range of bits known to
+  // have at least one bit set, with the last value turned into the new default
+  // value.
+  if (NarrowingEnabled(opt_level) && node->Is<PrioritySelect>()) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    std::vector<TreeBitLocation> trailing_bits;
+    int64_t last_bit = 0;
+    for (; last_bit < sel->selector()->BitCountOrDie(); ++last_bit) {
+      trailing_bits.push_back(TreeBitLocation(sel->selector(), last_bit));
+      if (query_engine.AtLeastOneTrue(trailing_bits)) {
+        break;
+      }
+    }
+    if (last_bit < sel->selector()->BitCountOrDie()) {
+      // We can drop at least one bit from the selector, and turn the last case
+      // into the default value.
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_selector,
+          node->function_base()->MakeNode<BitSlice>(
+              node->loc(), sel->selector(), /*start=*/0, /*width=*/last_bit));
+      XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<PrioritySelect>(
+                                  narrowed_selector,
+                                  sel->cases().subspan(0, last_bit),
+                                  /*default_value=*/sel->get_case(last_bit))
+                              .status());
+      return true;
+    }
+  }
+
   // Cases matching the default value or positions where the selector is zero
   // can be removed from OneHotSelects and priority selects.
   if (NarrowingEnabled(opt_level) &&
