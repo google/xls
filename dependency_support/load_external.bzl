@@ -55,14 +55,6 @@ def load_external_repositories():
         build_file = "//dependency_support/zlib:bundled.BUILD.bazel",
     )
 
-    # Released 2023-09-20, current as of 2024-06-26 (but there is already a 0.0.10rc1)
-    http_archive(
-        name = "rules_cc",
-        urls = ["https://github.com/bazelbuild/rules_cc/releases/download/0.0.9/rules_cc-0.0.9.tar.gz"],
-        sha256 = "2037875b9a4456dce4a79d112a8ae885bbc4aad968e6587dca6e64f3a0900cdf",
-        strip_prefix = "rules_cc-0.0.9",
-    )
-
     # V 1.14.0 (released 2023-08-02, current as of 2024-06-26)
     http_archive(
         name = "com_google_googletest",
