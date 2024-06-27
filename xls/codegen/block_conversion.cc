@@ -288,8 +288,10 @@ static absl::Status UpdateStateRegisterWithReset(
   }
 
   if (state_register.reg != nullptr) {
-    CHECK_NE(state_register.reg_write, nullptr);
-    CHECK_NE(state_register.reg_read, nullptr);
+    CHECK_NE(state_register.reg_write, nullptr)
+        << "reg_write is null for " << state_register.name;
+    CHECK_NE(state_register.reg_read, nullptr)
+        << "reg_read is null for " << state_register.name;
   }
   if (state_register.reg_full) {
     CHECK_NE(state_register.reg_full_write, nullptr);
