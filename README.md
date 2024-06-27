@@ -117,13 +117,8 @@ Please see the two corresponding command lines below -- we start by assuming
 ~$ git clone https://github.com/google/xls.git
 ~$ cd xls
 
-~/xls$ # Follow the bazel install instructions:
+~/xls$ # Follow the bazel install instructions to install bazel 7 (also 6 works)
 ~/xls$ # https://bazel.build/install/ubuntu
-~/xls$ # If you do use bazelisk, be aware that documentation here generally uses `bazel`,
-~/xls$ # so you may want to alias bazelisk to bazel.
-~/xls$ # Afterwards we observe:
-~/xls$ bazel --version
-bazel 6.4.0
 
 ~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
 ~/xls$ # here, since that has not been the case by default on past Ubuntus.
