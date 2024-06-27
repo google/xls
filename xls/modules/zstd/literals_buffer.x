@@ -39,13 +39,14 @@ type RamNumber = parallel_rams::RamNumber;
 type RamReadStart = parallel_rams::RamReadStart;
 type RamRdRespHandlerData = parallel_rams::RamRdRespHandlerData;
 type RamWrRespHandlerData = parallel_rams::RamWrRespHandlerData;
+type RamWrRespHandlerResp = parallel_rams::RamWrRespHandlerResp;
 
 // Constants calculated from RAM parameters
-const RAM_NUM = parallel_rams::RAM_NUM;
+pub const RAM_NUM = parallel_rams::RAM_NUM;
 const RAM_NUM_WIDTH = parallel_rams::RAM_NUM_WIDTH;
-const RAM_DATA_WIDTH = common::SYMBOL_WIDTH + u32:1; // the +1 is used to store "last" flag
-const RAM_WORD_PARTITION_SIZE = RAM_DATA_WIDTH;
-const RAM_NUM_PARTITIONS = ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH);
+pub const RAM_DATA_WIDTH = common::SYMBOL_WIDTH + u32:1; // the +1 is used to store "last" flag
+pub const RAM_WORD_PARTITION_SIZE = RAM_DATA_WIDTH;
+pub const RAM_NUM_PARTITIONS = ram::num_partitions(RAM_WORD_PARTITION_SIZE, RAM_DATA_WIDTH);
 
 // Literals data with last flag
 type LiteralsWithLast = uN[RAM_DATA_WIDTH * RAM_NUM];
@@ -80,7 +81,6 @@ struct LiteralsBufferWriterState<RAM_ADDR_WIDTH: u32> {
     // History Buffer handling
     hyp_ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>,
     hb_len: uN[RAM_ADDR_WIDTH + RAM_NUM_WIDTH],
-    prev_wr_comp: HistoryBufferPtr<RAM_ADDR_WIDTH>,
     literals_in_ram: uN[RAM_ADDR_WIDTH + RAM_NUM_WIDTH],
 }
 
@@ -339,17 +339,17 @@ proc LiteralsBufferMux {
         let (literals_data, state) = if (sel_raw_literals) {
             (
                 state.raw_literals_data,
-                LiteralsBufferMuxState  { raw_literals_valid: false, ..state }
+                LiteralsBufferMuxState { raw_literals_valid: false, ..state }
             )
         } else if (sel_rle_literals) {
             (
                 state.rle_literals_data,
-                LiteralsBufferMuxState  { rle_literals_valid: false, ..state }
+                LiteralsBufferMuxState { rle_literals_valid: false, ..state }
             )
         } else if (sel_huff_literals) {
             (
                 state.huff_literals_data,
-                LiteralsBufferMuxState  { huff_literals_valid: false, ..state }
+                LiteralsBufferMuxState { huff_literals_valid: false, ..state }
             )
         } else {
             (
@@ -393,7 +393,7 @@ proc LiteralsBufferWriter<
     literals_r: chan<LiteralsData> in;
 
     ram_comp_input_s: chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>> out;
-    ram_comp_output_r: chan<HistoryBufferPtr<RAM_ADDR_WIDTH>> in;
+    ram_comp_output_r: chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>> in;
 
     buffer_sync_r: chan<LiteralsBufferReaderToWriterSync> in;
     buffer_sync_s: chan<LiteralsBufferWriterToReaderSync> out;
@@ -429,7 +429,7 @@ proc LiteralsBufferWriter<
         wr_resp_m7_r: chan<WriteResp> in
     ) {
         let (ram_comp_input_s, ram_comp_input_r) = chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>, u32:1>("ram_comp_input");
-        let (ram_comp_output_s, ram_comp_output_r) = chan<HistoryBufferPtr<RAM_ADDR_WIDTH>, u32:1>("ram_comp_output");
+        let (ram_comp_output_s, ram_comp_output_r) = chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>, u32:1>("ram_comp_output");
 
         spawn parallel_rams::RamWrRespHandler<RAM_ADDR_WIDTH, RAM_DATA_WIDTH>(
             ram_comp_input_r, ram_comp_output_s,
@@ -454,7 +454,6 @@ proc LiteralsBufferWriter<
         State {
             hyp_ptr: INIT_HB_PTR,
             hb_len: INIT_HB_LENGTH as uN[RAM_ADDR_WIDTH + RAM_NUM_WIDTH],
-            prev_wr_comp: INIT_HB_PTR,
             ..zero!<State>()
         }
     }
@@ -476,7 +475,7 @@ proc LiteralsBufferWriter<
         // read literals
         let do_recv_literals = state.hb_len as u32 < HISTORY_BUFFER_SIZE_KB << u32:10;
 
-        let (tok1, literals_data) = recv_if(tok0, literals_r, do_recv_literals, zero!<LiteralsData>());
+        let (tok1, literals_data, literals_data_valid) = recv_if_non_blocking(tok0, literals_r, do_recv_literals, zero!<LiteralsData>());
 
         // write literals to RAM
         let packet_data = for (i, data): (u32, LiteralsWithLast) in range(u32:0, RAM_NUM) {
@@ -499,7 +498,7 @@ proc LiteralsBufferWriter<
         let hb_add = packet.length as HistoryBufferLength;
         let new_hb_len = std::mod_pow2(state.hb_len + hb_add, RAM_SIZE_TOTAL as HistoryBufferLength);
 
-        let write_reqs = if (do_recv_literals) {
+        let write_reqs = if (literals_data_valid) {
             write_reqs
         } else {
             ZERO_WRITE_REQS
@@ -523,18 +522,10 @@ proc LiteralsBufferWriter<
 
         let tok3_0 = send_if(tok2, ram_comp_input_s, do_write, wr_resp_handler_data);
 
-        let (tok3_1, comp_data, comp_data_valid) = recv_non_blocking(tok2, ram_comp_output_r, zero!<HistoryBufferPtr>());
-
-        // update RAM literals count
-        let literals_diff = (comp_data.number - state.prev_wr_comp.number) as LitLength;
-        let literals_diff = if (literals_diff == LitLength:0) {
-            LitLength:8
-        } else {
-            literals_diff
-        };
+        let (tok3_1, comp_data, comp_data_valid) = recv_non_blocking(tok2, ram_comp_output_r, zero!<RamWrRespHandlerResp>());
 
         // update state
-        let state = if (do_recv_literals) {
+        let state = if (literals_data_valid) {
             State {
                 hyp_ptr: new_hyp_ptr,
                 hb_len: new_hb_len,
@@ -545,9 +536,9 @@ proc LiteralsBufferWriter<
         };
 
         let state = if (comp_data_valid) {
+            trace_fmt!("COMP {:#x}", comp_data);
             State {
-                literals_in_ram: state.literals_in_ram + literals_diff as uN[RAM_ADDR_WIDTH + std::clog2(RAM_NUM)],
-                prev_wr_comp: comp_data,
+                literals_in_ram: state.literals_in_ram + comp_data.length as uN[RAM_ADDR_WIDTH + std::clog2(RAM_NUM)],
                 ..state
             }
         } else {
@@ -568,7 +559,7 @@ proc LiteralsBufferWriter<
         let tok3 = join(tok3_0, tok3_1);
 
         let sync_data = LiteralsBufferWriterToReaderSync<RAM_ADDR_WIDTH> {
-            literals_written: literals_diff,
+            literals_written: comp_data.length,
         };
         let tok4 = send_if(tok3, buffer_sync_s, comp_data_valid, sync_data);
 

@@ -99,7 +99,6 @@ pub proc LiteralsDispatcher {
 
         let tok = send_if(tok, raw_literals_s, LiteralType::RAW == literals_type, literals_data);
 
-
         let rle_literals_data = RleLiteralsData {
             data: (literals_data.data as u8),
             repeat: literals_path_ctrl.decompressed_size,

@@ -551,6 +551,11 @@ pub struct RamWrRespHandlerData<RAM_ADDR_WIDTH: u32> {
     ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>,
 }
 
+pub struct RamWrRespHandlerResp<RAM_ADDR_WIDTH: u32> {
+    length: uN[std::clog2(RAM_NUM + u32:1)],
+    ptr: HistoryBufferPtr<RAM_ADDR_WIDTH>,
+}
+
 fn create_ram_wr_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PARTITIONS: u32>
     (reqs: ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], ptr: HistoryBufferPtr) -> (bool, RamWrRespHandlerData) {
     const RAM_REQ_MASK_NONE = bits[RAM_NUM_PARTITIONS]:0;
@@ -567,7 +572,7 @@ fn create_ram_wr_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PARTITIO
 
 pub proc RamWrRespHandler<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32 = {u32:8}> {
     input_r: chan<RamWrRespHandlerData> in;
-    output_s: chan<HistoryBufferPtr> out;
+    output_s: chan<RamWrRespHandlerResp> out;
     wr_resp_m0_r: chan<ram::WriteResp> in;
     wr_resp_m1_r: chan<ram::WriteResp> in;
     wr_resp_m2_r: chan<ram::WriteResp> in;
@@ -578,7 +583,7 @@ pub proc RamWrRespHandler<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32 = {u32:8}> {
     wr_resp_m7_r: chan<ram::WriteResp> in;
 
     config(input_r: chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>> in,
-           output_s: chan<HistoryBufferPtr<RAM_ADDR_WIDTH>> out,
+           output_s: chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>> out,
            wr_resp_m0_r: chan<ram::WriteResp> in, wr_resp_m1_r: chan<ram::WriteResp> in,
            wr_resp_m2_r: chan<ram::WriteResp> in, wr_resp_m3_r: chan<ram::WriteResp> in,
            wr_resp_m4_r: chan<ram::WriteResp> in, wr_resp_m5_r: chan<ram::WriteResp> in,
@@ -605,7 +610,10 @@ pub proc RamWrRespHandler<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32 = {u32:8}> {
         let (tok2_7, _) = recv_if(tok1, wr_resp_m7_r, input.resp[7], zero!<ram::WriteResp>());
         let tok2 = join(tok2_0, tok2_1, tok2_2, tok2_3, tok2_4, tok2_5, tok2_6, tok2_7);
 
-        let tok3 = send(tok2, output_s, input.ptr);
+        let tok3 = send(tok2, output_s, RamWrRespHandlerResp {
+            length: std::popcount(std::convert_to_bits_msb0(input.resp)) as uN[std::clog2(RAM_NUM + u32:1)],
+            ptr: input.ptr
+        });
     }
 }
 

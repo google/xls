@@ -61,6 +61,7 @@ type TestReadResp = ram::ReadResp<RAM_DATA_WIDTH>;
 
 type HistoryBufferPtr = parallel_rams::HistoryBufferPtr;
 type RamWrRespHandlerData = parallel_rams::RamWrRespHandlerData;
+type RamWrRespHandlerResp = parallel_rams::RamWrRespHandlerResp;
 type RamRdRespHandlerData = parallel_rams::RamRdRespHandlerData;
 type RamData = uN[RAM_DATA_WIDTH];
 type RamNumber = parallel_rams::RamNumber;
@@ -174,7 +175,7 @@ proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
     input_r: chan<SequenceExecutorPacket> in;
     output_s: chan<ZstdDecodedPacket> out;
     ram_comp_input_s: chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>> out;
-    ram_comp_output_r: chan<HistoryBufferPtr<RAM_ADDR_WIDTH>> in;
+    ram_comp_output_r: chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>> in;
     ram_resp_input_s: chan<RamRdRespHandlerData> out;
     ram_resp_output_r: chan<SequenceExecutorPacket> in;
     rd_req_m0_s: chan<ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out;
@@ -233,7 +234,7 @@ proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
            wr_resp_m7_r: chan<ram::WriteResp> in
     ) {
         let (ram_comp_input_s, ram_comp_input_r) = chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>, u32:1>("ram_comp_input");
-        let (ram_comp_output_s, ram_comp_output_r) = chan<HistoryBufferPtr<RAM_ADDR_WIDTH>, u32:1>("ram_comp_output");
+        let (ram_comp_output_s, ram_comp_output_r) = chan<RamWrRespHandlerResp<RAM_ADDR_WIDTH>, u32:1>("ram_comp_output");
         let (ram_resp_input_s, ram_resp_input_r) = chan<RamRdRespHandlerData, u32:1>("ram_resp_input");
 
         spawn parallel_rams::RamWrRespHandler<RAM_ADDR_WIDTH>(
@@ -310,13 +311,13 @@ proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
         // Going through the IDLE state is required for changing between
         // Literals and Sequences (and the other way around) and between every
         // Sequence read from the input (original sequence from the ZSTD stream).
-        let (tok1_2, real_ptr, real_ptr_valid) =
-            recv_non_blocking(tok0, ram_comp_output_r, zero!<HistoryBufferPtr>());
-        if real_ptr_valid {
+        let (tok1_2, wr_resp, wr_resp_valid) =
+            recv_non_blocking(tok0, ram_comp_output_r, zero!<RamWrRespHandlerResp>());
+        if wr_resp_valid {
             trace_fmt!("SequenceExecutor:: Received completion update");
         } else { };
 
-        let real_ptr = if real_ptr_valid { real_ptr } else { state.real_ptr };
+        let real_ptr = if wr_resp_valid { wr_resp.ptr } else { state.real_ptr };
         let tok1 = join(tok1_0, tok1_1, tok1_2);
 
         // Since we either get data from input, from frame, or from state,

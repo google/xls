@@ -1408,3 +1408,101 @@ place_and_route(
     synthesized_rtl = ":literals_buffer_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "literals_decoder_dslx",
+    srcs = [
+        "literals_decoder.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+        ":common_dslx",
+        ":literals_buffer_dslx",
+        ":literals_dispatcher_dslx",
+        ":parallel_rams_dslx",
+        ":ram_printer_dslx",
+        ":raw_literals_dec_dslx",
+        ":rle_literals_dec_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "literals_decoder_dslx_test",
+    library = ":literals_decoder_dslx",
+)
+
+xls_dslx_verilog(
+    name = "literals_decoder_verilog",
+    codegen_args = {
+        "module_name": "LiteralsDecoder",
+        "delay_model": "asap7",
+        "ram_configurations": ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "ram{}".format(num),
+                rd_req = "literals_decoder__rd_req_m{}_s".format(num),
+                rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
+                wr_req = "literals_decoder__wr_req_m{}_s".format(num),
+                wr_resp = "literals_decoder__wr_resp_m{}_r".format(num),
+            )
+            for num in range(7)
+        ]),
+        "pipeline_stages": "8",
+        "reset": "rst",
+        "worst_case_throughput": "1",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "LiteralsDecoderInst",
+    library = ":literals_decoder_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__xls_modules_zstd_literals_buffer__LiteralsDecoderInst__LiteralsDecoder__LiteralsBuffer__LiteralsBufferReader_0__64_0_0_0_13_8192_65536_next",
+    },
+    verilog_file = "literals_decoder.v",
+)
+
+xls_benchmark_ir(
+    name = "literals_decoder_opt_ir_benchmark",
+    src = ":literals_decoder_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "literals_decoder_verilog_benchmark",
+    verilog_target = "literals_decoder_verilog",
+)
+
+verilog_library(
+    name = "literals_decoder_verilog_lib",
+    srcs = [
+        ":literals_decoder.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "literals_decoder_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "LiteralsDecoder",
+    deps = [
+        ":literals_decoder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "literals_decoder_benchmark_synth",
+    synth_target = ":literals_decoder_synth_asap7",
+)
+
+place_and_route(
+    name = "literals_decoder_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":literals_decoder_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
