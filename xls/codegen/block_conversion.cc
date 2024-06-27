@@ -2053,6 +2053,11 @@ absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentGroupsFromStateWrites(
       continue;
     }
     auto start = reg->read_stage;
+    if (reg->next_values.empty()) {
+      // If empty, absl::c_min_element()->stage will dereference the end
+      // iterator. Skip instead.
+      continue;
+    }
     auto end = absl::c_min_element(reg->next_values,
                                    [](const StateRegister::NextValue& l,
                                       const StateRegister::NextValue& r) {
