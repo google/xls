@@ -3228,6 +3228,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   // Add other parameters
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
+    const xls::SourceInfo arg_loc = GetLoc(*expr_args[pi]);
 
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
@@ -3241,24 +3242,24 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     {
       MaskAssignmentsGuard guard_assignments(*this, will_assign_param.at(p));
       MaskMemoryWritesGuard guard_writes(*this, will_assign_param.at(p));
-      XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(expr_args[pi], loc));
+      XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(expr_args[pi], arg_loc));
     }
-    XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(p->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(p->getType(), arg_loc));
     if (is_channel) {
       // TODO(seanhaskell): This can be further generalized to allow
       // structs with channels inside
       std::shared_ptr<LValue> callee_lvalue = func->lvalues_by_param.at(p);
 
-      XLSCC_CHECK_NE(argv.lvalue(), nullptr, loc);
+      XLSCC_CHECK_NE(argv.lvalue(), nullptr, arg_loc);
       if (argv.lvalue()->is_select()) {
         return absl::UnimplementedError(
-            ErrorMessage(loc, "Channel select passed as parameter"));
+            ErrorMessage(arg_loc, "Channel select passed as parameter"));
       }
 
       XLS_RETURN_IF_ERROR(TranslateAddCallerChannelsByCalleeChannel(
           /*caller_lval=*/argv.lvalue(),
           /*callee_lval=*/callee_lvalue, &caller_channels_by_callee_channel,
-          loc));
+          arg_loc));
 
       continue;
     }
@@ -3269,17 +3270,17 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
     if (argv.lvalue() != nullptr) {
       XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> stripped_base_type,
-                           TranslateTypeFromClang(stripped.base, loc));
+                           TranslateTypeFromClang(stripped.base, arg_loc));
       XLS_ASSIGN_OR_RETURN(bool has_lvalues,
                            stripped_base_type->ContainsLValues(*this));
       if (has_lvalues) {
         return absl::UnimplementedError(
-            ErrorMessage(loc, "Passing parameters containing LValues"));
+            ErrorMessage(arg_loc, "Passing parameters containing LValues"));
       }
     }
 
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> argt,
-                         TranslateTypeFromClang(stripped.base, loc));
+                         TranslateTypeFromClang(stripped.base, arg_loc));
 
     xls::BValue pass_bval = argv.rvalue();
     std::shared_ptr<CType> pass_type = argv.type();
@@ -3291,28 +3292,28 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       if (argv.type()->Is<CPointerType>()) {
         if (argv.lvalue() == nullptr) {
           return absl::UnimplementedError(
-              ErrorMessage(loc,
+              ErrorMessage(arg_loc,
                            "Pointer value has no lvalue (unsupported "
                            "construct such as ternary?)"));
         }
         XLS_ASSIGN_OR_RETURN(CValue pass_rval,
-                             GenerateIR_Expr(argv.lvalue(), loc));
+                             GenerateIR_Expr(argv.lvalue(), arg_loc));
         pass_bval = pass_rval.rvalue();
       }
 
-      XLSCC_CHECK(pass_bval.valid(), loc);
+      XLSCC_CHECK(pass_bval.valid(), arg_loc);
 
       int64_t pass_bval_arr_size = ArrayBValueWidth(pass_bval);
 
       if (pass_bval_arr_size < arg_arr_type->GetSize()) {
         return absl::UnimplementedError(
-            ErrorMessage(loc, "Array slice out of bounds"));
+            ErrorMessage(arg_loc, "Array slice out of bounds"));
       }
 
       if (pass_bval_arr_size != arg_arr_type->GetSize()) {
         pass_bval = context().fb->ArraySlice(
-            pass_bval, context().fb->Literal(xls::SBits(0, 32), loc),
-            arg_arr_type->GetSize(), loc);
+            pass_bval, context().fb->Literal(xls::SBits(0, 32), arg_loc),
+            arg_arr_type->GetSize(), arg_loc);
       }
 
       std::shared_ptr<CType> element_type;
@@ -3324,7 +3325,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         auto argv_array_type = argv.type()->As<CArrayType>();
         element_type = argv_array_type->GetElementType();
       } else {
-        XLSCC_CHECK_EQ("Internal consistency failure", nullptr, loc);
+        XLSCC_CHECK_EQ("Internal consistency failure", nullptr, arg_loc);
       }
 
       pass_type =
@@ -3333,9 +3334,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     if (pass_type->Is<CReferenceType>()) {
       pass_type = pass_type->As<CReferenceType>()->GetPointeeType();
-      XLSCC_CHECK_NE(argv.lvalue(), nullptr, loc);
+      XLSCC_CHECK_NE(argv.lvalue(), nullptr, arg_loc);
       if (argv.lvalue()->leaf() != nullptr || argv.lvalue()->is_select()) {
-        XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(argv.lvalue(), loc));
+        XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(argv.lvalue(), arg_loc));
       }
       pass_bval = argv.rvalue();
       pass_type = argv.type();
@@ -3343,13 +3344,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     if (*pass_type != *argt) {
       return absl::InternalError(ErrorMessage(
-          loc,
+          arg_loc,
           "Internal error: expression type %s doesn't match "
           "parameter type %s in function %s",
           string(*argv.type()), string(*argt), funcdecl->getNameAsString()));
     }
 
-    XLSCC_CHECK(pass_bval.valid(), loc);
+    XLSCC_CHECK(pass_bval.valid(), arg_loc);
     args.push_back(pass_bval);
   }
 
