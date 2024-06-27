@@ -33,7 +33,12 @@ namespace synthesis {
     return ::grpc::Status(grpc::StatusCode::INTERNAL,
                           std::string(delay.status().message()));
   }
-  result->set_slack_ps(*delay);
+  if (*delay != 0) {
+    result->set_max_frequency_hz(static_cast<int64_t>(1e12) / *delay);
+  }
+  // Currently there is no way to convey a target frequency to a Synthesizer
+  // object.
+  result->set_insensitive_to_target_freq(true);
   return ::grpc::Status::OK;
 }
 
