@@ -34,6 +34,8 @@ _OUTPUT_SIGNED_LOOP_IR_FILE = (
 )
 _INPUT_BACKWARDS_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_backwards_pipelined_loop_fsm.ir.interface.binpb"
 _OUTPUT_BACKWARDS_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_backwards_pipelined_loop_fsm.opt.ir.interface.binpb"
+_INPUT_BACKWARDS_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_backwards_pipelined_loop_fsm.ir.interface.binpb"
+_OUTPUT_BACKWARDS_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_backwards_pipelined_loop_fsm.opt.ir.interface.binpb"
 _INPUT_SIGNED_NESTED_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_nested_pipelined_loop_fsm.ir.interface.binpb"
 _OUTPUT_SIGNED_NESTED_LOOP_IR_FILE = f"{_INTEGRATION_TESTS_DIR}/simple_nested_pipelined_loop_fsm.opt.ir.interface.binpb"
 
@@ -159,6 +161,16 @@ class ArtifactAnalyzabilityTest(absltest.TestCase):
       self._assert_loop_variable_bit_width(
           output_interface, for_variable="j", bit_count=4
       )
+
+  def test_backward_pipelined_loop_is_narrowed(self):
+    input_interface = _get_interface_proto(_INPUT_BACKWARDS_LOOP_IR_FILE)
+    output_interface = _get_interface_proto(_OUTPUT_BACKWARDS_LOOP_IR_FILE)
+    self._assert_loop_variable_bit_width(
+        input_interface, for_variable="i", bit_count=32
+    )
+    self._assert_loop_variable_bit_width(
+        output_interface, for_variable="i", bit_count=2
+    )
 
 
 if __name__ == "__main__":

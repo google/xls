@@ -37,6 +37,8 @@ package(
         "simple_unsigned_nested_pipelined_loop_fsm.opt.ir",
         "simple_pipelined_loop_fsm.ir",
         "simple_pipelined_loop_fsm.opt.ir",
+        "simple_backwards_pipelined_loop_fsm.ir",
+        "simple_backwards_pipelined_loop_fsm.opt.ir",
         "simple_nested_pipelined_loop_fsm.ir",
         "simple_nested_pipelined_loop_fsm.opt.ir",
     ]
@@ -46,6 +48,8 @@ py_test(
     name = "artifact_analyzability_test",
     srcs = ["artifact_analyzability_test.py"],
     data = [
+        ":simple_backwards_pipelined_loop_fsm.ir.interface.binpb",
+        ":simple_backwards_pipelined_loop_fsm.opt.ir.interface.binpb",
         ":simple_nested_pipelined_loop_fsm.ir.interface.binpb",
         ":simple_nested_pipelined_loop_fsm.opt.ir.interface.binpb",
         ":simple_pipelined_loop_fsm.ir.interface.binpb",

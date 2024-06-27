@@ -465,5 +465,69 @@ TEST_F(ProcStateNarrowingPassTest, DecrementToZeroSigned) {
                   AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
 }
 
+TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPoints) {
+  // This is a proc that counts from 5 down to 0 then resets to 8 and continues
+  // counting down.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(5, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  auto cont = pb.SGt(state, pb.Literal(UBits(0, 32)));
+  pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
+  pb.Next(state, pb.Literal(UBits(8, 32)), pb.Not(cont));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(4)))));
+}
+
+TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
+  // This is a proc that counts from 5 down to 0 then resets to 7 and continues
+  // counting down.
+  //
+  // Like what xlscc commonly generates it doesn't include 'next' nodes with a
+  // literal reset value.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
+                                            p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* reset_chan,
+      p->CreateStreamingChannel("reset_chan", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(1)));
+  ProcBuilder pb(TestName(), p.get());
+  auto state = pb.StateElement("the_state", UBits(5, 32));
+  pb.Send(chan, pb.Literal(Value::Token()), state);
+  auto reset =
+      pb.TupleIndex(pb.Receive(reset_chan, pb.Literal(Value::Token())), 1);
+  auto next_state =
+      pb.Subtract(pb.Select(reset, {pb.Literal(UBits(8, 32)), state}),
+                  pb.Literal(UBits(1, 32)));
+  auto cont = pb.SGt(next_state, pb.Literal(UBits(0, 32)));
+  pb.Next(state, next_state, cont);
+  pb.Next(state, state, pb.Not(cont));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateParams(),
+              UnorderedElementsAre(
+                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+}
+
 }  // namespace
 }  // namespace xls

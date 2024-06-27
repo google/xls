@@ -14,10 +14,13 @@
 
 #include "xls/passes/proc_state_narrowing_pass.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <iterator>
 #include <optional>
+#include <queue>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,21 +32,28 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/back_propagate_range_analysis.h"
+#include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/node_dependency_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -262,6 +272,235 @@ class SegmentRangeData : public RangeDataProvider {
   absl::Span<Node* const> topo_sort_;
 };
 
+bool AbsoluteValueLessThan(const Bits& l, const Bits& r) {
+  CHECK_EQ(l.bit_count(), r.bit_count());
+  Bits max_int = Bits::MaxSigned(l.bit_count());
+  bool l_pos = !l.GetFromMsb(0);
+  bool r_pos = !r.GetFromMsb(0);
+  if (l_pos && r_pos) {
+    return bits_ops::ULessThan(l, r);
+  }
+  if (!l_pos && !r_pos) {
+    return bits_ops::UGreaterThan(l, r);
+  }
+  if (!l_pos) {
+    return bits_ops::ULessThan(bits_ops::Negate(l), r);
+  }
+  CHECK(!r_pos);
+  return bits_ops::ULessThan(l, bits_ops::Negate(r));
+}
+
+// An interpreter that finds the values of nodes assuming that only Literal
+// constant values are selected.
+class ConstantValueIrInterpreter
+    : public DataflowVisitor<absl::flat_hash_set<Bits>> {
+ public:
+  // How many values we will track at most. We will prioritize the values
+  // closest to zero in the 2s-complement signed integer space. We prioritize
+  // values close to signed zero since values close to that value can be
+  // narrowed more than ones further away. 8 was picked pretty arbitrarily but
+  // it's hard to imagine many procs with more than a handful of constant set
+  // values which are still narrowable.
+  static constexpr int64_t kSegmentLimit = 8;
+  const absl::flat_hash_map<Node*, LeafTypeTree<absl::flat_hash_set<Bits>>>&
+  values() const {
+    return map_;
+  }
+  absl::Status DefaultHandler(Node* n) override {
+    if ((OpIsSideEffecting(n->op()) || n->op() == Op::kAfterAll) &&
+        n->op() != Op::kGate) {
+      // Side effecting ops (eg send, recv, trace, cover etc) either don't
+      // return anything or don't return any constants regardless of inputs and
+      // cannot be interpreted. These are considered sources of unconstrained
+      // values.
+      return HandleNonConst(n);
+    }
+    // Non-bits ops are more complicated to handle. The only ones here should be
+    // things like mulp which its not clear if we should care much about...
+    if (!n->GetType()->IsBits()) {
+      VLOG(2) << "Ignoring non-bits type op " << n;
+      return HandleNonConst(n);
+    }
+    XLS_RET_CHECK(absl::c_all_of(n->operands(), [](Node* o) {
+      return o->GetType()->IsBits();
+    })) << n;
+    // Heap keeping the current kSegmentLimit closest elements to 0
+    std::vector<Bits> result_heap;
+    auto insert_result = [&](Bits b) {
+      if (result_heap.size() >= kSegmentLimit &&
+          !AbsoluteValueLessThan(b, result_heap.front())) {
+        // Bigger than existing values.
+        return;
+      }
+      if (absl::c_find(result_heap, b) != result_heap.cend()) {
+        // Already contained.
+        return;
+      }
+      if (result_heap.size() == kSegmentLimit) {
+        absl::c_pop_heap(result_heap, AbsoluteValueLessThan);
+        result_heap.pop_back();
+      }
+      result_heap.emplace_back(std::move(b));
+      absl::c_push_heap(result_heap, AbsoluteValueLessThan);
+    };
+    struct ArgSet {
+      const absl::flat_hash_set<Bits>& values;
+      absl::flat_hash_set<Bits>::const_iterator cur_value;
+    };
+    std::vector<ArgSet> inputs;
+    for (Node* o : n->operands()) {
+      if (GetValue(o).Get({}).empty()) {
+        // Some input has no constant values, so this node has no constant
+        // derived value.
+        return HandleNonConst(n);
+      }
+      const auto& v = GetValue(o).Get({});
+      inputs.push_back(ArgSet{.values = v, .cur_value = v.cbegin()});
+    }
+    if (inputs.empty()) {
+      // Only zero-arg node that we care about is literal which is handled
+      // elsewhere.
+      return absl::OkStatus();
+    }
+    auto current_value = [&]() -> std::vector<Value> {
+      std::vector<Value> res;
+      res.reserve(inputs.size());
+      for (const auto& v : inputs) {
+        res.push_back(Value(*v.cur_value));
+      }
+      return res;
+    };
+    auto next_input = [&]() {
+      for (auto it = inputs.rbegin(); it != inputs.rend(); ++it) {
+        if (it != inputs.rbegin()) {
+          (it - 1)->cur_value = (it - 1)->values.cbegin();
+        }
+        ++it->cur_value;
+        if (it->cur_value != it->values.cend()) {
+          break;
+        }
+      }
+    };
+    for (; inputs.front().cur_value != inputs.front().values.cend();
+         next_input()) {
+      XLS_ASSIGN_OR_RETURN(Value r, InterpretNode(n, current_value()));
+      insert_result(std::move(r).bits());
+    }
+    VLOG(3) << "Node " << n << " can have constant values of ["
+            << absl::StrJoin(result_heap, ", ") << "]";
+    absl::flat_hash_set<Bits> res;
+    res.insert(result_heap.begin(), result_heap.end());
+    return SetValue(
+        n, LeafTypeTree<absl::flat_hash_set<Bits>>::CreateSingleElementTree(
+               n->GetType(), std::move(res)));
+  }
+
+  absl::Status HandleNext(Next* n) override {
+    return absl::InternalError(absl::StrFormat(
+        "Unexpected invoke of %s. Next nodes should not feed into anything.",
+        n->ToString()));
+  }
+
+  absl::Status HandleNonConst(Node* n) {
+    return SetValue(n, LeafTypeTree<absl::flat_hash_set<Bits>>(
+                           n->GetType(), absl::flat_hash_set<Bits>{}));
+  }
+
+  absl::Status HandleParam(Param* p) override { return HandleNonConst(p); }
+
+  absl::Status HandleLiteral(Literal* l) override {
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<Value> value_ltt,
+                         ValueToLeafTypeTree(l->value(), l->GetType()));
+    return SetValue(l, leaf_type_tree::Map<absl::flat_hash_set<Bits>, Value>(
+                           value_ltt.AsView(),
+                           [](const Value& v) -> absl::flat_hash_set<Bits> {
+                             if (v.IsToken()) {
+                               return {UBits(0, 0)};
+                             }
+                             return {v.bits()};
+                           }));
+  }
+
+  // TODO(allight): Technically we could go through this but its hard to see
+  // what the benefit would be.
+  absl::Status HandleArraySlice(ArraySlice* a) override {
+    return HandleNonConst(a);
+  }
+
+ protected:
+  absl::StatusOr<absl::flat_hash_set<Bits>> JoinElements(
+      Type* element_type,
+      absl::Span<const absl::flat_hash_set<Bits>* const> data_sources,
+      absl::Span<const LeafTypeTreeView<absl::flat_hash_set<Bits>>>
+          control_sources,
+      Node* node, absl::Span<const int64_t> index) const override {
+    if (!element_type->IsBits()) {
+      return absl::flat_hash_set<Bits>{};
+    }
+    struct NotAbsSignedCompare {
+      bool operator()(const Bits& l, const Bits& r) {
+        return AbsoluteValueLessThan(r, l);
+      }
+    };
+    // Priority queue ordered small to large in absolute value.
+    std::priority_queue<Bits, std::vector<Bits>, NotAbsSignedCompare> res;
+    for (const absl::flat_hash_set<Bits>* v : data_sources) {
+      for (const Bits& b : *v) {
+        res.push(b);
+      }
+    }
+    absl::flat_hash_set<Bits> out;
+    out.reserve(kSegmentLimit);
+    while (out.size() < kSegmentLimit && !res.empty()) {
+      out.insert(res.top());
+      res.pop();
+    }
+    return out;
+  }
+};
+
+// Find all values where the antecedents (excepting selector values) are purely
+// constants which update the given param.
+absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
+    Param* orig_param, absl::Span<Node* const> topo_sort,
+    const NodeDependencyAnalysis& nda) {
+  ConstantValueIrInterpreter interp;
+  std::vector<DependencyBitmap> next_deps;
+  XLS_RET_CHECK(orig_param->GetType()->IsBits());
+  Proc* proc = orig_param->function_base()->AsProcOrDie();
+  next_deps.reserve(proc->next_values(orig_param).size());
+  for (Next* n : proc->next_values(orig_param)) {
+    XLS_ASSIGN_OR_RETURN(DependencyBitmap bm, nda.GetDependents(n->value()));
+    next_deps.push_back(bm);
+  }
+  auto is_interesting = [&](Node* n) {
+    return absl::c_any_of(next_deps, [&](const DependencyBitmap& d) {
+      return *d.IsDependent(n);
+    });
+  };
+  for (Node* n : topo_sort) {
+    if (!is_interesting(n)) {
+      continue;
+    }
+    XLS_RETURN_IF_ERROR(n->Accept(&interp));
+  }
+  absl::flat_hash_set<Bits> param_values;
+  param_values.insert(proc->GetInitValue(orig_param)->bits());
+  for (Next* n : proc->next_values(orig_param)) {
+    const auto& values = interp.values();
+    if (!values.contains(n->value())) {
+      continue;
+    }
+    LeafTypeTreeView<absl::flat_hash_set<Bits>> v =
+        values.at(n->value()).AsView();
+    XLS_RET_CHECK(v.type()->IsBits());
+    for (const Bits& b : v.Get({})) {
+      param_values.insert(b);
+    }
+  }
+  return std::move(param_values);
+}
+
 // Snip off segments of the interval set if possible.
 //
 // We do this by running the update function against the interval which contains
@@ -276,34 +515,52 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     Proc* proc, Param* param, const IntervalSet& intervals,
     absl::Span<Node* const> topo_sort, const NodeDependencyAnalysis& nda,
     const absl::flat_hash_map<Param*, RangeData>& ground_truth) {
-  XLS_ASSIGN_OR_RETURN(Value init_value, proc->GetInitValue(param));
-  XLS_RET_CHECK(intervals.Covers(init_value.bits()))
-      << "Invalid interval calculation for " << param << ".";
   VLOG(3) << "Doing segment walk for " << param << " on " << intervals;
   absl::flat_hash_set<Interval> remaining_intervals(
       intervals.Intervals().begin(), intervals.Intervals().end());
-  Interval initial_interval = *absl::c_find_if(
-      remaining_intervals,
-      [&](const Interval& i) { return i.Covers(init_value.bits()); });
-  remaining_intervals.erase(initial_interval);
-  // Split the initial interval into 3 segments [<Before initial value>,
-  // <initial value>, <after initial value>]. We start with only the initial
+  // Split each interval which is reachable using only constants into 3 segments
+  // [<Before value>, <value>, <after value>]. We start with only the initial
   // value in the active segment. After this we assume that any value in a
   // segment makes the entire segment active. This is to handle values which go
   // down to 0.
-  IntervalSet active_intervals = IntervalSet::Precise(init_value.bits());
-  if (!initial_interval.IsPrecise()) {
-    if (init_value.bits() != initial_interval.LowerBound()) {
-      remaining_intervals.insert(
-          Interval::Closed(initial_interval.LowerBound(),
-                           bits_ops::Decrement(init_value.bits())));
+  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Bits> constant_update_values,
+                       FindConstantUpdateValues(param, topo_sort, nda));
+  VLOG(3) << "  Constant-derived values for updates are ["
+          << absl::StrJoin(constant_update_values, ", ") << "]";
+  for (const Bits& v : constant_update_values) {
+    auto it = absl::c_find_if(remaining_intervals,
+                              [&](const Interval& i) { return i.Covers(v); });
+    if (it == remaining_intervals.cend()) {
+      // Apparently this value is unreachable. Odd but possible.
+      continue;
     }
-    if (init_value.bits() != initial_interval.UpperBound()) {
+    if (it->IsPrecise()) {
+      // There's nothing to split.
+      continue;
+    }
+    Interval interval = *it;  // NOLINT: Cannot use a reference since
+                              // inserting values invalidates the reference.
+    remaining_intervals.erase(it);
+    if (v != interval.LowerBound()) {
       remaining_intervals.insert(
-          Interval::Closed(bits_ops::Increment(init_value.bits()),
-                           initial_interval.UpperBound()));
+          Interval::Closed(interval.LowerBound(), bits_ops::Decrement(v)));
+    }
+    remaining_intervals.insert(Interval::Precise(v));
+    if (v != interval.UpperBound()) {
+      remaining_intervals.insert(
+          Interval::Closed(bits_ops::Increment(v), interval.UpperBound()));
     }
   }
+  VLOG(3) << "  state space separated into ["
+          << absl::StrJoin(remaining_intervals, ", ") << "]";
+  XLS_ASSIGN_OR_RETURN(Value init_value, proc->GetInitValue(param));
+  XLS_RET_CHECK(intervals.Covers(init_value.bits()))
+      << "Invalid interval calculation for " << param << ". Initial value "
+      << init_value << " was marked unreachable.";
+  IntervalSet active_intervals = IntervalSet::Precise(init_value.bits());
+  CHECK(remaining_intervals.contains(Interval::Precise(init_value.bits())))
+      << "Initial value not included in constant values.";
+  remaining_intervals.erase(Interval::Precise(init_value.bits()));
   XLS_ASSIGN_OR_RETURN(
       SegmentRangeData limiter,
       SegmentRangeData::Create(nda, ground_truth, param, topo_sort));
@@ -467,14 +724,14 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
   std::vector<Node*> reverse_topo_sort = ReverseTopoSort(proc);
   // Get the nodes which actually affect the next-value nodes. We don't really
   // care about anything else.
+  std::vector<Node*> interesting_nodes;
+  interesting_nodes.reserve(2 * proc->next_values().size());
+  for (Next* n : proc->next_values()) {
+    interesting_nodes.push_back(n);
+    interesting_nodes.push_back(n->value());
+  }
   NodeDependencyAnalysis next_node_sources =
-      NodeDependencyAnalysis::BackwardDependents(
-          proc,
-          // Annoyingly absl doesn't seem to like conversion even when its
-          // pointers.
-          absl::MakeConstSpan(
-              reinterpret_cast<Node* const*>(proc->next_values().begin()),
-              proc->next_values().size()));
+      NodeDependencyAnalysis::BackwardDependents(proc, interesting_nodes);
 
   // Data for doing state exploration. optional since we usually don't need them
   // so no need to create them.
