@@ -84,13 +84,11 @@ MultipleChannelOps FindMultipleChannelOps(Package* p) {
     for (Node* node : fb->nodes()) {
       if (node->Is<Send>()) {
         Send* send = node->As<Send>();
-        absl::StatusOr<Channel*> channel = p->GetChannel(send->channel_name());
         VLOG(4) << "Found send " << send->ToString();
         result.multiple_sends[send->channel_name()].insert(send);
       }
       if (node->Is<Receive>()) {
         Receive* recv = node->As<Receive>();
-        absl::StatusOr<Channel*> channel = p->GetChannel(recv->channel_name());
         result.multiple_receives[recv->channel_name()].insert(recv);
         VLOG(4) << "Found recv " << recv->ToString();
       }
