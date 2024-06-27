@@ -853,6 +853,9 @@ TEST(BitsOpsTest, BitSliceUpdate) {
   }
 }
 
+// Will initialize a bunch of boolean arrays with numbers in the following tests
+// NOLINTBEGIN(readability-implicit-bool-conversion)
+// NOLINTBEGIN(modernize-use-bool-literals)
 TEST(BitsOpsTest, LongestCommonPrefixLSBTypical) {
   // Simple typical example
   Bits x(absl::InlinedVector<bool, 1>{1, 1, 0, 1, 1});
@@ -920,6 +923,9 @@ TEST(BitsOpsTest, LongestCommonPrefixMSBMoreThan2) {
   Bits expected(absl::InlinedVector<bool, 1>{1, 1, 0});
   EXPECT_EQ(bits_ops::LongestCommonPrefixMSB({x, y, z}), expected);
 }
+
+// NOLINTEND(modernize-use-bool-literals)
+// NOLINTEND(readability-implicit-bool-conversion)
 
 void TestBinary(const Bits& b, const std::string& expected) {
   EXPECT_EQ(BitsToString(b, FormatPreference::kBinary), expected);
