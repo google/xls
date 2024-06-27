@@ -149,13 +149,12 @@ def load_external_repositories():
         ],
     )
 
-    # Released on 2023-08-22, current as of 2023-09-26
-    # https://github.com/bazelbuild/rules_python/releases/tag/0.25.0
+    # Released on 2024-06-19, current as of 2024-06-26
     http_archive(
         name = "rules_python",
-        sha256 = "5868e73107a8e85d8f323806e60cad7283f34b32163ea6ff1020cf27abef6036",
-        strip_prefix = "rules_python-0.25.0",
-        url = "https://github.com/bazelbuild/rules_python/releases/download/0.25.0/rules_python-0.25.0.tar.gz",
+        sha256 = "e3f1cc7a04d9b09635afb3130731ed82b5f58eadc8233d4efb59944d92ffc06f",
+        strip_prefix = "rules_python-0.33.2",
+        url = "https://github.com/bazelbuild/rules_python/releases/download/0.33.2/rules_python-0.33.2.tar.gz",
     )
 
     http_archive(
@@ -236,8 +235,8 @@ def load_external_repositories():
         sha256 = "c682fc39baefc6e804d735e6b48141157b7213602cc66dbe0bf375b904d8b5f9",
         strip_prefix = "grpc-1.64.2",
         repo_mapping = {
-            "@local_config_python": "@python39",
-            "@system_python": "@python39",
+            "@local_config_python": "@project_python",
+            "@system_python": "@project_python",
         },
     )
 

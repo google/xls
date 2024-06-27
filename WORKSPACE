@@ -62,11 +62,13 @@ load(
   "python_register_toolchains",
 )
 
+# Must be called before using anything from rules_python.
+# https://github.com/bazelbuild/rules_python/issues/1560#issuecomment-1815118394
 py_repositories()
 
 python_register_toolchains(
-    name = "python39",
-    python_version = "3.9",
+    name = "project_python",
+    python_version = "3.11",
 
     # Required for our containerized CI environments; we do not recommend
     # building XLS as root normally.
@@ -82,10 +84,6 @@ grpc_deps()
 load("//dependency_support:initialize_external.bzl", "initialize_external_repositories")
 
 initialize_external_repositories()
-
-load("@rules_hdl_pip_deps//:requirements.bzl", rules_hdl_pip_install_deps = "install_deps")
-
-rules_hdl_pip_install_deps()
 
 load("@xls_pip_deps//:requirements.bzl", xls_pip_install_deps = "install_deps")
 

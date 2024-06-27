@@ -38,8 +38,8 @@ def repo():
     )
 
     # Current as of 2024-04-01
-    git_hash = "0ecf32fa4d03e47148d088f15530b446f0ab7ac2"
-    archive_sha256 = "f741982518996f816539067f4b1bfafed56f566be06e7612bcdc8ed0d5b42673"
+    git_hash = "3481036a33ea237c4c9c3baeffd5050eedd9f840"
+    archive_sha256 = "238020f945949459ca7d1ab7cb480e8d4a31048909d8674e564684f82dd0110a"
 
     maybe(
         http_archive,
