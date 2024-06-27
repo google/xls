@@ -135,10 +135,16 @@ def generate_ir_package(op: str,
       cases = args[1:]
       args = args[0:1]
       args.append('cases=[%s]' % ', '.join(cases))
-  elif op == 'one_hot_sel' or op == 'priority_sel':
+  elif op == 'one_hot_sel':
     cases = args[1:]
     args = args[0:1]
     args.append('cases=[%s]' % ', '.join(cases))
+  elif op == 'priority_sel':
+    cases = args[1:-1]
+    default = args[-1]
+    args = args[0:1]
+    args.append('cases=[%s]' % ', '.join(cases))
+    args.append('default=%s' % default)
 
   args.extend(f'{k}={v}' for k, v in attributes)
 

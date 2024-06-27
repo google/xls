@@ -1004,7 +1004,7 @@ Selects between operands based on a selector, choosing the highest-priority case
 if more than one case is selected. Each bit in the selector corresponds to a
 case, with the least significant bit corresponding to the first case and having
 the highest priority. If there are no bits in the selector set, no case is
-selected and the default value of 0 is chosen.
+selected and the `default` value is chosen.
 
 See `one_hot` for an example of the one-hot selector invariant. Note that when
 the selector is not one-hot, this operation is still well defined.
@@ -1016,7 +1016,7 @@ unnecessary and subsequently eliminate them.
 **Syntax**
 
 ```
-result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}], default=<default>)
 ```
 
 **Types**
@@ -1025,6 +1025,7 @@ Value      | Type
 ---------- | ---------
 `selector` | `bits[N]`
 `case_{i}` | `T`
+`default`  | `T`
 `result`   | `T`
 
 The result is the first case `case_{i}` for which the corresponding bit `i` is

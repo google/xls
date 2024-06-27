@@ -107,6 +107,27 @@ top fn main(op0: bits[2], op1: bits[32], op2: bits[32]) -> bits[32] {
             output_type='bits[32]',
             operand_types=('bits[2]', 'bits[32]', 'bits[32]')))
 
+  def test_priority_select(self):
+    self.assertEqual(
+        """package priority_sel_characterization
+
+top fn main(op0: bits[4], op1: bits[64], op2: bits[64], op3: bits[64], op4: bits[64], op5: bits[64]) -> bits[64] {
+  ret result: bits[64] = priority_sel(op0, cases=[op1, op2, op3, op4], default=op5)
+}""",
+        opgen.generate_ir_package(
+            'priority_sel',
+            output_type='bits[64]',
+            operand_types=(
+                'bits[4]',
+                'bits[64]',
+                'bits[64]',
+                'bits[64]',
+                'bits[64]',
+                'bits[64]',
+            ),
+        ),
+    )
+
   def test_sign_extend(self):
     self.assertEqual(
         """package sign_ext_characterization

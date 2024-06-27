@@ -1354,16 +1354,16 @@ op_samples {
 
 op_samples {
   op: "kPrioritySel"
-  samples { result_width: 128  operand_widths:  4  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
-  samples { result_width: 128  operand_widths:  8  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
-  samples { result_width: 128  operand_widths: 16  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
-  samples { result_width:  64  operand_widths:  4  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
-  samples { result_width:  64  operand_widths:  8  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
-  samples { result_width:  64  operand_widths: 16  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
-  samples { result_width:  32  operand_widths:  8  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
-  samples { result_width:  32  operand_widths: 16  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
-  samples { result_width:  16  operand_widths:  2  operand_widths:  16  operand_widths:  16 }
-  samples { result_width:  16  operand_widths:  5  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width: 128  operand_widths:  4  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 128  operand_widths:  8  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 128  operand_widths: 16  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width:  64  operand_widths:  4  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
+  samples { result_width:  64  operand_widths:  8  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
+  samples { result_width:  64  operand_widths: 16  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths: 64 }
+  samples { result_width:  32  operand_widths:  8  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  32  operand_widths: 16  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  16  operand_widths:  2  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  16  operand_widths:  5  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths: 16 }
 }
 
 op_samples {
