@@ -176,7 +176,8 @@ TEST(TypeTest, EmptyStructTypeIsNotUnit) {
   Span fake_span(Pos(fs_path, 0, 0), Pos(fs_path, 0, 0));
   auto* struct_def = module.Make<StructDef>(
       fake_span, module.Make<NameDef>(fake_span, "S", nullptr),
-      std::vector<ParametricBinding*>{}, std::vector<StructMember>{}, /*is_public=*/false);
+      std::vector<ParametricBinding*>{}, std::vector<StructMember>{},
+      /*is_public=*/false);
   std::vector<std::unique_ptr<Type>> members;
   StructType s(std::move(members), *struct_def);
   EXPECT_THAT(s.GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(0)));
