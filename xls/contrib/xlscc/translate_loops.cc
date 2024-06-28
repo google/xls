@@ -210,7 +210,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
                        max_unroll_iters_));
     }
     if (nIters == warn_unroll_iters_) {
-      LOG(WARNING) << ErrorMessage(
+      LOG(WARNING) << WarningMessage(
           loc, "Loop unrolling has reached %i iterations", warn_unroll_iters_);
     }
 
@@ -257,8 +257,8 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
     // Print slow unrolling warning
     const absl::Duration elapsed_time = stopwatch.GetElapsedTime();
     if (elapsed_time > absl::Seconds(0.1) && elapsed_time > slowest_iter) {
-      LOG(WARNING) << ErrorMessage(loc, "Slow loop unrolling iteration %i: %v",
-                                   nIters, elapsed_time);
+      LOG(WARNING) << WarningMessage(
+          loc, "Slow loop unrolling iteration %i: %v", nIters, elapsed_time);
       slowest_iter = elapsed_time;
     }
   }

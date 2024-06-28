@@ -1190,14 +1190,66 @@ class Translator {
   friend class CInternalTuple;
 
   std::function<std::optional<std::string>(xls::Fileno)> LookUpInPackage();
+
   template <typename... Args>
   std::string ErrorMessage(const xls::SourceInfo& loc,
                            const absl::FormatSpec<Args...>& format,
                            const Args&... args) {
     std::string result = absl::StrFormat(format, args...);
-    for (const xls::SourceLocation& location : loc.locations) {
-      absl::StrAppend(&result, "\n", PrintCaret(LookUpInPackage(), location));
+
+    absl::StrAppend(
+        &result, absl::StrJoin(
+                     loc.locations, "\n",
+                     [this](std::string* out, const xls::SourceLocation& loc) {
+                       absl::StrAppend(out, PrintCaret(LookUpInPackage(), loc));
+                     }));
+
+    const clang::FunctionDecl* current_func_decl = nullptr;
+
+    absl::StrAppend(&result, "\nCall trace:");
+    for (const TranslationContext& context : context_stack_) {
+      if (context.sf == nullptr || context.sf->clang_decl == nullptr) {
+        break;
+      }
+      // Don't repeat functions in different scopes
+      if (current_func_decl == context.sf->clang_decl) {
+        continue;
+      }
+      current_func_decl = context.sf->clang_decl;
+      const xls::SourceInfo& loc_all = GetLoc(*current_func_decl);
+
+      if (loc_all.locations.empty()) {
+        absl::StrAppend(&result, "\n\t <unknown>");
+        continue;
+      }
+
+      CHECK_EQ(loc_all.locations.size(), 1);
+      const xls::SourceLocation& loc = loc_all.locations.front();
+
+      std::optional<std::string> filename_found =
+          LookUpInPackage()(loc.fileno());
+
+      absl::StrAppendFormat(&result, "\n\t %s() at %s:%i:%i",
+                            current_func_decl->getQualifiedNameAsString(),
+                            filename_found.value_or("<unknown>"),
+                            loc.lineno().value(), loc.colno().value());
     }
+    return result;
+  }
+
+  template <typename... Args>
+  std::string WarningMessage(const xls::SourceInfo& loc,
+                             const absl::FormatSpec<Args...>& format,
+                             const Args&... args) {
+    std::string result = absl::StrFormat(format, args...);
+
+    absl::StrAppend(
+        &result, absl::StrJoin(
+                     loc.locations, "\n",
+                     [this](std::string* out, const xls::SourceLocation& loc) {
+                       absl::StrAppend(out, PrintCaret(LookUpInPackage(), loc));
+                     }));
+
     return result;
   }
 

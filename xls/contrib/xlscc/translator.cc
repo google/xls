@@ -1263,7 +1263,7 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
           field_type));
     }
   } else {
-    LOG(WARNING) << ErrorMessage(
+    LOG(WARNING) << WarningMessage(
         GetLoc(*cxx_record),
         "Warning: interpreting definition-less struct '%s' as empty",
         signature->base()->getNameAsString());
@@ -2867,7 +2867,7 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
       XLS_ASSIGN_OR_RETURN(bool arg_contains_lvalues,
                            arg_cval.type()->ContainsLValues(*this));
       if (arg_contains_lvalues) {
-        LOG(WARNING) << ErrorMessage(
+        LOG(WARNING) << WarningMessage(
             loc, "Only R-Value part of argument %i will be traced", arg);
       }
       tuple_parts.push_back(arg_cval.rvalue());
@@ -3703,7 +3703,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
           Assign(expr_args[pi], CValue(unpacked_returns.front(), ctype), loc));
 
       if (context().any_writes_generated) {
-        LOG(WARNING) << ErrorMessage(
+        LOG(WARNING) << WarningMessage(
             loc,
             "Memory write in call-by-reference will generate a read and a "
             "write. Is this intended here?");
@@ -5444,7 +5444,7 @@ GeneratedFunction::GetDeterministicallyOrderedStaticValues() const {
 absl::Status Translator::CheckInitIntervalValidity(int initiation_interval_arg,
                                                    const xls::SourceInfo& loc) {
   if (initiation_interval_arg != 1) {
-    std::string message = ErrorMessage(
+    std::string message = WarningMessage(
         loc,
         "Only initiation interval 1 supported, %i requested, defaulting to 1",
         initiation_interval_arg);
