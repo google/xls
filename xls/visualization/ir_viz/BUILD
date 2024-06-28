@@ -160,7 +160,7 @@ cc_library(
         "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_protobuf//:protobuf",
+        "@com_google_protobuf//:json_util",
     ],
 )
 
