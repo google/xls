@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -75,8 +76,12 @@ std::string ConstantFoldProofId(std::optional<verilog::DataType*> data_type) {
   if (!data_type.has_value()) {
     return "<null>";
   }
-  QCHECK(!(*data_type)->loc().Empty());
-  return (*data_type)->loc().ToString();
+  verilog::VastNode* node = *data_type;
+  if (auto* typedef_type = dynamic_cast<TypedefType*>(node); typedef_type) {
+    node = typedef_type->type_def();
+  }
+  QCHECK(!node->loc().Empty());
+  return node->loc().ToString();
 }
 
 // Checks if the two given types have any cast compatibility impediments due to
