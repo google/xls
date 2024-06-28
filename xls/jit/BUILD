@@ -326,16 +326,6 @@ cc_library(
     ],
 )
 
-alias(
-    name = "switchable_function_jit",
-    actual = "switchable_function_jit-normal",
-    # Uncomment this and comment the above to make the
-    # switchable-function-jit use the interpreter instead. This can be used
-    # if the jit is non-functional due to some llvm update.
-    # actual = "switchable_function_jit-interpreter_fallback",
-    visibility = ["//xls:xls_users"],
-)
-
 cc_library(
     name = "jit_emulated_tls",
     srcs = ["jit_emulated_tls.cc"],
@@ -346,38 +336,13 @@ cc_library(
 )
 
 cc_library(
-    name = "switchable_function_jit-normal",
+    name = "switchable_function_jit",
     srcs = ["switchable_function_jit.cc"],
     hdrs = ["switchable_function_jit.h"],
     defines = [
         "EMERGENCY_FORCE_INTERPRETER=0",
     ],
-    visibility = ["//visibility:private"],
-    deps = [
-        ":function_jit",
-        ":observer",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/ir",
-        "//xls/ir:events",
-        "//xls/ir:value",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
-    name = "switchable_function_jit-interpreter_fallback",
-    srcs = ["switchable_function_jit.cc"],
-    hdrs = ["switchable_function_jit.h"],
-    defines = [
-        "EMERGENCY_FORCE_INTERPRETER=1",
-    ],
-    visibility = ["//visibility:private"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":function_jit",
         ":observer",
@@ -400,23 +365,6 @@ cc_test(
     srcs = ["switchable_function_jit_test.cc"],
     deps = [
         ":switchable_function_jit",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "switchable_function_jit_interpreter_fallback_test",
-    srcs = ["switchable_function_jit_interpreter_fallback_test.cc"],
-    deps = [
-        ":switchable_function_jit-interpreter_fallback",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
