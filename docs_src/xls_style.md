@@ -121,6 +121,9 @@ in the XLS project, with the relevant Google style guides
 *   We prefer `absl::visit` over `std::visit` as it is reportedly higher
     performance.
 
+*   We use C++ standard-library filesystem functions and data structures, in the
+    absence of an accepted open-source alternative other than Boost.
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can
