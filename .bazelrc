@@ -1,6 +1,10 @@
 # We use bazel >= 6, but no bzlmod yet.
 common --noenable_bzlmod
 
+# Disable rules_python Starlark rules for Bazel 7+.
+# See https://github.com/bazelbuild/rules_python/issues/1069#issuecomment-1942053014.
+build --action_env=RULES_PYTHON_ENABLE_PYSTAR=0
+
 # Minimium c++ standard used.
 build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
 build --action_env=BAZEL_CXXOPTS=-std=c++20
