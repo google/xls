@@ -62,29 +62,14 @@ class ParseTextProtoFileErrorCollector : public google::protobuf::io::ErrorColle
       const std::filesystem::path& file_name, const google::protobuf::Message& proto)
       : file_name_(file_name), proto_(proto) {}
 
-  // The Interface changed up-stream so this is an attempt to be
-  // compatible with older and newer versions. We can't add 'override' on any
-  // of the next two functions as it depends on the proto version we're using.
-
-  // New interface.
-  // TODO(google/xls#1408) Once grpc/protobuf is updated, add 'override'.
-  // NOLINTNEXTLINE(modernize-use-override)
   void RecordError(int line, google::protobuf::io::ColumnNumber column,
-                   std::string_view message) /* override */ {
+                   std::string_view message) final {
     status_.Update(absl::Status(
         absl::StatusCode::kFailedPrecondition,
         absl::StrCat("Failed to parse ", proto_.GetDescriptor()->name(),
                      " proto from text.  First failure is at line ", line,
                      " column ", column, " in file '", file_name_.string(),
                      "'.  Proto parser error:\n", message)));
-  }
-
-  // Deprecated interface, compatible with older proto.
-  // TODO(google/xls#1408) Once grpc/protobuf is updated, remove this method.
-  // NOLINTNEXTLINE(modernize-use-override)
-  void AddError(int line, int column,
-                const std::string& message) /* override */ {
-    RecordError(line, column, message);
   }
 
   absl::Status status() const { return status_; }

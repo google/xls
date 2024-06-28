@@ -228,7 +228,6 @@ def load_external_repositories():
     )
 
     # Released 2024-06-07, current as of 2024-06-26.
-    # TODO(google/xls#1408) Once updated, fix related TODOs.
     http_archive(
         name = "com_github_grpc_grpc",
         urls = ["https://github.com/grpc/grpc/archive/v1.64.2.tar.gz"],
