@@ -58,6 +58,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -3378,13 +3379,23 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
   // Make `unit` optional because we haven't created the top block yet. We will
   // create it on the first iteration and emplace `unit`.
   std::string module_name(
-      options.module_name().value_or(SanitizeIdentifier(top->name())));
+      SanitizeIdentifier(options.module_name().value_or(top->name())));
   Block* top_block =
       package->AddBlock(std::make_unique<Block>(module_name, package));
+  // We use a uniquer here because the top block name comes from the codegen
+  // option's `module_name` field (if set). A non-top proc could have the same
+  // name, so the name uniquer will ensure that the sub-block gets a suffix if
+  // needed. Note that the NameUniquer's sanitize performs a different function
+  // from `SanitizeIdentifier()`, which is used to ensure that identifiers are
+  // OK for RTL.
+  NameUniquer block_name_uniquer("__");
+  XLS_RET_CHECK_EQ(block_name_uniquer.GetSanitizedUniqueName(module_name),
+                   module_name);
   CodegenPassUnit unit(package, top_block);
 
   for (const auto& [fb, schedule] : sorted_schedules) {
-    std::string sub_block_name = SanitizeIdentifier(fb->name());
+    std::string sub_block_name = block_name_uniquer.GetSanitizedUniqueName(
+        SanitizeIdentifier(fb->name()));
     Block* sub_block;
     if (fb == top) {
       sub_block = top_block;

@@ -458,6 +458,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
+        "//xls/ir:name_uniquer",
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:register",

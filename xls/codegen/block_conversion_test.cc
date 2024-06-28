@@ -5657,6 +5657,57 @@ TEST_F(BlockConversionTest, PipelineRegisterStagesKnown) {
                      write_at(na, 2), write_at(na, 3), write_at(na, 4)));
 }
 
+TEST_F(BlockConversionTest, NonTopBlockNamedModuleName) {
+  // Block conversion creates a top block with `module_name` as the name.
+  // This tests that we get good behavior when a non-top block has the same name
+  // as `module_name`.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_out, p->CreateStreamingChannel("x_out", ChannelOps::kSendOnly,
+                                                 p->GetBitsType(64)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_out, p->CreateStreamingChannel("y_out", ChannelOps::kSendOnly,
+                                                 p->GetBitsType(64)));
+
+  auto make_constant_send = [&](std::string_view name, Channel* chan,
+                                int64_t value) {
+    TokenlessProcBuilder pb(name, "tok", p.get());
+    pb.Send(chan, pb.Literal(UBits(value, 64)));
+    return pb.Build();
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc0,
+                           make_constant_send("A", x_out, /*value=*/24));
+  XLS_ASSERT_OK(make_constant_send("B", y_out, /*value=*/48).status());
+
+  // We set A to top, but will set module name to B.
+  XLS_ASSERT_OK(p->SetTop(proc0));
+
+  PackagePipelineSchedules schedules;
+  for (const std::unique_ptr<Proc>& proc : p->procs()) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(proc.get(), TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+    schedules.emplace(proc.get(), std::move(schedule));
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      PackageToPipelinedBlocks(
+          schedules,
+          CodegenOptions().reset("foo", false, false, false).module_name("B"),
+          p.get()));
+
+  EXPECT_THAT(unit.top_block, m::Block("B"));
+  EXPECT_THAT(unit.top_block->nodes(), Contains(m::Literal(24)));
+  EXPECT_THAT(unit.top_block->nodes(), Not(Contains(m::Literal(48))));
+
+  EXPECT_THAT(p->blocks(),
+              UnorderedElementsAre(m::Block("B"), m::Block("B__1")));
+  XLS_ASSERT_OK(p->GetBlock("B__1").status());
+  EXPECT_THAT(p->GetBlock("B__1").value()->nodes(), Contains(m::Literal(48)));
+}
+
 TEST_F(ProcConversionTestFixture, DISABLED_SimpleMultiProcConversion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage());
