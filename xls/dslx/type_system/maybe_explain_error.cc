@@ -45,8 +45,8 @@ absl::Status XlsTypeErrorStatus(const Span& span, const Type& lhs,
   std::string lhs_str = lhs.ToErrorString();
   std::string rhs_str = rhs.ToErrorString();
   return absl::InvalidArgumentError(
-      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
-                      lhs_str, rhs_str, message));
+      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(), lhs_str,
+                      rhs_str, message));
 }
 
 // Creates an XlsTypeErrorStatus using the data within the type mismatch struct.

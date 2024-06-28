@@ -201,9 +201,7 @@ class Type {
   virtual bool operator==(const Type& other) const = 0;
   bool operator!=(const Type& other) const { return !(*this == other); }
 
-  std::string ToString() const {
-    return ToStringInternal(FullyQualify::kNo);
-  }
+  std::string ToString() const { return ToStringInternal(FullyQualify::kNo); }
   std::string ToStringFullyQualified() const {
     return ToStringInternal(FullyQualify::kYes);
   }
@@ -323,7 +321,8 @@ class MetaType : public Type {
   std::unique_ptr<Type>& wrapped() { return wrapped_; }
 
   std::string ToStringInternal(FullyQualify fully_qualify) const override {
-    return absl::StrCat("typeof(", wrapped_->ToStringInternal(fully_qualify), ")");
+    return absl::StrCat("typeof(", wrapped_->ToStringInternal(fully_qualify),
+                        ")");
   }
 
  private:
@@ -347,7 +346,9 @@ class TokenType : public Type {
     return v.HandleToken(*this);
   }
   bool operator==(const Type& other) const override { return other.IsToken(); }
-  std::string ToStringInternal(FullyQualify fully_qualify) const override { return "token"; }
+  std::string ToStringInternal(FullyQualify fully_qualify) const override {
+    return "token";
+  }
   std::vector<TypeDim> GetAllDims() const override { return {}; }
   absl::StatusOr<TypeDim> GetTotalBitCount() const override {
     return TypeDim(InterpValue::MakeU32(0));
@@ -510,7 +511,8 @@ class ArrayType : public Type {
  public:
   ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
       : element_type_(std::move(element_type)), size_(size) {
-    CHECK(!element_type_->IsMeta()) << element_type_->ToStringInternal(FullyQualify::kNo);
+    CHECK(!element_type_->IsMeta())
+        << element_type_->ToStringInternal(FullyQualify::kNo);
   }
 
   absl::Status Accept(TypeVisitor& v) const override {

@@ -108,8 +108,7 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
         struct_type.GetMemberTypeByName(name);
 
     if (maybe_type.has_value()) {
-      XLS_RET_CHECK(!maybe_type.value()->IsMeta())
-          << *maybe_type.value();
+      XLS_RET_CHECK(!maybe_type.value()->IsMeta()) << *maybe_type.value();
       result.member_types.push_back(maybe_type.value()->CloneToUnique());
     } else {
       return TypeInferenceErrorStatus(
