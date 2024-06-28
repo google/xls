@@ -89,7 +89,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     absl::Span<absl::Nonnull<const ParametricBinding*> const>
         parametric_bindings) {
   VLOG(5) << "Function instantiation @ " << span
-          << " type: " << function_type.ToString();
+          << " type: " << function_type;
   VLOG(5) << " typed-parametrics: " << ToString(typed_parametrics);
   VLOG(5) << " arg types:              " << ToTypesString(args);
   VLOG(5) << " explicit bindings:   " << ToString(explicit_bindings);
@@ -109,7 +109,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     absl::Span<absl::Nonnull<const ParametricBinding*> const>
         parametric_bindings) {
   VLOG(5) << "Struct instantiation @ " << span
-          << " type: " << struct_type.ToString();
+          << " type: " << struct_type;
   VLOG(5) << " arg types:           " << ToTypesString(args);
   VLOG(5) << " member types:        " << ToString(member_types);
   VLOG(5) << " typed-parametrics: " << ToString(typed_parametrics);

@@ -101,7 +101,7 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
                          DeduceAndResolve(expr, ctx));
     XLS_RET_CHECK(!expr_type->IsMeta())
         << "name: " << name << " expr: " << expr->ToString()
-        << " type: " << expr_type->ToString();
+        << " type: " << *expr_type;
 
     result.args.push_back(InstantiateArg{std::move(expr_type), expr->span()});
     std::optional<const Type*> maybe_type =
@@ -109,7 +109,7 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
 
     if (maybe_type.has_value()) {
       XLS_RET_CHECK(!maybe_type.value()->IsMeta())
-          << maybe_type.value()->ToString();
+          << *maybe_type.value();
       result.member_types.push_back(maybe_type.value()->CloneToUnique());
     } else {
       return TypeInferenceErrorStatus(

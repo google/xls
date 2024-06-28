@@ -69,7 +69,7 @@ Type::~Type() = default;
   result.reserve(ts.size());
   for (const auto& t : ts) {
     CHECK(t != nullptr);
-    VLOG(10) << "CloneSpan; cloning: " << t->ToString();
+    VLOG(10) << "CloneSpan; cloning: " << t->ToStringInternal(FullyQualify::kNo);
     result.push_back(t->CloneToUnique());
   }
   return result;
@@ -338,19 +338,19 @@ bool Type::IsToken() const {
 
 const EnumType& Type::AsEnum() const {
   auto* s = dynamic_cast<const EnumType*>(this);
-  CHECK(s != nullptr) << "Type is not a enum: " << ToString();
+  CHECK(s != nullptr) << "Type is not a enum: " << *this;
   return *s;
 }
 
 const StructType& Type::AsStruct() const {
   auto* s = dynamic_cast<const StructType*>(this);
-  CHECK(s != nullptr) << "Type is not a struct: " << ToString();
+  CHECK(s != nullptr) << "Type is not a struct: " << *this;
   return *s;
 }
 
 const ArrayType& Type::AsArray() const {
   auto* s = dynamic_cast<const ArrayType*>(this);
-  CHECK(s != nullptr) << "Type is not an array: " << ToString();
+  CHECK(s != nullptr) << "Type is not an array: " << *this;
   return *s;
 }
 
@@ -380,8 +380,8 @@ absl::StatusOr<std::unique_ptr<Type>> BitsConstructorType::MapSize(
 }
 
 bool BitsConstructorType::operator==(const Type& other) const {
-  VLOG(10) << "BitsConstructorType::operator==; this: " << ToString()
-           << " other: " << other.ToString();
+  VLOG(10) << "BitsConstructorType::operator==; this: " << *this
+           << " other: " << other;
   if (auto* t = dynamic_cast<const BitsConstructorType*>(&other)) {
     return t->is_signed_ == is_signed_;
   }
@@ -392,7 +392,7 @@ bool BitsConstructorType::operator==(const Type& other) const {
   return false;
 }
 
-std::string BitsConstructorType::ToString() const {
+std::string BitsConstructorType::ToStringInternal(FullyQualify fully_qualify) const {
   return absl::StrFormat("xN[is_signed=%s]", is_signed_.ToString());
 }
 
@@ -429,8 +429,8 @@ BitsType::BitsType(bool is_signed, TypeDim size)
     : is_signed_(is_signed), size_(std::move(size)) {}
 
 bool BitsType::operator==(const Type& other) const {
-  VLOG(10) << "BitsType::operator==; this: " << ToString()
-           << " other: " << other.ToString();
+  VLOG(10) << "BitsType::operator==; this: " << *this
+           << " other: " << other;
   if (auto* t = dynamic_cast<const BitsType*>(&other)) {
     return t->is_signed_ == is_signed_ && t->size_ == size_;
   }
@@ -449,7 +449,7 @@ absl::StatusOr<std::unique_ptr<Type>> BitsType::MapSize(
   return std::make_unique<BitsType>(is_signed_, new_size);
 }
 
-std::string BitsType::ToString() const {
+std::string BitsType::ToStringInternal(FullyQualify fully_qualify) const {
   return absl::StrFormat("%cN[%s]", is_signed_ ? 's' : 'u', size_.ToString());
 }
 
@@ -468,7 +468,7 @@ StructType::StructType(std::vector<std::unique_ptr<Type>> members,
     : members_(std::move(members)), struct_def_(struct_def) {
   CHECK_EQ(members_.size(), struct_def_.members().size());
   for (const std::unique_ptr<Type>& member_type : members_) {
-    CHECK(!member_type->IsMeta()) << member_type->ToString();
+    CHECK(!member_type->IsMeta()) << *member_type;
   }
 }
 
@@ -484,22 +484,26 @@ bool StructType::HasToken() const {
 
 std::string StructType::ToErrorString() const {
   return absl::StrFormat("struct '%s' structure: %s",
-                         nominal_type().identifier(), ToString());
+                         nominal_type().identifier(), ToStringInternal(FullyQualify::kNo));
 }
 
-std::string StructType::ToString() const {
+std::string StructType::ToStringInternal(FullyQualify fully_qualify) const {
   std::string guts;
   for (int64_t i = 0; i < members().size(); ++i) {
     if (i != 0) {
       absl::StrAppend(&guts, ", ");
     }
     absl::StrAppendFormat(&guts, "%s: %s", GetMemberName(i),
-                          GetMemberType(i).ToString());
+                          GetMemberType(i).ToStringInternal(fully_qualify));
   }
   if (!guts.empty()) {
     guts = absl::StrCat(" ", guts, " ");
   }
-  return absl::StrCat(nominal_type().identifier(), " {", guts, "}");
+  std::string struct_name = nominal_type().identifier();
+  if (fully_qualify == FullyQualify::kYes) {
+    struct_name = absl::StrCat(nominal_type().span().filename(), ":", struct_name);
+  }
+  return absl::StrCat(struct_name, " {", guts, "}");
 }
 
 absl::StatusOr<std::vector<std::string>> StructType::GetMemberNames() const {
@@ -517,7 +521,7 @@ absl::StatusOr<int64_t> StructType::GetMemberIndex(
   auto it = std::find(names.begin(), names.end(), name);
   if (it == names.end()) {
     return absl::NotFoundError(absl::StrFormat(
-        "Name not present in tuple type %s: %s", ToString(), name));
+        "Name not present in tuple type %s: %s", ToStringInternal(FullyQualify::kNo), name));
   }
   return std::distance(names.begin(), it);
 }
@@ -638,10 +642,10 @@ std::unique_ptr<Type> TupleType::CloneToUnique() const {
   return std::make_unique<TupleType>(CloneSpan(members_));
 }
 
-std::string TupleType::ToString() const {
+std::string TupleType::ToStringInternal(FullyQualify fully_qualify) const {
   std::string guts = absl::StrJoin(
       members_, ", ", [](std::string* out, const std::unique_ptr<Type>& m) {
-        absl::StrAppend(out, m->ToString());
+        absl::StrAppend(out, m->ToStringInternal(FullyQualify::kNo));
       });
   return absl::StrCat("(", guts, ")");
 }
@@ -678,13 +682,13 @@ absl::StatusOr<std::unique_ptr<Type>> ArrayType::MapSize(
                                      std::move(new_size));
 }
 
-std::string ArrayType::ToString() const {
-  return absl::StrFormat("%s[%s]", element_type_->ToString(), size_.ToString());
+std::string ArrayType::ToStringInternal(FullyQualify fully_qualify) const {
+  return absl::StrFormat("%s[%s]", element_type_->ToStringInternal(fully_qualify), size_.ToString());
 }
 
 bool ArrayType::operator==(const Type& other) const {
-  VLOG(10) << "ArrayType::operator==; this: " << ToString()
-           << " other: " << other.ToString();
+  VLOG(10) << "ArrayType::operator==; this: " << *this
+           << " other: " << other;
   if (auto* o = dynamic_cast<const ArrayType*>(&other)) {
     return size_ == o->size_ && *element_type_ == *o->element_type_;
   }
@@ -726,7 +730,7 @@ absl::StatusOr<std::unique_ptr<Type>> EnumType::MapSize(
                                     members_);
 }
 
-std::string EnumType::ToString() const { return enum_def_.identifier(); }
+std::string EnumType::ToStringInternal(FullyQualify) const { return enum_def_.identifier(); }
 
 std::vector<TypeDim> EnumType::GetAllDims() const {
   std::vector<TypeDim> result;
@@ -773,12 +777,12 @@ std::vector<const Type*> FunctionType::GetParams() const {
   return results;
 }
 
-std::string FunctionType::ToString() const {
+std::string FunctionType::ToStringInternal(FullyQualify fully_qualify) const {
   std::string params_str = absl::StrJoin(
-      params_, ", ", [](std::string* out, const std::unique_ptr<Type>& t) {
-        absl::StrAppend(out, t->ToString());
+      params_, ", ", [fully_qualify](std::string* out, const std::unique_ptr<Type>& t) {
+        absl::StrAppend(out, t->ToStringInternal(fully_qualify));
       });
-  return absl::StrFormat("(%s) -> %s", params_str, return_type_->ToString());
+  return absl::StrFormat("(%s) -> %s", params_str, return_type_->ToStringInternal(fully_qualify));
 }
 
 std::vector<TypeDim> FunctionType::GetAllDims() const {
@@ -808,8 +812,8 @@ ChannelType::ChannelType(std::unique_ptr<Type> payload_type,
   CHECK(!payload_type_->IsMeta());
 }
 
-std::string ChannelType::ToString() const {
-  return absl::StrFormat("chan(%s, dir=%s)", payload_type_->ToString(),
+std::string ChannelType::ToStringInternal(FullyQualify fully_qualify) const {
+  return absl::StrFormat("chan(%s, dir=%s)", payload_type_->ToStringInternal(fully_qualify),
                          direction_ == ChannelDirection::kIn ? "in" : "out");
 }
 
@@ -850,7 +854,7 @@ absl::StatusOr<bool> IsSigned(const Type& c) {
     std::optional<bool> signedness = enum_type->is_signed();
     if (!signedness.has_value()) {
       return absl::InvalidArgumentError(
-          "Signedness not present for EnumType: " + c.ToString());
+          "Signedness not present for EnumType: " + c.ToStringInternal(FullyQualify::kNo));
     }
     return signedness.value();
   }
@@ -860,14 +864,14 @@ absl::StatusOr<bool> IsSigned(const Type& c) {
     if (is_signed.IsParametric()) {
       return absl::InvalidArgumentError(
           "Cannot determine signedness; type has parametric signedness: " +
-          c.ToString());
+          c.ToStringInternal(FullyQualify::kNo));
     }
     XLS_ASSIGN_OR_RETURN(int64_t value, is_signed.GetAsInt64());
     return value != 0;
   }
   return absl::InvalidArgumentError(
       "Cannot determined signedness; type is neither enum nor bits: " +
-      c.ToString());
+      c.ToStringInternal(FullyQualify::kNo));
 }
 
 const ParametricSymbol* TryGetParametricSymbol(const TypeDim& dim) {

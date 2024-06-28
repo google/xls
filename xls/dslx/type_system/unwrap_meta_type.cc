@@ -40,7 +40,7 @@ absl::StatusOr<std::unique_ptr<Type>> UnwrapMetaType(std::unique_ptr<Type> t,
 
 absl::StatusOr<const Type*> UnwrapMetaType(const Type& t) {
   const MetaType* metatype = dynamic_cast<const MetaType*>(&t);
-  XLS_RET_CHECK(metatype != nullptr) << t.ToString() << " was not a metatype.";
+  XLS_RET_CHECK(metatype != nullptr) << t << " was not a metatype.";
   return metatype->wrapped().get();
 }
 
