@@ -54,6 +54,9 @@ using std::shared_ptr;
 using std::string;
 using std::vector;
 
+ABSL_FLAG(bool, log_slow_unroll_iterations, false,
+          "If true, log warnings when unrolling is slow.");
+
 namespace xlscc {
 
 absl::Status Translator::GenerateIR_Loop(
@@ -256,7 +259,8 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
     }
     // Print slow unrolling warning
     const absl::Duration elapsed_time = stopwatch.GetElapsedTime();
-    if (elapsed_time > absl::Seconds(0.1) && elapsed_time > slowest_iter) {
+    if (absl::GetFlag(FLAGS_log_slow_unroll_iterations) &&
+        elapsed_time > absl::Seconds(0.1) && elapsed_time > slowest_iter) {
       LOG(WARNING) << WarningMessage(
           loc, "Slow loop unrolling iteration %i: %v", nIters, elapsed_time);
       slowest_iter = elapsed_time;
