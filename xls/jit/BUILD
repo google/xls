@@ -681,8 +681,7 @@ cc_library(
         "@llvm-project//llvm:ExecutionEngine",
         "@llvm-project//llvm:IRPrinter",
         "@llvm-project//llvm:Instrumentation",
-        "@llvm-project//llvm:JITLink",  # build_cleaner: keep
-        "@llvm-project//llvm:OrcJIT",  # build_cleaner: keep
+        "@llvm-project//llvm:OrcJIT",
         "@llvm-project//llvm:OrcShared",
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
