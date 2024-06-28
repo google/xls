@@ -90,6 +90,7 @@ TEST(TypeTest, TestEnum) {
   EXPECT_TRUE(t.HasEnum());
   EXPECT_EQ(std::vector<TypeDim>{TypeDim::CreateU32(2)}, t.GetAllDims());
   EXPECT_EQ("MyEnum", t.ToString());
+  EXPECT_EQ("fake.x:MyEnum", t.ToStringFullyQualified());
 }
 
 TEST(TypeTest, FunctionTypeU32ToS32) {
@@ -170,17 +171,20 @@ TEST(TypeTest, StructTypeGetTotalBitCount) {
 }
 
 TEST(TypeTest, EmptyStructTypeIsNotUnit) {
-  Module module("test", /*fs_path=*/std::nullopt);
-  std::vector<StructMember> ast_members;
+  std::filesystem::path fs_path = "relpath/to/test.x";
+  Module module("test", fs_path);
+  Span fake_span(Pos(fs_path, 0, 0), Pos(fs_path, 0, 0));
   auto* struct_def = module.Make<StructDef>(
-      kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
-      std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);
+      fake_span, module.Make<NameDef>(fake_span, "S", nullptr),
+      std::vector<ParametricBinding*>{}, std::vector<StructMember>{}, /*is_public=*/false);
   std::vector<std::unique_ptr<Type>> members;
   StructType s(std::move(members), *struct_def);
   EXPECT_THAT(s.GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(0)));
   EXPECT_TRUE(s.GetAllDims().empty());
   EXPECT_FALSE(s.HasEnum());
   EXPECT_FALSE(s.IsUnit());
+  EXPECT_EQ(s.ToString(), "S {}");
+  EXPECT_EQ(s.ToStringFullyQualified(), "relpath/to/test.x:S {}");
 }
 
 // -- TypeDimTest

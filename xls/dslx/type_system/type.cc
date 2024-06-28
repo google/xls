@@ -735,7 +735,10 @@ absl::StatusOr<std::unique_ptr<Type>> EnumType::MapSize(
                                     members_);
 }
 
-std::string EnumType::ToStringInternal(FullyQualify) const {
+std::string EnumType::ToStringInternal(FullyQualify fully_qualify) const {
+  if (fully_qualify == FullyQualify::kYes) {
+    return absl::StrCat(enum_def_.span().filename(), ":", enum_def_.identifier());
+  }
   return enum_def_.identifier();
 }
 

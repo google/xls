@@ -201,10 +201,22 @@ class Type {
   virtual bool operator==(const Type& other) const = 0;
   bool operator!=(const Type& other) const { return !(*this == other); }
 
+  // Returns a string representation of this type.
   std::string ToString() const { return ToStringInternal(FullyQualify::kNo); }
+
+  // Returns a string representation of this type, but for nominal type
+  // entities, like structs and enums, prefixes the struct/enum name with the
+  // module in which it is defined.
+  //
+  // This can help disambiguate cases where the same struct name is used in
+  // different modules and they are not compatible with each other, we need to
+  // report a non-confusing error by qualifying which struct/enum we're
+  // referring to more precisely.
   std::string ToStringFullyQualified() const {
     return ToStringInternal(FullyQualify::kYes);
   }
+
+  // Converts the type to a string with given `fully_qualify` mode request.
   virtual std::string ToStringInternal(FullyQualify fully_qualify) const = 0;
 
   // Variation on `ToString()` to be used in user-facing error reporting.
