@@ -420,8 +420,7 @@ void FunctionConverter::SetFunctionBuilder(
   proc_proto_.reset();
   PackageInterfaceProto::FunctionBase* base;
   if (builder->function()->IsFunction()) {
-    function_proto_ =
-        package_data_.conversion_info->interface.add_functions();
+    function_proto_ = package_data_.conversion_info->interface.add_functions();
     base = function_proto_.value()->mutable_base();
   } else {
     CHECK(builder->function()->IsProc())
@@ -2464,9 +2463,9 @@ absl::Status FunctionConverter::HandleFunction(
       !node->IsParametric()) {
     XLS_ASSIGN_OR_RETURN(
         xls::Function * wrapper,
-        EmitImplicitTokenEntryWrapper(
-            ir_fn, node, is_top_, &package_data_.conversion_info->interface,
-            **function_proto_));
+        EmitImplicitTokenEntryWrapper(ir_fn, node, is_top_,
+                                      &package_data_.conversion_info->interface,
+                                      **function_proto_));
     package_data_.wrappers.insert(wrapper);
   }
   function_proto_.reset();

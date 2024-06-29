@@ -471,7 +471,7 @@ absl::StatusOr<Expression*> NodeToExpression(
                         node->ToString()));
   };
   auto do_nary_op =
-      [&](const std::function<Expression*(Expression*, Expression*)> &f) {
+      [&](const std::function<Expression*(Expression*, Expression*)>& f) {
         Expression* accum = inputs[0];
         for (int64_t i = 1; i < inputs.size(); ++i) {
           accum = f(accum, inputs[i]);

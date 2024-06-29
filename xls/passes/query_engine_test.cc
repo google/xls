@@ -46,8 +46,8 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
 using status_testing::IsOk;
+using status_testing::IsOkAndHolds;
 using testing::Not;
 
 enum class QueryEngineType { kTernary, kBdd };

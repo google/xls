@@ -151,7 +151,7 @@ absl::StatusOr<Token> Scanner::Peek() {
 
 bool Scanner::IsIdentifierStart(char next_char) {
   // Pin names are [a-z][A-Z][0-9]+
-  return std::isalpha(next_char) != 0|| next_char == '"' || next_char == '_';
+  return std::isalpha(next_char) != 0 || next_char == '"' || next_char == '_';
 }
 
 absl::StatusOr<Token> Scanner::ScanIdentifier() {

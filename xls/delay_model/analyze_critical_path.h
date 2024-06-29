@@ -69,8 +69,7 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
 // printed on the line immediately after the critical path entry for that node.
 std::string CriticalPathToString(
     absl::Span<const CriticalPathEntry> critical_path,
-    std::optional<std::function<std::string(Node*)>> extra_info =
-        std::nullopt);
+    std::optional<std::function<std::string(Node*)>> extra_info = std::nullopt);
 
 }  // namespace xls
 

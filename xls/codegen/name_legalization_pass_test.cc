@@ -35,7 +35,6 @@
 #include "xls/passes/pass_base.h"
 #include "xls/simulation/verilog_test_base.h"
 
-
 namespace xls::verilog {
 namespace {
 

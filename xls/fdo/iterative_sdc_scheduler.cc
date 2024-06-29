@@ -322,12 +322,9 @@ absl::Status IterativeSDCSchedulingModel::AddTimingConstraints(
   return absl::OkStatus();
 }
 
-static absl::Status UpdateStats(
-    const ScheduleCycleMap& prev_cycle_map,
-    const ScheduleCycleMap& cycle_map,
-    FunctionBase *f,
-    int64_t iter
-    ) {
+static absl::Status UpdateStats(const ScheduleCycleMap &prev_cycle_map,
+                                const ScheduleCycleMap &cycle_map,
+                                FunctionBase *f, int64_t iter) {
   // Suppress output when rerunning scheduling
   // See https://github.com/google/xls/issues/1107
   static int64_t previous_iter = -1;
@@ -348,12 +345,12 @@ static absl::Status UpdateStats(
 
   // Display cycle_map histogram (nodes per cycle)
   std::map<int64_t, int64_t> histo;
-  for (auto& [node, cycle] : cycle_map) {
+  for (auto &[node, cycle] : cycle_map) {
     if (!node->Is<Param>() && !node->Is<Literal>()) {
       ++histo[cycle];
     }
   }
-  for (auto& [cycle, node_count] : histo) {
+  for (auto &[cycle, node_count] : histo) {
     LOG(INFO) << "Stage " << cycle << ": " << node_count << " nodes";
   }
 
@@ -363,7 +360,7 @@ static absl::Status UpdateStats(
     auto users = node->users();
     int64_t next_cycle = cycle + 1;
     if (std::any_of(users.cbegin(), users.cend(),
-                    [next_cycle, &cycle_map](Node* n){
+                    [next_cycle, &cycle_map](Node *n) {
                       return cycle_map.at(n) >= next_cycle;
                     })) {
       crossing_bits += node->GetType()->GetFlatBitCount();
@@ -473,9 +470,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
                          model.ExtractResult(result.variable_values()));
     PathExtractOptions path_extract_options;
     path_extract_options.cycle_map = &cycle_map;
-    XLS_RET_CHECK_OK(
-        UpdateStats(prev_cycle_map, cycle_map, f, i));
-
+    XLS_RET_CHECK_OK(UpdateStats(prev_cycle_map, cycle_map, f, i));
 
     // Report the current estimated critical path delay.
     XLS_ASSIGN_OR_RETURN(PathInfo critical_path,

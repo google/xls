@@ -182,9 +182,7 @@ struct ColoredNodeWeight {
 };
 
 PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
-  return {[]() -> ColoredNodeWeight {
-            return {std::nullopt, 0};
-          },
+  return {[]() -> ColoredNodeWeight { return {std::nullopt, 0}; },
           [](const ColoredNodeWeight& x,
              const ColoredNodeWeight& y) -> std::optional<ColoredNodeWeight> {
             if (!x.interval) {

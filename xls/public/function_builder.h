@@ -19,13 +19,13 @@
 #define XLS_PUBLIC_FUNCTION_BUILDER_H_
 
 // IWYU pragma: begin_exports
-#include "xls/ir/function_builder.h"
 #include "xls/ir/fileno.h"  // IWYU pragma: keep
+#include "xls/ir/function_builder.h"
 namespace xls {
-class Bits;  // IWYU pragma: keep
+class Bits;           // IWYU pragma: keep
 enum class LsbOrMsb;  // IWYU pragma: keep
-class SourceInfo;  // IWYU pragma: keep
-class Type;  // IWYU pragma: keep
+class SourceInfo;     // IWYU pragma: keep
+class Type;           // IWYU pragma: keep
 }  // namespace xls
 // IWYU pragma: end_exports
 

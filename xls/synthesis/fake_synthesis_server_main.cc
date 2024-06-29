@@ -57,8 +57,7 @@ namespace {
 // Service implementation that dispatches compile requests.
 class FakeSynthesisServiceImpl : public SynthesisService::Service {
  public:
-  explicit FakeSynthesisServiceImpl(int64_t max_frequency_hz,
-                                     bool serve_errors)
+  explicit FakeSynthesisServiceImpl(int64_t max_frequency_hz, bool serve_errors)
       : max_frequency_hz_(max_frequency_hz), serve_errors_(serve_errors) {}
 
   ::grpc::Status Compile(::grpc::ServerContext* server_context,
@@ -94,7 +93,7 @@ void RealMain() {
   int port = absl::GetFlag(FLAGS_port);
   std::string server_address = absl::StrCat("0.0.0.0:", port);
   FakeSynthesisServiceImpl service(max_frequency_hz,
-                                    absl::GetFlag(FLAGS_serve_errors));
+                                   absl::GetFlag(FLAGS_serve_errors));
 
   ::grpc::ServerBuilder builder;
   std::shared_ptr<::grpc::ServerCredentials> creds = GetServerCredentials();

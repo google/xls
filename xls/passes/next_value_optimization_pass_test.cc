@@ -127,7 +127,6 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
-
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
@@ -182,7 +181,6 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
 
-
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
@@ -207,7 +205,6 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
-
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(

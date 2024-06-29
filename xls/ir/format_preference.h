@@ -48,8 +48,7 @@ std::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference);
 std::string_view FormatPreferenceToVerilogSpecifier(
     FormatPreference preference);
 
-absl::StatusOr<FormatPreference> FormatPreferenceFromString(
-    std::string_view s);
+absl::StatusOr<FormatPreference> FormatPreferenceFromString(std::string_view s);
 
 inline std::ostream& operator<<(std::ostream& os, FormatPreference preference) {
   os << FormatPreferenceToString(preference);

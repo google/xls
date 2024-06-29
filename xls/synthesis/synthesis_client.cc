@@ -19,11 +19,11 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "grpcpp/support/status.h"
 #include "grpcpp/channel.h"
 #include "grpcpp/client_context.h"
 #include "grpcpp/create_channel.h"
 #include "grpcpp/security/credentials.h"
+#include "grpcpp/support/status.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/synthesis/credentials.h"
 #include "xls/synthesis/synthesis.pb.h"
@@ -31,7 +31,6 @@
 
 namespace xls {
 namespace synthesis {
-
 
 static absl::Status GrpcToAbslStatus(const grpc::Status& grpc_status) {
   return absl::Status(
@@ -42,8 +41,7 @@ static absl::Status GrpcToAbslStatus(const grpc::Status& grpc_status) {
 
 // This creates a new channel and stub *each* invocation
 absl::StatusOr<CompileResponse> SynthesizeViaClient(
-    const std::string& server,
-    const CompileRequest& request) {
+    const std::string& server, const CompileRequest& request) {
   // Create a channel, a logical connection an endpoint.
   std::shared_ptr<grpc::ChannelCredentials> creds = GetChannelCredentials();
   std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server, creds);

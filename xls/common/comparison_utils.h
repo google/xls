@@ -146,8 +146,7 @@ template <typename T, template <class...> class Container,
           typename std::enable_if<has_const_iterator_v<Container<T>> &&
                                       has_member_size_v<Container<T>>,
                                   T>::type* = nullptr>
-std::string Compare(std::string_view element_name,
-                    const Container<T>& expected,
+std::string Compare(std::string_view element_name, const Container<T>& expected,
                     const Container<T>& computed) {
   if (computed.size() != expected.size()) {
     return absl::StrFormat(

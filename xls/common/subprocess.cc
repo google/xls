@@ -53,7 +53,7 @@
 #include "xls/common/thread.h"
 
 #if defined(__APPLE__)
-extern char **environ;
+extern char** environ;
 #endif
 
 namespace xls {
@@ -71,7 +71,7 @@ struct Pipe {
   static absl::StatusOr<Pipe> Open() {
     int descriptors[2];
     if (pipe(descriptors) != 0 ||
-        fcntl(descriptors[0], F_SETFD, FD_CLOEXEC) != 0||
+        fcntl(descriptors[0], F_SETFD, FD_CLOEXEC) != 0 ||
         fcntl(descriptors[1], F_SETFD, FD_CLOEXEC) != 0) {
       return absl::InternalError(
           absl::StrCat("Failed to initialize pipe:", Strerror(errno)));
@@ -244,7 +244,7 @@ absl::StatusOr<int> WaitForPid(pid_t pid) {
       continue;
     }
     return absl::InternalError(
-         absl::StrCat("waitpid failed: ", Strerror(errno)));
+        absl::StrCat("waitpid failed: ", Strerror(errno)));
   }
   return wait_status;
 }
@@ -298,8 +298,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
         return *static_cast<bool*>(release_val);
       };
       if (!watchdog_mutex.AwaitWithTimeout(
-              absl::Condition(condition_lambda, &release_watchdog),
-              timeout)) {
+              absl::Condition(condition_lambda, &release_watchdog), timeout)) {
         // Timeout has lapsed, try to kill the subprocess.
         timeout_expired.store(true);
         if (kill(pid, SIGKILL) == 0) {

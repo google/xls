@@ -20,7 +20,7 @@
 namespace xabsl {
 
 /* static */ void StatusBuilder::AddSourceLocation(absl::Status& status,
-                                                 xabsl::SourceLocation loc) {
+                                                   xabsl::SourceLocation loc) {
   // Not supported in OSS absl::Status at the moment.
 }
 /* static */ absl::Span<const SourceLocation> StatusBuilder::GetSourceLocations(

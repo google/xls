@@ -264,15 +264,13 @@ class AbstractModule {
 
   absl::StatusOr<AbstractNetRef<EvalT>> ResolveNumber(int64_t number) const;
 
-  absl::StatusOr<AbstractNetRef<EvalT>> ResolveNet(
-      std::string_view name) const;
+  absl::StatusOr<AbstractNetRef<EvalT>> ResolveNet(std::string_view name) const;
 
   // Returns a reference to a "dummy" net - this is needed for cases where one
   // of a cell's output pins isn't actually used.
   AbstractNetRef<EvalT> GetDummyRef() const { return dummy_; }
 
-  absl::StatusOr<AbstractCell<EvalT>*> ResolveCell(
-      std::string_view name) const;
+  absl::StatusOr<AbstractCell<EvalT>*> ResolveCell(std::string_view name) const;
 
   absl::Span<const std::unique_ptr<AbstractNetDef<EvalT>>> nets() const {
     return nets_;
@@ -334,7 +332,7 @@ class AbstractModule {
                            bool is_output);
   // Returns the width of a port.
   std::optional<std::optional<Range>> GetPortRange(std::string_view name,
-                                                     bool is_assignable);
+                                                   bool is_assignable);
 
   // Declares an individual wire with its range.  For example, when encountering
   // these declarations:
@@ -700,8 +698,7 @@ std::optional<std::optional<Range>> AbstractModule<EvalT>::GetPortRange(
 }
 
 template <typename EvalT>
-int64_t AbstractModule<EvalT>::GetInputPortOffset(
-    std::string_view name) const {
+int64_t AbstractModule<EvalT>::GetInputPortOffset(std::string_view name) const {
   // The input is either a name, e.g. "a", or a name + subscript, e.g. "a[3]".
   std::vector<std::string> name_and_idx = absl::StrSplit(name, '[');
   CHECK_LE(name_and_idx.size(), 2);

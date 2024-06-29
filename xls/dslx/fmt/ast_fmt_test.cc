@@ -1028,7 +1028,7 @@ pub const MOL: MyU32 = MyU32:42;
 
 TEST_F(ModuleFmtTest, TypeAliasSvType) {
   Run(R"(#[sv_type("foo")]type MyU32 = u32;)",
-     R"(#[sv_type("foo")]
+      R"(#[sv_type("foo")]
 type MyU32 = u32;
 )");
 }

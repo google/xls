@@ -122,8 +122,7 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
  private:
   RangeQueryEngine base_case_ranges_;
   std::vector<std::unique_ptr<const RangeQueryEngine>> arena_;
-  absl::flat_hash_map<PredicateState, const RangeQueryEngine*>
-      one_hot_ranges_;
+  absl::flat_hash_map<PredicateState, const RangeQueryEngine*> one_hot_ranges_;
 };
 
 }  // namespace xls

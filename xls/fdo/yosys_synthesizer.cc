@@ -46,7 +46,7 @@ absl::StatusOr<int64_t> YosysSynthesizer::SynthesizeVerilogAndGetDelay(
 absl::StatusOr<std::unique_ptr<Synthesizer>>
 YosysSynthesizerFactory::CreateSynthesizer(
     const SynthesizerParameters &parameters) {
-  const auto& yosys_synthesizer_parameters =
+  const auto &yosys_synthesizer_parameters =
       down_cast<const YosysSynthesizerParameters &>(parameters);
   return std::make_unique<YosysSynthesizer>(
       yosys_synthesizer_parameters.yosys_path(),

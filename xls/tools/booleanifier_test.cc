@@ -729,8 +729,7 @@ TEST_F(BooleanifierTest, HandleArraySlice) {
   for (int64_t i = 0; i < kArraySize; i++) {
     array_elements.push_back(Value(UBits(i, 8)));
   }
-  XLS_ASSERT_OK_AND_ASSIGN(Value array,
-                           VB::ArrayV(array_elements).Build());
+  XLS_ASSERT_OK_AND_ASSIGN(Value array, VB::ArrayV(array_elements).Build());
   for (int64_t i = 0; i < (1 << kStartBits); ++i) {
     std::array<Value, 2> inputs{array, Value(UBits(i, kStartBits))};
     XLS_ASSERT_OK_AND_ASSIGN(Value fancy_value,

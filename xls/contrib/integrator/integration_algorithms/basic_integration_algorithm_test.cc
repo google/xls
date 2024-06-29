@@ -31,7 +31,6 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-
 class BasicIntegrationAlgorithmTest : public IrTestBase {};
 
 TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationNodesNotCompatible) {

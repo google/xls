@@ -15,10 +15,9 @@
 #ifndef XLS_NOC_CONFIG_NG_CUSTOM_TOPOLOGY_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_NG_CUSTOM_TOPOLOGY_OPTIONS_PROTO_BUILDER_H_
 
-#include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
-
 #include "xls/noc/config_ng/channel_options_proto_builder.h"
 #include "xls/noc/config_ng/node_options_proto_builder.h"
+#include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {
 

@@ -45,7 +45,6 @@ namespace noc {
 // TODO(tedhong): 2020-12-23 - Add a third abstraction that maps proto names
 //                             to network graph ids.
 
-
 // Interface to protos describing a virtual channel
 struct VirtualChannelParam {
  public:

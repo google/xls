@@ -48,7 +48,6 @@ using TokenDAG = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 // result map.
 absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f);
 
-
 struct NodeAndPredecessors {
   Node* node;
   absl::flat_hash_set<Node*> predecessors;
@@ -58,7 +57,6 @@ struct NodeAndPredecessors {
                  absl::StrJoin(p.predecessors, ", "));
   }
 };
-
 
 // Returns a predecessor-list representation of the token graph connecting
 // side-effecting operations in the given `proc`. The returns nodes will be in a

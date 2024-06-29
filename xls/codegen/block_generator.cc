@@ -740,8 +740,7 @@ class BlockGenerator {
         XLS_RET_CHECK(std::holds_alternative<Expression*>(output_expr));
         XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
             output_port->GetName(), output_port->operand(0)->GetType(),
-            std::get<Expression*>(output_expr),
-            GetSvType(output_port)));
+            std::get<Expression*>(output_expr), GetSvType(output_port)));
         node_exprs_[output_port] = UnrepresentedSentinel();
       }
     }

@@ -425,8 +425,7 @@ class InterpValue {
 // defined.
 //
 // Check-fails if function_value is not a function-typed value.
-std::optional<Module*> GetFunctionValueOwner(
-    const InterpValue& function_value);
+std::optional<Module*> GetFunctionValueOwner(const InterpValue& function_value);
 
 template <typename H>
 H AbslHashValue(H state, const InterpValue::UserFnData& v) {

@@ -123,7 +123,7 @@ TEST_F(DeadCodeEliminationPassTest, AvoidsSideEffecting) {
 
   EXPECT_EQ(f->node_count(), 8);
   XLS_EXPECT_OK(f->GetNode("my_cover").status());
-    EXPECT_THAT(f->GetNode("tuple_index_5"),
+  EXPECT_THAT(f->GetNode("tuple_index_5"),
               StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(f->GetNode("dead_afterall"),
               StatusIs(absl::StatusCode::kNotFound));

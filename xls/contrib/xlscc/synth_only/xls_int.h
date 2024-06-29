@@ -441,9 +441,10 @@ class XlsIntBase<Width, false> {
 
   explicit inline operator bool() const {
     __xls_bits<Width> zero(ConvertBits<32, Width, false>::Convert(
-            BuiltinIntToBits<unsigned int, 32>::Convert(0)));
+        BuiltinIntToBits<unsigned int, 32>::Convert(0)));
     bool reti;
-    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret op_0_(aid): bits[1] = "
+    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret op_0_(aid): bits[1] "
+        "= "
         "ne(a, b, pos=(loc)) }"
         : "=r"(reti)
         : "i"(Width), "a"(storage), "b"(zero));
@@ -479,9 +480,10 @@ class XlsIntBase<Width, true> {
 
   explicit inline operator bool() const {
     __xls_bits<Width> zero(ConvertBits<32, Width, false>::Convert(
-            BuiltinIntToBits<unsigned int, 32>::Convert(0)));
+        BuiltinIntToBits<unsigned int, 32>::Convert(0)));
     bool reti;
-    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret op_0_(aid): bits[1] = "
+    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret op_0_(aid): bits[1] "
+        "= "
         "ne(a, b, pos=(loc)) }"
         : "=r"(reti)
         : "i"(Width), "a"(storage), "b"(zero));
@@ -809,18 +811,19 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return !((*this) == o);
   }
 
-#define COMPARISON_OP_WITH_SIGN(__OP, __IMPL)                             \
-  template <int ToW, bool ToSign>                                         \
-  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {         \
-    XlsInt<std::max(ToW, Width), Signed | ToSign> valA(o);                \
-    XlsInt<std::max(ToW, Width), Signed | ToSign> valB(*this);            \
-    bool ret;                                                             \
-    asm("fn (fid)(a: bits[i]) -> bits[1] { ret op_6_(aid): bits[1] = "    \
-        "identity(a, pos=(loc)) }"                                        \
-        : "=r"(ret)                                                       \
-        : "i"(1), "parama"(__IMPL<std::max(ToW, Width), Signed | ToSign>::\
-                      Operate(valB.storage, valA.storage)));              \
-    return ret;                                                           \
+#define COMPARISON_OP_WITH_SIGN(__OP, __IMPL)                              \
+  template <int ToW, bool ToSign>                                          \
+  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {          \
+    XlsInt<std::max(ToW, Width), Signed | ToSign> valA(o);                 \
+    XlsInt<std::max(ToW, Width), Signed | ToSign> valB(*this);             \
+    bool ret;                                                              \
+    asm("fn (fid)(a: bits[i]) -> bits[1] { ret op_6_(aid): bits[1] = "     \
+        "identity(a, pos=(loc)) }"                                         \
+        : "=r"(ret)                                                        \
+        : "i"(1),                                                          \
+          "parama"(__IMPL<std::max(ToW, Width), Signed | ToSign>::Operate( \
+              valB.storage, valA.storage)));                               \
+    return ret;                                                            \
   }
 
   COMPARISON_OP_WITH_SIGN(>, GreaterWithSign);

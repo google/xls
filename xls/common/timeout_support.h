@@ -16,6 +16,7 @@
 #define XLS_COMMON_TIMEOUT_SUPPORT_H_
 
 #include <memory>
+
 #include "absl/time/time.h"
 
 namespace xls {

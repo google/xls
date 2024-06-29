@@ -246,8 +246,7 @@ std::string ArgsToString(absl::Span<const Value> args) {
 class EvalIrJitObserver final : public JitObserver {
  public:
   EvalIrJitObserver(std::optional<std::string> ir,
-                    std::optional<std::string> opt_ir,
-                    bool interpreter,
+                    std::optional<std::string> opt_ir, bool interpreter,
                     std::optional<std::string> assembly)
       : ir_(std::move(ir)),
         opt_ir_(std::move(opt_ir)),
@@ -398,11 +397,9 @@ absl::Status WriteMainWrapper(Function* f, FunctionJit* jit,
   // Technically we are not jitting but we do require that the ir be used on
   // exactly this machine.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<llvm::TargetMachine> machine,
-      orc_jit->CreateTargetMachine());
-  XLS_ASSIGN_OR_RETURN(llvm::DataLayout layout,
-                       orc_jit->CreateDataLayout());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> machine,
+                       orc_jit->CreateTargetMachine());
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout layout, orc_jit->CreateDataLayout());
   LlvmTypeConverter type_convert(&context, layout);
   mod.setDataLayout(layout);
   mod.setTargetTriple(machine->getTargetTriple().str());

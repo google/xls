@@ -276,8 +276,7 @@ class ProcInstance {
  public:
   ProcInstance(Proc* proc, std::unique_ptr<BytecodeInterpreter> interpreter,
                std::unique_ptr<BytecodeFunction> next_fn,
-               std::vector<InterpValue> next_args,
-               const TypeInfo* type_info)
+               std::vector<InterpValue> next_args, const TypeInfo* type_info)
       : proc_(proc),
         interpreter_(std::move(interpreter)),
         next_fn_(std::move(next_fn)),

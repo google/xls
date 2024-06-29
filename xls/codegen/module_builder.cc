@@ -455,9 +455,8 @@ absl::Status ModuleBuilder::AddOutputPort(
         SanitizeIdentifier(name),
         file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());
   } else {
-    output_port = module_->AddOutput(
-        SanitizeIdentifier(name), bits_type,
-        SourceInfo());
+    output_port =
+        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo());
   }
   output_section()->Add<ContinuousAssignment>(SourceInfo(), output_port, value);
   return absl::OkStatus();
@@ -1863,7 +1862,6 @@ VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
                     overflow_protected_quotient, node->loc()));
   return func;
 }
-
 
 }  // namespace
 

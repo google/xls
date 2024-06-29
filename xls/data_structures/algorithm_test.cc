@@ -14,7 +14,6 @@
 
 #include "xls/data_structures/algorithm.h"
 
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

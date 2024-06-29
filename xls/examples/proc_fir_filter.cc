@@ -115,7 +115,7 @@ absl::StatusOr<Proc*> CreateFirFilter(std::string_view name,
   // The output channel gives us the output of the FIR filter.
   BValue out = pb.Send(output_channel, tok, result);
 
-  BValue after_all = pb.AfterAll({out,  pb.TupleIndex(in, 0)});
+  BValue after_all = pb.AfterAll({out, pb.TupleIndex(in, 0)});
   XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({after_all, x}));
   return proc;
 }

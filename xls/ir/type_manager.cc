@@ -109,7 +109,7 @@ absl::StatusOr<Type*> TypeManager::MapTypeFromOtherArena(
 }
 
 FunctionType* TypeManager::GetFunctionType(absl::Span<Type* const> args_types,
-                                         Type* return_type) {
+                                           Type* return_type) {
   std::string key = FunctionType(args_types, return_type).ToString();
   if (function_types_.find(key) != function_types_.end()) {
     return &function_types_.at(key);

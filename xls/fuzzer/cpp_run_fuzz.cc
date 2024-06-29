@@ -76,9 +76,8 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
   std::string ir_minimize_options_str;
   google::protobuf::TextFormat::PrintToString(ir_minimize_options.proto(),
                                     &ir_minimize_options_str);
-  XLS_RETURN_IF_ERROR(
-      SetFileContents(run_dir / "ir_minimizer.options.pbtxt",
-                      ir_minimize_options_str));
+  XLS_RETURN_IF_ERROR(SetFileContents(run_dir / "ir_minimizer.options.pbtxt",
+                                      ir_minimize_options_str));
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path sample_runner_main_path,
                        GetSampleRunnerMainPath());

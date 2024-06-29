@@ -25,8 +25,8 @@
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
@@ -95,7 +95,6 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module, Function* fn,
                                            const ParametricEnv* parametric_env,
                                            const ConvertOptions& options,
                                            PackageConversionData* conv);
-
 
 // Converts DSLX files at paths into a package.
 //

@@ -504,18 +504,13 @@ TEST_F(BackPropagateRangeAnalysisTest, AndReduce) {
       auto results_false,
       PropagateGivensBackwards(
           qe, f, {{target.node(), IntervalSet::Precise(UBits(0, 1))}}));
-  EXPECT_THAT(
-      results_true,
-      UnorderedElementsAre(
-          Pair(target.node(),
-               IntervalSet::Precise(UBits(1, 1))),
-          Pair(a1.node(),
-               IntervalSet::Precise(Bits::AllOnes(4)))));
-  EXPECT_THAT(
-      results_false,
-      UnorderedElementsAre(
-          Pair(target.node(),
-               IntervalSet::Precise(UBits(0, 1)))));
+  EXPECT_THAT(results_true,
+              UnorderedElementsAre(
+                  Pair(target.node(), IntervalSet::Precise(UBits(1, 1))),
+                  Pair(a1.node(), IntervalSet::Precise(Bits::AllOnes(4)))));
+  EXPECT_THAT(results_false,
+              UnorderedElementsAre(
+                  Pair(target.node(), IntervalSet::Precise(UBits(0, 1)))));
 }
 
 TEST_F(BackPropagateRangeAnalysisTest, OrReduce) {
@@ -535,18 +530,13 @@ TEST_F(BackPropagateRangeAnalysisTest, OrReduce) {
       auto results_false,
       PropagateGivensBackwards(
           qe, f, {{target.node(), IntervalSet::Precise(UBits(0, 1))}}));
-  EXPECT_THAT(
-      results_false,
-      UnorderedElementsAre(
-          Pair(target.node(),
-               IntervalSet::Precise(UBits(0, 1))),
-          Pair(a1.node(),
-               IntervalSet::Precise(Bits(4)))));
-  EXPECT_THAT(
-      results_true,
-      UnorderedElementsAre(
-          Pair(target.node(),
-               IntervalSet::Precise(UBits(1, 1)))));
+  EXPECT_THAT(results_false,
+              UnorderedElementsAre(
+                  Pair(target.node(), IntervalSet::Precise(UBits(0, 1))),
+                  Pair(a1.node(), IntervalSet::Precise(Bits(4)))));
+  EXPECT_THAT(results_true,
+              UnorderedElementsAre(
+                  Pair(target.node(), IntervalSet::Precise(UBits(1, 1)))));
 }
 
 }  // namespace

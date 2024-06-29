@@ -464,8 +464,7 @@ absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(Op non_reductive_op,
-                       OpToNonReductionOp(node->op()));
+  XLS_ASSIGN_OR_RETURN(Op non_reductive_op, OpToNonReductionOp(node->op()));
   XLS_RETURN_IF_ERROR(
       node->ReplaceUsesWithNew<NaryOp>(new_reductions, non_reductive_op)
           .status());

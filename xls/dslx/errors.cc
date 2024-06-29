@@ -39,14 +39,13 @@ absl::Status ArgCountMismatchErrorStatus(const Span& span,
 absl::Status FailureErrorStatus(const Span& span, std::string_view message) {
   return absl::InternalError(absl::StrFormat(
       "FailureError: %s The program being interpreted failed!%s%s",
-      span.ToString(),
-      message.empty() || message[0] == '\n' ? "" : " ", message));
+      span.ToString(), message.empty() || message[0] == '\n' ? "" : " ",
+      message));
 }
 
 absl::Status ProofErrorStatus(const Span& span, std::string_view message) {
   return absl::InternalError(absl::StrFormat(
-      "ProofError: %s Failed to prove the property!%s%s",
-      span.ToString(),
+      "ProofError: %s Failed to prove the property!%s%s", span.ToString(),
       message.empty() || message[0] == '\n' ? "" : " ", message));
 }
 

@@ -138,7 +138,7 @@ class Value {
   bool IsArray() const { return kind_ == ValueKind::kArray; }
   bool IsBits() const { return std::holds_alternative<Bits>(payload_); }
   bool IsToken() const { return kind_ == ValueKind::kToken; }
-  const Bits& bits() const & { return std::get<Bits>(payload_); }
+  const Bits& bits() const& { return std::get<Bits>(payload_); }
   Bits&& bits() && { return std::get<Bits>(std::move(payload_)); }
   absl::StatusOr<Bits> GetBitsWithStatus() const;
 

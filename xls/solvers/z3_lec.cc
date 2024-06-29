@@ -490,8 +490,7 @@ void Lec::MarkDontCareBits(const std::vector<Z3_ast>& nl_bits,
 
 // Bit 1 of the 3-bit IR node foo.123 in stage 3 is present as p3_foo_123_1_.
 std::string Lec::NodeToNetlistName(const Node* node,
-                                   std::optional<int> bit_index,
-                                   bool is_cell) {
+                                   std::optional<int> bit_index, bool is_cell) {
   std::string name = verilog::SanitizeIdentifier(node->GetName());
   for (char& c : name) {
     if (c == '.') {

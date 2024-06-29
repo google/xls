@@ -158,7 +158,7 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
   }
   bool opensta_ok = period_ok && slack_ok;
   XLS_RET_CHECK(opensta_ok) << "\"Problem parsing results from OpenSTA. "
-                            "OpenSTA may have exited unexpectedly.\"";
+                               "OpenSTA may have exited unexpectedly.\"";
 
   return stats;
 }  // ParseOpenSTAOutput

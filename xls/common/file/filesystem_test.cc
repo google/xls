@@ -429,7 +429,7 @@ TEST(FilesystemTest, GetDirectoryEntriesGivesRelativePathsWhenPathIsRelative) {
 TEST(FilesystemTest, GetRealPath) {
 #ifndef __linux__
   GTEST_SKIP() << "Skipping as procfs only available on linux";
-#endif  /* __linux__ */
+#endif /* __linux__ */
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path link_path,
                            GetRealPath("/proc/self/exe"));
   XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path real_path,

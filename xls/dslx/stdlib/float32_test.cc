@@ -58,16 +58,16 @@ TEST(Float32Test, ToInt32) {
     // We need >= and <= to handle precision loss when converting max\min into
     // float.
     if (input >= std::numeric_limits<int32_t>::max() ||
-        input <= std::numeric_limits<int32_t>::min() ||
-        std::isnan(input) || std::isinf(input)) {
+        input <= std::numeric_limits<int32_t>::min() || std::isnan(input) ||
+        std::isinf(input)) {
       continue;
     }
 
     int32_t expected = static_cast<int32_t>(input);
     XLS_ASSERT_OK_AND_ASSIGN(int32_t actual, jit->Run(input));
     ASSERT_EQ(expected, actual)
-        << std::hex << "i: " << i << ": "
-        << "expected: " << expected << " vs. " << actual;
+        << std::hex << "i: " << i << ": " << "expected: " << expected << " vs. "
+        << actual;
   }
 }
 
@@ -93,8 +93,8 @@ TEST(Float32Test, FromInt32) {
     float expected = static_cast<float>(input);
     XLS_ASSERT_OK_AND_ASSIGN(float actual, jit->Run(input));
     ASSERT_EQ(expected, actual)
-        << std::hex << "i: " << i << ": "
-        << "expected: " << expected << " vs. " << actual;
+        << std::hex << "i: " << i << ": " << "expected: " << expected << " vs. "
+        << actual;
   }
 }
 

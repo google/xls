@@ -269,7 +269,6 @@ absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto() {
 
 static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     Package* p, const SchedulingOptionsFlagsProto& proto) {
-
   // Some fields are pre-initialized with defaults
   SchedulingOptions scheduling_options;
 
@@ -426,9 +425,9 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
 
   if (proto.has_fdo_refinement_stochastic_ratio()) {
     if (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
-      proto.fdo_refinement_stochastic_ratio() <= 0.0) {
+        proto.fdo_refinement_stochastic_ratio() <= 0.0) {
       return absl::InternalError(
-        "refinement_stochastic_ratio must be <= 1.0 and > 0.0");
+          "refinement_stochastic_ratio must be <= 1.0 and > 0.0");
     }
     scheduling_options.fdo_refinement_stochastic_ratio(
         proto.fdo_refinement_stochastic_ratio());

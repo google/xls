@@ -103,7 +103,7 @@ bool FormatPreferenceFromC(xls_format_preference c_pref,
 
 extern "C" {
 
-void xls_init_xls(const char* usage, int argc, char *argv[]) {
+void xls_init_xls(const char* usage, int argc, char* argv[]) {
   (void)(xls::InitXls(usage, argc, argv));
 }
 

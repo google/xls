@@ -981,7 +981,6 @@ after_loop:
   EXPECT_TRUE(found_mismatch);
 }
 
-
 TEST_P(IrEvaluatorTestBase, UMulpSimple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,

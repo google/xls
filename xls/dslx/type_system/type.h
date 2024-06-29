@@ -569,9 +569,9 @@ class EnumType : public Type {
   bool is_signed() const { return is_signed_; }
 
  private:
-  const EnumDef& enum_def_;  // Definition AST node.
-  TypeDim size_;             // Underlying size in bits.
-  bool is_signed_;           // Signedness of the underlying bits type.
+  const EnumDef& enum_def_;           // Definition AST node.
+  TypeDim size_;                      // Underlying size in bits.
+  bool is_signed_;                    // Signedness of the underlying bits type.
   std::vector<InterpValue> members_;  // Member values of the enum.
 };
 

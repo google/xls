@@ -30,11 +30,11 @@
 
 namespace xls {
 namespace {
+using proto_testing::EqualsProto;
 using status_testing::IsOkAndHolds;
 using testing::ElementsAre;
 using testing::Pair;
 using testing::UnorderedElementsAre;
-using proto_testing::EqualsProto;
 
 TEST(EvalHelpersTest, ParseChannelValuesFromProto) {
   std::string_view proto = R"pb(

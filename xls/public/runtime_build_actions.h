@@ -65,8 +65,8 @@ std::string_view GetDefaultDslxStdlibPath();
 //  additional_search_paths: Additional filesystem paths to search for imported
 //    modules.
 absl::StatusOr<std::string> ConvertDslxToIr(
-    std::string_view dslx, std::string_view path,
-    std::string_view module_name, std::string_view dslx_stdlib_path,
+    std::string_view dslx, std::string_view path, std::string_view module_name,
+    std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths);
 
 // As above, but uses a filesystem path to retrieve the DSLX module contents.

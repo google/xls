@@ -68,7 +68,7 @@ class FloatBits {
 };
 
 #if DO_RUN_EXPECT
-static std::ostream& operator<<(std::ostream &out, FloatBits fbits) {
+static std::ostream &operator<<(std::ostream &out, FloatBits fbits) {
   return out << fbits.FormatBits();
 }
 #endif

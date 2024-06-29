@@ -25,8 +25,7 @@
 
 namespace xls {
 
-PackageInterfaceProto ExtractPackageInterface(
-    Package* package) {
+PackageInterfaceProto ExtractPackageInterface(Package* package) {
   PackageInterfaceProto proto;
   // Basic information
   proto.set_name(package->name());

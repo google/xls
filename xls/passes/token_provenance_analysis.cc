@@ -14,7 +14,6 @@
 
 #include "xls/passes/token_provenance_analysis.h"
 
-
 #include <algorithm>
 #include <cstdint>
 #include <string>

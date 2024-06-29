@@ -28,9 +28,7 @@ class BitPushBuffer {
  public:
   // Pushes a bit into the buffer -- see GetUint8Data() comment below on the
   // ordering with which these pushed bits are returned in the byte sequence.
-  void PushBit(bool bit) {
-    bitmap_.push_back(bit);
-  }
+  void PushBit(bool bit) { bitmap_.push_back(bit); }
 
   // Retrieves the pushed bits as a sequence of bytes.
   //

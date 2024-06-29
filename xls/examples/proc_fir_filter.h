@@ -35,10 +35,11 @@ namespace xls {
 // graphics is an FIR filter. In the wireless world, FIR filters can be used to
 // model and therefore mitigate channel effects, which is an important step in
 // decoding a received signal in certain cases.
-absl::StatusOr<Proc*> CreateFirFilter(
-      std::string_view name, const Value& kernel,
-      StreamingChannel* input_channel, StreamingChannel* output_channel,
-      Package* package);
+absl::StatusOr<Proc*> CreateFirFilter(std::string_view name,
+                                      const Value& kernel,
+                                      StreamingChannel* input_channel,
+                                      StreamingChannel* output_channel,
+                                      Package* package);
 
 }  // namespace xls
 

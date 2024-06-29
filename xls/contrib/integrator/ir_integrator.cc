@@ -536,8 +536,7 @@ IntegrationFunction::DeUnifyIntegrationNodesWithGlobalMuxSelect(Node* node) {
     return nullptr;
   }
   // Reset last updated cases.
-  Node* reset_value =
-      mux->cases().at(*metadata.occupied_case_indexes.begin());
+  Node* reset_value = mux->cases().at(*metadata.occupied_case_indexes.begin());
   absl::flat_hash_map<int64_t, Node*> case_updates;
   for (int64_t updated_idx : metadata.last_case_indexes_added) {
     case_updates[updated_idx] = reset_value;

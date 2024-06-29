@@ -15,8 +15,6 @@
 #ifndef __CSTDIO_H__
 #define __CSTDIO_H__
 
-  int printf(const char * format, ...) {
-    return 0;
-  }
+int printf(const char* format, ...) { return 0; }
 
 #endif  // __CSTDIO_H__

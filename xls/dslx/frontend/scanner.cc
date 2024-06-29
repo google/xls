@@ -445,8 +445,7 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
 
 absl::StatusOr<Token> Scanner::Pop() {
   if (include_whitespace_and_comments_) {
-    XLS_ASSIGN_OR_RETURN(std::optional<Token> tok,
-                         TryPopWhitespaceOrComment());
+    XLS_ASSIGN_OR_RETURN(std::optional<Token> tok, TryPopWhitespaceOrComment());
     if (tok) {
       return *tok;
     }
@@ -572,7 +571,7 @@ absl::StatusOr<Token> Scanner::Pop() {
         result = Token(TokenKind::kAmpersand, mk_span());
       }
       break;
-    // clang-format off
+      // clang-format off
     case '(': DropChar(); result = Token(TokenKind::kOParen, mk_span()); break;  // NOLINT
     case ')': DropChar(); result = Token(TokenKind::kCParen, mk_span()); break;  // NOLINT
     case '[': DropChar(); result = Token(TokenKind::kOBrack, mk_span()); break;  // NOLINT

@@ -151,7 +151,6 @@ class BaseProcJitWrapper {
     return w->DoTakeRuntime();
   }
 
-
   template <typename PackedView>
   absl::Status SendToChannelPacked(std::string_view chan_name,
                                    PackedView view) {

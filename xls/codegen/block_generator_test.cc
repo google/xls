@@ -455,11 +455,10 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
   BlockBuilder b(TestBaseName(), &package);
   BValue rst = b.InputPort("my_rst", package.GetBitsType(1));
   BValue a = b.InputPort("a", package.GetBitsType(32));
-  BValue a_d = b.InsertRegister(
-      "a_d", a, rst,
-      xls::Reset{.reset_value = Value(UBits(123, 32)),
-                 .asynchronous = false,
-                 .active_low = false});
+  BValue a_d = b.InsertRegister("a_d", a, rst,
+                                xls::Reset{.reset_value = Value(UBits(123, 32)),
+                                           .asynchronous = false,
+                                           .active_low = false});
   b.Assert(b.AfterAll({}), b.ULt(a_d, b.Literal(UBits(42, 32))),
            "a is not greater than 42");
   XLS_ASSERT_OK(b.block()->AddClockPort("my_clk"));

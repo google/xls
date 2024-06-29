@@ -307,8 +307,6 @@ static absl::StatusOr<JitData> CreateJitData() {
   return JitData{.package = std::move(package), .runtime = std::move(runtime)};
 }
 
-
-
 static absl::Status RunTest(int num_samples, int key_bits) {
   int key_bytes = key_bits / 8;
   SampleData sample_data;

@@ -86,7 +86,7 @@ class TokenParser {
   }
 
   absl::StatusOr<std::optional<Token>> TryPopKeyword(Keyword target,
-                                                      Pos* pos = nullptr) {
+                                                     Pos* pos = nullptr) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(target)) {
       if (pos != nullptr) {
@@ -162,9 +162,7 @@ class TokenParser {
   // For use only when the caller knows there is lookahead present (in which
   // case we don't need to check for errors in potentially scanning the next
   // token).
-  Token PopTokenOrDie() {
-    return PopToken().value();
-  }
+  Token PopTokenOrDie() { return PopToken().value(); }
 
   // Wraps PopToken() to signify popping a token without needing the value.
   absl::Status DropToken() { return PopToken().status(); }

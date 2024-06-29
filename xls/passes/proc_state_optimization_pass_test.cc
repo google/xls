@@ -372,11 +372,11 @@ TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
   EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_EQ(proc->GetStateParam(0)->GetType()->GetFlatBitCount(), 1);
 
-  EXPECT_THAT(
-      send.node(),
-      m::Send(m::Literal(Value::Token()), m::Select(m::Param("state_machine_x"),
-                                         /*cases=*/{m::Literal(100)},
-                                         /*default_value=*/m::Literal(200))));
+  EXPECT_THAT(send.node(),
+              m::Send(m::Literal(Value::Token()),
+                      m::Select(m::Param("state_machine_x"),
+                                /*cases=*/{m::Literal(100)},
+                                /*default_value=*/m::Literal(200))));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateOptimizationPassTest,

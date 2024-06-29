@@ -216,10 +216,8 @@ class ConstantFoldingContext {
     }
     Literal* lhs_literal = folded_lhs->AsLiteralOrDie();
     Literal* rhs_literal = folded_rhs->AsLiteralOrDie();
-    XLS_ASSIGN_OR_RETURN(int64_t lhs_value,
-                         lhs_literal->ToInt64());
-    XLS_ASSIGN_OR_RETURN(int64_t rhs_value,
-                         rhs_literal->ToInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t lhs_value, lhs_literal->ToInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t rhs_value, rhs_literal->ToInt64());
     bool signed_input = lhs_literal->is_declared_as_signed() &&
                         rhs_literal->is_declared_as_signed();
     std::optional<bool> bool_result;

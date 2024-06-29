@@ -709,8 +709,7 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
 }
 
 TEST(BytecodeEmitterTest, ImportedConstant) {
-  constexpr std::string_view kImportedProgram =
-      R"(pub const MY_CONST = u3:2;)";
+  constexpr std::string_view kImportedProgram = R"(pub const MY_CONST = u3:2;)";
   constexpr std::string_view kBaseProgram = R"(
 import import_0;
 
@@ -1457,11 +1456,10 @@ fn main() -> u32 {
   Function& f = tf->fn();
   Expr* body = f.body();
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::EmitExpression(
-          &import_data, tm.type_info, body, /*env=*/{},
-          /*caller_bindings=*/std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::EmitExpression(
+                               &import_data, tm.type_info, body, /*env=*/{},
+                               /*caller_bindings=*/std::nullopt));
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 3);
   const std::vector<std::string> kNextExpected = {

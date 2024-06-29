@@ -29,6 +29,6 @@ xabsl::StatusBuilder ErrorCodeToStatus(const std::error_code& ec);
 // Converts an `errno` value into an absl::Status.
 xabsl::StatusBuilder ErrnoToStatus(int errno_value);
 
-}
+}  // namespace xls
 
 #endif  // XLS_COMMON_STATUS_ERROR_CODE_TO_STATUS_H_

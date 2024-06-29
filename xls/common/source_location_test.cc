@@ -19,8 +19,8 @@
 
 namespace {
 
-using ::xabsl::SourceLocation;
 using ::testing::EndsWith;
+using ::xabsl::SourceLocation;
 
 TEST(SourceLocationTest, CopyConstructionWorks) {
   constexpr SourceLocation location = XABSL_LOC;
@@ -37,9 +37,7 @@ TEST(SourceLocationTest, CopyAssignmentWorks) {
   EXPECT_THAT(location.file_name(), EndsWith("source_location_test.cc"));
 }
 
-SourceLocation Echo(const SourceLocation& location) {
-  return location;
-}
+SourceLocation Echo(const SourceLocation& location) { return location; }
 
 TEST(SourceLocationTest, ExpectedUsageWorks) {
   SourceLocation location = Echo(XABSL_LOC);
@@ -82,15 +80,21 @@ TEST(SourceLocationTest, CurrentWorksAsDefaultParamMacro) {
 }
 
 template <typename T>
-bool TryPassLineAndFile(decltype(T::current(0, ""))*) { return true; }
+bool TryPassLineAndFile(decltype(T::current(0, ""))*) {
+  return true;
+}
 template <typename T>
-bool TryPassLineAndFile(decltype(T::current({}, 0, ""))*) { return true; }
+bool TryPassLineAndFile(decltype(T::current({}, 0, ""))*) {
+  return true;
+}
 template <typename T>
 bool TryPassLineAndFile(decltype(T::current(typename T::Tag{}, 0, ""))*) {
   return true;
 }
 template <typename T>
-bool TryPassLineAndFile(...) { return false; }
+bool TryPassLineAndFile(...) {
+  return false;
+}
 
 TEST(SourceLocationTest, CantPassLineAndFile) {
   EXPECT_FALSE(TryPassLineAndFile<xabsl::SourceLocation>(nullptr));

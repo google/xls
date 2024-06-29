@@ -98,14 +98,14 @@ TEST(ScannerTest, RecognizesEscapes) {
   std::string text = R"(\n\r\t\\\0\'\"\x6f\u{102DCB}Hello"extrastuff)";
   Scanner s("fake_file.x", text);
   XLS_ASSERT_OK_AND_ASSIGN(std::string result, s.ScanUntilDoubleQuote());
-  EXPECT_EQ(static_cast<uint8_t>(result[0]), 10);    // Newline.
-  EXPECT_EQ(static_cast<uint8_t>(result[1]), 13);    // Carriage return.
-  EXPECT_EQ(static_cast<uint8_t>(result[2]), 9);     // Tab.
-  EXPECT_EQ(static_cast<uint8_t>(result[3]), 92);    // Backslash.
-  EXPECT_EQ(static_cast<uint8_t>(result[4]), 0);     // Null.
-  EXPECT_EQ(static_cast<uint8_t>(result[5]), 39);    // Single quote.
-  EXPECT_EQ(static_cast<uint8_t>(result[6]), 34);    // Double quote.
-  EXPECT_EQ(static_cast<uint8_t>(result[7]), 111);   // Lowercase o.
+  EXPECT_EQ(static_cast<uint8_t>(result[0]), 10);   // Newline.
+  EXPECT_EQ(static_cast<uint8_t>(result[1]), 13);   // Carriage return.
+  EXPECT_EQ(static_cast<uint8_t>(result[2]), 9);    // Tab.
+  EXPECT_EQ(static_cast<uint8_t>(result[3]), 92);   // Backslash.
+  EXPECT_EQ(static_cast<uint8_t>(result[4]), 0);    // Null.
+  EXPECT_EQ(static_cast<uint8_t>(result[5]), 39);   // Single quote.
+  EXPECT_EQ(static_cast<uint8_t>(result[6]), 34);   // Double quote.
+  EXPECT_EQ(static_cast<uint8_t>(result[7]), 111);  // Lowercase o.
   EXPECT_EQ(static_cast<uint8_t>(result[8]),
             0xF4);  // Byte 1 in UTF-8 of Unicode code.
   EXPECT_EQ(static_cast<uint8_t>(result[9]),
@@ -293,7 +293,7 @@ TEST(ScannerTest, TokenEqNeqTests) {
   Token test_token(TokenKind::kIdentifier, span_a, "payload");
   EXPECT_EQ(test_token, test_token);
 
-  Token identically_constructed( TokenKind::kIdentifier, span_a, "payload");
+  Token identically_constructed(TokenKind::kIdentifier, span_a, "payload");
   EXPECT_EQ(test_token, identically_constructed);
 
   Token test_payload_mismatch(TokenKind::kIdentifier, span_a, "bad_payload");

@@ -155,5 +155,4 @@ absl::StatusOr<ProverResult> TryProveEquivalence(
   return TryProveEquivalence(original, to_transform_func, timeout);
 }
 
-
 }  // namespace xls::solvers::z3

@@ -1040,7 +1040,7 @@ TEST_F(XlsFixedTest, BitElemRefCast) {
       return u4.to_int();
     })";
   RunAcDatatypeTest({{"a", 5}, {"b", 3}}, 2, content,
-                     xabsl::SourceLocation::current());
+                    xabsl::SourceLocation::current());
   RunAcDatatypeTest({{"a", 3}, {"b", 5}}, 6, content,
                     xabsl::SourceLocation::current());
 }
@@ -1055,10 +1055,8 @@ TEST_F(XlsFixedTest, BitElemRefCastToXlsInt) {
       result = u4[1];
       return result.to_int();
     })";
-  RunAcDatatypeTest({{"a", 5}}, 0, content,
-                     xabsl::SourceLocation::current());
-  RunAcDatatypeTest({{"a", 3}}, 1, content,
-                    xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 5}}, 0, content, xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 1, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(XlsFixedTest, SubtractOneHalfSameWidth) {

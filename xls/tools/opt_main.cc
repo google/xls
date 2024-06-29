@@ -202,7 +202,7 @@ absl::Status RealMain(std::string_view input_path) {
 }  // namespace
 }  // namespace xls::tools
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 

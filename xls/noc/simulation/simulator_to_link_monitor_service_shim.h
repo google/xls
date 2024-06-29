@@ -48,8 +48,7 @@ inline bool operator==(const FlitDestination& lhs, const FlitDestination& rhs) {
 using DestinationToPacketCount = absl::flat_hash_map<FlitDestination, int64_t>;
 
 // Shim to collect information from the links of the simulator.
-class NocSimulatorToLinkMonitorServiceShim
-    : public NocSimulatorServiceShim {
+class NocSimulatorToLinkMonitorServiceShim : public NocSimulatorServiceShim {
  public:
   explicit NocSimulatorToLinkMonitorServiceShim(NocSimulator& simulator);
   absl::Status RunCycle() override;

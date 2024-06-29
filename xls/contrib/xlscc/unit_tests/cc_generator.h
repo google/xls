@@ -19,13 +19,9 @@
 #include <string>
 
 namespace xlscc {
-  enum class VariableType : std::uint8_t {
-    kAcInt,
-    kAcFixed,
-    kInt
-  };
+enum class VariableType : std::uint8_t { kAcInt, kAcFixed, kInt };
 
-  std::string GenerateTest(uint32_t seed, VariableType type);
+std::string GenerateTest(uint32_t seed, VariableType type);
 
 }  // namespace xlscc
 

@@ -41,15 +41,11 @@ class XmlNode {
   explicit XmlNode(std::string tag) : tag_(std::move(tag)) {}
 
   std::string_view tag() const { return tag_; }
-  absl::btree_map<std::string, std::string>& attrs() {
-    return attrs_;
-  }
+  absl::btree_map<std::string, std::string>& attrs() { return attrs_; }
   const absl::btree_map<std::string, std::string>& attrs() const {
     return attrs_;
   }
-  std::vector<std::unique_ptr<XmlNode>>& children() {
-    return children_;
-  }
+  std::vector<std::unique_ptr<XmlNode>>& children() { return children_; }
   absl::Span<const std::unique_ptr<XmlNode>> children() const {
     return absl::MakeConstSpan(children_);
   }

@@ -494,10 +494,10 @@ class WireDef : public Def {
 class UserDefinedDef : public Def {
  public:
   UserDefinedDef(std::string_view name, DataType* data_type, VerilogFile* file,
-          const SourceInfo& loc)
+                 const SourceInfo& loc)
       : Def(name, DataKind::kUser, data_type, file, loc) {}
   UserDefinedDef(std::string_view name, DataType* data_type, Expression* init,
-          VerilogFile* file, const SourceInfo& loc)
+                 VerilogFile* file, const SourceInfo& loc)
       : Def(name, DataKind::kUser, data_type, init, file, loc) {}
 };
 

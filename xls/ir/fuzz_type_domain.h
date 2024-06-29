@@ -72,7 +72,7 @@ namespace internal {
 // so trying to use them will give an error. Instead, we set a maximum nesting
 // level as a parameter.
 inline constexpr int64_t kDefaultNestingLevel = 5;
-}
+}  // namespace internal
 
 // Domain that produces arbitrary bits, tuple, and array types.
 // Aggregates can be nested to nesting_level.

@@ -31,7 +31,7 @@ class SourceLocation {
  public:
   SourceLocation() : SourceLocation(Fileno(0), Lineno(0), Colno(0)) {}
   SourceLocation(Fileno fileno, Lineno lineno, Colno colno)
-    : fileno_(fileno), lineno_(lineno), colno_(colno) {}
+      : fileno_(fileno), lineno_(lineno), colno_(colno) {}
   SourceLocation(const SourceLocation& other) = default;
   SourceLocation& operator=(const SourceLocation& other) = default;
 

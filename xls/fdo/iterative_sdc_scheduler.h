@@ -66,8 +66,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
     int64_t clock_period_ps, DelayManager& delay_manager,
     absl::Span<const SchedulingConstraint> constraints,
     const IterativeSDCSchedulingOptions& options,
-    SchedulingFailureBehavior failure_behavior =
-        SchedulingFailureBehavior{});
+    SchedulingFailureBehavior failure_behavior = SchedulingFailureBehavior{});
 
 }  // namespace xls
 

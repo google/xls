@@ -63,9 +63,7 @@ class Scanner {
   //
   // TODO(leary): 2020-09-08 Attempt to privatize this, ideally consumers would
   // only care about the positions of tokens, not of the scanner itself.
-  Pos GetPos() const {
-    return Pos(filename_, lineno_, colno_);
-  }
+  Pos GetPos() const { return Pos(filename_, lineno_, colno_); }
 
   // Pops a token from the current position in the character stream, or returns
   // a status error if no token can be scanned out.
@@ -90,9 +88,7 @@ class Scanner {
   //
   // Note: if there is trailing whitespace in the file, AtEof() will return
   // false until you try to Pop(), at which point you'll see an EOF-kind token.
-  bool AtEof() const {
-    return AtCharEof();
-  }
+  bool AtEof() const { return AtCharEof(); }
 
   void EnableDoubleCAngle() { double_c_angle_enabled_ = true; }
   void DisableDoubleCAngle() { double_c_angle_enabled_ = false; }

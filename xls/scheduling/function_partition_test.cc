@@ -174,7 +174,7 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
       // Skip packages which need the entry to be specified explicitly.
       continue;
     }
-    Function * f = f_status.value();
+    Function* f = f_status.value();
     auto topo_sort_it = TopoSort(f);
     std::vector<Node*> topo_sort(topo_sort_it.begin(), topo_sort_it.end());
 

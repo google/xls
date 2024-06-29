@@ -122,8 +122,8 @@ class ContentAddressedStore {
   // Given filepath contenthash, return the path to read/write from.
   fs::path PathFor(const filepath_contenthash_t& c) const {
     // Name is human readable, the content hash makes it unique.
-    std::string name_with_contenthash = absl::StrCat(
-        c.first.filename().string(), "-", ToHex(c.second));
+    std::string name_with_contenthash =
+        absl::StrCat(c.first.filename().string(), "-", ToHex(c.second));
     return content_dir / name_with_contenthash;
   }
 

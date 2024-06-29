@@ -1511,9 +1511,8 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kJumpRelIf,
                Bytecode::JumpTarget(top_of_loop_index - bytecodes.size())));
-  bytecodes.push_back(
-      Bytecode(span, Bytecode::Op::kCreateArray,
-               Bytecode::NumElements(elements->size())));
+  bytecodes.push_back(Bytecode(span, Bytecode::Op::kCreateArray,
+                               Bytecode::NumElements(elements->size())));
 
   // Now take the collected bytecodes and cram them into a BytecodeFunction,
   // then start executing it.
@@ -1674,8 +1673,8 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
       QCHECK(result_value.IsTuple() && result_value.GetLength().value() == 0);
     }
 
-    XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_,
-                                                type_info_));
+    XLS_RETURN_IF_ERROR(
+        interpreter_->InitFrame(next_fn_.get(), next_args_, type_info_));
     return ProcRunResult{.execution_state = ProcExecutionState::kCompleted,
                          .blocked_channel_name = std::nullopt,
                          .progress_made = progress_made};

@@ -49,8 +49,7 @@ TEST(LibParserTest, ScanSimple) {
 // block structure.
 absl::StatusOr<std::unique_ptr<Block>> Parse(
     std::string text,
-    std::optional<absl::flat_hash_set<std::string>> allowlist =
-        std::nullopt) {
+    std::optional<absl::flat_hash_set<std::string>> allowlist = std::nullopt) {
   XLS_ASSIGN_OR_RETURN(auto cs, CharStream::FromText(text));
   Scanner scanner(&cs);
   Parser parser(&scanner, std::move(allowlist));

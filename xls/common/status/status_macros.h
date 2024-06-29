@@ -174,9 +174,8 @@
 // empty and false otherwise- the `EMPTY_I` helper macro expands to the first
 // argument.
 #define XLS_STATUS_MACROS_IMPL_IS_EMPTY(...) \
-  XLS_STATUS_MACROS_IMPL_IS_EMPTY_I(__VA_OPT__(0, )1)
+  XLS_STATUS_MACROS_IMPL_IS_EMPTY_I(__VA_OPT__(0, ) 1)
 #define XLS_STATUS_MACROS_IMPL_IS_EMPTY_I(is_empty, ...) is_empty
-
 
 // Internal helpers for if statement.
 #define XLS_STATUS_MACROS_IMPL_IF_1(_Then, _Else) _Then

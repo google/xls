@@ -48,7 +48,7 @@ struct SubprocessResult {
   bool timeout_expired;
 };
 std::ostream &operator<<(std::ostream &os, const SubprocessResult &other);
-inline void PrintTo(const SubprocessResult& result, std::ostream* os) {
+inline void PrintTo(const SubprocessResult &result, std::ostream *os) {
   *os << absl::StreamFormat(
       "SubprocessResult "
       "{\n\tstdout=%s\n\tstderr=%s\n\texit_status=%d\n\tnormal_termination=%"

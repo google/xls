@@ -39,13 +39,13 @@ static Runfiles* runfiles;
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #include <sys/syslimits.h>
-#endif  /* __APPLE__ */
+#endif /* __APPLE__ */
 
 absl::StatusOr<std::filesystem::path> GetSelfExecutablePath() {
 #if __linux__
   return GetRealPath("/proc/self/exe");
 #elif __APPLE__
-  char path[PATH_MAX+1];
+  char path[PATH_MAX + 1];
   uint32_t size = PATH_MAX;
   if (_NSGetExecutablePath(path, &size) == 0) {
     return std::filesystem::path(path);

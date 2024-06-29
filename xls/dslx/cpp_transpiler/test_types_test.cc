@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/status/status.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/cpp_transpiler/test_types_lib.h"
 #include "xls/ir/bits.h"

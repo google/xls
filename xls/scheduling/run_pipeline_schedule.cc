@@ -233,8 +233,7 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
       optimistic_clk_period_ps, pessimistic_clk_period_ps,
       [&](int64_t clk_period_ps) {
         return scheduler
-            .Schedule(pipeline_stages, clk_period_ps,
-                      failure_behavior,
+            .Schedule(pipeline_stages, clk_period_ps, failure_behavior,
                       /*check_feasibility=*/true)
             .ok();
       },

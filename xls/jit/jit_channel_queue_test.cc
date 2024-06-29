@@ -42,8 +42,8 @@ using ::testing::HasSubstr;
 
 JitRuntime* GetJitRuntime() {
   static auto orc_jit = OrcJit::Create().value();
-  static auto jit_runtime = std::make_unique<JitRuntime>(
-      orc_jit->CreateDataLayout().value());
+  static auto jit_runtime =
+      std::make_unique<JitRuntime>(orc_jit->CreateDataLayout().value());
   return jit_runtime.get();
 }
 

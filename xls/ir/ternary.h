@@ -51,7 +51,7 @@ std::string ToString(TernaryValue value);
 
 // Format of the ternary vector is, for example: 0b10XX1
 std::string ToString(TernarySpan value);
-inline std::string ToString(const TernaryVector &value) {
+inline std::string ToString(const TernaryVector& value) {
   return ToString(TernarySpan(value));
 }
 // Converts the given string to a TernaryVector. Expects string to be of form

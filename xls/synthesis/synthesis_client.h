@@ -25,8 +25,7 @@ namespace synthesis {
 
 // This creates a new channel and stub *each* invocation
 absl::StatusOr<CompileResponse> SynthesizeViaClient(
-    const std::string& server,
-    const CompileRequest& request);
+    const std::string& server, const CompileRequest& request);
 
 }  // namespace synthesis
 }  // namespace xls

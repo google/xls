@@ -147,9 +147,9 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
                       "the function implicitly returns ().");
     }
 
-    return ctx->TypeMismatchError(
-        f.body()->span(), f.body(), *body_type, f.return_type(), *return_type,
-        type_mismatch_error_msg);
+    return ctx->TypeMismatchError(f.body()->span(), f.body(), *body_type,
+                                  f.return_type(), *return_type,
+                                  type_mismatch_error_msg);
   }
 
   if (return_type->HasParametricDims()) {

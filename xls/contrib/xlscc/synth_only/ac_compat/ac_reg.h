@@ -18,9 +18,9 @@
 namespace ac {
 
 template <typename Dtype>
-  inline Dtype reg(Dtype data) {
-    return data;
-  }
+inline Dtype reg(Dtype data) {
+  return data;
+}
 }  // namespace ac
 
 #endif  // __AC_REG_COMPAT_H__
