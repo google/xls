@@ -49,7 +49,8 @@ def description_comments(n, shifts, f):
       f"""; The following SMT-LIB verifies that a chain of {shifts} {n}-bit shifts
 ; is equivalent to SMT-LIB's built in bit-vector shift.
 """,
-      file=f)
+      file=f,
+  )
 
 
 def logic_and_variables(n, shifts, f):
@@ -68,13 +69,15 @@ def logic_and_variables(n, shifts, f):
       """(set-logic QF_BV)
 
 ; Declare bit-vectors and proxies for indices""",
-      file=f)
+      file=f,
+  )
   for i in range(shifts + 1):
     print(f"(declare-fun x_{i} () (_ BitVec {n}))", file=f)
     for j in range(n):
       print(
           f"(define-fun x_{i}_{j} () (_ BitVec 1) ((_ extract {j} {j}) x_{i}))",
-          file=f)
+          file=f,
+      )
   print("", file=f)
 
 
@@ -192,8 +195,10 @@ def shift_level(n, shift, f):
   for i in range(n):
     shift_index(i, n, shift, f)
   print(
-      f"\n(define-fun shl_{shift} () (_ BitVec {n}) {concat_shift_indices(n, shift)})\n",
-      file=f)
+      f"\n(define-fun shl_{shift} () (_ BitVec {n})"
+      f" {concat_shift_indices(n, shift)})\n",
+      file=f,
+  )
 
 
 def get_nested_expression(shifts):
@@ -226,7 +231,8 @@ def assert_and_check_sat(n, shifts, f):
       f"""; Compare {n}-bit shift result and internal shift and solve
 (assert (not (= shl_{shifts - 1} {get_nested_expression(shifts)})))
 (check-sat)""",
-      file=f)
+      file=f,
+  )
 
 
 def n_bit_nested_shift_existing_file(n, shifts, f):

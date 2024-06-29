@@ -19,6 +19,7 @@ import subprocess
 
 from absl import app
 from absl import flags
+
 from xls.common import runfiles
 
 FLAGS = flags.FLAGS
@@ -30,8 +31,8 @@ def main(argv):
     raise app.UsageError('Too many command-line arguments.')
 
   subprocess.check_call(
-      [runfiles.get_path(OPT_MAIN),
-       runfiles.get_path(argv[1])])
+      [runfiles.get_path(OPT_MAIN), runfiles.get_path(argv[1])]
+  )
 
 
 if __name__ == '__main__':

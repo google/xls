@@ -45,12 +45,14 @@ from xls.common import gfile
 from xls.experimental.smtlib import flags_checks
 
 FLAGS = flags.FLAGS
-flags.DEFINE_list("N", None,
-                  "List of n values for each n-bit multiplication proof.")
+flags.DEFINE_list(
+    "N", None, "List of n values for each n-bit multiplication proof."
+)
 flags.register_validator(
     "N",
     flags_checks.list_contains_only_integers,
-    message="--N must contain only integers.")
+    message="--N must contain only integers.",
+)
 flags.mark_flag_as_required("N")
 
 
@@ -61,6 +63,7 @@ def description_comments(n, f):
   the operation, how many bits in the arguments, and how many operations.
 
   Args:
+
   n: An integer, the number of bits in each input bitvector.
   f: The file to write into.
   """
@@ -68,24 +71,32 @@ def description_comments(n, f):
       f"""; The following SMT-LIB verifies that a {n}-bit multiplier is equivalent
 ; to SMTLIB's built in bit-vector multiplication.
 """,
-      file=f)
+      file=f,
+  )
 
 
 def logic_and_variables(n, f):
-  """Set the logic for the smt2 file, and declare/define variables. Write the set-logic for the proof (QF_BV is the bitvector logic), declare the input bitvector variables, and define variables for their indices. Note that x_i or y_i corresponds to index i of that input bitvector. Args: n: An integer, the number of bits in each bitvector.
+  """Set the logic for the smt2 file, and declare/define variables.
+
+  Write the set-logic for the proof (QF_BV is the bitvector logic), declare the
+  input bitvector variables, and define variables for their indices. Note that
+  x_i or y_i corresponds to index i of that input bitvector. Args: n: An
+  integer, the number of bits in each bitvector.
 
   f: The file to write into.
   """
   print(
       """(set-logic QF_BV)
 ; Declare bit-vectors and proxies for indices""",
-      file=f)
+      file=f,
+  )
   for var in ["x", "y"]:
     print(f"(declare-fun {var} () (_ BitVec {n}))", file=f)
     for i in range(n):
       print(
           f"(define-fun {var}{i} () (_ BitVec 1) ((_ extract {i} {i}) {var}))",
-          file=f)
+          file=f,
+      )
   print("", file=f)
 
 
@@ -96,6 +107,7 @@ def get_concat_level_bits(i, n):
   operation combining the bits of the multiplication of the current variable
   by the i-th index of the previous variable.
   Args:
+
   i: An integer, the index of the previous variable
   n: An integer, the number of bits in each bitvector
   """
@@ -113,7 +125,11 @@ def get_concat_level_bits(i, n):
 
 
 def mul_level(i, n, f):
-  """Writes the result of multiplying the current variable by index i of the previous variable. Mutiply the current variable by the i-th index of the previous variable. This is done by evaluating each of the output bits with a boolean expression and then concatenating them together.
+  """Writes the result of multiplying the current variable by index i of the previous variable.
+
+  Mutiply the current variable by the i-th index of the previous variable. This
+  is done by evaluating each of the output bits with a boolean expression and
+  then concatenating them together.
 
   Args: i: An integer, the index of the previous variable n: An integer, the
   number of bits in each bitvector f: The file to be written into.
@@ -121,10 +137,12 @@ def mul_level(i, n, f):
   print(f"; Multiply x by y{i}, shifting x bits accordingly", file=f)
   for j in range(i, n):
     print(
-        f"(define-fun m{i}_{j} () (_ BitVec 1) (bvand x{j - i} y{i}))", file=f)
+        f"(define-fun m{i}_{j} () (_ BitVec 1) (bvand x{j - i} y{i}))", file=f
+    )
   print(
       f"(define-fun m{i} () (_ BitVec {n}) {get_concat_level_bits(i, n)})\n",
-      file=f)
+      file=f,
+  )
 
 
 def get_result_bits(n):
@@ -133,6 +151,7 @@ def get_result_bits(n):
   Take in an integer n, and return a string representing the bitvectors to be
   added together to produce the final multiplication result.
   Args:
+
   n: An integer, the number of bits in each bitvector
   """
   bits = []
@@ -142,11 +161,14 @@ def get_result_bits(n):
 
 
 def make_mul(n, f):
-  """Write the final multiplication output. Create the output of the multiplication.
+  """Write the final multiplication output.
+
+  Create the output of the multiplication.
 
   Get the bitvectors for the multiplication at each index using
   get_result_bits, and add them all together.
   Args:
+
   n: An integer, the number of bits in the output bitvector.
   f: The file to write into.
   """
@@ -154,7 +176,8 @@ def make_mul(n, f):
       f"""; Add all m bit-vectors to create mul
 (define-fun mul () (_ BitVec {n}) (bvadd {get_result_bits(n)}))
 """,
-      file=f)
+      file=f,
+  )
 
 
 def assert_and_check_sat(f):
@@ -171,13 +194,15 @@ def assert_and_check_sat(f):
       """; Assert and solve
 (assert (not (= mul (bvmul x y))))
 (check-sat)""",
-      file=f)
+      file=f,
+  )
 
 
 def n_bit_mul_existing_file(n, f):
   """Given a file, write a multiplication proof into it with n-bit arguments.
 
   Args:
+
   n: An integer, the number of bits for the input and output bitvectors.
   f: The file to write the proof into.
   """
@@ -193,6 +218,7 @@ def n_bit_mul_new_file(n):
   """Create a new file, and write a multiplication proof with n-bit arguments.
 
   Args:
+
   n: An integer, the number of bits for the input and output bitvectors.
   """
   with gfile.open(f"mul_2x{n}.smt2", "w+") as f:

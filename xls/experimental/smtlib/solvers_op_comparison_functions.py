@@ -20,7 +20,7 @@ SOLVER_COMMANDS = {
     "cvc4": "cvc4",
     "z3": "z3",
     "stp": "stp",
-    "yices": "yices-smt2"
+    "yices": "yices-smt2",
 }
 
 
@@ -30,13 +30,15 @@ def get_solver_file_speed_ms(solver, f):
   Args:
     solver: A string, the solver to be tested
     f: The smt2 file to test on
+
   Returns: the average time in ms.
   """
   avg = 0
   for _ in range(10):
     start = time.time()
     output = subprocess.check_output(
-        [f"{SOLVER_COMMANDS[solver]}", f"{f.name}"])
+        [f"{SOLVER_COMMANDS[solver]}", f"{f.name}"]
+    )
     if output != b"unsat\n":
       raise ValueError(f"{solver} messed up on {f.name}")
     end = time.time()
@@ -50,6 +52,7 @@ def get_solver_speeds_ms(solvers, files_list):
   Args:
     solvers: A list of strings, the solvers to test
     files_list: A list of smt2 files to test on
+
   Returns: a list of the average time per solver (in the order given).
   """
   solvers_milliseconds = []

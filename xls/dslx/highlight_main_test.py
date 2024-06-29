@@ -29,8 +29,9 @@ class HighlightMainTest(absltest.TestCase):
   def test_highlight_then_remove_ansi_codes(self):
     with open(_SHA256_PATH) as f:
       original_text = f.read()
-    output = subp.check_output([_HIGHLIGHT_MAIN_PATH, _SHA256_PATH],
-                               encoding='utf-8')
+    output = subp.check_output(
+        [_HIGHLIGHT_MAIN_PATH, _SHA256_PATH], encoding='utf-8'
+    )
     self.assertNotEmpty(_ANSI_ESCAPE_RE.findall(output))
     escapes_removed = re.sub(_ANSI_ESCAPE_RE, '', output)
     self.assertMultiLineEqual(escapes_removed, original_text)
@@ -43,8 +44,9 @@ fn f(x: u32) -> u32 {
   trace!(u32:42)  // Yay!
 }"""
     f = self.create_tempfile(content=s)
-    output = subp.check_output([_HIGHLIGHT_MAIN_PATH, f.full_path],
-                               encoding='utf-8')
+    output = subp.check_output(
+        [_HIGHLIGHT_MAIN_PATH, f.full_path], encoding='utf-8'
+    )
     red = '\x1b[1;31m'
     green = '\x1b[1;32m'
     yellow = '\x1b[1;33m'

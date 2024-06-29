@@ -549,5 +549,6 @@ class CodeGenMainTest(parameterized.TestCase):
       merge = blk.read()
     self.assertNotEqual(no_merge, merge)
 
+
 if __name__ == '__main__':
   absltest.main()

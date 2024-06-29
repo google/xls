@@ -32,6 +32,7 @@ import os
 
 from absl import app
 from absl import flags
+
 from xls.common import gfile
 from xls.experimental.smtlib import flags_checks
 from xls.experimental.smtlib import n_bit_nested_add_generator
@@ -43,12 +44,16 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string('op', None, 'Operation for the smt2 files (add, mul, shl)')
 flags.DEFINE_integer('bits', None, 'Integer for the number of bits.')
-flags.DEFINE_list('nests_list', None,
-                  'List of nest values for each n-bit multiplication proof.')
+flags.DEFINE_list(
+    'nests_list',
+    None,
+    'List of nest values for each n-bit multiplication proof.',
+)
 flags.register_validator(
     'nests_list',
     flags_checks.list_contains_only_integers,
-    message='--nests_list must contain only integers.')
+    message='--nests_list must contain only integers.',
+)
 flags.DEFINE_list('solvers', None, 'List of solvers to test.')
 flags.DEFINE_string('fname', None, 'Name for the file to store the data.')
 
@@ -82,13 +87,16 @@ def create_and_get_smt_files_nests_list(op, nests_list, bits_val):
       files.append(f)
       if op == 'add':
         n_bit_nested_add_generator.n_bit_nested_add_existing_file(
-            bits_val, nest, f)
+            bits_val, nest, f
+        )
       elif op == 'mul':
         n_bit_nested_mul_generator.n_bit_nested_mul_existing_file(
-            bits_val, nest, f)
+            bits_val, nest, f
+        )
       elif op == 'shl':
         n_bit_nested_shift_generator.n_bit_nested_shift_existing_file(
-            bits_val, nest, f)
+            bits_val, nest, f
+        )
   return files
 
 
@@ -110,7 +118,8 @@ def csv_solvers_speeds_nests_list(op, nests_list, bits_val, solvers, fname):
   """
   files = create_and_get_smt_files_nests_list(op, nests_list, bits_val)
   solvers_milliseconds = solvers_op_comparison_functions.get_solver_speeds_ms(
-      solvers, files)
+      solvers, files
+  )
   write_row = False if os.path.isfile(fname) else True
   with gfile.open(fname, 'a') as f:
     wr = csv.writer(f, delimiter=',')

@@ -31,7 +31,8 @@ class TypecheckMainTest(absltest.TestCase):
       basedir, _ = os.path.split(basedir)
     output = subp.check_output(
         [_TYPECHECK_MAIN_PATH, mod_path, '--dslx_path=' + basedir],
-        encoding='utf-8')
+        encoding='utf-8',
+    )
     self.assertIn('TYPE_REF :: `mod_simple_const_enum::MyEnum`', output)
 
 

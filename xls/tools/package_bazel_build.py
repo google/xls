@@ -32,14 +32,15 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('output_dir', None, 'Path to create package under')
 flags.DEFINE_multi_string('inc_target', None, 'Include bazel target in package')
 flags.DEFINE_string('bazel_bin', './bazel-bin', 'Root directory of bazel-bin')
-flags.DEFINE_string('bazel_execroot', './bazel-xls-export',
-                    'Root directory of bazel_execroot')
+flags.DEFINE_string(
+    'bazel_execroot', './bazel-xls-export', 'Root directory of bazel_execroot'
+)
 
 flags.mark_flag_as_required('output_dir')
 flags.mark_flag_as_required('inc_target')
 
 
-class GlobalManifest():
+class GlobalManifest:
   """Stores all manifest mappings.
 
   When packaging multiple targets, each target's manifest will contain
@@ -67,14 +68,19 @@ class GlobalManifest():
       if f_map != mapping:
         logging.fatal(
             'FATAL: file %s mapped to %s in manifest %s '
-            'but originally %s in manifest %s', f, mapping, manifest, f_map,
-            orig_manifest)
+            'but originally %s in manifest %s',
+            f,
+            mapping,
+            manifest,
+            f_map,
+            orig_manifest,
+        )
     else:
       self._mapped_files[f] = mapping
       self._orig_manifest[f] = manifest
 
 
-class Manifest():
+class Manifest:
   """Stores a single manifest's mapping.
 
   For each bazel target, a manifest file is created that maps
@@ -122,8 +128,9 @@ class Manifest():
           self._all_files.append(file_name)
           self._mapped_files[file_name] = file_mapped_name
 
-          self._global_manifest.add_mapping(file_name, file_mapped_name,
-                                            manifest)
+          self._global_manifest.add_mapping(
+              file_name, file_mapped_name, manifest
+          )
 
           logging.debug(' - %s - copy mapped - %s', file_name, file_mapped_name)
         else:
@@ -159,13 +166,13 @@ class BazelTargetPackager:
     self._bazel_bin = os.path.realpath(bazel_bin)
     self._bazel_execroot = os.path.realpath(bazel_execroot)
 
-    self._bazel_outputroot = \
-      os.path.normpath(os.path.join(self._bazel_execroot, '../../'))
+    self._bazel_outputroot = os.path.normpath(
+        os.path.join(self._bazel_execroot, '../../')
+    )
 
     # Derive .common_runfiles directory from output_dir
     self._output_dir = output_dir
-    self._common_runfiles = \
-      os.path.join(self._output_dir, '.common_runfiles')
+    self._common_runfiles = os.path.join(self._output_dir, '.common_runfiles')
 
   def create_output_dir(self):
     logging.vlog(1, 'Creating common runfiles %s', self._common_runfiles)
@@ -238,12 +245,14 @@ class BazelTargetPackager:
         # TODO(tedhong): 2020-10-01 Reduce occurrences of this
         logging.info(
             'INFO:  - Unable to find common path for %s, copying instead',
-            mapping)
+            mapping,
+        )
         shutil.copy2(path, output_path, follow_symlinks=True)
       else:
         link_rel = os.path.relpath(link_to, os.path.dirname(output_path))
-        logging.debug('DEBUG:  - Linking %s to %s (%s)', output_path, link_rel,
-                      link_to)
+        logging.debug(
+            'DEBUG:  - Linking %s to %s (%s)', output_path, link_rel, link_to
+        )
         os.symlink(link_rel, output_path)
         pass
 
@@ -266,12 +275,16 @@ class BazelTargetPackager:
       # See if path is under execroot or outputroot
       use_path = None
 
-      if os.path.commonpath([path,
-                             self._bazel_execroot]) == self._bazel_execroot:
+      if (
+          os.path.commonpath([path, self._bazel_execroot])
+          == self._bazel_execroot
+      ):
         use_path = os.path.relpath(path, start=self._bazel_execroot)
         logging.debug('DEBUG:  - Under execroot - path %s', path)
-      elif os.path.commonpath([path, self._bazel_outputroot
-                              ]) == self._bazel_outputroot:
+      elif (
+          os.path.commonpath([path, self._bazel_outputroot])
+          == self._bazel_outputroot
+      ):
         use_path = os.path.relpath(path, start=self._bazel_outputroot)
         logging.debug('DEBUG:  - Under outputroot - path %s', path)
 
@@ -280,8 +293,9 @@ class BazelTargetPackager:
         dest_path = os.path.join(self._common_runfiles, use_path)
 
         if os.path.exists(dest_path):
-          logging.fatal('FATAL: Unable to copy %s to %s, file exists', path,
-                        dest_path)
+          logging.fatal(
+              'FATAL: Unable to copy %s to %s, file exists', path, dest_path
+          )
 
         logging.debug('DEBUG: Link copying %s to %s', path, dest_path)
 
@@ -319,7 +333,8 @@ def main(argv):
   packager = BazelTargetPackager(
       output_dir=FLAGS.output_dir,
       bazel_bin=FLAGS.bazel_bin,
-      bazel_execroot=FLAGS.bazel_execroot)
+      bazel_execroot=FLAGS.bazel_execroot,
+  )
 
   packager.create_output_dir()
   for t in FLAGS.inc_target:

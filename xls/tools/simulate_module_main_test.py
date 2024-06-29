@@ -82,10 +82,14 @@ class SimulateModuleMainTest(test_base.TestCase):
         ir_file.full_path,
     ])
     result = subprocess.check_output([
-        SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
-        '--file_type=verilog', '--alsologtostderr', '--v=1',
+        SIMULATE_MODULE_MAIN_PATH,
+        '--verilog_simulator=iverilog',
+        '--file_type=verilog',
+        '--alsologtostderr',
+        '--v=1',
         '--signature_file=' + signature_file.full_path,
-        '--args=bits[32]:7; bits[32]:123', verilog_file.full_path
+        '--args=bits[32]:7; bits[32]:123',
+        verilog_file.full_path,
     ])
     self.assertEqual('bits[32]:0x82', result.decode('utf-8').strip())
 
@@ -108,13 +112,18 @@ class SimulateModuleMainTest(test_base.TestCase):
 
     """)
     result = subprocess.check_output([
-        SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
-        '--file_type=verilog', '--alsologtostderr', '--v=1',
+        SIMULATE_MODULE_MAIN_PATH,
+        '--verilog_simulator=iverilog',
+        '--file_type=verilog',
+        '--alsologtostderr',
+        '--v=1',
         '--signature_file=' + signature_file.full_path,
-        '--args_file=' + args_file.full_path, verilog_file.full_path
+        '--args_file=' + args_file.full_path,
+        verilog_file.full_path,
     ])
-    self.assertMultiLineEqual('bits[32]:0xf01\nbits[32]:0x2a\n',
-                              result.decode('utf-8'))
+    self.assertMultiLineEqual(
+        'bits[32]:0xf01\nbits[32]:0x2a\n', result.decode('utf-8')
+    )
 
   def test_multi_arg_from_file_proc(self):
     ir_file = self.create_tempfile(content=ADD_IR_PROC)
@@ -128,8 +137,7 @@ class SimulateModuleMainTest(test_base.TestCase):
         '--alsologtostderr',
         ir_file.full_path,
     ])
-    channel_values_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    channel_values_file = self.create_tempfile(content=textwrap.dedent("""
           sample__operand_1 : {
             bits[32]:0xf00
             bits[32]:2
@@ -140,15 +148,20 @@ class SimulateModuleMainTest(test_base.TestCase):
           }
     """))
     result = subprocess.check_output([
-        SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
-        '--file_type=verilog', '--alsologtostderr', '--v=1',
+        SIMULATE_MODULE_MAIN_PATH,
+        '--verilog_simulator=iverilog',
+        '--file_type=verilog',
+        '--alsologtostderr',
+        '--v=1',
         '--signature_file=' + signature_file.full_path,
         '--channel_values_file=' + channel_values_file.full_path,
-        '--output_channel_counts=sample__result=2', verilog_file.full_path
+        '--output_channel_counts=sample__result=2',
+        verilog_file.full_path,
     ])
     self.assertMultiLineEqual(
         'sample__result : {\n  bits[32]:0xf01\n  bits[32]:0x2a\n}\n',
-        result.decode('utf-8'))
+        result.decode('utf-8'),
+    )
 
   def test_proc_with_no_output_channels(self):
     ir_file = self.create_tempfile(content=PROC_WITH_NO_OUTPUT_CHANNEL)
@@ -162,8 +175,7 @@ class SimulateModuleMainTest(test_base.TestCase):
         '--alsologtostderr',
         ir_file.full_path,
     ])
-    channel_values_file = self.create_tempfile(
-        content=textwrap.dedent("""
+    channel_values_file = self.create_tempfile(content=textwrap.dedent("""
           in0 : {
             bits[12]:41
             bits[12]:1
@@ -174,14 +186,18 @@ class SimulateModuleMainTest(test_base.TestCase):
           }
     """))
     result = subprocess.check_output([
-        SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
-        '--file_type=verilog', '--alsologtostderr', '--v=1',
+        SIMULATE_MODULE_MAIN_PATH,
+        '--verilog_simulator=iverilog',
+        '--file_type=verilog',
+        '--alsologtostderr',
+        '--v=1',
         '--signature_file=' + signature_file.full_path,
         '--channel_values_file=' + channel_values_file.full_path,
-        verilog_file.full_path
+        verilog_file.full_path,
     ])
     # Empty result since there are no output channels.
     self.assertMultiLineEqual('\n', result.decode('utf-8'))
+
 
 if __name__ == '__main__':
   test_base.main()

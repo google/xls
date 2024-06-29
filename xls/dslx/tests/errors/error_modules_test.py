@@ -79,11 +79,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertEqual(lines[1], '[        FAILED ] first_failing')
     self.assertEqual(lines[2], '[ RUN UNITTEST  ] second_failing')
     self.assertEqual(lines[3], '[        FAILED ] second_failing')
-    self.assertEqual(lines[4],
-                     '[===============] 2 test(s) ran; 2 failed; 0 skipped.')
+    self.assertEqual(
+        lines[4], '[===============] 2 test(s) ran; 2 failed; 0 skipped.'
+    )
     self.assertRegex(lines[5], r'\[ SEED [\d ]{16} \]')
-    self.assertEqual(lines[6],
-                     '[ RUN QUICKCHECK        ] always_false count: 1000')
+    self.assertEqual(
+        lines[6], '[ RUN QUICKCHECK        ] always_false count: 1000'
+    )
     self.assertEqual(lines[7], '[                FAILED ] always_false')
     self.assertEqual(lines[8], '[=======================] 1 quickcheck(s) ran.')
 
@@ -124,8 +126,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
     self.assertIn(
-        "xls.dslx.tests.errors.mod_private_enum member 'ReallyDoesNotExist' which does not exist",
-        stderr)
+        "xls.dslx.tests.errors.mod_private_enum member 'ReallyDoesNotExist'"
+        ' which does not exist',
+        stderr,
+    )
 
   def test_colon_ref_builtin(self):
     stderr = self._run('xls/dslx/tests/errors/colon_ref_builtin.x')
@@ -177,8 +181,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
     self.assertIn(
-        'Old-style cast only permitted for constant arrays/tuples and literal numbers',
-        stderr)
+        'Old-style cast only permitted for constant arrays/tuples and literal'
+        ' numbers',
+        stderr,
+    )
 
   def test_multiple_mod_level_const_bindings(self):
     stderr = self._run(
@@ -188,8 +194,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/multiple_mod_level_const_bindings.x:16:7-16:10',
         stderr,
     )
-    self.assertIn('Constant definition is shadowing an existing definition',
-                  stderr)
+    self.assertIn(
+        'Constant definition is shadowing an existing definition', stderr
+    )
 
   def test_double_define_top_level_function(self):
     stderr = self._run(
@@ -282,8 +289,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/invalid_array_expression_size.x:16:20-16:36',
         stderr,
     )
-    self.assertIn('Annotated array size 2 does not match inferred array size 1',
-                  stderr)
+    self.assertIn(
+        'Annotated array size 2 does not match inferred array size 1', stderr
+    )
 
   def test_double_define_parameter(self):
     stderr = self._run(
@@ -291,41 +299,47 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     # TODO(leary): 2020-01-26 This should not be flagged at the IR level, we
     # should catch it in the frontend.
-    self.assertIn('Could not build IR: Parameter named "x" already exists',
-                  stderr)
+    self.assertIn(
+        'Could not build IR: Parameter named "x" already exists', stderr
+    )
 
   def test_non_constexpr_slice(self):
     stderr = self._run(
         'xls/dslx/tests/errors/non_constexpr_slice.x'
     )
-    self.assertIn('Unable to resolve slice limit to a compile-time constant.',
-                  stderr)
+    self.assertIn(
+        'Unable to resolve slice limit to a compile-time constant.', stderr
+    )
 
   def test_scan_error_pretty_printed(self):
     stderr = self._run('xls/dslx/tests/errors/no_radix.x')
     self.assertIn(
-        '^ ScanError: Invalid radix for number, ' +
-        'expect 0b or 0x because of leading 0.',
-        stderr)
+        '^ ScanError: Invalid radix for number, '
+        + 'expect 0b or 0x because of leading 0.',
+        stderr,
+    )
 
   def test_negative_shift_amount_shl(self):
     stderr = self._run(
         'xls/dslx/tests/errors/negative_shift_amount_shl.x'
     )
-    self.assertIn('Negative literal values cannot be used as shift amounts',
-                  stderr)
+    self.assertIn(
+        'Negative literal values cannot be used as shift amounts', stderr
+    )
 
   def test_negative_shift_amount_shr(self):
     stderr = self._run(
         'xls/dslx/tests/errors/negative_shift_amount_shr.x'
     )
-    self.assertIn('Negative literal values cannot be used as shift amounts',
-                  stderr)
+    self.assertIn(
+        'Negative literal values cannot be used as shift amounts', stderr
+    )
 
   def test_over_shift(self):
     stderr = self._run('xls/dslx/tests/errors/over_shift_amount.x')
-    self.assertIn('Shift amount is larger than shift value bit width of',
-                  stderr)
+    self.assertIn(
+        'Shift amount is larger than shift value bit width of', stderr
+    )
 
   def test_colon_ref_of_type_alias(self):
     stderr = self._run(
@@ -348,14 +362,17 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_cast_int_to_struct(self):
     stderr = self._run('xls/dslx/tests/errors/cast_int_to_struct.x')
-    self.assertIn("Cannot cast from expression type uN[32] to struct 'S'",
-                  stderr)
+    self.assertIn(
+        "Cannot cast from expression type uN[32] to struct 'S'", stderr
+    )
 
   def test_cast_struct_to_int(self):
     stderr = self._run('xls/dslx/tests/errors/cast_struct_to_int.x')
     self.assertIn(
-        "Cannot cast from expression type struct 'S' structure: S { member: uN[32] } to uN[32]",
-        stderr)
+        "Cannot cast from expression type struct 'S' structure: S { member:"
+        ' uN[32] } to uN[32]',
+        stderr,
+    )
 
   def test_cast_struct_array_to_bits(self):
     stderr = self._run(
@@ -374,7 +391,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn(
         'FailureError: The program being interpreted failed! (u8:0, u8:0)',
-        stderr)
+        stderr,
+    )
 
   def test_match_not_exhaustive(self):
     stderr = self._run(
@@ -394,15 +412,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run('xls/dslx/tests/errors/arg0_type_mismatch.x')
     self.assertIn('arg0_type_mismatch.x:18:5-18:14', stderr)
     self.assertIn(
-        'uN[2] vs uN[32]: Mismatch between parameter and argument types',
-        stderr)
+        'uN[2] vs uN[32]: Mismatch between parameter and argument types', stderr
+    )
 
   def test_arg1_type_mismatch(self):
     stderr = self._run('xls/dslx/tests/errors/arg1_type_mismatch.x')
     self.assertIn('arg1_type_mismatch.x:19:5-19:14', stderr)
     self.assertIn(
-        'uN[3] vs uN[32]: Mismatch between parameter and argument types',
-        stderr)
+        'uN[3] vs uN[32]: Mismatch between parameter and argument types', stderr
+    )
 
   def test_num_args_type_mismatch(self):
     stderr = self._run(
@@ -456,8 +474,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('duplicate_match_arm.x:22:5-22:8', stderr)
     self.assertIn(
-        'Exact-duplicate pattern match detected `FOO` -- only the first could possibly match',
-        stderr)
+        'Exact-duplicate pattern match detected `FOO` -- only the first could'
+        ' possibly match',
+        stderr,
+    )
 
   def test_trace_fmt_empty_err(self):
     stderr = self._run('xls/dslx/tests/errors/trace_fmt_empty.x')
@@ -471,7 +491,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('trace_fmt_not_string.x:16:13-16:16', stderr)
     self.assertIn(
         'The first argument of the trace_fmt! macro must be a literal string',
-        stderr)
+        stderr,
+    )
 
   def test_trace_fmt_bad_string(self):
     stderr = self._run(
@@ -493,23 +514,22 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('trace_fmt_arg_mismatch.x:16:13-16:32', stderr)
     self.assertIn('ArgCountMismatchError', stderr)
-    self.assertIn('expects 1 argument(s) from format but has 0 argument(s)',
-                  stderr)
+    self.assertIn(
+        'expects 1 argument(s) from format but has 0 argument(s)', stderr
+    )
 
   def test_oob_signed_value(self):
     stderr = self._run('xls/dslx/tests/errors/oob_signed_value.x')
     self.assertIn('oob_signed_value.x:16:3-16:9', stderr)
     self.assertIn('TypeInferenceError', stderr)
-    self.assertIn('Value \'256\' does not fit in the bitwidth of a sN[8]',
-                  stderr)
+    self.assertIn("Value '256' does not fit in the bitwidth of a sN[8]", stderr)
     self.assertIn('Valid values are [-128, 127]', stderr)
 
   def test_oob_unigned_value(self):
     stderr = self._run('xls/dslx/tests/errors/oob_unsigned_value.x')
     self.assertIn('oob_unsigned_value.x:16:3-16:9', stderr)
     self.assertIn('TypeInferenceError', stderr)
-    self.assertIn('Value \'256\' does not fit in the bitwidth of a uN[8]',
-                  stderr)
+    self.assertIn("Value '256' does not fit in the bitwidth of a uN[8]", stderr)
     self.assertIn('Valid values are [0, 255]', stderr)
 
   def test_useless_expression_statement_warning(self):
@@ -539,8 +559,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('should_not_splat_warning.x:18:31-18:32', stderr)
     self.assertIn(
-        "'Splatted' struct instance has all members of struct defined, consider removing the `..p`",
-        stderr)
+        "'Splatted' struct instance has all members of struct defined, consider"
+        ' removing the `..p`',
+        stderr,
+    )
 
     self._run(
         'xls/dslx/tests/errors/should_not_splat_warning.x',
@@ -1185,7 +1207,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run('xls/dslx/tests/errors/gh_1473.x')
     self.assertIn(
         'Parametric expression `umax(MAX_N_M, V)` refered to `V`'
-        ' which is not present in the parametric environment', stderr
+        ' which is not present in the parametric environment',
+        stderr,
     )
 
 

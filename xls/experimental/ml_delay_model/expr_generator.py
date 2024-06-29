@@ -57,7 +57,7 @@ consumed_stack_slots = {
     Op.XOR2: 2,
     Op.MUL2: 2,
     Op.AND2: 2,
-    Op.OR2: 2
+    Op.OR2: 2,
 }
 
 to_str = {
@@ -68,7 +68,7 @@ to_str = {
     Op.XOR2: '^',
     Op.MUL2: '*',
     Op.AND2: '&',
-    Op.OR2: '|'
+    Op.OR2: '|',
 }
 
 VERILOG_TEMPLATE = """
@@ -91,9 +91,10 @@ def gen() -> Tuple[Type[Op], Type[str]]:
     ops = [Op.PARAM1, Op.PARAM2]
     stack = ['x1', 'x2']
     # First pick a length limit, using exponential dropoff probability
-    length = np.random.choice(np.arange(1, MAXLEN+1),
-                              p=[(1 << i) / ((1 << MAXLEN) - 1) \
-                                 for i in range(MAXLEN)])
+    length = np.random.choice(
+        np.arange(1, MAXLEN + 1),
+        p=[(1 << i) / ((1 << MAXLEN) - 1) for i in range(MAXLEN)],
+    )
     while len(ops) < length:
       op = random.choice([op for op in oplist[3:]])
       # Append random operands
@@ -139,23 +140,34 @@ def parse_log(filename: str) -> str:
 def yosys_and_nextpnr(expr: str) -> float:
   """Runs Yosys and nextpnr tools to get delay estimate."""
   with tempfile.TemporaryDirectory() as tempdir:
-    with open('{}/sample.v'.format(tempdir), 'w+') as verilog_file, \
-        open('{}/sample.json'.format(tempdir), 'w+') as json_file, \
-        open('{}/sample.log'.format(tempdir), 'w+') as log_file:
+    with open('{}/sample.v'.format(tempdir), 'w+') as verilog_file, open(
+        '{}/sample.json'.format(tempdir), 'w+'
+    ) as json_file, open('{}/sample.log'.format(tempdir), 'w+') as log_file:
       verilog_file.write(VERILOG_TEMPLATE.format(expr))
-    subprocess.run([
-        '/usr/local/google/home/brjiang/Documents/yosys/yosys', '-p',
-        'read_verilog {}; synth_ecp5 -top my_module -json {}'.format(
-            verilog_file.name, json_file.name)
-    ],
-                   stdout=subprocess.DEVNULL,
-                   check=True)
-    subprocess.run([
-        'nextpnr-ecp5', '--json', json_file.name, '--package', 'CABGA381',
-        '--log', log_file.name
-    ],
-                   stderr=subprocess.DEVNULL,
-                   check=True)
+    subprocess.run(
+        [
+            '/usr/local/google/home/brjiang/Documents/yosys/yosys',
+            '-p',
+            'read_verilog {}; synth_ecp5 -top my_module -json {}'.format(
+                verilog_file.name, json_file.name
+            ),
+        ],
+        stdout=subprocess.DEVNULL,
+        check=True,
+    )
+    subprocess.run(
+        [
+            'nextpnr-ecp5',
+            '--json',
+            json_file.name,
+            '--package',
+            'CABGA381',
+            '--log',
+            log_file.name,
+        ],
+        stderr=subprocess.DEVNULL,
+        check=True,
+    )
     delay = parse_log(log_file.name)
   return delay
 
@@ -179,8 +191,10 @@ def main(num_samples):
             target=gen_csv,
             args=[
                 num_samples // NUM_PROCESSES,
-                './data/data_{}_{}_{}.csv'.format(NUMOPS, MAXLEN, i)
-            ]))
+                './data/data_{}_{}_{}.csv'.format(NUMOPS, MAXLEN, i),
+            ],
+        )
+    )
     processes[i].start()
   for i in range(NUM_PROCESSES):
     processes[i].join()

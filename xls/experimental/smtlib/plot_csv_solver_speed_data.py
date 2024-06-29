@@ -32,16 +32,19 @@ import csv
 from absl import app
 from absl import flags
 from matplotlib import pyplot as plt
+
 from xls.common import gfile
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('fname', None, 'csv file with data to plot')
 flags.mark_flag_as_required('fname')
-flags.DEFINE_string('xscale', 'linear',
-                    'x-axis scale: "linear" or "log" (base 2)')
-flags.DEFINE_string('yscale', 'linear',
-                    'y-axis scale: "linear" or "log" (base 10)')
+flags.DEFINE_string(
+    'xscale', 'linear', 'x-axis scale: "linear" or "log" (base 2)'
+)
+flags.DEFINE_string(
+    'yscale', 'linear', 'y-axis scale: "linear" or "log" (base 10)'
+)
 
 
 def plot_csv_data(fname):

@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=broad-exception-raised
 """Script for project-specific release of the XLS toolchain.
 
 Usage:
@@ -62,7 +63,8 @@ def build_and_copy_binaries(wc_dir, target_dir):
   bazel_args = ['bazel', 'build', '-c', 'opt'] + targets + [package_target]
   print('Running:\n  ' + ' '.join(bazel_args))
   subprocess.check_call(
-      ['bazel', 'build', '-c', 'opt'] + targets + [package_target], cwd=wc_dir)
+      ['bazel', 'build', '-c', 'opt'] + targets + [package_target], cwd=wc_dir
+  )
 
   print(f'Copying binaries to {target_dir}')
 

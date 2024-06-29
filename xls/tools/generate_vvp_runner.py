@@ -24,8 +24,10 @@ from absl import app
 
 def main(argv):
   if len(argv) != 2:
-    raise app.UsageError('Bad number of command-line arguments; expect '
-                         '<generate_vvp_runner> <path_of_iverilog_output>')
+    raise app.UsageError(
+        'Bad number of command-line arguments; expect '
+        '<generate_vvp_runner> <path_of_iverilog_output>'
+    )
 
   path = argv[1]
   # Strip off the leading portion of the path that's used in genrules; i.e. the

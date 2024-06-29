@@ -22,12 +22,10 @@ import os
 import subprocess
 import sys
 import tempfile
-
 from typing import List, Tuple
 
 from absl import app
 from absl import flags
-
 import flask
 import werkzeug.exceptions
 import werkzeug.security
@@ -42,21 +40,31 @@ flags.DEFINE_string('delay_model', None, 'Delay model to use.')
 # schedule used in the examples and/or surface the scheduling options in the
 # UI.
 flags.DEFINE_integer(
-    'pipeline_stages', None,
+    'pipeline_stages',
+    None,
     'Schedule the IR function into this many stages using the specified '
     'delay model. This influence the rendering graph by changing '
-    'cycle-spanning edges to dotted style')
+    'cycle-spanning edges to dotted style',
+)
 flags.DEFINE_string(
-    'preload_ir_path', None, 'Path to local IR file to render on startup. If '
-    '"-" then read from stdin.')
+    'preload_ir_path',
+    None,
+    'Path to local IR file to render on startup. If "-" then read from stdin.',
+)
 flags.DEFINE_string(
-    'example_ir_dir', None, 'Path to directory containing IR files to use as '
+    'example_ir_dir',
+    None,
+    'Path to directory containing IR files to use as '
     'precanned examples available in the UI via the "Examples" drop down menu. '
-    'All files ending in ".ir" in the directory are used.')
+    'All files ending in ".ir" in the directory are used.',
+)
 # TODO(meheff): the function should be selectable via the UI.
 flags.DEFINE_string(
-    'top', None, 'Name of entity (function, proc, etc) to visualize. If not '
-    'given then the entity specified as top in the IR file is visualzied.')
+    'top',
+    None,
+    'Name of entity (function, proc, etc) to visualize. If not '
+    'given then the entity specified as top in the IR file is visualzied.',
+)
 flags.mark_flag_as_required('delay_model')
 
 IR_EXAMPLES_FILE_LIST = 'xls/visualization/ir_viz/ir_examples_file_list.txt'
@@ -89,7 +97,7 @@ def load_precanned_examples() -> List[Tuple[str, str]]:
 
     def strip_up_to(s, part):
       if part in s:
-        return s[s.find(part) + len(part):]
+        return s[s.find(part) + len(part) :]
       return s
 
     # Strip off path prefix up to 'examples/' or 'modules/' to create the
@@ -100,7 +108,7 @@ def load_precanned_examples() -> List[Tuple[str, str]]:
       name = strip_up_to(ir_path, 'modules/')
     else:
       name = ir_path
-    name = name[:-len('.ir')]
+    name = name[: -len('.ir')]
     irs.append((name, runfiles.get_contents_as_text(ir_path)))
   irs.sort()
   return irs
@@ -117,7 +125,6 @@ def load_examples_from_dir(examples_dir):
 
   Returns:
     List of tuples containing (name, IR text).
-
   """
   irs = []
   for ir_filename in os.listdir(examples_dir):
@@ -134,7 +141,8 @@ def load_examples_from_dir(examples_dir):
 def get_third_party_js():
   """Returns the URLS of the third-party JS to load."""
   urls = runfiles.get_contents_as_text(
-      'xls/visualization/ir_viz/third_party_js.txt').split()
+      'xls/visualization/ir_viz/third_party_js.txt'
+  ).split()
   return [u.strip() for u in urls if u.strip()]
 
 
@@ -142,7 +150,8 @@ def get_third_party_js():
 def optimize_ir(ir: str, opt_level: str) -> str:
   """Runs the given IR through opt_main at the given optimization level."""
   tmp_ir = tempfile.NamedTemporaryFile(
-      mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir')
+      mode='w', encoding='utf-8', prefix='ir_viz.', suffix='.ir'
+  )
   tmp_ir.write(ir)
   tmp_ir.seek(0)
   print('optimizing at level {}:\n{} '.format(opt_level, ir))
@@ -151,7 +160,8 @@ def optimize_ir(ir: str, opt_level: str) -> str:
         [OPT_MAIN_PATH, '--opt_level={}'.format(opt_level), tmp_ir.name],
         stdin=None,
         stderr=subprocess.PIPE,
-        encoding='utf-8')
+        encoding='utf-8',
+    )
   elif opt_level == 'inline-only':
     # Run:
     # 1) DeadCodeElimination
@@ -194,11 +204,13 @@ def splash():
     preloaded_ir = ''
   return flask.render_template_string(
       runfiles.get_contents_as_text(
-          'xls/visualization/ir_viz/templates/splash.tmpl'),
+          'xls/visualization/ir_viz/templates/splash.tmpl'
+      ),
       examples=[name for name, _ in examples],
       third_party_scripts=get_third_party_js(),
       preloaded_ir=preloaded_ir,
-      use_benchmark_examples=FLAGS.example_ir_dir is None)
+      use_benchmark_examples=FLAGS.example_ir_dir is None,
+  )
 
 
 @webapp.route('/static/<filename>')
@@ -215,7 +227,8 @@ def static_handler(filename):
 
   try:
     content = runfiles.get_contents_as_text(
-        werkzeug.security.safe_join('xls/visualization/ir_viz', filename))
+        werkzeug.security.safe_join('xls/visualization/ir_viz', filename)
+    )
   except FileNotFoundError:
     flask.abort(404)
   if filename.endswith('.js'):

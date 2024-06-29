@@ -48,7 +48,8 @@ def description_comments(n, muls, f):
       f"""; The following SMT-LIB verifies that a chain of {muls} {n}-bit multiplier
 ; is equivalent to SMT-LIB's built in bit-vector multiplication.
 """,
-      file=f)
+      file=f,
+  )
 
 
 def logic_and_variables(n, muls, f):
@@ -67,13 +68,15 @@ def logic_and_variables(n, muls, f):
       """(set-logic QF_BV)
 
 ; Declare bit-vectors and proxies for indices""",
-      file=f)
+      file=f,
+  )
   for i in range(muls + 1):
     print(f"(declare-fun x_{i} () (_ BitVec {n}))", file=f)
     for j in range(n):
       print(
           f"(define-fun x_{i}_{j} () (_ BitVec 1) ((_ extract {j} {j}) x_{i}))",
-          file=f)
+          file=f,
+      )
   print("", file=f)
 
 
@@ -119,16 +122,20 @@ def mul_level(i, n, mul, f):
   """
   prev_var = f"m_{mul - 1}" if mul > 0 else f"x_{mul}"
   print(
-      f"; Multiply x_{mul + 1} by {prev_var}_{i}, shifting x_{mul + 1} bits accordingly",
-      file=f)
+      f"; Multiply x_{mul + 1} by {prev_var}_{i}, shifting x_{mul + 1} bits"
+      " accordingly",
+      file=f,
+  )
   for j in range(i, n):
     print(
         f"""(define-fun m_{mul}_{i}_{j} () (_ BitVec 1) (bvand x_{mul + 1}_{j - i} ((_ extract {i} {i}) {prev_var})))""",
-        file=f)
+        file=f,
+    )
   print(
       f"""\n; Concatenate m_{mul}_{i} bits to create mul at level {mul}_{i}
 (define-fun m_{mul}_{i} () (_ BitVec {n}) {get_concat_level_bits(i, n, mul)})""",
-      file=f)
+      file=f,
+  )
 
 
 def get_all_levels(n, mul):
@@ -163,7 +170,8 @@ def make_mul(n, mul, f):
       f"""; Add all m bit-vectors to create mul
 (define-fun m_{mul} () (_ BitVec {n}) {bv_string})
 """,
-      file=f)
+      file=f,
+  )
 
 
 def get_nested_expression(muls):
@@ -195,7 +203,8 @@ def assert_and_check_sat(muls, f):
       f"""; Assert and solve
 (assert (not (= m_{muls - 1} {get_nested_expression(muls)})))
 (check-sat)""",
-      file=f)
+      file=f,
+  )
 
 
 def n_bit_nested_mul_existing_file(n, muls, f):

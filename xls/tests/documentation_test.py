@@ -17,11 +17,11 @@ import dataclasses
 import re
 import subprocess as subp
 import sys
-from typing import List, Dict, Union
+from typing import Dict, List, Union
 
-from xls.common import runfiles
 from absl.testing import absltest
 from absl.testing import parameterized
+from xls.common import runfiles
 
 # Implementation note: from inspecting pymarkdown it appears that scraping for
 # DSL code blocks via this regex has the same power as using the Markdown parser
@@ -46,7 +46,8 @@ _INPUT_FILES = [
 ]
 
 _INTERP_ATTR_RE = re.compile(
-    r'#\[interp_main_(?P<key>\S+) = "(?P<value>\S+)"\]')
+    r'#\[interp_main_(?P<key>\S+) = "(?P<value>\S+)"\]'
+)
 
 
 def get_examples() -> List[Dict[str, Union[int, str]]]:
@@ -58,7 +59,8 @@ def get_examples() -> List[Dict[str, Union[int, str]]]:
     for i, m in enumerate(_DSLX_RE.finditer(contents)):
       dslx_block = m.group(1)
       examples.append(
-          dict(testcase_name=f'dslx_block_{f}_{i}', i=i, dslx_block=dslx_block))
+          dict(testcase_name=f'dslx_block_{f}_{i}', i=i, dslx_block=dslx_block)
+      )
 
   return examples
 
@@ -92,20 +94,24 @@ class DocumentationTest(parameterized.TestCase):
 """
     example = strip_attributes(text)
     self.assertEqual(example.flags, ['--flag=stuff', '--other_flag=thing'])
-    self.assertEqual(example.dslx, """\
+    self.assertEqual(
+        example.dslx,
+        """\
 // Some comment
 
 
 // Another comment
 
-""")
+""",
+    )
 
   @parameterized.named_parameters(get_examples())
   def test_dslx_blocks(self, i: int, dslx_block: str) -> None:
     """Runs the given DSLX block as a DSLX test file."""
     example = strip_attributes(dslx_block)
     x_file = self.create_tempfile(
-        file_path=f'doctest_{i}.x', content=example.dslx)
+        file_path=f'doctest_{i}.x', content=example.dslx
+    )
     cmd = [_INTERP_PATH] + example.flags + [x_file.full_path]
     print('Running command:', subp.list2cmdline(cmd), file=sys.stderr)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')

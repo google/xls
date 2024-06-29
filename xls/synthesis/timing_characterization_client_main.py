@@ -21,7 +21,6 @@ format.
 
 from absl import app
 from absl import flags
-
 import grpc
 
 from xls.synthesis import client_credentials

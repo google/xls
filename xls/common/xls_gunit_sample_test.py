@@ -32,12 +32,14 @@ class XlsGunitSampleTest(absltest.TestCase):
     try:
       output = subprocess.check_output(
           [xls_gunit_sample_path, '--gtest_filter=*SomeTestName'],
-          encoding='utf-8')
+          encoding='utf-8',
+      )
       print('Success: gtest_filter flag present', file=sys.stderr)
     except subprocess.CalledProcessError:
       output = subprocess.check_output(
           [xls_gunit_sample_path, '--gunit_filter=*SomeTestName'],
-          encoding='utf-8')
+          encoding='utf-8',
+      )
       print('Success: gunit_filter flag present', file=sys.stderr)
     self.assertIn('XlsGunitSampleTest.SomeTestName', output)
 

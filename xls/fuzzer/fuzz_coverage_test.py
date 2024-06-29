@@ -27,13 +27,14 @@ from xls.fuzzer import sample_summary_pb2
 from xls.ir import op_pb2 as ir_op_pb2
 
 RUN_FUZZ_MULTIPROCESS_PATH = runfiles.get_path(
-    'xls/fuzzer/run_fuzz_multiprocess')
+    'xls/fuzzer/run_fuzz_multiprocess'
+)
 
 
 def _op_to_string(op: ir_op_pb2.OpProto) -> str:
   name = ir_op_pb2.OpProto.Name(op)
   if name.startswith('OP_'):
-    return name[len('OP_'):].lower()
+    return name[len('OP_') :].lower()
   else:
     return name.lower()
 
@@ -55,20 +56,25 @@ class FuzzSummary:
       # coverage not the optimizer.
       for node in summary.unoptimized_nodes:
         self._ops[node.op] = self._ops.get(node.op, 0) + 1
-        self._ops_types[(node.op, node.type)] = self._ops_types.get(
-            (node.op, node.type), 0) + 1
+        self._ops_types[(node.op, node.type)] = (
+            self._ops_types.get((node.op, node.type), 0) + 1
+        )
         if node.type == 'bits':
           self.max_bits_type_width = max(self.max_bits_type_width, node.width)
         else:
-          self.max_aggregate_type_width = max(self.max_aggregate_type_width,
-                                              node.width)
+          self.max_aggregate_type_width = max(
+              self.max_aggregate_type_width, node.width
+          )
 
     # Compute aggregate timing information for each field in SampleTimingProto.
     self.aggregate_timing = sample_summary_pb2.SampleTimingProto()
     for summary in self.summaries.samples:
       for field_desc, value in summary.timing.ListFields():
-        setattr(self.aggregate_timing, field_desc.name,
-                getattr(self.aggregate_timing, field_desc.name) + value)
+        setattr(
+            self.aggregate_timing,
+            field_desc.name,
+            getattr(self.aggregate_timing, field_desc.name) + value,
+        )
 
   def get_op_count(self, op: str, type_str=None) -> int:
     """Returns the number of generated ops of the given opcode and type."""
@@ -83,7 +89,8 @@ class FuzzCoverageTest(test_base.TestCase):
   def _create_tempdir(self) -> str:
     # Don't cleanup temporary directory if test fails.
     return self.create_tempdir(
-        cleanup=test_base.TempFileCleanup.SUCCESS).full_path
+        cleanup=test_base.TempFileCleanup.SUCCESS
+    ).full_path
 
   def _read_summaries(self, summary_dir: str) -> FuzzSummary:
     summaries = sample_summary_pb2.SampleSummariesProto()
@@ -103,29 +110,37 @@ class FuzzCoverageTest(test_base.TestCase):
     crasher_path = self._create_tempdir()
     summaries_path = self._create_tempdir()
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--sample_count=10', '--summary_path=' + summaries_path,
-        '--calls_per_sample=1', '--worker_count=4',
-        '--max_width_bits_types=256', '--max_width_aggregate_types=1024'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--sample_count=10',
+        '--summary_path=' + summaries_path,
+        '--calls_per_sample=1',
+        '--worker_count=4',
+        '--max_width_bits_types=256',
+        '--max_width_aggregate_types=1024',
     ])
     summary = self._read_summaries(summaries_path)
 
     expect_nonzero = (
         'total_ns generate_sample_ns interpret_dslx_ns '
         'convert_ir_ns unoptimized_interpret_ir_ns unoptimized_jit_ns '
-        'optimize_ns optimized_jit_ns optimized_interpret_ir_ns').split()
+        'optimize_ns optimized_jit_ns optimized_interpret_ir_ns'
+    ).split()
     for field in expect_nonzero:
       self.assertGreater(
           getattr(summary.aggregate_timing, field),
           0,
-          msg=f'Expected non-zero value in timing field {field}')
+          msg=f'Expected non-zero value in timing field {field}',
+      )
 
     expect_zero = ('codegen_ns simulate_ns').split()
     for field in expect_zero:
       self.assertEqual(
           getattr(summary.aggregate_timing, field),
           0,
-          msg=f'Expected zero value in timing field {field}')
+          msg=f'Expected zero value in timing field {field}',
+      )
 
   def test_width_coverage_wide(self):
     crasher_path = self._create_tempdir()
@@ -139,7 +154,7 @@ class FuzzCoverageTest(test_base.TestCase):
         '--calls_per_sample=1',
         '--worker_count=4',
         '--max_width_bits_types=256',
-        '--max_width_aggregate_types=1024'
+        '--max_width_aggregate_types=1024',
     ])
     summary = self._read_summaries(summaries_path)
     # Verify the type widths are within limits and some large types are
@@ -245,9 +260,13 @@ class FuzzCoverageTest(test_base.TestCase):
     )
 
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--sample_count=5000', '--summary_path=' + summaries_path,
-        '--calls_per_sample=1', '--worker_count=4'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--sample_count=5000',
+        '--summary_path=' + summaries_path,
+        '--calls_per_sample=1',
+        '--worker_count=4',
     ])
 
     summary = self._read_summaries(summaries_path)
@@ -258,23 +277,33 @@ class FuzzCoverageTest(test_base.TestCase):
     self.assertGreater(summary.get_op_count('param', type_str='array'), 0)
 
     for op in expect_seen:
-      logging.vlog(1, 'seen op %s: %d', ir_op_pb2.OpProto.Name(op),
-                   summary.get_op_count(_op_to_string(op)))
+      logging.vlog(
+          1,
+          'seen op %s: %d',
+          ir_op_pb2.OpProto.Name(op),
+          summary.get_op_count(_op_to_string(op)),
+      )
     for op in expect_not_seen:
-      logging.vlog(1, 'not seen op %s: %d', _op_to_string(op),
-                   summary.get_op_count(_op_to_string(op)))
+      logging.vlog(
+          1,
+          'not seen op %s: %d',
+          _op_to_string(op),
+          summary.get_op_count(_op_to_string(op)),
+      )
 
     for op in expect_seen:
       self.assertGreater(
           summary.get_op_count(_op_to_string(op)),
           0,
-          msg=f'Expected fuzzer to generate op "{_op_to_string(op)}"')
+          msg=f'Expected fuzzer to generate op "{_op_to_string(op)}"',
+      )
 
     for op in expect_not_seen:
       self.assertEqual(
           summary.get_op_count(_op_to_string(op)),
           0,
-          msg=f'Expected fuzzer to not generate op "{_op_to_string(op)}"')
+          msg=f'Expected fuzzer to not generate op "{_op_to_string(op)}"',
+      )
 
   def test_op_coverage_proc(self):
     # This is a probabilistic test which verifies that all expected op codes are
@@ -371,9 +400,14 @@ class FuzzCoverageTest(test_base.TestCase):
     )
 
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--sample_count=5000', '--summary_path=' + summaries_path,
-        '--proc_ticks=1', '--generate_proc', '--worker_count=4'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--sample_count=5000',
+        '--summary_path=' + summaries_path,
+        '--proc_ticks=1',
+        '--generate_proc',
+        '--worker_count=4',
     ])
 
     summary = self._read_summaries(summaries_path)
@@ -384,23 +418,33 @@ class FuzzCoverageTest(test_base.TestCase):
     self.assertGreater(summary.get_op_count('param', type_str='array'), 0)
 
     for op in expect_seen:
-      logging.vlog(1, 'seen op %s: %d', _op_to_string(op),
-                   summary.get_op_count(_op_to_string(op)))
+      logging.vlog(
+          1,
+          'seen op %s: %d',
+          _op_to_string(op),
+          summary.get_op_count(_op_to_string(op)),
+      )
     for op in expect_not_seen:
-      logging.vlog(1, 'not seen op %s: %d', _op_to_string(op),
-                   summary.get_op_count(_op_to_string(op)))
+      logging.vlog(
+          1,
+          'not seen op %s: %d',
+          _op_to_string(op),
+          summary.get_op_count(_op_to_string(op)),
+      )
 
     for op in expect_seen:
       self.assertGreater(
           summary.get_op_count(_op_to_string(op)),
           0,
-          msg=f'Expected fuzzer to generate op "{_op_to_string(op)}"')
+          msg=f'Expected fuzzer to generate op "{_op_to_string(op)}"',
+      )
 
     for op in expect_not_seen:
       self.assertEqual(
           summary.get_op_count(_op_to_string(op)),
           0,
-          msg=f'Expected fuzzer to not generate op "{_op_to_string(op)}"')
+          msg=f'Expected fuzzer to not generate op "{_op_to_string(op)}"',
+      )
 
 
 if __name__ == '__main__':

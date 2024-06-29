@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""""Return the entry point from XLScc-generated metadata.
+"""Return the entry point from XLScc-generated metadata.
 
 XLScc-generated XLSIR needs #pragma hls_top denoting the entry point.  That
 entry point is expected by several other tools.  get_top_func_from_proto
@@ -34,11 +34,17 @@ def main(argv: Sequence[str]) -> None:
   m = metadata_output_pb2.MetadataOutput()
   with open(argv[1], 'rb') as reader:
     m.ParseFromString(reader.read())
-  if m and m.top_func_proto and m.top_func_proto.name and m.top_func_proto.name.name:
+  if (
+      m
+      and m.top_func_proto
+      and m.top_func_proto.name
+      and m.top_func_proto.name.name
+  ):
     print(m.top_func_proto.name.name)
   else:
     raise app.UsageError(
-        'Input {} does not appear to be XLScc metadata.'.format(argv[1]))
+        'Input {} does not appear to be XLScc metadata.'.format(argv[1])
+    )
 
 
 if __name__ == '__main__':

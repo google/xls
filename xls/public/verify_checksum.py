@@ -26,8 +26,9 @@ from xls.common import runfiles
 def main(argv: Sequence[str]) -> None:
   if len(argv) != 3:
     raise app.UsageError(
-        'Invalid command-line arguments; want %s <path> <expected-sha256>')
-  argv0, path, want = argv
+        'Invalid command-line arguments; want %s <path> <expected-sha256>'
+    )
+  _, path, want = argv
   if not os.path.exists(path):
     path = runfiles.get_path(path)
   output = subprocess.check_output(['sha256sum', path], encoding='utf-8')
@@ -35,8 +36,9 @@ def main(argv: Sequence[str]) -> None:
   if got == want:
     print('OK: {!r} == {!r}'.format(got, want))
   else:
-    raise ValueError('Unexpected sha256 for {}; want {}; got: {}'.format(
-        path, want, got))
+    raise ValueError(
+        'Unexpected sha256 for {}; want {}; got: {}'.format(path, want, got)
+    )
 
 
 if __name__ == '__main__':

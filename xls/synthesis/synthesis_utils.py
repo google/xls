@@ -14,10 +14,9 @@
 # limitations under the License.
 """Utility functions used in synthesis."""
 
-from typing import Sequence, Callable, TypeVar, Optional
+from typing import Callable, Optional, Sequence, TypeVar
 
 from absl import logging
-
 import grpc
 
 from xls.synthesis import synthesis_pb2
@@ -27,9 +26,13 @@ T = TypeVar('T')
 U = TypeVar('U')
 
 
-def run_bisect(start_index: int, limit_index: int, considered: Sequence[T],
-               frun: Callable[[T], U],
-               fresult: Callable[[T, U], bool]) -> Optional[int]:
+def run_bisect(
+    start_index: int,
+    limit_index: int,
+    considered: Sequence[T],
+    frun: Callable[[T], U],
+    fresult: Callable[[T, U], bool],
+) -> Optional[int]:
   """Performs bisection on 'considered', using 'frun'/'fresult'.
 
   Args:
@@ -58,9 +61,13 @@ def run_bisect(start_index: int, limit_index: int, considered: Sequence[T],
 
 
 def bisect_frequency(
-    verilog_text: str, top_module_name: str, start_hz: int, limit_hz: int,
+    verilog_text: str,
+    top_module_name: str,
+    start_hz: int,
+    limit_hz: int,
     step_hz: int,
-    grpc_channel: grpc.Channel) -> synthesis_pb2.SynthesisSweepResult:
+    grpc_channel: grpc.Channel,
+) -> synthesis_pb2.SynthesisSweepResult:
   """Binary searches to determine maximum frequency of a given Verilog module.
 
   Args:
@@ -81,7 +88,10 @@ def bisect_frequency(
   def run_sample(target_hz: int) -> synthesis_pb2.CompileResponse:
     logging.info(
         'Running with target frequency %0.3fGHz. Range: [%0.3fGHz, %0.3fGHz]',
-        target_hz / 1e9, start_hz / 1e9, limit_hz / 1e9)
+        target_hz / 1e9,
+        start_hz / 1e9,
+        limit_hz / 1e9,
+    )
     grpc.channel_ready_future(grpc_channel).result()
     stub = synthesis_service_pb2_grpc.SynthesisServiceStub(grpc_channel)
     request = synthesis_pb2.CompileRequest()
@@ -97,18 +107,21 @@ def bisect_frequency(
 
     if response.slack_ps >= 0:
       logging.info('  PASSED TIMING')
-      sweep_result.max_frequency_hz = max(sweep_result.max_frequency_hz,
-                                          target_hz)
+      sweep_result.max_frequency_hz = max(
+          sweep_result.max_frequency_hz, target_hz
+      )
     else:
       logging.info('  FAILED TIMING (slack %dps)', response.slack_ps)
     return response
 
-  def sample_meets_timing(target_hz: int,
-                          response: synthesis_pb2.CompileResponse) -> bool:
+  def sample_meets_timing(
+      target_hz: int, response: synthesis_pb2.CompileResponse
+  ) -> bool:
     del target_hz
     return response.slack_ps >= 0
 
   frequencies = list(range(start_hz, limit_hz, step_hz))
-  run_bisect(0,
-             len(frequencies) - 1, frequencies, run_sample, sample_meets_timing)
+  run_bisect(
+      0, len(frequencies) - 1, frequencies, run_sample, sample_meets_timing
+  )
   return sweep_result

@@ -19,8 +19,7 @@ import re
 import subprocess
 import tempfile
 import textwrap
-
-from typing import Sequence, Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 from google.protobuf import text_format
 from xls.codegen import module_signature_pb2
@@ -55,12 +54,14 @@ def _generate_literal(literal_type: str) -> str:
     return _random_array_value(int(m.group(1)), int(m.group(2)))
 
 
-def generate_ir_package(op: str,
-                        output_type: str,
-                        operand_types: Sequence[str],
-                        attributes: Sequence[Tuple[str, str]] = (),
-                        literal_operand: Optional[int] = None,
-                        repeated_operand: Optional[int] = None) -> str:
+def generate_ir_package(
+    op: str,
+    output_type: str,
+    operand_types: Sequence[str],
+    attributes: Sequence[Tuple[str, str]] = (),
+    literal_operand: Optional[int] = None,
+    repeated_operand: Optional[int] = None,
+) -> str:
   """Generates an IR package containing a operation of the given op.
 
   The IR package contains a single function which has an operation with the
@@ -91,7 +92,8 @@ def generate_ir_package(op: str,
     The text of the IR package.
   """
   params = [
-      f'op{i}: {operand_types[i]}' for i in range(len(operand_types))
+      f'op{i}: {operand_types[i]}'
+      for i in range(len(operand_types))
       if (i != literal_operand and i != repeated_operand)
   ]
   # Some ops have named operands which appear in the argument list as
@@ -101,9 +103,10 @@ def generate_ir_package(op: str,
   #
   # Extract these out as a separate element in the argument list.
   if repeated_operand:
-    args = ['op' + str(i-1 if i == repeated_operand else i)
-            for i in range(len(operand_types))
-           ]
+    args = [
+        'op' + str(i - 1 if i == repeated_operand else i)
+        for i in range(len(operand_types))
+    ]
   else:
     args = [f'op{i}' for i in range(len(operand_types))]
   if op == 'array_index':
@@ -119,8 +122,9 @@ def generate_ir_package(op: str,
     selector_type = operand_types[0]
     m = re.search(r'bits\[(\d+)\]$', selector_type)
     if not m:
-      raise ValueError('Invalid or unsupported type for'
-                       'sel op selector {selector_type}')
+      raise ValueError(
+          'Invalid or unsupported type forsel op selector {selector_type}'
+      )
     num_selector_bits = int(m.group(1))
 
     # Set default operand as necessary.
@@ -162,7 +166,8 @@ def generate_ir_package(op: str,
         op=op,
         output_type=output_type,
         params=', '.join(params),
-        args=', '.join(args))
+        args=', '.join(args),
+    )
   else:
     literal_type = operand_types[literal_operand]
     literal_value = _generate_literal(literal_type)
@@ -179,7 +184,8 @@ def generate_ir_package(op: str,
         literal_type=literal_type,
         literal_value=literal_value,
         literal_operand=literal_operand,
-        args=', '.join(args))
+        args=', '.join(args),
+    )
 
   # Verify the IR parses and verifies.
   with tempfile.NamedTemporaryFile(suffix='.ir', mode='w') as ir_file:
@@ -314,17 +320,23 @@ def generate_parallel_module(
       elif data_port.direction == module_signature_pb2.DIRECTION_OUTPUT:
         ports.append(f'output wire {width_str} {signal_name}')
   header = """module {module_name}(\n{ports}\n);""".format(
-      module_name=module_name, ports=',\n'.join(f'  {p}' for p in ports))
+      module_name=module_name, ports=',\n'.join(f'  {p}' for p in ports)
+  )
   instantiations = []
   for module in module_protos:
     connections = ['.clk(clk)']
     for data_port in module.data_ports:
       connections.append(
-          f'.{data_port.name}({module.module_name}_{data_port.name})')
-    instantiations.append('  {name} {name}_inst(\n{connections}\n  );'.format(
-        name=module.module_name,
-        connections=',\n'.join(f'    {c}' for c in connections)))
+          f'.{data_port.name}({module.module_name}_{data_port.name})'
+      )
+    instantiations.append(
+        '  {name} {name}_inst(\n{connections}\n  );'.format(
+            name=module.module_name,
+            connections=',\n'.join(f'    {c}' for c in connections),
+        )
+    )
   return '{modules}\n\n{header}\n{instantiations}\nendmodule\n'.format(
       modules='\n\n'.join(m.verilog_text for m in modules),
       header=header,
-      instantiations='\n'.join(instantiations))
+      instantiations='\n'.join(instantiations),
+  )

@@ -16,7 +16,6 @@ import subprocess
 
 from absl.testing import absltest
 from xls.common import runfiles
-
 from xls.contrib.xlscc import hls_block_pb2
 
 XLSCC_MAIN_PATH = runfiles.get_path("xls/contrib/xlscc/xlscc")
@@ -110,8 +109,10 @@ class XlsccMainTest(absltest.TestCase):
       f.write(block_out.SerializeToString())
 
     subprocess.check_call([
-        XLSCC_MAIN_PATH, cpp_file.full_path, "--block_pb",
-        block_pb_file.full_path
+        XLSCC_MAIN_PATH,
+        cpp_file.full_path,
+        "--block_pb",
+        block_pb_file.full_path,
     ])
 
 

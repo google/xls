@@ -273,7 +273,8 @@ top proc __multi_proc__proc_ten_0_next\(\) \{
   tok: token = after_all\(id=1\)
   receive_9: \(token, bits\[32\]\) = receive\(tok, channel=multi_proc__bytes_src, id=2\)
 \}
-''')
+''',
+    )
 
   def test_minimize_inline_one_can_inline_other_invokes(self):
     ir_file = self.create_tempfile(content=INVOKE_TWO_DEEP)

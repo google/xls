@@ -42,8 +42,9 @@ class SynthesisServerTest(absltest.TestCase):
 
   def _start_server(self, args):
     port = portpicker.pick_unused_port()
-    proc = subprocess.Popen([runfiles.get_path(SERVER_PATH), f'--port={port}'] +
-                            args)
+    proc = subprocess.Popen(
+        [runfiles.get_path(SERVER_PATH), f'--port={port}'] + args
+    )
 
     # allow some time for the server to open the port before continuing
     time.sleep(1)
@@ -56,15 +57,15 @@ class SynthesisServerTest(absltest.TestCase):
     verilog_file = self.create_tempfile(content=VERILOG)
 
     response_text = subprocess.check_output(
-        [CLIENT_PATH, verilog_file.full_path, f'--port={port}',
-         '--ghz=1.0']).decode('utf-8')
+        [CLIENT_PATH, verilog_file.full_path, f'--port={port}', '--ghz=1.0']
+    ).decode('utf-8')
 
     response = text_format.Parse(response_text, synthesis_pb2.CompileResponse())
     self.assertGreaterEqual(response.slack_ps, 0)
 
     response_text = subprocess.check_output(
-        [CLIENT_PATH, verilog_file.full_path, f'--port={port}',
-         '--ghz=4.0']).decode('utf-8')
+        [CLIENT_PATH, verilog_file.full_path, f'--port={port}', '--ghz=4.0']
+    ).decode('utf-8')
 
     response = text_format.Parse(response_text, synthesis_pb2.CompileResponse())
     self.assertLess(response.slack_ps, 0)
@@ -74,12 +75,14 @@ class SynthesisServerTest(absltest.TestCase):
 
   def test_error(self):
     port, proc = self._start_server(
-        ['--max_frequency_ghz=2.0', '--serve_errors'])
+        ['--max_frequency_ghz=2.0', '--serve_errors']
+    )
 
     verilog_file = self.create_tempfile(content=VERILOG)
     # pylint: disable=subprocess-run-check
     comp = subprocess.run(
-        [CLIENT_PATH, verilog_file.full_path, f'--port={port}', '--ghz=1.0'])
+        [CLIENT_PATH, verilog_file.full_path, f'--port={port}', '--ghz=1.0']
+    )
 
     self.assertNotEqual(comp.returncode, 0)
 

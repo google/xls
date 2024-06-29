@@ -35,6 +35,7 @@ import os
 
 from absl import app
 from absl import flags
+
 from xls.common import gfile
 from xls.experimental.smtlib import flags_checks
 from xls.experimental.smtlib import n_bit_nested_add_generator
@@ -45,14 +46,17 @@ from xls.experimental.smtlib import solvers_op_comparison_functions
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("op", None, "Operation for the smt2 files (add, mul, shl)")
-flags.DEFINE_integer("nests", None,
-                     "Integer for the number of nested operations.")
-flags.DEFINE_list("bits_list", None,
-                  "List of n values for each n-bit multiplication proof.")
+flags.DEFINE_integer(
+    "nests", None, "Integer for the number of nested operations."
+)
+flags.DEFINE_list(
+    "bits_list", None, "List of n values for each n-bit multiplication proof."
+)
 flags.register_validator(
     "bits_list",
     flags_checks.list_contains_only_integers,
-    message="--bits_list must contain only integers.")
+    message="--bits_list must contain only integers.",
+)
 flags.DEFINE_list("solvers", None, "List of solvers to test.")
 flags.DEFINE_string("fname", None, "Name for the file to store the data.")
 
@@ -85,13 +89,16 @@ def create_and_get_smt_files_bits_list(op, nests_val, bits_list):
       files.append(f)
       if op == "add":
         n_bit_nested_add_generator.n_bit_nested_add_existing_file(
-            bits, nests_val, f)
+            bits, nests_val, f
+        )
       elif op == "mul":
         n_bit_nested_mul_generator.n_bit_nested_mul_existing_file(
-            bits, nests_val, f)
+            bits, nests_val, f
+        )
       elif op == "shl":
         n_bit_nested_shift_generator.n_bit_nested_shift_existing_file(
-            bits, nests_val, f)
+            bits, nests_val, f
+        )
   return files
 
 
@@ -112,7 +119,8 @@ def csv_solvers_speeds_bits_list(op, nests_val, bits_list, solvers, fname):
   """
   files = create_and_get_smt_files_bits_list(op, nests_val, bits_list)
   solvers_milliseconds = solvers_op_comparison_functions.get_solver_speeds_ms(
-      solvers, files)
+      solvers, files
+  )
   write_row = False if os.path.isfile(fname) else True
   with gfile.open(fname, "a") as f:
     wr = csv.writer(f, delimiter=",")

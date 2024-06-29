@@ -771,7 +771,7 @@ class OpModel:
         % self.cpp_delay_function_name()
     )
     nonliteral_operands_tracked = False
-    for ((kind, details), estimator) in self.specializations.items():
+    for (kind, details), estimator in self.specializations.items():
       if kind == delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL:
         cond = (
             'std::all_of(node->operands().begin(), node->operands().end(), '

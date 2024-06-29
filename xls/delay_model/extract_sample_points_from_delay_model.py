@@ -33,13 +33,17 @@ from xls.delay_model import delay_model_pb2
 
 
 _INPUT = flags.DEFINE_string(
-    'input', None,
-    'The file path/name to write the input delay_model textproto.')
+    'input',
+    None,
+    'The file path/name to write the input delay_model textproto.',
+)
 flags.mark_flag_as_required('input')
 
 _OUTPUT = flags.DEFINE_string(
-    'output', None,
-    'The file path/name to write the output op_samples textproto.')
+    'output',
+    None,
+    'The file path/name to write the output op_samples textproto.',
+)
 
 
 def main(argv):
@@ -56,8 +60,11 @@ def main(argv):
 
   for dp in dm.data_points:
 
-    if ((this_op_samples is None) or (this_op_samples.op != dp.operation.op) or
-        (this_op_samples.specialization != dp.operation.specialization)):
+    if (
+        (this_op_samples is None)
+        or (this_op_samples.op != dp.operation.op)
+        or (this_op_samples.specialization != dp.operation.specialization)
+    ):
       this_op_samples = oss.op_samples.add(op=dp.operation.op)
       if dp.operation.specialization:
         this_op_samples.specialization = dp.operation.specialization
@@ -71,7 +78,7 @@ def main(argv):
   print('# proto-message: xls.delay_model.OpSamples')
   print(oss)
 
-  if (_OUTPUT.value):
+  if _OUTPUT.value:
     with gfile.open(_OUTPUT.value, 'w') as f:
       f.write('# proto-file: xls/delay_model/delay_model.proto\n')
       f.write('# proto-message: xls.delay_model.OpSamples\n')

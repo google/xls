@@ -21,7 +21,8 @@ from xls.common import runfiles
 from xls.common import test_base
 
 FIND_FAILING_INPUT_MAIN = runfiles.get_path(
-    'xls/fuzzer/find_failing_input_main')
+    'xls/fuzzer/find_failing_input_main'
+)
 
 ADD_IR = """package foo
 
@@ -36,41 +37,62 @@ class EvalMainTest(test_base.TestCase):
   def test_input_file_no_failure(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     input_file = self.create_tempfile(
-        content='\n'.join(('bits[32]:0x42; bits[32]:0x123',
-                           'bits[32]:0x10; bits[32]:0xf0f')))
-    comp = subprocess.run([
-        FIND_FAILING_INPUT_MAIN, '--input_file=' + input_file.full_path,
-        ir_file.full_path
-    ],
-                          stderr=subprocess.PIPE, check=False)
+        content='\n'.join(
+            ('bits[32]:0x42; bits[32]:0x123', 'bits[32]:0x10; bits[32]:0xf0f')
+        )
+    )
+    comp = subprocess.run(
+        [
+            FIND_FAILING_INPUT_MAIN,
+            '--input_file=' + input_file.full_path,
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
     self.assertNotEqual(comp, 0)
-    self.assertIn('No input found which results in a mismatch',
-                  comp.stderr.decode('utf-8'))
+    self.assertIn(
+        'No input found which results in a mismatch',
+        comp.stderr.decode('utf-8'),
+    )
 
   def test_empty_input_file(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     input_file = self.create_tempfile(content='')
-    comp = subprocess.run([
-        FIND_FAILING_INPUT_MAIN, '--input_file=' + input_file.full_path,
-        ir_file.full_path
-    ],
-                          stderr=subprocess.PIPE, check=False)
+    comp = subprocess.run(
+        [
+            FIND_FAILING_INPUT_MAIN,
+            '--input_file=' + input_file.full_path,
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
     self.assertNotEqual(comp, 0)
-    self.assertIn('No input found which results in a mismatch',
-                  comp.stderr.decode('utf-8'))
+    self.assertIn(
+        'No input found which results in a mismatch',
+        comp.stderr.decode('utf-8'),
+    )
 
   def test_input_file_with_failure(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     input_file = self.create_tempfile(
-        content='\n'.join(('bits[32]:0x0; bits[32]:0x0',
-                           'bits[32]:0x42; bits[32]:0x123',
-                           'bits[32]:0x0; bits[32]:0x0')))
-    result = subprocess.check_output([
-        FIND_FAILING_INPUT_MAIN, '--input_file=' + input_file.full_path,
-        '--alsologtostderr', '--test_only_inject_jit_result=bits[32]:0x0',
-        ir_file.full_path
-    ],
-                                     stderr=subprocess.PIPE)
+        content='\n'.join((
+            'bits[32]:0x0; bits[32]:0x0',
+            'bits[32]:0x42; bits[32]:0x123',
+            'bits[32]:0x0; bits[32]:0x0',
+        ))
+    )
+    result = subprocess.check_output(
+        [
+            FIND_FAILING_INPUT_MAIN,
+            '--input_file=' + input_file.full_path,
+            '--alsologtostderr',
+            '--test_only_inject_jit_result=bits[32]:0x0',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+    )
     self.assertEqual(result.decode('utf-8'), 'bits[32]:0x42; bits[32]:0x123')
 
 

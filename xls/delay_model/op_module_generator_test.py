@@ -28,7 +28,9 @@ top fn main(op0: bits[8], op1: bits[8]) -> bits[8] {
   ret result: bits[8] = add(op0, op1)
 }""",
         opgen.generate_ir_package(
-            'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]')))
+            'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]')
+        ),
+    )
 
   def test_mixed_width_mul(self):
     self.assertEqual(
@@ -38,7 +40,11 @@ top fn main(op0: bits[27], op1: bits[5]) -> bits[42] {
   ret result: bits[42] = umul(op0, op1)
 }""",
         opgen.generate_ir_package(
-            'umul', output_type='bits[42]', operand_types=('bits[27]', 'bits[5]')))
+            'umul',
+            output_type='bits[42]',
+            operand_types=('bits[27]', 'bits[5]'),
+        ),
+    )
 
   def test_array_update(self):
     self.assertEqual(
@@ -50,7 +56,9 @@ top fn main(op0: bits[17][42], op1: bits[17], op2: bits[3]) -> bits[17][42] {
         opgen.generate_ir_package(
             'array_update',
             output_type='bits[17][42]',
-            operand_types=('bits[17][42]', 'bits[17]', 'bits[3]')))
+            operand_types=('bits[17][42]', 'bits[17]', 'bits[3]'),
+        ),
+    )
 
   def test_array_index(self):
     self.assertEqual(
@@ -62,7 +70,9 @@ top fn main(op0: bits[17][42][10], op1: bits[32], op2: bits[3]) -> bits[17] {
         opgen.generate_ir_package(
             'array_index',
             output_type='bits[17]',
-            operand_types=('bits[17][42][10]', 'bits[32]', 'bits[3]')))
+            operand_types=('bits[17][42][10]', 'bits[32]', 'bits[3]'),
+        ),
+    )
 
   def test_select(self):
     self.assertEqual(
@@ -74,7 +84,9 @@ top fn main(op0: bits[1], op1: bits[32], op2: bits[32]) -> bits[32] {
         opgen.generate_ir_package(
             'sel',
             output_type='bits[32]',
-            operand_types=('bits[1]', 'bits[32]', 'bits[32]')))
+            operand_types=('bits[1]', 'bits[32]', 'bits[32]'),
+        ),
+    )
 
   def test_select_with_default(self):
     self.assertEqual(
@@ -86,14 +98,17 @@ top fn main(op0: bits[2], op1: bits[32], op2: bits[32], op3: bits[32]) -> bits[3
         opgen.generate_ir_package(
             'sel',
             output_type='bits[32]',
-            operand_types=('bits[2]', 'bits[32]', 'bits[32]', 'bits[32]')))
+            operand_types=('bits[2]', 'bits[32]', 'bits[32]', 'bits[32]'),
+        ),
+    )
 
   def test_select_invalid_selector_type(self):
     with self.assertRaises(ValueError):
       opgen.generate_ir_package(
           'sel',
           output_type='bits[32]',
-          operand_types=('bits[1][2]', 'bits[32]', 'bits[32]'))
+          operand_types=('bits[1][2]', 'bits[32]', 'bits[32]'),
+      )
 
   def test_one_hot_select(self):
     self.assertEqual(
@@ -105,7 +120,9 @@ top fn main(op0: bits[2], op1: bits[32], op2: bits[32]) -> bits[32] {
         opgen.generate_ir_package(
             'one_hot_sel',
             output_type='bits[32]',
-            operand_types=('bits[2]', 'bits[32]', 'bits[32]')))
+            operand_types=('bits[2]', 'bits[32]', 'bits[32]'),
+        ),
+    )
 
   def test_priority_select(self):
     self.assertEqual(
@@ -139,7 +156,9 @@ top fn main(op0: bits[16]) -> bits[32] {
             'sign_ext',
             output_type='bits[32]',
             operand_types=('bits[16]',),
-            attributes=(('new_bit_count', '32'),)))
+            attributes=(('new_bit_count', '32'),),
+        ),
+    )
 
   def test_add_with_literal_operand(self):
     self.assertEqual(
@@ -153,7 +172,9 @@ top fn main(op0: bits[32]) -> bits[32] {
             'add',
             output_type='bits[32]',
             operand_types=('bits[32]', 'bits[32]'),
-            literal_operand=1))
+            literal_operand=1,
+        ),
+    )
 
   def test_array_update_with_literal_operand(self):
     self.assertEqual(
@@ -167,39 +188,49 @@ top fn main(op1: bits[17], op2: bits[3]) -> bits[17][4] {
             'array_update',
             output_type='bits[17][4]',
             operand_types=('bits[17][4]', 'bits[17]', 'bits[3]'),
-            literal_operand=0))
+            literal_operand=0,
+        ),
+    )
 
   def test_invalid_ir(self):
     with self.assertRaisesRegex(Exception, 'does not match expected type'):
       opgen.generate_ir_package(
-          'and',
-          output_type='bits[17]',
-          operand_types=('bits[123]', 'bits[17]'))
+          'and', output_type='bits[17]', operand_types=('bits[123]', 'bits[17]')
+      )
 
   def test_8_bit_add_verilog(self):
     ir_text = opgen.generate_ir_package(
-        'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]'))
-    verilog_text = opgen.generate_verilog_module('add_module',
-                                                 ir_text).verilog_text
+        'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]')
+    )
+    verilog_text = opgen.generate_verilog_module(
+        'add_module', ir_text
+    ).verilog_text
     self.assertIn('module add_module', verilog_text)
     self.assertIn('p0_op0 + p0_op1', verilog_text)
 
   def test_parallel_add_verilog(self):
     add8_ir = opgen.generate_ir_package(
-        'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]'))
+        'add', output_type='bits[8]', operand_types=('bits[8]', 'bits[8]')
+    )
     add16_ir = opgen.generate_ir_package(
-        'add', output_type='bits[16]', operand_types=('bits[16]', 'bits[16]'))
+        'add', output_type='bits[16]', operand_types=('bits[16]', 'bits[16]')
+    )
     add24_ir = opgen.generate_ir_package(
-        'add', output_type='bits[24]', operand_types=('bits[24]', 'bits[24]'))
+        'add', output_type='bits[24]', operand_types=('bits[24]', 'bits[24]')
+    )
 
-    modules = (opgen.generate_verilog_module('add8_module', add8_ir),
-               opgen.generate_verilog_module('add16_module', add16_ir),
-               opgen.generate_verilog_module('add24_module', add24_ir))
+    modules = (
+        opgen.generate_verilog_module('add8_module', add8_ir),
+        opgen.generate_verilog_module('add16_module', add16_ir),
+        opgen.generate_verilog_module('add24_module', add24_ir),
+    )
     parallel_module = opgen.generate_parallel_module(modules, 'foo')
     self.assertEqual(
         parallel_module,
         runfiles.get_contents_as_text(
-            'xls/delay_model/testdata/parallel_op_module.vtxt'))
+            'xls/delay_model/testdata/parallel_op_module.vtxt'
+        ),
+    )
 
 
 if __name__ == '__main__':

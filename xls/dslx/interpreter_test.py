@@ -87,7 +87,8 @@ class InterpreterTest(test_base.TestCase):
     """)
     stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(':6:12-6:25', stderr)
-    self.assertIn(textwrap.dedent("""\
+    self.assertIn(
+        textwrap.dedent("""\
     0004:   let y: u32 = x + x;
     0005:   let expected: u32 = u32:5;
     0006:   assert_eq(y, expected)
@@ -96,7 +97,9 @@ class InterpreterTest(test_base.TestCase):
       rhs: u32:5
       were not equal
     0007: }
-    """), stderr)
+    """),
+        stderr,
+    )
 
   def test_conflicting_parametric_bindings(self):
     """Tests a conflict in a deduced parametric value.
@@ -116,8 +119,10 @@ class InterpreterTest(test_base.TestCase):
     """)
     stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(
-        'Parametric value N was bound to different values at different places in invocation; saw: 2; then: 3',
-        stderr)
+        'Parametric value N was bound to different values at different places'
+        ' in invocation; saw: 2; then: 3',
+        stderr,
+    )
 
   def test_fail_incomplete_match(self):
     """Tests that interpreter runtime-fails on incomplete match pattern set."""
@@ -137,7 +142,8 @@ class InterpreterTest(test_base.TestCase):
     )
     self.assertIn(
         'The program being interpreted failed! The value was not matched',
-        stderr)
+        stderr,
+    )
 
   def test_failing_test_gives_error_retcode(self):
     """Tests that a failing DSLX test results in an error return code."""
@@ -217,8 +223,10 @@ class InterpreterTest(test_base.TestCase):
     program_file = self.create_tempfile(content=program)
     # Trace is logged with LOG(INFO) so log to stderr to capture output.
     cmd = [
-        _INTERP_PATH, '--compare=none', '--alsologtostderr',
-        program_file.full_path
+        _INTERP_PATH,
+        '--compare=none',
+        '--alsologtostderr',
+        program_file.full_path,
     ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
     self.assertIn(': 1', result.stderr)

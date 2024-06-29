@@ -37,15 +37,17 @@ from google.protobuf import text_format
 from xls.delay_model import delay_model
 from xls.delay_model import delay_model_pb2
 
-flags.DEFINE_string('output_dir', None,
-                    'The directory to write image files into.')
+flags.DEFINE_string(
+    'output_dir', None, 'The directory to write image files into.'
+)
 flags.mark_flag_as_required('output_dir')
 
 FLAGS = flags.FLAGS
 
 
-def maybe_plot_op_model(op_model: delay_model.OpModel,
-                        specialization_kind: Optional[Text] = None):
+def maybe_plot_op_model(
+    op_model: delay_model.OpModel, specialization_kind: Optional[Text] = None
+):
   """Plots the given delay model and writes the figure to a file.
 
   Only plots one-factor (2D plot) and two-factor (3D plot) regression and
@@ -56,8 +58,9 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
     specialization_kind: Optional kind of specialization. Used in plot title and
       file name.
   """
-  if (not isinstance(op_model, delay_model.RegressionEstimator) and
-      not isinstance(op_model, delay_model.BoundingBoxEstimator)):
+  if not isinstance(
+      op_model, delay_model.RegressionEstimator
+  ) and not isinstance(op_model, delay_model.BoundingBoxEstimator):
     return
 
   def delay_f(*args):
@@ -85,7 +88,8 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_expression_description(op_model.delay_expressions[0]))
+        delay_model.delay_expression_description(op_model.delay_expressions[0])
+    )
     ax.set_ylabel('delay (ps)')
     pyplot.ylim(bottom=0)
     pyplot.xlim(left=1)
@@ -99,7 +103,8 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
 
     # Plot the surface of the delay estimate.
     x_range, y_range = np.meshgrid(
-        np.arange(1, max(x_actual), 1), np.arange(1, max(y_actual), 1))
+        np.arange(1, max(x_actual), 1), np.arange(1, max(y_actual), 1)
+    )
     z_est = np.vectorize(delay_f)(x_range, y_range)
     surf = ax.plot_surface(
         x_range,
@@ -110,7 +115,8 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
         cmap=pyplot.get_cmap('coolwarm'),
         linewidth=0,
         antialiased=False,
-        alpha=0.25)
+        alpha=0.25,
+    )
     ax.set_zlim(min(0, min(z_actual)), max(z_actual))
     fig.colorbar(surf, shrink=0.5, aspect=10)
 
@@ -125,9 +131,11 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_expression_description(op_model.delay_expressions[0]))
+        delay_model.delay_expression_description(op_model.delay_expressions[0])
+    )
     ax.set_ylabel(
-        delay_model.delay_expression_description(op_model.delay_expressions[1]))
+        delay_model.delay_expression_description(op_model.delay_expressions[1])
+    )
     ax.set_zlabel('delay (ps)')
 
   else:
@@ -151,7 +159,8 @@ def main(argv):
     contents = f.read()
 
   dm = delay_model.DelayModel(
-      text_format.Parse(contents, delay_model_pb2.DelayModel()))
+      text_format.Parse(contents, delay_model_pb2.DelayModel())
+  )
 
   for op in dm.ops():
     op_model = dm.op_model(op)
@@ -160,7 +169,8 @@ def main(argv):
     for specialization_kind, estimator in op_model.specializations.items():
       maybe_plot_op_model(
           estimator,
-          delay_model_pb2.SpecializationKind.Name(specialization_kind))
+          delay_model_pb2.SpecializationKind.Name(specialization_kind),
+      )
 
 
 if __name__ == '__main__':

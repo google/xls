@@ -21,7 +21,6 @@ Output C++ source code is printed to stdout.
 import os
 
 from absl import app
-
 import jinja2
 
 from xls.common import runfiles

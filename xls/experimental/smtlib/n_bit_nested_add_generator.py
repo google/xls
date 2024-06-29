@@ -51,7 +51,8 @@ def description_comments(n, adders, f):
       f"""; The following SMT-LIB verifies that a chain of {adders} {n}-bit
 ; adder is equivalent to SMT-LIB's built in bit-vector addition.
 """,
-      file=f)
+      file=f,
+  )
 
 
 def logic_and_variables(n, adders, f):
@@ -70,13 +71,15 @@ def logic_and_variables(n, adders, f):
       """(set-logic QF_BV)
 
 ; Declare bit-vectors and proxies for indices""",
-      file=f)
+      file=f,
+  )
   for i in range(adders + 1):
     print(f"(declare-fun x_{i} () (_ BitVec {n}))", file=f)
     for j in range(n):
       print(
           f"(define-fun x_{i}_{j} () (_ BitVec 1) ((_ extract {j} {j}) x_{i}))",
-          file=f)
+          file=f,
+      )
   print("", file=f)
 
 
@@ -95,7 +98,8 @@ def half_adder(bit, adder, f):
 (define-fun s_{adder}_{bit} () (_ BitVec 1) (bvxor x_{adder + 1}_{bit} {prev_var}_{bit}))
 (define-fun c_{adder}_{bit} () (_ BitVec 1) (bvand x_{adder + 1}_{bit} {prev_var}_{bit}))
 """,
-      file=f)
+      file=f,
+  )
 
 
 def full_adder(bit, adder, f):
@@ -113,7 +117,8 @@ def full_adder(bit, adder, f):
 (define-fun s_{adder}_{bit} () (_ BitVec 1) (bvxor c_{adder}_{bit - 1} (bvxor x_{adder + 1}_{bit} {prev_var}_{bit})))
 (define-fun c_{adder}_{bit} () (_ BitVec 1) (bvor (bvand (bvxor x_{adder + 1}_{bit} {prev_var}_{bit}) c_{adder}_{bit - 1}) (bvand x_{adder + 1}_{bit} {prev_var}_{bit})))
 """,
-      file=f)
+      file=f,
+  )
 
 
 def get_concat_level_bits(n, adder):
@@ -149,7 +154,8 @@ def level_sum(n, adder, f):
       f"""; Concatenate s_{adder} bits to create sum at level {adder}
 (define-fun s_{adder} () (_ BitVec {n}) {get_concat_level_bits(n, adder)})
 """,
-      file=f)
+      file=f,
+  )
 
 
 def get_nested_expression(adders):
@@ -185,7 +191,8 @@ def assert_and_check_sat(n, adders, f):
       f"""; Compare {n}-bit adder result and internal addition and solve
 (assert (not (= s_{adders - 1} {get_nested_expression(adders)})))
 (check-sat)""",
-      file=f)
+      file=f,
+  )
 
 
 def n_bit_nested_add_existing_file(n, adders, f):

@@ -48,16 +48,20 @@ class EvalMainTest(absltest.TestCase):
   def test_one_input_jit(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--use_llvm_jit=true', ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--use_llvm_jit=true',
+        ir_file.full_path,
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
 
   def test_one_input_nojit(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--use_llvm_jit=false', ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--use_llvm_jit=false',
+        ir_file.full_path,
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
 
@@ -65,8 +69,11 @@ class EvalMainTest(absltest.TestCase):
     # Checks that enabling vlog doesn't crash.
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '-v=5', '--input=bits[32]:0x42; bits[32]:0x123',
-        '--use_llvm_jit=true', ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '-v=5',
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--use_llvm_jit=true',
+        ir_file.full_path,
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
 
@@ -74,8 +81,11 @@ class EvalMainTest(absltest.TestCase):
     # Checks that enabling vlog doesn't crash.
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '-v=5', '--input=bits[32]:0x42; bits[32]:0x123',
-        '--use_llvm_jit=false', ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '-v=5',
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--use_llvm_jit=false',
+        ir_file.full_path,
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
 
@@ -84,109 +94,153 @@ class EvalMainTest(absltest.TestCase):
     comp = subprocess.run(
         [EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42', ir_file.full_path],
         stderr=subprocess.PIPE,
-        check=False)
+        check=False,
+    )
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn("Arg list to 'foo' has the wrong size: 1 vs expected 2",
-                  comp.stderr.decode('utf-8'))
+    self.assertIn(
+        "Arg list to 'foo' has the wrong size: 1 vs expected 2",
+        comp.stderr.decode('utf-8'),
+    )
 
   def test_one_input_with_expected(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--expected=bits[32]:0x165', ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--expected=bits[32]:0x165',
+        ir_file.full_path,
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x165')
 
   def test_one_input_with_failed_expected(self):
     ir_file = self.create_tempfile(content=ADD_IR)
-    comp = subprocess.run([
-        EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--expected=bits[32]:0x123', ir_file.full_path
-    ],
-                          stderr=subprocess.PIPE,
-                          check=False)
+    comp = subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--input=bits[32]:0x42; bits[32]:0x123',
+            '--expected=bits[32]:0x123',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('Miscompare for input[0] "bits[32]:0x42; bits[32]:0x123"',
-                  comp.stderr.decode('utf-8'))
+    self.assertIn(
+        'Miscompare for input[0] "bits[32]:0x42; bits[32]:0x123"',
+        comp.stderr.decode('utf-8'),
+    )
 
   def test_input_file(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     input_file = self.create_tempfile(
-        content='\n'.join(('bits[32]:0x42; bits[32]:0x123',
-                           'bits[32]:0x10; bits[32]:0xf0f')))
+        content='\n'.join(
+            ('bits[32]:0x42; bits[32]:0x123', 'bits[32]:0x10; bits[32]:0xf0f')
+        )
+    )
     results = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input_file=' + input_file.full_path,
-        ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input_file=' + input_file.full_path,
+        ir_file.full_path,
     ])
-    self.assertSequenceEqual(('bits[32]:0x165', 'bits[32]:0xf1f'),
-                             results.decode('utf-8').strip().split('\n'))
+    self.assertSequenceEqual(
+        ('bits[32]:0x165', 'bits[32]:0xf1f'),
+        results.decode('utf-8').strip().split('\n'),
+    )
 
   def test_input_file_extra_whitespace(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     # Empty lines and extra whitespace in the arg file should be ignored.
     input_file = self.create_tempfile(
-        content='\n'.join(('bits[32]:0x42; bits[32]:0x123', '',
-                           'bits[32]:0x10; bits[32]:0xf0f', '')))
+        content='\n'.join((
+            'bits[32]:0x42; bits[32]:0x123',
+            '',
+            'bits[32]:0x10; bits[32]:0xf0f',
+            '',
+        ))
+    )
     results = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input_file=' + input_file.full_path,
-        ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input_file=' + input_file.full_path,
+        ir_file.full_path,
     ])
-    self.assertSequenceEqual(('bits[32]:0x165', 'bits[32]:0xf1f'),
-                             results.decode('utf-8').strip().split('\n'))
+    self.assertSequenceEqual(
+        ('bits[32]:0x165', 'bits[32]:0xf1f'),
+        results.decode('utf-8').strip().split('\n'),
+    )
 
   def test_input_file_with_expected_file(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     input_file = self.create_tempfile(
-        content='\n'.join(('bits[32]:0x42; bits[32]:0x123',
-                           'bits[32]:0x10; bits[32]:0xf0f')))
-    expected_file = self.create_tempfile(content='\n'.join(('bits[32]:0x165',
-                                                            'bits[32]:0xf1f')))
+        content='\n'.join(
+            ('bits[32]:0x42; bits[32]:0x123', 'bits[32]:0x10; bits[32]:0xf0f')
+        )
+    )
+    expected_file = self.create_tempfile(
+        content='\n'.join(('bits[32]:0x165', 'bits[32]:0xf1f'))
+    )
     results = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input_file=' + input_file.full_path,
-        '--expected_file=' + expected_file.full_path, ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input_file=' + input_file.full_path,
+        '--expected_file=' + expected_file.full_path,
+        ir_file.full_path,
     ])
-    self.assertSequenceEqual(('bits[32]:0x165', 'bits[32]:0xf1f'),
-                             results.decode('utf-8').strip().split('\n'))
+    self.assertSequenceEqual(
+        ('bits[32]:0x165', 'bits[32]:0xf1f'),
+        results.decode('utf-8').strip().split('\n'),
+    )
 
   def test_input_file_with_failed_expected_file(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     input_file = self.create_tempfile(
-        content='\n'.join(('bits[32]:0x42; bits[32]:0x123',
-                           'bits[32]:0x10; bits[32]:0x00')))
-    expected_file = self.create_tempfile(content='\n'.join(('bits[32]:0x165',
-                                                            'bits[32]:0xf1f')))
-    comp = subprocess.run([
-        EVAL_IR_MAIN_PATH, '--input_file=' + input_file.full_path,
-        '--expected_file=' + expected_file.full_path, ir_file.full_path
-    ],
-                          stderr=subprocess.PIPE,
-                          check=False)
+        content='\n'.join(
+            ('bits[32]:0x42; bits[32]:0x123', 'bits[32]:0x10; bits[32]:0x00')
+        )
+    )
+    expected_file = self.create_tempfile(
+        content='\n'.join(('bits[32]:0x165', 'bits[32]:0xf1f'))
+    )
+    comp = subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--input_file=' + input_file.full_path,
+            '--expected_file=' + expected_file.full_path,
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('Miscompare for input[1] "bits[32]:0x10; bits[32]:0x0"',
-                  comp.stderr.decode('utf-8'))
+    self.assertIn(
+        'Miscompare for input[1] "bits[32]:0x10; bits[32]:0x0"',
+        comp.stderr.decode('utf-8'),
+    )
 
   def test_empty_input_file(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     input_file = self.create_tempfile(content='')
     results = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input_file=' + input_file.full_path,
-        ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input_file=' + input_file.full_path,
+        ir_file.full_path,
     ])
     self.assertEqual(results.decode('utf-8'), '')
 
   def test_tuple_in_out(self):
     ir_file = self.create_tempfile(content=TUPLE_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input=(bits[8]:0x42, bits[32]:0x123)',
-        ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input=(bits[8]:0x42, bits[32]:0x123)',
+        ir_file.full_path,
     ])
     self.assertEqual(
-        result.decode('utf-8').strip(), '((bits[8]:0x42, bits[32]:0x123))')
+        result.decode('utf-8').strip(), '((bits[8]:0x42, bits[32]:0x123))'
+    )
 
   def test_random_inputs(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output(
-        [EVAL_IR_MAIN_PATH, '--random_inputs=42', ir_file.full_path])
+        [EVAL_IR_MAIN_PATH, '--random_inputs=42', ir_file.full_path]
+    )
     # There should be 42 results.
     self.assertLen(result.decode('utf-8').strip().split('\n'), 42)
     # And with overwhelming probability they should all be different.
@@ -195,33 +249,45 @@ class EvalMainTest(absltest.TestCase):
   def test_jit_result_injection(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--test_only_inject_jit_result=bits[32]:0x22', '--use_llvm_jit=true',
-        ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input=bits[32]:0x42; bits[32]:0x123',
+        '--test_only_inject_jit_result=bits[32]:0x22',
+        '--use_llvm_jit=true',
+        ir_file.full_path,
     ])
     self.assertEqual(result.decode('utf-8').strip(), 'bits[32]:0x22')
 
   def test_test_llvm_jit_no_mismatch(self):
     ir_file = self.create_tempfile(content=ADD_IR)
-    comp = subprocess.run([
-        EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--test_llvm_jit', ir_file.full_path
-    ],
-                          check=False)
+    comp = subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--input=bits[32]:0x42; bits[32]:0x123',
+            '--test_llvm_jit',
+            ir_file.full_path,
+        ],
+        check=False,
+    )
     self.assertEqual(comp.returncode, 0)
 
   def test_test_llvm_jit_mismatch(self):
     ir_file = self.create_tempfile(content=ADD_IR)
-    comp = subprocess.run([
-        EVAL_IR_MAIN_PATH, '--input=bits[32]:0x42; bits[32]:0x123',
-        '--test_llvm_jit', '--test_only_inject_jit_result=bits[32]:0x22',
-        ir_file.full_path
-    ],
-                          stderr=subprocess.PIPE,
-                          check=False)
+    comp = subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--input=bits[32]:0x42; bits[32]:0x123',
+            '--test_llvm_jit',
+            '--test_only_inject_jit_result=bits[32]:0x22',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
     self.assertNotEqual(comp.returncode, 0)
-    self.assertIn('Miscompare for input[0] "bits[32]:0x42; bits[32]:0x123"',
-                  comp.stderr.decode('utf-8'))
+    self.assertIn(
+        'Miscompare for input[0] "bits[32]:0x42; bits[32]:0x123"',
+        comp.stderr.decode('utf-8'),
+    )
 
   def test_validator(self):
     # We want to ensure that the output is negative and odd, so the inputs
@@ -236,13 +302,15 @@ class EvalMainTest(absltest.TestCase):
 
     ir_file = self.create_tempfile(content=FAIL_IR)
     result = subprocess.check_output([
-        EVAL_IR_MAIN_PATH, '--input_validator_expr={}'.format(input_validator),
-        '--random_inputs=1024', ir_file.full_path
+        EVAL_IR_MAIN_PATH,
+        '--input_validator_expr={}'.format(input_validator),
+        '--random_inputs=1024',
+        ir_file.full_path,
     ])
     products = result.decode('utf-8').split()
     for product in products:
       self.assertStartsWith(product, 'bits[64]:0x')
-      value = ctypes.c_longlong(int(product[len('bits[64]:'):], 16)).value
+      value = ctypes.c_longlong(int(product[len('bits[64]:') :], 16)).value
       self.assertLess(value, 0, f'value should be negative: {product}')
       self.assertTrue(value % 2, f'value should be odd: {product}')
 
@@ -250,12 +318,16 @@ class EvalMainTest(absltest.TestCase):
     input_validator = """fn validator(x: s32, y:s32) -> bool { false }"""
 
     ir_file = self.create_tempfile(content=FAIL_IR)
-    comp = subprocess.run([
-        EVAL_IR_MAIN_PATH, '--input_validator_expr={}'.format(input_validator),
-        '--random_inputs=1024', ir_file.full_path
-    ],
-                          stderr=subprocess.PIPE,
-                          check=False)
+    comp = subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            '--input_validator_expr={}'.format(input_validator),
+            '--random_inputs=1024',
+            ir_file.full_path,
+        ],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
     self.assertNotEqual(comp.returncode, 0)
     self.assertIn('Unable to generate valid input', comp.stderr.decode('utf-8'))
 

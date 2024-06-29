@@ -25,11 +25,13 @@ LOGGER_PATH = runfiles.get_path('xls/common/logging/log_initialization_tester')
 class LoggingFlagsTest(test_base.TestCase):
 
   def test_no_flags(self):
-    comp = subprocess.run([LOGGER_PATH],
-                          check=True,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    comp = subprocess.run(
+        [LOGGER_PATH],
+        check=True,
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertNotIn('INFO message', comp.stderr)
     self.assertNotIn('WARNING message', comp.stderr)
@@ -37,11 +39,13 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertNotIn('VLOG', comp.stderr)
 
   def test_log_level_0(self):
-    comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=0'],
-                          check=True,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    comp = subprocess.run(
+        [LOGGER_PATH, '--stderrthreshold=0'],
+        check=True,
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
@@ -49,11 +53,13 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertNotIn('VLOG', comp.stderr)
 
   def test_log_level_1(self):
-    comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=1'],
-                          check=True,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    comp = subprocess.run(
+        [LOGGER_PATH, '--stderrthreshold=1'],
+        check=True,
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertNotIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
@@ -61,11 +67,13 @@ class LoggingFlagsTest(test_base.TestCase):
     self.assertNotIn('VLOG', comp.stderr)
 
   def test_log_level_2(self):
-    comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=2'],
-                          check=True,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    comp = subprocess.run(
+        [LOGGER_PATH, '--stderrthreshold=2'],
+        check=True,
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertNotIn('INFO message', comp.stderr)
     self.assertNotIn('WARNING message', comp.stderr)
@@ -74,11 +82,13 @@ class LoggingFlagsTest(test_base.TestCase):
 
   def test_vlog_level_1(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
-    comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=0', '-v=1'],
-                          check=True,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    comp = subprocess.run(
+        [LOGGER_PATH, '--stderrthreshold=0', '-v=1'],
+        check=True,
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
@@ -90,11 +100,13 @@ class LoggingFlagsTest(test_base.TestCase):
 
   def test_vlog_level_2(self):
     # VLOG messages are logged at INFO level so stderr threshold must be 0.
-    comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=0', '-v=2'],
-                          check=True,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    comp = subprocess.run(
+        [LOGGER_PATH, '--stderrthreshold=0', '-v=2'],
+        check=True,
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
@@ -106,11 +118,13 @@ class LoggingFlagsTest(test_base.TestCase):
 
   def test_vlog_level_2_but_stderrthreshold_too_high(self):
     # If stderrthreshold is not zero VLOG messages do not appear.
-    comp = subprocess.run([LOGGER_PATH, '--stderrthreshold=1', '-v=2'],
-                          check=True,
-                          encoding='utf-8',
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    comp = subprocess.run(
+        [LOGGER_PATH, '--stderrthreshold=1', '-v=2'],
+        check=True,
+        encoding='utf-8',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertNotIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)
@@ -168,7 +182,8 @@ class LoggingFlagsTest(test_base.TestCase):
         check=True,
         encoding='utf-8',
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+        stderr=subprocess.PIPE,
+    )
     self.assertEmpty(comp.stdout)
     self.assertIn('INFO message', comp.stderr)
     self.assertIn('WARNING message', comp.stderr)

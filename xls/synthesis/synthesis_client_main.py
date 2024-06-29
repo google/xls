@@ -17,7 +17,6 @@
 from absl import app
 from absl import flags
 from absl import logging
-
 import grpc
 
 from xls.synthesis import client_credentials
@@ -27,8 +26,9 @@ from xls.synthesis import synthesis_service_pb2_grpc
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('port', 10000, 'Port to connect to synthesis server on.')
 flags.DEFINE_string('top', 'main', 'Top level module name.')
-flags.DEFINE_float('ghz', None,
-                   'Runs a single frequency, instead of bisecting.')
+flags.DEFINE_float(
+    'ghz', None, 'Runs a single frequency, instead of bisecting.'
+)
 
 flags.mark_flag_as_required('ghz')
 

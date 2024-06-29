@@ -21,7 +21,8 @@ from xls.common import runfiles
 from xls.common import test_base
 
 RUN_FUZZ_MULTIPROCESS_PATH = runfiles.get_path(
-    'xls/fuzzer/run_fuzz_multiprocess')
+    'xls/fuzzer/run_fuzz_multiprocess'
+)
 
 
 class RunFuzzMultiprocessTest(test_base.TestCase):
@@ -31,17 +32,21 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     samples_path = self.create_tempdir().full_path
 
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--save_temps_path=' + samples_path, '--sample_count=2',
-        '--calls_per_sample=3', '--worker_count=1'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--save_temps_path=' + samples_path,
+        '--sample_count=2',
+        '--calls_per_sample=3',
+        '--worker_count=1',
     ])
     # Crasher path should contain a single file 'test'.
     self.assertSequenceEqual(os.listdir(crasher_path), ('test',))
 
     # Sample path should have two samples in it.
     self.assertSequenceEqual(
-        sorted(os.listdir(samples_path)),
-        ('worker0-sample0', 'worker0-sample1'))
+        sorted(os.listdir(samples_path)), ('worker0-sample0', 'worker0-sample1')
+    )
 
     # Validate sample 1 directory.
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
@@ -83,7 +88,8 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     # Should be samples from each worker.
     for i in range(10):
       self.assertTrue(
-          any(d.startswith('worker{}'.format(i)) for d in sample_dirs))
+          any(d.startswith('worker{}'.format(i)) for d in sample_dirs)
+      )
 
     # Crasher path should contain a single file 'test'.
     self.assertSequenceEqual(os.listdir(crasher_path), ('test',))
@@ -92,9 +98,13 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     crasher_path = self.create_tempdir().full_path
 
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--sample_count=5', '--calls_per_sample=3', '--worker_count=3',
-        '--force_failure'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--sample_count=5',
+        '--calls_per_sample=3',
+        '--worker_count=3',
+        '--force_failure',
     ])
 
     # Crasher directory should have 5 samples in it plus the `test` file.
@@ -122,10 +132,16 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     samples_path = self.create_tempdir().full_path
 
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--save_temps_path=' + samples_path, '--sample_count=2',
-        '--calls_per_sample=3', '--worker_count=1', '--codegen', '--simulate',
-        '--nouse_system_verilog'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--save_temps_path=' + samples_path,
+        '--sample_count=2',
+        '--calls_per_sample=3',
+        '--worker_count=1',
+        '--codegen',
+        '--simulate',
+        '--nouse_system_verilog',
     ])
     # Validate sample 1 directory.
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
@@ -145,10 +161,15 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     samples_path = self.create_tempdir().full_path
 
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--save_temps_path=' + samples_path, '--sample_count=2',
-        '--calls_per_sample=3', '--worker_count=1', '--codegen',
-        '--use_system_verilog'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--save_temps_path=' + samples_path,
+        '--sample_count=2',
+        '--calls_per_sample=3',
+        '--worker_count=1',
+        '--codegen',
+        '--use_system_verilog',
     ])
     # Directory should a system verilog file.
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
@@ -159,10 +180,17 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     samples_path = self.create_tempdir().full_path
 
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--save_temps_path=' + samples_path, '--sample_count=2',
-        '--generate_proc', '--proc_ticks=3', '--worker_count=1', '--codegen',
-        '--simulate', '--nouse_system_verilog'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--save_temps_path=' + samples_path,
+        '--sample_count=2',
+        '--generate_proc',
+        '--proc_ticks=3',
+        '--worker_count=1',
+        '--codegen',
+        '--simulate',
+        '--nouse_system_verilog',
     ])
     # Validate sample 1 directory.
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
@@ -176,6 +204,7 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     # Directory should have verilog and simulation results.
     self.assertIn('sample.v', sample1_contents)
     self.assertIn('sample.v.results', sample1_contents)
+
 
 if __name__ == '__main__':
   test_base.main()

@@ -19,8 +19,8 @@ import subprocess
 from xls.common import runfiles
 from xls.common import test_base
 
-EXTRACT_SAMPLES_PATH = (
-    runfiles.get_path('xls/delay_model/extract_sample_points_from_delay_model')
+EXTRACT_SAMPLES_PATH = runfiles.get_path(
+    'xls/delay_model/extract_sample_points_from_delay_model'
 )
 
 TEST_DELAY_MODEL = """
@@ -67,12 +67,14 @@ class DelayExtractSamplesFromDelayModelTest(test_base.TestCase):
     """Test tool with simple input no error."""
     dm_file = self.create_tempfile(content=TEST_DELAY_MODEL)
 
-    stdout = subprocess.check_output(
-        [EXTRACT_SAMPLES_PATH, '--input',
-         dm_file.full_path,
-         ]).decode('utf-8')
+    stdout = subprocess.check_output([
+        EXTRACT_SAMPLES_PATH,
+        '--input',
+        dm_file.full_path,
+    ]).decode('utf-8')
     self.assertEqual(
-        stdout, """# proto-file: xls/delay_model/delay_model.proto
+        stdout,
+        """# proto-file: xls/delay_model/delay_model.proto
 # proto-message: xls.delay_model.OpSamples
 op_samples {
   op: "kAdd"
@@ -88,7 +90,8 @@ op_samples {
   }
 }
 
-""")
+""",
+    )
 
 
 if __name__ == '__main__':

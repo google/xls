@@ -33,20 +33,22 @@ from typing import Optional
 from absl import app
 from absl import flags
 from absl import logging
-
 import numpy as np
 
 from google.protobuf import text_format
 from xls.delay_model import delay_model
 from xls.delay_model import delay_model_pb2
 
-_CSV = flags.DEFINE_string('output_csv', None,
-                           'The file to write statistics into.')
+_CSV = flags.DEFINE_string(
+    'output_csv', None, 'The file to write statistics into.'
+)
 
 
-def stats_for_op_model(csv_handle,
-                       op_model: delay_model.OpModel,
-                       specialization_kind: Optional[str] = None):
+def stats_for_op_model(
+    csv_handle,
+    op_model: delay_model.OpModel,
+    specialization_kind: Optional[str] = None,
+):
   """Write one row of a CSV spreadsheet with this op's curve fitting error.
 
   Summarizes the difference between the regression-fitted curve and the
@@ -61,8 +63,9 @@ def stats_for_op_model(csv_handle,
     op_model: OpModel to summarize.
     specialization_kind: Optional kind of specialization.
   """
-  if (not isinstance(op_model, delay_model.RegressionEstimator) and
-      not isinstance(op_model, delay_model.BoundingBoxEstimator)):
+  if not isinstance(
+      op_model, delay_model.RegressionEstimator
+  ) and not isinstance(op_model, delay_model.BoundingBoxEstimator):
     return
 
   def delay_f(*args):
@@ -82,31 +85,38 @@ def stats_for_op_model(csv_handle,
       y_delta_pct = round(y_delta * 100.0 / y_actual, 2)
     else:
       y_delta_pct = 'NaN'
-    logging.vlog(1, f'x: {x_actual},  actual delay: {y_actual},  '
-                 f'estimated delay: {round(y_est,2)},  '
-                 f'delta: {round(y_delta,2)}, '
-                 f'{y_delta_pct}%')
+    logging.vlog(
+        1,
+        f'x: {x_actual},  actual delay: {y_actual},  '
+        f'estimated delay: {round(y_est,2)},  '
+        f'delta: {round(y_delta,2)}, '
+        f'{y_delta_pct}%',
+    )
 
   delays = [dp.delay_ps for dp in op_model.raw_data_points]
   if min(delays) > 0:
-    max_pct_error = max([abs((dp.delay_ps - delay_f(*dp.delay_factors))
-                             * 100.0 / dp.delay_ps)
-                         for dp in op_model.raw_data_points])
-    mean_abs_pct_error = (
-        np.mean([abs((dp.delay_ps - delay_f(*dp.delay_factors))
-                     * 100.0 / dp.delay_ps)
-                 for dp in op_model.raw_data_points])
-    )
-    mean_pct_error = np.mean([((dp.delay_ps - delay_f(*dp.delay_factors))
-                               * 100.0 / dp.delay_ps)
-                              for dp in op_model.raw_data_points])
-    mean_square_error = np.mean(
-        [((dp.delay_ps - delay_f(*dp.delay_factors)) ** 2)
-         for dp in op_model.raw_data_points])
+    max_pct_error = max([
+        abs((dp.delay_ps - delay_f(*dp.delay_factors)) * 100.0 / dp.delay_ps)
+        for dp in op_model.raw_data_points
+    ])
+    mean_abs_pct_error = np.mean([
+        abs((dp.delay_ps - delay_f(*dp.delay_factors)) * 100.0 / dp.delay_ps)
+        for dp in op_model.raw_data_points
+    ])
+    mean_pct_error = np.mean([
+        ((dp.delay_ps - delay_f(*dp.delay_factors)) * 100.0 / dp.delay_ps)
+        for dp in op_model.raw_data_points
+    ])
+    mean_square_error = np.mean([
+        ((dp.delay_ps - delay_f(*dp.delay_factors)) ** 2)
+        for dp in op_model.raw_data_points
+    ])
 
-    csv_line = (f'{title}, {round(max_pct_error,2)}, '
-                f'{round(mean_abs_pct_error,3)}, {round(mean_pct_error,3)}, '
-                f'{round(mean_square_error ** 0.5,2)}')
+    csv_line = (
+        f'{title}, {round(max_pct_error,2)}, '
+        f'{round(mean_abs_pct_error,3)}, {round(mean_pct_error,3)}, '
+        f'{round(mean_square_error ** 0.5,2)}'
+    )
     print(csv_line)
     if csv_handle:
       csv_handle.write(csv_line + '\n')
@@ -127,14 +137,19 @@ def main(argv):
     csv_handle = None
 
   dm = delay_model.DelayModel(
-      text_format.Parse(contents, delay_model_pb2.DelayModel()))
+      text_format.Parse(contents, delay_model_pb2.DelayModel())
+  )
 
   # Print column headers.  Add a blank row to make sorting easier.
-  print('Operation type, max % error, mean abs % error, '
-        'mean % error (bias), root mean sq error (ps)\n')
+  print(
+      'Operation type, max % error, mean abs % error, '
+      'mean % error (bias), root mean sq error (ps)\n'
+  )
   if csv_handle:
-    csv_handle.write('Operation type, max % error, mean abs % error, '
-                     'mean % error (bias), root mean sq error (ps)\n\n')
+    csv_handle.write(
+        'Operation type, max % error, mean abs % error, '
+        'mean % error (bias), root mean sq error (ps)\n\n'
+    )
 
   for op in dm.ops():
     op_model = dm.op_model(op)
@@ -144,10 +159,12 @@ def main(argv):
       stats_for_op_model(
           csv_handle,
           estimator,
-          delay_model_pb2.SpecializationKind.Name(specialization_kind))
+          delay_model_pb2.SpecializationKind.Name(specialization_kind),
+      )
 
   if csv_handle:
     csv_handle.close()
+
 
 if __name__ == '__main__':
   app.run(main)

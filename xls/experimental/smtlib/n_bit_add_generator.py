@@ -51,7 +51,8 @@ flags.DEFINE_list("N", None, "List of n values for each n-bit addition proof.")
 flags.register_validator(
     "N",
     flags_checks.list_contains_only_integers,
-    message="--N must contain only integers.")
+    message="--N must contain only integers.",
+)
 flags.mark_flag_as_required("N")
 
 
@@ -69,7 +70,8 @@ def description_comments(n, f):
       f"""; The following SMT-LIB verifies that a {n}-bit adder is equivalent
 ; to CVC4's built in bit-vector addition.
 """,
-      file=f)
+      file=f,
+  )
 
 
 def logic_and_variables(n, f):
@@ -86,13 +88,15 @@ def logic_and_variables(n, f):
   print(
       """(set-logic QF_BV)
 ; Declare bit-vectors and proxies for indices""",
-      file=f)
+      file=f,
+  )
   for var in ["x", "y"]:
     print(f"(declare-fun {var} () (_ BitVec {n}))", file=f)
     for i in range(n):
       print(
           f"(define-fun {var}{i} () (_ BitVec 1) ((_ extract {i} {i}) {var}))",
-          file=f)
+          file=f,
+      )
   print("", file=f)
 
 
@@ -108,7 +112,8 @@ def half_adder(n, f):
 (define-fun s{n} () (_ BitVec 1) (bvxor x{n} y{n}))
 (define-fun c{n} () (_ BitVec 1) (bvand x{n} y{n}))
 """,
-      file=f)
+      file=f,
+  )
 
 
 def full_adder(n, f):
@@ -123,7 +128,8 @@ def full_adder(n, f):
 (define-fun s{n} () (_ BitVec 1) (bvxor c{n - 1} (bvxor x{n} y{n})))
 (define-fun c{n} () (_ BitVec 1) (bvor (bvand (bvxor x{n} y{n}) c{n - 1}) (bvand x{n} y{n})))
 """,
-      file=f)
+      file=f,
+  )
 
 
 def get_concat_result_bits(n):
@@ -157,7 +163,8 @@ def make_sum(n, f):
       f"""; Concatenate s bits to create sum
 (define-fun sum () (_ BitVec {n}) {get_concat_result_bits(n)})
 """,
-      file=f)
+      file=f,
+  )
 
 
 def assert_and_check_sat(n, f):
@@ -175,7 +182,8 @@ def assert_and_check_sat(n, f):
       f"""; Compare {n}-bit adder result and internal addition and solve
 (assert (not (= sum (bvadd x y))))
 (check-sat)""",
-      file=f)
+      file=f,
+  )
 
 
 def n_bit_add_existing_file(n, f):

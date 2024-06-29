@@ -42,14 +42,16 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string("ir_to_test", None, "Path to IR file to test")
 flags.mark_flag_as_required("ir_to_test")
-flags.DEFINE_string("xlscc_metadata", None,
-                    "Path to metadata protobuf from xlscc")
+flags.DEFINE_string(
+    "xlscc_metadata", None, "Path to metadata protobuf from xlscc"
+)
 flags.mark_flag_as_required("xlscc_metadata")
 flags.DEFINE_string(
     "xlscc_block_metadata",
     None,
     "Path to metadata protobuf for block",
-    required=False)
+    required=False,
+)
 flags.DEFINE_string("cmd_to_test", None, "Command to generate traces")
 flags.mark_flag_as_required("cmd_to_test")
 flags.DEFINE_string("build_cmd", None, "Command to build the C binary used")
@@ -57,32 +59,41 @@ flags.mark_flag_as_required("build_cmd")
 flags.DEFINE_string(
     "function_to_instrument",
     None,
-    "Simple name of function to instrument. Defaults to top function from MetadataOutput",
-    required=False)
+    "Simple name of function to instrument. Defaults to top function from"
+    " MetadataOutput",
+    required=False,
+)
 flags.DEFINE_string(
     "backend",
     "serial_jit",
     "Backend to use for evaluation. See eval_proc_main help.",
-    required=False)
+    required=False,
+)
 flags.DEFINE_string(
     "block_signature_proto",
     "",
-    "If using --backend block_interpreter, then this specifies the path to the signature protobuf from codegen.",
-    required=False)
+    "If using --backend block_interpreter, then this specifies the path to the"
+    " signature protobuf from codegen.",
+    required=False,
+)
 flags.DEFINE_bool(
-    "delete_temps", True, "Delete temporary files?", required=False)
+    "delete_temps", True, "Delete temporary files?", required=False
+)
 flags.DEFINE_integer(
-    "random_seed", 42, "Random seed for testbench.", required=False)
+    "random_seed", 42, "Random seed for testbench.", required=False
+)
 flags.DEFINE_float(
     "prob_input_valid_assert",
     1.0,
     "Single-cycle probability of asserting valid with more input ready.",
-    required=False)
+    required=False,
+)
 flags.DEFINE_integer(
     "max_ticks",
     0,
     "Maximum number of ticks per frame (0=no limit).",
-    required=False)
+    required=False,
+)
 
 EVAL_IR_PATH = runfiles.get_path("xls/tools/eval_ir_main")
 EVAL_PROC_PATH = runfiles.get_path("xls/tools/eval_proc_main")
@@ -118,7 +129,8 @@ def find_offset_for_loc(src: str, loc: metadata_output_pb2.SourceLocation):
 
 def get_func_to_instrument(
     meta_proto: metadata_output_pb2.MetadataOutput,
-    function_to_instrument_name: str) -> metadata_output_pb2.FunctionPrototype:
+    function_to_instrument_name: str,
+) -> metadata_output_pb2.FunctionPrototype:
   """Gets the metadata for the target function to be instrumented.
 
   Args:
@@ -135,17 +147,24 @@ def get_func_to_instrument(
     function_to_instrument_name = top_func_meta.name.name
 
   filtered_funcs = [
-      f for f in meta_proto.all_func_protos
+      f
+      for f in meta_proto.all_func_protos
       if f.name.name == function_to_instrument_name
   ]
 
   if not filtered_funcs:
-    raise app.Error("Couldn't find metadata for function with name: {n}".format(
-        n=function_to_instrument_name))
+    raise app.Error(
+        "Couldn't find metadata for function with name: {n}".format(
+            n=function_to_instrument_name
+        )
+    )
 
   if len(filtered_funcs) > 1:
-    raise app.Error("Found more than one function with name: {n}".format(
-        n=function_to_instrument_name))
+    raise app.Error(
+        "Found more than one function with name: {n}".format(
+            n=function_to_instrument_name
+        )
+    )
 
   return filtered_funcs[0]
 
@@ -165,7 +184,8 @@ def template_arg_to_string(arg: metadata_output_pb2.TemplateArgument) -> str:
     return type_to_string(arg.as_type)
   else:
     raise app.Error(
-        "Don't know how to translate template: {arg}".format(arg=arg))
+        "Don't know how to translate template: {arg}".format(arg=arg)
+    )
 
 
 def type_to_string(type_pb: metadata_output_pb2.Type) -> str:
@@ -196,7 +216,9 @@ def type_to_string(type_pb: metadata_output_pb2.Type) -> str:
     else:
       raise app.Error(
           "Don't know how to translate native int of width: {w}".format(
-              w=type_pb.as_int.width))
+              w=type_pb.as_int.width
+          )
+      )
 
     return ret
   elif type_pb.HasField("as_inst"):
@@ -215,8 +237,8 @@ def type_to_string(type_pb: metadata_output_pb2.Type) -> str:
 
 
 def find_instantiated_type(
-    id_pb: int,
-    metadata: metadata_output_pb2.MetadataOutput) -> metadata_output_pb2.Type:
+    id_pb: int, metadata: metadata_output_pb2.MetadataOutput
+) -> metadata_output_pb2.Type:
   """Finds a type by id in the metadata protobuf.
 
   Args:
@@ -236,12 +258,16 @@ def find_instantiated_type(
       return record
 
   raise app.Error(
-      "Couldn't find instantiated type with id: {id}".format(id=id_pb))
+      "Couldn't find instantiated type with id: {id}".format(id=id_pb)
+  )
 
 
-def format_print_value(name: str, stream_name: str,
-                       type_pb: metadata_output_pb2.Type,
-                       metadata: metadata_output_pb2.MetadataOutput) -> str:
+def format_print_value(
+    name: str,
+    stream_name: str,
+    type_pb: metadata_output_pb2.Type,
+    metadata: metadata_output_pb2.MetadataOutput,
+) -> str:
   """Formats C++ source to print out a value.
 
   Args:
@@ -254,18 +280,24 @@ def format_print_value(name: str, stream_name: str,
     The formatted C++ source
   """
   if type_pb.HasField("as_bits"):
-    return "    {stream_name}<<\"bits[{w}]:\"<<{v};".format(
-        stream_name=stream_name, w=type_pb.as_bits.width, v=name)
+    return '    {stream_name}<<"bits[{w}]:"<<{v};'.format(
+        stream_name=stream_name, w=type_pb.as_bits.width, v=name
+    )
   elif type_pb.HasField("as_int"):
-    return "    {stream_name}<<\"bits[{w}]:\"<<{v};".format(
-        stream_name=stream_name, w=type_pb.as_int.width, v=name)
+    return '    {stream_name}<<"bits[{w}]:"<<{v};'.format(
+        stream_name=stream_name, w=type_pb.as_int.width, v=name
+    )
   elif type_pb.HasField("as_bool"):
-    return "    {stream_name}<<\"bits[1]:\"<<({v}?1:0);".format(
-        stream_name=stream_name, v=name)
+    return '    {stream_name}<<"bits[1]:"<<({v}?1:0);'.format(
+        stream_name=stream_name, v=name
+    )
   elif type_pb.HasField("as_inst"):
     return format_print_value(
-        name, stream_name,
-        find_instantiated_type(type_pb.as_inst.name.id, metadata), metadata)
+        name,
+        stream_name,
+        find_instantiated_type(type_pb.as_inst.name.id, metadata),
+        metadata,
+    )
   elif type_pb.HasField("as_struct"):
     if type_pb.as_struct.no_tuple:
       assert 1 == len(type_pb.as_struct.fields)
@@ -274,33 +306,41 @@ def format_print_value(name: str, stream_name: str,
     else:
 
       def format_field(field: metadata_output_pb2.StructField):
-        return format_print_value(name + "." + field.name, stream_name,
-                                  field.type, metadata)
+        return format_print_value(
+            name + "." + field.name, stream_name, field.type, metadata
+        )
 
-      ret = "{stream_name}<<\"(\";\n".format(stream_name=stream_name)
-      ret += "{stream_name}<<\",\";\n".format(stream_name=stream_name).join(
-          map(format_field, type_pb.as_struct.fields))
-      ret += "{stream_name}<<\")\";\n".format(stream_name=stream_name)
+      ret = '{stream_name}<<"(";\n'.format(stream_name=stream_name)
+      ret += '{stream_name}<<",";\n'.format(stream_name=stream_name).join(
+          map(format_field, type_pb.as_struct.fields)
+      )
+      ret += '{stream_name}<<")";\n'.format(stream_name=stream_name)
       return ret
   elif type_pb.HasField("as_array"):
-    ret = "{stream_name}<<\"[\";\n".format(stream_name=stream_name)
+    ret = '{stream_name}<<"[";\n'.format(stream_name=stream_name)
     elems = []
     for i in range(type_pb.as_array.size):
       elems += [
-          format_print_value("{n}[{i}]".format(n=name, i=i), stream_name,
-                             type_pb.as_array.element_type, metadata)
+          format_print_value(
+              "{n}[{i}]".format(n=name, i=i),
+              stream_name,
+              type_pb.as_array.element_type,
+              metadata,
+          )
       ]
-    ret += "{stream_name}<<\",\";\n".format(stream_name=stream_name).join(elems)
-    ret += "{stream_name}<<\"]\";\n".format(stream_name=stream_name)
+    ret += '{stream_name}<<",";\n'.format(stream_name=stream_name).join(elems)
+    ret += '{stream_name}<<"]";\n'.format(stream_name=stream_name)
     return ret
   else:
     raise app.Error("Unimplemented print for type {t}".format(t=type_pb))
 
 
 def gen_instrumentation_proc(
-    channels_tmps, reset_ticks_tmp,
+    channels_tmps,
+    reset_ticks_tmp,
     block_channels_by_name: typing.Dict[str, hls_block_pb2.HLSChannel],
-    metadata: metadata_output_pb2.MetadataOutput) -> typing.Dict[str, str]:
+    metadata: metadata_output_pb2.MetadataOutput,
+) -> typing.Dict[str, str]:
   """Generates source blocks to insert.
 
   Args:
@@ -360,14 +400,14 @@ struct tick_on_exit {
 
     instrument_src += """
         static std::ofstream {n}_stream("{path}");
-""".format(
-    n=channel.name, path=tmp.name)
+""".format(n=channel.name, path=tmp.name)
 
     if hls_ch.type == hls_block_pb2.ChannelType.DIRECT_IN:
       assert hls_ch.is_input
-      assert not (channel.type.as_inst and
-                  channel.type.as_inst.name.fully_qualified_name
-                  == "__xls_channel")
+      assert not (
+          channel.type.as_inst
+          and channel.type.as_inst.name.fully_qualified_name == "__xls_channel"
+      )
 
       ch_type = channel.type
       stream_name = "{n}_stream".format(n=channel.name)
@@ -387,7 +427,10 @@ struct tick_on_exit {
                           }} direct_in_on_exit_{n}_i({n}, {n}_stream);
 """.format(n=channel.name, t=type_to_string(ch_type), print_val=print_val))
     elif hls_ch.type == hls_block_pb2.ChannelType.FIFO:
-      assert channel.type.as_inst and channel.type.as_inst.name.fully_qualified_name == "__xls_channel"
+      assert (
+          channel.type.as_inst
+          and channel.type.as_inst.name.fully_qualified_name == "__xls_channel"
+      )
 
       after_func_src += """
 #undef {n}
@@ -435,26 +478,31 @@ struct tick_on_exit {
                           #undef {n}
                           #define {n} {n}_captured
   """).format(
-      n=channel.name,
-      t=type_to_string(ch_type),
-      path=tmp.name,
-      print_val=format_print_value("val", "stream", ch_type, metadata))
+          n=channel.name,
+          t=type_to_string(ch_type),
+          path=tmp.name,
+          print_val=format_print_value("val", "stream", ch_type, metadata),
+      )
     else:
       raise app.UsageError(
           "Don't know how to instrument channel {n} of type: {t}".format(
-              n=hls_ch.name, t=hls_ch.type))
+              n=hls_ch.name, t=hls_ch.type
+          )
+      )
 
   return {
       "before_func_src": before_func_src,
       "instrument_src": instrument_src,
-      "after_func_src": after_func_src
+      "after_func_src": after_func_src,
   }
 
 
 def gen_instrumentation_pure_func(
     function_to_instrument_proto: metadata_output_pb2.FunctionPrototype,
-    inputs_path: str, outputs_path: str,
-    metadata: metadata_output_pb2.MetadataOutput) -> typing.Dict[str, str]:
+    inputs_path: str,
+    outputs_path: str,
+    metadata: metadata_output_pb2.MetadataOutput,
+) -> typing.Dict[str, str]:
   """Generates source blocks to insert.
 
   Args:
@@ -476,8 +524,12 @@ def gen_instrumentation_pure_func(
 
   if not function_to_instrument_proto.return_type.HasField("as_void"):
     exit_print_srcs += [
-        format_print_value("instrument__retval", "outputs_str",
-                           function_to_instrument_proto.return_type, metadata)
+        format_print_value(
+            "instrument__retval",
+            "outputs_str",
+            function_to_instrument_proto.return_type,
+            metadata,
+        )
     ]
 
   for param in function_to_instrument_proto.params:
@@ -508,7 +560,8 @@ def gen_instrumentation_pure_func(
           type=type_to_string(element_type),
           name=param.name,
           pre=prefix,
-          post=postfix)
+          post=postfix,
+      )
 
     params_srcs += [param_decl]
 
@@ -530,15 +583,18 @@ def gen_instrumentation_pure_func(
   exit_print_src = ""
   assert exit_print_srcs
   if len(exit_print_srcs) > 1:
-    exit_print_src = "outputs_str<<\"(\";\n" + "outputs_str<<\", \";\n".join(
-        exit_print_srcs) + "\noutputs_str<<\")\";\n"
+    exit_print_src = (
+        'outputs_str<<"(";\n'
+        + 'outputs_str<<", ";\n'.join(exit_print_srcs)
+        + '\noutputs_str<<")";\n'
+    )
   else:
     exit_print_src = exit_print_srcs[0]
 
   enter_print_src = ""
   assert enter_print_srcs
   if len(enter_print_srcs) > 1:
-    enter_print_src = "inputs_str<<\"; \";\n".join(enter_print_srcs)
+    enter_print_src = 'inputs_str<<"; ";\n'.join(enter_print_srcs)
   else:
     enter_print_src = enter_print_srcs[0]
 
@@ -553,7 +609,8 @@ def gen_instrumentation_pure_func(
                         return op;
                       }}
 """).format(
-    return_type=type_to_string(function_to_instrument_proto.return_type))
+        return_type=type_to_string(function_to_instrument_proto.return_type)
+    )
 
   before_func_src = textwrap.dedent("""
                       #include <fstream>
@@ -578,14 +635,15 @@ def gen_instrumentation_pure_func(
                         {return_stuff}
                       }};
 """).format(
-    params=", ".join(params_srcs),
-    inits=(": " + ", ".join(init_srcs)) if init_srcs else "",
-    saved_refs=saved_refs_src,
-    enter_print_src=enter_print_src,
-    exit_print_src=exit_print_src,
-    return_stuff=return_stuff,
-    in_path=inputs_path,
-    out_path=outputs_path)
+      params=", ".join(params_srcs),
+      inits=(": " + ", ".join(init_srcs)) if init_srcs else "",
+      saved_refs=saved_refs_src,
+      enter_print_src=enter_print_src,
+      exit_print_src=exit_print_src,
+      return_stuff=return_stuff,
+      in_path=inputs_path,
+      out_path=outputs_path,
+  )
 
   instrument_src = textwrap.dedent("""
                     capture_return capture_return_i ({call_constructor_src});
@@ -596,13 +654,15 @@ def gen_instrumentation_pure_func(
   return {
       "instrument_src": instrument_src,
       "before_func_src": before_func_src,
-      "after_func_src": "\n" + "#undef return" + "\n"
+      "after_func_src": "\n" + "#undef return" + "\n",
   }
 
 
 def instrument_source(
     function_to_instrument_proto: metadata_output_pb2.FunctionPrototype,
-    inst_srcs: typing.Dict[str, str], original_src_tmp: str) -> str:
+    inst_srcs: typing.Dict[str, str],
+    original_src_tmp: str,
+) -> str:
   """Modifies source file to instrument the target function.
 
   Args:
@@ -613,7 +673,9 @@ def instrument_source(
   Returns:
     The path to the C++ file that was modified
   """
-  filename_to_modify = function_to_instrument_proto.return_location.begin.filename
+  filename_to_modify = (
+      function_to_instrument_proto.return_location.begin.filename
+  )
   print("filename_to_modify", filename_to_modify)
 
   shutil.copyfile(filename_to_modify, original_src_tmp)
@@ -623,31 +685,41 @@ def instrument_source(
     orig_src = f.read()
 
   params_end_loc = find_offset_for_loc(
-      orig_src, function_to_instrument_proto.parameters_location.end)
+      orig_src, function_to_instrument_proto.parameters_location.end
+  )
 
   decl_begin_loc = find_offset_for_loc(
-      orig_src, function_to_instrument_proto.whole_declaration_location.begin)
+      orig_src, function_to_instrument_proto.whole_declaration_location.begin
+  )
 
   decl_end_loc = find_offset_for_loc(
-      orig_src, function_to_instrument_proto.whole_declaration_location.end)
+      orig_src, function_to_instrument_proto.whole_declaration_location.end
+  )
 
   open_brace_loc = orig_src.find("{", params_end_loc)
   assert open_brace_loc >= 0
 
   src = orig_src
 
-  src = src[:decl_begin_loc] + inst_srcs["before_func_src"] + src[
-      decl_begin_loc + 0:]
+  src = (
+      src[:decl_begin_loc]
+      + inst_srcs["before_func_src"]
+      + src[decl_begin_loc + 0 :]
+  )
 
   open_brace_loc += len(inst_srcs["before_func_src"])
   decl_end_loc += len(inst_srcs["before_func_src"])
 
-  src = src[:open_brace_loc +
-            1] + inst_srcs["instrument_src"] + src[open_brace_loc + 2:]
+  src = (
+      src[: open_brace_loc + 1]
+      + inst_srcs["instrument_src"]
+      + src[open_brace_loc + 2 :]
+  )
   decl_end_loc += len(inst_srcs["instrument_src"]) - 1
 
-  src = src[:decl_end_loc] + inst_srcs["after_func_src"] + src[decl_end_loc +
-                                                               0:]
+  src = (
+      src[:decl_end_loc] + inst_srcs["after_func_src"] + src[decl_end_loc + 0 :]
+  )
 
   top_hdr = textwrap.dedent("""
 #define XlsInt ac_int
@@ -677,7 +749,8 @@ def main(argv):
 
   # Find function to instrument
   function_to_instrument_proto = get_func_to_instrument(
-      meta_proto, FLAGS.function_to_instrument)
+      meta_proto, FLAGS.function_to_instrument
+  )
 
   # Instrument C source
   original_src_tmp = create_temp(suffix=".cc")
@@ -686,7 +759,8 @@ def main(argv):
   no_channels = True
   for param in function_to_instrument_proto.params:
     is_channel = param.type.HasField("as_inst") and (
-        param.type.as_inst.name.fully_qualified_name == "__xls_channel")
+        param.type.as_inst.name.fully_qualified_name == "__xls_channel"
+    )
     no_channels = no_channels and not is_channel
     params_by_name[param.name] = param
 
@@ -697,9 +771,12 @@ def main(argv):
   if no_channels:
     inputs_tmp = create_temp(suffix=".ir")
     outputs_tmp = create_temp(suffix=".ir")
-    inst_srcs = gen_instrumentation_pure_func(function_to_instrument_proto,
-                                              inputs_tmp.name, outputs_tmp.name,
-                                              meta_proto)
+    inst_srcs = gen_instrumentation_pure_func(
+        function_to_instrument_proto,
+        inputs_tmp.name,
+        outputs_tmp.name,
+        meta_proto,
+    )
   else:
     reset_ticks_tmp = create_temp(suffix=".log")
 
@@ -711,16 +788,20 @@ def main(argv):
     for hls_ch in block_proto.channels:
       block_channels_by_name[hls_ch.name] = hls_ch
       assert hls_ch.name in params_by_name
-      channels_tmps += [(params_by_name[hls_ch.name], create_temp(suffix=".ir"))
-                       ]
+      channels_tmps += [
+          (params_by_name[hls_ch.name], create_temp(suffix=".ir"))
+      ]
 
-    inst_srcs = gen_instrumentation_proc(channels_tmps, reset_ticks_tmp.name,
-                                         block_channels_by_name, meta_proto)
+    inst_srcs = gen_instrumentation_proc(
+        channels_tmps, reset_ticks_tmp.name, block_channels_by_name, meta_proto
+    )
 
-  print("Saving original source before instrumentation at ",
-        original_src_tmp.name)
-  filename_to_modify = instrument_source(function_to_instrument_proto,
-                                         inst_srcs, original_src_tmp.name)
+  print(
+      "Saving original source before instrumentation at ", original_src_tmp.name
+  )
+  filename_to_modify = instrument_source(
+      function_to_instrument_proto, inst_srcs, original_src_tmp.name
+  )
 
   # Build the C model
   print("Building C++ binary...")
@@ -742,11 +823,17 @@ def main(argv):
       raise app.UsageError("Cannot use block interpreter for non-procs.")
 
     args = [
-        EVAL_IR_PATH, "--top", function_to_instrument_proto.name.xls_name,
-        "--input_file", inputs_tmp.name, "--expected_file", outputs_tmp.name,
-        "--use_llvm_jit" if
-        (FLAGS.backend == "serial_jit") else "--nouse_llvm_jit",
-        FLAGS.ir_to_test
+        EVAL_IR_PATH,
+        "--top",
+        function_to_instrument_proto.name.xls_name,
+        "--input_file",
+        inputs_tmp.name,
+        "--expected_file",
+        outputs_tmp.name,
+        "--use_llvm_jit"
+        if (FLAGS.backend == "serial_jit")
+        else "--nouse_llvm_jit",
+        FLAGS.ir_to_test,
     ]
     print("Eval command: ", args)
     subprocess.check_output(args)
@@ -778,12 +865,20 @@ def main(argv):
         expected_ch_specs += [ch.name + "=" + tmp.name]
 
     args = [
-        EVAL_PROC_PATH, FLAGS.ir_to_test, "--ticks", ticks_joined, "--backend",
-        FLAGS.backend, "--random_seed",
-        str(FLAGS.random_seed), "--prob_input_valid_assert",
-        str(FLAGS.prob_input_valid_assert), "--inputs_for_channels",
-        ",".join(input_ch_specs), "--expected_outputs_for_channels",
-        ",".join(expected_ch_specs)
+        EVAL_PROC_PATH,
+        FLAGS.ir_to_test,
+        "--ticks",
+        ticks_joined,
+        "--backend",
+        FLAGS.backend,
+        "--random_seed",
+        str(FLAGS.random_seed),
+        "--prob_input_valid_assert",
+        str(FLAGS.prob_input_valid_assert),
+        "--inputs_for_channels",
+        ",".join(input_ch_specs),
+        "--expected_outputs_for_channels",
+        ",".join(expected_ch_specs),
     ]
     if FLAGS.block_signature_proto:
       args += ["--block_signature_proto", FLAGS.block_signature_proto]
