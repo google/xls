@@ -1193,10 +1193,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     # virtue of being defined in two different modules, we fully qualify the
     # module where the struct came from in the error message.
     stderr = self._run('xls/dslx/tests/errors/nominal_type_mismatch.x')
-    self.assertIn(
+    self.assertRegex(
+        stderr,
         'Type mismatch:\n'
-        '   xls/dslx/tests/errors/mod_simple_struct.x:MyStruct {}\n'
-        'vs xls/dslx/tests/errors/mod_simple_struct_duplicate.x:MyStruct {}\n', stderr
+        '   .*/dslx/tests/errors/mod_simple_struct.x:MyStruct {}\n'
+        'vs .*/dslx/tests/errors/mod_simple_struct_duplicate.x:MyStruct {}\n'
     )
 
 
