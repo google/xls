@@ -1545,6 +1545,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:module_initializer",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
@@ -1552,6 +1553,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:ternary",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
     ],
 )
 

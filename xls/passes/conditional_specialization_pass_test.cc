@@ -528,11 +528,11 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedSelectorValueUsingOr) {
 }
 
 TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingAnd) {
-  // No transformation because r does not imply r&s is true or false.
+  // No transformation because r does not imply r&s&t is true or false.
   //
   //    a   b
   //     \ /
-  //     sel1 ---- r&s
+  //     sel1 ---- r&s&t
   //      |
   //   c  |
   //    \ |
@@ -547,25 +547,26 @@ TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingAnd) {
   BValue c = fb.Param("c", u32);
   BValue r = fb.Param("r", p->GetBitsType(1));
   BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue t = fb.Param("t", p->GetBitsType(1));
 
-  BValue r_and_s = fb.And(r, s);
-  BValue sel1 = fb.Select(r_and_s, {a, b});
+  BValue r_and_s_and_t = fb.And({r, s, t});
+  BValue sel1 = fb.Select(r_and_s_and_t, {a, b});
   BValue sel0 = fb.Select(r, {c, sel1});
 
   // Keep r_and_s alive to the return value to avoid replacing r in the
   // expression with one (this is not what we're testing).
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           fb.BuildWithReturnValue(fb.Concat({sel0, r_and_s})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, r_and_s_and_t})));
 
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingOr) {
-  // No transformation because !r does not imply r|s is true or false.
+  // No transformation because !r does not imply r|s|t is true or false.
   //
   //    a   b
   //     \ /
-  //     sel1 ---- r|s
+  //     sel1 ---- r|s|t
   //      |
   //      |   c
   //      |  /
@@ -580,15 +581,16 @@ TEST_F(ConditionalSpecializationPassTest, NotImpliedSelectorValueUsingOr) {
   BValue c = fb.Param("c", u32);
   BValue r = fb.Param("r", p->GetBitsType(1));
   BValue s = fb.Param("s", p->GetBitsType(1));
+  BValue t = fb.Param("t", p->GetBitsType(1));
 
-  BValue r_or_s = fb.Or(r, s);
-  BValue sel1 = fb.Select(r_or_s, {a, b});
+  BValue r_or_s_or_t = fb.Or({r, s, t});
+  BValue sel1 = fb.Select(r_or_s_or_t, {a, b});
   BValue sel0 = fb.Select(r, {sel1, c});
 
-  // Keep r_or_s alive to the return value to avoid replacing r in the
+  // Keep r_or_s_or_t alive to the return value to avoid replacing r in the
   // expression with zero (this is not what we're testing).
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           fb.BuildWithReturnValue(fb.Concat({sel0, r_or_s})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, r_or_s_or_t})));
 
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
@@ -758,6 +760,162 @@ TEST_F(ConditionalSpecializationPassTest,
               m::PrioritySelect(m::And(m::Param("r"), m::Param("s")),
                                 /*cases=*/{m::Param("a"), m::Literal(42)},
                                 /*default_value=*/m::Literal(85)));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       ImpliedOneHotSelectorValueWithOtherUses) {
+  // r implies r|s.
+  //
+  //        a                    a ------------
+  //       /                    /              \
+  //     sel1 ---- r|s        sel1 ---- r|s     \
+  //      | \                  |                |
+  //      |  ...         =>   ...               |
+  //      |                                     |
+  //     sel0 ---- r                          sel0 ---- r
+  //      |                                     |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue r = fb.Param("r", p->GetBitsType(2));
+  BValue s = fb.Param("s", p->GetBitsType(2));
+
+  BValue r_or_s = fb.Or(r, s);
+  BValue other_value = fb.Literal(UBits(42, 32));
+  BValue sel1 = fb.OneHotSelect(fb.BitSlice(r, /*start=*/0, /*width=*/1), {a});
+  BValue sel0 =
+      fb.PrioritySelect(r, {sel1, other_value}, fb.Literal(UBits(0, 32)));
+
+  // Keep r_or_s alive to the return value to avoid replacing r in the
+  // expression with one (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_or_s})));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::PrioritySelect(m::Param("r"),
+                                /*cases=*/{m::Param("a"), m::Literal(42)},
+                                /*default_value=*/m::Literal(0)));
+  EXPECT_THAT(
+      f->return_value()->operand(1),
+      m::OneHotSelect(m::BitSlice(m::Param("r"), /*start=*/0, /*width=*/1),
+                      /*cases=*/{m::Param("a")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       ImpliedOneHotSelectorDefaultValueWithOtherUses) {
+  // !r implies !(r&s).
+  //
+  //        d                    d ------------
+  //       /                    /              \
+  //     sel1 ---- r&s        sel1 ---- r&s     \
+  //      | \                  |                |
+  //      |  ...         =>   ...               |
+  //      |                                     |
+  //     sel0 ---- r                          sel0 ---- r
+  //      |                                     |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue r = fb.Param("r", p->GetBitsType(2));
+  BValue s = fb.Param("s", p->GetBitsType(2));
+
+  BValue r_and_s = fb.And(r, s);
+  BValue other_value = fb.Literal(UBits(42, 32));
+  BValue sel1 = fb.OneHotSelect(r_and_s, {a, other_value});
+  BValue sel0 = fb.PrioritySelect(r, {a, other_value},
+                                  /*default_value=*/sel1);
+
+  // Keep r_and_s alive to the return value to avoid replacing r in the
+  // expression (this is not what we're testing).
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Concat({sel0, sel1, r_and_s})));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::PrioritySelect(m::Param("r"),
+                                /*cases=*/{m::Param("a"), m::Literal(42)},
+                                /*default_value=*/m::Literal(0)));
+  EXPECT_THAT(f->return_value()->operand(1),
+              m::OneHotSelect(m::And(m::Param("r"), m::Param("s")),
+                              /*cases=*/{m::Param("a"), m::Literal(42)}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedValueThroughAnd) {
+  // r implies r|s.
+  //
+  //    r   a                r   a ------------
+  //     \ /                  \ /              \
+  //     and                  and               \
+  //      | \                  |                |
+  //      |  ...         =>   ...               |
+  //      |                                     |
+  //     sel0 ---- r                          sel0 ---- r
+  //      |                                     |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue r = fb.Param("r", u1);
+
+  BValue r_and_a = fb.And(r, a);
+  BValue sel0 = fb.PrioritySelect(r, {r_and_a}, fb.Literal(UBits(0, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Concat({sel0, r_and_a})));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::PrioritySelect(m::Param("r"),
+                                /*cases=*/{m::Param("a")},
+                                /*default_value=*/m::Literal(0)));
+  EXPECT_THAT(f->return_value()->operand(1),
+              m::And(m::Param("r"), m::Param("a")));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedValueThroughOr) {
+  //
+  //    r    a               r    a -----------
+  //     \  /                 \  /             \
+  //      or                   or               \
+  //      | \                  |                |
+  //      |  ...         =>   ...               |
+  //      |                                     |
+  //     sel0 ---- r                          sel0 ---- r
+  //      |                                     |
+  //
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue r = fb.Param("r", u1);
+
+  BValue r_or_a = fb.Or(r, a);
+  BValue sel0 = fb.PrioritySelect(r, {fb.Literal(UBits(0, 1))}, r_or_a);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Concat({sel0, r_or_a})));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  EXPECT_THAT(f->return_value()->operand(0),
+              m::PrioritySelect(m::Param("r"),
+                                /*cases=*/{m::Literal(0)},
+                                /*default_value=*/m::Param("a")));
+  EXPECT_THAT(f->return_value()->operand(1),
+              m::Or(m::Param("r"), m::Param("a")));
 }
 
 TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {
