@@ -1107,6 +1107,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common:module_initializer",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -2421,6 +2422,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_googletest//:gtest",
     ],
 )

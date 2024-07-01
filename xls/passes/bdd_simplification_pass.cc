@@ -28,6 +28,7 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -329,6 +330,35 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                              node->loc(), node->operand(0), zero, Op::kEq));
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Concat>(
                                 std::vector{operand_eq_zero, node->operand(0)})
+                            .status());
+    return true;
+  }
+
+  // Simplify kPrioritySelect operations where the selector is known to have at
+  // least one set bit.
+  if (NarrowingEnabled(opt_level) && node->Is<PrioritySelect>() &&
+      query_engine.AtLeastOneBitTrue(node->As<PrioritySelect>()->selector())) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+
+    int64_t last_bit = 0;
+    std::vector<TreeBitLocation> trailing_bits;
+    for (; last_bit < sel->selector()->BitCountOrDie() - 1; ++last_bit) {
+      trailing_bits.push_back(TreeBitLocation(sel->selector(), last_bit));
+      if (query_engine.AtLeastOneTrue(trailing_bits)) {
+        break;
+      }
+    }
+    DCHECK(last_bit < sel->selector()->BitCountOrDie() - 1 ||
+           query_engine.AtLeastOneTrue(trailing_bits));
+
+    XLS_ASSIGN_OR_RETURN(Node * new_selector,
+                         node->function_base()->MakeNode<BitSlice>(
+                             node->loc(), sel->selector(),
+                             /*start=*/0, /*width=*/last_bit));
+    absl::Span<Node* const> new_cases = sel->cases().subspan(0, last_bit);
+    Node* new_default = sel->get_case(last_bit);
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<PrioritySelect>(
+                                new_selector, new_cases, new_default)
                             .status());
     return true;
   }

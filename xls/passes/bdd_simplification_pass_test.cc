@@ -31,6 +31,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -120,6 +121,46 @@ TEST_F(BddSimplificationPassTest, RemoveRedundantOneHot) {
 
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Concat(m::Eq(), m::Concat()));
+}
+
+TEST_F(BddSimplificationPassTest, RemoveRedundantPrioritySelectCases) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue a = fb.Param("a", p->GetBitsType(24));
+  BValue b = fb.Param("b", p->GetBitsType(24));
+  BValue c = fb.Param("c", p->GetBitsType(24));
+  BValue d = fb.Param("d", p->GetBitsType(24));
+  BValue x_ge_5 = fb.UGe(x, fb.Literal(UBits(5, 8)));
+  BValue x_le_42 = fb.ULe(x, fb.Literal(UBits(42, 8)));
+  BValue x_eq_8 = fb.Eq(x, fb.Literal(UBits(8, 8)));
+  fb.PrioritySelect(fb.Concat({x_eq_8, x_ge_5, x_le_42}), /*cases=*/{a, b, c},
+                    /*default_value=*/d);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::BitSlice(m::Concat()), {m::Param("a")},
+                                m::Param("b")));
+}
+
+TEST_F(BddSimplificationPassTest, PreserveNonRedundantPrioritySelectCases) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue a = fb.Param("a", p->GetBitsType(24));
+  BValue b = fb.Param("b", p->GetBitsType(24));
+  BValue c = fb.Param("c", p->GetBitsType(24));
+  BValue d = fb.Param("d", p->GetBitsType(24));
+  BValue x_ge_5 = fb.UGe(x, fb.Literal(UBits(5, 8)));
+  BValue x_lt_3 = fb.ULt(x, fb.Literal(UBits(3, 8)));
+  BValue x_eq_3 = fb.Eq(x, fb.Literal(UBits(3, 8)));
+  fb.PrioritySelect(fb.Concat({x_eq_3, x_ge_5, x_lt_3}), /*cases=*/{a, b, c},
+                    /*default_value=*/d);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(BddSimplificationPassTest, ConvertTwoWayOneHotSelect) {
