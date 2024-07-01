@@ -45,6 +45,10 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
  public:
   explicit InlineVisitor(Block* out) : new_block_(out) {}
 
+  const absl::flat_hash_map<std::pair<Register*, BlockInstance*>, Register*>&
+  reg_map() const {
+    return reg_map_;
+  }
   absl::Status DefaultHandler(const ElaboratedNode& n) override {
     std::vector<Node*> new_ops;
     new_ops.reserve(n.node->operand_count());
@@ -255,7 +259,9 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
       inst_map_;
 };
 
-absl::StatusOr<Block*> InlineElaboration(const BlockElaboration& elab) {
+absl::StatusOr<Block*> InlineElaboration(
+    const BlockElaboration& elab,
+    absl::flat_hash_map<std::string, std::string>& reg_renames) {
   // Create a new block we will stitch everything into. This block takes over
   // the name and top-ness of the old top block.
   XLS_RET_CHECK(elab.top()->block()) << "Top is a fifo.";
@@ -278,6 +284,15 @@ absl::StatusOr<Block*> InlineElaboration(const BlockElaboration& elab) {
   InlineVisitor vis(stitched);
   XLS_RETURN_IF_ERROR(elab.Accept(vis));
 
+  // Record new register names.
+  for (const auto& [orig_reg_and_instance, new_reg] : vis.reg_map()) {
+    const auto& [orig_reg, instance] = orig_reg_and_instance;
+    if (instance->parent_instance()) {
+      reg_renames[absl::StrFormat("%s%s", instance->RegisterPrefix(),
+                                  orig_reg->name())] = new_reg->name();
+    }
+  }
+
   return stitched;
 }
 }  // namespace
@@ -291,7 +306,8 @@ absl::StatusOr<bool> BlockInliningPass::RunInternal(
   }
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                        BlockElaboration::Elaborate(unit->top_block));
-  XLS_ASSIGN_OR_RETURN(unit->top_block, InlineElaboration(elab));
+  XLS_ASSIGN_OR_RETURN(unit->top_block,
+                       InlineElaboration(elab, results->register_renames));
   return true;
 }
 

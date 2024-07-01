@@ -38,6 +38,9 @@ namespace m = xls::op_matchers;
 namespace xls::verilog {
 namespace {
 using Instantiation = xls::Instantiation;
+using testing::IsEmpty;
+using testing::Pair;
+using testing::UnorderedElementsAre;
 
 class BlockInliningPassTest : public IrTestBase {};
 
@@ -85,6 +88,7 @@ TEST_F(BlockInliningPassTest, InlineBlocks) {
               testing::Not(testing::Contains(m::InstantiationInput())));
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationOutput())));
+  EXPECT_THAT(results.register_renames, IsEmpty());
 
   InterpreterBlockEvaluator eval;
   XLS_ASSERT_OK_AND_ASSIGN(auto oracle, eval.NewContinuation(top));
@@ -160,6 +164,11 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
               testing::Not(testing::Contains(m::InstantiationInput())));
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationOutput())));
+  EXPECT_THAT(results.register_renames,
+              UnorderedElementsAre(Pair("left::x_reg", "left__x_reg"),
+                                   Pair("left::y_reg", "left__y_reg"),
+                                   Pair("right::x_reg", "right__x_reg"),
+                                   Pair("right::y_reg", "right__y_reg")));
 
   InterpreterBlockEvaluator eval;
   XLS_ASSERT_OK_AND_ASSIGN(auto oracle, eval.NewContinuation(top));
@@ -229,7 +238,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithFifo) {
 
   BlockInliningPass bip;
   CodegenPassUnit pu(p.get(), top);
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
 
@@ -302,7 +311,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithExtern) {
 
   BlockInliningPass bip;
   CodegenPassUnit pu(p.get(), top);
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
 

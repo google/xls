@@ -306,7 +306,17 @@ struct CodegenPassUnit {
   void GcMetadata();
 };
 
-using CodegenPassResults = PassResults;
+struct CodegenPassResults : public PassResults {
+  // A map from original register names to renamed register. Note that the
+  // register names are generally going to include the elaboration-prefix if not
+  // in the top block. Generally pass should only add to this and only users who
+  // have tight control and knowledge of the pass pipeline should attempt to
+  // interpret the values in this map. For example if you have 2 passes the
+  // first renames 'a' -> 'b' and the second 'b' -> 'c' you would see both
+  // renames in this map (i.e. 2 elements).
+  absl::flat_hash_map<std::string, std::string> register_renames;
+};
+
 using CodegenPass =
     PassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
 using CodegenCompoundPass =
