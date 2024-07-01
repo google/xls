@@ -49,6 +49,9 @@ class GrpcSynthesizer : public Synthesizer {
     XLS_ASSIGN_OR_RETURN(CompileResponse response,
                          xls::synthesis::SynthesizeViaClient(
                              params_.server_and_port(), request));
+    if (response.max_frequency_hz() > 0) {
+      return static_cast<int64_t>(1e12) / response.max_frequency_hz();
+    }
     const int64_t clock_period_ps =
         static_cast<int64_t>(1e12) / params_.frequency_hz();
     return response.slack_ps() == 0 ? 0 : clock_period_ps - response.slack_ps();
