@@ -71,6 +71,28 @@ std::ostream& operator<<(std::ostream& os, InstantiationKind kind) {
   return os;
 }
 
+namespace {
+absl::Status UnexpectedKind(InstantiationKind expected,
+                            InstantiationKind actual) {
+  CHECK_NE(expected, actual) << "Unexpected call to base As... function.";
+  return absl::InternalError(absl::StrFormat(
+      "Wrong instantiation kind. Expected %s but is %s",
+      InstantiationKindToString(expected), InstantiationKindToString(actual)));
+}
+}  // namespace
+absl::StatusOr<BlockInstantiation*> Instantiation::AsBlockInstantiation() {
+  return UnexpectedKind(/*expected=*/InstantiationKind::kBlock,
+                        /*actual=*/kind());
+}
+absl::StatusOr<ExternInstantiation*> Instantiation::AsExternInstantiation() {
+  return UnexpectedKind(/*expected=*/InstantiationKind::kExtern,
+                        /*actual=*/kind());
+}
+absl::StatusOr<FifoInstantiation*> Instantiation::AsFifoInstantiation() {
+  return UnexpectedKind(/*expected=*/InstantiationKind::kFifo,
+                        /*actual=*/kind());
+}
+
 std::string BlockInstantiation::ToString() const {
   return absl::StrFormat("instantiation %s(block=%s, kind=block)", name(),
                          instantiated_block()->name());

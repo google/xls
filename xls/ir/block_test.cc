@@ -23,12 +23,16 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/foreign_function_data.pb.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
@@ -47,6 +51,7 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::UnorderedElementsAre;
 
 class BlockTest : public IrTestBase {
  protected:
@@ -780,6 +785,13 @@ TEST_F(BlockTest, BlockInstantiation) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
+  ForeignFunctionData ffi_data;
+  ffi_data.set_code_template("my_ffi_{fn}");
+  FunctionBuilder extern_fb("extern_func", p.get());
+  extern_fb.SetForeignFunctionData(ffi_data);
+  extern_fb.Add(extern_fb.Literal(UBits(32, 32)), extern_fb.Param("abc", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * extern_func, extern_fb.Build());
+
   BlockBuilder sub_bb("sub_block", p.get());
   BValue a = sub_bb.InputPort("a", u32);
   BValue b = sub_bb.InputPort("b", u32);
@@ -791,6 +803,15 @@ TEST_F(BlockTest, BlockInstantiation) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Instantiation * instantiation,
       bb.block()->AddBlockInstantiation("inst", sub_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation(
+          "my_fifo", FifoConfig(4, false, false, false), u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * extern_inst,
+      bb.block()->AddInstantiation("extern_func_inst",
+                                   std::make_unique<ExternInstantiation>(
+                                       "extern_func_inst", extern_func)));
   BValue in0 = bb.InputPort("in0", u32);
   BValue in1 = bb.InputPort("in1", u32);
   BValue inst_in0 = bb.InstantiationInput(instantiation, "a", in0);
@@ -799,10 +820,23 @@ TEST_F(BlockTest, BlockInstantiation) {
   BValue out1 = bb.InstantiationOutput(instantiation, "y");
   bb.OutputPort("out0", out0);
   bb.OutputPort("out1", out1);
+  bb.InstantiationInput(fifo_inst, FifoInstantiation::kPushDataPortName,
+                        bb.InputPort("fifo_in", u32));
+  bb.OutputPort(
+      "fifo_out",
+      bb.InstantiationOutput(fifo_inst, FifoInstantiation::kPopDataPortName));
+  bb.InstantiationInput(extern_inst,
+                        absl::StrFormat("%s.0", extern_func->name()),
+                        bb.InputPort("extern_port", u32));
+  bb.OutputPort("extern_out", bb.InstantiationOutput(extern_inst, "return"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
-  EXPECT_THAT(block->GetInstantiations(), ElementsAre(instantiation));
+  EXPECT_THAT(block->GetInstantiations(),
+              UnorderedElementsAre(instantiation, fifo_inst, extern_inst));
   EXPECT_THAT(block->GetInstantiation("inst"), IsOkAndHolds(instantiation));
+  EXPECT_THAT(block->GetInstantiation("my_fifo"), IsOkAndHolds(fifo_inst));
+  EXPECT_THAT(block->GetInstantiation("extern_func_inst"),
+              IsOkAndHolds(extern_inst));
   EXPECT_THAT(
       block->GetInstantiation("not_an_inst"),
       StatusIs(
@@ -815,36 +849,58 @@ TEST_F(BlockTest, BlockInstantiation) {
   EXPECT_TRUE(block->IsOwned(instantiation));
   EXPECT_FALSE(sub_block->IsOwned(instantiation));
 
+  RecordProperty("block", block->DumpIr());
   XLS_VLOG_LINES(1, block->DumpIr());
   EXPECT_EQ(
       block->DumpIr(),
-      R"(block my_block(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32]) {
+      R"(block my_block(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32], fifo_in: bits[32], fifo_out: bits[32], extern_port: bits[32], extern_out: bits[32]) {
   instantiation inst(block=sub_block, kind=block)
-  in0: bits[32] = input_port(name=in0, id=5)
-  in1: bits[32] = input_port(name=in1, id=6)
-  instantiation_input.7: () = instantiation_input(in0, instantiation=inst, port_name=a, id=7)
-  instantiation_output.8: bits[32] = instantiation_output(instantiation=inst, port_name=x, id=8)
-  instantiation_input.9: () = instantiation_input(in1, instantiation=inst, port_name=b, id=9)
-  instantiation_output.10: bits[32] = instantiation_output(instantiation=inst, port_name=y, id=10)
-  out0: () = output_port(instantiation_output.8, name=out0, id=11)
-  out1: () = output_port(instantiation_output.10, name=out1, id=12)
+  instantiation my_fifo(data_type=bits[32], depth=4, bypass=false, register_push_outputs=false, register_pop_outputs=false, kind=fifo)
+  instantiation extern_func_inst(foreign_function=extern_func, kind=extern)
+  in0: bits[32] = input_port(name=in0, id=8)
+  in1: bits[32] = input_port(name=in1, id=9)
+  fifo_in: bits[32] = input_port(name=fifo_in, id=16)
+  extern_port: bits[32] = input_port(name=extern_port, id=20)
+  instantiation_input.10: () = instantiation_input(in0, instantiation=inst, port_name=a, id=10)
+  instantiation_output.11: bits[32] = instantiation_output(instantiation=inst, port_name=x, id=11)
+  instantiation_input.12: () = instantiation_input(in1, instantiation=inst, port_name=b, id=12)
+  instantiation_output.13: bits[32] = instantiation_output(instantiation=inst, port_name=y, id=13)
+  instantiation_input.17: () = instantiation_input(fifo_in, instantiation=my_fifo, port_name=push_data, id=17)
+  instantiation_output.18: bits[32] = instantiation_output(instantiation=my_fifo, port_name=pop_data, id=18)
+  instantiation_input.21: () = instantiation_input(extern_port, instantiation=extern_func_inst, port_name=extern_func.0, id=21)
+  instantiation_output.22: bits[32] = instantiation_output(instantiation=extern_func_inst, port_name=return, id=22)
+  out0: () = output_port(instantiation_output.11, name=out0, id=14)
+  out1: () = output_port(instantiation_output.13, name=out1, id=15)
+  fifo_out: () = output_port(instantiation_output.18, name=fifo_out, id=19)
+  extern_out: () = output_port(instantiation_output.22, name=extern_out, id=23)
 }
 )");
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
+  RecordProperty("clone", clone->DumpIr());
 
   EXPECT_EQ(
       clone->DumpIr(),
-      R"(block cloned(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32]) {
+      R"(block cloned(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32], fifo_in: bits[32], fifo_out: bits[32], extern_port: bits[32], extern_out: bits[32]) {
   instantiation inst(block=sub_block, kind=block)
-  in0: bits[32] = input_port(name=in0, id=13)
-  in1: bits[32] = input_port(name=in1, id=14)
-  instantiation_output_8: bits[32] = instantiation_output(instantiation=inst, port_name=x, id=15)
-  instantiation_output_10: bits[32] = instantiation_output(instantiation=inst, port_name=y, id=16)
-  instantiation_input_7: () = instantiation_input(in0, instantiation=inst, port_name=a, id=17)
-  instantiation_input_9: () = instantiation_input(in1, instantiation=inst, port_name=b, id=18)
-  out0: () = output_port(instantiation_output_8, name=out0, id=19)
-  out1: () = output_port(instantiation_output_10, name=out1, id=20)
+  instantiation my_fifo(data_type=bits[32], depth=4, bypass=false, register_push_outputs=false, register_pop_outputs=false, kind=fifo)
+  instantiation extern_func_inst(foreign_function=extern_func, kind=extern)
+  in0: bits[32] = input_port(name=in0, id=24)
+  in1: bits[32] = input_port(name=in1, id=25)
+  fifo_in: bits[32] = input_port(name=fifo_in, id=28)
+  extern_port: bits[32] = input_port(name=extern_port, id=30)
+  instantiation_output_11: bits[32] = instantiation_output(instantiation=inst, port_name=x, id=26)
+  instantiation_output_13: bits[32] = instantiation_output(instantiation=inst, port_name=y, id=27)
+  instantiation_output_18: bits[32] = instantiation_output(instantiation=my_fifo, port_name=pop_data, id=29)
+  instantiation_output_22: bits[32] = instantiation_output(instantiation=extern_func_inst, port_name=return, id=31)
+  instantiation_input_10: () = instantiation_input(in0, instantiation=inst, port_name=a, id=32)
+  instantiation_input_12: () = instantiation_input(in1, instantiation=inst, port_name=b, id=33)
+  instantiation_input_17: () = instantiation_input(fifo_in, instantiation=my_fifo, port_name=push_data, id=36)
+  instantiation_input_21: () = instantiation_input(extern_port, instantiation=extern_func_inst, port_name=extern_func.0, id=38)
+  out0: () = output_port(instantiation_output_11, name=out0, id=34)
+  out1: () = output_port(instantiation_output_13, name=out1, id=35)
+  fifo_out: () = output_port(instantiation_output_18, name=fifo_out, id=37)
+  extern_out: () = output_port(instantiation_output_22, name=extern_out, id=39)
 }
 )");
 }

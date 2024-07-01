@@ -1766,6 +1766,8 @@ cc_test(
     srcs = ["block_test.cc"],
     deps = [
         ":bits",
+        ":channel",
+        ":foreign_function_data_cc_proto",
         ":function_builder",
         ":ir",
         ":ir_test_base",
@@ -1778,6 +1780,7 @@ cc_test(
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "@com_google_googletest//:gtest",
