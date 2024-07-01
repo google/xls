@@ -47,7 +47,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -842,7 +841,7 @@ absl::StatusOr<bool> RamRewrite(CodegenPassUnit* unit,
 // `codegen_options.ram_channels()` and invokes `RewriteRamChannel()` on them.
 absl::StatusOr<bool> RamRewritePass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   bool changed = false;
 
   XLS_RET_CHECK_NE(unit->top_block, nullptr)

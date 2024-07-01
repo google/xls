@@ -1612,7 +1612,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,
                                           .delay_estimator = estimator};
@@ -1655,7 +1655,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
                                                      schedule, options, proc));
 
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,
                                           .delay_estimator = estimator};

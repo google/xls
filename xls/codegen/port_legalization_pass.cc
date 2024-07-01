@@ -26,7 +26,6 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value_utils.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -46,7 +45,7 @@ bool IsZeroWidthInstantiationPort(Node* node) {
 
 absl::StatusOr<bool> PortLegalizationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   bool changed = false;
   std::vector<Node*> to_remove;
   for (std::unique_ptr<Block>& block : unit->package->blocks()) {

@@ -129,7 +129,7 @@ class SideEffectConditionPassTest
     XLS_ASSIGN_OR_RETURN(
         CodegenPassUnit unit,
         FunctionBaseToPipelinedBlock(schedule, codegen_options, top));
-    PassResults results;
+    CodegenPassResults results;
     CodegenPassOptions codegen_pass_option{.codegen_options = codegen_options,
                                            .schedule = schedule};
     return GetParam()->Run(&unit, codegen_pass_option, &results);
@@ -188,7 +188,7 @@ top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
       FunctionBaseToCombinationalBlock(top, codegen_options));
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
   EXPECT_THAT(
       SideEffectConditionPassOnly()->Run(&unit, codegen_pass_options, &results),
@@ -223,7 +223,7 @@ top proc g(x: (), init={()}) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
       FunctionBaseToCombinationalBlock(top, codegen_options));
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
   EXPECT_THAT(GetParam()->Run(&unit, codegen_pass_options, &results),
               IsOkAndHolds(true));

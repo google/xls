@@ -31,7 +31,7 @@ class RegisterLegalizationPass : public CodegenPass {
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,
-                                   PassResults* results) const override;
+                                   CodegenPassResults* results) const override;
 };
 
 }  // namespace xls::verilog

@@ -34,7 +34,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -112,7 +111,7 @@ absl::StatusOr<Node*> MakeGuardedConditionForOp(Op op, Node* condition,
 
 absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   // Don't rewrite side-effecting ops for:
   //  1) functions without valid control: every input is presumed valid and the
   //     op should fire every cycle.

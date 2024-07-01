@@ -27,7 +27,6 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -40,7 +39,7 @@ namespace m = ::xls::op_matchers;
 class PortLegalizationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Block* block) {
-    PassResults results;
+    CodegenPassResults results;
     CodegenPassUnit unit(block->package(), block);
     return PortLegalizationPass().Run(&unit, CodegenPassOptions(), &results);
   }

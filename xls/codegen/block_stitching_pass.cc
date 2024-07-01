@@ -17,13 +17,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> BlockStitchingPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   // No need to stitch blocks when we don't have 2+ blocks.
   if (unit->package->blocks().size() < 2) {
     return false;

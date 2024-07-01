@@ -20,13 +20,12 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> BlockMetricsGenerationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   bool changed = false;
   for (auto& [block, metadata] : unit->metadata) {
     if (!metadata.signature.has_value()) {

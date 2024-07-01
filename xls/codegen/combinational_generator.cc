@@ -43,7 +43,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   codegen_pass_options.codegen_options = options;
   codegen_pass_options.delay_estimator = delay_estimator;
 
-  PassResults results;
+  CodegenPassResults results;
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline()
                           ->Run(&unit, codegen_pass_options, &results)
                           .status());

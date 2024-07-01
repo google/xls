@@ -118,7 +118,7 @@ absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
                                             Block* block) {
   std::unique_ptr<CodegenCompoundPass> pipeline = CreateCodegenPassPipeline();
   CodegenPassUnit unit(block->package(), block);
-  PassResults results;
+  CodegenPassResults results;
   return pipeline->Run(&unit, options, &results);
 }
 

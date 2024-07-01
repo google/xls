@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -307,9 +306,11 @@ struct CodegenPassUnit {
   void GcMetadata();
 };
 
-using CodegenPass = PassBase<CodegenPassUnit, CodegenPassOptions, PassResults>;
+using CodegenPassResults = PassResults;
+using CodegenPass =
+    PassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
 using CodegenCompoundPass =
-    CompoundPassBase<CodegenPassUnit, CodegenPassOptions, PassResults>;
+    CompoundPassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
 using CodegenInvariantChecker = CodegenCompoundPass::InvariantChecker;
 
 }  // namespace xls::verilog

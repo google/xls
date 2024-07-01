@@ -27,7 +27,6 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -43,7 +42,7 @@ namespace m = ::xls::op_matchers;
 
 absl::StatusOr<bool> RunTraceVerbosityPass(Block* block,
                                            int64_t max_trace_verbosity = 0) {
-  PassResults results;
+  verilog::CodegenPassResults results;
   verilog::CodegenPassOptions options;
   options.codegen_options.set_max_trace_verbosity(max_trace_verbosity);
   verilog::CodegenPassUnit unit(block->package(), block);

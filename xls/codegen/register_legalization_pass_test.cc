@@ -26,7 +26,6 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -37,7 +36,7 @@ using ::testing::UnorderedElementsAre;
 class RegisterLegalizationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(CodegenPassUnit& unit) {
-    PassResults results;
+    CodegenPassResults results;
     return RegisterLegalizationPass().Run(&unit, CodegenPassOptions(),
                                           &results);
   }

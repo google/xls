@@ -17,7 +17,6 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 // Eliminates (and removes) redundant registers by allowing registers to be
@@ -31,7 +30,7 @@ class RegisterCombiningPass : public CodegenPass {
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,
-                                   PassResults* results) const override;
+                                   CodegenPassResults* results) const override;
 };
 
 }  // namespace xls::verilog

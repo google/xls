@@ -25,7 +25,6 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -90,7 +89,7 @@ std::optional<PartialProductOp*> MatchMulpAdd(Node* node) {
 
 absl::StatusOr<bool> MulpCombiningPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   bool changed = false;
   for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
     for (Node* node : block->nodes()) {

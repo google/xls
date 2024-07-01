@@ -33,7 +33,6 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
-#include "xls/passes/pass_base.h"
 
 namespace m = xls::op_matchers;
 namespace xls::verilog {
@@ -77,7 +76,7 @@ TEST_F(BlockInliningPassTest, InlineBlocks) {
 
   BlockInliningPass bip;
   CodegenPassUnit pu(p.get(), top);
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
 
@@ -152,7 +151,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
 
   BlockInliningPass bip;
   CodegenPassUnit pu(p.get(), top);
-  PassResults results;
+  CodegenPassResults results;
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
 

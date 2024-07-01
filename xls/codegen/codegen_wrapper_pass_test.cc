@@ -26,7 +26,6 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -38,7 +37,7 @@ using status_testing::IsOkAndHolds;
 class CodegenWrapperPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Block* block) {
-    PassResults results;
+    CodegenPassResults results;
     CodegenPassUnit unit(block->package(), block);
     return CodegenWrapperPass(std::make_unique<DeadCodeEliminationPass>())
         .Run(&unit, CodegenPassOptions(), &results);

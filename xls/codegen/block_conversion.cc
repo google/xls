@@ -2015,7 +2015,7 @@ static absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   // TODO: We really shouldn't be running passes like this during block
   // conversion. These should be fully in the pipeline. This is work for the
   // future.
-  PassResults pass_results;
+  CodegenPassResults pass_results;
   CodegenPassOptions pass_options;
   CodegenCompoundPass ccp("block_conversion_dead_token_removal",
                           "Dead token removal during block-conversion process");

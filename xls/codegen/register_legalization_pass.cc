@@ -29,13 +29,12 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value_utils.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   bool changed = false;
 
   // Build vector of (Block, Register) because removing registers invalidates

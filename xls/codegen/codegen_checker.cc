@@ -188,7 +188,7 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
 }  // namespace
 absl::Status CodegenChecker::Run(CodegenPassUnit* unit,
                                  const CodegenPassOptions& options,
-                                 PassResults* results) const {
+                                 CodegenPassResults* results) const {
   XLS_RETURN_IF_ERROR(CheckNodeToStageMap(*unit)) << unit->DumpIr();
   for (const auto& [block, metadata] : unit->metadata) {
     XLS_RETURN_IF_ERROR(

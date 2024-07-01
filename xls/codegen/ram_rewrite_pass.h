@@ -19,6 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/ram_configuration.h"
 
 namespace xls::verilog {
 
@@ -41,7 +42,7 @@ class RamRewritePass : public CodegenPass {
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,
-                                   PassResults* results) const override;
+                                   CodegenPassResults* results) const override;
 };
 
 // Alias for function that rewrites the block in the CodegenPassUnit for the

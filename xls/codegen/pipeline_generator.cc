@@ -70,7 +70,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     pass_options.codegen_options.emit_as_pipeline(false);
   }
 
-  PassResults results;
+  CodegenPassResults results;
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
   XLS_RET_CHECK(unit.top_block != nullptr &&
@@ -122,7 +122,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     pass_options.codegen_options.emit_as_pipeline(false);
   }
 
-  PassResults results;
+  CodegenPassResults results;
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
   XLS_RET_CHECK(unit.top_block != nullptr &&

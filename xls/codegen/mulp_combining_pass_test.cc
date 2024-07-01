@@ -23,7 +23,6 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/passes/pass_base.h"
 
 namespace m = xls::op_matchers;
 namespace xls::verilog {
@@ -35,7 +34,7 @@ using testing::AllOf;
 class MulpCombiningPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Block* block) {
-    PassResults results;
+    CodegenPassResults results;
     CodegenPassUnit unit(block->package(), block);
     return MulpCombiningPass().Run(&unit, CodegenPassOptions(), &results);
   }

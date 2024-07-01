@@ -18,13 +18,12 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> CodegenWrapperPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   XLS_ASSIGN_OR_RETURN(
       bool res, wrapped_pass_->Run(unit->package,
                                    OptimizationPassOptions(options), results));

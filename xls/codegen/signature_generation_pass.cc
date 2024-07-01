@@ -21,13 +21,12 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   bool changed = false;
   VLOG(3) << absl::StreamFormat("Metadata has %d blocks",
                                 unit->metadata.size());

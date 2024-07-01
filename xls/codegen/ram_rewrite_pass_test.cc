@@ -300,7 +300,7 @@ TEST_P(RamRewritePassTest, PortsUpdated) {
       CodegenPassUnit unit,
       ScheduleAndBlockConvert(package.get(), codegen_options));
   auto pipeline = std::get<1>(GetParam());
-  PassResults results;
+  CodegenPassResults results;
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pipeline->Run(&unit, pass_options, &results));
 
@@ -422,7 +422,7 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
       CodegenPassUnit unit,
       ScheduleAndBlockConvert(package.get(), codegen_options));
   auto pipeline = std::get<1>(GetParam());
-  PassResults results;
+  CodegenPassResults results;
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pipeline->Run(&unit, pass_options, &results));
 
@@ -589,7 +589,7 @@ TEST_P(RamRewritePassTest, WriteCompletionRemoved) {
       CodegenPassUnit unit,
       ScheduleAndBlockConvert(package.get(), codegen_options));
   auto pipeline = std::get<1>(GetParam());
-  PassResults results;
+  CodegenPassResults results;
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pipeline->Run(&unit, pass_options, &results));
 

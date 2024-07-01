@@ -17,7 +17,6 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -32,7 +31,7 @@ class BlockStitchingPass : public CodegenPass {
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,
-                                   PassResults* results) const final;
+                                   CodegenPassResults* results) const final;
 };
 
 }  // namespace xls::verilog

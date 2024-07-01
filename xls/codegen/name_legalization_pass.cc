@@ -27,7 +27,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -342,7 +341,7 @@ absl::StatusOr<bool> LegalizeNames(Block* block, bool use_system_verilog) {
 
 absl::StatusOr<bool> NameLegalizationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   bool changed = false;
   for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
     XLS_ASSIGN_OR_RETURN(

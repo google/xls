@@ -36,7 +36,6 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -285,7 +284,7 @@ absl::StatusOr<Block*> InlineElaboration(const BlockElaboration& elab) {
 
 absl::StatusOr<bool> BlockInliningPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
-    PassResults* results) const {
+    CodegenPassResults* results) const {
   // No need to inline blocks when we don't have 2+ blocks.
   if (unit->package->blocks().size() < 2) {
     return false;
