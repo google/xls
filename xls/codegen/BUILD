@@ -951,6 +951,28 @@ cc_test(
 )
 
 cc_test(
+    name = "block_inlining_pass_test",
+    srcs = ["block_inlining_pass_test.cc"],
+    deps = [
+        ":block_inlining_pass",
+        ":codegen_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:foreign_function_data_cc_proto",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "port_legalization_pass_test",
     srcs = ["port_legalization_pass_test.cc"],
     deps = [
@@ -1489,6 +1511,27 @@ cc_library(
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "block_inlining_pass",
+    srcs = ["block_inlining_pass.cc"],
+    hdrs = ["block_inlining_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:block_elaboration",
+        "//xls/ir:register",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

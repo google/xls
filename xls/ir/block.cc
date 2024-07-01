@@ -112,7 +112,7 @@ static int64_t GetPortPosition(Node* n, const Block* block) {
     }
     i++;
   }
-  LOG(FATAL) << absl::StreamFormat("Node %s is not a port node", n->GetName());
+  LOG(FATAL) << absl::StreamFormat("Node %s is not a port node", n->ToString());
 }
 
 // Return the priority of a node for the purposes of dump order. Nodes with

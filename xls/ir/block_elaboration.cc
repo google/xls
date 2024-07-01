@@ -371,7 +371,7 @@ absl::Status ElaboratedNode::Accept(ElaboratedBlockDfsVisitor& visitor) const {
 
   visitor.UnsetTraversing(*this);
   visitor.MarkVisited(*this);
-  return VisitSingleNode(visitor);
+  XLS_RETURN_IF_ERROR(VisitSingleNode(visitor));
   VLOG(5) << "Traversed node: " << ToString();
   return absl::OkStatus();
 }
