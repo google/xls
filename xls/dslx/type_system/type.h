@@ -160,6 +160,14 @@ class TypeVisitor {
   virtual absl::Status HandleMeta(const MetaType& t) = 0;
 };
 
+// Indicates whether we should fully qualify types when converting them to
+// string -- this is useful when types are nominally the same but come from
+// different modules (e.g. MyStruct defined in both `a.x` and `b.x`).
+enum FullyQualify {
+  kNo,
+  kYes,
+};
+
 // Represents a 'concrete' (evaluated) type, as determined by evaluating a
 // TypeAnnotation in the AST.
 //
@@ -193,7 +201,23 @@ class Type {
   virtual bool operator==(const Type& other) const = 0;
   bool operator!=(const Type& other) const { return !(*this == other); }
 
-  virtual std::string ToString() const = 0;
+  // Returns a string representation of this type.
+  std::string ToString() const { return ToStringInternal(FullyQualify::kNo); }
+
+  // Returns a string representation of this type, but for nominal type
+  // entities, like structs and enums, prefixes the struct/enum name with the
+  // module in which it is defined.
+  //
+  // This can help disambiguate cases where the same struct name is used in
+  // different modules and they are not compatible with each other, we need to
+  // report a non-confusing error by qualifying which struct/enum we're
+  // referring to more precisely.
+  std::string ToStringFullyQualified() const {
+    return ToStringInternal(FullyQualify::kYes);
+  }
+
+  // Converts the type to a string with given `fully_qualify` mode request.
+  virtual std::string ToStringInternal(FullyQualify fully_qualify) const = 0;
 
   // Variation on `ToString()` to be used in user-facing error reporting.
   virtual std::string ToErrorString() const { return ToString(); }
@@ -289,9 +313,6 @@ class MetaType : public Type {
     return false;
   }
   std::string GetDebugTypeName() const override { return "meta-type"; }
-  std::string ToString() const override {
-    return absl::StrCat("typeof(", wrapped_->ToString(), ")");
-  }
 
   bool HasEnum() const override { return wrapped_->HasEnum(); }
   bool HasToken() const override { return wrapped_->HasToken(); }
@@ -310,6 +331,11 @@ class MetaType : public Type {
 
   const std::unique_ptr<Type>& wrapped() const { return wrapped_; }
   std::unique_ptr<Type>& wrapped() { return wrapped_; }
+
+  std::string ToStringInternal(FullyQualify fully_qualify) const override {
+    return absl::StrCat("typeof(", wrapped_->ToStringInternal(fully_qualify),
+                        ")");
+  }
 
  private:
   std::unique_ptr<Type> wrapped_;
@@ -332,7 +358,9 @@ class TokenType : public Type {
     return v.HandleToken(*this);
   }
   bool operator==(const Type& other) const override { return other.IsToken(); }
-  std::string ToString() const override { return "token"; }
+  std::string ToStringInternal(FullyQualify fully_qualify) const override {
+    return "token";
+  }
   std::vector<TypeDim> GetAllDims() const override { return {}; }
   absl::StatusOr<TypeDim> GetTotalBitCount() const override {
     return TypeDim(InterpValue::MakeU32(0));
@@ -367,7 +395,7 @@ class StructType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "struct"; }
@@ -452,7 +480,7 @@ class TupleType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "tuple"; }
@@ -495,7 +523,8 @@ class ArrayType : public Type {
  public:
   ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
       : element_type_(std::move(element_type)), size_(size) {
-    CHECK(!element_type_->IsMeta()) << element_type_->ToString();
+    CHECK(!element_type_->IsMeta())
+        << element_type_->ToStringInternal(FullyQualify::kNo);
   }
 
   absl::Status Accept(TypeVisitor& v) const override {
@@ -503,7 +532,7 @@ class ArrayType : public Type {
   }
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   bool HasEnum() const override { return element_type_->HasEnum(); }
@@ -541,7 +570,7 @@ class EnumType : public Type {
   }
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::vector<TypeDim> GetAllDims() const override;
   bool HasEnum() const override { return true; }
   bool HasToken() const override { return false; }
@@ -592,7 +621,7 @@ class BitsConstructorType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override;
   bool HasToken() const override;
@@ -646,7 +675,7 @@ class BitsType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override { return false; }
   bool HasToken() const override { return false; }
@@ -689,7 +718,7 @@ class FunctionType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleFunction(*this);
   }
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::string GetDebugTypeName() const override { return "function"; }
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
@@ -749,7 +778,7 @@ class ChannelType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleChannel(*this);
   }
-  std::string ToString() const override;
+  std::string ToStringInternal(FullyQualify fully_qualify) const override;
   std::string GetDebugTypeName() const override { return "channel"; }
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;

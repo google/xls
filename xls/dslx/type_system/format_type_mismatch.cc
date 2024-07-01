@@ -259,8 +259,18 @@ absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs,
 
   if (callbacks.match_count() == 0) {
     lines.push_back("Type mismatch:");
-    lines.push_back(absl::StrFormat("   %s", lhs.ToString()));
-    lines.push_back(absl::StrFormat("vs %s", rhs.ToString()));
+    std::string lhs_string = lhs.ToString();
+    std::string rhs_string = rhs.ToString();
+    // If the text of the LHS and RHS are identical (e.g. structs with the same
+    // names that are defined in different modules are the cause of the
+    // mismatch) we try to fully qualify type names in order to not give a
+    // confusing error message.
+    if (lhs_string == rhs_string) {
+      lhs_string = lhs.ToStringFullyQualified();
+      rhs_string = rhs.ToStringFullyQualified();
+    }
+    lines.push_back(absl::StrFormat("   %s", lhs_string));
+    lines.push_back(absl::StrFormat("vs %s", rhs_string));
   } else {
     lines.push_back(absl::StrFormat("%sMismatched elements %swithin%s type:",
                                     kAnsiReset, kAnsiBoldOn, kAnsiBoldOff));
