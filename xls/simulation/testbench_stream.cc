@@ -30,7 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/file/named_pipe.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"

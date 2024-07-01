@@ -65,7 +65,7 @@ cc_test(
     shard_count = 50,
     deps = [
         ":combinational_generator",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
@@ -119,118 +119,11 @@ cc_test(
 )
 
 cc_library(
-    name = "vast",
-    srcs = ["vast.cc"],
-    hdrs = ["vast.h"],
-    deps = [
-        ":module_signature_cc_proto",
-        "//xls/common:indent",
-        "//xls/common:visitor",
-        "//xls/common/status:status_macros",
-        "//xls/ir:bits",
-        "//xls/ir:bits_ops",
-        "//xls/ir:code_template",
-        "//xls/ir:format_preference",
-        "//xls/ir:source_location",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/log:die_if_null",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_library(
-    name = "infer_vast_types",
-    srcs = ["infer_vast_types.cc"],
-    hdrs = ["infer_vast_types.h"],
-    deps = [
-        ":fold_vast_constants",
-        ":vast",
-        "//xls/common/status:status_macros",
-        "//xls/ir:source_location",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "infer_vast_types_test",
-    srcs = ["infer_vast_types_test.cc"],
-    deps = [
-        ":infer_vast_types",
-        ":vast",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir:bits",
-        "//xls/ir:bits_ops",
-        "//xls/ir:format_preference",
-        "//xls/ir:number_parser",
-        "//xls/ir:source_location",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "fold_vast_constants",
-    srcs = ["fold_vast_constants.cc"],
-    hdrs = ["fold_vast_constants.h"],
-    deps = [
-        ":vast",
-        "//xls/common/status:status_macros",
-        "//xls/ir:bits",
-        "//xls/ir:format_preference",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/numeric:bits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "fold_vast_constants_test",
-    srcs = ["fold_vast_constants_test.cc"],
-    deps = [
-        ":fold_vast_constants",
-        ":vast",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/ir:bits",
-        "//xls/ir:bits_ops",
-        "//xls/ir:format_preference",
-        "//xls/ir:number_parser",
-        "//xls/ir:source_location",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "finite_state_machine",
     srcs = ["finite_state_machine.cc"],
     hdrs = ["finite_state_machine.h"],
     deps = [
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
@@ -248,30 +141,12 @@ cc_library(
 )
 
 cc_test(
-    name = "vast_test",
-    srcs = ["vast_test.cc"],
-    deps = [
-        ":vast",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir:bits",
-        "//xls/ir:format_preference",
-        "//xls/ir:number_parser",
-        "//xls/ir:source_location",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
     name = "finite_state_machine_test",
     srcs = ["finite_state_machine_test.cc"],
     data = glob(["testdata/finite_state_machine_test_*"]),
     deps = [
         ":finite_state_machine",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:source_location",
@@ -295,8 +170,8 @@ cc_library(
         ":module_signature",
         ":module_signature_cc_proto",
         ":name_to_bit_count",
-        ":vast",
         ":verilog_line_map_cc_proto",
+        "//xls/codegen/vast",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -348,7 +223,7 @@ cc_library(
     deps = [
         ":codegen_options",
         ":flattening",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -371,7 +246,7 @@ cc_library(
     srcs = ["flattening.cc"],
     hdrs = ["flattening.h"],
     deps = [
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -395,7 +270,7 @@ cc_library(
     srcs = ["lint_annotate.cc"],
     hdrs = ["lint_annotate.h"],
     deps = [
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/ir:source_location",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -412,7 +287,7 @@ cc_library(
         ":module_signature_cc_proto",
         ":node_expressions",
         ":node_representation",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -449,7 +324,7 @@ cc_library(
         ":codegen_wrapper_pass",
         ":concurrent_stage_groups",
         ":register_legalization_pass",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common:casts",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -671,8 +546,8 @@ cc_library(
         ":node_expressions",
         ":node_representation",
         ":op_override",
-        ":vast",
         ":verilog_line_map_cc_proto",
+        "//xls/codegen/vast",
         "//xls/common:casts",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -962,7 +837,7 @@ cc_test(
     srcs = ["flattening_test.cc"],
     deps = [
         ":flattening",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -983,7 +858,7 @@ cc_test(
     deps = [
         ":module_builder",
         ":module_signature_cc_proto",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -1343,7 +1218,7 @@ cc_library(
     hdrs = ["op_override.h"],
     deps = [
         ":node_representation",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/ir",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
@@ -1359,7 +1234,7 @@ cc_library(
         ":module_builder",
         ":node_representation",
         ":op_override",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -1378,7 +1253,7 @@ cc_library(
     srcs = [],
     hdrs = ["node_representation.h"],
     deps = [
-        ":vast",
+        "//xls/codegen/vast",
     ],
 )
 
@@ -1421,7 +1296,7 @@ cc_library(
     hdrs = ["ffi_instantiation_pass.h"],
     deps = [
         ":codegen_pass",
-        ":vast",
+        "//xls/codegen/vast",
         "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/ir",

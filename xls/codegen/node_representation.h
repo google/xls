@@ -17,7 +17,7 @@
 
 #include <variant>
 
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 
 namespace xls {
 

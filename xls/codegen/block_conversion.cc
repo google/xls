@@ -47,7 +47,7 @@
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/register_legalization_pass.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"

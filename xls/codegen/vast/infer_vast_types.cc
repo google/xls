@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/infer_vast_types.h"
+#include "xls/codegen/vast/infer_vast_types.h"
 
 #include <cstdint>
 #include <memory>
@@ -30,8 +30,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/codegen/fold_vast_constants.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/fold_vast_constants.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/source_location.h"
 

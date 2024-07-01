@@ -43,7 +43,7 @@
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/op_override.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"

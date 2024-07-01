@@ -29,7 +29,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/codegen/name_to_bit_count.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/ir/bits.h"
 #include "xls/tools/verilog_include.h"
 

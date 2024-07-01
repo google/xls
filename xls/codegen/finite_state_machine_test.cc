@@ -18,7 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/source_location.h"
 #include "xls/simulation/verilog_test_base.h"

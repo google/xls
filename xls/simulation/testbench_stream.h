@@ -25,7 +25,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/file/named_pipe.h"
 #include "xls/common/thread.h"
 #include "xls/ir/bits.h"

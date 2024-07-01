@@ -22,7 +22,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/node_representation.h"
-#include "xls/codegen/vast.h"
 #include "xls/ir/node.h"
 
 namespace xls::verilog {

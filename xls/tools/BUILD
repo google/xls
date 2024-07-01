@@ -1245,7 +1245,7 @@ cc_binary(
         ":eval_utils",
         "//xls/codegen:module_signature",
         "//xls/codegen:module_signature_cc_proto",
-        "//xls/codegen:vast",
+        "//xls/codegen/vast",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",

@@ -35,7 +35,7 @@
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/op_override.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"

@@ -22,7 +22,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"

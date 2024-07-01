@@ -26,7 +26,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/signature_generator.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"

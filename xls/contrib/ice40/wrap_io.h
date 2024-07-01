@@ -20,7 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/contrib/ice40/io_strategy.h"
 
 namespace xls {

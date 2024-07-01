@@ -209,7 +209,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/codegen:vast",
+        "//xls/codegen/vast",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",

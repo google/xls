@@ -36,7 +36,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/codegen:vast",
+        "//xls/codegen/vast",
         "//xls/common:module_initializer",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",

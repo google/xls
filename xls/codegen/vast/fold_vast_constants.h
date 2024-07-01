@@ -19,7 +19,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 
 namespace xls {
 namespace verilog {

@@ -239,7 +239,7 @@ cc_test(
         "//xls/codegen:codegen_pass",
         "//xls/codegen:module_signature",
         "//xls/codegen:signature_generator",
-        "//xls/codegen:vast",
+        "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:cc_parser",
@@ -409,7 +409,7 @@ xls_ac_fuzz_binaries(
     test_ac_int = True,
     deps = [
         "//xls/codegen:codegen_options",
-        "//xls/codegen:vast",
+        "//xls/codegen/vast",
         "//xls/common:source_location",
         "//xls/ir:bits",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -426,7 +426,7 @@ xls_ac_fuzz_binaries(
     test_ac_int = False,
     deps = [
         "//xls/codegen:codegen_options",
-        "//xls/codegen:vast",
+        "//xls/codegen/vast",
         "//xls/common:source_location",
         "//xls/ir:bits",
         "@com_google_absl//absl/container:flat_hash_map",

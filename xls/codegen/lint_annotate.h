@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "absl/strings/str_format.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 
 namespace xls::verilog {
 

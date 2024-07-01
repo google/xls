@@ -23,7 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/vast.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/ice40/ice40_io_strategy.h"
 #include "xls/contrib/ice40/null_io_strategy.h"
