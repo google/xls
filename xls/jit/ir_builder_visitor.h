@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/Module.h"
 #include "llvm/include/llvm/IR/Value.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
