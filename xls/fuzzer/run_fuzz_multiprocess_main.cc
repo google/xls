@@ -34,6 +34,8 @@
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/run_fuzz_multiprocess.h"
 #include "xls/fuzzer/sample.h"
+#include "xls/fuzzer/sample.pb.h"
+#include "xls/fuzzer/sample.pb.h"
 
 ABSL_FLAG(absl::Duration, duration, absl::InfiniteDuration(),
           "Duration to run the sample generator for.");

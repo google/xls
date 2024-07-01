@@ -390,8 +390,6 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
-        "@z3//:api",
     ],
 )
 
@@ -1166,6 +1164,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:xls_ir_interface_cc_proto",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",

@@ -21,6 +21,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.h"
+#include "xls/fuzzer/sample.pb.h"
 
 namespace xls {
 namespace {

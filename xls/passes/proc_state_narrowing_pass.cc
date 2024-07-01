@@ -14,7 +14,6 @@
 
 #include "xls/passes/proc_state_narrowing_pass.h"
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <iterator>

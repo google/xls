@@ -64,7 +64,6 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/foreign_function.h"
-#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/lsb_or_msb.h"

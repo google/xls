@@ -36,9 +36,6 @@ cc_library(
     ],
     deps = [
         ":ir",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
         "//xls/codegen:module_signature",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
@@ -60,6 +57,9 @@ cc_library(
         "//xls/tools:opt",
         "//xls/tools:proto_to_dslx",
         "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -126,8 +126,8 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl:app",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl:app",
     ],
 )
 
@@ -147,8 +147,8 @@ cc_library(
     hdrs = ["ir_parser.h"],
     deps = [
         ":ir",
-        "@com_google_absl//absl/status:statusor",
         "//xls/ir:ir_parser",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -158,14 +158,18 @@ cc_library(
     hdrs = ["c_api.h"],
     deps = [
         ":runtime_build_actions",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:init_xls",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:events",
+        "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
+        "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -174,12 +178,12 @@ cc_test(
     srcs = ["c_api_test.cc"],
     deps = [
         ":c_api",
-        "@com_google_absl//absl/cleanup",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
+        "@com_google_absl//absl/cleanup",
         "@com_google_googletest//:gtest",
     ],
 )

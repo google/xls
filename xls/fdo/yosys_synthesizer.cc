@@ -27,6 +27,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/synthesis/synthesis.pb.h"
+#include "xls/synthesis/synthesis.pb.h"
 
 namespace xls {
 namespace synthesis {

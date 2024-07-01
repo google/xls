@@ -400,7 +400,6 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -728,7 +727,6 @@ cc_test(
     srcs = ["block_jit_test.cc"],
     deps = [
         ":block_jit",
-        ":jit_runtime",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:block_evaluator_test_base",

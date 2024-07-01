@@ -31,10 +31,6 @@ cc_library(
         "integration_algorithm_implementation.h",
     ],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/contrib/integrator:integration_options",
@@ -42,6 +38,10 @@ cc_library(
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -49,10 +49,10 @@ cc_test(
     name = "basic_integration_algorithm_test",
     srcs = ["basic_integration_algorithm_test.cc"],
     deps = [
-        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/integrator:integration_builder",
+        "//xls/contrib/integrator:integration_options",
         "//xls/contrib/integrator:ir_integrator",
         "//xls/ir",
         "//xls/ir:bits",
@@ -60,5 +60,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:verifier",
+        "@com_google_googletest//:gtest",
     ],
 )

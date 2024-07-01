@@ -19,6 +19,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <functional>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>

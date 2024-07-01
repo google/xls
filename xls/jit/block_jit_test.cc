@@ -28,7 +28,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
-#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 namespace {

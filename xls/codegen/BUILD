@@ -1226,7 +1226,6 @@ cc_library(
     hdrs = ["op_override.h"],
     deps = [
         ":node_representation",
-        "//xls/codegen/vast",
         "//xls/ir",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",

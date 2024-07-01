@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/str_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
@@ -31,6 +32,9 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {

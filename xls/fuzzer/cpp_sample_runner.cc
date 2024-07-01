@@ -15,6 +15,7 @@
 #include "xls/fuzzer/cpp_sample_runner.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
@@ -28,6 +29,15 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/format_preference.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/ir/value.h"
 
 namespace xls {

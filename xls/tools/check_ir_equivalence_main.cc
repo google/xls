@@ -28,7 +28,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -47,7 +46,6 @@
 #include "xls/passes/unroll_pass.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "external/z3/src/api/z3_api.h"
 
 static constexpr std::string_view kUsage = R"(
 Verifies that the two provided XLS IR files are logically equivalent; that is,

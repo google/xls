@@ -22,7 +22,6 @@
 #include <sstream>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/container/btree_set.h"
@@ -45,7 +44,6 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"

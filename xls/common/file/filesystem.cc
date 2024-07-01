@@ -14,6 +14,13 @@
 
 #include "xls/common/file/filesystem.h"
 
+// portable location of PATH_MAX
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 1
+#endif
+#include <limits.h>
+
+// Other system headers
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>

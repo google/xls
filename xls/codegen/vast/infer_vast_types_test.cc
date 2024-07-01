@@ -21,6 +21,9 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
