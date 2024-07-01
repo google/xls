@@ -970,6 +970,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       (node->Is<OneHotSelect>() || node->Is<PrioritySelect>())) {
     Node* selector;
     absl::Span<Node* const> cases;
+    std::optional<Node*> default_value = std::nullopt;
     if (node->Is<OneHotSelect>()) {
       selector = node->As<OneHotSelect>()->selector();
       cases = node->As<OneHotSelect>()->cases();
@@ -977,17 +978,21 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       XLS_RET_CHECK(node->Is<PrioritySelect>());
       selector = node->As<PrioritySelect>()->selector();
       cases = node->As<PrioritySelect>()->cases();
+      default_value = node->As<PrioritySelect>()->default_value();
     }
     auto is_single_user_matching_select = [select_op = node->op()](Node* n) {
       return n->op() == select_op && HasSingleUse(n);
     };
     if (std::any_of(cases.begin(), cases.end(),
-                    is_single_user_matching_select)) {
+                    is_single_user_matching_select) ||
+        (default_value.has_value() &&
+         is_single_user_matching_select(*default_value))) {
       // Cases for the replacement one-hot-select.
       std::vector<Node*> new_cases;
       // Pieces of the selector for the replacement one-hot-select. These are
       // concatted together.
       std::vector<Node*> new_selector_parts;
+      std::optional<Node*> new_default_value = default_value;
       // When iterating through the cases to perform this optimization, cases
       // which are to remain unmodified (ie, not a single-use one-hot-select)
       // are passed over. This lambda gathers the passed over cases and
@@ -995,12 +1000,18 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       int64_t unhandled_selector_bits = 0;
       auto add_unhandled_selector_bits = [&](int64_t index) -> absl::Status {
         if (unhandled_selector_bits != 0) {
-          XLS_ASSIGN_OR_RETURN(Node * selector_part,
-                               node->function_base()->MakeNode<BitSlice>(
-                                   node->loc(), selector,
-                                   /*start=*/index - unhandled_selector_bits,
-                                   /*width=*/
-                                   unhandled_selector_bits));
+          Node* selector_part;
+          if (index == selector->BitCountOrDie() &&
+              unhandled_selector_bits == selector->BitCountOrDie()) {
+            selector_part = selector;
+          } else {
+            XLS_ASSIGN_OR_RETURN(selector_part,
+                                 node->function_base()->MakeNode<BitSlice>(
+                                     node->loc(), selector,
+                                     /*start=*/index - unhandled_selector_bits,
+                                     /*width=*/
+                                     unhandled_selector_bits));
+          }
           new_selector_parts.push_back(selector_part);
           for (int64_t i = index - unhandled_selector_bits; i < index; ++i) {
             new_cases.push_back(cases[i]);
@@ -1014,6 +1025,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         if (is_single_user_matching_select(cases[i])) {
           Node* operand_selector;
           absl::Span<Node* const> operand_cases;
+          std::optional<Node*> operand_default_value = std::nullopt;
           if (cases[i]->Is<OneHotSelect>()) {
             operand_selector = cases[i]->As<OneHotSelect>()->selector();
             operand_cases = cases[i]->As<OneHotSelect>()->cases();
@@ -1021,6 +1033,8 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
             XLS_RET_CHECK(cases[i]->Is<PrioritySelect>());
             operand_selector = cases[i]->As<PrioritySelect>()->selector();
             operand_cases = cases[i]->As<PrioritySelect>()->cases();
+            operand_default_value =
+                cases[i]->As<PrioritySelect>()->default_value();
           }
           XLS_RETURN_IF_ERROR(add_unhandled_selector_bits(i));
           // The selector bits for the predecessor bit-select need to be
@@ -1054,9 +1068,9 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                   Op::kAnd));
           new_selector_parts.push_back(masked_selector);
           absl::c_copy(operand_cases, std::back_inserter(new_cases));
-          if (node->Is<PrioritySelect>()) {
+          if (operand_default_value.has_value()) {
             // We also need to handle the scenario where this case is
-            // selected, but the case evaluates to its default value (zero).
+            // selected, but the case evaluates to its default value.
             Node* operand_selector_is_zero;
             if (operand_selector->BitCountOrDie() == 1) {
               XLS_ASSIGN_OR_RETURN(
@@ -1081,20 +1095,41 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                     std::vector<Node*>{selector_bit, operand_selector_is_zero},
                     Op::kAnd));
             new_selector_parts.push_back(masked_operand_selector_is_zero);
-            new_cases.push_back(
-                cases[i]->As<PrioritySelect>()->default_value());
+            new_cases.push_back(*operand_default_value);
           }
         } else {
           unhandled_selector_bits++;
         }
       }
       XLS_RETURN_IF_ERROR(add_unhandled_selector_bits(cases.size()));
+      if (default_value.has_value() &&
+          is_single_user_matching_select(*default_value)) {
+        Node* operand_selector;
+        absl::Span<Node* const> operand_cases;
+        std::optional<Node*> operand_default_value = std::nullopt;
+        if (default_value.value()->Is<OneHotSelect>()) {
+          operand_selector =
+              default_value.value()->As<OneHotSelect>()->selector();
+          operand_cases = default_value.value()->As<OneHotSelect>()->cases();
+        } else {
+          XLS_RET_CHECK(default_value.value()->Is<PrioritySelect>());
+          operand_selector =
+              default_value.value()->As<PrioritySelect>()->selector();
+          operand_cases = default_value.value()->As<PrioritySelect>()->cases();
+          operand_default_value =
+              default_value.value()->As<PrioritySelect>()->default_value();
+        }
+        new_selector_parts.push_back(operand_selector);
+        absl::c_copy(operand_cases, std::back_inserter(new_cases));
+        new_default_value = operand_default_value;
+      }
       // Reverse selector parts because concat operand zero is the msb.
       std::reverse(new_selector_parts.begin(), new_selector_parts.end());
       XLS_ASSIGN_OR_RETURN(Node * new_selector,
                            node->function_base()->MakeNode<Concat>(
                                node->loc(), new_selector_parts));
       if (node->Is<OneHotSelect>()) {
+        XLS_RET_CHECK(!new_default_value.has_value());
         VLOG(2) << absl::StrFormat("Merging consecutive one-hot-selects: %s",
                                    node->ToString());
         XLS_RETURN_IF_ERROR(
@@ -1102,11 +1137,11 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                 .status());
       } else {
         XLS_RET_CHECK(node->Is<PrioritySelect>());
+        XLS_RET_CHECK(new_default_value.has_value());
         VLOG(2) << absl::StrFormat("Merging consecutive priority-selects: %s",
                                    node->ToString());
         XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<PrioritySelect>(
-                                    new_selector, new_cases,
-                                    node->As<PrioritySelect>()->default_value())
+                                    new_selector, new_cases, *new_default_value)
                                 .status());
       }
       return true;
@@ -1200,6 +1235,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                cases[nonremovable_indices.back()] ==
                    node->As<PrioritySelect>()->default_value()) {
           nonremovable_indices.pop_back();
+          has_removable_case = true;
         }
       }
       if (!SplitsEnabled(opt_level) && !nonremovable_indices.empty() &&
