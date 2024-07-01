@@ -132,5 +132,6 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "//xls/ir:value_view",
     ],
 )

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>  // NOLINT
 #include <string>
 #include <vector>
 
@@ -20,6 +21,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"

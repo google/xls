@@ -28,6 +28,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"

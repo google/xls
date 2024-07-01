@@ -53,6 +53,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/contrib/integrator:integration_builder",
+        "//xls/contrib/integrator:integration_options",
         "//xls/contrib/integrator:ir_integrator",
         "//xls/ir",
         "//xls/ir:bits",

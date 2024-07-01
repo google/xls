@@ -23,6 +23,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/ir/value_view.h"
 #include "xls/tests/jit_wrapper/fail_on_42.h"
 #include "xls/tests/jit_wrapper/identity.h"
 #include "xls/tests/jit_wrapper/is_inf.h"

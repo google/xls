@@ -334,6 +334,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/ir:type",
         "//xls/ir:verifier",
     ],
 )
@@ -352,6 +353,7 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:source_location",
+        "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
     ],
@@ -371,6 +373,7 @@ cc_test(
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:channel_ops",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",

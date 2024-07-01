@@ -21,7 +21,9 @@
 //  - Output in formats other than DSLX.
 //
 // These will be added when/if needed.
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <optional>

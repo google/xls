@@ -48,6 +48,7 @@ cc_test(
         "//xls/interpreter:interpreter_proc_runtime",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:bits",
+        "//xls/ir:channel",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
     ],

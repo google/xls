@@ -439,7 +439,6 @@ cc_library(
         ":value",
         ":xls_type_cc_proto",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/container:node_hash_map",

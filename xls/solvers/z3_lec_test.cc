@@ -18,15 +18,20 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/fake_cell_library.h"
 #include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist_parser.h"
+#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace solvers {

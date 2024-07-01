@@ -97,6 +97,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "//xls/codegen:module_signature",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <list>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -27,7 +28,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -52,7 +52,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "xls/ir/xls_type.pb.h"
 
 namespace xls {
 

@@ -228,6 +228,7 @@ cc_test(
     srcs = ["z3_lec_test.cc"],
     deps = [
         ":z3_lec",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -238,6 +239,8 @@ cc_test(
         "//xls/netlist:cell_library",
         "//xls/netlist:fake_cell_library",
         "//xls/netlist:netlist_parser",
+        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -252,6 +255,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -309,6 +313,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
         "//xls/ir:type",
         "//xls/ir:value",
         "@z3//:api",

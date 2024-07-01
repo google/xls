@@ -20,16 +20,19 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/time/time.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
+#include "xls/fuzzer/sample.h"
 
 namespace xls {
 namespace {

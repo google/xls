@@ -35,6 +35,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/type.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {

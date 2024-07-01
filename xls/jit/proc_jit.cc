@@ -43,6 +43,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"

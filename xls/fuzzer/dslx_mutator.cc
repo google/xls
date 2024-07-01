@@ -19,10 +19,13 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/frontend/token.h"
 
 using absl::InvalidArgumentError;
 using absl::StatusOr;

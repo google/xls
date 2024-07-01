@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/integrator/integration_builder.h"
+#include "xls/contrib/integrator/integration_options.h"
 #include "xls/contrib/integrator/ir_integrator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_matcher.h"

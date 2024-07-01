@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <poll.h>  // IWYU pragma: keep
 #include <spawn.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 

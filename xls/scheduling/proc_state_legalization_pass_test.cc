@@ -14,7 +14,6 @@
 
 #include "xls/scheduling/proc_state_legalization_pass.h"
 
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

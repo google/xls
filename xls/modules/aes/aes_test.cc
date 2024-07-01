@@ -16,17 +16,20 @@
 #include "openssl/aes.h"
 
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <ostream>
 #include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"

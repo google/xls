@@ -159,12 +159,16 @@ cc_library(
     deps = [
         ":runtime_build_actions",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common:init_xls",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:events",
+        "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
+        "//xls/ir:type",
         "//xls/ir:value",
     ],
 )

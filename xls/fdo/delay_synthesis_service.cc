@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "grpcpp/server_context.h"
 #include "grpcpp/support/status.h"
+#include "xls/synthesis/synthesis.pb.h"
 
 namespace xls {
 namespace synthesis {

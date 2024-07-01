@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

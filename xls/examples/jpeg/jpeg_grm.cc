@@ -15,6 +15,7 @@
 #include "xls/examples/jpeg/jpeg_grm.h"
 
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -30,10 +31,13 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/jpeg/constants.h"
 #include "xls/examples/jpeg/idct_chen_jit_wrapper.h"
+#include "xls/examples/jpeg/streams.h"
+#include "xls/ir/value_view.h"
 
 namespace xls::jpeg {
 namespace internal {

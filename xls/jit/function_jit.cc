@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -41,6 +40,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/jit/aot_compiler.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"

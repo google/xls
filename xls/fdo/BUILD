@@ -166,6 +166,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/scheduling:scheduling_options",
+        "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis/yosys:yosys_synthesis_service",
     ],
     alwayslink = True,  # Always link because it has a module-level initialization that registers the synthesizer.
@@ -215,6 +216,7 @@ cc_library(
     deps = [
         ":synthesizer",
         "@com_google_absl//absl/status:statusor",
+        "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
         "//xls/synthesis:synthesis_service_cc_proto",
         "@com_github_grpc_grpc//:grpc++_public_hdrs",

@@ -31,6 +31,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "external/z3/src/api/z3_api.h"

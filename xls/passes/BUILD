@@ -1551,7 +1551,6 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:ternary",
         "//xls/ir:value",
-        "//xls/ir:value_utils",
     ],
 )
 
