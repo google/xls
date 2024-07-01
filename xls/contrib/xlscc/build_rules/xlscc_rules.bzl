@@ -291,7 +291,7 @@ def _xls_cc_ir_impl(ctx):
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "{} {} --block_pb {} {} {} {} {} 2>&1 >{} | tee {}".format(
+        command = "set -o pipefail; {} {} --block_pb {} {} {} {} {} 2>&1 >{} | tee {}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,
             block_pb,
