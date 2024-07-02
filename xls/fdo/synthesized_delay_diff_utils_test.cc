@@ -134,6 +134,17 @@ TEST_F(SynthesizedDelayDiffUtilsTest, CreateDelayDiffByStage) {
   EXPECT_EQ(diff.stage_percent_diffs[2].synthesized_percent, 25.0);
 }
 
+TEST_F(SynthesizedDelayDiffUtilsTest, CreateDelayDiffForSpecifiedStage) {
+  synthesizer_.SetBaseDelay(42);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      SynthesizedDelayDiff diff,
+      CreateDelayDiffForStage(f_, *schedule_, delay_estimator_, &synthesizer_,
+                              1));
+  EXPECT_EQ(diff.critical_path.size(), 2);
+  EXPECT_EQ(diff.synthesized_delay_ps, 126);
+  EXPECT_EQ(diff.xls_delay_ps, 1);
+}
+
 TEST_F(SynthesizedDelayDiffUtilsTest, CreateDelayDiffByStageWithoutSynthesis) {
   XLS_ASSERT_OK_AND_ASSIGN(
       SynthesizedDelayDiffByStage diff,

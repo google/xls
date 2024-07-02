@@ -93,33 +93,41 @@ absl::StatusOr<SynthesizedDelayDiff> SynthesizeAndGetDelayDiff(
   };
 }
 
+absl::StatusOr<SynthesizedDelayDiff> CreateDelayDiffForStage(
+    FunctionBase* f, const PipelineSchedule& schedule,
+    const DelayEstimator& delay_estimator, synthesis::Synthesizer* synthesizer,
+    int stage) {
+  XLS_ASSIGN_OR_RETURN(Function * stage_function,
+                       ExtractStage(f, schedule, stage));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<CriticalPathEntry> critical_path,
+      AnalyzeCriticalPath(stage_function, /*clock_period_ps=*/std::nullopt,
+                          delay_estimator));
+  if (synthesizer) {
+    return SynthesizeAndGetDelayDiff(stage_function, std::move(critical_path),
+                                     synthesizer);
+  }
+  SynthesizedDelayDiff diff;
+  diff.xls_delay_ps =
+      critical_path.empty() ? 0 : critical_path[0].path_delay_ps;
+  diff.critical_path = std::move(critical_path);
+  return diff;
+}
+
 absl::StatusOr<SynthesizedDelayDiffByStage> CreateDelayDiffByStage(
     FunctionBase* f, const PipelineSchedule& schedule,
     const DelayEstimator& delay_estimator,
     synthesis::Synthesizer* synthesizer) {
   SynthesizedDelayDiffByStage result;
-  result.stage_diffs.resize(schedule.length());
+  result.stage_diffs.reserve(schedule.length());
   result.stage_percent_diffs.resize(schedule.length());
   for (int i = 0; i < schedule.length(); ++i) {
-    SynthesizedDelayDiff& stage_diff = result.stage_diffs[i];
-    XLS_ASSIGN_OR_RETURN(Function * stage_function,
-                         ExtractStage(f, schedule, i));
     XLS_ASSIGN_OR_RETURN(
-        std::vector<CriticalPathEntry> critical_path,
-        AnalyzeCriticalPath(stage_function, /*clock_period_ps=*/std::nullopt,
-                            delay_estimator));
-    if (synthesizer) {
-      XLS_ASSIGN_OR_RETURN(
-          stage_diff,
-          SynthesizeAndGetDelayDiff(stage_function, std::move(critical_path),
-                                    synthesizer));
-    } else {
-      stage_diff.xls_delay_ps =
-          critical_path.empty() ? 0 : critical_path[0].path_delay_ps;
-      stage_diff.critical_path = std::move(critical_path);
-    }
+        SynthesizedDelayDiff stage_diff,
+        CreateDelayDiffForStage(f, schedule, delay_estimator, synthesizer, i));
     result.total_diff.synthesized_delay_ps += stage_diff.synthesized_delay_ps;
     result.total_diff.xls_delay_ps += stage_diff.xls_delay_ps;
+    result.stage_diffs.emplace_back(std::move(stage_diff));
   }
   for (int i = 0; i < schedule.length(); ++i) {
     const SynthesizedDelayDiff& stage_diff = result.stage_diffs[i];

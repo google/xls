@@ -71,6 +71,12 @@ absl::StatusOr<SynthesizedDelayDiff> SynthesizeAndGetDelayDiff(
     FunctionBase* f, std::vector<CriticalPathEntry> critical_path,
     synthesis::Synthesizer* synthesizer);
 
+// Creates a delay diff for one specified, zero-based stage of `f`.
+absl::StatusOr<SynthesizedDelayDiff> CreateDelayDiffForStage(
+    FunctionBase* f, const PipelineSchedule& schedule,
+    const DelayEstimator& delay_estimator, synthesis::Synthesizer* synthesizer,
+    int stage);
+
 // Creates a staged delay diff for all the stages in `f`, populating the XLS
 // delay values and critical paths using `delay_estimator`. If `synthesizer` is
 // non-null, this function also synthesizes each stage and populates the

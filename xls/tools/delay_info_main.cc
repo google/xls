@@ -84,6 +84,8 @@ ABSL_FLAG(int, abs_delay_diff_min_ps, 0,
           "enables use of delay_info_main as a helper for ir_minimizer_main, "
           "to find the minimal IR exhibiting a minimum difference. "
           "`compare_to_synthesis` must also be true.");
+ABSL_FLAG(std::optional<int>, stage, std::nullopt,
+          "Only analyze the specified, zero-based stage of the pipeline.");
 
 namespace xls::tools {
 namespace {
@@ -141,19 +143,40 @@ absl::Status RealMain(std::string_view input_path) {
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                          PipelineSchedule::FromProto(top, proto));
     XLS_RETURN_IF_ERROR(schedule.Verify());
-    XLS_ASSIGN_OR_RETURN(
-        synthesis::SynthesizedDelayDiffByStage delay_diff,
-        synthesis::CreateDelayDiffByStage(top, schedule, *delay_estimator,
-                                          synthesizer.get()));
-    total_diff = delay_diff.total_diff;
+    std::optional<synthesis::SynthesizedDelayDiffByStage> diff_by_stage;
+    std::optional<int> requested_stage = absl::GetFlag(FLAGS_stage);
+    if (requested_stage.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          total_diff,
+          CreateDelayDiffForStage(top, schedule, *delay_estimator,
+                                  synthesizer.get(), *requested_stage));
+    } else {
+      XLS_ASSIGN_OR_RETURN(diff_by_stage, synthesis::CreateDelayDiffByStage(
+                                              top, schedule, *delay_estimator,
+                                              synthesizer.get()));
+      total_diff = diff_by_stage->total_diff;
+    }
     for (int64_t i = 0; i < schedule.length(); ++i) {
+      if (requested_stage.has_value() && i != *requested_stage) {
+        continue;
+      }
       std::cout << absl::StrFormat("# Critical path for stage %d:\n", i);
-      if (synthesizer) {
+      if (requested_stage.has_value()) {
+        // If a particular stage was specified by the user, `total_diff` is for
+        // that stage.
+        std::cout << (synthesizer
+                          ? SynthesizedDelayDiffToString(*total_diff)
+                          : CriticalPathToString(total_diff->critical_path));
+      } else if (synthesizer) {
+        // `compare_to_synthesis` for all stages. Here we include the difference
+        // in weighting of stages between the delay model and synthesis.
         std::cout << SynthesizedStageDelayDiffToString(
-            delay_diff.stage_diffs[i], delay_diff.stage_percent_diffs[i]);
+            diff_by_stage->stage_diffs[i],
+            diff_by_stage->stage_percent_diffs[i]);
       } else {
+        // Plain output for all stages without `compare_to_synthesis`.
         std::cout << CriticalPathToString(
-            delay_diff.stage_diffs[i].critical_path);
+            diff_by_stage->stage_diffs[i].critical_path);
       }
       std::cout << "\n";
     }
