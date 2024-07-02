@@ -21,8 +21,14 @@
 // IWYU pragma: begin_exports
 #include "xls/ir/fileno.h"  // IWYU pragma: keep
 #include "xls/ir/function_builder.h"
+
+// Detailed definitions not desired in public header,
+// they should be considered opaque by user.
+// Thus only as forward declaration to use pointers.
 namespace xls {
 class Bits;           // IWYU pragma: keep
+class UBits;          // IWYU pragma: keep
+class BitsType;       // IWYU pragma: keep
 enum class LsbOrMsb;  // IWYU pragma: keep
 struct SourceInfo;    // IWYU pragma: keep
 class Type;           // IWYU pragma: keep
