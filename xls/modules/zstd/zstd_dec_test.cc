@@ -54,7 +54,7 @@ class ZstdDecodedPacket {
     return ZstdDecodedPacket(data, length, last);
   }
 
-  std::vector<uint8_t> GetData() { return data; }
+  std::vector<uint8_t> &GetData() { return data; }
 
   uint64_t GetLength() { return length; }
 
