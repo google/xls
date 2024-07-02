@@ -420,6 +420,15 @@ pub fn ceil<EXP_SZ: u32, FRACTION_SZ: u32>
 
 Finds the nearest integral `APFloat` greater than or equal to `f`.
 
+### `apfloat::floor`
+
+```dslx-snippet
+pub fn floor<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Finds the nearest integral `APFloat` lesser than or equal to `f`.
+
 #### Implementation details
 
 Floating-point addition, like any FP operation, is much more complicated than

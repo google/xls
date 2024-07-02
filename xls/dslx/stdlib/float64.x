@@ -175,3 +175,5 @@ pub fn has_fractional_part(f: F64) -> bool { apfloat::has_fractional_part(f) }
 pub fn has_negative_exponent(f: F64) -> bool { apfloat::has_negative_exponent(f) }
 
 pub fn ceil(f: F64) -> F64 { apfloat::ceil(f) }
+
+pub fn floor(f: F64) -> F64 { apfloat::floor(f) }
