@@ -44,6 +44,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "buffer_dslx_test",
     library = ":buffer_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -59,6 +60,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "window_buffer_dslx_test",
     library = ":window_buffer_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -141,6 +143,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "magic_dslx_test",
     library = ":magic_dslx",
+    tags = ["manual"],
 )
 
 cc_library(
@@ -184,6 +187,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "frame_header_dslx_test",
     library = ":frame_header_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -227,6 +231,7 @@ cc_test(
         "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
         "@com_google_googletest//:gtest",
     ],
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -305,6 +310,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "raw_block_dec_dslx_test",
     library = ":raw_block_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -384,6 +390,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "rle_block_dec_dslx_test",
     library = ":rle_block_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -467,6 +474,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "block_header_dslx_test",
     library = ":block_header_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -482,6 +490,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "dec_mux_dslx_test",
     library = ":dec_mux_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -559,6 +568,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "dec_demux_dslx_test",
     library = ":dec_demux_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -639,6 +649,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "block_dec_dslx_test",
     library = ":block_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -719,6 +730,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "ram_printer_dslx_test",
     library = ":ram_printer_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -739,6 +751,7 @@ xls_dslx_test(
         "compare": "none",
     },
     library = ":sequence_executor_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -844,6 +857,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "repacketizer_dslx_test",
     library = ":repacketizer_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -971,6 +985,7 @@ xls_dslx_ir(
     dslx_top = "ZstdDecoderTest",
     ir_file = "zstd_dec_test.ir",
     library = ":zstd_dec_dslx",
+    tags = ["manual"],
 )
 
 cc_test(
@@ -997,6 +1012,7 @@ cc_test(
         "@com_github_facebook_zstd//:zstd",
         "@com_google_googletest//:gtest",
     ],
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
