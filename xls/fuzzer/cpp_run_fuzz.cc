@@ -17,11 +17,9 @@
 #include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -47,19 +45,6 @@ absl::StatusOr<std::filesystem::path> GetSampleRunnerMainPath() {
 
 absl::StatusOr<std::filesystem::path> GetFindFailingInputMainPath() {
   return GetXlsRunfilePath("xls/fuzzer/find_failing_input_main");
-}
-
-// Writes the content into a file of the given name in the directory.
-absl::Status WriteToFile(const std::filesystem::path& dir_path,
-                         std::string_view filename, std::string_view content,
-                         bool executable = false) {
-  std::filesystem::path path = dir_path / filename;
-  XLS_RETURN_IF_ERROR(SetFileContents(path, content));
-  if (executable) {
-    std::filesystem::permissions(path, std::filesystem::perms::owner_exec,
-                                 std::filesystem::perm_options::add);
-  }
-  return absl::OkStatus();
 }
 
 }  // namespace
