@@ -1,5 +1,5 @@
 diff --git tests/decodecorpus.c tests/decodecorpus.c
-index 50935d31..269bca86 100644
+index 50935d31..c529fbfe 100644
 --- tests/decodecorpus.c
 +++ tests/decodecorpus.c
 @@ -240,6 +240,12 @@ typedef enum {
@@ -28,16 +28,27 @@ index 50935d31..269bca86 100644
 
  /* Generate and write a random frame header */
  static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
-@@ -285,7 +295,7 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+@@ -281,10 +291,19 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+
+     {
+         /* Generate random content size */
++        int force_block_type = opts.blockType != NULL;
+         size_t highBit;
          if (RAND(seed) & 7 && g_maxDecompressedSizeLog > 7) {
              /* do content of at least 128 bytes */
              highBit = 1ULL << RAND_range(seed, 7, g_maxDecompressedSizeLog);
--        } else if (RAND(seed) & 3) {
-+        } else if ((RAND(seed) & 3) || (*(opts.blockType) == bt_rle)) {
++        } else if (force_block_type) {
++            if ((RAND(seed) & 3) || (*(opts.blockType) == bt_rle)) {
++                /* do small content */
++                highBit = 1ULL << RAND_range(seed, 0, MIN(7, 1U << g_maxDecompressedSizeLog));
++            } else {
++                /* 0 size frame */
++                highBit = 0;
++            }
+         } else if (RAND(seed) & 3) {
              /* do small content */
              highBit = 1ULL << RAND_range(seed, 0, MIN(7, 1U << g_maxDecompressedSizeLog));
-         } else {
-@@ -317,8 +327,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+@@ -317,8 +336,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
      }
 
      /* write out the header */
@@ -50,7 +61,7 @@ index 50935d31..269bca86 100644
 
      {
          /*
-@@ -363,8 +375,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+@@ -363,8 +384,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
  /* Write a literal block in either raw or RLE form, return the literals size */
  static size_t writeLiteralsBlockSimple(U32* seed, frame_t* frame, size_t contentSize)
  {
@@ -62,7 +73,7 @@ index 50935d31..269bca86 100644
      int const sizeFormatDesc = RAND(seed) % 8;
      size_t litSize;
      size_t maxLitSize = MIN(contentSize, g_maxBlockSize);
-@@ -612,8 +626,15 @@ static size_t writeLiteralsBlockCompressed(U32* seed, frame_t* frame, size_t con
+@@ -612,8 +635,15 @@ static size_t writeLiteralsBlockCompressed(U32* seed, frame_t* frame, size_t con
 
  static size_t writeLiteralsBlock(U32* seed, frame_t* frame, size_t contentSize)
  {
@@ -80,7 +91,7 @@ index 50935d31..269bca86 100644
          return writeLiteralsBlockCompressed(seed, frame, contentSize);
      } else {
          return writeLiteralsBlockSimple(seed, frame, contentSize);
-@@ -1030,7 +1051,8 @@ static size_t writeCompressedBlock(U32* seed, frame_t* frame, size_t contentSize
+@@ -1030,7 +1060,8 @@ static size_t writeCompressedBlock(U32* seed, frame_t* frame, size_t contentSize
  static void writeBlock(U32* seed, frame_t* frame, size_t contentSize,
                         int lastBlock, dictInfo info)
  {
@@ -90,7 +101,7 @@ index 50935d31..269bca86 100644
      size_t blockSize;
      int blockType;
 
-@@ -1069,7 +1091,7 @@ static void writeBlock(U32* seed, frame_t* frame, size_t contentSize,
+@@ -1069,7 +1100,7 @@ static void writeBlock(U32* seed, frame_t* frame, size_t contentSize,
 
          frame->data = op;
          compressedSize = writeCompressedBlock(seed, frame, contentSize, info);
@@ -99,7 +110,7 @@ index 50935d31..269bca86 100644
              blockType = 0;
              memcpy(op, frame->src, contentSize);
 
-@@ -1240,7 +1262,11 @@ static U32 generateFrame(U32 seed, frame_t* fr, dictInfo info)
+@@ -1240,7 +1271,11 @@ static U32 generateFrame(U32 seed, frame_t* fr, dictInfo info)
      DISPLAYLEVEL(3, "frame seed: %u\n", (unsigned)seed);
      initFrame(fr);
 
@@ -111,7 +122,7 @@ index 50935d31..269bca86 100644
      writeBlocks(&seed, fr, info);
      writeChecksum(fr);
 
-@@ -1768,6 +1794,9 @@ static void advancedUsage(const char* programName)
+@@ -1768,6 +1803,9 @@ static void advancedUsage(const char* programName)
      DISPLAY( " --max-block-size-log=#   : max block size log, must be in range [2, 17]\n");
      DISPLAY( " --max-content-size-log=# : max content size log, must be <= 20\n");
      DISPLAY( "                            (this is ignored with gen-blocks)\n");
@@ -121,7 +132,7 @@ index 50935d31..269bca86 100644
  }
 
  /*! readU32FromChar() :
-@@ -1889,6 +1918,18 @@ int main(int argc, char** argv)
+@@ -1889,6 +1927,18 @@ int main(int argc, char** argv)
                          U32 value = readU32FromChar(&argument);
                          g_maxDecompressedSizeLog =
                                  MIN(MAX_DECOMPRESSED_SIZE_LOG, value);
@@ -140,7 +151,7 @@ index 50935d31..269bca86 100644
                      } else {
                          advancedUsage(argv[0]);
                          return 1;
-@@ -1900,6 +1941,18 @@ int main(int argc, char** argv)
+@@ -1900,6 +1950,18 @@ int main(int argc, char** argv)
                      return 1;
      }   }   }   }   /* for (argNb=1; argNb<argc; argNb++) */
 
