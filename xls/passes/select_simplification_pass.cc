@@ -675,41 +675,34 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
-  // OneHotSelect & PrioritySelect with identical cases can be replaced with a
-  // select between one of the identical case and the default value where the
-  // selector is: original selector == 0
-  if (node->OpIn({Op::kOneHotSel, Op::kPrioritySel}) &&
-      node->GetType()->IsBits()) {
-    Node* selector = node->Is<OneHotSelect>()
-                         ? node->As<OneHotSelect>()->selector()
-                         : node->As<PrioritySelect>()->selector();
-    absl::Span<Node* const> cases = node->Is<OneHotSelect>()
-                                        ? node->As<OneHotSelect>()->cases()
-                                        : node->As<PrioritySelect>()->cases();
+  // OneHotSelect with identical cases can be replaced with a select between one
+  // of the identical case and the default value where the selector is: original
+  // selector == 0
+  if (node->Is<OneHotSelect>() && node->GetType()->IsBits()) {
+    Node* selector = node->As<OneHotSelect>()->selector();
+    absl::Span<Node* const> cases = node->As<OneHotSelect>()->cases();
     if (absl::c_all_of(cases, [&](Node* c) { return c == cases[0]; })) {
       FunctionBase* f = node->function_base();
-      XLS_ASSIGN_OR_RETURN(
-          Node * selector_zero,
-          f->MakeNode<Literal>(node->loc(), ZeroOfType(selector->GetType())));
-      XLS_ASSIGN_OR_RETURN(Node * is_zero,
-                           f->MakeNode<CompareOp>(node->loc(), selector,
-                                                  selector_zero, Op::kEq));
-      Node* default_value;
-      if (node->Is<PrioritySelect>()) {
-        default_value = node->As<PrioritySelect>()->default_value();
+      Node* is_nonzero;
+      if (selector->GetType()->IsBits() && selector->BitCountOrDie() == 1) {
+        is_nonzero = selector;
       } else {
-        XLS_RET_CHECK(node->Is<OneHotSelect>());
         XLS_ASSIGN_OR_RETURN(
-            default_value,
-            f->MakeNode<Literal>(node->loc(), ZeroOfType(node->GetType())));
+            Node * selector_zero,
+            f->MakeNode<Literal>(node->loc(), ZeroOfType(selector->GetType())));
+        XLS_ASSIGN_OR_RETURN(is_nonzero,
+                             f->MakeNode<CompareOp>(node->loc(), selector,
+                                                    selector_zero, Op::kNe));
       }
+      XLS_ASSIGN_OR_RETURN(
+          Node * default_value,
+          f->MakeNode<Literal>(node->loc(), ZeroOfType(node->GetType())));
       VLOG(2) << absl::StrFormat(
-          "Simplifying %s-select with identical cases: %s",
-          (node->Is<OneHotSelect>() ? "one-hot" : "priority"),
+          "Simplifying one-hot-select with identical cases: %s",
           node->ToString());
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Select>(
-                                  is_zero,
-                                  std::vector<Node*>{cases[0], default_value},
+                                  is_nonzero,
+                                  std::vector<Node*>{default_value, cases[0]},
                                   /*default_value=*/std::nullopt)
                               .status());
       return true;
@@ -1171,6 +1164,10 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       if (query_engine.AtLeastOneTrue(trailing_bits)) {
         break;
       }
+    }
+    if (last_bit == 0) {
+      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(0)));
+      return true;
     }
     if (last_bit < sel->selector()->BitCountOrDie()) {
       // We can drop at least one bit from the selector, and turn the last case

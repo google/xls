@@ -435,25 +435,8 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithIdenticalCases) {
   solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::Select(m::Eq(m::Param("s"), m::Literal("bits[2]:0")),
-                        {m::Param("x"), m::Literal("bits[42]:0")}));
-}
-
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithIdenticalCases) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(s: bits[2], x: bits[42]) -> bits[42] {
-        literal.1: bits[42] = literal(value=0)
-        ret result: bits[42] = priority_sel(s, cases=[x, x], default=literal.1)
-     }
-  )",
-                                                       p.get()));
-
-  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Select(m::Eq(m::Param("s"), m::Literal("bits[2]:0")),
-                        {m::Param("x"), m::Literal("bits[42]:0")}));
+              m::Select(m::Ne(m::Param("s"), m::Literal("bits[2]:0")),
+                        {m::Literal("bits[42]:0"), m::Param("x")}));
 }
 
 TEST_F(SelectSimplificationPassTest, UselessSelect) {
@@ -480,9 +463,9 @@ TEST_F(SelectSimplificationPassTest, UselessOneHotSelect) {
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::Select(m::Eq(m::Param("x"), m::Literal("bits[2]:0")),
-                        /*cases=*/{m::Literal("bits[32]:42"),
-                                   m::Literal("bits[32]:0")}));
+              m::Select(m::Ne(m::Param("x"), m::Literal("bits[2]:0")),
+                        /*cases=*/{m::Literal("bits[32]:0"),
+                                   m::Literal("bits[32]:42")}));
 }
 
 TEST_F(SelectSimplificationPassTest, MeaningfulSelect) {
