@@ -21,6 +21,8 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
+#include "xls/examples/jpeg/constants.h"
+#include "xls/examples/jpeg/streams.h"
 
 namespace xls::jpeg {
 namespace {

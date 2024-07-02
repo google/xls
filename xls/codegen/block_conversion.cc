@@ -74,7 +74,6 @@
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "re2/re2.h"

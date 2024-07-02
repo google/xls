@@ -148,6 +148,7 @@ cc_library(
     deps = [
         ":ir",
         "@com_google_absl//absl/status:statusor",
+        "//xls/ir",
         "//xls/ir:ir_parser",
     ],
 )

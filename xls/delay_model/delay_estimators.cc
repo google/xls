@@ -17,6 +17,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/delay_model/delay_estimator.h"
 
 namespace xls {
 

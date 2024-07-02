@@ -18,8 +18,10 @@
 #include "absl/status/status.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/simulation/common.h"
+#include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/noc_traffic_injector.h"
 #include "xls/noc/simulation/sim_objects.h"
+#include "xls/noc/simulation/simulator_shims.h"
 
 namespace xls::noc {
 

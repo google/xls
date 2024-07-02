@@ -63,7 +63,6 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:op",
         "//xls/ir:source_location",

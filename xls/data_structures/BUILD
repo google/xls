@@ -385,6 +385,7 @@ cc_test(
     srcs = ["strongly_connected_components_test.cc"],
     deps = [
         ":strongly_connected_components",
+        "@com_google_absl//absl/container:btree",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -395,6 +396,7 @@ cc_test(
     srcs = ["submodular_test.cc"],
     deps = [
         ":submodular",
+        "@com_google_absl//absl/container:btree",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],

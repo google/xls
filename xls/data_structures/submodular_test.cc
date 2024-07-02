@@ -17,6 +17,7 @@
 #include <cstdint>
 
 #include "gtest/gtest.h"
+#include "absl/container/btree_set.h"
 
 namespace xls {
 namespace {

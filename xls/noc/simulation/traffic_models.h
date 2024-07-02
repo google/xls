@@ -24,7 +24,6 @@
 #include "absl/types/span.h"
 #include "xls/noc/simulation/packetizer.h"
 #include "xls/noc/simulation/random_number_interface.h"
-#include "xls/noc/simulation/units.h"
 
 // This file contains classes used to model traffic of a NOC.
 

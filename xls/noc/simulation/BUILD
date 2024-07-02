@@ -416,7 +416,6 @@ cc_library(
     deps = [
         ":packetizer",
         ":random_number_interface",
-        ":units",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
@@ -454,8 +453,10 @@ cc_library(
     hdrs = ["simulator_to_traffic_injector_shim.h"],
     deps = [
         ":common",
+        ":flit",
         ":noc_traffic_injector",
         ":sim_objects",
+        ":simulator_shims",
         "@com_google_absl//absl/status",
         "//xls/common/status:status_macros",
     ],
@@ -482,7 +483,6 @@ cc_library(
     deps = [
         ":common",
         ":flit",
-        ":indexer",
         ":network_graph",
         ":packetizer",
         ":parameters",
@@ -491,7 +491,6 @@ cc_library(
         ":simulator_shims",
         ":traffic_description",
         ":traffic_models",
-        ":units",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

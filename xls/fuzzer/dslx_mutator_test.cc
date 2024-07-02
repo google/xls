@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/random/mock_distributions.h"
+#include "absl/random/mocking_bit_gen.h"
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 

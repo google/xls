@@ -17,7 +17,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <queue>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -26,7 +25,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/simulation/common.h"
-#include "xls/noc/simulation/indexer.h"
 #include "xls/noc/simulation/network_graph.h"
 #include "xls/noc/simulation/packetizer.h"
 #include "xls/noc/simulation/parameters.h"
@@ -35,7 +33,6 @@
 #include "xls/noc/simulation/simulator_shims.h"
 #include "xls/noc/simulation/traffic_description.h"
 #include "xls/noc/simulation/traffic_models.h"
-#include "xls/noc/simulation/units.h"
 
 // This file contains classes used to model traffic of a NOC.
 

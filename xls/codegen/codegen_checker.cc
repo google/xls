@@ -30,7 +30,6 @@
 #include "xls/ir/node.h"
 #include "xls/ir/register.h"
 #include "xls/ir/verifier.h"
-#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
