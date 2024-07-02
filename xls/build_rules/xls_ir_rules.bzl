@@ -1174,6 +1174,7 @@ def _xls_ir_cc_library_impl(ctx):
             unformatted = unformatted_header_file.path,
             formatted = header_file.path,
         ),
+        use_default_shell_env = True,  # TODO: Remove once #1504 resolved
         toolchain = None,
     )
 
@@ -1187,6 +1188,7 @@ def _xls_ir_cc_library_impl(ctx):
             unformatted = unformatted_source_file.path,
             formatted = source_file.path,
         ),
+        use_default_shell_env = True,  # TODO: Remove once #1504 resolved
         toolchain = None,
     )
 
