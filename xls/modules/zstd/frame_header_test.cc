@@ -276,6 +276,16 @@ TEST_F(FrameHeaderTest, ParseFrameHeaderFailNoEnoughDataReservedBit) {
   this->ParseAndCompareWithZstd(buffer);
 }
 
+TEST_F(FrameHeaderTest, ParseFrameHeaderPendingBug1) {
+  std::vector<uint8_t> buffer{0261, 015, 91, 91, 91, 0364};
+  this->ParseAndCompareWithZstd(buffer);
+}
+
+TEST_F(FrameHeaderTest, ParseFrameHeaderPendingBug2) {
+  std::vector<uint8_t> buffer{'S', 0301, 'i', 0320, 0, 0256, 'd', 'D', 0226, 'F', 'Z', 'Z', 0332, 0370, 'A'};
+  this->ParseAndCompareWithZstd(buffer);
+}
+
 class FrameHeaderSeededTest : public FrameHeaderTest,
                               public ::testing::WithParamInterface<uint32_t> {
  public:
