@@ -748,10 +748,12 @@ absl::StatusOr<Block*> Block::Clone(
       XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo_inst,
                            inst->AsFifoInstantiation());
       XLS_ASSIGN_OR_RETURN(
-          instantiation_map[inst],
-          cloned_block->AddFifoInstantiation(
-              inst->name(), fifo_inst->fifo_config(), fifo_inst->data_type(),
-              fifo_inst->channel_name()));
+          Type * data_type,
+          target_package->MapTypeFromOtherPackage(fifo_inst->data_type()));
+      XLS_ASSIGN_OR_RETURN(instantiation_map[inst],
+                           cloned_block->AddFifoInstantiation(
+                               inst->name(), fifo_inst->fifo_config(),
+                               data_type, fifo_inst->channel_name()));
     }
   }
 
