@@ -24,7 +24,7 @@
 namespace xls {
 class Bits;           // IWYU pragma: keep
 enum class LsbOrMsb;  // IWYU pragma: keep
-class SourceInfo;     // IWYU pragma: keep
+struct SourceInfo;    // IWYU pragma: keep
 class Type;           // IWYU pragma: keep
 }  // namespace xls
 // IWYU pragma: end_exports
