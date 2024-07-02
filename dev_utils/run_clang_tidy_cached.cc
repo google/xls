@@ -71,7 +71,8 @@ static constexpr std::string_view kStartDirectory = "xls";
 static constexpr std::string_view kFileIncludeRe = ".*";
 static constexpr std::string_view kFileExcludeRe =
     ".git/|.github/|dev_utils/|"
-    "xlscc/(examples|synth_only)";
+    "xls/common/build_embed\\.cc|"
+    "xlscc/(examples|synth_only|build_rules)";
 inline bool ConsiderExtension(const std::string& extension) {
   return extension == ".cc" || extension == ".h";
 }
