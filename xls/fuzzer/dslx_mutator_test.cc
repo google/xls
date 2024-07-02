@@ -16,6 +16,8 @@
 
 #include <cstdint>
 
+#include "absl/random/mocking_bit_gen.h"
+#include "absl/random/mocking_bit_gen.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/random/mock_distributions.h"

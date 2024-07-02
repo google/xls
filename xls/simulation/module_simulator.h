@@ -27,9 +27,20 @@
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/simulation/testbench_signal_capture.h"
+#include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/verilog_simulator.h"
+#include "xls/tools/verilog_include.h"
+#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {

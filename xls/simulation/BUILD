@@ -78,6 +78,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:xls_type_cc_proto",
         "//xls/tools:eval_utils",
+        "//xls/tools:verilog_include",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

@@ -19,6 +19,10 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/value_view.h"
+#include "xls/ir/value_view.h"
+#include "xls/ir/value_view.h"
+#include "xls/ir/value_view.h"
 
 namespace xls {
 namespace {

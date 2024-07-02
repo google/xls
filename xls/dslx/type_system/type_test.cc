@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system/type.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>

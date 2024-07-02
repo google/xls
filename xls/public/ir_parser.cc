@@ -19,7 +19,10 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
+#include "xls/ir/package.h"
 
 namespace xls {
 

@@ -30,7 +30,8 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_netlist_translator.h"
-#include "external/z3/src/api/z3.h"
+#include "external/z3/src/api/z3.h"  // IWYU pragma: keep
+#include "external/z3/src/api/z3_api.h"
 
 namespace xls {
 namespace solvers {

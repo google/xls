@@ -27,6 +27,7 @@
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"

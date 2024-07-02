@@ -16,6 +16,11 @@
 
 #include <cstdint>
 
+#include "absl/container/btree_set.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/btree_set.h"
 #include "gtest/gtest.h"
 
 namespace xls {
