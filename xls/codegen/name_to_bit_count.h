@@ -26,7 +26,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/type.h"
 
 namespace xls {
 

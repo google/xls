@@ -15,8 +15,8 @@
 #ifndef XLS_COMMON_LOGGING_LOG_FLAGS_H_
 #define XLS_COMMON_LOGGING_LOG_FLAGS_H_
 
-#include "absl/base/log_severity.h"
-#include "absl/flags/flag.h"
-#include "xls/common/logging/log_flags.inc"
+#include "absl/base/log_severity.h"  // IWYU pragma: keep
+#include "absl/flags/flag.h"         // IWYU pragma: keep
+#include "xls/common/logging/log_flags.inc"  // IWYU pragma: keep
 
 #endif  // XLS_COMMON_LOGGING_LOG_FLAGS_H_

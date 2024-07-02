@@ -21,8 +21,8 @@
 #include "grpcpp/server_context.h"
 #include "grpcpp/support/status.h"
 #include "xls/fdo/synthesizer.h"
+#include "xls/synthesis/synthesis.pb.h"
 #include "xls/synthesis/synthesis_service.grpc.pb.h"
-#include "xls/synthesis/synthesis_service.pb.h"
 
 namespace xls {
 namespace synthesis {

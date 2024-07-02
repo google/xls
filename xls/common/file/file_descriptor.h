@@ -17,6 +17,7 @@
 
 #include <unistd.h>
 
+#include <cstdio>
 #include <filesystem>  // NOLINT
 #include <string>
 

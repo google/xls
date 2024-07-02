@@ -15,7 +15,7 @@
 #ifndef XLS_TOOLS_VERILOG_INCLUDE_H_
 #define XLS_TOOLS_VERILOG_INCLUDE_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 
 namespace xls {

@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/sim_objects.h"
+#include "xls/noc/simulation/simulator_shims.h"
 
 namespace xls::noc {
 

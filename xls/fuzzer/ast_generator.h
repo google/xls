@@ -15,7 +15,6 @@
 #ifndef XLS_FUZZER_AST_GENERATOR_H_
 #define XLS_FUZZER_AST_GENERATOR_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>

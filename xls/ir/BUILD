@@ -567,7 +567,6 @@ cc_library(
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -639,6 +638,7 @@ cc_library(
     srcs = ["function_builder.cc"],
     hdrs = ["function_builder.h"],
     deps = [
+        ":bits",
         ":channel",
         ":channel_ops",
         ":foreign_function_data_cc_proto",
@@ -876,7 +876,6 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
-        "//xls/delay_model:delay_estimators",
         "//xls/interpreter:ir_interpreter",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -937,6 +936,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -951,6 +951,7 @@ cc_library(
     hdrs = ["value_utils.h"],
     deps = [
         ":bits",
+        ":format_preference",
         ":type",
         ":value",
         "//xls/common:bits_util",
@@ -1516,6 +1517,7 @@ cc_library(
     name = "abstract_node_evaluator",
     hdrs = ["abstract_node_evaluator.h"],
     deps = [
+        ":bits",
         ":ir",
         ":op",
         ":type",

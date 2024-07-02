@@ -17,7 +17,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string_view>
 
 #include "absl/status/status.h"

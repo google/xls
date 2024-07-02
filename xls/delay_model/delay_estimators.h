@@ -15,10 +15,7 @@
 #ifndef XLS_DELAY_MODEL_DELAY_ESTIMATORS_H_
 #define XLS_DELAY_MODEL_DELAY_ESTIMATORS_H_
 
-#include <memory>
-#include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"

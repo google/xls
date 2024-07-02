@@ -44,6 +44,7 @@
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"

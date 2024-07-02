@@ -23,8 +23,10 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/xls_type.pb.h"

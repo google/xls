@@ -16,14 +16,13 @@
 #define XLS_COMMON_STATUS_STATUS_BUILDER_H_
 
 #include <algorithm>
-#include <limits>
 #include <memory>
 #include <ostream>
 #include <sstream>
-#include <string>
 #include <string_view>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/log_severity.h"
 #include "absl/log/log_sink.h"
 #include "absl/status/status.h"

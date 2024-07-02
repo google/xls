@@ -24,6 +24,7 @@
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/contrib/ice40/io_strategy.h"
 
 namespace xls {

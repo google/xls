@@ -22,10 +22,10 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -33,7 +33,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/events.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"

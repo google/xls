@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Module.h"

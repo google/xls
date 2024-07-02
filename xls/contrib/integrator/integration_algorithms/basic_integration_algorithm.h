@@ -25,6 +25,9 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/contrib/integrator/integration_algorithms/integration_algorithm.h"
+#include "xls/contrib/integrator/integration_options.h"
+#include "xls/contrib/integrator/ir_integrator.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node.h"
 
 namespace xls {

@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 
 namespace xls {
 namespace verilog {

@@ -15,7 +15,6 @@
 #ifndef XLS_NETLIST_FUNCTION_EXTRACTOR_H_
 #define XLS_NETLIST_FUNCTION_EXTRACTOR_H_
 
-#include <string>
 
 #include "absl/status/statusor.h"
 #include "xls/netlist/lib_parser.h"

@@ -15,7 +15,6 @@
 #ifndef XLS_JIT_BLOCK_JIT_H_
 #define XLS_JIT_BLOCK_JIT_H_
 
-#include <sys/types.h>
 
 #include <array>
 #include <cstdint>
@@ -32,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"

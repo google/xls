@@ -20,7 +20,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"
 

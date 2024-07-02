@@ -22,10 +22,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {

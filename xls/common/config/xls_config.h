@@ -15,7 +15,6 @@
 #ifndef XLS_COMMON_CONFIG_XLS_CONFIG_H_
 #define XLS_COMMON_CONFIG_XLS_CONFIG_H_
 
-#include <string>
 #include <string_view>
 
 namespace xls {

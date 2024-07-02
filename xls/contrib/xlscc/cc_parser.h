@@ -29,6 +29,7 @@
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "clang/include/clang/AST/DeclBase.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"

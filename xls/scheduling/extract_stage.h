@@ -17,6 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {

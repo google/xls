@@ -15,7 +15,6 @@
 #ifndef XLS_CODEGEN_BLOCK_METRICS_H_
 #define XLS_CODEGEN_BLOCK_METRICS_H_
 
-#include <optional>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/xls_metrics.pb.h"

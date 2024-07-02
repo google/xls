@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_VALUE_FORMAT_DESCRIPTOR_H_
 #define XLS_DSLX_VALUE_FORMAT_DESCRIPTOR_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>

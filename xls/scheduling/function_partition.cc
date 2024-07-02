@@ -25,7 +25,9 @@
 #include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/min_cut.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 namespace sched {

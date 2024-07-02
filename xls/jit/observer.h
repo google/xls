@@ -18,7 +18,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Module.h"
 

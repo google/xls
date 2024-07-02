@@ -38,6 +38,7 @@ cc_library(
         ":integration_options",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -90,6 +91,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/contrib/integrator/integration_algorithms:basic_integration_algorithm",
         "//xls/ir",
+        "//xls/ir:name_uniquer",
         "//xls/ir:op",
     ],
 )

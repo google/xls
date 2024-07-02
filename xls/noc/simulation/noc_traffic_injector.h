@@ -22,7 +22,6 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -30,7 +29,9 @@
 #include "xls/noc/simulation/indexer.h"
 #include "xls/noc/simulation/network_graph.h"
 #include "xls/noc/simulation/packetizer.h"
+#include "xls/noc/simulation/parameters.h"
 #include "xls/noc/simulation/random_number_interface.h"
+#include "xls/noc/simulation/sim_objects.h"
 #include "xls/noc/simulation/simulator_shims.h"
 #include "xls/noc/simulation/traffic_description.h"
 #include "xls/noc/simulation/traffic_models.h"

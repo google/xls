@@ -16,7 +16,7 @@
 #define XLS_NETLIST_FAKE_CELL_LIBRARY_H_
 
 #include "absl/status/statusor.h"
-#include "xls/netlist/netlist.h"
+#include "xls/netlist/cell_library.h"
 
 namespace xls {
 namespace netlist {

@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/value_format_descriptor.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 

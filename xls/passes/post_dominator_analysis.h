@@ -22,7 +22,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/ir/function.h"
 #include "xls/ir/node.h"
 
 namespace xls {

@@ -16,7 +16,9 @@
 #define XLS_PASSES_VERIFIER_CHECKER_H_
 
 #include "absl/status/status.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 

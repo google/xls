@@ -37,6 +37,7 @@
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/llvm_compiler.h"
 
 namespace xls {
 

@@ -18,12 +18,12 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "ortools/linear_solver/linear_solver.h"

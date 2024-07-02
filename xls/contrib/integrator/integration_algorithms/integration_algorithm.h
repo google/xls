@@ -96,6 +96,6 @@ class IntegrationAlgorithm {
 
 }  // namespace xls
 
-#include "xls/contrib/integrator/integration_algorithms/integration_algorithm_implementation.h"
+#include "xls/contrib/integrator/integration_algorithms/integration_algorithm_implementation.h"  // IWYU pragma: keep
 
 #endif  // XLS_CONTRIB_INTEGRATOR_INTEGRATION_ALGORITHMS_INTEGRATION_ALGORITHM_H_

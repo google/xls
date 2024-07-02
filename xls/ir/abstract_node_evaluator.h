@@ -34,6 +34,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"

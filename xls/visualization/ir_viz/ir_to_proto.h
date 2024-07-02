@@ -16,7 +16,6 @@
 #define XLS_VISUALIZATION_IR_VIZ_IR_TO_PROTO_H_
 
 #include <optional>
-#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"

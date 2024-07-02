@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Tool to evaluate DSLX + args and report the result.
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
 #include <optional>

@@ -15,9 +15,7 @@
 #ifndef XLS_SIMULATION_DEFAULT_VERILOG_SIMULATOR_H_
 #define XLS_SIMULATION_DEFAULT_VERILOG_SIMULATOR_H_
 
-#include <string_view>
 
-#include "absl/status/statusor.h"
 #include "xls/simulation/verilog_simulator.h"
 
 namespace xls {

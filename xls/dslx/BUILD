@@ -262,7 +262,7 @@ cc_library(
         ":interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:type_info",
+        "//xls/dslx/type_system:parametric_env",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",

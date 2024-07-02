@@ -20,10 +20,8 @@
 #include <string>
 #include <string_view>
 
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/fdo/synthesizer.h"
-#include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/synthesis/yosys/yosys_synthesis_service.h"
 

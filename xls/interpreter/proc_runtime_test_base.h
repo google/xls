@@ -21,7 +21,6 @@
 #include <string_view>
 #include <utility>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/ir_test_base.h"

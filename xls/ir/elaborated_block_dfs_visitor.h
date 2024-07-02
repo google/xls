@@ -20,7 +20,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "xls/ir/block_elaboration.h"
-#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 
 namespace xls {

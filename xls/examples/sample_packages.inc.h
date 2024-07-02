@@ -14,7 +14,7 @@
 #ifndef XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_
 #define XLS_EXAMPLES_SAMPLE_PACKAGES_INC_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <vector>
 

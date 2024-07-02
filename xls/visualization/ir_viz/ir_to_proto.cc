@@ -38,6 +38,8 @@
 #include "xls/ir/block.h"  // IWYU pragma: keep
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"

@@ -15,7 +15,6 @@
 #ifndef XLS_FUZZER_CPP_SAMPLE_RUNNER_H_
 #define XLS_FUZZER_CPP_SAMPLE_RUNNER_H_
 
-#include <optional>
 #include <string>
 #include <vector>
 

@@ -21,7 +21,6 @@
 #include <string>
 #include <string_view>
 
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"

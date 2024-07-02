@@ -35,6 +35,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/value.h"
 
 namespace xls::dslx {

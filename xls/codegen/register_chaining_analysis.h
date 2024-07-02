@@ -21,6 +21,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
 

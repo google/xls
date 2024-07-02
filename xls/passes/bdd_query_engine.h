@@ -20,18 +20,15 @@
 #include <memory>
 #include <optional>
 #include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/query_engine.h"

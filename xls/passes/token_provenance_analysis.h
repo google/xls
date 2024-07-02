@@ -21,6 +21,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"

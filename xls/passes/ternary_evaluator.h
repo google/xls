@@ -16,9 +16,7 @@
 #define XLS_PASSES_TERNARY_EVALUATOR_H_
 
 #include "absl/log/log.h"
-#include "absl/status/statusor.h"
 #include "xls/ir/abstract_evaluator.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/ternary.h"
 
 namespace xls {

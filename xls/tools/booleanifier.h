@@ -26,7 +26,6 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
-#include "xls/ir/type.h"
 
 namespace xls {
 

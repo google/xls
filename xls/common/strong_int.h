@@ -116,6 +116,7 @@
 #ifndef XLS_COMMON_STRONG_INT_H_
 #define XLS_COMMON_STRONG_INT_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iosfwd>

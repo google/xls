@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <queue>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -34,7 +33,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/noc/config/network_config.pb.h"
-#include "xls/noc/simulation/common.h"
 #include "xls/noc/simulation/flit.h"
 #include "xls/noc/simulation/global_routing_table.h"
 #include "xls/noc/simulation/traffic_description.h"

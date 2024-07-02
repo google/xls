@@ -20,6 +20,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "xls/common/iterator_range.h"
+#include "xls/ir/unwrapping_iterator.h"
 #include "xls/noc/config_ng/network_component.h"
 #include "xls/noc/config_ng/network_connection.h"
 

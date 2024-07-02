@@ -27,8 +27,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 

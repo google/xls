@@ -157,14 +157,12 @@ cc_library(
     hdrs = ["yosys_synthesizer.h"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:casts",
         "//xls/common:module_initializer",
         "//xls/common/status:status_macros",
-        "//xls/ir",
         "//xls/scheduling:scheduling_options",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis/yosys:yosys_synthesis_service",
@@ -218,7 +216,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
-        "//xls/synthesis:synthesis_service_cc_proto",
         "@com_github_grpc_grpc//:grpc++_public_hdrs",
     ],
 )

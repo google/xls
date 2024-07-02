@@ -16,7 +16,6 @@
 #define XLS_DSLX_FRONTEND_AST_TEST_UTILS_H_
 
 #include <cstdint>
-#include <string_view>
 #include <utility>
 
 #include "xls/dslx/frontend/ast.h"

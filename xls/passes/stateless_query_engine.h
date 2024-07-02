@@ -16,11 +16,9 @@
 #define XLS_PASSES_STATELESS_QUERY_ENGINE_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 
-#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

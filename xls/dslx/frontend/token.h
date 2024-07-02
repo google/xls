@@ -16,6 +16,7 @@
 #define XLS_DSLX_FRONTEND_TOKEN_H_
 
 #include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <ostream>
 #include <string>

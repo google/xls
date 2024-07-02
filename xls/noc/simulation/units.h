@@ -17,11 +17,7 @@
 
 #include <cmath>
 #include <cstdint>
-#include <queue>
-#include <vector>
 
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 
 // This file contains classes used define units and their conversions.
 

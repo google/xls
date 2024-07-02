@@ -53,6 +53,7 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
