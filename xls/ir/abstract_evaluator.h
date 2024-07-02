@@ -625,9 +625,10 @@ class AbstractEvaluator {
       Span selector, absl::Span<const absl::Span<const Element>> cases,
       bool selector_can_be_zero, Span default_value) {
     CHECK_EQ(selector.size(), cases.size());
-    CHECK_GT(selector.size(), 0);
-    int64_t width = cases.front().size();
-    CHECK_EQ(default_value.size(), width);
+    int64_t width = default_value.size();
+    for (absl::Span<const Element> case_span : cases) {
+      CHECK_EQ(case_span.size(), width);
+    }
     Vector result(default_value.begin(), default_value.end());
     for (int64_t i = selector.size() - 1; i >= 0; --i) {
       for (int64_t j = 0; j < width; ++j) {

@@ -980,7 +980,7 @@ OpClass.kinds['PRIORITY_SELECT'] = OpClass(
         OperandSpan('cases'),
         Operand('default_value'),
     ],
-    xls_type_expression='cases[0]->GetType()',
+    xls_type_expression='default_value->GetType()',
     extra_data_members=[
         DataMember(name='cases_size_', cpp_type='int64_t', init='cases.size()'),
     ],
