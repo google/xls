@@ -29,6 +29,8 @@
 #include <utility>
 #include <vector>
 
+#include "clang/include/clang/Basic/LLVM.h"
+#include "clang/include/clang/AST/ComputeDependence.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -36,6 +38,10 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/ASTContext.h"
@@ -52,7 +58,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/channel_ops.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"

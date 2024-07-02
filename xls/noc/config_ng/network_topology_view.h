@@ -16,10 +16,13 @@
 #define XLS_NOC_CONFIG_NG_NETWORK_TOPOLOGY_VIEW_H_
 
 #include <cstdint>
-#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/noc/config_ng/network_component.h"
+#include "xls/noc/config_ng/network_component.h"
+#include "xls/noc/config_ng/network_component.h"
+#include "xls/noc/config_ng/network_component.h"
 #include "xls/noc/config_ng/network_topology_component.h"
 #include "xls/noc/config_ng/network_view.h"
 

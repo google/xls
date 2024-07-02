@@ -24,7 +24,6 @@
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/proc_runtime.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/package.h"
 
 namespace xls {

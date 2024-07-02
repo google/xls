@@ -15,7 +15,7 @@
 #ifndef XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
 #define XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 
 #include "absl/status/status.h"

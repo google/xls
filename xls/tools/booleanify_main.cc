@@ -15,7 +15,7 @@
 // Utility binary to convert input XLS IR to a "fundamental"
 // representation, i.e., consisting of only AND/OR/NOT ops.
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <optional>
 #include <string>

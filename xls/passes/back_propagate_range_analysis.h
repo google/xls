@@ -16,8 +16,6 @@
 #define XLS_PASSES_BACK_PROPAGATE_RANGE_ANALYSIS_H_
 
 #include <optional>
-#include <utility>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"

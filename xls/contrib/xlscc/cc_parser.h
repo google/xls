@@ -22,6 +22,7 @@
 #include <string_view>
 #include <tuple>
 
+#include "clang/include/clang/AST/DeclBase.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"

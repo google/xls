@@ -15,11 +15,9 @@
 #ifndef XLS_TOOLS_REMOVE_IDENTIFIERS_H_
 #define XLS_TOOLS_REMOVE_IDENTIFIERS_H_
 
-#include <cstdint>
 #include <memory>
 #include <string>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"
 namespace xls {

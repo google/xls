@@ -16,12 +16,17 @@
 #define XLS_JIT_JIT_BUFFER_H_
 
 #include <array>
+#include <cstddef>
+#include <cstddef>
+#include <cstddef>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/base/casts.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

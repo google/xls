@@ -514,9 +514,6 @@ py_library(
 cc_library(
     name = "iterator_range",
     hdrs = ["iterator_range.h"],
-    deps = [
-        "@com_google_absl//absl/base:config",
-    ],
 )
 
 cc_library(

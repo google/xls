@@ -29,7 +29,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/jit/type_layout.h"
-#include "xls/jit/type_layout.pb.h"
 
 namespace xls::aot_compile {
 

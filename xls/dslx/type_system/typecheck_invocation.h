@@ -17,7 +17,6 @@
 
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

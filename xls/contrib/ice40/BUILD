@@ -184,6 +184,7 @@ cc_library(
         ":io_strategy",
         "//xls/codegen/vast",
         "//xls/ir:source_location",
+        "//xls/tools:verilog_include",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],

@@ -22,6 +22,6 @@ int AvailableCPUs();
 
 }  // namespace xls
 
-#include "xls/common/thread.inc"
+#include "xls/common/thread.inc"  // IWYU pragma: keep
 
 #endif  // XLS_COMMON_THREAD_H_

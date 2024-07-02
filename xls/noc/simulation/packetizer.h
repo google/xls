@@ -16,7 +16,6 @@
 #define XLS_NOC_SIMULATION_PACKETIZER_H_
 
 #include <cstdint>
-#include <queue>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,9 +27,17 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
-#include "xls/noc/simulation/common.h"
-#include "xls/noc/simulation/sim_objects.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
+#include "xls/noc/simulation/flit.h"
 
 // This file contains classes used to represent and build a packet, along
 // with auxilary functions to convert packets to flits (depacketize) and

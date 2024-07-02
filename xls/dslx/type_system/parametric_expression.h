@@ -17,7 +17,6 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_EXPRESSION_H_
 #define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_EXPRESSION_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

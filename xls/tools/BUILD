@@ -617,6 +617,7 @@ cc_library(
     name = "testbench_builder_utils",
     hdrs = ["testbench_builder_utils.h"],
     deps = [
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:distributions",

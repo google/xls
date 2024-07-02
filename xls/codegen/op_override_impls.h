@@ -15,7 +15,6 @@
 #ifndef XLS_CODEGEN_OP_OVERRIDE_IMPLS_H_
 #define XLS_CODEGEN_OP_OVERRIDE_IMPLS_H_
 
-#include <array>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -25,6 +24,12 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_builder.h"
+#include "xls/codegen/node_representation.h"
+#include "xls/codegen/node_representation.h"
+#include "xls/codegen/node_representation.h"
+#include "xls/codegen/node_representation.h"
+#include "xls/codegen/node_representation.h"
+#include "xls/codegen/node_representation.h"
 #include "xls/codegen/op_override.h"
 #include "xls/ir/node.h"
 

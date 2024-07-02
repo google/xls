@@ -14,7 +14,7 @@
 
 #include "xls/contrib/ice40/ice40_io_strategy.h"
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <utility>
 #include <vector>
 

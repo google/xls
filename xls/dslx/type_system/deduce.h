@@ -16,14 +16,11 @@
 #define XLS_DSLX_TYPE_SYSTEM_DEDUCE_H_
 
 #include <memory>
-#include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {

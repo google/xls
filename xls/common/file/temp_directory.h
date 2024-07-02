@@ -15,7 +15,7 @@
 #ifndef XLS_COMMON_FILE_TEMP_DIRECTORY_H_
 #define XLS_COMMON_FILE_TEMP_DIRECTORY_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

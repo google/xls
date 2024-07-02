@@ -26,6 +26,8 @@
 #include "xls/contrib/integrator/integration_options.h"
 #include "xls/contrib/integrator/ir_integrator.h"
 #include "xls/ir/function.h"
+#include "xls/ir/name_uniquer.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/package.h"
 
 namespace xls {

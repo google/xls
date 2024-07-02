@@ -49,6 +49,6 @@ class ModuleInitializer {
 }  // namespace module_initializer_internal
 }  // namespace xls
 
-#include "xls/common/module_initializer.inc"
+#include "xls/common/module_initializer.inc"  // IWYU pragma: keep
 
 #endif  // XLS_COMMON_MODULE_INITIALIZER_H_

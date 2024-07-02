@@ -25,12 +25,12 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {

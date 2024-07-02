@@ -23,7 +23,6 @@
 #define XLS_NOC_SIMULATION_INDEXER_H_
 
 #include <cstdint>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>

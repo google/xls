@@ -15,7 +15,7 @@
 #include <strings.h>
 
 #include <cstdlib>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <initializer_list>
 #include <iostream>
 #include <memory>

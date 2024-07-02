@@ -30,7 +30,6 @@ cc_library(
     hdrs = ["name_to_bit_count.h"],
     deps = [
         "//xls/ir:bits",
-        "//xls/ir:type",
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
@@ -129,7 +128,6 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:source_location",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -168,10 +166,7 @@ cc_library(
         ":codegen_pass",
         ":codegen_pass_pipeline",
         ":module_signature",
-        ":module_signature_cc_proto",
-        ":name_to_bit_count",
         ":verilog_line_map_cc_proto",
-        "//xls/codegen/vast",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

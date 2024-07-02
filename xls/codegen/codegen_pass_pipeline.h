@@ -19,6 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/ir/block.h"
 
 namespace xls::verilog {
 

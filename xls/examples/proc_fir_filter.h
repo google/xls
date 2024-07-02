@@ -15,7 +15,6 @@
 #define XLS_EXAMPLES_PROC_FIR_FILTER_H_
 
 #include <string_view>
-#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/channel.h"

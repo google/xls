@@ -15,14 +15,10 @@
 #ifndef XLS_CODEGEN_PIPELINE_GENERATOR_H_
 #define XLS_CODEGEN_PIPELINE_GENERATOR_H_
 
-#include <string>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/module_signature.pb.h"
-#include "xls/codegen/name_to_bit_count.h"
-#include "xls/codegen/vast/vast.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"

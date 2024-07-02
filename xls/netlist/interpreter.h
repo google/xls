@@ -15,6 +15,9 @@
 #define XLS_NETLIST_INTERPRETER_H_
 
 #include <atomic>
+#include <cstddef>
+#include <cstddef>
+#include <cstddef>
 #include <deque>
 #include <memory>
 #include <optional>
@@ -33,12 +36,18 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/synchronization/notification.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
-#include "xls/ir/type.h"
-#include "xls/ir/value.h"
+#include "xls/netlist/cell_library.h"
+#include "xls/netlist/cell_library.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/function_parser.h"
 #include "xls/netlist/netlist.h"
 

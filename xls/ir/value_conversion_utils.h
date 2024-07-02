@@ -15,8 +15,13 @@
 #ifndef XLS_IR_VALUE_CONVERSION_UTILS_H_
 #define XLS_IR_VALUE_CONVERSION_UTILS_H_
 
+#include <cstddef>
+#include <cstddef>
+#include <cstddef>
+#include <cstddef>
+#include <cstddef>
+#include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <tuple>
 #include <type_traits>
 #include <utility>

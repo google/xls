@@ -33,9 +33,15 @@
 #include "xls/dslx/warning_kind.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"
+#include "xls/ir/package.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_runtime.h"
+#include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_channel_queue.h"
 
 namespace xls {
 

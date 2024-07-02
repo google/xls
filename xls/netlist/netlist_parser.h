@@ -15,7 +15,6 @@
 #ifndef XLS_NETLIST_NETLIST_PARSER_H_
 #define XLS_NETLIST_NETLIST_PARSER_H_
 
-#include <sys/types.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -40,6 +39,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/string_to_int.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/netlist.h"

@@ -17,6 +17,10 @@
 
 #include <unistd.h>
 
+#include <cstdio>
+#include <cstdio>
+#include <cstdio>
+#include <cstdio>
 #include <filesystem>  // NOLINT
 #include <string>
 

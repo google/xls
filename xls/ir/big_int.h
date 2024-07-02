@@ -21,8 +21,8 @@
 #include <tuple>
 
 #include "absl/status/statusor.h"
-#include "openssl/bn.h"
 #include "xls/ir/bits.h"
+#include "openssl/bn.h"
 
 namespace xls {
 

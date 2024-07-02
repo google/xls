@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/types/span.h"
-#include "xls/ir/function.h"
 #include "xls/ir/node.h"
 
 namespace xls {

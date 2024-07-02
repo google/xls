@@ -18,14 +18,10 @@
 #include <cstdint>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
-#include "xls/ir/proc.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
 

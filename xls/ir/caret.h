@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 
+#include "xls/ir/fileno.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {

@@ -20,7 +20,6 @@
 #include <optional>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/noc/config_ng/dimension_bounds.h"

@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/contrib/ice40/device_rpc_strategy.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 namespace xls {

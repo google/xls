@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
-#include <utility>
 
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"

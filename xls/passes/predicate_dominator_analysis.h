@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_PREDICATE_DOMINATOR_ANALYSIS_H_
 #define XLS_PASSES_PREDICATE_DOMINATOR_ANALYSIS_H_
 
-#include <memory>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"

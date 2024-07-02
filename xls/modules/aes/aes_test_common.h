@@ -17,7 +17,6 @@
 
 // Utilities common to AES module testing.
 // These will likely be expanded/modified once tests exist for other key sizes.
-#include <arpa/inet.h>
 
 #include <array>
 #include <cstdint>

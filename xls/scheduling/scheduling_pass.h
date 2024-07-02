@@ -16,17 +16,12 @@
 #define XLS_SCHEDULING_SCHEDULING_PASS_H_
 
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
-#include "absl/types/span.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"

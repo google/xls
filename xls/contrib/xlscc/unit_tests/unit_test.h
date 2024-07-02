@@ -16,7 +16,6 @@
 #define XLS_CONTRIB_XLSCC_UNIT_TEST_H_
 
 #include <cstdint>
-#include <cstdio>
 #include <list>
 #include <memory>
 #include <optional>
@@ -24,24 +23,30 @@
 #include <string_view>
 #include <vector>
 
-#include "gtest/gtest.h"
+#include "absl/log/log_entry.h"
+#include "absl/base/log_severity.h"
+#include "absl/log/log_entry.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log_sink.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/source_location.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 
 struct CapturedLogEntry {

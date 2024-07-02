@@ -52,6 +52,8 @@
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 namespace xls {

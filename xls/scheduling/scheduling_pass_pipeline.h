@@ -17,7 +17,6 @@
 
 #include <memory>
 
-#include "absl/status/statusor.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
