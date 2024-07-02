@@ -1,5 +1,5 @@
 diff --git tests/decodecorpus.c tests/decodecorpus.c
-index 50935d31..522b3769 100644
+index 50935d31..269bca86 100644
 --- tests/decodecorpus.c
 +++ tests/decodecorpus.c
 @@ -240,6 +240,12 @@ typedef enum {
@@ -28,6 +28,15 @@ index 50935d31..522b3769 100644
 
  /* Generate and write a random frame header */
  static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+@@ -285,7 +295,7 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+         if (RAND(seed) & 7 && g_maxDecompressedSizeLog > 7) {
+             /* do content of at least 128 bytes */
+             highBit = 1ULL << RAND_range(seed, 7, g_maxDecompressedSizeLog);
+-        } else if (RAND(seed) & 3) {
++        } else if ((RAND(seed) & 3) || (*(opts.blockType) == bt_rle)) {
+             /* do small content */
+             highBit = 1ULL << RAND_range(seed, 0, MIN(7, 1U << g_maxDecompressedSizeLog));
+         } else {
 @@ -317,8 +327,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
      }
 
