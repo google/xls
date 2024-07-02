@@ -92,7 +92,7 @@ absl::StatusOr<bool> MaybeSinkOperationIntoSelect(
   int64_t argument_idx =
       std::distance(operands.begin(), absl::c_find(operands, select_val));
   XLS_RET_CHECK_NE(argument_idx, operands.size())
-      << select << " is not an argument of " << node;
+      << select_val->ToString() << " is not an argument of " << node;
   // We need both an unknown select and all other operands to be fully known.
   bool non_select_operands_are_constant = absl::c_all_of(
       operands,
