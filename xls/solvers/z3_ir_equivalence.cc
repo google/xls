@@ -40,56 +40,6 @@
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {
-namespace {
-// If "original" is an aggregate type, e.g. tuple, array, creates a nodes in
-// "function" that flatten it to a Bits typed value.
-//
-// Since this is only used internally to compare FlattenToBits() results to
-// other FlattenToBits() results, we don't need to worry about the canonical
-// order of e.g. array elements in the resulting bits type.
-absl::StatusOr<Node*> FlattenToBits(Function* function, Node* original) {
-  Type* type = original->GetType();
-  if (type->IsBits()) {
-    return original;
-  }
-  std::vector<Node*> values;
-  if (type->IsTuple()) {
-    values.reserve(type->AsTupleOrDie()->size());
-    for (int64_t i = 0; i < type->AsTupleOrDie()->size(); ++i) {
-      XLS_ASSIGN_OR_RETURN(
-          Node * flattened,
-          FlattenToBits(function,
-                        function->AddNode(std::make_unique<TupleIndex>(
-                            SourceInfo(), original, i,
-                            absl::StrFormat("split_tuple_%s__%i__",
-                                            original->GetName(), i),
-                            function))));
-      values.push_back(flattened);
-    }
-  } else {
-    values.reserve(type->AsArrayOrDie()->size());
-    for (int64_t i = 0; i < type->AsArrayOrDie()->size(); ++i) {
-      Node* index = function->AddNode(std::make_unique<Literal>(
-          SourceInfo(), Value(UBits(i, 64)),
-          absl::StrFormat("split_array_index_%s__%d__", original->GetName(), i),
-          function));
-      XLS_ASSIGN_OR_RETURN(
-          Node * flattened,
-          FlattenToBits(
-              function,
-              function->AddNode(std::make_unique<ArrayIndex>(
-                  SourceInfo(), original, absl::MakeConstSpan({index}),
-                  absl::StrFormat("split_array_%s__%i__", original->GetName(),
-                                  i),
-                  function))));
-      values.push_back(flattened);
-    }
-  }
-  return function->AddNode(std::make_unique<Concat>(
-      SourceInfo(), values,
-      absl::StrFormat("split_concat_%s", original->GetName()), function));
-}
-}  // namespace
 
 absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
                                                  absl::Duration timeout) {
