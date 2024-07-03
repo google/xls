@@ -116,11 +116,6 @@ TEST_P(BlockEvaluatorTest, OutputOnlyBlock) {
 }
 
 TEST_P(BlockEvaluatorTest, StatelessInstantiatedPassthrough) {
-  // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsHierarchicalBlocks()) {
-    GTEST_SKIP();
-    return;
-  }
   auto package = CreatePackage();
   Block* inner;
   {
@@ -147,11 +142,6 @@ TEST_P(BlockEvaluatorTest, StatelessInstantiatedPassthrough) {
 }
 
 TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
-  // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsHierarchicalBlocks()) {
-    GTEST_SKIP();
-    return;
-  }
   auto package = CreatePackage();
   auto rot = [&](int64_t n, int64_t r) -> absl::StatusOr<Block*> {
     BlockBuilder b(absl::StrCat(TestName(), "_rot", n, "_", r), package.get());
@@ -304,7 +294,7 @@ MATCHER(NoTryPopValue, "") {
 
 TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationNoBypassWorks) {
   // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsHierarchicalBlocks()) {
+  if (!SupportsFifos()) {
     GTEST_SKIP();
     return;
   }
@@ -377,7 +367,7 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationNoBypassWorks) {
 
 TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationWithBypassWorks) {
   // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsHierarchicalBlocks()) {
+  if (!SupportsFifos()) {
     GTEST_SKIP();
     return;
   }
@@ -450,7 +440,7 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationWithBypassWorks) {
 
 TEST_P(BlockEvaluatorTest, FifoInstantiationNoBypassWorks) {
   // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsHierarchicalBlocks()) {
+  if (!SupportsFifos()) {
     GTEST_SKIP();
     return;
   }
@@ -549,7 +539,7 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationNoBypassWorks) {
 
 TEST_P(BlockEvaluatorTest, FifoInstantiationWithBypassWorks) {
   // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsHierarchicalBlocks()) {
+  if (!SupportsFifos()) {
     GTEST_SKIP();
     return;
   }

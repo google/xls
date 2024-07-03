@@ -15,7 +15,6 @@
 #ifndef XLS_JIT_BLOCK_JIT_H_
 #define XLS_JIT_BLOCK_JIT_H_
 
-
 #include <array>
 #include <cstdint>
 #include <initializer_list>
@@ -35,6 +34,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/block_elaboration.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/value.h"
@@ -50,13 +50,16 @@ class BlockJitContinuation;
 class BlockJit {
  public:
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(Block* block);
+  static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
+      const BlockElaboration& elab);
+  virtual ~BlockJit() = default;
 
   // Create a new blank block with no registers or ports set. Can be cycled
   // independently of other blocks/continuations.
-  std::unique_ptr<BlockJitContinuation> NewContinuation();
+  virtual std::unique_ptr<BlockJitContinuation> NewContinuation();
 
   // Runs a single cycle of a block with the given continuation.
-  absl::Status RunOneCycle(BlockJitContinuation& continuation);
+  virtual absl::Status RunOneCycle(BlockJitContinuation& continuation);
 
   OrcJit& orc_jit() const { return *jit_; }
 
@@ -74,7 +77,7 @@ class BlockJit {
         .subspan(block_->GetInputPorts().size());
   }
 
- private:
+ protected:
   BlockJit(Block* block, std::unique_ptr<JitRuntime> runtime,
            std::unique_ptr<OrcJit> jit, JittedFunctionBase function)
       : block_(block),
@@ -138,6 +141,7 @@ class BlockJitContinuation {
   };
 
  public:
+  virtual ~BlockJitContinuation() = default;
   // Overwrite all input-ports with given values.
   absl::Status SetInputPorts(absl::Span<const Value> values);
   absl::Status SetInputPorts(std::initializer_list<const Value> values) {
@@ -154,17 +158,17 @@ class BlockJitContinuation {
   // Overwrite all registers with given values.
   absl::Status SetRegisters(absl::Span<const uint8_t* const> regs);
   // Overwrite all registers with given values.
-  absl::Status SetRegisters(
+  virtual absl::Status SetRegisters(
       const absl::flat_hash_map<std::string, Value>& regs);
 
   std::vector<Value> GetOutputPorts() const;
   absl::flat_hash_map<std::string, Value> GetOutputPortsMap() const;
   std::vector<Value> GetRegisters() const;
-  absl::flat_hash_map<std::string, Value> GetRegistersMap() const;
+  virtual absl::flat_hash_map<std::string, Value> GetRegistersMap() const;
 
   absl::flat_hash_map<std::string, int64_t> GetInputPortIndices() const;
   absl::flat_hash_map<std::string, int64_t> GetOutputPortIndices() const;
-  absl::flat_hash_map<std::string, int64_t> GetRegisterIndices() const;
+  virtual absl::flat_hash_map<std::string, int64_t> GetRegisterIndices() const;
 
   // Gets pointers to the JIT ABI struct input pointers for each input port
   // Write to the pointed to memory to manually set an input port value for the
@@ -193,10 +197,12 @@ class BlockJitContinuation {
 
   const JitTempBuffer& temp_buffer() const { return temp_buffer_; }
 
- private:
-  using BufferPair = std::array<JitArgumentSet, 2>;
+ protected:
   BlockJitContinuation(Block* block, BlockJit* jit,
                        const JittedFunctionBase& jit_func);
+
+ private:
+  using BufferPair = std::array<JitArgumentSet, 2>;
   static IOSpace MakeCombinedBuffers(const JittedFunctionBase& jit_func,
                                      const Block* block,
                                      const JitArgumentSet& ports,

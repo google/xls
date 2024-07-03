@@ -15,15 +15,19 @@
 #include "xls/jit/block_jit.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/block_evaluator_test_base.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
@@ -32,6 +36,8 @@
 namespace xls {
 namespace {
 
+using status_testing::StatusIs;
+using testing::ContainsRegex;
 using testing::ElementsAre;
 
 class BlockJitTest : public IrTestBase {};
@@ -166,14 +172,43 @@ TEST_F(BlockJitTest, SetRegistersWithViews) {
                   testing::Pair("test1", Value(UBits(0, 16))),
                   testing::Pair("test2", Value(UBits(0, 16)))));
 }
-INSTANTIATE_TEST_SUITE_P(
-    JitBlockCommonTest, BlockEvaluatorTest,
-    testing::Values(
-        BlockEvaluatorTestParam{.evaluator = &kJitBlockEvaluator,
-                                .supports_hierarhical_blocks = false},
-        BlockEvaluatorTestParam{.evaluator = &kStreamingJitBlockEvaluator,
-                                .supports_hierarhical_blocks = false}),
-    [](const auto& v) { return std::string(v.param.evaluator->name()); });
+
+TEST_F(BlockJitTest, ExternInstantiationIsAnError) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("extern_target", p.get());
+  fb.Add(fb.Param("foo", p->GetBitsType(32)), fb.Literal(UBits(32, 32)));
+  ForeignFunctionData ffi_data;
+  ffi_data.set_code_template("{fn}");
+  fb.SetForeignFunctionData(ffi_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * extern_fn, fb.Build());
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto inst,
+      bb.block()->AddInstantiation(
+          "ffi", std::make_unique<ExternInstantiation>("ffi", extern_fn)));
+  bb.InstantiationInput(inst, "extern_target.0",
+                        bb.InputPort("arg", p->GetBitsType(32)));
+  bb.OutputPort("res", bb.InstantiationOutput(inst, "return"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  EXPECT_THAT(
+      BlockJit::Create(blk),
+      StatusIs(absl::StatusCode::kInternal,
+               ContainsRegex("Jit is unable to implement instantiations")));
+}
+
+INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
+                         testing::Values(
+                             BlockEvaluatorTestParam{
+                                 .evaluator = &kJitBlockEvaluator,
+                                 .supports_fifos = false,
+                             },
+                             BlockEvaluatorTestParam{
+                                 .evaluator = &kStreamingJitBlockEvaluator,
+                                 .supports_fifos = false,
+                             }),
+                         [](const auto& v) {
+                           return std::string(v.param.evaluator->name());
+                         });
 
 }  // namespace
 }  // namespace xls

@@ -23,7 +23,7 @@ namespace xls {
 
 struct BlockEvaluatorTestParam {
   const BlockEvaluator* evaluator;
-  bool supports_hierarhical_blocks;
+  bool supports_fifos;
 };
 
 class BlockEvaluatorTest
@@ -32,9 +32,7 @@ class BlockEvaluatorTest
  public:
   const BlockEvaluator& evaluator() { return *GetParam().evaluator; }
 
-  bool SupportsHierarchicalBlocks() {
-    return GetParam().supports_hierarhical_blocks;
-  }
+  bool SupportsFifos() { return GetParam().supports_fifos; }
 };
 }  // namespace xls
 

@@ -25,7 +25,8 @@ namespace {
 INSTANTIATE_TEST_SUITE_P(BlockInterpreterTest, BlockEvaluatorTest,
                          testing::Values(BlockEvaluatorTestParam{
                              .evaluator = &kInterpreterBlockEvaluator,
-                             .supports_hierarhical_blocks = true}),
+                             .supports_fifos = true,
+                         }),
                          [](const auto& v) -> std::string {
                            return std::string(v.param.evaluator->name());
                          });
