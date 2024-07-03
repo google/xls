@@ -546,7 +546,7 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
-StreamingJitBlockEvaluator::MakeNewContinuation(
+JitBlockEvaluator::MakeNewContinuation(
     BlockElaboration&& elaboration,
     const absl::flat_hash_map<std::string, Value>& initial_registers) const {
   XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(elaboration));

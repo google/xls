@@ -263,12 +263,9 @@ class BlockJitContinuation {
 
 // A jit block evaluator that tries to use the jit's register saving as
 // possible.
-class StreamingJitBlockEvaluator : public BlockEvaluator {
+class JitBlockEvaluator : public BlockEvaluator {
  public:
-  constexpr StreamingJitBlockEvaluator() : BlockEvaluator("StreamingJit") {}
-
-  // Expose the overload without `initial_registers`.
-  using BlockEvaluator::NewContinuation;
+  constexpr JitBlockEvaluator() : BlockEvaluator("Jit") {}
 
  protected:
   absl::StatusOr<std::unique_ptr<BlockContinuation>> MakeNewContinuation(
@@ -277,7 +274,7 @@ class StreamingJitBlockEvaluator : public BlockEvaluator {
       const override;
 };
 
-static const StreamingJitBlockEvaluator kStreamingJitBlockEvaluator;
+static const JitBlockEvaluator kJitBlockEvaluator;
 
 }  // namespace xls
 

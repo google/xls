@@ -294,7 +294,7 @@ class CustomScheduleFuzzer
     if (kInterpreter) {
       return kInterpreterBlockEvaluator.NewContinuation(b, resets).value();
     }
-    return kStreamingJitBlockEvaluator.NewContinuation(b, resets).value();
+    return kJitBlockEvaluator.NewContinuation(b, resets).value();
   }
 };
 

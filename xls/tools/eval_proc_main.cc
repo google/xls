@@ -750,7 +750,7 @@ static absl::Status RunBlock(
 
   const BlockEvaluator& continuation_factory =
       options.use_jit
-          ? reinterpret_cast<const BlockEvaluator&>(kStreamingJitBlockEvaluator)
+          ? reinterpret_cast<const BlockEvaluator&>(kJitBlockEvaluator)
           : reinterpret_cast<const BlockEvaluator&>(kInterpreterBlockEvaluator);
 
   XLS_ASSIGN_OR_RETURN(auto continuation,

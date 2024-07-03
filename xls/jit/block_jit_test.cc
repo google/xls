@@ -198,7 +198,7 @@ TEST_F(BlockJitTest, ExternInstantiationIsAnError) {
 
 INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
                          testing::Values(BlockEvaluatorTestParam{
-                             .evaluator = &kStreamingJitBlockEvaluator,
+                             .evaluator = &kJitBlockEvaluator,
                              .supports_fifos = false,
                          }),
                          [](const auto& v) {
