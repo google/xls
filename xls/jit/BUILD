@@ -83,9 +83,6 @@ cc_library(
 cc_binary(
     name = "aot_compiler_main",
     srcs = ["aot_compiler_main.cc"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":aot_entrypoint_cc_proto",
         ":function_base_jit",
@@ -157,9 +154,6 @@ cc_library(
     name = "aot_runtime",
     srcs = ["aot_runtime.cc"],
     hdrs = ["aot_runtime.h"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":type_layout",
         ":type_layout_cc_proto",

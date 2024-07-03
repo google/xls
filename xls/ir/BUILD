@@ -538,9 +538,6 @@ cc_library(
         "topo_sort.h",
         "verify_node.h",
     ],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":bits",
         ":channel",
@@ -743,9 +740,6 @@ cc_library(
     name = "ir_parser",
     srcs = ["ir_parser.cc"],
     hdrs = ["ir_parser.h"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":bits",
         ":bits_ops",
@@ -972,9 +966,6 @@ cc_library(
 cc_test(
     name = "value_test",
     srcs = ["value_test.cc"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":bits",
         ":ir_parser",
@@ -1604,9 +1595,6 @@ cc_library(
     name = "channel",
     srcs = ["channel.cc"],
     hdrs = ["channel.h"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":channel_cc_proto",
         ":channel_ops",

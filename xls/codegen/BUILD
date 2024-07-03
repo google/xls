@@ -183,9 +183,6 @@ cc_library(
     name = "module_signature",
     srcs = ["module_signature.cc"],
     hdrs = ["module_signature.h"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":module_signature_cc_proto",
         ":verilog_line_map_cc_proto",
@@ -585,9 +582,6 @@ cc_test(
         "//xls/examples:custom_schedule.opt.ir",
         "//xls/examples:custom_schedule.schedule_options.textproto",
         "//xls/examples:custom_schedule.sig.textproto",
-    ],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
     ],
     deps = [
         ":module_signature_cc_proto",

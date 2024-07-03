@@ -237,9 +237,6 @@ cc_library(
 cc_binary(
     name = "synthesis_client_main",
     srcs = ["synthesis_client_main.cc"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":synthesis_cc_proto",
         ":synthesis_client",

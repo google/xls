@@ -53,9 +53,6 @@ cc_library(
     name = "filesystem",
     srcs = ["filesystem.cc"],
     hdrs = ["filesystem.h"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

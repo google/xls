@@ -56,9 +56,6 @@ cc_library(
         ":sample_runner_main",
         ":summarize_ir_main",
     ],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":ast_generator",
         ":cpp_run_fuzz",
@@ -462,9 +459,6 @@ cc_library(
     name = "sample",
     srcs = ["sample.cc"],
     hdrs = ["sample.h"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":sample_cc_proto",
         ":scrub_crasher",
@@ -484,6 +478,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:differencer",
         "@com_google_protobuf//:protobuf",
         "@com_googlesource_code_re2//:re2",
     ],
@@ -529,9 +524,6 @@ cc_binary(
 cc_binary(
     name = "summarize_ir_main",
     srcs = ["summarize_ir_main.cc"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     deps = [
         ":sample_summary_cc_proto",
         "//xls/common:exit_status",
@@ -954,9 +946,6 @@ cc_library(
         ":find_failing_input_main",
         ":sample_runner_main",
         "//xls/tools:ir_minimizer_main",
-    ],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
     ],
     deps = [
         ":sample",

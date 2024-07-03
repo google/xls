@@ -111,9 +111,6 @@ py_test(
         ":yosys_server_main",
         "//xls/synthesis:synthesis_client_main",
     ],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [

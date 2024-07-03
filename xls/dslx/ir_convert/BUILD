@@ -371,9 +371,6 @@ cc_library(
 cc_binary(
     name = "ir_converter_main",
     srcs = ["ir_converter_main.cc"],
-    features = [
-        "-layering_check",  # TODO(google/xls#1411) Protobuf Dependency
-    ],
     visibility = ["//xls:xls_users"],
     deps = [
         ":conversion_info",
