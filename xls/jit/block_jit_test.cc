@@ -197,15 +197,10 @@ TEST_F(BlockJitTest, ExternInstantiationIsAnError) {
 }
 
 INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
-                         testing::Values(
-                             BlockEvaluatorTestParam{
-                                 .evaluator = &kJitBlockEvaluator,
-                                 .supports_fifos = false,
-                             },
-                             BlockEvaluatorTestParam{
-                                 .evaluator = &kStreamingJitBlockEvaluator,
-                                 .supports_fifos = false,
-                             }),
+                         testing::Values(BlockEvaluatorTestParam{
+                             .evaluator = &kStreamingJitBlockEvaluator,
+                             .supports_fifos = false,
+                         }),
                          [](const auto& v) {
                            return std::string(v.param.evaluator->name());
                          });

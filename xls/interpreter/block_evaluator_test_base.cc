@@ -1238,26 +1238,36 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
 
   b.OutputPort("y", x);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
-                           BlockElaboration::Elaborate(block));
 
-  XLS_ASSERT_OK_AND_ASSIGN(BlockRunResult result,
-                           evaluator().EvaluateBlock(
-                               {{"x", Value(UBits(10, 32))}}, {}, elaboration));
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+    XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(10, 32))}}));
+    BlockRunResult result{
+        .outputs = cont->output_ports(),
+        .reg_state = cont->registers(),
+        .interpreter_events = cont->events(),
+    };
 
-  EXPECT_THAT(result.interpreter_events.trace_msgs,
-              ElementsAre(FieldsAre("x is 10", 0),
-                          FieldsAre("I'm emphasizing that x is 10", 3)));
-  EXPECT_THAT(result.interpreter_events.assert_msgs, IsEmpty());
+    EXPECT_THAT(result.interpreter_events.trace_msgs,
+                ElementsAre(FieldsAre("x is 10", 0),
+                            FieldsAre("I'm emphasizing that x is 10", 3)));
+    EXPECT_THAT(result.interpreter_events.assert_msgs, IsEmpty());
+  }
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      result,
-      evaluator().EvaluateBlock({{"x", Value(UBits(3, 32))}}, {}, elaboration));
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+    XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(3, 32))}}));
+    BlockRunResult result{
+        .outputs = cont->output_ports(),
+        .reg_state = cont->registers(),
+        .interpreter_events = cont->events(),
+    };
 
-  EXPECT_THAT(result.interpreter_events.trace_msgs,
-              ElementsAre(FieldsAre("x is 3", 0),
-                          FieldsAre("I'm emphasizing that x is 3", 3)));
-  EXPECT_THAT(result.interpreter_events.assert_msgs, ElementsAre("foo"));
+    EXPECT_THAT(result.interpreter_events.trace_msgs,
+                ElementsAre(FieldsAre("x is 3", 0),
+                            FieldsAre("I'm emphasizing that x is 3", 3)));
+    EXPECT_THAT(result.interpreter_events.assert_msgs, ElementsAre("foo"));
+  }
 }
 
 TEST_P(BlockEvaluatorTest, TupleInputOutput) {
@@ -1278,20 +1288,15 @@ TEST_P(BlockEvaluatorTest, TupleInputOutput) {
   b.OutputPort("o11", b.TupleIndex(b.TupleIndex(x, 1), 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
-                           BlockElaboration::Elaborate(block));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockRunResult result,
-      evaluator().EvaluateBlock(
-          {{"x",
-            Value::Tuple(
-                {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
-                 Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
-          {}, elaboration));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value::Tuple(
+                 {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                  Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}}));
 
   EXPECT_THAT(
-      result.outputs,
+      cont->output_ports(),
       UnorderedElementsAre(
           Pair("o0", Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))})),
           Pair("o00", Value(UBits(0, 1))), Pair("o01", Value(UBits(1, 2))),
@@ -1316,30 +1321,24 @@ TEST_P(BlockEvaluatorTest, TupleRegister) {
   b.InsertRegister("o11", b.TupleIndex(b.TupleIndex(x, 1), 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
-                           BlockElaboration::Elaborate(block));
-  RecordProperty("ir", block->DumpIr());
+  RecordProperty("ir", package->DumpIr());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockRunResult result,
-      evaluator().EvaluateBlock(
-          {},
-          {
-              {"x",
-               Value::Tuple(
-                   {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
-                    Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})},
-              {"o0", all_ones.element(0)},
-              {"o1", all_ones.element(1)},
-              {"o00", all_ones.element(0).element(0)},
-              {"o01", all_ones.element(0).element(1)},
-              {"o10", all_ones.element(1).element(0)},
-              {"o11", all_ones.element(1).element(1)},
-          },
-          elaboration));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  XLS_ASSERT_OK(cont->SetRegisters({
+      {"x",
+       Value::Tuple({Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+                     Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})},
+      {"o0", all_ones.element(0)},
+      {"o1", all_ones.element(1)},
+      {"o00", all_ones.element(0).element(0)},
+      {"o01", all_ones.element(0).element(1)},
+      {"o10", all_ones.element(1).element(0)},
+      {"o11", all_ones.element(1).element(1)},
+  }));
+  XLS_ASSERT_OK(cont->RunOneCycle({}));
 
   EXPECT_THAT(
-      result.reg_state,
+      cont->registers(),
       UnorderedElementsAre(
           Pair("x", all_ones),
           Pair("o0", Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))})),
@@ -1354,16 +1353,13 @@ TEST_P(BlockEvaluatorTest, TypeChecksInputs) {
   b.InputPort("test", package->GetBitsType(32));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
-                           BlockElaboration::Elaborate(block));
-
-  auto result = evaluator().EvaluateBlock(
-      {{"test", Value::Tuple(
-                    {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
-                     Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
-      {}, elaboration);
-
-  RecordProperty("error", result.status().ToString());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  auto result = cont->RunOneCycle(
+      {{"test",
+        Value::Tuple(
+            {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+             Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}});
+  RecordProperty("error", result.ToString());
   EXPECT_THAT(result, Not(IsOk()));
 }
 
@@ -1374,17 +1370,14 @@ TEST_P(BlockEvaluatorTest, TypeChecksRegister) {
   b.InsertRegister("test", b.Literal(UBits(0, 32)));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(BlockElaboration elaboration,
-                           BlockElaboration::Elaborate(block));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
 
-  auto result = evaluator().EvaluateBlock(
-      {},
-      {{"test", Value::Tuple(
-                    {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
-                     Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}},
-      elaboration);
-
-  RecordProperty("error", result.status().ToString());
+  auto result = cont->SetRegisters(
+      {{"test",
+        Value::Tuple(
+            {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
+             Value::Tuple({Value(UBits(2, 4)), Value(UBits(3, 8))})})}});
+  RecordProperty("error", result.ToString());
   EXPECT_THAT(result, Not(IsOk()));
 }
 

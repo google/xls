@@ -15,9 +15,11 @@
 #include "xls/interpreter/block_interpreter.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -772,6 +774,92 @@ absl::StatusOr<BlockRunResult> BlockRun(
   result.interpreter_events = interpreter.MoveInterpreterEvents();
 
   return result;
+}
+
+namespace {
+// A template for a generic BlockContinuation that calls a stateless evaluate
+// function with all input.
+template <typename Evaluate>
+  requires std::is_same_v<
+      absl::StatusOr<BlockRunResult>,
+      std::invoke_result_t<Evaluate,
+                           const absl::flat_hash_map<std::string, Value>&,
+                           const absl::flat_hash_map<std::string, Value>&,
+                           const BlockElaboration&>>
+class StatelessBlockContinuation final : public BlockContinuation {
+ public:
+  StatelessBlockContinuation(BlockElaboration&& block,
+                             BlockRunResult&& initial_result,
+                             Evaluate evaluator)
+      : elaboration_(std::move(block)),
+        last_result_(std::move(initial_result)),
+        evaluator_(std::move(evaluator)) {}
+
+  const absl::flat_hash_map<std::string, Value>& output_ports() final {
+    return last_result_.outputs;
+  }
+
+  const absl::flat_hash_map<std::string, Value>& registers() final {
+    return last_result_.reg_state;
+  }
+
+  const InterpreterEvents& events() final {
+    return last_result_.interpreter_events;
+  }
+
+  absl::Status RunOneCycle(
+      const absl::flat_hash_map<std::string, Value>& inputs) final {
+    XLS_ASSIGN_OR_RETURN(
+        last_result_, evaluator_(inputs, last_result_.reg_state, elaboration_));
+    return absl::OkStatus();
+  }
+
+  absl::Status SetRegisters(
+      const absl::flat_hash_map<std::string, Value>& regs) final {
+    XLS_RET_CHECK_EQ(regs.size(), last_result_.reg_state.size());
+    for (const auto& [key, v] : regs) {
+      XLS_RET_CHECK(last_result_.reg_state.contains(key)) << key;
+      XLS_RET_CHECK(last_result_.reg_state.at(key).SameTypeAs(v))
+          << "'" << key << "' is incorrect type. Expected shape to match "
+          << last_result_.reg_state.at(key) << " but value " << v
+          << " does not match.";
+    }
+    last_result_.reg_state = regs;
+    return absl::OkStatus();
+  }
+
+ private:
+  BlockElaboration elaboration_;
+  BlockRunResult last_result_;
+  Evaluate evaluator_;
+};
+
+template <typename Evaluate>
+StatelessBlockContinuation(BlockElaboration&&, BlockRunResult&&,
+                           Evaluate) -> StatelessBlockContinuation<Evaluate>;
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<BlockContinuation>>
+InterpreterBlockEvaluator::MakeNewContinuation(
+    BlockElaboration&& elaboration,
+    const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+  // We implement fifos using some extra registers stashed in the
+  // register-state. We need to add these here.
+  absl::flat_hash_map<std::string, Value> ext_regs = initial_registers;
+  for (BlockInstance* inst : elaboration.instances()) {
+    if (inst->instantiation().has_value() &&
+        inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
+      // We use tuples b/c empty arrays are not allowed.
+      // TODO: google/xls#1389 - Factor FIFO state out.
+      ext_regs[absl::StrCat(inst->RegisterPrefix(), "elements")] =
+          Value::Tuple({});
+    }
+  }
+
+  auto* cont = new StatelessBlockContinuation(
+      std::move(elaboration), BlockRunResult{.reg_state = std::move(ext_regs)},
+      BlockRun);
+  return std::unique_ptr<BlockContinuation>(cont);
 }
 
 }  // namespace xls

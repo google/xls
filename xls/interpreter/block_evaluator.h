@@ -20,6 +20,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -28,6 +30,8 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/events.h"
@@ -222,14 +226,6 @@ class BlockEvaluator {
   absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
       Block* block) const;
 
-  // Runs a single cycle of a block with the given register values and input
-  // values. Returns the value sent to the output port and the next register
-  // state.
-  virtual absl::StatusOr<BlockRunResult> EvaluateBlock(
-      const absl::flat_hash_map<std::string, Value>& inputs,
-      const absl::flat_hash_map<std::string, Value>& registers,
-      const BlockElaboration& elaboration) const = 0;
-
   // The name of this evaluator for debug purposes.
   std::string_view name() const { return name_; }
 
@@ -362,9 +358,10 @@ class BlockEvaluator {
   }
 
  protected:
-  virtual absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
-      BlockElaboration&& elaboration,
-      const absl::flat_hash_map<std::string, Value>& initial_registers) const;
+  virtual absl::StatusOr<std::unique_ptr<BlockContinuation>>
+  MakeNewContinuation(BlockElaboration&& elaboration,
+                      const absl::flat_hash_map<std::string, Value>&
+                          initial_registers) const = 0;
 
   std::string_view name_;
 };

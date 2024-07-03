@@ -71,6 +71,7 @@ cc_library(
     srcs = ["block_evaluator.cc"],
     hdrs = ["block_evaluator.h"],
     deps = [
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -89,6 +90,7 @@ cc_library(
         "//xls/ir:block_elaboration",
         "//xls/ir:elaboration",
         "//xls/ir:events",
+        "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:value",
         "//xls/ir:value_utils",

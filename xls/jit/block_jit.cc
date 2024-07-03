@@ -501,114 +501,6 @@ absl::StatusOr<absl::flat_hash_map<std::string, Value>> GetZeroRegisterValues(
 }
 }  // namespace
 
-absl::StatusOr<BlockRunResult> JitBlockEvaluator::EvaluateBlock(
-    const absl::flat_hash_map<std::string, Value>& inputs,
-    const absl::flat_hash_map<std::string, Value>& reg_state,
-    const BlockElaboration& elaboration) const {
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(elaboration));
-  auto continuation = jit->NewContinuation();
-  XLS_RETURN_IF_ERROR(continuation->SetInputPorts(inputs));
-  XLS_RETURN_IF_ERROR(continuation->SetRegisters(reg_state));
-  XLS_RETURN_IF_ERROR(jit->RunOneCycle(*continuation));
-  return BlockRunResult{
-      .outputs = continuation->GetOutputPortsMap(),
-      .reg_state = continuation->GetRegistersMap(),
-      .interpreter_events = continuation->GetEvents(),
-  };
-}
-
-absl::StatusOr<std::vector<absl::flat_hash_map<std::string, Value>>>
-StreamingJitBlockEvaluator::EvaluateSequentialBlock(
-    Block* block,
-    absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const {
-  // Initial register state is zero for all registers.
-  XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
-                       BlockElaboration::Elaborate(block));
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(elab));
-  auto continuation = jit->NewContinuation();
-  XLS_ASSIGN_OR_RETURN((absl::flat_hash_map<std::string, Value> reg_state),
-                       GetZeroRegisterValues(elab));
-  XLS_RETURN_IF_ERROR(continuation->SetRegisters(reg_state));
-
-  std::vector<absl::flat_hash_map<std::string, Value>> outputs;
-  for (const absl::flat_hash_map<std::string, Value>& input_set : inputs) {
-    XLS_RETURN_IF_ERROR(continuation->SetInputPorts(input_set));
-    XLS_RETURN_IF_ERROR(jit->RunOneCycle(*continuation));
-    outputs.push_back(continuation->GetOutputPortsMap());
-  }
-  return std::move(outputs);
-}
-
-absl::StatusOr<BlockIOResults>
-StreamingJitBlockEvaluator::EvaluateChannelizedSequentialBlock(
-    Block* block, absl::Span<ChannelSource> channel_sources,
-    absl::Span<ChannelSink> channel_sinks,
-    absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
-    const std::optional<verilog::ResetProto>& reset, int64_t seed) const {
-  XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
-                       BlockElaboration::Elaborate(block));
-  std::minstd_rand random_engine;
-  random_engine.seed(seed);
-
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(elab));
-  auto continuation = jit->NewContinuation();
-  XLS_ASSIGN_OR_RETURN((absl::flat_hash_map<std::string, Value> reg_state),
-                       GetZeroRegisterValues(elab));
-  XLS_RETURN_IF_ERROR(continuation->SetRegisters(reg_state));
-
-  int64_t max_cycle_count = inputs.size();
-
-  BlockIOResults block_io_results;
-  for (int64_t cycle = 0; cycle < max_cycle_count; ++cycle) {
-    absl::flat_hash_map<std::string, Value> input_set = inputs.at(cycle);
-
-    // Sources set data/valid
-    for (ChannelSource& src : channel_sources) {
-      XLS_RETURN_IF_ERROR(
-          src.SetBlockInputs(cycle, input_set, random_engine, reset));
-    }
-
-    // Sinks set ready
-    for (ChannelSink& sink : channel_sinks) {
-      XLS_RETURN_IF_ERROR(
-          sink.SetBlockInputs(cycle, input_set, random_engine, reset));
-    }
-
-    if (VLOG_IS_ON(3)) {
-      VLOG(3) << absl::StrFormat("Inputs Cycle %d", cycle);
-      for (const auto& [name, val] : input_set) {
-        VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());
-      }
-    }
-
-    XLS_RETURN_IF_ERROR(continuation->SetInputPorts(input_set));
-    XLS_RETURN_IF_ERROR(jit->RunOneCycle(*continuation));
-    auto outputs = continuation->GetOutputPortsMap();
-
-    // Sources get ready
-    for (ChannelSource& src : channel_sources) {
-      XLS_RETURN_IF_ERROR(src.GetBlockOutputs(cycle, outputs));
-    }
-
-    // Sinks get data/valid
-    for (ChannelSink& sink : channel_sinks) {
-      XLS_RETURN_IF_ERROR(sink.GetBlockOutputs(cycle, outputs));
-    }
-
-    if (VLOG_IS_ON(3)) {
-      VLOG(3) << absl::StrFormat("Outputs Cycle %d", cycle);
-      for (const auto& [name, val] : outputs) {
-        VLOG(3) << absl::StrFormat("%s: %s", name, val.ToString());
-      }
-    }
-
-    block_io_results.inputs.push_back(std::move(input_set));
-    block_io_results.outputs.push_back(std::move(outputs));
-  }
-
-  return block_io_results;
-}
-
 namespace {
 // Helper adapter to implement the interpreter-focused block-continuation api
 // used by eval_proc_main. This holds live all the values needed to run the
@@ -657,7 +549,7 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
-StreamingJitBlockEvaluator::NewContinuation(
+StreamingJitBlockEvaluator::MakeNewContinuation(
     BlockElaboration&& elaboration,
     const absl::flat_hash_map<std::string, Value>& initial_registers) const {
   XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(elaboration));

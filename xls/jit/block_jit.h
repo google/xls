@@ -264,66 +264,23 @@ class BlockJitContinuation {
   friend class BlockJit;
 };
 
-// Most basic jit-evaluator. This is basically only for testing the core
-// jit-behaviors in isolation from the continuation update behaviors.
-class JitBlockEvaluator : public BlockEvaluator {
- public:
-  constexpr JitBlockEvaluator() : JitBlockEvaluator("Jit") {}
-
-  absl::StatusOr<BlockRunResult> EvaluateBlock(
-      const absl::flat_hash_map<std::string, Value>& inputs,
-      const absl::flat_hash_map<std::string, Value>& reg_state,
-      const BlockElaboration& elaboration) const final;
-
- protected:
-  constexpr explicit JitBlockEvaluator(std::string_view name)
-      : BlockEvaluator(name) {}
-};
-
-// An block-evaluator that doesn't attempt to use continuations to save register
-// state between calls. Should only be used for testing.
-static const JitBlockEvaluator kJitBlockEvaluator;
-
 // A jit block evaluator that tries to use the jit's register saving as
 // possible.
-class StreamingJitBlockEvaluator : public JitBlockEvaluator {
+class StreamingJitBlockEvaluator : public BlockEvaluator {
  public:
-  constexpr StreamingJitBlockEvaluator() : JitBlockEvaluator("StreamingJit") {}
-  absl::StatusOr<std::vector<absl::flat_hash_map<std::string, Value>>>
-  EvaluateSequentialBlock(
-      Block* block,
-      absl::Span<const absl::flat_hash_map<std::string, Value>> inputs)
-      const final;
-
-  absl::StatusOr<BlockIOResults> EvaluateChannelizedSequentialBlock(
-      Block* block, absl::Span<ChannelSource> channel_sources,
-      absl::Span<ChannelSink> channel_sinks,
-      absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
-      const std::optional<verilog::ResetProto>& reset,
-      int64_t seed) const override;
+  constexpr StreamingJitBlockEvaluator() : BlockEvaluator("StreamingJit") {}
 
   // Expose the overload without `initial_registers`.
   using BlockEvaluator::NewContinuation;
 
  protected:
-  absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
+  absl::StatusOr<std::unique_ptr<BlockContinuation>> MakeNewContinuation(
       BlockElaboration&& elaboration,
       const absl::flat_hash_map<std::string, Value>& initial_registers)
       const override;
 };
 
 static const StreamingJitBlockEvaluator kStreamingJitBlockEvaluator;
-
-// Runs a single cycle of a block with the given register values and input
-// values. Returns the value sent to the output port and the next register
-// state. This is a compatibility API that matches the interpreter runner.
-inline absl::StatusOr<BlockRunResult> JitBlockRun(
-    const absl::flat_hash_map<std::string, Value>& inputs,
-    const absl::flat_hash_map<std::string, Value>& reg_state, Block* block) {
-  XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
-                       BlockElaboration::Elaborate(block));
-  return kJitBlockEvaluator.EvaluateBlock(inputs, reg_state, elaboration);
-}
 
 }  // namespace xls
 

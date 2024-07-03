@@ -16,17 +16,23 @@
 #define XLS_INTERPRETER_BLOCK_INTERPRETER_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
+#include "xls/ir/events.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -42,12 +48,12 @@ absl::StatusOr<BlockRunResult> BlockRun(
 class InterpreterBlockEvaluator final : public BlockEvaluator {
  public:
   constexpr InterpreterBlockEvaluator() : BlockEvaluator("Interpreter") {}
-  absl::StatusOr<BlockRunResult> EvaluateBlock(
-      const absl::flat_hash_map<std::string, Value>& inputs,
-      const absl::flat_hash_map<std::string, Value>& registers,
-      const BlockElaboration& elaboration) const final {
-    return BlockRun(inputs, registers, elaboration);
-  }
+
+ protected:
+  absl::StatusOr<std::unique_ptr<BlockContinuation>> MakeNewContinuation(
+      BlockElaboration&& elaboration,
+      const absl::flat_hash_map<std::string, Value>& initial_registers)
+      const override;
 };
 
 // Runs the interpreter on a combinational block. `inputs` must contain a
