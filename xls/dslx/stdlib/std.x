@@ -978,7 +978,7 @@ fn test_umul_with_overflow() {
     }(());
 }
 
-fn is_unsigned_msb_set<N: u32>(x: uN[N]) -> bool { x[-1:] }
+pub fn is_unsigned_msb_set<N: u32>(x: uN[N]) -> bool { x[-1:] }
 
 #[test]
 fn is_unsigned_msb_set_test() {

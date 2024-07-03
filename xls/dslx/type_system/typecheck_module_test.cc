@@ -377,6 +377,44 @@ fn f() -> u32[3] {
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, MapImportedNonPublicFunction) {
+  constexpr std::string_view kImported = R"(
+fn some_function(x: u32) -> u32 { x }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32[3] {
+  map(u32[3]:[1, 2, 3], imported::some_function)
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  EXPECT_THAT(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
+}
+
+TEST(TypecheckTest, MapImportedNonPublicInferredParametricFunction) {
+  constexpr std::string_view kImported = R"(
+fn some_function<N: u32>(x: bits[N]) -> bits[N] { x }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32[3] {
+  map(u32[3]:[1, 2, 3], imported::some_function)
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  EXPECT_THAT(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
+}
+
 TEST(TypecheckErrorTest, ParametricInvocationConflictingArgs) {
   std::string program = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }

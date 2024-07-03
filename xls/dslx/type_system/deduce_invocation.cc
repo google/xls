@@ -66,7 +66,7 @@ extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
 // created).
 //
 // Builtins don't have `Function` nodes (since they're not userspace functions),
-// so that inference can't occur, so we essentually perform that synthesis and
+// so that inference can't occur, so we essentially perform that synthesis and
 // deduction here.
 //
 // Args:
@@ -109,9 +109,23 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> arg0_type,
                        DeduceAndResolve(args[0], ctx));
 
+  Expr* callee = args[1];
+  // If the callee is an imported function, we need to check that it is public.
+  if (auto* colon_ref = dynamic_cast<ColonRef*>(callee); colon_ref != nullptr) {
+    XLS_ASSIGN_OR_RETURN(Function * callee_fn,
+                         ResolveFunction(colon_ref, ctx->type_info()));
+    if (!callee_fn->is_public()) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::StrFormat("Attempted to refer to module member %s that "
+                          "is not public.",
+                          callee->ToString()));
+    }
+  }
+
   // Then get the type and bindings for the mapping fn.
   Invocation* element_invocation =
-      CreateElementInvocation(ctx->module(), node->span(), /*callee=*/args[1],
+      CreateElementInvocation(ctx->module(), node->span(), /*callee=*/callee,
                               /*arg_array=*/args[0], /*parent=*/node->parent());
   XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
                        ctx->typecheck_invocation()(ctx, element_invocation,
