@@ -659,4 +659,19 @@ fn test_parse_frame_header() {
         buffer: Buffer { content: bits[128]:0x0, length: u32:0 },
         header: zero!<FrameHeader>()
     });
+
+    // Frame Header is discarded because Frame Content Size required by frame is too big for given decoder
+    // configuration
+    let buffer = Buffer { content: bits[128]:0xf45b5b5b0db1, length: u32:48 };
+    let frame_header_result = parse_frame_header<TEST_WINDOW_LOG_MAX>(buffer);
+    assert_eq(frame_header_result, FrameHeaderResult {
+        status: FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE,
+        buffer: Buffer { content: bits[128]:0x0, length: u32:0 },
+        header: FrameHeader {
+            window_size: u64:0x0,
+            frame_content_size: u64:0x0,
+            dictionary_id: u32:0x0,
+            content_checksum_flag: u1:0,
+        },
+    });
 }
