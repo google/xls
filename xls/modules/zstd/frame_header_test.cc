@@ -187,7 +187,8 @@ class FrameHeaderTest : public xls::IrTestBase {
     if (expected_status == FrameHeaderStatus::NO_ENOUGH_DATA)
       return dslx_simulation_input;
     // Critical failure - return empty buffer
-    if (expected_status == FrameHeaderStatus::CORRUPTED)
+    if (expected_status == FrameHeaderStatus::CORRUPTED ||
+        expected_status == FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE)
       return Value::Tuple({/*contents:*/ Value(UBits(0, dslx_buffer_size)),
                            /*length:*/ Value(UBits(0, 32))});
 
@@ -281,7 +282,7 @@ TEST_F(FrameHeaderTest, ParseFrameHeaderPendingBug1) {
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderPendingBug2) {
+TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedWindowSize) {
   std::vector<uint8_t> buffer{'S', 0301, 'i', 0320, 0, 0256, 'd', 'D', 0226, 'F', 'Z', 'Z', 0332, 0370, 'A'};
   this->ParseAndCompareWithZstd(buffer);
 }
