@@ -629,6 +629,31 @@ absl::StatusOr<Instantiation*> Block::AddInstantiation(
   return instantiation_ptr;
 }
 
+absl::Status Block::ReplaceInstantiationWith(Instantiation* old_inst,
+                                             Instantiation* new_inst) {
+  XLS_RET_CHECK(IsOwned(old_inst));
+  XLS_RET_CHECK(IsOwned(new_inst)) << "must add instantiation to this block "
+                                      "before replacing uses of another.";
+  std::vector<InstantiationInput*> inps(instantiation_inputs_.at(old_inst));
+  std::vector<InstantiationOutput*> outs(instantiation_outputs_.at(old_inst));
+  XLS_ASSIGN_OR_RETURN(InstantiationType old_type, old_inst->type());
+  XLS_ASSIGN_OR_RETURN(InstantiationType new_type, new_inst->type());
+  XLS_RET_CHECK(old_type == new_type) << "Type mismatch of instantiations";
+  for (InstantiationInput* inp : inps) {
+    XLS_RETURN_IF_ERROR(inp->ReplaceUsesWithNew<InstantiationInput>(
+                               inp->data(), new_inst, inp->port_name())
+                            .status());
+    XLS_RETURN_IF_ERROR(RemoveNode(inp));
+  }
+  for (InstantiationOutput* out : outs) {
+    XLS_RETURN_IF_ERROR(
+        out->ReplaceUsesWithNew<InstantiationOutput>(new_inst, out->port_name())
+            .status());
+    XLS_RETURN_IF_ERROR(RemoveNode(out));
+  }
+  return RemoveInstantiation(old_inst);
+}
+
 absl::Status Block::RemoveInstantiation(Instantiation* instantiation) {
   if (!IsOwned(instantiation)) {
     return absl::InvalidArgumentError("Instantiation is not owned by block.");

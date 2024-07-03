@@ -159,6 +159,11 @@ class Block : public FunctionBase {
   // to calling this method
   absl::Status RemoveInstantiation(Instantiation* instantiation);
 
+  // Replaces all uses of old_isnt with new_inst and removes old_inst. Both must
+  // be currently owned by this block.
+  absl::Status ReplaceInstantiationWith(Instantiation* old_inst,
+                                        Instantiation* new_inst);
+
   // Returns all instantiations owned by this block.
   absl::Span<Instantiation* const> GetInstantiations() const {
     return instantiation_vec_;
