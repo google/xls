@@ -1088,5 +1088,27 @@ TEST_F(ConditionalSpecializationPassTest, LogicalNorImpliedValue) {
               m::Nor(m::Param("a"), m::Add(m::Literal(0), m::Param("b"))));
 }
 
+// Verify that we correctly track which value is the identity for a given
+// bitwise operation.
+//
+// Discovered by fuzz-testing as crasher 0031623b.
+TEST_F(ConditionalSpecializationPassTest, CorrectIdentityValueTracked) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue x = fb.Param("x", u1);
+  BValue false_literal = fb.Literal(UBits(0, 1));
+  BValue and_v = fb.And(x, false_literal);
+  BValue or_v = fb.Or(and_v, false_literal);
+  BValue result = fb.Concat({or_v});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::And(m::Param("x"), m::Literal(0))));
+}
+
 }  // namespace
 }  // namespace xls

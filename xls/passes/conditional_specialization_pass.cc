@@ -775,7 +775,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           } else {
             XLS_RET_CHECK(src->OpIn({Op::kAnd, Op::kOr, Op::kXor}));
             auto is_identity = [&](const Bits& b) {
-              if (operand->op() == Op::kAnd) {
+              if (src->op() == Op::kAnd) {
                 return b.IsAllOnes();
               }
               return b.IsZero();
