@@ -20,8 +20,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -30,8 +28,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/events.h"

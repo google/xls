@@ -200,7 +200,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
-        "//xls/ir:elaboration",
         "//xls/ir:format_preference",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",

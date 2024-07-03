@@ -18,14 +18,12 @@
 #include <cstring>
 #include <memory>
 #include <optional>
-#include <random>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -33,7 +31,6 @@
 #include "absl/types/span.h"
 #include "xls/codegen/block_inlining_pass.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"

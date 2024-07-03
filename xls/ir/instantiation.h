@@ -21,7 +21,6 @@
 #include <string>
 #include <string_view>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"

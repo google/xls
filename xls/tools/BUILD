@@ -588,8 +588,6 @@ cc_library(
     hdrs = ["testbench.h"],
     deps = [
         ":testbench_thread",
-        "//xls/common/file:filesystem",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",

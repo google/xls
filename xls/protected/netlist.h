@@ -22,11 +22,13 @@
 #ifndef XLS_PROTECTED_NETLIST_H_
 #define XLS_PROTECTED_NETLIST_H_
 
+// IWYU pragma: begin_exports
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/function_extractor.h"
 #include "xls/netlist/interpreter.h"
 #include "xls/netlist/lib_parser.h"
 #include "xls/netlist/netlist.h"
 #include "xls/netlist/netlist_parser.h"
+// IWYU pragma: end_exports
 
 #endif  // XLS_PROTECTED_NETLIST_H_

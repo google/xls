@@ -29,10 +29,6 @@
 #ifndef XLS_COMMON_SOURCE_LOCATION_H_
 #define XLS_COMMON_SOURCE_LOCATION_H_
 
-#include <cstdint>
-
-#include "absl/base/config.h"
-
 #ifdef XLS_USE_ABSL_SOURCE_LOCATION
 #include "absl/types/source_location.h"
 
@@ -44,6 +40,7 @@ using SourceLocation = absl::SourceLocation;
 }  // namespace xabsl
 
 #else
+#include <cstdint>
 
 // OSS Version of source_location
 

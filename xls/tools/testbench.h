@@ -20,18 +20,15 @@
 #include <functional>
 #include <iostream>
 #include <memory>
-#include <thread>  // NOLINT(build/c++11)
 #include <type_traits>
 #include <vector>
 
-#include "absl/base/internal/sysinfo.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/tools/testbench_thread.h"
 
 namespace xls {

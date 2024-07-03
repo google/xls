@@ -21,7 +21,8 @@
 #include <tuple>
 
 #include "absl/status/statusor.h"
-#include "openssl/bn.h"
+#include "openssl/base.h"
+#include "openssl/bn.h"  // IWYU pragma: keep
 #include "xls/ir/bits.h"
 
 namespace xls {
