@@ -2164,7 +2164,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/solvers:z3_ir_equivalence",
-        "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_ir_translator_matchers",
         "@com_google_googletest//:gtest",
     ],
