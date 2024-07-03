@@ -78,6 +78,8 @@ class Package {
 
   // Note: functions have parent pointers to their packages, so we don't want
   // them to be moved or copied; this makes Package non-moveable non-copyable.
+  // If a copy is required one can explicitly use ClonePackage in
+  // clone_package.h.
   Package(const Package& other) = delete;
   Package& operator=(const Package& other) = delete;
 

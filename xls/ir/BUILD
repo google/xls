@@ -2127,3 +2127,40 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "clone_package",
+    srcs = ["clone_package.cc"],
+    hdrs = ["clone_package.h"],
+    deps = [
+        ":channel",
+        ":ir",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "clone_package_test",
+    srcs = ["clone_package_test.cc"],
+    deps = [
+        ":bits",
+        ":channel",
+        ":channel_ops",
+        ":clone_package",
+        ":function_builder",
+        ":ir",
+        ":ir_matcher",
+        ":ir_test_base",
+        ":proc_testutils",
+        ":value",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/solvers:z3_ir_equivalence",
+        "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_ir_translator_matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
