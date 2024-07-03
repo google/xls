@@ -709,8 +709,6 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
   BlockInterpreter* current_interpreter_ = nullptr;
 };
 
-}  // namespace
-
 absl::StatusOr<BlockRunResult> BlockRun(
     const absl::flat_hash_map<std::string, Value>& inputs,
     const absl::flat_hash_map<std::string, Value>& reg_state,
@@ -776,7 +774,6 @@ absl::StatusOr<BlockRunResult> BlockRun(
   return result;
 }
 
-namespace {
 // A template for a generic BlockContinuation that calls a stateless evaluate
 // function with all input.
 template <typename Evaluate>

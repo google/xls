@@ -19,31 +19,18 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
-#include "xls/ir/events.h"
 #include "xls/ir/value.h"
 
 namespace xls {
-
-// Runs a single cycle of a block with the given register values and input
-// values. Returns the value sent to the output port and the next register
-// state.
-absl::StatusOr<BlockRunResult> BlockRun(
-    const absl::flat_hash_map<std::string, Value>& inputs,
-    const absl::flat_hash_map<std::string, Value>& reg_state,
-    const BlockElaboration& elaboration);
 
 class InterpreterBlockEvaluator final : public BlockEvaluator {
  public:
