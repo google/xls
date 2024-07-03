@@ -439,6 +439,45 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithIdenticalCases) {
                         {m::Literal("bits[42]:0"), m::Param("x")}));
 }
 
+TEST_F(SelectSimplificationPassTest, PrioritySelectWithTwoDistinctCases) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(s: bits[2], x: bits[42], y: bits[42]) -> bits[42] {
+        ret result: bits[42] = priority_sel(s, cases=[x, y], default=x)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::Eq(m::Param("s"), m::Literal("bits[2]:0b10")),
+                        {m::Param("y")}, /*default_value=*/m::Param("x")));
+}
+
+TEST_F(SelectSimplificationPassTest,
+       ComplexPrioritySelectWithTwoDistinctCases) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(s: bits[5], x: bits[42], y: bits[42]) -> bits[42] {
+        ret result: bits[42] = priority_sel(s, cases=[y, x, y, x, y], default=x)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Or(m::BitSlice(m::Param("s"), /*start=*/0, /*width=*/1),
+                m::Eq(m::BitSlice(m::Param("s"), /*start=*/0, /*width=*/3),
+                      m::Literal("bits[3]:0b100")),
+                m::Eq(m::Param("s"), m::Literal("bits[5]:0b10000"))),
+          {m::Param("y")}, /*default_value=*/m::Param("x")));
+}
+
 TEST_F(SelectSimplificationPassTest, UselessSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

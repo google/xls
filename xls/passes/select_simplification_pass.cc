@@ -1322,6 +1322,85 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
+  // PrioritySelect with two distinct cases (including the default value) can be
+  // reduced to a one-bit PrioritySelect by checking for just the non-default
+  // cases.
+  //
+  // By the time we get here, this should only apply to PrioritySelects of the
+  // following forms:
+  //
+  //   priority_sel(s, cases=[x, y], default=x)
+  //   priority_sel(s, cases=[y, x, y], default=x)
+  //   priority_sel(s, cases=[x, y, x, y], default=x)
+  //   ...
+  //
+  // where 'x' and 'y' are distinct values, due to collapsing of consecutive
+  // equivalent cases.
+  auto distinct_case_count = [&](PrioritySelect* sel) {
+    absl::Span<Node* const> cases = sel->cases();
+    absl::flat_hash_set<Node*> distinct_cases(cases.begin(), cases.end());
+    distinct_cases.insert(sel->default_value());
+    return distinct_cases.size();
+  };
+  if (SplitsEnabled(opt_level) && node->Is<PrioritySelect>() &&
+      node->As<PrioritySelect>()->cases().size() > 1 &&
+      distinct_case_count(node->As<PrioritySelect>()) == 2) {
+    VLOG(2) << absl::StrFormat(
+        "Simplifying priority-select with two distinct cases: %s",
+        node->ToString());
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    Node* nondefault_case = nullptr;
+    std::vector<Node*> nondefault_selectors;
+    for (int64_t i = 0; i < sel->cases().size(); ++i) {
+      if (sel->get_case(i) == sel->default_value()) {
+        continue;
+      }
+      nondefault_case = sel->get_case(i);
+      Node* case_selector;
+      if (i == 0) {
+        XLS_ASSIGN_OR_RETURN(case_selector,
+                             sel->function_base()->MakeNode<BitSlice>(
+                                 node->loc(), sel->selector(),
+                                 /*start=*/0, /*width=*/1));
+      } else {
+        Node* selector_slice;
+        if (i + 1 == sel->selector()->BitCountOrDie()) {
+          selector_slice = sel->selector();
+        } else {
+          XLS_ASSIGN_OR_RETURN(selector_slice,
+                               sel->function_base()->MakeNode<BitSlice>(
+                                   node->loc(), sel->selector(),
+                                   /*start=*/0, /*width=*/i + 1));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Node * selector_case,
+            sel->function_base()->MakeNode<Literal>(
+                node->loc(), Value(Bits::PowerOfTwo(i, i + 1))));
+        XLS_ASSIGN_OR_RETURN(
+            case_selector,
+            sel->function_base()->MakeNode<CompareOp>(
+                node->loc(), selector_slice, selector_case, Op::kEq));
+      }
+      nondefault_selectors.push_back(case_selector);
+    }
+    CHECK_NE(nondefault_case, nullptr);
+    CHECK(!nondefault_selectors.empty());
+    Node* new_selector;
+    if (nondefault_selectors.size() == 1) {
+      new_selector = nondefault_selectors.front();
+    } else {
+      XLS_ASSIGN_OR_RETURN(new_selector,
+                           sel->function_base()->MakeNode<NaryOp>(
+                               node->loc(), nondefault_selectors, Op::kOr));
+    }
+    XLS_RETURN_IF_ERROR(sel->ReplaceUsesWithNew<PrioritySelect>(
+                               /*selector=*/new_selector,
+                               /*cases=*/absl::MakeConstSpan({nondefault_case}),
+                               /*default_value=*/sel->default_value())
+                            .status());
+    return true;
+  }
+
   // "Squeeze" the width of the mux when bits are known to reduce the cost of
   // the operation.
   //
