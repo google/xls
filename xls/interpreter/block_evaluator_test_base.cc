@@ -36,7 +36,6 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/elaboration.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
@@ -47,6 +46,7 @@
 namespace xls {
 namespace {
 
+using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
@@ -1267,6 +1267,61 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
                 ElementsAre(FieldsAre("x is 3", 0),
                             FieldsAre("I'm emphasizing that x is 3", 3)));
     EXPECT_THAT(result.interpreter_events.assert_msgs, ElementsAre("foo"));
+  }
+}
+
+TEST_P(BlockEvaluatorTest, InterpreterEventsCapturedByChannelizedInterface) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue x_vld = b.InputPort("x_vld", package->GetBitsType(1));
+  BValue y_rdy = b.InputPort("y_rdy", package->GetBitsType(1));
+  b.OutputPort("y", x);
+  b.OutputPort("x_rdy", y_rdy);
+  b.OutputPort("y_vld", x_vld);
+
+  BValue tkn = b.Literal(Value::Token());
+  BValue fire = b.And({x_vld, y_rdy});
+  BValue assert_cond = b.UGt(x, b.Literal(Value(UBits(5, 32))));
+  BValue fire_implies_cond = b.Or(b.Not(fire), assert_cond);
+  BValue assertion = b.Assert(tkn, fire_implies_cond, "foo");
+  b.Trace(assertion, fire, {x},
+          {"I'm emphasizing that x is ", FormatPreference::kDefault},
+          /*verbosity=*/3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 0.5, block)};
+    XLS_ASSERT_OK(
+        sources.at(0).SetDataSequence(std::vector<uint64_t>{8, 7, 6, 5, 4}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("y", "y_vld", "y_rdy", 0.1, block),
+    };
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+    inputs.resize(100);
+
+    BlockIOResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io,
+        evaluator().EvaluateChannelizedSequentialBlockWithUint64(
+            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+    EXPECT_THAT(output_sequence, ElementsAre(8, 7, 6, 5, 4));
+    EXPECT_THAT(block_io.interpreter_events.assert_msgs,
+                // Assertion fails for inputs 5 and 4.
+                ElementsAre("foo", "foo"));
+    EXPECT_THAT(block_io.interpreter_events.trace_msgs,
+                Contains(FieldsAre(HasSubstr("I'm emphasizing that x is "), _))
+                    .Times(5));
   }
 }
 

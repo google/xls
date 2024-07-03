@@ -15,6 +15,7 @@
 #include "xls/interpreter/block_evaluator.h"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <random>
@@ -22,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -441,6 +443,12 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
 
     block_io_results.inputs.push_back(std::move(input_set));
     block_io_results.outputs.push_back(continuation->output_ports());
+    absl::c_copy(
+        continuation->events().assert_msgs,
+        std::back_inserter(block_io_results.interpreter_events.assert_msgs));
+    absl::c_copy(
+        continuation->events().trace_msgs,
+        std::back_inserter(block_io_results.interpreter_events.trace_msgs));
   }
 
   return block_io_results;
@@ -488,6 +496,8 @@ BlockEvaluator::EvaluateChannelizedSequentialBlockWithUint64(
                          ConvertInputsToUint64(input_value_set, block));
     block_io_result_as_uint64.inputs.push_back(std::move(input_set));
   }
+  block_io_result_as_uint64.interpreter_events =
+      std::move(block_io_result.interpreter_events);
   return block_io_result_as_uint64;
 }
 

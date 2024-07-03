@@ -200,11 +200,13 @@ class ChannelSink {
 struct BlockIOResults {
   std::vector<absl::flat_hash_map<std::string, Value>> inputs;
   std::vector<absl::flat_hash_map<std::string, Value>> outputs;
+  InterpreterEvents interpreter_events;
 };
 
 struct BlockIOResultsAsUint64 {
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  InterpreterEvents interpreter_events;
 };
 
 class BlockContinuation;
