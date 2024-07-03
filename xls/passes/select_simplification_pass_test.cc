@@ -539,7 +539,7 @@ TEST_F(SelectSimplificationPassTest, MeaningfulArrayTyped3ArySelectViaDefault) {
                                            m::Literal(default_value)));
 }
 
-TEST_F(SelectSimplificationPassTest, OneBitMux) {
+TEST_F(SelectSimplificationPassTest, OneBitMuxSel) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn func(s: bits[1], a: bits[1]) -> bits[1] {
@@ -553,6 +553,37 @@ TEST_F(SelectSimplificationPassTest, OneBitMux) {
   EXPECT_THAT(f->return_value(),
               m::Or(m::And(m::Param("s"), m::Param("a")),
                     m::And(m::Not(m::Param("s")), m::Param("s"))));
+}
+
+TEST_F(SelectSimplificationPassTest, OneBitMuxPrioritySel) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn func(s: bits[1], a: bits[1]) -> bits[1] {
+       ret priority_sel.3: bits[1] = priority_sel(s, cases=[s], default=a)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_EQ(f->return_value()->op(), Op::kPrioritySel);
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Or(m::And(m::Param("s"), m::Param("s")),
+                    m::And(m::Not(m::Param("s")), m::Param("a"))));
+}
+
+TEST_F(SelectSimplificationPassTest, OneBitMuxOneHotSel) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn func(s: bits[1], a: bits[1]) -> bits[1] {
+       ret one_hot_sel.3: bits[1] = one_hot_sel(s, cases=[a])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_EQ(f->return_value()->op(), Op::kOneHotSel);
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("s"), m::Param("a")));
 }
 
 TEST_F(SelectSimplificationPassTest, SelSqueezing) {
