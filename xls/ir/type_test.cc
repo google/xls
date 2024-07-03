@@ -16,8 +16,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/type_manager.h"
 
 namespace xls {
 namespace {
@@ -203,6 +205,38 @@ TEST(TypeTest, AsXTypeCallsWork) {
   EXPECT_THAT(a1.AsTuple(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Type is not a tuple: bits[32][7]")));
+}
+
+TEST(TypeTest, InstantiationType) {
+  TypeManager man;
+  InstantiationType it1(/*input_types=*/{{"foo", man.GetBitsType(32)}},
+                        /*output_types=*/{{"bar", man.GetBitsType(32)}});
+  InstantiationType it2(/*input_types=*/{{"foo", man.GetBitsType(32)}},
+                        /*output_types=*/{{"bar", man.GetBitsType(32)}});
+  EXPECT_EQ(it1, it2);
+  InstantiationType it3(/*input_types=*/{{"bar", man.GetBitsType(32)}},
+                        /*output_types=*/{{"foo", man.GetBitsType(32)}});
+  EXPECT_NE(it1, it3);
+  InstantiationType it4(/*input_types=*/{{"fooooooo", man.GetBitsType(32)}},
+                        /*output_types=*/{{"bar", man.GetBitsType(32)}});
+  EXPECT_NE(it1, it4);
+  InstantiationType it5(/*input_types=*/{{"foo", man.GetBitsType(32)}},
+                        /*output_types=*/{{"baaaaar", man.GetBitsType(32)}});
+  EXPECT_NE(it1, it5);
+  InstantiationType it6(/*input_types=*/{{"foo", man.GetBitsType(32)},
+                                         {"more", man.GetBitsType(32)}},
+                        /*output_types=*/{{"bar", man.GetBitsType(32)}});
+  EXPECT_NE(it1, it6);
+  InstantiationType it7(/*input_types=*/{{"foo", man.GetBitsType(32)}},
+                        /*output_types=*/{{"bar", man.GetBitsType(32)},
+                                          {"more", man.GetBitsType(32)}});
+  EXPECT_NE(it1, it7);
+  InstantiationType it8(/*input_types=*/{{"foo", man.GetBitsType(32)}},
+                        /*output_types=*/{{"bar", man.GetBitsType(3)}});
+  EXPECT_NE(it1, it8);
+  InstantiationType it9(/*input_types=*/{{"foo", man.GetBitsType(3)}},
+                        /*output_types=*/{{"bar", man.GetBitsType(32)}});
+  EXPECT_NE(it1, it9);
 }
 
 }  // namespace

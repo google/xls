@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
@@ -76,6 +77,8 @@ class Instantiation {
 
   virtual std::string ToString() const = 0;
 
+  virtual absl::StatusOr<InstantiationType> type() const = 0;
+
   virtual absl::StatusOr<InstantiationPort> GetInputPort(
       std::string_view name) = 0;
   virtual absl::StatusOr<InstantiationPort> GetOutputPort(
@@ -100,6 +103,7 @@ class BlockInstantiation : public Instantiation {
   Block* instantiated_block() const { return instantiated_block_; }
 
   std::string ToString() const override;
+  absl::StatusOr<InstantiationType> type() const override;
 
   absl::StatusOr<InstantiationPort> GetInputPort(
       std::string_view name) override;
@@ -125,6 +129,7 @@ class ExternInstantiation : public Instantiation {
   absl::StatusOr<InstantiationPort> GetOutputPort(std::string_view name) final;
 
   std::string ToString() const final;
+  absl::StatusOr<InstantiationType> type() const override;
 
   absl::StatusOr<ExternInstantiation*> AsExternInstantiation() override {
     return this;
@@ -150,6 +155,7 @@ class FifoInstantiation : public Instantiation {
 
   absl::StatusOr<InstantiationPort> GetInputPort(std::string_view name) final;
   absl::StatusOr<InstantiationPort> GetOutputPort(std::string_view name) final;
+  absl::StatusOr<InstantiationType> type() const override;
 
   const FifoConfig& fifo_config() const { return fifo_config_; }
   Type* data_type() const { return data_type_; }

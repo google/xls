@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -25,6 +26,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
@@ -259,6 +261,17 @@ bool TypeHasToken(Type* type) {
     }
   }
   return false;
+}
+
+absl::StatusOr<Type*> InstantiationType::GetOutputPortType(
+    std::string_view name) const {
+  XLS_RET_CHECK(output_types_.contains(name));
+  return output_types_.at(name);
+}
+absl::StatusOr<Type*> InstantiationType::GetInputPortType(
+    std::string_view name) const {
+  XLS_RET_CHECK(input_types_.contains(name));
+  return input_types_.at(name);
 }
 
 }  // namespace xls

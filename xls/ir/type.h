@@ -18,8 +18,11 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -228,6 +231,40 @@ class FunctionType {
  private:
   std::vector<Type*> parameters_;
   Type* return_type_;
+};
+
+// Represents a type that is an instantiation with input and output ports.
+class InstantiationType {
+ public:
+  explicit InstantiationType(
+      absl::flat_hash_map<std::string, Type*> input_types,
+      absl::flat_hash_map<std::string, Type*> output_types)
+      : input_types_(std::move(input_types)),
+        output_types_(std::move(output_types)) {}
+
+  InstantiationType(const InstantiationType&) = default;
+  InstantiationType(InstantiationType&&) = default;
+  InstantiationType& operator=(const InstantiationType&) = default;
+  InstantiationType& operator=(InstantiationType&&) = default;
+
+  absl::StatusOr<Type*> GetInputPortType(std::string_view name) const;
+  absl::StatusOr<Type*> GetOutputPortType(std::string_view name) const;
+
+  const absl::flat_hash_map<std::string, Type*>& input_types() const {
+    return input_types_;
+  }
+  const absl::flat_hash_map<std::string, Type*>& output_types() const {
+    return output_types_;
+  }
+
+  bool operator==(const InstantiationType& o) const {
+    return input_types_ == o.input_types_ && output_types_ == o.output_types_;
+  }
+  bool operator!=(const InstantiationType& it) const { return !(*this == it); }
+
+ private:
+  absl::flat_hash_map<std::string, Type*> input_types_;
+  absl::flat_hash_map<std::string, Type*> output_types_;
 };
 
 // -- Inlines

@@ -421,6 +421,8 @@ cc_library(
     deps = [
         ":xls_type_cc_proto",
         "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -563,6 +565,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -1059,8 +1062,10 @@ cc_test(
     srcs = ["type_test.cc"],
     deps = [
         ":type",
+        ":type_manager",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
     ],

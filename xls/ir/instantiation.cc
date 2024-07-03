@@ -15,11 +15,15 @@
 #include "xls/ir/instantiation.h"
 
 #include <cstdint>
+#include <initializer_list>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -27,8 +31,11 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
@@ -119,6 +126,19 @@ absl::StatusOr<InstantiationPort> BlockInstantiation::GetOutputPort(
   return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
 }
 
+absl::StatusOr<InstantiationType> BlockInstantiation::type() const {
+  absl::flat_hash_map<std::string, Type*> input_ports;
+  absl::flat_hash_map<std::string, Type*> output_ports;
+  for (InputPort* p : instantiated_block()->GetInputPorts()) {
+    input_ports[p->name()] = p->GetType();
+  }
+  for (OutputPort* p : instantiated_block()->GetOutputPorts()) {
+    output_ports[p->name()] =
+        p->operand(OutputPort::kOperandOperand)->GetType();
+  }
+  return InstantiationType(std::move(input_ports), std::move(output_ports));
+}
+
 // Note: these are tested in ffi_instantiation_pass_test
 static absl::StatusOr<InstantiationPort> ExtractNested(
     std::string_view fn_name, std::string_view full_parameter_name,
@@ -202,6 +222,34 @@ std::string ExternInstantiation::ToString() const {
                          name(), function_->name());
 }
 
+absl::StatusOr<InstantiationType> ExternInstantiation::type() const {
+  absl::flat_hash_map<std::string, Type*> input_ports;
+  absl::flat_hash_map<std::string, Type*> output_ports;
+  for (Param* p : function_->params()) {
+    LeafTypeTree<std::monostate> ltt(p->GetType(), std::monostate{});
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
+        ltt.AsView(),
+        [&](Type* type, std::monostate v,
+            absl::Span<const int64_t> idx) -> absl::Status {
+          std::string name =
+              absl::StrFormat("%s.%s", p->GetName(), absl::StrJoin(idx, "."));
+          input_ports[name] = type;
+          return absl::OkStatus();
+        }));
+  }
+  LeafTypeTree<std::monostate> result(function_->return_value()->GetType(),
+                                      std::monostate{});
+  XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
+      result.AsView(),
+      [&](Type* type, std::monostate v,
+          absl::Span<const int64_t> idx) -> absl::Status {
+        std::string name = absl::StrCat("return.", absl::StrJoin(idx, "."));
+        output_ports[name] = type;
+        return absl::OkStatus();
+      }));
+  return InstantiationType(std::move(input_ports), std::move(output_ports));
+}
+
 FifoInstantiation::FifoInstantiation(
     std::string_view inst_name, FifoConfig fifo_config, Type* data_type,
     std::optional<std::string_view> channel_name, Package* package)
@@ -231,6 +279,21 @@ absl::StatusOr<InstantiationPort> FifoInstantiation::GetInputPort(
       absl::Substitute("No such input port `$0`: must be one of push_data, "
                        "push_valid, or pop_ready.",
                        name));
+}
+
+absl::StatusOr<InstantiationType> FifoInstantiation::type() const {
+  Type* u1 = package_->GetBitsType(1);
+  return InstantiationType(/*input_types=*/
+                           {
+                               {std::string(kPushValidPortName), u1},
+                               {std::string(kPopReadyPortName), u1},
+                               {std::string(kPushDataPortName), data_type()},
+                           },
+                           /*output_types=*/{
+                               {std::string(kPopValidPortName), u1},
+                               {std::string(kPushReadyPortName), u1},
+                               {std::string(kPopDataPortName), data_type()},
+                           });
 }
 
 absl::StatusOr<InstantiationPort> FifoInstantiation::GetOutputPort(
