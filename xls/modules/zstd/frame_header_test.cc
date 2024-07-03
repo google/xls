@@ -161,17 +161,17 @@ class FrameHeaderTest : public xls::IrTestBase {
   // https://github.com/facebook/zstd/blob/v1.4.7/lib/decompress/zstd_decompress.c#L296
   // Use only in C++ tests when comparing DSLX ZSTD Decoder with libzstd
   // Must be in sync with TEST_WINDOW_LOG_MAX_LIBZSTD in frame_header_test.x
-  const uint32_t TEST_WINDOW_LOG_MAX_LIBZSTD = 30;
+  const uint64_t TEST_WINDOW_LOG_MAX_LIBZSTD = 30;
 
   // Maximal mantissa value for calculating maximal accepted window_size
   // as per https://datatracker.ietf.org/doc/html/rfc8878#name-window-descriptor
-  const uint32_t MAX_MANTISSA = 0b111;
+  const uint64_t MAX_MANTISSA = 0b111;
 
   // Calculate maximal accepted window_size for given WINDOW_LOG_MAX and return whether given
   // window_size should be accepted or discarded.
   // Based on window_size calculation from: RFC 8878
   // https://datatracker.ietf.org/doc/html/rfc8878#name-window-descriptor
-  bool window_size_valid(uint32_t window_size) {
+  bool window_size_valid(uint64_t window_size) {
       auto max_window_size = (1 << TEST_WINDOW_LOG_MAX_LIBZSTD) + (((1 << TEST_WINDOW_LOG_MAX_LIBZSTD) >> 3) * MAX_MANTISSA);
 
       return window_size <= max_window_size;
@@ -311,6 +311,11 @@ TEST_F(FrameHeaderTest, ParseFrameHeaderFailNoEnoughDataReservedBit) {
 
 TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedFrameContentSizeThroughSingleSegment) {
   std::vector<uint8_t> buffer{0261, 015, 91, 91, 91, 0364};
+  this->ParseAndCompareWithZstd(buffer);
+}
+
+TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedVeryLargeFrameContentSizeThroughSingleSegment) {
+  std::vector<uint8_t> buffer{0344, 'y', ':', 0245, '=', '?', 0263, 0026, ':', 0201, 0266, 0235, 'e', 0300};
   this->ParseAndCompareWithZstd(buffer);
 }
 
