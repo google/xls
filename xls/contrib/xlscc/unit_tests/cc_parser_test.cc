@@ -940,4 +940,29 @@ TEST_F(CCParserTest, PragmaUnrollParametersMustBeNumberIfNotYesOrNo) {
                   testing::HasSubstr("Must be 'yes', 'no', or an integer.")));
 }
 
+TEST_F(CCParserTest, TemplateArgsCanBeInferred) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    class x {
+      public:
+      template <typename T>
+      T foo(T a) {
+        return a;
+      }
+    };
+    template <typename T>
+    T bar(T a) {
+      x x_inst;
+      return x_inst.template foo(a);
+    }
+    int top(int a) {
+      return bar(a);
+    }
+  )";
+
+  XLS_EXPECT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"top"));
+}
+
 }  // namespace

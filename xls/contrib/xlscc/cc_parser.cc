@@ -689,6 +689,7 @@ void LibToolThread::Run() {
   argv.emplace_back("-Wno-unused-but-set-variable");
   argv.emplace_back("-Wno-c++11-narrowing");
   argv.emplace_back("-Wno-conversion");
+  argv.emplace_back("-Wno-missing-template-arg-list-after-template-kw");
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;
 
