@@ -163,7 +163,10 @@ cc_library(
     name = "credentials",
     srcs = ["credentials.cc"],
     hdrs = ["credentials.h"],
-    deps = ["@com_github_grpc_grpc//:grpc++"],
+    deps = [
+        "@com_github_grpc_grpc//:grpc",
+        "@com_github_grpc_grpc//:grpc++",
+    ],
 )
 
 py_library(

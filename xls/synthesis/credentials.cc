@@ -16,15 +16,19 @@
 
 #include <memory>
 
+#include "grpc/grpc_security_constants.h"
+#include "grpcpp/security/credentials.h"
+#include "grpcpp/security/server_credentials.h"
+
 namespace xls {
 namespace synthesis {
 
 std::shared_ptr<::grpc::ServerCredentials> GetServerCredentials() {
-  return grpc::experimental::LocalServerCredentials(LOCAL_TCP);
+  return ::grpc::experimental::LocalServerCredentials(LOCAL_TCP);
 }
 
 std::shared_ptr<::grpc::ChannelCredentials> GetChannelCredentials() {
-  return grpc::experimental::LocalCredentials(LOCAL_TCP);
+  return ::grpc::experimental::LocalCredentials(LOCAL_TCP);
 }
 
 }  // namespace synthesis
