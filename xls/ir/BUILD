@@ -217,10 +217,10 @@ cc_test(
         ":interval",
         ":interval_test_utils",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -260,6 +260,7 @@ cc_test(
         ":ir_test_base",
         ":ternary",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_ir_translator_matchers",
@@ -268,7 +269,6 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -297,8 +297,8 @@ cc_library(
         ":bits_ops",
         ":bits_test_utils",
         ":interval",
+        "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/log:check",
-        "@com_google_fuzztest//fuzztest",
     ],
 )
 
@@ -310,9 +310,9 @@ cc_library(
         ":interval",
         ":interval_set",
         ":interval_test_utils",
+        "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
     ],
 )
 
@@ -328,10 +328,10 @@ cc_test(
         ":interval_set",
         ":interval_set_test_utils",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -380,9 +380,9 @@ cc_library(
     hdrs = ["bits_test_utils.h"],
     deps = [
         ":bits",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/log:check",
-        "@com_google_fuzztest//fuzztest",
     ],
 )
 
@@ -402,6 +402,7 @@ cc_test(
         "//xls/common:bits_util",
         "//xls/common:math_util",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
@@ -409,7 +410,6 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -973,10 +973,10 @@ cc_test(
         ":xls_value_cc_proto",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],
@@ -1363,12 +1363,12 @@ cc_test(
         ":format_preference",
         ":number_parser",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "@com_google_benchmark//:benchmark",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -1659,9 +1659,9 @@ cc_test(
         ":bits_ops",
         ":bits_test_utils",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -2055,8 +2055,8 @@ cc_library(
     deps = [
         ":xls_type_cc_proto",
         "//xls/common:math_util",
+        "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/log:check",
-        "@com_google_fuzztest//fuzztest",
     ],
 )
 

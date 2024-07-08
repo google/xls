@@ -19,7 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"

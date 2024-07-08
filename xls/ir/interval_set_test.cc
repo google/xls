@@ -23,7 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"

@@ -17,7 +17,7 @@
 #include <algorithm>
 
 #include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/time/time.h"
 
 namespace xls {

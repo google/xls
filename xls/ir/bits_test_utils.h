@@ -20,7 +20,7 @@
 #include <tuple>
 #include <vector>
 
-#include "fuzztest/fuzztest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"

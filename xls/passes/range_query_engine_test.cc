@@ -23,7 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "fuzztest/fuzztest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"

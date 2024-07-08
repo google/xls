@@ -226,7 +226,7 @@ cc_test(
         ":math_util",
         ":xls_gunit_main",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_fuzztest//fuzztest",
+        "//xls/common/fuzzing:fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -627,7 +627,7 @@ cc_test(
         ":stopwatch",
         ":xls_gunit_main",
         "@com_google_absl//absl/time",
-        "@com_google_fuzztest//fuzztest",
+        "//xls/common/fuzzing:fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )

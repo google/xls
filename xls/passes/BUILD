@@ -2499,6 +2499,7 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -2515,7 +2516,6 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_builder",
-        "@com_google_fuzztest//fuzztest",
         "@com_google_googletest//:gtest",
     ],
 )

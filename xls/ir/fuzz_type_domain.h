@@ -17,7 +17,7 @@
 
 #include <cstdint>
 
-#include "fuzztest/fuzztest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "xls/ir/xls_type.pb.h"
 

@@ -19,7 +19,7 @@
 #include <optional>
 #include <tuple>
 
-#include "fuzztest/fuzztest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
