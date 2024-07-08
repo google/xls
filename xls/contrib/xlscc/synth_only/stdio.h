@@ -12,23 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __SSTREAM__
-#define __SSTREAM__
+#ifndef __CSTDIO_H__
+#define __CSTDIO_H__
 
-#include <string>
-#include <ostream>
-
-namespace std {
-
-class ostringstream: public ostream {
-  public:
-    template<typename T>
-    ostream &operator << (const T& op) {
-      (void)__xlscc_unimplemented();
-      return *this;
-    }
-};
-
-}  // namespace std
-
-#endif  // __SSTREAM__
+#endif  // __CSTDIO_H__

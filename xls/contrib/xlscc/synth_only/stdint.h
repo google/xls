@@ -1,4 +1,3 @@
-
 // Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,5 +34,21 @@ static_assert(sizeof(int32_t) == 4);
 static_assert(sizeof(uint32_t) == 4);
 static_assert(sizeof(int64_t) == 8);
 static_assert(sizeof(uint64_t) == 8);
+
+#define INT8_MAX 127
+#define INT8_MIN -128
+#define UINT8_MAX 255
+
+#define INT16_MAX 32767
+#define INT16_MIN -32768
+#define UINT16_MAX 65535
+
+#define INT32_MAX 2147483647
+#define INT32_MIN -2147483648
+#define UINT32_MAX 4294967295
+
+#define INT64_MAX 9223372036854775807L
+#define INT64_MIN -9223372036854775808L
+#define UINT64_MAX 18446744073709551615UL
 
 #endif  // __STDINT_H__

@@ -303,6 +303,9 @@ cc_test(
         ":unit_test",
         "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
