@@ -295,44 +295,42 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   //     => select(p, array_index(A0, {idx}), array_index(A1, {idx}))
   //
   // This reduces the width of the resulting mux.
-  // TODO(meheff): generalize to arbitrary selects.
-  if (IsBinarySelect(array_index->array())) {
+  if (array_index->array()->Is<Select>()) {
     Select* select = array_index->array()->As<Select>();
-    if (select->get_case(0) == select->get_case(1)) {
-      VLOG(2) << absl::StrFormat(
-          "Replacing array-index of select with select of array-indexes (same "
-          "operand): %s",
-          array_index->ToString());
-      XLS_ASSIGN_OR_RETURN(ArrayIndex * new_array_index,
-                           array_index->ReplaceUsesWithNew<ArrayIndex>(
-                               select->get_case(0), array_index->indices()));
-      return SimplifyResult::Changed({new_array_index});
-    }
     // Only perform this optimization if the array_index is the only
     // user. Otherwise the array index(es) are duplicated which can outweigh the
     // benefit of selecting the smaller element.
     // TODO(meheff): Consider cases where selects with multiple users are still
     // advantageous to transform.
-    if (select->users().size() == 1) {
+    if (HasSingleUse(select)) {
       VLOG(2) << absl::StrFormat(
           "Replacing array-index of select with select of array-indexes: %s",
           array_index->ToString());
-      XLS_ASSIGN_OR_RETURN(
-          ArrayIndex * on_false_index,
-          array_index->function_base()->MakeNode<ArrayIndex>(
-              array_index->loc(), select->get_case(0), array_index->indices()));
-      XLS_ASSIGN_OR_RETURN(
-          ArrayIndex * on_true_index,
-          array_index->function_base()->MakeNode<ArrayIndex>(
-              array_index->loc(), select->get_case(1), array_index->indices()));
-      XLS_ASSIGN_OR_RETURN(
-          Select * new_select,
-          array_index->ReplaceUsesWithNew<Select>(
-              select->selector(),
-              /*cases=*/std::vector<Node*>({on_false_index, on_true_index}),
-              /*default=*/std::nullopt));
-      return SimplifyResult::Changed(
-          {new_select, on_false_index, on_true_index});
+      std::vector<Node*> cases;
+      cases.reserve(select->cases().size());
+      for (Node* case_value : select->cases()) {
+        XLS_ASSIGN_OR_RETURN(
+            ArrayIndex * case_array_index,
+            array_index->function_base()->MakeNode<ArrayIndex>(
+                array_index->loc(), case_value, array_index->indices()));
+        cases.push_back(case_array_index);
+      }
+      std::optional<Node*> default_value;
+      if (select->default_value().has_value()) {
+        XLS_ASSIGN_OR_RETURN(default_value,
+                             array_index->function_base()->MakeNode<ArrayIndex>(
+                                 array_index->loc(), *select->default_value(),
+                                 array_index->indices()));
+      }
+      XLS_ASSIGN_OR_RETURN(Select * new_select,
+                           array_index->ReplaceUsesWithNew<Select>(
+                               select->selector(), cases, default_value));
+      std::vector<Node*> changed = std::move(cases);
+      if (default_value.has_value()) {
+        changed.push_back(*default_value);
+      }
+      changed.push_back(new_select);
+      return SimplifyResult::Changed(changed);
     }
   }
 

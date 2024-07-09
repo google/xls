@@ -675,6 +675,44 @@ TEST_F(ArraySimplificationPassTest, ChainedArrayUpdate) {
                   /*indices=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
 }
 
+TEST_F(ArraySimplificationPassTest, IndexOfSelect) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a: bits[32][3][4], b: bits[32][3][4], i: bits[10], j: bits[10], p: bits[1]) -> bits[32] {
+  sel: bits[32][3][4] = sel(p, cases=[a, b])
+  ret result: bits[32] = array_index(sel, indices=[i, j])
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(
+          m::Param("p"), /*cases=*/{
+              m::ArrayIndex(m::Param("a"), {m::Param("i"), m::Param("j")}),
+              m::ArrayIndex(m::Param("b"), {m::Param("i"), m::Param("j")})}));
+}
+
+TEST_F(ArraySimplificationPassTest, IndexOfLargeSelect) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a: bits[32][3][4], b: bits[32][3][4], c: bits[32][3][4], d: bits[32][3][4], i: bits[10], j: bits[10], p: bits[3]) -> bits[32] {
+  sel: bits[32][3][4] = sel(p, cases=[a, b, c], default=d)
+  ret result: bits[32] = array_index(sel, indices=[i, j])
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("p"), /*cases=*/
+                {m::ArrayIndex(m::Param("a"), {m::Param("i"), m::Param("j")}),
+                 m::ArrayIndex(m::Param("b"), {m::Param("i"), m::Param("j")}),
+                 m::ArrayIndex(m::Param("c"), {m::Param("i"), m::Param("j")})},
+                /*default_value=*/
+                m::ArrayIndex(m::Param("d"), {m::Param("i"), m::Param("j")})));
+}
+
 TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdates) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
