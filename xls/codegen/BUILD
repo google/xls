@@ -1481,6 +1481,59 @@ cc_library(
 )
 
 cc_library(
+    name = "materialize_fifos_pass",
+    srcs = ["materialize_fifos_pass.cc"],
+    hdrs = ["materialize_fifos_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:block_elaboration",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:name_uniquer",
+        "//xls/ir:register",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "materialize_fifos_pass_test",
+    srcs = ["materialize_fifos_pass_test.cc"],
+    deps = [
+        ":codegen_pass",
+        ":materialize_fifos_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:block_evaluator",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:name_uniquer",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "block_inlining_pass",
     srcs = ["block_inlining_pass.cc"],
     hdrs = ["block_inlining_pass.h"],
