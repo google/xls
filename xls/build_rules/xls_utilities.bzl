@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """This module contains helper rules."""
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-
 load("@rules_proto//proto:defs.bzl", "ProtoInfo")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
