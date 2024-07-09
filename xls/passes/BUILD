@@ -1418,6 +1418,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
+        "//xls/ir:op",
         "//xls/ir:type",
         "//xls/ir:value",
     ],

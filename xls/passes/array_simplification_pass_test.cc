@@ -713,6 +713,27 @@ TEST_F(ArraySimplificationPassTest, IndexOfLargeSelect) {
                 m::ArrayIndex(m::Param("d"), {m::Param("i"), m::Param("j")})));
 }
 
+TEST_F(ArraySimplificationPassTest, IndexOfPrioritySelect) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a: bits[32][3][4], b: bits[32][3][4], c: bits[32][3][4], d: bits[32][3][4], i: bits[10], j: bits[10], p: bits[3]) -> bits[32] {
+  sel: bits[32][3][4] = priority_sel(p, cases=[a, b, c], default=d)
+  ret result: bits[32] = array_index(sel, indices=[i, j])
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Param("p"), /*cases=*/
+          {m::ArrayIndex(m::Param("a"), {m::Param("i"), m::Param("j")}),
+           m::ArrayIndex(m::Param("b"), {m::Param("i"), m::Param("j")}),
+           m::ArrayIndex(m::Param("c"), {m::Param("i"), m::Param("j")})},
+          /*default_value=*/
+          m::ArrayIndex(m::Param("d"), {m::Param("i"), m::Param("j")})));
+}
+
 TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdates) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -733,6 +754,27 @@ TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdates) {
                   /*indices=*/{m::Param("x"), m::Param("y")}));
 }
 
+TEST_F(ArraySimplificationPassTest, PrioritySelectAmongArrayUpdates) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a: bits[32][5][47], x: bits[10], y: bits[24],
+         pred: bits[1], value0: bits[32], value1: bits[32]) -> bits[32][5][47] {
+  update0: bits[32][5][47] = array_update(a, value0, indices=[x, y])
+  update1: bits[32][5][47] = array_update(a, value1, indices=[x, y])
+  ret result: bits[32][5][47] = priority_sel(pred, cases=[update1], default=update0)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayUpdate(m::Param("a"),
+                     m::PrioritySelect(m::Param("pred"),
+                                       /*cases=*/{m::Param("value1")},
+                                       /*default_value=*/m::Param("value0")),
+                     /*indices=*/{m::Param("x"), m::Param("y")}));
+}
+
 TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdatesOfDifferentArray) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -741,6 +783,21 @@ TEST_F(ArraySimplificationPassTest, SelectAmongArrayUpdatesOfDifferentArray) {
   update0: bits[32][5][47] = array_update(a, value0, indices=[x, y])
   update1: bits[32][5][47] = array_update(b, value1, indices=[x, y])
   ret result: bits[32][5][47] = sel(pred, cases=[update0, update1])
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       PrioritySelectAmongArrayUpdatesOfDifferentArray) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a: bits[32][5][47], b: bits[32][5][47], x: bits[10], y: bits[24],
+         pred: bits[1], value0: bits[32], value1: bits[32]) -> bits[32][5][47] {
+  update0: bits[32][5][47] = array_update(a, value0, indices=[x, y])
+  update1: bits[32][5][47] = array_update(b, value1, indices=[x, y])
+  ret result: bits[32][5][47] = priority_sel(pred, cases=[update1], default=update0)
  }
   )",
                                                        p.get()));
@@ -1002,6 +1059,117 @@ TEST_F(ArraySimplificationPassTest,
                              /*indices=*/{m::Param("i")}));
 }
 
+TEST_F(ArraySimplificationPassTest,
+       PriorityConditionalAssignmentOfArrayElementUpdatedOnTrue) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[1], a: bits[32][4], v: bits[32]) -> bits[32][4] {
+  one: bits[14] = literal(value=1)
+  updated_a: bits[32][4] = array_update(a, v, indices=[one])
+  ret result: bits[32][4] = priority_sel(p, cases=[updated_a], default=a)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(
+                  m::Param("a"),
+                  m::PrioritySelect(m::Param("p"),
+                                    /*cases=*/{m::Param("v")},
+                                    /*default_value=*/
+                                    m::ArrayIndex(m::Param("a"),
+                                                  /*indices=*/{m::Literal(1)})),
+                  /*indices=*/{m::Literal(1)}));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       PriorityConditionalAssignmentOfArrayElementWithMultipleUses) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[1], a: bits[32][4], v: bits[32]) -> (bits[32][4], bits[32][4]) {
+  one: bits[14] = literal(value=1)
+  updated_a: bits[32][4] = array_update(a, v, indices=[one])
+  sel: bits[32][4] = priority_sel(p, cases=[updated_a], default=a)
+  ret result: (bits[32][4], bits[32][4]) = tuple(updated_a, sel)
+ }
+  )",
+                                                       p.get()));
+  // Multiple uses of the updated array prevents the optimization.
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       PriorityConditionalAssignmentOfArrayElementUpdatedOnFalse) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[1], a: bits[32][4], v: bits[32], i: bits[16]) -> bits[32][4] {
+  updated_a: bits[32][4] = array_update(a, v, indices=[i])
+  ret result: bits[32][4] = priority_sel(p, cases=[a], default=updated_a)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"),
+                             m::PrioritySelect(
+                                 m::Param("p"),
+                                 /*cases=*/
+                                 {m::ArrayIndex(m::Param("a"),
+                                                /*indices=*/{m::Param("i")})},
+                                 /*default_value=*/m::Param("v")),
+                             /*indices=*/{m::Param("i")}));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       PriorityConditionalAssignmentOfArrayElementWithMultipleCases) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[4], a: bits[32][4], v1: bits[32], v3: bits[32], i: bits[16]) -> bits[32][4] {
+  a_update1: bits[32][4] = array_update(a, v1, indices=[i])
+  a_update3: bits[32][4] = array_update(a, v3, indices=[i])
+  ret result: bits[32][4] = priority_sel(p, cases=[a, a_update1, a, a_update3], default=a)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(
+                  m::Param("a"),
+                  m::PrioritySelect(m::Param("p"),
+                                    /*cases=*/
+                                    {m::ArrayIndex(m::Param("a"),
+                                                   /*indices=*/{m::Param("i")}),
+                                     m::Param("v1"),
+                                     m::ArrayIndex(m::Param("a"),
+                                                   /*indices=*/{m::Param("i")}),
+                                     m::Param("v3")},
+                                    /*default_value=*/
+                                    m::ArrayIndex(m::Param("a"),
+                                                  /*indices=*/{m::Param("i")})),
+                  /*indices=*/{m::Param("i")}));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       PriorityConditionalAssignmentOfArrayElementWithMultipleCasesAllChanged) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[1], a: bits[32][4], v1: bits[32], v2: bits[32], i: bits[16]) -> bits[32][4] {
+  a_update1: bits[32][4] = array_update(a, v1, indices=[i])
+  a_update2: bits[32][4] = array_update(a, v2, indices=[i])
+  ret result: bits[32][4] = priority_sel(p, cases=[a_update1], default=a_update2)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayUpdate(m::Param("a"),
+                     m::PrioritySelect(m::Param("p"),
+                                       /*cases=*/{m::Param("v1")},
+                                       /*default_value=*/m::Param("v2")),
+                     /*indices=*/{m::Param("i")}));
+}
+
 TEST_F(ArraySimplificationPassTest, SimplifySelectOfArrays) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1018,6 +1186,26 @@ TEST_F(ArraySimplificationPassTest, SimplifySelectOfArrays) {
                                  /*cases=*/{m::Param("w"), m::Param("y")}),
                        m::Select(m::Param("p"),
                                  /*cases=*/{m::Param("x"), m::Param("z")})));
+}
+
+TEST_F(ArraySimplificationPassTest, SimplifyPrioritySelectOfArrays) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[1], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32][2] {
+  a: bits[32][2] = array(w, x)
+  d: bits[32][2] = array(y, z)
+  ret result: bits[32][2] = priority_sel(p, cases=[a], default=d)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Array(m::PrioritySelect(m::Param("p"),
+                                         /*cases=*/{m::Param("w")},
+                                         /*default_value=*/m::Param("y")),
+                       m::PrioritySelect(m::Param("p"),
+                                         /*cases=*/{m::Param("x")},
+                                         /*default_value=*/m::Param("z"))));
 }
 
 TEST_F(ArraySimplificationPassTest, IndexingArrayConcat) {
