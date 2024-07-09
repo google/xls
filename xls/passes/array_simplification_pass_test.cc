@@ -915,6 +915,55 @@ TEST_F(ArraySimplificationPassTest,
           /*indices=*/{m::Param("i")}));
 }
 
+TEST_F(ArraySimplificationPassTest,
+       ConditionalAssignmentOfArrayElementWithMultipleCases) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[3], a: bits[32][4], v1: bits[32], v3: bits[32], i: bits[16]) -> bits[32][4] {
+  a_update1: bits[32][4] = array_update(a, v1, indices=[i])
+  a_update3: bits[32][4] = array_update(a, v3, indices=[i])
+  ret result: bits[32][4] = sel(p, cases=[a, a_update1, a, a_update3], default=a)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayUpdate(
+          m::Param("a"),
+          m::Select(m::Param("p"),
+                    /*cases=*/
+                    {m::ArrayIndex(m::Param("a"),
+                                   /*indices=*/{m::Param("i")}),
+                     m::Param("v1"),
+                     m::ArrayIndex(m::Param("a"),
+                                   /*indices=*/{m::Param("i")}),
+                     m::Param("v3")},
+                    /*default_value=*/
+                    m::ArrayIndex(m::Param("a"), /*indices=*/{m::Param("i")})),
+          /*indices=*/{m::Param("i")}));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       ConditionalAssignmentOfArrayElementWithMultipleCasesAllChanged) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[1], a: bits[32][4], v1: bits[32], v2: bits[32], i: bits[16]) -> bits[32][4] {
+  a_update1: bits[32][4] = array_update(a, v1, indices=[i])
+  a_update2: bits[32][4] = array_update(a, v2, indices=[i])
+  ret result: bits[32][4] = sel(p, cases=[a_update1, a_update2])
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"),
+                             m::Select(m::Param("p"),
+                                       /*cases=*/
+                                       {m::Param("v1"), m::Param("v2")}),
+                             /*indices=*/{m::Param("i")}));
+}
+
 TEST_F(ArraySimplificationPassTest, SimplifySelectOfArrays) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

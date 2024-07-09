@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -859,7 +860,7 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
 
 // Simplify the conditional updating of an array element of the following form:
 //
-//   Select(p, cases=[A, array_update(A, v {idx})])
+//   Select(p, cases=[A, array_update(A, v, {idx})])
 //
 // This pattern is replaced with:
 //
@@ -868,47 +869,112 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
 // The advantage is the select (mux) is only selecting an array element rather
 // than the entire array.
 absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Select* select) {
-  XLS_RET_CHECK(IsBinarySelect(select));
-  bool update_on_true;
-  ArrayUpdate* array_update;
-  if (select->get_case(0)->Is<ArrayUpdate>() &&
-      select->get_case(0)->As<ArrayUpdate>()->array_to_update() ==
-          select->get_case(1)) {
-    array_update = select->get_case(0)->As<ArrayUpdate>();
-    update_on_true = false;
-  } else if (select->get_case(1)->Is<ArrayUpdate>() &&
-             select->get_case(1)->As<ArrayUpdate>()->array_to_update() ==
-                 select->get_case(0)) {
-    array_update = select->get_case(1)->As<ArrayUpdate>();
-    update_on_true = true;
-  } else {
+  struct IdentityValue : std::monostate {};
+  Node* array_to_update = nullptr;
+  std::optional<absl::Span<Node* const>> idx = std::nullopt;
+  std::vector<std::variant<Node*, IdentityValue>> cases;
+  cases.reserve(select->cases().size());
+  std::optional<std::variant<Node*, IdentityValue>> default_case = std::nullopt;
+  auto extract_case =
+      [&](Node* sel_case) -> std::optional<std::variant<Node*, IdentityValue>> {
+    if (!sel_case->Is<ArrayUpdate>()) {
+      if (array_to_update == nullptr) {
+        array_to_update = sel_case;
+      } else if (array_to_update != sel_case) {
+        // Not just a select of array updates to the same array.
+        return std::nullopt;
+      }
+      return IdentityValue();
+    }
+
+    ArrayUpdate* update = sel_case->As<ArrayUpdate>();
+    if (!HasSingleUse(update)) {
+      // Multiple uses for the array update; we don't want to replace just one.
+      return std::nullopt;
+    }
+    if (array_to_update == nullptr) {
+      array_to_update = update->array_to_update();
+    } else if (array_to_update != update->array_to_update()) {
+      // Not just a select of array updates to the same array.
+      return std::nullopt;
+    }
+    if (idx == std::nullopt) {
+      idx = update->indices();
+    } else if (*idx != update->indices()) {
+      // Not just a select of array updates to the same index.
+      return std::nullopt;
+    }
+    return update->update_value();
+  };
+  for (Node* sel_case : select->cases()) {
+    std::optional<std::variant<Node*, IdentityValue>> case_value =
+        extract_case(sel_case);
+    if (!case_value.has_value()) {
+      // Doesn't match the pattern; this simplification doesn't apply.
+      return SimplifyResult::Unchanged();
+    }
+    cases.push_back(*case_value);
+  }
+  if (select->default_value().has_value()) {
+    std::optional<std::variant<Node*, IdentityValue>> default_case_value =
+        extract_case(*select->default_value());
+    if (!default_case_value.has_value()) {
+      // Doesn't match the pattern; this simplification doesn't apply.
+      return SimplifyResult::Unchanged();
+    }
+    default_case = *default_case_value;
+  }
+  if (array_to_update == nullptr || !idx.has_value()) {
+    // Doesn't match the pattern; this simplification doesn't apply.
     return SimplifyResult::Unchanged();
   }
-  if (array_update->users().size() != 1) {
-    return SimplifyResult::Unchanged();
+
+  VLOG(2) << absl::StrFormat("Hoist select above array-update(s): %s",
+                             select->ToString());
+
+  std::vector<Node*> case_values;
+  std::optional<Node*> default_value;
+  std::optional<Node*> shared_original_value;
+  auto get_original_value = [&]() -> absl::StatusOr<Node*> {
+    if (!shared_original_value.has_value()) {
+      XLS_ASSIGN_OR_RETURN(shared_original_value,
+                           select->function_base()->MakeNode<ArrayIndex>(
+                               select->loc(), array_to_update, *idx));
+    }
+    return *shared_original_value;
+  };
+  for (std::variant<Node*, IdentityValue> c : cases) {
+    if (std::holds_alternative<Node*>(c)) {
+      case_values.push_back(std::get<Node*>(c));
+      continue;
+    }
+    XLS_RET_CHECK(std::holds_alternative<IdentityValue>(c));
+    XLS_ASSIGN_OR_RETURN(Node * original_value, get_original_value());
+    case_values.push_back(original_value);
   }
-
-  VLOG(2) << absl::StrFormat("Hoist select above array-update: %s",
-                             array_update->ToString());
-
-  XLS_ASSIGN_OR_RETURN(ArrayIndex * original_value,
-                       select->function_base()->MakeNode<ArrayIndex>(
-                           array_update->loc(), array_update->array_to_update(),
-                           array_update->indices()));
-  XLS_ASSIGN_OR_RETURN(
-      Select * selected_value,
-      select->function_base()->MakeNode<Select>(
-          select->loc(), select->selector(),
-          /*cases=*/
-          std::vector<Node*>(
-              {update_on_true ? original_value : array_update->update_value(),
-               update_on_true ? array_update->update_value() : original_value}),
-          /*default_value=*/std::nullopt));
-
-  XLS_RETURN_IF_ERROR(array_update->ReplaceOperandNumber(1, selected_value));
-  XLS_RETURN_IF_ERROR(select->ReplaceUsesWith(array_update));
-  return SimplifyResult::Changed(
-      {selected_value, original_value, array_update});
+  if (default_case.has_value()) {
+    if (std::holds_alternative<Node*>(*default_case)) {
+      default_value = std::get<Node*>(*default_case);
+    } else {
+      XLS_RET_CHECK(std::holds_alternative<IdentityValue>(*default_case));
+      XLS_ASSIGN_OR_RETURN(Node * original_value, get_original_value());
+      default_value = original_value;
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(Select * selected_value,
+                       select->function_base()->MakeNode<Select>(
+                           select->loc(), select->selector(),
+                           /*cases=*/
+                           case_values,
+                           /*default_value=*/default_value));
+  XLS_ASSIGN_OR_RETURN(ArrayUpdate * overall_update,
+                       select->ReplaceUsesWithNew<ArrayUpdate>(
+                           array_to_update, selected_value, *idx));
+  if (shared_original_value.has_value()) {
+    return SimplifyResult::Changed(
+        {*shared_original_value, selected_value, overall_update});
+  }
+  return SimplifyResult::Changed({selected_value, overall_update});
 }
 
 // Simplify a select of arrays to an array of select.
@@ -916,7 +982,8 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Select* select) {
 //   Sel(p, cases=[Array(), Array()]) => Array(Sel(p, ...), Sel(p, ...))
 //
 // The advantage is that hoisting the selects may be open opportunities for
-// further optimization.
+// further optimization.  On the other hand, this can replicate the select
+// logic, which can be expensive in area, so we limit by the number of cases.
 absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Select* select) {
   for (Node* sel_case : select->cases()) {
     if (!sel_case->Is<Array>()) {
@@ -925,6 +992,11 @@ absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Select* select) {
   }
   // TODO(meheff): Handle default.
   if (select->default_value().has_value()) {
+    return SimplifyResult::Unchanged();
+  }
+
+  constexpr int64_t kMaxSelectCopies = 2;
+  if (select->cases().size() > kMaxSelectCopies) {
     return SimplifyResult::Unchanged();
   }
 
@@ -953,12 +1025,9 @@ absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Select* select) {
   return SimplifyResult::Changed(selected_elements);
 }
 
-// Simplify various forms of a binary select of array-typed values.
+// Simplify various forms of a select of array-typed values.
 absl::StatusOr<SimplifyResult> SimplifySelect(Select* select,
                                               const QueryEngine& query_engine) {
-  if (!IsBinarySelect(select)) {
-    return SimplifyResult::Unchanged();
-  }
   XLS_ASSIGN_OR_RETURN(SimplifyResult conditional_assign_result,
                        SimplifyConditionalAssign(select));
   if (conditional_assign_result.changed) {
@@ -971,41 +1040,7 @@ absl::StatusOr<SimplifyResult> SimplifySelect(Select* select,
     return select_of_arrays_result;
   }
 
-  // Simplify a select between two array update operations which update the same
-  // index of the same array:
-  //
-  //   Sel(p, {ArrayUpdate(A, v0, {idx}), ArrayUpdate(A, v1, {idx})})
-  //
-  //     => ArrayUpdate(A, Select(p, {v0, v1}), {idx})
-  if (!select->get_case(0)->Is<ArrayUpdate>() ||
-      !select->get_case(1)->Is<ArrayUpdate>()) {
-    return SimplifyResult::Unchanged();
-  }
-  ArrayUpdate* false_update = select->get_case(0)->As<ArrayUpdate>();
-  ArrayUpdate* true_update = select->get_case(1)->As<ArrayUpdate>();
-  if (false_update->array_to_update() != true_update->array_to_update() ||
-      !IndicesAreDefinitelyEqual(false_update->indices(),
-                                 true_update->indices(), query_engine)) {
-    return SimplifyResult::Unchanged();
-  }
-
-  VLOG(2) << absl::StrFormat(
-      "Replace select of array updates with single array update: %s",
-      select->ToString());
-
-  XLS_ASSIGN_OR_RETURN(Select * selected_value,
-                       select->function_base()->MakeNode<Select>(
-                           select->loc(), select->selector(),
-                           /*cases=*/
-                           std::vector<Node*>({false_update->update_value(),
-                                               true_update->update_value()}),
-                           /*default_value=*/std::nullopt));
-
-  XLS_ASSIGN_OR_RETURN(ArrayUpdate * new_array_update,
-                       select->ReplaceUsesWithNew<ArrayUpdate>(
-                           false_update->array_to_update(), selected_value,
-                           false_update->indices()));
-  return SimplifyResult::Changed({selected_value, new_array_update});
+  return SimplifyResult::Unchanged();
 }
 
 }  // namespace
