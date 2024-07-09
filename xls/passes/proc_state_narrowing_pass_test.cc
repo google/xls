@@ -529,5 +529,35 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
                   AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
 }
 
+TEST_F(ProcStateNarrowingPassTest, AggregateTypeComparisonHandled) {
+  // Previously it would try to split based on the 'ne' value but would
+  // XLS_RET_CHECK due to the arguments not being scalar values.
+  // Sample created through fuzzer.
+  // TODO(allight): It would be somewhat nice to see through this sort of thing
+  // but the benefits are likely to be small while being rather complicated.
+  constexpr static std::string_view kProc = R"(
+proc __sample__main_0_next(__state: bits[58], init={144115188075855871}) {
+  x2: bits[58][1] = array(__state, id=218, pos=[(0,32,28)])
+  after_all.225: token = after_all(id=225)
+  x3: bits[58][1] = array_slice(x2, __state, width=1, id=222, pos=[(0,33,33)])
+  x7: (token, bits[14]) = receive(after_all.225, channel=sample__x6, id=347)
+  x11: bits[1] = ne(x2, x3, id=233, pos=[(0,40,31)])
+  literal.339: bits[58] = literal(value=0, id=339, pos=[(0,42,38)])
+  x5: bits[58] = not(__state, id=224, pos=[(0,35,26)])
+  x9: bits[14] = tuple_index(x7, index=1, id=231, pos=[(0,38,28)])
+  x13: bits[58] = sel(x11, cases=[literal.339, __state], id=340, pos=[(0,42,38)])
+  x12: bits[189] = concat(x5, x9, __state, x11, __state, id=343, pos=[(0,41,53)])
+  x41: bits[58] = bit_slice_update(x13, x12, x9, id=258, pos=[(0,56,43)])
+  __state_next: () = next_value(param=__state, value=x41, id=348)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK(p->CreateStreamingChannel(
+                     "sample__x6", ChannelOps::kReceiveOnly, p->GetBitsType(14))
+                    .status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(kProc, p.get()));
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls

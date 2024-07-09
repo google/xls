@@ -320,9 +320,13 @@ class ConstantValueIrInterpreter
       VLOG(2) << "Ignoring non-bits type op " << n;
       return HandleNonConst(n);
     }
-    XLS_RET_CHECK(absl::c_all_of(n->operands(), [](Node* o) {
-      return o->GetType()->IsBits();
-    })) << n;
+    bool args_are_all_bits = absl::c_all_of(
+        n->operands(), [](Node* o) { return o->GetType()->IsBits(); });
+    if (n->OpIn({Op::kEq, Op::kNe}) && !args_are_all_bits) {
+      VLOG(2) << "Ignoring eq/ne of non-bits values " << n;
+      return HandleNonConst(n);
+    }
+    XLS_RET_CHECK(args_are_all_bits) << n;
     // Heap keeping the current kSegmentLimit closest elements to 0
     std::vector<Bits> result_heap;
     auto insert_result = [&](Bits b) {
