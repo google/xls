@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -74,8 +75,18 @@ class BddFunction {
 
   // Returns the node associated with the given bit.
   BddNodeIndex GetBddNode(Node* node, int64_t bit_index) const {
+    std::optional<BddNodeIndex> bdd_node = TryGetBddNode(node, bit_index);
+    CHECK(bdd_node.has_value());
+    return *std::move(bdd_node);
+  }
+  std::optional<BddNodeIndex> TryGetBddNode(Node* node,
+                                            int64_t bit_index) const {
     CHECK(node->GetType()->IsBits());
-    return node_map_.at(node).at(bit_index);
+    auto it = node_map_.find(node);
+    if (it == node_map_.end()) {
+      return std::nullopt;
+    }
+    return it->second.at(bit_index);
   }
 
   // Evaluates the function using the BDD with the given argument values.

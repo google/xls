@@ -94,11 +94,13 @@ class BddQueryEngine : public QueryEngine {
   // TODO(meheff): Enable queries on a BDD with out mutating the BDD itself.
   BinaryDecisionDiagram& bdd() const { return bdd_function_->bdd(); }
 
-  // Returns the BDD node associated with the given bit.
-  BddNodeIndex GetBddNode(const TreeBitLocation& location) const {
+  // Returns the BDD node associated with the given bit, if there is one;
+  // otherwise returns std::nullopt.
+  std::optional<BddNodeIndex> GetBddNode(
+      const TreeBitLocation& location) const {
     CHECK(location.tree_index().empty());
     CHECK(location.node()->GetType()->IsBits());
-    return bdd_function_->GetBddNode(location.node(), location.bit_index());
+    return bdd_function_->TryGetBddNode(location.node(), location.bit_index());
   }
 
   // A implies B  <=>  !(A && !B)

@@ -123,6 +123,72 @@ TEST_F(BddSimplificationPassTest, RemoveRedundantOneHot) {
   EXPECT_THAT(f->return_value(), m::Concat(m::Eq(), m::Concat()));
 }
 
+TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToAnd) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_eq_0 = fb.Eq(x, fb.Literal(UBits(0, 8)));
+  BValue x_eq_42 = fb.Eq(x, fb.Literal(UBits(42, 8)));
+  BValue x_ne_0 = fb.Not(x_eq_0);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.And(x_ne_0, x_eq_42)));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::And(m::Literal(1), m::Eq(m::Param("x"), m::Literal(42))));
+}
+
+TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToNand) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_eq_0 = fb.Eq(x, fb.Literal(UBits(0, 8)));
+  BValue x_eq_42 = fb.Eq(x, fb.Literal(UBits(42, 8)));
+  BValue x_ne_0 = fb.Not(x_eq_0);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Nand(x_ne_0, x_eq_42)));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Nand(m::Literal(1), m::Eq(m::Param("x"), m::Literal(42))));
+}
+
+TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToOr) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_eq_0 = fb.Eq(x, fb.Literal(UBits(0, 8)));
+  BValue x_eq_42 = fb.Eq(x, fb.Literal(UBits(42, 8)));
+  BValue x_ne_0 = fb.Not(x_eq_0);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Or(x_ne_0, x_eq_42)));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Or(m::Not(m::Eq(m::Param("x"), m::Literal(0))), m::Literal(0)));
+}
+
+TEST_F(BddSimplificationPassTest, RemoveRedundantInputsToNor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue x_eq_0 = fb.Eq(x, fb.Literal(UBits(0, 8)));
+  BValue x_eq_42 = fb.Eq(x, fb.Literal(UBits(42, 8)));
+  BValue x_ne_0 = fb.Not(x_eq_0);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Nor(x_ne_0, x_eq_42)));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Nor(m::Not(m::Eq(m::Param("x"), m::Literal(0))), m::Literal(0)));
+}
+
 TEST_F(BddSimplificationPassTest, RemoveRedundantPrioritySelectCases) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

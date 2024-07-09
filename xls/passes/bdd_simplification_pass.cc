@@ -22,12 +22,14 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
@@ -295,6 +297,75 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
+  // Find redundant inputs to Boolean operations due to implications, and
+  // replace them with literals.
+  //
+  //   [N]OR(x, y, z) <=> [N]OR(x, y, 0) if z is false whenever x & y are false.
+  //   [N]AND(x, y, z) <=> [N]AND(x, y, 1) if z is true whenever x & y are true.
+  //
+  // If the node has too many operands, this can sometimes be too expensive to
+  // compute, so we skip the analysis.
+  constexpr int64_t kMaxBooleanFanIn = 10;
+  if (node->OpIn({Op::kAnd, Op::kNand, Op::kOr, Op::kNor}) &&
+      node->operand_count() > 1 && node->BitCountOrDie() == 1 &&
+      node->operand_count() <= kMaxBooleanFanIn) {
+    // For AND and NAND, an operand's value only matters when all others are
+    // true; for OR and NOR, an operand's value only matters when all others
+    // are false.
+    const bool ignorable = node->OpIn({Op::kAnd, Op::kNand});
+    const Bits ignorable_bits = ignorable ? Bits::AllOnes(1) : Bits(1);
+
+    absl::btree_set<int64_t> redundant_operands;
+    absl::btree_set<int64_t> constant_operands;
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
+      if (std::optional<Bits> known_value =
+              query_engine.KnownValueAsBits(node->operand(i));
+          known_value.has_value()) {
+        constant_operands.insert(i);
+        if (*known_value == ignorable_bits) {
+          redundant_operands.insert(i);
+        }
+        continue;
+      }
+    }
+
+    std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
+    assumed_values.reserve(node->operand_count() - 1);
+    for (int64_t i = 0; i < node->operand_count(); ++i) {
+      if (constant_operands.contains(i)) {
+        continue;
+      }
+
+      assumed_values.clear();
+      for (int64_t j = 0; j < node->operand_count(); ++j) {
+        if (j == i || constant_operands.contains(j) ||
+            redundant_operands.contains(j)) {
+          continue;
+        }
+        assumed_values.push_back(
+            std::make_pair(TreeBitLocation(node->operand(j), 0), ignorable));
+      }
+
+      if (query_engine.ImpliedNodeValue(assumed_values, node->operand(i)) ==
+          ignorable_bits) {
+        redundant_operands.insert(i);
+      }
+    }
+
+    if (!redundant_operands.empty()) {
+      VLOG(2) << absl::StreamFormat("Removing redundant operands {%s} from: %s",
+                                    absl::StrJoin(redundant_operands, ", "),
+                                    node->ToString());
+      XLS_ASSIGN_OR_RETURN(Node * ignorable_literal,
+                           node->function_base()->MakeNode<Literal>(
+                               node->loc(), Value(ignorable_bits)));
+      for (int64_t i : redundant_operands) {
+        XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(i, ignorable_literal));
+      }
+      return true;
+    }
+  }
+
   // Replace two-way kOneHotSelect that has an actual one-hot selector with a
   // kSelect. This can only be done if the selector is one-hot.
   if (SplitsEnabled(opt_level) && node->Is<OneHotSelect>() &&
@@ -348,8 +419,6 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
         break;
       }
     }
-    DCHECK(last_bit < sel->selector()->BitCountOrDie() - 1 ||
-           query_engine.AtLeastOneTrue(trailing_bits));
 
     XLS_ASSIGN_OR_RETURN(Node * new_selector,
                          node->function_base()->MakeNode<BitSlice>(

@@ -96,9 +96,16 @@ bool BddQueryEngine::AtMostOneTrue(
   // zero then no two bits can be simultaneously true. Equivalently: at most one
   // bit is true.
   for (int64_t i = 0; i < bits.size(); ++i) {
+    std::optional<BddNodeIndex> i_bdd = GetBddNode(bits[i]);
+    if (!i_bdd.has_value()) {
+      return false;
+    }
     for (int64_t j = i + 1; j < bits.size(); ++j) {
-      result =
-          bdd().Or(result, bdd().And(GetBddNode(bits[i]), GetBddNode(bits[j])));
+      std::optional<BddNodeIndex> j_bdd = GetBddNode(bits[j]);
+      if (!j_bdd.has_value()) {
+        return false;
+      }
+      result = bdd().Or(result, bdd().And(*i_bdd, *j_bdd));
       if (ExceedsPathLimit(result)) {
         VLOG(3) << "AtMostOneTrue exceeded path limit of " << path_limit_;
         return false;
@@ -116,7 +123,11 @@ bool BddQueryEngine::AtLeastOneTrue(
     if (!IsTracked(location.node())) {
       return false;
     }
-    result = bdd().Or(result, GetBddNode(location));
+    std::optional<BddNodeIndex> bdd_node = GetBddNode(location);
+    if (!bdd_node.has_value()) {
+      return false;
+    }
+    result = bdd().Or(result, *bdd_node);
     if (ExceedsPathLimit(result)) {
       VLOG(3) << "AtLeastOneTrue exceeded path limit of " << path_limit_;
       return false;
@@ -136,7 +147,15 @@ bool BddQueryEngine::Implies(const TreeBitLocation& a,
   if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
   }
-  return Implies(GetBddNode(a), GetBddNode(b));
+  std::optional<BddNodeIndex> a_bdd = GetBddNode(a);
+  if (!a_bdd.has_value()) {
+    return false;
+  }
+  std::optional<BddNodeIndex> b_bdd = GetBddNode(b);
+  if (!b_bdd.has_value()) {
+    return false;
+  }
+  return Implies(*a_bdd, *b_bdd);
 }
 
 std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
@@ -162,10 +181,16 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
   BddNodeIndex bdd_predicate_bit = bdd().one();
   for (const auto& [conjuction_bit_location, conjunction_value] :
        predicate_bit_values) {
-    BddNodeIndex conjuction_bit = GetBddNode(conjuction_bit_location);
+    std::optional<BddNodeIndex> conjuction_bit =
+        GetBddNode(conjuction_bit_location);
+    if (!conjuction_bit.has_value()) {
+      // Skip this predicate; we don't recognize the node, so we can't see the
+      // effects of assuming it.
+      continue;
+    }
     conjuction_bit =
-        conjunction_value ? conjuction_bit : bdd().Not(conjuction_bit);
-    bdd_predicate_bit = bdd().And(bdd_predicate_bit, conjuction_bit);
+        conjunction_value ? *conjuction_bit : bdd().Not(*conjuction_bit);
+    bdd_predicate_bit = bdd().And(bdd_predicate_bit, *conjuction_bit);
   }
   // If the predicate evaluates to false, we can't determine
   // what node value it implies. That is, !predicate || node_bit
@@ -174,22 +199,37 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
     return std::nullopt;
   }
 
-  auto implied_true_or_false = [&](int node_idx, bool node_bit_true) {
-    BddNodeIndex bdd_node_bit = GetBddNode(TreeBitLocation(node, node_idx));
-    BddNodeIndex qualified_bdd_node_bit =
-        node_bit_true ? bdd_node_bit : bdd().Not(bdd_node_bit);
-    return Implies(bdd_predicate_bit, qualified_bdd_node_bit);
+  enum class ImpliedValue : std::uint8_t {
+    kNotAnalyzable,
+    kUnknown,
+    kImpliedTrue,
+    kImpliedFalse
+  };
+  auto implied_value = [&](int node_idx) -> std::optional<TernaryValue> {
+    std::optional<BddNodeIndex> bdd_node_bit =
+        GetBddNode(TreeBitLocation(node, node_idx));
+    if (!bdd_node_bit.has_value()) {
+      return std::nullopt;
+    }
+    if (Implies(bdd_predicate_bit, *bdd_node_bit)) {
+      return TernaryValue::kKnownOne;
+    }
+    if (Implies(bdd_predicate_bit, bdd().Not(*bdd_node_bit))) {
+      return TernaryValue::kKnownZero;
+    }
+    return TernaryValue::kUnknown;
   };
 
   // Check if bdd_predicate_bit implies anything about the node.
   CHECK(node->GetType()->IsBits());
   TernaryVector ternary(node->BitCountOrDie(), TernaryValue::kUnknown);
   for (int node_idx = 0; node_idx < node->BitCountOrDie(); ++node_idx) {
-    if (implied_true_or_false(node_idx, true)) {
-      ternary[node_idx] = TernaryValue::kKnownOne;
-    } else if (implied_true_or_false(node_idx, false)) {
-      ternary[node_idx] = TernaryValue::kKnownZero;
+    std::optional<TernaryValue> bit_value = implied_value(node_idx);
+    if (!bit_value.has_value()) {
+      // Missing information; we can't determine the node value.
+      return std::nullopt;
     }
+    ternary[node_idx] = *bit_value;
   }
   if (ternary_ops::AllUnknown(ternary)) {
     return std::nullopt;
@@ -202,7 +242,15 @@ bool BddQueryEngine::KnownEquals(const TreeBitLocation& a,
   if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
   }
-  return GetBddNode(a) == GetBddNode(b);
+  std::optional<BddNodeIndex> a_bdd = GetBddNode(a);
+  if (!a_bdd.has_value()) {
+    return false;
+  }
+  std::optional<BddNodeIndex> b_bdd = GetBddNode(b);
+  if (!b_bdd.has_value()) {
+    return false;
+  }
+  return *a_bdd == *b_bdd;
 }
 
 bool BddQueryEngine::KnownNotEquals(const TreeBitLocation& a,
@@ -210,7 +258,15 @@ bool BddQueryEngine::KnownNotEquals(const TreeBitLocation& a,
   if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
   }
-  return GetBddNode(a) == bdd().Not(GetBddNode(b));
+  std::optional<BddNodeIndex> a_bdd = GetBddNode(a);
+  if (!a_bdd.has_value()) {
+    return false;
+  }
+  std::optional<BddNodeIndex> b_bdd = GetBddNode(b);
+  if (!b_bdd.has_value()) {
+    return false;
+  }
+  return *a_bdd == bdd().Not(*b_bdd);
 }
 
 }  // namespace xls
