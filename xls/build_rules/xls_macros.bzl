@@ -38,6 +38,10 @@ load(
     "enable_generated_file_wrapper",
 )
 load(
+    "//xls/build_rules:xls_dslx_rules.bzl",
+    "xls_dslx_generate_cpp_type_files",
+)
+load(
     "//xls/build_rules:xls_ir_macros.bzl",
     _xls_ir_opt_ir_macro = "xls_ir_opt_ir_macro",
 )
@@ -376,6 +380,7 @@ def xls_dslx_opt_ir_macro(
 def xls_dslx_cpp_type_library(
         name,
         src,
+        deps = [],
         namespace = None):
     """Creates a cc_library target for transpiled DSLX types.
 
@@ -387,21 +392,13 @@ def xls_dslx_cpp_type_library(
       src: The DSLX file whose types to compile as C++.
       namespace: The C++ namespace to generate the code in (e.g., `foo::bar`).
     """
-    native.genrule(
+    xls_dslx_generate_cpp_type_files(
         name = name + "_generate_sources",
         srcs = [src],
-        outs = [
-            name + ".h",
-            name + ".cc",
-        ],
-        tools = [
-            "//xls/dslx/cpp_transpiler:cpp_transpiler_main",
-        ],
-        cmd = "$(location //xls/dslx/cpp_transpiler:cpp_transpiler_main) " +
-              "--output_header_path=$(@D)/{}.h ".format(name) +
-              "--output_source_path=$(@D)/{}.cc ".format(name) +
-              ("" if namespace == None else "--namespaces={} ".format(namespace)) +
-              "$(location {})".format(src),
+        source_file = name + ".cc",
+        header_file = name + ".h",
+        deps = deps,
+        namespace = namespace,
     )
 
     native.cc_library(
@@ -416,6 +413,9 @@ def xls_dslx_cpp_type_library(
             "@com_google_absl//absl/types:span",
             "//xls/public:status_macros",
             "//xls/public:value",
+        ],
+        data = [
+            ":" + name + "_generate_sources",
         ],
     )
 

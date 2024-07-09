@@ -733,7 +733,7 @@ Examples:
 ## xls_dslx_cpp_type_library
 
 <pre>
-xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
+xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-deps">deps</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
 </pre>
 
 Creates a cc_library target for transpiled DSLX types.
@@ -749,6 +749,7 @@ a cc_library with its target name identical to this macro.
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_cpp_type_library-name"></a>name |  The name of the eventual cc_library.   |  none |
 | <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  none |
+| <a id="xls_dslx_cpp_type_library-deps"></a>deps |  <p align="center"> - </p>   |  `[]` |
 | <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., `foo::bar`).   |  `None` |
 
 

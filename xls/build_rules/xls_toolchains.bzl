@@ -45,6 +45,8 @@ _DEFAULT_CODEGEN_TARGET = "//xls/tools:codegen_main"
 
 _DEFAULT_JIT_WRAPPER_TARGET = "//xls/jit:jit_wrapper_generator_main"
 
+_DEFAULT_CPP_TRANSPILER_TARGET = "//xls/dslx/cpp_transpiler:cpp_transpiler_main"
+
 xls_toolchain_attrs = {
     "_xls_aot_compiler_tool": attr.label(
         doc = "The target of the AOT IR compiler executable.",
@@ -58,6 +60,13 @@ xls_toolchain_attrs = {
         executable = True,
         cfg = "exec",
         allow_files = True,
+    ),
+    "_xls_cpp_transpiler_tool": attr.label(
+        doc = "The target of the CPP transpiler executable.",
+        default = Label(_DEFAULT_CPP_TRANSPILER_TARGET),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
     ),
     "_xls_dslx_interpreter_tool": attr.label(
         doc = "The target of the DSLX interpreter executable.",
@@ -145,6 +154,7 @@ def _xls_toolchain_impl(ctx):
         ctx.attr._xls_benchmark_ir_tool,
         ctx.attr._xls_benchmark_codegen_tool,
         ctx.attr._xls_codegen_tool,
+        ctx.attr._xls_cpp_transpiler_tool,
         ctx.attr._xls_dslx_interpreter_tool,
         ctx.attr._xls_jit_wrapper_tool,
         ctx.attr._xls_ir_converter_tool,

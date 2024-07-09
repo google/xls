@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import xls.dslx.cpp_transpiler.test_types_dep as x;
+
 // TODO:
 //   * add width constants for type aliases and enums
 type MyType = u37;

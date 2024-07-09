@@ -100,6 +100,9 @@ static std::string __indent(int64_t amount) {
                        import_data->GetRootTypeInfo(module));
   std::vector<std::string> header;
   std::vector<std::string> source;
+
+  // TODO(b/351861097): 2024-07-08 Convert dependent types in other imports so
+  // that types defined in imported files can be used.
   for (const TypeDefinition& def : module->GetTypeDefinitions()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppTypeGenerator> generator,
                          CppTypeGenerator::Create(def, type_info, import_data));

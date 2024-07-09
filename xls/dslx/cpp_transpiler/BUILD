@@ -127,6 +127,7 @@ cc_binary(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -143,6 +144,7 @@ xls_dslx_cpp_type_library(
     name = "test_types_lib",
     src = ":test_types.x",
     namespace = "xls::test",
+    deps = [":test_types"],
 )
 
 cc_test(
@@ -160,6 +162,12 @@ cc_test(
 )
 
 xls_dslx_library(
+    name = "test_types_dep",
+    srcs = ["test_types_dep.x"],
+)
+
+xls_dslx_library(
     name = "test_types",
     srcs = ["test_types.x"],
+    deps = [":test_types_dep"],
 )
