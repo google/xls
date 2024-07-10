@@ -24,7 +24,9 @@
 #include <variant>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -626,8 +628,113 @@ class TupleCppEmitter : public CppEmitter {
 
 }  // namespace
 
+std::string SanitizeCppName(std::string_view name) {
+  static const absl::NoDestructor<absl::flat_hash_set<std::string>>
+      kCppKeywords({"alignas",
+                    "alignof",
+                    "and",
+                    "and_eq",
+                    "asm",
+                    "atomic_cancel",
+                    "atomic_commit",
+                    "atomic_noexcept",
+                    "auto",
+                    "bitand",
+                    "bitor",
+                    "bool",
+                    "break",
+                    "case",
+                    "catch",
+                    "char",
+                    "char8_t",
+                    "char16_t",
+                    "char32_t",
+                    "class",
+                    "compl",
+                    "concept",
+                    "const",
+                    "consteval",
+                    "constexpr",
+                    "constinit",
+                    "const_cast",
+                    "continue",
+                    "co_await",
+                    "co_return",
+                    "co_yield",
+                    "decltype",
+                    "default",
+                    "delete",
+                    "do",
+                    "double",
+                    "dynamic_cast",
+                    "else",
+                    "enum",
+                    "explicit",
+                    "export",
+                    "extern",
+                    "false",
+                    "float",
+                    "for",
+                    "friend",
+                    "goto",
+                    "if",
+                    "inline",
+                    "int",
+                    "long",
+                    "mutable",
+                    "namespace",
+                    "new",
+                    "noexcept",
+                    "not",
+                    "not_eq",
+                    "nullptr",
+                    "operator",
+                    "or",
+                    "or_eq",
+                    "private",
+                    "protected",
+                    "public",
+                    "reflexpr",
+                    "register",
+                    "reinterpret_cast",
+                    "requires",
+                    "return",
+                    "short",
+                    "signed",
+                    "sizeof",
+                    "static",
+                    "static_assert",
+                    "static_cast",
+                    "struct",
+                    "switch",
+                    "synchronized",
+                    "template",
+                    "this",
+                    "thread_local",
+                    "throw",
+                    "true",
+                    "try",
+                    "typedef",
+                    "typeid",
+                    "typename",
+                    "union",
+                    "unsigned",
+                    "using",
+                    "virtual",
+                    "void",
+                    "volatile",
+                    "wchar_t",
+                    "while",
+                    "xor",
+                    "xor_eq"});
+  if (kCppKeywords->contains(name)) {
+    return absl::StrCat("_", name);
+  }
+  return std::string{name};
+}
+
 std::string DslxTypeNameToCpp(std::string_view dslx_type) {
-  return Camelize(dslx_type);
+  return SanitizeCppName(Camelize(dslx_type));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<CppEmitter>> CppEmitter::Create(

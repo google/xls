@@ -618,5 +618,14 @@ TEST(TestTypesTest, SnakeCaseToString) {
 })");
 }
 
+TEST(TestTypesTest, StructWithKeywordFields) {
+  test::StructWithKeywordFields a{._float = 42, ._int = 1};
+
+  EXPECT_EQ(a.ToString(), R"(StructWithKeywordFields {
+  _float: bits[32]:0x2a,
+  _int: bits[42]:0x1,
+})");
+}
+
 }  // namespace
 }  // namespace xls

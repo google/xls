@@ -48,7 +48,9 @@ cc_library(
     srcs = ["cpp_emitter.cc"],
     hdrs = ["cpp_emitter.h"],
     deps = [
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -75,7 +77,9 @@ cc_library(
     hdrs = ["cpp_type_generator.h"],
     deps = [
         ":cpp_emitter",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

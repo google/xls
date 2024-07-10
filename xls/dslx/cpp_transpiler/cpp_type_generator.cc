@@ -418,7 +418,15 @@ class StructCppTypeGenerator : public CppTypeGenerator {
       std::vector<std::unique_ptr<CppEmitter>> member_emitters)
       : CppTypeGenerator(cpp_type, dslx_type),
         struct_def_(struct_def),
-        member_emitters_(std::move(member_emitters)) {}
+        member_emitters_(std::move(member_emitters)),
+        cpp_member_names_([struct_def]() {
+          std::vector<std::string> names;
+          names.reserve(struct_def->size());
+          for (int64_t i = 0; i < struct_def->size(); ++i) {
+            names.push_back(SanitizeCppName(struct_def->GetMemberName(i)));
+          }
+          return names;
+        }()) {}
   ~StructCppTypeGenerator() override = default;
 
   static absl::StatusOr<std::unique_ptr<StructCppTypeGenerator>> Create(
@@ -440,7 +448,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     std::vector<std::string> member_decls;
     std::vector<std::string> scalar_widths;
     for (int64_t i = 0; i < struct_def_->size(); ++i) {
-      std::string member_name = struct_def_->GetMemberName(i);
+      std::string member_name = cpp_member_names_[i];
       member_decls.push_back(absl::StrFormat(
           "%s %s;", member_emitters_[i]->cpp_type(), member_name));
       std::optional<int64_t> width =
@@ -506,7 +514,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     pieces.push_back(absl::StrFormat("%s result;", cpp_type()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
       std::string assignment = member_emitters_[i]->AssignFromValue(
-          /*lhs=*/absl::StrFormat("result.%s", struct_def_->GetMemberName(i)),
+          /*lhs=*/absl::StrFormat("result.%s", cpp_member_names_[i]),
           /*rhs=*/absl::StrFormat("value.element(%d)", i), /*nesting=*/0);
       pieces.push_back(assignment);
     }
@@ -531,7 +539,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     for (int i = 0; i < struct_def_->members().size(); i++) {
       std::string assignment = member_emitters_[i]->AssignToValue(
           /*lhs=*/absl::StrFormat("members[%d]", i),
-          /*rhs=*/struct_def_->GetMemberName(i), /*nesting=*/0);
+          /*rhs=*/cpp_member_names_[i], /*nesting=*/0);
       pieces.push_back(assignment);
     }
     pieces.push_back("return ::xls::Value::Tuple(members);");
@@ -548,8 +556,8 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     std::vector<std::string> pieces;
     for (int i = 0; i < struct_def_->members().size(); i++) {
       std::string verification = member_emitters_[i]->Verify(
-          struct_def_->GetMemberName(i),
-          absl::StrFormat("%s.%s", cpp_type(), struct_def_->GetMemberName(i)),
+          cpp_member_names_[i],
+          absl::StrFormat("%s.%s", cpp_type(), cpp_member_names_[i]),
           /*nesting=*/0);
       pieces.push_back(verification);
     }
@@ -567,11 +575,10 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     pieces.push_back(
         absl::StrFormat("std::string result = \"%s {\\n\";", cpp_type()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
-      pieces.push_back(
-          absl::StrFormat("result += __indent(indent + 1) + \"%s: \";",
-                          struct_def_->GetMemberName(i)));
+      pieces.push_back(absl::StrFormat(
+          "result += __indent(indent + 1) + \"%s: \";", cpp_member_names_[i]));
       std::string to_string = member_emitters_[i]->ToString(
-          "result", "indent + 2", struct_def_->GetMemberName(i), /*nesting=*/0);
+          "result", "indent + 2", cpp_member_names_[i], /*nesting=*/0);
       pieces.push_back(to_string);
       pieces.push_back("result += \",\\n\";");
     }
@@ -590,11 +597,10 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     pieces.push_back(
         absl::StrFormat("std::string result = \"%s {\\n\";", dslx_type()));
     for (int i = 0; i < struct_def_->members().size(); i++) {
-      pieces.push_back(
-          absl::StrFormat("result += __indent(indent + 1) + \"%s: \";",
-                          struct_def_->GetMemberName(i)));
+      pieces.push_back(absl::StrFormat(
+          "result += __indent(indent + 1) + \"%s: \";", cpp_member_names_[i]));
       std::string to_string = member_emitters_[i]->ToDslxString(
-          "result", "indent + 2", struct_def_->GetMemberName(i), /*nesting=*/0);
+          "result", "indent + 2", cpp_member_names_[i], /*nesting=*/0);
       pieces.push_back(to_string);
       pieces.push_back("result += \",\\n\";");
     }
@@ -617,7 +623,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
     } else {
       std::vector<std::string> member_comparisons;
       for (int i = 0; i < struct_def_->members().size(); i++) {
-        const std::string& member_name = struct_def_->GetMemberName(i);
+        const std::string& member_name = cpp_member_names_[i];
         member_comparisons.push_back(
             absl::StrFormat("%s == other.%s", member_name, member_name));
       }
@@ -650,6 +656,7 @@ class StructCppTypeGenerator : public CppTypeGenerator {
 
   const StructDef* struct_def_;
   std::vector<std::unique_ptr<CppEmitter>> member_emitters_;
+  std::vector<std::string> cpp_member_names_;
 };
 
 }  // namespace
