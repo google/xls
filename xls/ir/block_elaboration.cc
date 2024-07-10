@@ -125,6 +125,11 @@ absl::StatusOr<std::vector<ElaboratedNode>> FifoInstantiationPredecessors(
       fifo_config.bypass() && !fifo_config.register_pop_outputs();
   bool pop_to_push_combo_paths = !fifo_config.register_push_outputs();
   absl::flat_hash_set<std::string_view> predecessor_names;
+  if (fifo_port_name == FifoInstantiation::kPushReadyPortName ||
+      fifo_port_name == FifoInstantiation::kPopValidPortName ||
+      fifo_port_name == FifoInstantiation::kPopDataPortName) {
+    predecessor_names.insert(FifoInstantiation::kResetPortName);
+  }
   if (push_to_pop_combo_paths &&
       fifo_port_name == FifoInstantiation::kPopDataPortName) {
     predecessor_names.insert(FifoInstantiation::kPushDataPortName);
@@ -165,6 +170,11 @@ absl::StatusOr<std::vector<ElaboratedNode>> FifoInstantiationSuccessors(
   XLS_RET_CHECK(parent_instance->block().has_value());
   Block* block = *parent_instance->block();
   absl::flat_hash_set<std::string_view> successor_names;
+  if (fifo_port_name == FifoInstantiation::kResetPortName) {
+    successor_names.insert(FifoInstantiation::kPushReadyPortName);
+    successor_names.insert(FifoInstantiation::kPopValidPortName);
+    successor_names.insert(FifoInstantiation::kPopDataPortName);
+  }
   if (push_to_pop_combo_paths &&
       fifo_port_name == FifoInstantiation::kPushDataPortName) {
     successor_names.insert(FifoInstantiation::kPopDataPortName);

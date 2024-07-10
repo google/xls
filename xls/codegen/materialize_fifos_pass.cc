@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -36,11 +37,13 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls::verilog {
 namespace {
 absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
-                                       FifoInstantiation* inst) {
+                                       FifoInstantiation* inst,
+                                       const xls::Reset& reset_behavior) {
   const FifoConfig& config = inst->fifo_config();
   if (config.bypass()) {
     return absl::UnimplementedError("Bypass Not yet supported");
@@ -52,22 +55,37 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
     return absl::UnimplementedError("PopReg Not yet supported");
   }
   int64_t depth = config.depth();
+  Type* u1 = p->GetBitsType(1);
   Type* ty = inst->data_type();
   BlockBuilder bb(uniquer.GetSanitizedUniqueName(absl::StrFormat(
                       "fifo_for_depth_%d_ty_%s", depth, ty->ToString())),
                   p);
   XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
+  XLS_ASSIGN_OR_RETURN(
+      InputPort * reset_port,
+      bb.block()->AddResetPort(FifoInstantiation::kResetPortName));
+  BValue reset_port_bvalue(reset_port, &bb);
+
   // Make sure there is one extra slot at least. Bad for QOR but makes impl
   // easier since full is always tail + size == head
   Type* buf_type = p->GetArrayType(depth + 1, ty);
   Type* ptr_type = p->GetBitsType(Bits::MinBitCountUnsigned(depth + 1));
   XLS_ASSIGN_OR_RETURN(Register * buf_reg,
                        bb.block()->AddRegister("buf", buf_type));
-  XLS_ASSIGN_OR_RETURN(Register * head_reg,
-                       bb.block()->AddRegister("head", ptr_type));
-  XLS_ASSIGN_OR_RETURN(Register * tail_reg,
-                       bb.block()->AddRegister("tail", ptr_type));
-  Type* u1 = p->GetBitsType(1);
+  XLS_ASSIGN_OR_RETURN(
+      Register * head_reg,
+      bb.block()->AddRegister(
+          "head", ptr_type,
+          xls::Reset{.reset_value = ZeroOfType(ptr_type),
+                     .asynchronous = reset_behavior.asynchronous,
+                     .active_low = reset_behavior.active_low}));
+  XLS_ASSIGN_OR_RETURN(
+      Register * tail_reg,
+      bb.block()->AddRegister(
+          "tail", ptr_type,
+          xls::Reset{.reset_value = ZeroOfType(ptr_type),
+                     .asynchronous = reset_behavior.asynchronous,
+                     .active_low = reset_behavior.active_low}));
   BValue one_lit = bb.Literal(UBits(1, ptr_type->GetFlatBitCount()));
   BValue depth_lit = bb.Literal(UBits(depth, ptr_type->GetFlatBitCount()));
   BValue long_buf_size_lit =
@@ -125,9 +143,9 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   bb.RegisterWrite(buf_reg, next_buf_value_if_push_occurs,
                    /*load_enable=*/did_push_occur_bool);
   bb.RegisterWrite(head_reg, next_head_value_if_push_occurs,
-                   /*load_enable=*/did_push_occur_bool);
+                   /*load_enable=*/did_push_occur_bool, reset_port_bvalue);
   bb.RegisterWrite(tail_reg, next_tail_value_if_pop_occurs,
-                   /*load_enable=*/did_pop_occur_bool);
+                   /*load_enable=*/did_pop_occur_bool, reset_port_bvalue);
 
   return bb.Build();
 }
@@ -155,7 +173,11 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
 
   absl::flat_hash_map<xls::Instantiation*, Block*> impls;
   for (FifoInstantiation* f : insts) {
-    XLS_ASSIGN_OR_RETURN(impls[f], MaterializeFifo(uniquer, unit->package, f));
+    XLS_RET_CHECK(options.codegen_options.ResetBehavior().has_value())
+        << "Reset behavior must be set to materialize fifos";
+    XLS_ASSIGN_OR_RETURN(
+        impls[f], MaterializeFifo(uniquer, unit->package, f,
+                                  *options.codegen_options.ResetBehavior()));
   }
 
   std::vector<Block*> saved_blocks(elab.blocks().begin(), elab.blocks().end());

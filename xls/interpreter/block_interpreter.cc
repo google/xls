@@ -139,11 +139,14 @@ class FifoModel {
         next_reg_state_(next_reg_state) {}
 
   absl::Status HandleInput(InstantiationInput* input, const Value& value) {
-    if (input->port_name() == "push_valid") {
+    if (input->port_name() == FifoInstantiation::kResetPortName) {
+      XLS_RET_CHECK(value.IsAllZeros()) << "Asserting reset not yet supported";
+      reset_ = value;
+    } else if (input->port_name() == FifoInstantiation::kPushValidPortName) {
       push_valid_ = value;
-    } else if (input->port_name() == "push_data") {
+    } else if (input->port_name() == FifoInstantiation::kPushDataPortName) {
       push_data_ = value;
-    } else if (input->port_name() == "pop_ready") {
+    } else if (input->port_name() == FifoInstantiation::kPopReadyPortName) {
       pop_ready_ = value;
     } else {
       return absl::InvalidArgumentError(
@@ -227,6 +230,7 @@ class FifoModel {
   std::optional<Value> push_data_;
   std::optional<Value> push_valid_;
   std::optional<Value> pop_ready_;
+  std::optional<Value> reset_;
 };
 
 class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {

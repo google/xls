@@ -313,6 +313,9 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationNoBypassWorks) {
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
+  // Don't reset.
+  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
+
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
   bb.InstantiationInput(fifo_inst, "push_valid",
@@ -386,6 +389,9 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationWithBypassWorks) {
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
+  // Don't reset.
+  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
+
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
   bb.InstantiationInput(fifo_inst, "push_valid",
@@ -458,6 +464,9 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationNoBypassWorks) {
   bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Don't reset.
+  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
 
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
@@ -553,6 +562,9 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationWithBypassWorks) {
   XLS_ASSERT_OK_AND_ASSIGN(
       FifoInstantiation * fifo_inst,
       bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
+
+  // Don't reset.
+  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
 
   bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));

@@ -84,6 +84,7 @@ struct Push : public BaseOperation {
 
   absl::flat_hash_map<std::string, Value> InputSet() const override {
     return {
+        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushDataPortName),
          Value(UBits(v, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
@@ -94,6 +95,7 @@ struct Push : public BaseOperation {
 struct Pop : public BaseOperation {
   absl::flat_hash_map<std::string, Value> InputSet() const override {
     return {
+        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushDataPortName),
          Value(UBits(0xf0f0f0f0, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
@@ -107,6 +109,7 @@ struct PushAndPop : public BaseOperation {
   uint32_t v;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
     return {
+        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushDataPortName),
          Value(UBits(v, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
@@ -117,6 +120,7 @@ struct PushAndPop : public BaseOperation {
 struct NotReady : public BaseOperation {
   absl::flat_hash_map<std::string, Value> InputSet() const override {
     return {
+        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushDataPortName),
          Value(UBits(0xf0f0f0f0, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
@@ -125,10 +129,22 @@ struct NotReady : public BaseOperation {
     };
   }
 };
-class Operation : public BaseOperation,
-                  public std::variant<Push, Pop, PushAndPop, NotReady> {
+struct ResetOperation : public BaseOperation {
+  absl::flat_hash_map<std::string, Value> InputSet() const override {
+    return {
+        {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
+        {std::string(FifoInstantiation::kPushDataPortName),
+         Value(UBits(0, 32))},
+        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
+        {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
+    };
+  }
+};
+class Operation
+    : public BaseOperation,
+      public std::variant<Push, Pop, PushAndPop, NotReady, ResetOperation> {
  public:
-  using std::variant<Push, Pop, PushAndPop, NotReady>::variant;
+  using std::variant<Push, Pop, PushAndPop, NotReady, ResetOperation>::variant;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
     return std::visit([&](auto v) { return v.InputSet(); }, *this);
   }
@@ -176,6 +192,8 @@ class MaterializeFifosPassTestHelper {
     MaterializeFifosPass mfp;
     CodegenPassUnit pu(p, wrapper);
     CodegenPassOptions opt;
+    opt.codegen_options.reset("rst", /*asynchronous=*/false,
+                              /*active_low=*/false, /*reset_data_path=*/false);
     CodegenPassResults res;
     XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(&pu, opt, &res));
     XLS_RET_CHECK(changed);
@@ -311,6 +329,30 @@ TEST_F(MaterializeFifosPassTest, FifoLengthIsSmall) {
   FifoConfig cfg(2, false, false, false);
   RunTestVector(cfg,
                 {PushAndPop{1}, PushAndPop{2}, PushAndPop{3}, PushAndPop{4}});
+}
+
+TEST_F(MaterializeFifosPassTest, DISABLED_ResetFullFifo) {
+  FifoConfig cfg(3, false, false, false);
+  RunTestVector(cfg, {
+                         Push{1},
+                         Push{2},
+                         Push{3},
+                         Push{4},
+                         Push{5},
+                         Push{6},
+                         Push{7},
+                         PushAndPop{8},
+                         PushAndPop{9},
+                         PushAndPop{10},
+                         PushAndPop{11},
+                         ResetOperation{},
+                         NotReady{},
+                         NotReady{},
+                         NotReady{},
+                         NotReady{},
+                         NotReady{},
+                         NotReady{},
+                     });
 }
 
 class MaterializeFifosPassFuzzTest : public MaterializeFifosPassTestHelper {

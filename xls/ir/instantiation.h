@@ -145,6 +145,7 @@ class FifoInstantiation : public Instantiation {
                     std::optional<std::string_view> channel_name,
                     Package* package);
 
+  static constexpr std::string_view kResetPortName = "rst";
   static constexpr std::string_view kPushValidPortName = "push_valid";
   static constexpr std::string_view kPushDataPortName = "push_data";
   static constexpr std::string_view kPushReadyPortName = "push_ready";

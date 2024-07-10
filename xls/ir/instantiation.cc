@@ -284,6 +284,7 @@ absl::StatusOr<InstantiationType> FifoInstantiation::type() const {
   Type* u1 = package_->GetBitsType(1);
   return InstantiationType(/*input_types=*/
                            {
+                               {std::string{kResetPortName}, u1},
                                {std::string(kPushValidPortName), u1},
                                {std::string(kPopReadyPortName), u1},
                                {std::string(kPushDataPortName), data_type()},
