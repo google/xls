@@ -67,9 +67,10 @@ namespace {
 // Returns the given InterpValue formatted using the given format descriptor (if
 // it is not null).
 absl::StatusOr<std::string> ToStringMaybeFormatted(
-    const InterpValue& value, const ValueFormatDescriptor* value_fmt_desc,
+    const InterpValue& value,
+    std::optional<ValueFormatDescriptor> value_fmt_desc,
     int64_t indentation = 0) {
-  if (value_fmt_desc != nullptr) {
+  if (value_fmt_desc.has_value()) {
     XLS_ASSIGN_OR_RETURN(std::string value_str,
                          value.ToFormattedString(*value_fmt_desc, indentation));
     return std::string(indentation, ' ') + value_str;
@@ -1283,11 +1284,10 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
       pieces.push_back(std::get<std::string>(trace_element));
     } else {
       const InterpValue& value = args.at(argno);
-      if (argno < trace_data.value_fmt_descs().size() &&
-          trace_data.value_fmt_descs().at(argno) != nullptr) {
+      if (argno < trace_data.value_fmt_descs().size()) {
         XLS_ASSIGN_OR_RETURN(
             std::string formatted,
-            value.ToFormattedString(*trace_data.value_fmt_descs().at(argno)));
+            value.ToFormattedString(trace_data.value_fmt_descs()[argno]));
         pieces.push_back(formatted);
       } else {
         pieces.push_back(value.ToString(

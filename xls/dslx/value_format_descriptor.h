@@ -17,12 +17,12 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <string>
-#include <utility>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
@@ -30,144 +30,133 @@
 
 namespace xls::dslx {
 
-class ArrayFormatDescriptor;
-class EnumFormatDescriptor;
-class LeafValueFormatDescriptor;
-class StructFormatDescriptor;
-class TupleFormatDescriptor;
+class ValueFormatDescriptor;
 
 // Visits concrete types in the ValueFormatDescriptor hierarchy.
 class ValueFormatVisitor {
  public:
   virtual ~ValueFormatVisitor() = default;
 
-  virtual absl::Status HandleArray(const ArrayFormatDescriptor& d) = 0;
-  virtual absl::Status HandleEnum(const EnumFormatDescriptor& d) = 0;
-  virtual absl::Status HandleLeafValue(const LeafValueFormatDescriptor& d) = 0;
-  virtual absl::Status HandleStruct(const StructFormatDescriptor& d) = 0;
-  virtual absl::Status HandleTuple(const TupleFormatDescriptor& d) = 0;
+  virtual absl::Status HandleArray(const ValueFormatDescriptor& d) = 0;
+  virtual absl::Status HandleEnum(const ValueFormatDescriptor& d) = 0;
+  virtual absl::Status HandleLeafValue(const ValueFormatDescriptor& d) = 0;
+  virtual absl::Status HandleStruct(const ValueFormatDescriptor& d) = 0;
+  virtual absl::Status HandleTuple(const ValueFormatDescriptor& d) = 0;
 };
 
-// Abstract base class (existential) for the description of how to format values
-// (according to the structure of the type as determined after type-inferencing
-// time).
+enum class ValueFormatDescriptorKind : int8_t {
+  kLeafValue,
+  kEnum,
+  kArray,
+  kTuple,
+  kStruct,
+};
+
+// Class for the description of how to format values (according to the structure
+// of the type as determined after type-inferencing time).
 //
 // These are generally static summaries of information determined by the type
 // inference process so they can be used after IR conversion or in bytecode
 // interpretation, where the types are fully concrete and we only need limited
-// metadata in order to print them out properly. This type hierarchy effectively
-// corresponds to that of `Type`.
+// metadata in order to print them out properly. This data structure can be one
+// of several kinds (enum, tuple, array, struct, or leaf) corresponding to the
+// respective DSLX type.
 class ValueFormatDescriptor {
  public:
-  virtual ~ValueFormatDescriptor() = default;
+  ValueFormatDescriptor() : kind_(ValueFormatDescriptorKind::kLeafValue) {}
 
-  // Accepts the visitor and calls `v.Handle*(*this)` -- note that there is no
-  // recursive traversal, just double dispatch, traversal would need to be
-  // implemented by the visitor implementation.
-  virtual absl::Status Accept(ValueFormatVisitor& v) const = 0;
-};
+  static ValueFormatDescriptor MakeLeafValue(FormatPreference format);
+  static ValueFormatDescriptor MakeEnum(
+      std::string_view enum_name,
+      absl::flat_hash_map<Bits, std::string> value_to_name);
+  static ValueFormatDescriptor MakeArray(
+      const ValueFormatDescriptor& element_format, size_t size);
+  static ValueFormatDescriptor MakeTuple(
+      absl::Span<const ValueFormatDescriptor> elements);
+  static ValueFormatDescriptor MakeStruct(
+      std::string_view struct_name, absl::Span<const std::string> field_names,
+      absl::Span<const ValueFormatDescriptor> field_formats);
 
-class LeafValueFormatDescriptor : public ValueFormatDescriptor {
- public:
-  explicit LeafValueFormatDescriptor(FormatPreference format)
-      : format_(format) {}
+  ValueFormatDescriptorKind kind() const { return kind_; }
 
-  FormatPreference format() const { return format_; }
+  bool IsLeafValue() const {
+    return kind() == ValueFormatDescriptorKind::kLeafValue;
+  };
+  bool IsArray() const { return kind() == ValueFormatDescriptorKind::kArray; };
+  bool IsTuple() const { return kind() == ValueFormatDescriptorKind::kTuple; };
+  bool IsStruct() const {
+    return kind() == ValueFormatDescriptorKind::kStruct;
+  };
+  bool IsEnum() const { return kind() == ValueFormatDescriptorKind::kEnum; };
 
-  absl::Status Accept(ValueFormatVisitor& v) const override {
-    return v.HandleLeafValue(*this);
+  // Leaf methods.
+  FormatPreference leaf_format() const {
+    CHECK(IsLeafValue());
+    return format_;
   }
 
- private:
-  FormatPreference format_;
-};
-
-class EnumFormatDescriptor : public ValueFormatDescriptor {
- public:
-  EnumFormatDescriptor(std::string enum_name,
-                       absl::flat_hash_map<Bits, std::string> value_to_name)
-      : enum_name_(std::move(enum_name)),
-        value_to_name_(std::move(value_to_name)) {}
-
-  absl::Status Accept(ValueFormatVisitor& v) const override {
-    return v.HandleEnum(*this);
+  // Enum methods.
+  std::string_view enum_name() const {
+    CHECK(IsEnum());
+    return enum_name_;
   }
-
-  const std::string& enum_name() const { return enum_name_; }
   const absl::flat_hash_map<Bits, std::string>& value_to_name() const {
+    CHECK(IsEnum());
     return value_to_name_;
   }
 
+  // Array methods.
+  const ValueFormatDescriptor& array_element_format() const {
+    CHECK(IsArray());
+    return children_.front();
+  }
+  // Struct methods.
+  std::string_view struct_name() const {
+    CHECK(IsStruct());
+    return struct_name_;
+  }
+  absl::Span<const std::string> struct_field_names() const {
+    CHECK(IsStruct());
+    return struct_field_names_;
+  }
+  absl::Span<const ValueFormatDescriptor> struct_elements() const {
+    CHECK(IsStruct());
+    return children_;
+  }
+
+  // Tuple methods.
+  absl::Span<const ValueFormatDescriptor> tuple_elements() const {
+    CHECK(IsTuple());
+    return children_;
+  }
+
+  // Methods for aggregate kinds.
+  size_t size() const {
+    CHECK(IsTuple() || IsArray() || IsStruct());
+    return size_;
+  }
+
+  absl::Status Accept(ValueFormatVisitor& v) const;
+
  private:
+  explicit ValueFormatDescriptor(ValueFormatDescriptorKind kind)
+      : kind_(kind) {}
+
+  ValueFormatDescriptorKind kind_;
+  std::vector<ValueFormatDescriptor> children_;
+
+  // Leaf data members;
+  FormatPreference format_ = FormatPreference::kDefault;
+
+  // Enum data members.
   std::string enum_name_;
   absl::flat_hash_map<Bits, std::string> value_to_name_;
-};
 
-class ArrayFormatDescriptor : public ValueFormatDescriptor {
- public:
-  ArrayFormatDescriptor(std::unique_ptr<ValueFormatDescriptor> element_format,
-                        size_t size)
-      : element_format_(std::move(element_format)), size_(size) {}
+  // Size of array or tuple.
+  size_t size_ = 0;
 
-  absl::Status Accept(ValueFormatVisitor& v) const override {
-    return v.HandleArray(*this);
-  }
-
-  const ValueFormatDescriptor& element_format() const {
-    return *element_format_;
-  }
-  size_t size() const { return size_; }
-
- private:
-  std::unique_ptr<ValueFormatDescriptor> element_format_;
-  size_t size_;
-};
-
-class TupleFormatDescriptor : public ValueFormatDescriptor {
- public:
-  explicit TupleFormatDescriptor(
-      std::vector<std::unique_ptr<ValueFormatDescriptor>> elements)
-      : elements_(std::move(elements)) {}
-
-  absl::Status Accept(ValueFormatVisitor& v) const override {
-    return v.HandleTuple(*this);
-  }
-
-  int64_t size() const { return elements_.size(); }
-  absl::Span<const std::unique_ptr<ValueFormatDescriptor>> elements() const {
-    return elements_;
-  }
-
- private:
-  std::vector<std::unique_ptr<ValueFormatDescriptor>> elements_;
-};
-
-// Describes how a struct should be formatted.
-//
-// (Note: recursive type, as this is also used for sub-structs under the top
-// level struct.)
-class StructFormatDescriptor : public ValueFormatDescriptor {
- public:
-  // A given element has a field name and either describes a leaf of formatting
-  // (a value in a field) or a sub-struct via a boxed StructFormatDescriptor.
-  struct Element {
-    std::string field_name;
-    std::unique_ptr<ValueFormatDescriptor> fmt;
-  };
-
-  StructFormatDescriptor(std::string struct_name, std::vector<Element> elements)
-      : struct_name_(std::move(struct_name)), elements_(std::move(elements)) {}
-
-  absl::Status Accept(ValueFormatVisitor& v) const override {
-    return v.HandleStruct(*this);
-  }
-
-  const std::string& struct_name() const { return struct_name_; }
-  const std::vector<Element>& elements() const { return elements_; }
-
- private:
   std::string struct_name_;
-  std::vector<Element> elements_;
+  std::vector<std::string> struct_field_names_;
 };
 
 }  // namespace xls::dslx

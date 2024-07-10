@@ -16,9 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -37,47 +35,45 @@
 namespace xls::dslx {
 namespace {
 
-absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
-MakeStructFormatDescriptor(const StructType& struct_type,
-                           FormatPreference field_preference) {
-  std::vector<StructFormatDescriptor::Element> elements;
+absl::StatusOr<ValueFormatDescriptor> MakeStructFormatDescriptor(
+    const StructType& struct_type, FormatPreference field_preference) {
+  std::vector<std::string> field_names;
+  std::vector<ValueFormatDescriptor> field_formats;
+  field_names.reserve(struct_type.size());
+  field_formats.reserve(struct_type.size());
   for (size_t i = 0; i < struct_type.size(); ++i) {
     const Type& member_type = struct_type.GetMemberType(i);
-    std::string_view name = struct_type.GetMemberName(i);
+    field_names.push_back(std::string{struct_type.GetMemberName(i)});
     XLS_ASSIGN_OR_RETURN(
         auto desc, MakeValueFormatDescriptor(member_type, field_preference));
-    elements.push_back(
-        StructFormatDescriptor::Element{std::string(name), std::move(desc)});
+    field_formats.push_back(std::move(desc));
   }
-  return std::make_unique<StructFormatDescriptor>(
-      struct_type.nominal_type().identifier(), std::move(elements));
+  return ValueFormatDescriptor::MakeStruct(
+      struct_type.nominal_type().identifier(), field_names, field_formats);
 }
 
-absl::StatusOr<std::unique_ptr<TupleFormatDescriptor>>
-MakeTupleFormatDescriptor(const TupleType& tuple_type,
-                          FormatPreference field_preference) {
-  std::vector<std::unique_ptr<ValueFormatDescriptor>> elements;
+absl::StatusOr<ValueFormatDescriptor> MakeTupleFormatDescriptor(
+    const TupleType& tuple_type, FormatPreference field_preference) {
+  std::vector<ValueFormatDescriptor> elements;
   for (size_t i = 0; i < tuple_type.size(); ++i) {
     const Type& member_type = tuple_type.GetMemberType(i);
     XLS_ASSIGN_OR_RETURN(
         auto vfd, MakeValueFormatDescriptor(member_type, field_preference));
     elements.push_back(std::move(vfd));
   }
-  return std::make_unique<TupleFormatDescriptor>(std::move(elements));
+  return ValueFormatDescriptor::MakeTuple(elements);
 }
 
-absl::StatusOr<std::unique_ptr<ArrayFormatDescriptor>>
-MakeArrayFormatDescriptor(const ArrayType& type,
-                          FormatPreference field_preference) {
+absl::StatusOr<ValueFormatDescriptor> MakeArrayFormatDescriptor(
+    const ArrayType& type, FormatPreference field_preference) {
   XLS_ASSIGN_OR_RETURN(int64_t size, type.size().GetAsInt64());
   XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ValueFormatDescriptor> element_type_descriptor,
+      ValueFormatDescriptor element_type_descriptor,
       MakeValueFormatDescriptor(type.element_type(), field_preference));
-  return std::make_unique<ArrayFormatDescriptor>(
-      std::move(element_type_descriptor), size);
+  return ValueFormatDescriptor::MakeArray(element_type_descriptor, size);
 }
 
-absl::StatusOr<std::unique_ptr<EnumFormatDescriptor>> MakeEnumFormatDescriptor(
+absl::StatusOr<ValueFormatDescriptor> MakeEnumFormatDescriptor(
     const EnumType& type, FormatPreference field_preference) {
   absl::flat_hash_map<Bits, std::string> value_to_name;
   const EnumDef& enum_def = type.nominal_type();
@@ -87,14 +83,14 @@ absl::StatusOr<std::unique_ptr<EnumFormatDescriptor>> MakeEnumFormatDescriptor(
     XLS_RET_CHECK(v.IsBits());
     value_to_name[v.GetBitsOrDie()] = s;
   }
-  return std::make_unique<EnumFormatDescriptor>(enum_def.identifier(),
-                                                std::move(value_to_name));
+  return ValueFormatDescriptor::MakeEnum(enum_def.identifier(),
+                                         std::move(value_to_name));
 }
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
-MakeValueFormatDescriptor(const Type& type, FormatPreference field_preference) {
+absl::StatusOr<ValueFormatDescriptor> MakeValueFormatDescriptor(
+    const Type& type, FormatPreference field_preference) {
   class Visitor : public TypeVisitor {
    public:
     explicit Visitor(FormatPreference field_preference)
@@ -121,7 +117,7 @@ MakeValueFormatDescriptor(const Type& type, FormatPreference field_preference) {
       return absl::OkStatus();
     }
     absl::Status HandleBits(const BitsType& t) override {
-      result_ = std::make_unique<LeafValueFormatDescriptor>(field_preference_);
+      result_ = ValueFormatDescriptor::MakeLeafValue(field_preference_);
       return absl::OkStatus();
     }
     absl::Status HandleFunction(const FunctionType& t) override {
@@ -145,16 +141,15 @@ MakeValueFormatDescriptor(const Type& type, FormatPreference field_preference) {
           "Cannot format a bits constructor; got: " + t.ToString());
     }
 
-    std::unique_ptr<ValueFormatDescriptor>& result() { return result_; }
+    ValueFormatDescriptor& result() { return result_; }
 
    private:
     const FormatPreference field_preference_;
-    std::unique_ptr<ValueFormatDescriptor> result_;
+    ValueFormatDescriptor result_;
   };
 
   Visitor v(field_preference);
   XLS_RETURN_IF_ERROR(type.Accept(v));
-  XLS_RET_CHECK(v.result() != nullptr);
   return std::move(v.result());
 }
 

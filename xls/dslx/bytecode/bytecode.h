@@ -322,15 +322,13 @@ class Bytecode {
     TraceData(TraceData&& other) = default;
     TraceData& operator=(TraceData&& other) = default;
 
-    TraceData(
-        std::vector<FormatStep> steps,
-        std::vector<std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs)
+    TraceData(std::vector<FormatStep> steps,
+              std::vector<ValueFormatDescriptor> value_fmt_descs)
         : steps_(std::move(steps)),
           value_fmt_descs_(std::move(value_fmt_descs)) {}
 
     absl::Span<const FormatStep> steps() const { return steps_; }
-    absl::Span<const std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs()
-        const {
+    absl::Span<const ValueFormatDescriptor> value_fmt_descs() const {
       return value_fmt_descs_;
     }
 
@@ -339,7 +337,7 @@ class Bytecode {
 
     // For default formatting of struct operands we hold metadata that allows us
     // to format them in more detail (struct name, fields, etc).
-    std::vector<std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs_;
+    std::vector<ValueFormatDescriptor> value_fmt_descs_;
   };
 
   // Information necessary for channel operations.
@@ -351,21 +349,21 @@ class Bytecode {
 
     ChannelData(std::string_view channel_name,
                 std::unique_ptr<Type> payload_type,
-                std::unique_ptr<ValueFormatDescriptor> value_fmt_desc)
+                ValueFormatDescriptor value_fmt_desc)
         : channel_name_(channel_name),
           payload_type_(std::move(payload_type)),
           value_fmt_desc_(std::move(value_fmt_desc)) {}
 
     std::string_view channel_name() const { return channel_name_; }
     const Type& payload_type() const { return *payload_type_; }
-    const ValueFormatDescriptor* value_fmt_desc() const {
-      return value_fmt_desc_.get();
+    const ValueFormatDescriptor& value_fmt_desc() const {
+      return value_fmt_desc_;
     }
 
    private:
     std::string channel_name_;
     std::unique_ptr<Type> payload_type_;
-    std::unique_ptr<ValueFormatDescriptor> value_fmt_desc_;
+    ValueFormatDescriptor value_fmt_desc_;
   };
 
   using Data = std::variant<InterpValue, JumpTarget, NumElements, SlotIndex,

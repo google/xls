@@ -45,7 +45,7 @@ namespace xls::dslx {
 // Note this goes beyond InterpValue::Payload annotating things like whether the
 // bits should be interpreted as signed or unsigned, which can change the
 // behavior of interpreted operators like '<'.
-enum class InterpValueTag {
+enum class InterpValueTag : uint8_t {
   kUBits,
   kSBits,
   kTuple,
@@ -292,6 +292,10 @@ class InterpValue {
     absl::Format(&sink, "%s", v.ToString());
   }
 
+  // Formats this value using the given format description.
+  //
+  // Returns an error status if the descriptor does not correspond to the
+  // type appropriately.
   absl::StatusOr<std::string> ToFormattedString(
       const ValueFormatDescriptor& fmt_desc, int64_t indentation = 0) const;
 
@@ -377,27 +381,15 @@ class InterpValue {
  private:
   friend struct InterpValuePickler;
 
-  // Formats this tuple value using the given struct format description.
-  //
-  // Returns an error status if the struct descriptor does not correspond to the
-  // tuple structure appropriately.
-  //
-  // Precondition: IsTuple()
+  // Specializations of ToFormattedString for handling specific types.
   absl::StatusOr<std::string> ToStructString(
-      const StructFormatDescriptor& fmt_desc, int64_t indentation) const;
-
-  // As above but for tuple values (that are not participating in a struct
-  // type).
+      const ValueFormatDescriptor& fmt_desc, int64_t indentation) const;
   absl::StatusOr<std::string> ToTupleString(
-      const TupleFormatDescriptor& fmt_desc, int64_t indentation) const;
-
-  // As above but for array values.
+      const ValueFormatDescriptor& fmt_desc, int64_t indentation) const;
   absl::StatusOr<std::string> ToArrayString(
-      const ArrayFormatDescriptor& fmt_desc, int64_t indentation) const;
-
-  // As above but for enum values.
+      const ValueFormatDescriptor& fmt_desc, int64_t indentation) const;
   absl::StatusOr<std::string> ToEnumString(
-      const EnumFormatDescriptor& fmt_desc) const;
+      const ValueFormatDescriptor& fmt_desc) const;
 
   // Note: currently InterpValues are not scoped to a lifetime, so we use a
   // shared_ptr for referring to token data for identity purposes.

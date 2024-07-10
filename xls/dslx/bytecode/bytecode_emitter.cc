@@ -90,7 +90,7 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> channel_payload_type,
                        GetChannelPayloadType(type_info, channel));
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ValueFormatDescriptor> struct_fmt_desc,
+  XLS_ASSIGN_OR_RETURN(ValueFormatDescriptor struct_fmt_desc,
                        MakeValueFormatDescriptor(*channel_payload_type.get(),
                                                  format_preference));
 
@@ -108,9 +108,9 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
       std::move(channel_payload_type), std::move(struct_fmt_desc));
 }
 
-absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
-ExprToValueFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
-                            FormatPreference field_preference) {
+absl::StatusOr<ValueFormatDescriptor> ExprToValueFormatDescriptor(
+    const Expr* expr, const TypeInfo* type_info,
+    FormatPreference field_preference) {
   std::optional<Type*> maybe_type = type_info->GetItem(expr);
   XLS_RET_CHECK(maybe_type.has_value());
   XLS_RET_CHECK(maybe_type.value() != nullptr);
@@ -956,10 +956,10 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
                        : preference;
     }
   }
-  std::vector<std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs;
+  std::vector<ValueFormatDescriptor> value_fmt_descs;
   for (size_t i = 0; i < node->args().size(); ++i) {
     XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<ValueFormatDescriptor> value_fmt_desc,
+        ValueFormatDescriptor value_fmt_desc,
         ExprToValueFormatDescriptor(node->args().at(i), type_info_,
                                     preferences.at(i)));
     value_fmt_descs.push_back(std::move(value_fmt_desc));
