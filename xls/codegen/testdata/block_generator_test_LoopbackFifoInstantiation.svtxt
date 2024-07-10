@@ -33,7 +33,7 @@ module running_sum(
   wire p1_stage_valid;
   wire p1_all_active_inputs_valid;
   wire p1_all_active_outputs_ready;
-  wire literal_1072;
+  wire literal_1073;
   wire p1_enable;
   wire p1_stage_done;
   wire __out_valid_buf;
@@ -76,12 +76,12 @@ module running_sum(
   assign p1_stage_valid = p1_all_active_states_valid & p0_valid;
   assign p1_all_active_inputs_valid = in_valid & loopback_active_valid;
   assign p1_all_active_outputs_ready = 1'h1;
-  assign literal_1072 = 1'h1;
+  assign literal_1073 = 1'h1;
   assign p1_enable = p2_stage_done | p2_not_valid;
   assign p1_stage_done = p1_stage_valid & p1_all_active_inputs_valid & p1_all_active_outputs_ready;
-  assign __out_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1072;
+  assign __out_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1073;
   assign __out_data_not_has_been_sent = ~__out_data_has_been_sent_reg;
-  assign __fifo_loopback_push_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1072;
+  assign __fifo_loopback_push_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1073;
   assign __fifo_loopback_push_data_not_has_been_sent = ~__fifo_loopback_push_data_has_been_sent_reg;
   assign p1_data_enable = p1_enable & p1_stage_done;
   assign p1_not_valid = ~p0_valid;
@@ -137,9 +137,9 @@ module running_sum(
     .push_data(p1_sum),
     .push_valid(__fifo_loopback_push_data_valid_and_not_has_been_sent),
     .pop_ready(p0_not_first_cycle & p1_data_enable),
+    .push_ready(instantiation_output_1046),
     .pop_data(instantiation_output_1029),
-    .pop_valid(instantiation_output_1030),
-    .push_ready(instantiation_output_1046)
+    .pop_valid(instantiation_output_1030)
   );
   assign out_data = p1_sum;
   assign out_valid = __out_data_valid_and_not_has_been_sent;

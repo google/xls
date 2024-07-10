@@ -136,6 +136,21 @@ static absl::Status MaybeAddResetPort(Block* block,
     XLS_RET_CHECK_OK(block->AddResetPort(options.reset()->name()));
   }
 
+  // Connect reset to FIFO instantiations.
+  for (xls::Instantiation* instantiation : block->GetInstantiations()) {
+    if (instantiation->kind() != InstantiationKind::kFifo) {
+      continue;
+    }
+    XLS_RET_CHECK(options.reset().has_value())
+        << "Fifo instantiations require reset.";
+    XLS_RETURN_IF_ERROR(block
+                            ->MakeNode<xls::InstantiationInput>(
+                                SourceInfo(), block->GetResetPort().value(),
+                                instantiation,
+                                xls::FifoInstantiation::kResetPortName)
+                            .status());
+  }
+
   return absl::OkStatus();
 }
 

@@ -104,7 +104,7 @@ pop_ready,  pop_data,  pop_valid);
 
   // Require depth be 1 and bypass disabled.
   initial begin
-    if (EnableBypass || Depth != 1 || !RegisterPushOutputs) begin
+    if (EnableBypass || Depth != 1 || !RegisterPushOutputs || RegisterPopOutputs) begin
       // FIFO configuration not supported.
       $fatal(1);
     end

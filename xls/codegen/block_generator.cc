@@ -15,10 +15,10 @@
 #include "xls/codegen/block_generator.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <initializer_list>
-#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -855,16 +856,35 @@ class BlockGenerator {
                     /*format=*/FormatPreference::kUnsignedDecimal)},
         };
 
-        // Append clock and reset to the front of connections.
-        XLS_RET_CHECK(mb_.reset().has_value());
-        std::vector<Connection> appended_connections{
-            Connection{.port_name = "clk", .expression = mb_.clock()},
-            Connection{.port_name = "rst", .expression = mb_.reset()->signal},
-        };
-        appended_connections.reserve(connections.size() + 2);
-        std::move(connections.begin(), connections.end(),
-                  std::back_inserter(appended_connections));
-        connections = std::move(appended_connections);
+        // Append clock to connections.
+        connections.push_back(
+            Connection{.port_name = "clk", .expression = mb_.clock()});
+        // Sort clk and rst to top, then push, and finally pop ports.
+        constexpr std::array<std::string_view, 8> kFifoPortPriority = {
+            "clk",
+            xls::FifoInstantiation::kResetPortName,
+            xls::FifoInstantiation::kPushDataPortName,
+            xls::FifoInstantiation::kPushValidPortName,
+            xls::FifoInstantiation::kPopReadyPortName,
+            xls::FifoInstantiation::kPushReadyPortName,
+            xls::FifoInstantiation::kPopDataPortName,
+            xls::FifoInstantiation::kPopValidPortName};
+        absl::c_sort(connections, [&kFifoPortPriority](const Connection& a,
+                                                       const Connection& b) {
+          for (const std::string_view& port_name : kFifoPortPriority) {
+            if (a.port_name == b.port_name) {
+              // We dont' want compare(x, x) == true.
+              return false;
+            }
+            if (a.port_name == port_name) {
+              return true;
+            }
+            if (b.port_name == port_name) {
+              return false;
+            }
+          }
+          return a.port_name < b.port_name;
+        });
 
         mb_.instantiation_section()->Add<Instantiation>(
             SourceInfo(), "xls_fifo_wrapper", fifo_instantiation->name(),
