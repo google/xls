@@ -924,7 +924,7 @@ SDCScheduler::SDCScheduler(FunctionBase* f, DelayMap delay_map)
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(
       solver_, math_opt::IncrementalSolver::New(&model_.UnderlyingModel(),
-                                                math_opt::SolverType::kGlop));
+                                              math_opt::SolverType::kGlop));
 
   for (Node* node : f_->nodes()) {
     for (Node* user : node->users()) {
