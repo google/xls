@@ -15,8 +15,14 @@
 #ifndef XLS_INTERPRETER_BLOCK_EVALUATOR_TEST_BASE_H_
 #define XLS_INTERPRETER_BLOCK_EVALUATOR_TEST_BASE_H_
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "gtest/gtest.h"
+#include "absl/strings/str_cat.h"
 #include "xls/interpreter/block_evaluator.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/ir_test_base.h"
 
 namespace xls {
@@ -34,6 +40,61 @@ class BlockEvaluatorTest
 
   bool SupportsFifos() { return GetParam().supports_fifos; }
 };
+
+struct FifoTestParam {
+  BlockEvaluatorTestParam block_evaluator_test_param;
+  FifoConfig fifo_config;
+};
+
+class FifoTest : public IrTestBase,
+                 public testing::WithParamInterface<FifoTestParam> {
+ public:
+  const BlockEvaluator& evaluator() {
+    return *(GetParam().block_evaluator_test_param.evaluator);
+  }
+
+  bool SupportsFifos() {
+    return GetParam().block_evaluator_test_param.supports_fifos;
+  }
+
+  FifoConfig fifo_config() { return GetParam().fifo_config; }
+};
+
+inline std::vector<FifoTestParam> GenerateFifoTestParams(
+    const BlockEvaluatorTestParam& block_evaluator_test_param) {
+  std::vector<FifoTestParam> params;
+  for (int64_t depth : {0, 1, 2, 3, 4, 10, 128, 256}) {
+    for (bool bypass : {true, false}) {
+      for (bool register_push_outputs : {true, false}) {
+        for (bool register_pop_outputs : {true, false}) {
+          if (depth == 0 &&
+              (!bypass || register_push_outputs || register_pop_outputs)) {
+            // Unsupported configurations of depth=0 fifos.
+            continue;
+          }
+          params.push_back(FifoTestParam{
+              .block_evaluator_test_param = block_evaluator_test_param,
+              .fifo_config = FifoConfig(depth, bypass, register_push_outputs,
+                                        register_pop_outputs)});
+        }
+      }
+    }
+  }
+  return params;
+}
+
+inline std::string FifoTestName(
+    const ::testing::TestParamInfo<FifoTestParam>& info) {
+  const auto& param = info.param;
+  return absl::StrCat(
+      param.block_evaluator_test_param.evaluator->name(), "Depth",
+      param.fifo_config.depth(), "Bypass",
+      static_cast<int>(param.fifo_config.bypass()), "RegisterPushOutputs",
+      static_cast<int>(param.fifo_config.register_push_outputs()),
+      "RegisterPopOutputs",
+      static_cast<int>(param.fifo_config.register_pop_outputs()));
+}
+
 }  // namespace xls
 
 #endif  // XLS_INTERPRETER_BLOCK_EVALUATOR_TEST_BASE_H_

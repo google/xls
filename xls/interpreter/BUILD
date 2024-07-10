@@ -205,6 +205,7 @@ cc_library(
         "//xls/ir:ir_test_base",
         "//xls/ir:register",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -215,7 +216,9 @@ cc_test(
     deps = [
         ":block_evaluator_test_base",
         ":ir_interpreter",
+        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
+        "//xls/ir:channel",
         "@com_google_googletest//:gtest",
     ],
 )

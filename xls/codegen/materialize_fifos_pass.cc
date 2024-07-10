@@ -121,8 +121,10 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   BValue is_full_bool =
       bb.Eq(head, add_mod_buf_size(tail, depth_lit, "tail_plus_depth"));
   BValue not_full_bool = bb.Not(is_full_bool);
+  BValue can_do_push =
+      bb.Or(not_full_bool, pop_ready, SourceInfo(), "can_do_push");
   // Ready to take things if we are not full.
-  bb.OutputPort(FifoInstantiation::kPushReadyPortName, not_full_bool);
+  bb.OutputPort(FifoInstantiation::kPushReadyPortName, can_do_push);
 
   // Empty is head == tail so ne means there's something to pop.
   BValue not_empty_bool = bb.Ne(head, tail);
@@ -135,7 +137,7 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   // NB we don't bother clearing data after a pop.
   BValue next_buf_value_if_push_occurs = bb.ArrayUpdate(buf, push_data, {head});
 
-  BValue did_push_occur_bool = bb.And(not_full_bool, push_valid);
+  BValue did_push_occur_bool = bb.And(can_do_push, push_valid);
   BValue did_pop_occur_bool = bb.And(not_empty_bool, pop_ready);
 
   bb.OutputPort(FifoInstantiation::kPopDataPortName, current_queue_tail);

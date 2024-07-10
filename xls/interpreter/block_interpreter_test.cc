@@ -22,14 +22,19 @@
 namespace xls {
 namespace {
 
+inline constexpr BlockEvaluatorTestParam kBlockInterpreterTestParam = {
+    .evaluator = &kInterpreterBlockEvaluator, .supports_fifos = true};
+
 INSTANTIATE_TEST_SUITE_P(BlockInterpreterTest, BlockEvaluatorTest,
-                         testing::Values(BlockEvaluatorTestParam{
-                             .evaluator = &kInterpreterBlockEvaluator,
-                             .supports_fifos = true,
-                         }),
+                         testing::Values(kBlockInterpreterTestParam),
                          [](const auto& v) -> std::string {
                            return std::string(v.param.evaluator->name());
                          });
+
+INSTANTIATE_TEST_SUITE_P(
+    BlockInterpreterFifoTest, FifoTest,
+    testing::ValuesIn(GenerateFifoTestParams(kBlockInterpreterTestParam)),
+    FifoTestName);
 
 }  // namespace
 }  // namespace xls

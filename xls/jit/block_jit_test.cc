@@ -196,14 +196,17 @@ TEST_F(BlockJitTest, ExternInstantiationIsAnError) {
                ContainsRegex("Jit is unable to implement instantiations")));
 }
 
+inline constexpr BlockEvaluatorTestParam kJitTestParam = {
+    .evaluator = &kJitBlockEvaluator, .supports_fifos = false};
+
 INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
-                         testing::Values(BlockEvaluatorTestParam{
-                             .evaluator = &kJitBlockEvaluator,
-                             .supports_fifos = false,
-                         }),
-                         [](const auto& v) {
+                         testing::Values(kJitTestParam), [](const auto& v) {
                            return std::string(v.param.evaluator->name());
                          });
+
+INSTANTIATE_TEST_SUITE_P(
+    BlockInterpreterFifoTest, FifoTest,
+    testing::ValuesIn(GenerateFifoTestParams(kJitTestParam)), FifoTestName);
 
 }  // namespace
 }  // namespace xls

@@ -140,7 +140,6 @@ class FifoModel {
 
   absl::Status HandleInput(InstantiationInput* input, const Value& value) {
     if (input->port_name() == FifoInstantiation::kResetPortName) {
-      XLS_RET_CHECK(value.IsAllZeros()) << "Asserting reset not yet supported";
       reset_ = value;
     } else if (input->port_name() == FifoInstantiation::kPushValidPortName) {
       push_valid_ = value;
@@ -152,65 +151,72 @@ class FifoModel {
       return absl::InvalidArgumentError(
           absl::StrFormat("Unexpected port '%s'", input->port_name()));
     }
-    if (push_valid_.has_value() && push_data_.has_value() &&
-        pop_ready_.has_value()) {
-      XLS_RET_CHECK(Elements().IsTuple());
-      absl::Span<Value const> elements = Elements().elements();
-      bool empty = elements.empty();
-      bool full = elements.size() == config_.depth();
-      bool pop_element = !empty && pop_ready_->IsAllOnes();
-      // push to elements if:
-      // 1) push_valid
-      // 2) !full and not directly popping
-
-      bool pushed_element_immediately_popped = empty && config_.bypass() &&
-                                               pop_ready_->IsAllOnes() &&
-                                               push_valid_->IsAllOnes();
-      bool push_element =
-          push_valid_->IsAllOnes() && !pushed_element_immediately_popped &&
-          (!full || (config_.bypass() && pop_ready_->IsAllOnes()));
-      Value const* start = elements.begin();
-      if (pop_element) {
-        ++start;
-      }
-      std::vector<Value> next_elements(start, elements.end());
-      if (push_element) {
-        next_elements.push_back(*push_data_);
-      }
-      XLS_RET_CHECK_LE(next_elements.size(), config_.depth());
-      NextElements() = Value::Tuple(next_elements);
+    if (!(push_valid_.has_value() && push_data_.has_value() &&
+          pop_ready_.has_value() && reset_.has_value())) {
+      // Not yet ready to compute next state.
+      return absl::OkStatus();
     }
+    XLS_RET_CHECK(Elements().IsTuple());
+    absl::Span<Value const> elements = Elements().elements();
+
+    if (reset_->IsAllOnes()) {
+      NextElements() = Value::Tuple({});
+      return absl::OkStatus();
+    }
+
+    XLS_ASSIGN_OR_RETURN(bool push_ready, PushReady());
+    XLS_ASSIGN_OR_RETURN(bool pop_valid, PopValid());
+    bool do_push = push_valid_->IsAllOnes() && push_ready;
+    bool do_pop = pop_ready_->IsAllOnes() && pop_valid;
+    bool empty = elements.empty();
+    bool immediately_pop_pushed_value =
+        config_.bypass() && !config_.register_pop_outputs() && empty && do_pop;
+
+    Value const* start = elements.begin();
+    if (do_pop && !elements.empty()) {
+      VLOG(2) << "FIFO " << register_name_ << " popping "
+              << elements.front().ToString();
+      ++start;
+    }
+    std::vector<Value> next_elements(start, elements.end());
+
+    if (do_push) {
+      VLOG(2) << "FIFO " << register_name_ << " pushing "
+              << push_data_->ToString();
+    }
+    if (do_push && !immediately_pop_pushed_value) {
+      next_elements.push_back(*push_data_);
+    }
+    XLS_RET_CHECK_LE(next_elements.size(), config_.depth());
+    NextElements() = Value::Tuple(next_elements);
     return absl::OkStatus();
   }
   absl::StatusOr<Value> HandleOutput(InstantiationOutput* output) {
     XLS_RET_CHECK(Elements().IsTuple());
     absl::Span<Value const> elements = Elements().elements();
     XLS_RET_CHECK_LE(elements.size(), config_.depth());
-    bool empty = elements.empty();
-    bool full = elements.size() == config_.depth();
-    if (output->port_name() == "pop_valid") {
-      if (empty && config_.bypass()) {
-        XLS_RET_CHECK(push_valid_.has_value());
-        return *push_valid_;
-      }
-      return Value(UBits(static_cast<int64_t>(!empty), 1));
+    if (output->port_name() == FifoInstantiation::kPopValidPortName) {
+      VLOG(1) << "Fifo " << register_name_ << " state is " << elements.size()
+              << " elements with "
+              << (elements.empty() ? "<empty>" : elements.front().ToString())
+              << " at head.";
+      XLS_ASSIGN_OR_RETURN(bool pop_valid, PopValid());
+      return Value(UBits(static_cast<int64_t>(pop_valid), 1));
     }
-    if (output->port_name() == "pop_data") {
+    if (output->port_name() == FifoInstantiation::kPopDataPortName) {
+      bool empty = elements.empty();
       if (!empty) {
         return elements.front();
       }
-      if (config_.bypass()) {
+      if (config_.bypass() && !config_.register_pop_outputs()) {
         XLS_RET_CHECK(push_data_.has_value());
         return *push_data_;
       }
       return ZeroOfType(type_);
     }
-    if (output->port_name() == "push_ready") {
-      if (full && config_.bypass()) {
-        XLS_RET_CHECK(pop_ready_.has_value());
-        return *pop_ready_;
-      }
-      return Value(UBits(static_cast<int64_t>(!full), 1));
+    if (output->port_name() == FifoInstantiation::kPushReadyPortName) {
+      XLS_ASSIGN_OR_RETURN(bool push_ready, PushReady());
+      return Value(UBits(static_cast<int64_t>(push_ready), 1));
     }
     return absl::InvalidArgumentError(
         absl::StrFormat("Unexpected port '%s'", output->port_name()));
@@ -219,6 +225,35 @@ class FifoModel {
   std::string_view register_name() const { return register_name_; }
 
  private:
+  absl::StatusOr<bool> PushReady() const {
+    const Value& elements = Elements();
+    bool full = elements.size() >= config_.depth();
+    if (!full) {
+      return true;
+    }
+    if (config_.register_push_outputs()) {
+      return false;
+    }
+    XLS_RET_CHECK(pop_ready_.has_value());
+    return pop_ready_->IsAllOnes();
+  }
+
+  absl::StatusOr<bool> PopValid() const {
+    const Value& elements = Elements();
+    bool empty = elements.empty();
+    if (!empty) {
+      return true;
+    }
+    if (config_.register_pop_outputs()) {
+      return false;
+    }
+    if (!config_.bypass() && empty) {
+      return false;
+    }
+    XLS_RET_CHECK(push_valid_.has_value());
+    return push_valid_->IsAllOnes();
+  }
+
   const Value& Elements() const { return reg_state_.at(register_name_); }
   Value& NextElements() { return next_reg_state_[register_name_]; }
 

@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -42,11 +43,14 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 namespace {
 
 using ::testing::_;
+using ::testing::AllOf;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
@@ -1578,6 +1582,183 @@ TEST_P(BlockEvaluatorTest, DelaysContinuation) {
                              Pair("s2", Value(UBits(expected.v1, 32))),
                              Pair("s3", Value(UBits(expected.v2, 32))),
                              Pair("s4", Value(UBits(expected.v3, 32)))));
+  }
+}
+
+TEST_P(FifoTest, FifosReset) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsFifos()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("fifo_wrapper", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config(), u32));
+
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Make reset.
+  bb.InstantiationInput(fifo_inst, "rst", bb.InputPort("reset", u1));
+
+  // Make push side.
+  bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", u1));
+  bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
+                           evaluator().NewContinuation(block));
+  for (int i = 0; i < fifo_config().depth() + 1; ++i) {
+    XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                     {"push_data", ZeroOfType(u32)},
+                                     {"push_valid", Value(UBits(1, 1))},
+                                     {"pop_ready", Value(UBits(0, 1))}}));
+  }
+  EXPECT_THAT(eval->output_ports(),
+              UnorderedElementsAre(
+                  // We only pushed 0s, so we should get 0s out.
+                  Pair("pop_data", Value(UBits(0, 32))),
+                  // Fifo is full, pop should be valid.
+                  Pair("pop_valid", Value(UBits(1, 1))),
+                  // Fifo is full, push should not be ready.
+                  Pair("push_ready", Value(UBits(0, 1)))));
+
+  // Reset and check that the fifo is empty.
+  XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(1, 1))},
+                                   {"push_data", ZeroOfType(u32)},
+                                   {"push_valid", Value(UBits(1, 1))},
+                                   {"pop_ready", Value(UBits(0, 1))}}));
+  XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                   {"push_data", ZeroOfType(u32)},
+                                   {"push_valid", Value(UBits(0, 1))},
+                                   {"pop_ready", Value(UBits(1, 1))}}));
+  EXPECT_THAT(eval->output_ports(),
+              AllOf(Contains(Pair("pop_valid", Value(UBits(0, 1)))),
+                    Contains(Pair("push_ready", Value(UBits(1, 1))))));
+}
+
+TEST_P(FifoTest, CutThroughLatencyCorrect) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsFifos()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("fifo_wrapper", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config(), u32));
+
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Make reset.
+  bb.InstantiationInput(fifo_inst, "rst", bb.InputPort("reset", u1));
+
+  // Make push side.
+  bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", u1));
+  bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
+                           evaluator().NewContinuation(block));
+  XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                   {"push_data", ZeroOfType(u32)},
+                                   {"push_valid", Value(UBits(1, 1))},
+                                   {"pop_ready", Value(UBits(0, 1))}}));
+  int64_t pop_valid = 0;
+  if (GetParam().fifo_config.bypass() &&
+      !GetParam().fifo_config.register_pop_outputs()) {
+    pop_valid = 1;
+  }
+  EXPECT_THAT(eval->output_ports(),
+              AllOf(Contains(Pair("pop_valid", Value(UBits(pop_valid, 1)))),
+                    Contains(Pair("pop_data", Value(UBits(0, 32))))));
+  if (!pop_valid) {
+    pop_valid = 1;
+    XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                     {"push_data", ZeroOfType(u32)},
+                                     {"push_valid", Value(UBits(0, 1))},
+                                     {"pop_ready", Value(UBits(1, 1))}}));
+  }
+  EXPECT_THAT(eval->output_ports(),
+              AllOf(Contains(Pair("pop_valid", Value(UBits(pop_valid, 1)))),
+                    Contains(Pair("pop_data", Value(UBits(0, 32))))));
+}
+
+TEST_P(FifoTest, BackpressureLatencyCorrect) {
+  // TODO(rigge): add instantiation support to block jit and remove this guard.
+  if (!SupportsFifos()) {
+    GTEST_SKIP();
+    return;
+  }
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+  Type* u32 = p->GetBitsType(32);
+  BlockBuilder bb("fifo_wrapper", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FifoInstantiation * fifo_inst,
+      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config(), u32));
+
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+
+  // Make reset.
+  bb.InstantiationInput(fifo_inst, "rst", bb.InputPort("reset", u1));
+
+  // Make push side.
+  bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", u1));
+  bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
+                           evaluator().NewContinuation(block));
+  // Push until the fifo is full.
+  for (int i = 0; i < fifo_config().depth() + 1; ++i) {
+    XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                     {"push_data", ZeroOfType(u32)},
+                                     {"push_valid", Value(UBits(1, 1))},
+                                     {"pop_ready", Value(UBits(0, 1))}}));
+  }
+  EXPECT_THAT(eval->output_ports(),
+              UnorderedElementsAre(Pair("pop_valid", Value(UBits(1, 1))),
+                                   Pair("pop_data", Value(UBits(0, 32))),
+                                   // Cannot push more.
+                                   Pair("push_ready", Value(UBits(0, 1)))));
+  // Pop an output.
+  XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                   {"push_data", ZeroOfType(u32)},
+                                   {"push_valid", Value(UBits(0, 1))},
+                                   {"pop_ready", Value(UBits(1, 1))}}));
+  int64_t push_ready = 1;
+  if (GetParam().fifo_config.register_push_outputs()) {
+    push_ready = 0;
+  }
+  EXPECT_THAT(eval->output_ports(),
+              Contains(Pair("push_ready", Value(UBits(push_ready, 1)))));
+  if (!push_ready) {
+    push_ready = 1;
+    XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                     {"push_data", ZeroOfType(u32)},
+                                     {"push_valid", Value(UBits(0, 1))},
+                                     {"pop_ready", Value(UBits(0, 1))}}));
+    EXPECT_THAT(eval->output_ports(),
+                Contains(Pair("push_ready", Value(UBits(push_ready, 1)))));
   }
 }
 

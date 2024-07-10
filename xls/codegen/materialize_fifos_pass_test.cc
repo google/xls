@@ -55,7 +55,7 @@ using testing::Pair;
 
 MATCHER_P2(UsableOutputsMatch, input_set, output_set,
            "All ready/valid signals to match and the data signal to match if "
-           "read & valid is asserted.") {
+           "ready & valid is asserted.") {
   const absl::flat_hash_map<std::string, Value>& inputs = input_set;
   const absl::flat_hash_map<std::string, Value>& outputs = output_set;
   if (outputs.at(FifoInstantiation::kPopValidPortName).bits().IsOne() &&
@@ -331,7 +331,7 @@ TEST_F(MaterializeFifosPassTest, FifoLengthIsSmall) {
                 {PushAndPop{1}, PushAndPop{2}, PushAndPop{3}, PushAndPop{4}});
 }
 
-TEST_F(MaterializeFifosPassTest, DISABLED_ResetFullFifo) {
+TEST_F(MaterializeFifosPassTest, ResetFullFifo) {
   FifoConfig cfg(3, false, false, false);
   RunTestVector(cfg, {
                          Push{1},
