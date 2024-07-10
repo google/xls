@@ -236,8 +236,8 @@ cc_library(
     srcs = ["default_verilog_simulator.cc"],
     hdrs = ["default_verilog_simulator.h"],
     deps = [
-        "verilog_simulators",
         ":verilog_simulator",
+        ":verilog_simulators",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
