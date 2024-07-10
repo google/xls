@@ -297,7 +297,8 @@ class InterpValue {
   // Returns an error status if the descriptor does not correspond to the
   // type appropriately.
   absl::StatusOr<std::string> ToFormattedString(
-      const ValueFormatDescriptor& fmt_desc, int64_t indentation = 0) const;
+      const ValueFormatDescriptor& fmt_desc, bool include_type_prefix = false,
+      int64_t indentation = 0) const;
 
   InterpValueTag tag() const { return tag_; }
 
@@ -383,11 +384,14 @@ class InterpValue {
 
   // Specializations of ToFormattedString for handling specific types.
   absl::StatusOr<std::string> ToStructString(
-      const ValueFormatDescriptor& fmt_desc, int64_t indentation) const;
+      const ValueFormatDescriptor& fmt_desc, bool include_type_prefix,
+      int64_t indentation) const;
   absl::StatusOr<std::string> ToTupleString(
-      const ValueFormatDescriptor& fmt_desc, int64_t indentation) const;
+      const ValueFormatDescriptor& fmt_desc, bool include_type_prefix,
+      int64_t indentation) const;
   absl::StatusOr<std::string> ToArrayString(
-      const ValueFormatDescriptor& fmt_desc, int64_t indentation) const;
+      const ValueFormatDescriptor& fmt_desc, bool include_type_prefix,
+      int64_t indentation) const;
   absl::StatusOr<std::string> ToEnumString(
       const ValueFormatDescriptor& fmt_desc) const;
 

@@ -292,8 +292,8 @@ TEST(InterpValueTest, FormatFlatStructViaDescriptor) {
        ValueFormatDescriptor::MakeLeafValue(FormatPreference::kSignedDecimal)});
   XLS_ASSERT_OK_AND_ASSIGN(std::string s, tuple.ToFormattedString(fmt_desc));
   EXPECT_EQ(s, R"(MyStruct {
-  x: 0xf,
-  y: -1
+    x: 0xf,
+    y: -1
 })");
 }
 
@@ -315,11 +315,11 @@ TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string s,
                            outer.ToFormattedString(outer_fmt_desc));
   EXPECT_EQ(s, R"(OuterStruct {
-  a: InnerStruct {
-    x: 0xf,
-    y: -1
-  },
-  b: 42
+    a: InnerStruct {
+        x: 0xf,
+        y: -1
+    },
+    b: 42
 })");
 }
 
@@ -360,8 +360,10 @@ TEST(InterpValueTest, FormatEnum) {
   ValueFormatDescriptor fmt_desc = ValueFormatDescriptor::MakeEnum(
       "MyEnum", absl::flat_hash_map<Bits, std::string>(
                     {{UBits(0, 32), "FOO"}, {UBits(1, 32), "BAR"}}));
-  EXPECT_EQ(foo.ToFormattedString(fmt_desc).value(), "MyEnum::FOO");
-  EXPECT_EQ(bar.ToFormattedString(fmt_desc).value(), "MyEnum::BAR");
+  EXPECT_EQ(foo.ToFormattedString(fmt_desc).value(),
+            "MyEnum::FOO  // MyEnum:0");
+  EXPECT_EQ(bar.ToFormattedString(fmt_desc).value(),
+            "MyEnum::BAR  // MyEnum:1");
 }
 
 }  // namespace

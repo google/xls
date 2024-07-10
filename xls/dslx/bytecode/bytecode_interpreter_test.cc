@@ -252,8 +252,8 @@ fn main() -> () {
                                          trace_output.push_back(std::string{s});
                                        })));
   EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
-  x: 42,
-  y: 64
+    x: 42,
+    y: 64
 })"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
@@ -279,8 +279,8 @@ fn main() -> () {
                     })
                     .format_preference(FormatPreference::kHex)));
   EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
-  x: 0x2a,
-  y: 0x40
+    x: 0x2a,
+    y: 0x40
 })"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
@@ -306,8 +306,8 @@ fn main() -> () {
                     })
                     .format_preference(FormatPreference::kBinary)));
   EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
-  x: 0b10_1010,
-  y: 0b100_0000
+    x: 0b10_1010,
+    y: 0b100_0000
 })"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
@@ -337,11 +337,11 @@ fn main() -> () {
                                          trace_output.push_back(std::string{s});
                                        })));
   EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
-  p: Point {
-    x: 42,
-    y: 64
-  },
-  z: 123
+    p: Point {
+        x: 42,
+        y: 64
+    },
+    z: 123
 })"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
@@ -374,11 +374,11 @@ fn main() -> () {
                     .format_preference(FormatPreference::kHex)));
 
   EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
-  p: Point {
-    x: 0x2a,
-    y: 0x40
-  },
-  z: 0x7b
+    p: Point {
+        x: 0x2a,
+        y: 0x40
+    },
+    z: 0x7b
 })"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
@@ -433,6 +433,83 @@ fn main() -> u32{
                        testing::AllOf(HasSubstr("were not equal"),
                                       HasSubstr("lhs: u32:0xa"),
                                       HasSubstr("rhs: u32:0x14"))));
+}
+
+TEST(BytecodeInterpreterTest, AssertEqFailAutoFormatHex) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:10;
+  assert_eq(a, u32:0x12);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::AllOf(HasSubstr("were not equal"),
+                                      HasSubstr("lhs: u32:0xa"),
+                                      HasSubstr("rhs: u32:0x12"))));
+}
+
+TEST(BytecodeInterpreterTest, AssertEqFailAutoFormatBinary) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:10;
+  assert_eq(a, u32:0b1010_1100);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::AllOf(HasSubstr("were not equal"),
+                                      HasSubstr("lhs: u32:0b1010"),
+                                      HasSubstr("rhs: u32:0b1010_1100"))));
+}
+
+TEST(BytecodeInterpreterTest, AssertLtFailAutoFormatBinary) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:100;
+  assert_lt(a, u32:0b1010);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::AllOf(HasSubstr("was not less than"),
+                                      HasSubstr("lhs: u32:0b110_0100"),
+                                      HasSubstr("rhs: u32:0b1010"))));
+}
+
+// TODO(meheff): 2024/06/25 Enable auto-formatting of assert_eq messages in
+// structs.
+TEST(DISABLED_BytecodeInterpreterTest, AssertEqFailStructAutoFormatMixed) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct {
+  x: u32,
+  y: u32,
+}
+
+fn main() -> () {
+  let a = MyStruct{x: u32:10, y: u32:20};
+  assert_eq(a, MyStruct{x: u32:0b1011, y: u32:0x1234});
+  ()
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
+  EXPECT_THAT(
+      value.status(),
+      StatusIs(absl::StatusCode::kInternal,
+               testing::AllOf(
+                   HasSubstr("were not equal"), HasSubstr("< x: u32:0b1011"),
+                   HasSubstr("> x: u32:0b1010"), HasSubstr("< y: u32:0x14"),
+                   HasSubstr("> y: u32:0x1234"))));
 }
 
 TEST(BytecodeInterpreterTest, AssertLtFail) {
@@ -1642,7 +1719,7 @@ proc BTester {
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
-TEST(BytecodeInterpreterTest, PrettyPrintsStructs) {
+TEST(BytecodeInterpreterTest, AssertEqStructs) {
   constexpr std::string_view kProgram = R"(
 struct InnerStruct {
     x: u32,
@@ -1681,20 +1758,28 @@ fn doomed() {
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
                                        HasSubstr(R"(lhs and rhs were not equal:
   MyStruct {
-<     a: u32:0
->     a: u32:7
-<     b: uN[16][4]:[u16:1, u16:2, u16:3, u16:4]
->     b: uN[16][4]:[u16:8, u16:8, u16:8, u16:8]
+<     a: u32:0,
+>     a: u32:7,
+      b: [
+<         u16:1,
+>         u16:8,
+<         u16:2,
+>         u16:8,
+<         u16:3,
+>         u16:8,
+<         u16:4
+>         u16:8
+      ],
       c: InnerStruct {
-<         x: u32:5
->         x: u32:12
+<         x: u32:5,
+>         x: u32:12,
 <         y: u32:6
 >         y: u32:13
       }
   })")));
 }
 
-TEST(BytecodeInterpreterTest, PrettyPrintsTheStructFromIssue828) {
+TEST(BytecodeInterpreterTest, AssertEqTheStructFromIssue828) {
   constexpr std::string_view kProgram = R"(
 struct S {
   a: u32,
@@ -1743,24 +1828,52 @@ fn doomed() {
                                              HasSubstr(
                                                  R"(lhs and rhs were not equal:
   S {
-      a: u32:42
-      b: u32:42
-      c: u32:142
-<     d: u32:142
->     d: u32:42
-      e: u32:42
-      f: u32:42
-<     g: u32:42
->     g: u32:242
-<     h: u32:42
->     h: u32:242
-<     i: u32:242
->     i: u32:42
+      a: u32:42,
+      b: u32:42,
+      c: u32:142,
+<     d: u32:142,
+>     d: u32:42,
+      e: u32:42,
+      f: u32:42,
+<     g: u32:42,
+>     g: u32:242,
+<     h: u32:42,
+>     h: u32:242,
+<     i: u32:242,
+>     i: u32:42,
       j: u32:42
   })"))));
 }
 
-TEST(BytecodeInterpreterTest, PrettyPrintsArrays) {
+TEST(BytecodeInterpreterTest, AssertEqArray) {
+  constexpr std::string_view kProgram = R"(
+fn doomed() {
+    let a = u32[4]: [1, 2, 3, 4];
+    assert_eq(a, u32[4]:[1, 20, 3, 4])})";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
+  EXPECT_THAT(
+      value.status(),
+      StatusIs(absl::StatusCode::kInternal,
+               AllOf(HasSubstr("were not equal"), HasSubstr("<     u32:2"),
+                     HasSubstr(">     u32:20"),
+                     HasSubstr("first differing index: 1"))));
+}
+
+TEST(BytecodeInterpreterTest, AssertEqTuple) {
+  constexpr std::string_view kProgram = R"(
+fn doomed() {
+    let a = (u32:1, u32:42, u10:4);
+    assert_eq(a, (u32:100, u32:42, u10:4))})";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       AllOf(HasSubstr("were not equal"),
+                                             HasSubstr("<     u32:1"),
+                                             HasSubstr(">     u32:100"))));
+}
+
+TEST(BytecodeInterpreterTest, AssertEqArraysOfStructs) {
   constexpr std::string_view kProgram = R"(
 struct InnerStruct {
     x: u32,
@@ -1801,21 +1914,19 @@ fn doomed() {
 })";
 
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
-  EXPECT_THAT(value.status(),
-              StatusIs(absl::StatusCode::kInternal,
-                       AllOf(HasSubstr("were not equal"),
-                             HasSubstr(R"(lhs and rhs were not equal:
-  MyStruct {
-      c: InnerStruct[2]:[
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       AllOf(HasSubstr("were not equal"),
+                                             HasSubstr(R"(MyStruct {
+      c: [
           InnerStruct {
-<             x: u32:1
->             x: u32:5
+<             x: u32:1,
+>             x: u32:5,
 <             y: u32:2
 >             y: u32:6
           },
           InnerStruct {
-<             x: u32:3
->             x: u32:7
+<             x: u32:3,
+>             x: u32:7,
 <             y: u32:4
 >             y: u32:8
           }
@@ -1823,7 +1934,7 @@ fn doomed() {
   })"))));
 }
 
-TEST(BytecodeInterpreterTest, PrettyPrintsEnums) {
+TEST(BytecodeInterpreterTest, AssertEqEnums) {
   constexpr std::string_view kProgram = R"(
 enum Flowers {
     ROSES = u24:0xFF007F,
@@ -1838,8 +1949,8 @@ fn doomed() {
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
   EXPECT_THAT(value.status(),
               StatusIs(absl::StatusCode::kInternal,
-                       AllOf(HasSubstr("Flowers::ROSES (u24:16711807"),
-                             HasSubstr("Flowers::VIOLETS (u24:15631086"))));
+                       AllOf(HasSubstr("Flowers::ROSES  // u24:16711807"),
+                             HasSubstr("Flowers::VIOLETS  // u24:15631086"))));
 }
 
 TEST(BytecodeInterpreterTest, TraceChannels) {
@@ -1913,15 +2024,15 @@ proc tester_proc {
   }
   EXPECT_THAT(trace_output,
               testing::ElementsAre(
-                  "Sent data on channel `tester_proc::data_out`:\n  42",
-                  "Received data on channel `incrementer::in_ch`:\n  42",
-                  "Sent data on channel `incrementer::out_ch`:\n  43",
-                  "Received data on channel `tester_proc::data_in`:\n  43",
-                  "Sent data on channel `tester_proc::data_out`:\n  100",
-                  "Received data on channel `incrementer::in_ch`:\n  100",
-                  "Sent data on channel `incrementer::out_ch`:\n  101",
-                  "Received data on channel `tester_proc::data_in`:\n  101",
-                  "Sent data on channel `tester_proc::terminator`:\n  1"));
+                  "Sent data on channel `tester_proc::data_out`:\n  u32:42",
+                  "Received data on channel `incrementer::in_ch`:\n  u32:42",
+                  "Sent data on channel `incrementer::out_ch`:\n  u32:43",
+                  "Received data on channel `tester_proc::data_in`:\n  u32:43",
+                  "Sent data on channel `tester_proc::data_out`:\n  u32:100",
+                  "Received data on channel `incrementer::in_ch`:\n  u32:100",
+                  "Sent data on channel `incrementer::out_ch`:\n  u32:101",
+                  "Received data on channel `tester_proc::data_in`:\n  u32:101",
+                  "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
 }
 
 TEST(BytecodeInterpreterTest, TraceChannelsHexValues) {
@@ -1995,17 +2106,18 @@ proc tester_proc {
       XLS_ASSERT_OK(p.Run());
     }
   }
-  EXPECT_THAT(trace_output,
-              testing::ElementsAre(
-                  "Sent data on channel `tester_proc::data_out`:\n  0x2a",
-                  "Received data on channel `incrementer::in_ch`:\n  0x2a",
-                  "Sent data on channel `incrementer::out_ch`:\n  0x2b",
-                  "Received data on channel `tester_proc::data_in`:\n  0x2b",
-                  "Sent data on channel `tester_proc::data_out`:\n  0x64",
-                  "Received data on channel `incrementer::in_ch`:\n  0x64",
-                  "Sent data on channel `incrementer::out_ch`:\n  0x65",
-                  "Received data on channel `tester_proc::data_in`:\n  0x65",
-                  "Sent data on channel `tester_proc::terminator`:\n  0x1"));
+  EXPECT_THAT(
+      trace_output,
+      testing::ElementsAre(
+          "Sent data on channel `tester_proc::data_out`:\n  u32:0x2a",
+          "Received data on channel `incrementer::in_ch`:\n  u32:0x2a",
+          "Sent data on channel `incrementer::out_ch`:\n  u32:0x2b",
+          "Received data on channel `tester_proc::data_in`:\n  u32:0x2b",
+          "Sent data on channel `tester_proc::data_out`:\n  u32:0x64",
+          "Received data on channel `incrementer::in_ch`:\n  u32:0x64",
+          "Sent data on channel `incrementer::out_ch`:\n  u32:0x65",
+          "Received data on channel `tester_proc::data_in`:\n  u32:0x65",
+          "Sent data on channel `tester_proc::terminator`:\n  u1:0x1"));
 }
 
 TEST(BytecodeInterpreterTest, TraceChannelsWithNonblockingReceive) {
@@ -2075,9 +2187,9 @@ proc tester_proc {
   }
   EXPECT_THAT(trace_output,
               testing::ElementsAre(
-                  "Sent data on channel `incrementer::out_ch`:\n  1",
-                  "Received data on channel `tester_proc::data_in`:\n  1",
-                  "Sent data on channel `tester_proc::terminator`:\n  1"));
+                  "Sent data on channel `incrementer::out_ch`:\n  u32:1",
+                  "Received data on channel `tester_proc::data_in`:\n  u32:1",
+                  "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
 }
 
 TEST(BytecodeInterpreterTest, TraceStructChannels) {
@@ -2158,15 +2270,15 @@ proc tester_proc {
   EXPECT_EQ(trace_output[0],
             R"(Sent data on channel `tester_proc::data_out`:
   Foo {
-    a: 42,
-    b: 100
-  })");
+    a: u32:42,
+    b: u16:100
+})");
   EXPECT_EQ(trace_output[1],
             R"(Received data on channel `incrementer::in_ch`:
   Foo {
-    a: 42,
-    b: 100
-  })");
+    a: u32:42,
+    b: u16:100
+})");
 }
 
 TEST(BytecodeInterpreterTest, TraceArrayOfChannels) {
@@ -2240,17 +2352,18 @@ proc tester_proc {
       XLS_ASSERT_OK(p.Run());
     }
   }
-  EXPECT_THAT(trace_output,
-              testing::ElementsAre(
-                  "Sent data on channel `tester_proc::data_out[0]`:\n  42",
-                  "Received data on channel `incrementer::in_ch`:\n  42",
-                  "Sent data on channel `incrementer::out_ch`:\n  43",
-                  "Received data on channel `tester_proc::data_in[0]`:\n  43",
-                  "Sent data on channel `tester_proc::data_out[0]`:\n  100",
-                  "Received data on channel `incrementer::in_ch`:\n  100",
-                  "Sent data on channel `incrementer::out_ch`:\n  101",
-                  "Received data on channel `tester_proc::data_in[0]`:\n  101",
-                  "Sent data on channel `tester_proc::terminator`:\n  1"));
+  EXPECT_THAT(
+      trace_output,
+      testing::ElementsAre(
+          "Sent data on channel `tester_proc::data_out[0]`:\n  u32:42",
+          "Received data on channel `incrementer::in_ch`:\n  u32:42",
+          "Sent data on channel `incrementer::out_ch`:\n  u32:43",
+          "Received data on channel `tester_proc::data_in[0]`:\n  u32:43",
+          "Sent data on channel `tester_proc::data_out[0]`:\n  u32:100",
+          "Received data on channel `incrementer::in_ch`:\n  u32:100",
+          "Sent data on channel `incrementer::out_ch`:\n  u32:101",
+          "Received data on channel `tester_proc::data_in[0]`:\n  u32:101",
+          "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
 }
 
 TEST(BytecodeInterpreterTest, CheckedCastSnToSn) {

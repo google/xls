@@ -134,6 +134,7 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
     while (frame->pc() < frame->bf()->bytecodes().size()) {
       const std::vector<Bytecode>& bytecodes = frame->bf()->bytecodes();
       const Bytecode& bytecode = bytecodes.at(frame->pc());
+      VLOG(2) << "Bytecode: " << bytecode.ToString();
       VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
               << bytecode.ToString();
       VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
@@ -837,7 +838,9 @@ absl::Status BytecodeInterpreter::EvalLe(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalLiteral(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue value, bytecode.value_data());
-  stack_.Push(value);
+  stack_.PushFormattedValue(InterpreterStack::FormattedInterpValue{
+      .value = std::move(value),
+      .format_descriptor = bytecode.format_descriptor()});
   return absl::OkStatus();
 }
 

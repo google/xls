@@ -42,6 +42,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -476,8 +477,11 @@ DEF_UNARY_BUILDER(Swap);
   return Bytecode(std::move(span), Op::kJumpRel, target);
 }
 
-/* static */ Bytecode Bytecode::MakeLiteral(Span span, InterpValue literal) {
-  return Bytecode(std::move(span), Op::kLiteral, std::move(literal));
+/* static */ Bytecode Bytecode::MakeLiteral(
+    Span span, InterpValue literal,
+    std::optional<ValueFormatDescriptor> format_descriptor) {
+  return Bytecode(std::move(span), Op::kLiteral, std::move(literal),
+                  std::move(format_descriptor));
 }
 
 /* static */ Bytecode Bytecode::MakeLoad(Span span, SlotIndex slot_index) {

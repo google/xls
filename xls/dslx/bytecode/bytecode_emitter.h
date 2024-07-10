@@ -31,6 +31,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
@@ -103,7 +104,11 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
   HandleNameRefInternal(const NameRef* node);
   absl::Status HandleNumber(const Number* node) override;
-  absl::StatusOr<InterpValue> HandleNumberInternal(const Number* node);
+  struct FormattedInterpValue {
+    InterpValue value;
+    std::optional<ValueFormatDescriptor> format_descriptor;
+  };
+  absl::StatusOr<FormattedInterpValue> HandleNumberInternal(const Number* node);
   absl::Status HandleRange(const Range* node) override;
   absl::Status HandleSpawn(const Spawn* node) override;
   absl::Status HandleString(const String* node) override;

@@ -158,11 +158,16 @@ cc_library(
     srcs = ["interpreter_stack.cc"],
     hdrs = ["interpreter_stack.h"],
     deps = [
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
+        "//xls/dslx:value_format_descriptor",
     ],
 )
 
@@ -226,6 +231,8 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_utils",
+        "//xls/dslx:make_value_format_descriptor",
+        "//xls/dslx:value_format_descriptor",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",

@@ -377,7 +377,9 @@ class Bytecode {
   static Bytecode MakeJumpDest(Span span);
   static Bytecode MakeJumpRelIf(Span span, JumpTarget target);
   static Bytecode MakeJumpRel(Span span, JumpTarget target);
-  static Bytecode MakeLiteral(Span span, InterpValue literal);
+  static Bytecode MakeLiteral(
+      Span span, InterpValue literal,
+      std::optional<ValueFormatDescriptor> = std::nullopt);
   static Bytecode MakeLoad(Span span, SlotIndex slot_index);
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
@@ -398,8 +400,13 @@ class Bytecode {
       : source_span_(std::move(source_span)), op_(op), data_(std::nullopt) {}
 
   // Creates an operation with associated string or InterpValue data.
-  Bytecode(Span source_span, Op op, std::optional<Data> data)
-      : source_span_(std::move(source_span)), op_(op), data_(std::move(data)) {}
+  Bytecode(
+      Span source_span, Op op, std::optional<Data> data,
+      std::optional<ValueFormatDescriptor> format_descriptor = std::nullopt)
+      : source_span_(std::move(source_span)),
+        op_(op),
+        data_(std::move(data)),
+        format_descriptor_(std::move(format_descriptor)) {}
 
   // Not copyable, but move-able.
   Bytecode(const Bytecode& other) = delete;
@@ -441,10 +448,18 @@ class Bytecode {
   // that should be patched.
   void PatchJumpTarget(int64_t value);
 
+  const std::optional<ValueFormatDescriptor>& format_descriptor() const {
+    return format_descriptor_;
+  }
+
  private:
   Span source_span_;
   Op op_;
   std::optional<Data> data_;
+
+  // For numbers and literals, this field carries the numeric format of original
+  // text input. This enables better messages in assert_eq!, for example.
+  std::optional<ValueFormatDescriptor> format_descriptor_;
 };
 
 std::string OpToString(Bytecode::Op op);

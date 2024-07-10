@@ -14,19 +14,39 @@
 
 #include "xls/dslx/bytecode/interpreter_stack.h"
 
+#include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
+/* static */ InterpreterStack InterpreterStack::CreateForTest(
+    absl::Span<const InterpValue> stack) {
+  std::vector<FormattedInterpValue> elements;
+  elements.reserve(stack.size());
+  for (const InterpValue& value : stack) {
+    elements.push_back(FormattedInterpValue{.value = value,
+                                            .format_descriptor = std::nullopt});
+  }
+  return InterpreterStack{std::move(elements)};
+}
+
 std::string InterpreterStack::ToString() const {
-  return absl::StrJoin(stack_, ", ",
-                       [](std::string* out, const InterpValue& v) {
-                         absl::StrAppend(out, v.ToString());
-                       });
+  return absl::StrJoin(
+      stack_, ", ", [](std::string* out, const FormattedInterpValue& v) {
+        if (v.format_descriptor.has_value()) {
+          absl::StrAppend(
+              out, v.value.ToFormattedString(*v.format_descriptor).value());
+        } else {
+          absl::StrAppend(out, v.value.ToString());
+        }
+      });
 }
 
 }  // namespace xls::dslx

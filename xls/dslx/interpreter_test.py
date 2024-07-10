@@ -301,8 +301,8 @@ class InterpreterTest(test_base.TestCase):
     ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     print(result.stderr)
-    self.assertIn('s as hex: MyStruct {\n  x: 0x2a\n}', result.stderr)
-    self.assertIn('s as bin: MyStruct {\n  x: 0b10_1010\n}', result.stderr)
+    self.assertRegex(result.stderr, r's as hex:\s+MyStruct\s+{\s+x: 0x2a')
+    self.assertRegex(result.stderr, r's as bin:\s+MyStruct\s+{\s+x: 0b10_1010')
 
   def test_trace_fmt_array_of_struct(self):
     """Tests that we can apply trace formatting to an array of structs."""
@@ -333,8 +333,10 @@ class InterpreterTest(test_base.TestCase):
     ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     print(result.stderr)
-    self.assertIn('a as hex: [MyStruct {\n  x: 0x2a\n}]', result.stderr)
-    self.assertIn('a as bin: [MyStruct {\n  x: 0b10_1010\n}]', result.stderr)
+    self.assertRegex(result.stderr, r'a as hex: \[\s+MyStruct\s+{\s+x: 0x2a')
+    self.assertRegex(
+        result.stderr, r'a as bin: \[\s+MyStruct\s+{\s+x: 0b10_1010'
+    )
 
   def test_trace_fmt_array_of_enum(self):
     """Tests we can trace-format an array of enum values."""
@@ -356,7 +358,8 @@ class InterpreterTest(test_base.TestCase):
     stderr = self._parse_and_test(
         program, want_error=False, alsologtostderr=True
     )
-    self.assertIn('a: [MyEnum::ONE, MyEnum::TWO]', stderr)
+    self.assertRegex(stderr, r'MyEnum::ONE\s+// u2:1')
+    self.assertRegex(stderr, r'MyEnum::TWO\s+// u2:2')
 
   def test_trace_fmt_array_of_ints(self):
     """Tests we can trace-format an array of u8 values."""
@@ -374,7 +377,9 @@ class InterpreterTest(test_base.TestCase):
     stderr = self._parse_and_test(
         program, want_error=False, alsologtostderr=True
     )
-    self.assertIn('a: [0x1, 0x2]', stderr)
+    self.assertIn(r'a: [', stderr)
+    self.assertIn(r'0x1', stderr)
+    self.assertIn(r'0x2', stderr)
 
   def test_trace_fmt_tuple_of_enum(self):
     """Tests that we can trace format a tuple that includes enum values."""
@@ -396,7 +401,10 @@ class InterpreterTest(test_base.TestCase):
     stderr = self._parse_and_test(
         program, want_error=False, alsologtostderr=True
     )
-    self.assertIn('t: (MyEnum::ONE, MyEnum::TWO, 0x2a)', stderr)
+    self.assertIn('t: (', stderr)
+    self.assertIn('MyEnum::ONE', stderr)
+    self.assertIn('MyEnum::TWO', stderr)
+    self.assertIn('0x2a', stderr)
 
   def test_cast_array_to_wrong_bit_count(self):
     """Tests that casing an array to the wrong bit count causes a failure."""
@@ -449,7 +457,10 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     stderr = self._parse_and_test(program, want_error=True)
-    self.assertIn('lhs: sN[32][2]:[s32:1, s32:2]\n', stderr)
+    self.assertRegex(stderr, r'<\s+s32:1')
+    self.assertRegex(stderr, r'>\s+s32:3')
+    self.assertRegex(stderr, r'<\s+s32:2')
+    self.assertRegex(stderr, r'>\s+s32:4')
     self.assertIn('first differing index: 0', stderr)
 
   def test_first_failing_test(self):
