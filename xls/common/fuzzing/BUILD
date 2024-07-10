@@ -25,6 +25,8 @@ cc_library(
     hdrs = ["fuzztest.h"],
     deps = [
         "@com_google_fuzztest//fuzztest",
+        "@com_google_fuzztest//fuzztest:domain_core",
+        "@com_google_fuzztest//fuzztest:fuzztest_macros",
         "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
         "@com_google_fuzztest//fuzztest:init_fuzztest",
     ],

@@ -15,11 +15,12 @@
 #ifndef XLS_COMMON_FUZZING_FUZZTEST_H_
 #define XLS_COMMON_FUZZING_FUZZTEST_H_
 
-// Internally the fuzztest.h file exports several things in
-// googlefuzztest/fuzztest.h. This matches that behavior to simplify OSS export.
+// Convenience fuzztest.h that provides common functionality.
 
 // IWYU pragma: begin_exports
+#include "fuzztest/domain_core.h"
 #include "fuzztest/fuzztest.h"
+#include "fuzztest/fuzztest_macros.h"
 #include "fuzztest/googletest_fixture_adapter.h"
 // IWYU pragma: end_exports
 
