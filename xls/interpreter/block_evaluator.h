@@ -177,6 +177,10 @@ class ChannelSink {
     return data_per_cycle_;
   }
 
+  std::string_view data_name() const { return data_name_; }
+  std::string_view valid_name() const { return valid_name_; }
+  std::string_view ready_name() const { return ready_name_; }
+
  private:
   std::string data_name_;
   std::string valid_name_;
