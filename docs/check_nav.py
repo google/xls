@@ -70,7 +70,8 @@ def main(argv: Sequence[str]) -> None:
     print(
         'the following files have no corresponding navigation:',
         no_nav,
-        file=sys.stderr)
+        file=sys.stderr,
+    )
     exit_code = 1
 
   # Files that have a corresponding navigation, but do not exist (DNE) in the
@@ -80,7 +81,8 @@ def main(argv: Sequence[str]) -> None:
     print(
         'the following files have navigation but do not exist:',
         nav_but_dne,
-        file=sys.stderr)
+        file=sys.stderr,
+    )
     exit_code = 1
 
   sys.exit(exit_code)

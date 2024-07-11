@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.28">
     
     
       
@@ -2574,13 +2574,8 @@ distribution.</p>
 <div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
 <span class="go">~$ cd xls</span>
 
-<span class="go">~/xls$ # Follow the bazel install instructions:</span>
+<span class="go">~/xls$ # Follow the bazel install instructions to install bazel 7 (also 6 works)</span>
 <span class="go">~/xls$ # https://bazel.build/install/ubuntu</span>
-<span class="go">~/xls$ # If you do use bazelisk, be aware that documentation here generally uses `bazel`,</span>
-<span class="go">~/xls$ # so you may want to alias bazelisk to bazel.</span>
-<span class="go">~/xls$ # Afterwards we observe:</span>
-<span class="go">~/xls$ bazel --version</span>
-<span class="go">bazel 6.4.0</span>
 
 <span class="go">~/xls$ # Note we&#39;re going to tell Ubuntu that `/usr/bin/env python` is actually python3</span>
 <span class="go">~/xls$ # here, since that has not been the case by default on past Ubuntus.</span>
@@ -6541,14 +6536,14 @@ operation.</p>
 if more than one case is selected. Each bit in the selector corresponds to a
 case, with the least significant bit corresponding to the first case and having
 the highest priority. If there are no bits in the selector set, no case is
-selected and the default value of 0 is chosen.</p>
+selected and the <code>default</code> value is chosen.</p>
 <p>See <code>one_hot</code> for an example of the one-hot selector invariant. Note that when
 the selector is not one-hot, this operation is still well defined.</p>
 <p>Note that when <code>one_hot</code> operations are used to precondition the <code>selector</code>
 operand to <code>priority_sel</code>, the XLS optimizer will try to determine when they are
 unnecessary and subsequently eliminate them.</p>
 <p><strong>Syntax</strong></p>
-<div class="highlight"><pre><span></span><code>result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+<div class="highlight"><pre><span></span><code>result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}], default=&lt;default&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -6565,6 +6560,10 @@ unnecessary and subsequently eliminate them.</p>
 </tr>
 <tr>
 <td><code>case_{i}</code></td>
+<td><code>T</code></td>
+</tr>
+<tr>
+<td><code>default</code></td>
 <td><code>T</code></td>
 </tr>
 <tr>
@@ -12133,6 +12132,25 @@ single-precision floating-point addition, with the following exceptions:</p>
 </ul>
 <p>In all other cases, results should be identical to other conforming
 implementations (modulo exact fraction values in the <code>NaN</code> case.</p>
+<h3 id="floating_point-apfloathas_fractional_part"><code>apfloat::has_fractional_part</code></h3>
+<p>Returns whether or not the given APFloat has a fractional part.</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">has_fractional_part</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
+</code></pre></div>
+<h3 id="floating_point-has_negative_exponent"><code>has_negative_exponent</code></h3>
+<p>Returns whether or not the given APFloat has an negative exponent.</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">has_negative_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
+</code></pre></div>
+<h3 id="floating_point-apfloatceil"><code>apfloat::ceil</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">ceil</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
+</code></pre></div>
+<p>Finds the nearest integral <code>APFloat</code> greater than or equal to <code>f</code>.</p>
+<h3 id="floating_point-apfloatfloor"><code>apfloat::floor</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">floor</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
+</code></pre></div>
+<p>Finds the nearest integral <code>APFloat</code> lesser than or equal to <code>f</code>.</p>
 <h4 id="floating_point-implementation-details">Implementation details</h4>
 <p>Floating-point addition, like any FP operation, is much more complicated than
 integer addition, and has many more steps. Being the first operation described,
@@ -13538,6 +13556,8 @@ estimation refinements in XLS. For now, FDO is disabled by default
     respective signals in ready/valid channels. For example,
     <code>--streaming_channel_valid_suffix=_vld</code> for a channel named <code>ABC</code> would
     result in a valid port called <code>ABC_vld</code>.</li>
+<li><code>--[no]emit_sv_types</code> sets whether the sv type names set for DSLX structures
+    by the <code>#[sv_type(NAME)]</code> annotation are honored or not.</li>
 </ul>
 <h1 id="codegen_options-reset-signal-configuration">Reset Signal Configuration</h1>
 <ul>
@@ -15223,7 +15243,7 @@ xls_benchmark_ir(
 <p><a id="xls_dslx_cpp_type_library"></a></p>
 <h2 id="bazel_rules_macros-xls_dslx_cpp_type_library">xls_dslx_cpp_type_library</h2>
 <pre>
-xls_dslx_cpp_type_library(<a href="#bazel_rules_macros-xls_dslx_cpp_type_library-name">name</a>, <a href="#bazel_rules_macros-xls_dslx_cpp_type_library-src">src</a>, <a href="#bazel_rules_macros-xls_dslx_cpp_type_library-namespace">namespace</a>)
+xls_dslx_cpp_type_library(<a href="#bazel_rules_macros-xls_dslx_cpp_type_library-name">name</a>, <a href="#bazel_rules_macros-xls_dslx_cpp_type_library-src">src</a>, <a href="#bazel_rules_macros-xls_dslx_cpp_type_library-deps">deps</a>, <a href="#bazel_rules_macros-xls_dslx_cpp_type_library-namespace">namespace</a>)
 </pre>
 
 <p>Creates a cc_library target for transpiled DSLX types.</p>
@@ -15248,6 +15268,11 @@ a cc_library with its target name identical to this macro.</p>
 <td style="text-align: left;"><a id="xls_dslx_cpp_type_library-src"></a>src</td>
 <td style="text-align: left;">The DSLX file whose types to compile as C++.</td>
 <td style="text-align: left;">none</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="xls_dslx_cpp_type_library-deps"></a>deps</td>
+<td style="text-align: left;"><p align="center"> - </p></td>
+<td style="text-align: left;"><code>[]</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="xls_dslx_cpp_type_library-namespace"></a>namespace</td>
@@ -16116,7 +16141,7 @@ import resolution path). Try to use this sparingly, but it is useful for
 pointing at installation locations where DSLX modules have been placed.</p>
 <p>In a Bazel environment this binary is encapsulated in
 <a href="https://google.github.io/xls/bazel_rules_macros/#xls_dslx_test">an <code>xls_dslx_test</code> target</a></p>
-<h2 id="tools-dslxprove_quickcheck_test"><a href="https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_test.cc"><code>dslx/prove_quickcheck_test</code></a></h2>
+<h2 id="tools-dslxprove_quickcheck_main"><a href="https://github.com/google/xls/tree/main/xls/dslx/prove_quickcheck_main.cc"><code>dslx/prove_quickcheck_main</code></a></h2>
 <p>Command line utility for attempting to prove a quickcheck property via SMT
 translation. Invoke this tool as:</p>
 <p><code>prove_quickcheck_main $ENTRY_FILE $QUICKCHECK_NAME</code></p>
@@ -16661,8 +16686,8 @@ const Thing&amp; thing = thing_or.value();
     dropped in the future to put the comments out of sync.</li>
 </ul>
 <ul>
-<li>We prefer <code>absl::visit</code> over <code>std::visit</code> as it is reportedly higher
-    performance.</li>
+<li>We use C++ standard-library filesystem functions and data structures, in the
+    absence of an accepted open-source alternative other than Boost.</li>
 </ul>
 <h3 id="xls_style-functions">Functions</h3>
 <ul>
@@ -18414,7 +18439,7 @@ USA.</p></section><h1 class='nav-section-title-end'>Ended: NoC</h1></div>
     <script id="__config" type="application/json">{"base": "/xls/", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       

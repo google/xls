@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.28">
     
     
       
@@ -5004,14 +5004,14 @@ operation.</p>
 if more than one case is selected. Each bit in the selector corresponds to a
 case, with the least significant bit corresponding to the first case and having
 the highest priority. If there are no bits in the selector set, no case is
-selected and the default value of 0 is chosen.</p>
+selected and the <code>default</code> value is chosen.</p>
 <p>See <code>one_hot</code> for an example of the one-hot selector invariant. Note that when
 the selector is not one-hot, this operation is still well defined.</p>
 <p>Note that when <code>one_hot</code> operations are used to precondition the <code>selector</code>
 operand to <code>priority_sel</code>, the XLS optimizer will try to determine when they are
 unnecessary and subsequently eliminate them.</p>
 <p><strong>Syntax</strong></p>
-<div class="highlight"><pre><span></span><code>result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+<div class="highlight"><pre><span></span><code>result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}], default=&lt;default&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -5028,6 +5028,10 @@ unnecessary and subsequently eliminate them.</p>
 </tr>
 <tr>
 <td><code>case_{i}</code></td>
+<td><code>T</code></td>
+</tr>
+<tr>
+<td><code>default</code></td>
 <td><code>T</code></td>
 </tr>
 <tr>
@@ -5859,7 +5863,7 @@ instantiated object.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
+      <script src="../assets/javascripts/bundle.fe8b6f2b.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       
