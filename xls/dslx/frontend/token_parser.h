@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -57,7 +58,7 @@ class TokenParser {
   // position the token stream.
   Pos GetPos() const {
     if (index_ < tokens_.size()) {
-      return tokens_[index_].span().start();
+      return tokens_[index_]->span().start();
     }
     return scanner_->GetPos();
   }
@@ -136,9 +137,9 @@ class TokenParser {
   absl::StatusOr<const Token*> PeekToken() {
     if (index_ >= tokens_.size()) {
       XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
-      tokens_.push_back(token);
+      tokens_.push_back(std::make_unique<Token>(std::move(token)));
     }
-    return &tokens_[index_];
+    return tokens_[index_].get();
   }
 
   // Returns a token that has been popped destructively from the token stream.
@@ -146,7 +147,7 @@ class TokenParser {
     if (index_ >= tokens_.size()) {
       XLS_RETURN_IF_ERROR(PeekToken().status());
     }
-    Token token = tokens_[index_];
+    Token token = *tokens_[index_];
     index_ += 1;
     return token;
   }
@@ -205,7 +206,9 @@ class TokenParser {
  private:
   Scanner* scanner_;
   int64_t index_;
-  std::vector<Token> tokens_;
+  // A vector of std::unique_ptrs is used for pointer stability as pointers are
+  // handed out by PeekToken
+  std::vector<std::unique_ptr<Token>> tokens_;
 };
 
 }  // namespace xls::dslx
