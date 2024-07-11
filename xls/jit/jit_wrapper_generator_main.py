@@ -452,6 +452,7 @@ def interpret_interface(
   header_guard = (
       f"{_OUTPUT_DIR.value}/{output_name}_H_"[len(_GENFILES_DIR.value) :]
       .replace("/", "_")  # Get rid if bazel-gen/...
+      .replace("-", "_")
       .upper()
   )
   header_filename = f"{_OUTPUT_DIR.value}/{output_name}.h"
