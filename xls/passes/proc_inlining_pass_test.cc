@@ -4130,5 +4130,55 @@ proc output_passthrough(state:bits[1], init={0}) {
                     .status());
 }
 
+TEST_F(ProcInliningPassTest, NestedProcsUsingEmptyAfterAll) {
+  // Uses tokens created using empty after_all.
+  constexpr std::string_view ir_text = R"(package test
+
+chan data_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan data_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan from_inner_proc(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=true, register_push_outputs=false, register_pop_outputs=true, metadata="""""")
+
+top proc foo(__state: (), init={()}) {
+  tok: token = after_all(id=5)
+  literal.4: bits[1] = literal(value=1, id=4)
+  receive.6: (token, bits[32]) = receive(tok, predicate=literal.4, channel=from_inner_proc, id=6)
+  tok__1: token = tuple_index(receive.6, index=0, id=8)
+  data: bits[32] = tuple_index(receive.6, index=1, id=9)
+  tuple_index.7: token = tuple_index(receive.6, index=0, id=7)
+  tok__2: token = send(tok__1, data, predicate=literal.4, channel=data_out, id=10)
+  tuple.11: () = tuple(id=11)
+  next (tuple.11)
+}
+
+proc input_passthrough(__state: (), init={()}) {
+  after_all.15: token = after_all(id=15)
+  literal.14: bits[1] = literal(value=1, id=14)
+  receive.16: (token, bits[32]) = receive(after_all.15, predicate=literal.14, channel=data_in, id=16)
+  tok: token = tuple_index(receive.16, index=0, id=18)
+  data: bits[32] = tuple_index(receive.16, index=1, id=19)
+  tuple_index.17: token = tuple_index(receive.16, index=0, id=17)
+  tok__1: token = send(tok, data, predicate=literal.14, channel=from_inner_proc, id=20)
+  tuple.21: () = tuple(id=21)
+  next (tuple.21)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(ir_text));
+  EXPECT_THAT(
+      p->GetFunctionBases(),
+      UnorderedElementsAre(m::Proc("input_passthrough"), m::Proc("foo")));
+
+  XLS_ASSERT_OK(
+      EvalAndExpect(p.get(), {{"data_in", {5, 10}}}, {{"data_out", {5, 10}}})
+          .status());
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"foo"), IsOkAndHolds(true));
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("foo")));
+
+  XLS_ASSERT_OK(
+      EvalAndExpect(p.get(), {{"data_in", {5, 10}}}, {{"data_out", {5, 10}}})
+          .status());
+}
+
 }  // namespace
 }  // namespace xls

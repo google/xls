@@ -904,6 +904,9 @@ class ProcThread {
           terminal_activation_nodes.erase(activation_pred);
           activation_preds.push_back(activation_pred->activation_out);
         }
+        if (activation_preds.empty()) {
+          activation_preds.push_back(source_activation_node_->activation_out);
+        }
         XLS_ASSIGN_OR_RETURN(
             activation_node,
             AllocateActivationNode(name, activation_preds, token_node.node));
