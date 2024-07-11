@@ -16,9 +16,9 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdlib.h>     // NOLINT (needed for mkostemps())
 
 #include <cerrno>
-#include <cstdlib>     // NOLINT (needed for mkostemps())
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>

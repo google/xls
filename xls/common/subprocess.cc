@@ -19,11 +19,11 @@
 #include <spawn.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>  // NOLINT
 #include <unistd.h>
 
 #include <atomic>
 #include <cerrno>
-#include <csignal>  // NOLINT(misc-include-cleaner)
 #include <cstdlib>
 #include <cstring>
 #include <ctime>

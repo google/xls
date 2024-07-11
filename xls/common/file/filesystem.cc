@@ -14,13 +14,6 @@
 
 #include "xls/common/file/filesystem.h"
 
-// portable location of PATH_MAX
-#ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 1
-#endif
-#include <limits.h>
-
-// Other system headers
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -377,12 +370,13 @@ absl::StatusOr<std::vector<std::filesystem::path>> FindFilesMatchingRegex(
 }
 
 absl::StatusOr<std::filesystem::path> GetRealPath(const std::string& path) {
+  constexpr int kPathMax = 8192;  // more portable than using PATH_MAX
   struct stat statbuf;
   XLS_RET_CHECK(lstat(path.c_str(), &statbuf) != -1) << strerror(errno);
   // If the file is a link, then dereference it.
   if ((statbuf.st_mode & S_IFMT) == S_IFLNK) {
-    char buf[PATH_MAX];
-    ssize_t len = readlink(path.c_str(), buf, PATH_MAX - 1);
+    char buf[kPathMax];
+    ssize_t len = readlink(path.c_str(), buf, sizeof(buf) - 1);
     XLS_RET_CHECK(len != -1) << strerror(errno);
     buf[len] = '\0';
     return buf;

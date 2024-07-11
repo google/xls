@@ -16,7 +16,6 @@
 #define XLS_DSLX_BYTECODE_INTERPRETER_STACK_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
