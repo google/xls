@@ -987,9 +987,11 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
             BValue not_any_prev_selected;
             if (prior_selectors.empty()) {
               not_any_prev_selected = function_builder_->Literal(UBits(1, 1));
+            } else if (prior_selectors.size() == 1) {
+              not_any_prev_selected =
+                  function_builder_->Not(prior_selectors.front());
             } else {
-              not_any_prev_selected = function_builder_->Not(
-                  function_builder_->Or(prior_selectors));
+              not_any_prev_selected = function_builder_->Nor(prior_selectors);
             }
             BValue this_arm_selected = arm_selectors.back();
             return function_builder_->And({orig_control_predicate(),
@@ -1014,9 +1016,11 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
         BValue not_any_prev_selected;
         if (prior_selectors.empty()) {
           not_any_prev_selected = function_builder_->Literal(UBits(1, 1));
-        } else {
+        } else if (prior_selectors.size() == 1) {
           not_any_prev_selected =
-              function_builder_->Not(function_builder_->Or(prior_selectors));
+              function_builder_->Not(prior_selectors.front());
+        } else {
+          not_any_prev_selected = function_builder_->Nor(prior_selectors);
         }
         return function_builder_->And(
             {orig_control_predicate(), not_any_prev_selected});

@@ -330,7 +330,6 @@ BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
     selector_bits.push_back(cases[i].clause);
     case_values.push_back(cases[i].value);
   }
-  case_values.push_back(default_value);
 
   // Reverse the order of the bits because bit index and indexing of concat
   // elements are reversed. That is, the zero-th operand of concat becomes the
@@ -338,9 +337,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
   std::reverse(selector_bits.begin(), selector_bits.end());
 
   BValue concat = Concat(selector_bits, loc);
-  BValue one_hot = OneHot(concat, /*priority=*/LsbOrMsb::kLsb, loc);
-
-  return OneHotSelect(one_hot, case_values, loc, name);
+  return PrioritySelect(concat, case_values, default_value, loc, name);
 }
 
 BValue BuilderBase::AfterAll(absl::Span<const BValue> dependencies,

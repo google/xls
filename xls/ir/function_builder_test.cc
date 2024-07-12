@@ -184,13 +184,13 @@ TEST(FunctionBuilderTest, Match) {
            {b.Literal(UBits(8, 8)), z}},
           the_default);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  EXPECT_THAT(f->return_value(),
-              m::OneHotSelect(
-                  m::OneHot(m::Concat(m::Eq(m::Param("cond"), m::Literal(8)),
-                                      m::Eq(m::Param("cond"), m::Literal(123)),
-                                      m::Eq(m::Param("cond"), m::Literal(42)))),
-                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z"),
-                             m::Param("default")}));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::Concat(m::Eq(m::Param("cond"), m::Literal(8)),
+                                  m::Eq(m::Param("cond"), m::Literal(123)),
+                                  m::Eq(m::Param("cond"), m::Literal(42))),
+                        /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")},
+                        m::Param("default")));
 }
 
 TEST(FunctionBuilderTest, MatchTrue) {
@@ -207,12 +207,11 @@ TEST(FunctionBuilderTest, MatchTrue) {
   BValue the_default = b.Param("default", value_type);
   b.MatchTrue({{p0, x}, {p1, y}, {p2, z}}, the_default);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  EXPECT_THAT(
-      f->return_value(),
-      m::OneHotSelect(
-          m::OneHot(m::Concat(m::Param("p2"), m::Param("p1"), m::Param("p0"))),
-          /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z"),
-                     m::Param("default")}));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Concat(m::Param("p2"), m::Param("p1"), m::Param("p0")),
+                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")},
+                  m::Param("default")));
 }
 
 // Note: for API consistency we allow the definition of MatchTrue to work when
@@ -225,8 +224,8 @@ TEST(FunctionBuilderTest, MatchTrueNoCaseArmsOnlyDefault) {
   b.MatchTrue({}, the_default);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   EXPECT_THAT(f->return_value(),
-              m::OneHotSelect(m::OneHot(),
-                              /*cases=*/{m::Param("default")}));
+              m::PrioritySelect(m::Concat(),
+                                /*cases=*/{}, m::Param("default")));
 }
 
 TEST(FunctionBuilderTest, PrioritySelectOp) {
