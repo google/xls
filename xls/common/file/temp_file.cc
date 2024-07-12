@@ -15,10 +15,10 @@
 #include "xls/common/file/temp_file.h"
 
 #include <fcntl.h>
+#include <stdlib.h>  // NOLINT (needed for mkostemps())
 #include <unistd.h>
 
 #include <cerrno>
-#include <cstdlib>     // NOLINT (needed for mkostemps())
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>

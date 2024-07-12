@@ -15,7 +15,8 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
-#include <poll.h>  // IWYU pragma: keep
+#include <poll.h>    // IWYU pragma: keep
+#include <signal.h>  // NOLINT
 #include <spawn.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -23,7 +24,6 @@
 
 #include <atomic>
 #include <cerrno>
-#include <csignal>  // NOLINT(misc-include-cleaner)
 #include <cstdlib>
 #include <cstring>
 #include <ctime>

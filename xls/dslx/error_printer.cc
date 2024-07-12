@@ -14,11 +14,11 @@
 
 #include "xls/dslx/error_printer.h"
 
+#include <stdio.h>  // NOLINT for fileno
 #include <unistd.h>
 
 #include <algorithm>
 #include <cstdint>
-#include <cstdio>
 #include <functional>
 #include <iostream>
 #include <string>

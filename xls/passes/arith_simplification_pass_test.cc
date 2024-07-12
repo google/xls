@@ -14,7 +14,8 @@
 
 #include "xls/passes/arith_simplification_pass.h"
 
-#include <cstdint>
+#include <stdint.h>  // NOLINT(modernize-deprecated-headers) needed for UINT64_C
+
 #include <cstdlib>
 #include <memory>
 #include <string>

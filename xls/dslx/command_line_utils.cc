@@ -14,9 +14,9 @@
 
 #include "xls/dslx/command_line_utils.h"
 
+#include <stdio.h>  // NOLINT(modernize-deprecated-headers)
 #include <unistd.h>
 
-#include <cstdio>
 #include <functional>
 #include <iostream>
 #include <string>

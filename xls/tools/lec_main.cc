@@ -14,9 +14,9 @@
 
 // Tool to prove or disprove logical equivalence of XLS IR and a netlist.
 
+#include <signal.h>  // NOLINT (clang-tidy can't find symbols in csignal)
 #include <unistd.h>
 
-#include <csignal>  // IWYU pragma: keep
 #include <cstdint>
 #include <cstring>
 #include <filesystem>  // NOLINT

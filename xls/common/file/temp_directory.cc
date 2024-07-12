@@ -14,7 +14,8 @@
 
 #include "xls/common/file/temp_directory.h"
 
-#include <cstdlib>     // NOLINT (needed for mkdtemp())
+#include <stdlib.h>  // NOLINT (needed for mkdtemp())
+
 #include <filesystem>  // NOLINT
 #include <string>
 #include <system_error>  // NOLINT

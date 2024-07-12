@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdlib.h>  // NOLINT (for setenv)
+
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
