@@ -6,7 +6,8 @@ fn __test_module__main(x: bits[8]) -> bits[8] {
   literal.2: bits[8] = literal(value=42, id=2)
   eq.3: bits[1] = eq(literal.2, x, id=3)
   concat.6: bits[1] = concat(eq.3, id=6)
+  one_hot.7: bits[2] = one_hot(concat.6, lsb_prio=true, id=7)
   literal.4: bits[8] = literal(value=255, id=4)
   literal.5: bits[1] = literal(value=1, id=5)
-  ret t: bits[8] = priority_sel(concat.6, cases=[literal.4], default=x, id=7)
+  ret t: bits[8] = one_hot_sel(one_hot.7, cases=[literal.4, x], id=8)
 }

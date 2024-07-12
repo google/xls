@@ -8,9 +8,10 @@ fn __test_module__f(x: bits[8]) -> bits[2] {
   eq.6: bits[1] = eq(literal.5, x, id=6)
   eq.3: bits[1] = eq(literal.2, x, id=3)
   concat.10: bits[2] = concat(eq.6, eq.3, id=10)
+  one_hot.11: bits[3] = one_hot(concat.10, lsb_prio=true, id=11)
   x__1: bits[2] = literal(value=0, id=4)
   x__2: bits[2] = literal(value=1, id=7)
   x__3: bits[2] = literal(value=2, id=9)
   literal.8: bits[1] = literal(value=1, id=8)
-  ret priority_sel.11: bits[2] = priority_sel(concat.10, cases=[x__1, x__2], default=x__3, id=11)
+  ret one_hot_sel.12: bits[2] = one_hot_sel(one_hot.11, cases=[x__1, x__2, x__3], id=12)
 }
