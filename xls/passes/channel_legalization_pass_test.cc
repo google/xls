@@ -37,12 +37,18 @@
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -58,6 +64,7 @@ using ::testing::Matcher;
 using ::testing::Optional;
 using ::testing::TestPartResult;
 using ::testing::TestWithParam;
+using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 using ::testing::ValuesIn;
 
@@ -898,6 +905,87 @@ TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
                            CreateInterpreterSerialProcRuntime(p.get()));
   XLS_EXPECT_OK(std::get<0>(GetParam())
                     .evaluate(interpreter.get(), std::get<1>(GetParam())));
+}
+
+TEST_F(ChannelLegalizationPassTest, NamesAreUniquified) {
+  VerifiedPackage p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * c,
+      p.CreateStreamingChannel("c", ChannelOps::kSendOnly, p.GetBitsType(1),
+                               /*initial_values=*/{},
+                               /*fifo_config=*/std::nullopt,
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/ChannelStrictness::kTotalOrder));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * d,
+      p.CreateStreamingChannel("d", ChannelOps::kReceiveOnly, p.GetBitsType(1),
+                               /*initial_values=*/{},
+                               /*fifo_config=*/std::nullopt,
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/ChannelStrictness::kTotalOrder));
+
+  // Create channels with names that will collide when channel legalization
+  // makes new channels.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * c_1,
+      p.CreateStreamingChannel("c__1", ChannelOps::kSendOnly,
+                               p.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * c_pred,
+      p.CreateStreamingChannel("c__pred", ChannelOps::kSendOnly,
+                               p.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * c_2_completion,
+      p.CreateStreamingChannel("c__2__completion", ChannelOps::kSendOnly,
+                               p.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * c_3_completion,
+      p.CreateStreamingChannel("c__3__completion", ChannelOps::kSendOnly,
+                               p.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * d_1,
+      p.CreateStreamingChannel("d__1", ChannelOps::kSendOnly,
+                               p.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * d_pred,
+      p.CreateStreamingChannel("d__pred", ChannelOps::kSendOnly,
+                               p.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * d_completion,
+      p.CreateStreamingChannel("d__completion", ChannelOps::kSendOnly,
+                               p.GetBitsType(1)));
+  ProcBuilder b("proc0", &p);
+  // Do multiple sends/receives on c/d to insert adapters and new channels.
+  BValue recv0 = b.Receive(d, b.AfterAll({}));
+  BValue recv1 = b.Receive(d, b.TupleIndex(recv0, 0));
+  BValue send0 = b.Send(c, b.AfterAll({}), b.TupleIndex(recv0, 1));
+  b.Send(c, send0, b.TupleIndex(recv1, 1));
+
+  // Unconditionally send on all the channels that exist only for name
+  // collisions.
+  for (StreamingChannel* extra_channel :
+       {c_1, c_pred, c_2_completion, c_3_completion, d_1, d_pred,
+        d_completion}) {
+    b.Send(extra_channel, b.AfterAll({}),
+           b.Literal(Value(UBits(1, /*bit_count=*/1))));
+  }
+  XLS_ASSERT_OK(b.Build({}));
+
+  EXPECT_THAT(Run(&p), IsOkAndHolds(true));
+
+  EXPECT_THAT(p.channels(),
+              UnorderedElementsAre(
+                  m::Channel("c"), m::Channel("d"),
+                  // Original "extra" names
+                  m::Channel("c__1"), m::Channel("d__1"), m::Channel("c__pred"),
+                  m::Channel("d__pred"), m::Channel("c__2__completion"),
+                  m::Channel("c__3__completion"), m::Channel("d__completion"),
+                  // New colliding names
+                  m::Channel("c__2"), m::Channel("c__3"), m::Channel("d__2"),
+                  m::Channel("d__3"), m::Channel("c__pred__1"),
+                  m::Channel("c__pred__2"), m::Channel("d__pred__1"),
+                  m::Channel("d__pred__2"), m::Channel("c__2__completion__1"),
+                  m::Channel("c__3__completion__1")));
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -44,6 +44,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -344,7 +345,8 @@ absl::Status CheckIsBlocking(Node* n) {
 //    original channel operation.
 // 3) Updates the token of the original channel operation to come after the new
 //    predicate send.
-absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
+absl::StatusOr<StreamingChannel*> MakePredicateChannel(
+    Node* operation, NameUniquer& channel_name_uniquer) {
   Package* package = operation->package();
 
   XLS_ASSIGN_OR_RETURN(Channel * operation_channel,
@@ -354,7 +356,8 @@ absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
   XLS_ASSIGN_OR_RETURN(
       StreamingChannel * pred_channel,
       package->CreateStreamingChannel(
-          absl::StrFormat("%s__pred__%d", channel->name(), operation->id()),
+          channel_name_uniquer.GetSanitizedUniqueName(
+              absl::StrCat(channel->name(), "__pred")),
           // This is an internal channel, so override to kSendReceive
           ChannelOps::kSendReceive,
           // This channel is used to forward the predicate to the adapter, which
@@ -408,7 +411,8 @@ absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
 //    original channel operation.
 // 3) Updates the token of the original channel operation to come after the new
 //    completion receive.
-absl::StatusOr<StreamingChannel*> MakeCompletionChannel(Node* operation) {
+absl::StatusOr<StreamingChannel*> MakeCompletionChannel(
+    Node* operation, NameUniquer& channel_name_uniquer) {
   Package* package = operation->package();
 
   XLS_ASSIGN_OR_RETURN(Channel * operation_channel,
@@ -418,8 +422,8 @@ absl::StatusOr<StreamingChannel*> MakeCompletionChannel(Node* operation) {
   XLS_ASSIGN_OR_RETURN(
       StreamingChannel * completion_channel,
       package->CreateStreamingChannel(
-          absl::StrFormat("%s__completion__%d", channel->name(),
-                          operation->id()),
+          channel_name_uniquer.GetSanitizedUniqueName(
+              absl::StrCat(channel->name(), "__completion")),
           // This is an internal channel, so override to kSendReceive
           ChannelOps::kSendReceive,
           // This channel is used to mark the completion of the requested
@@ -738,7 +742,7 @@ void MakeDebugTrace(BValue condition,
 // Makes activation network and adds asserts.
 absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
     ProcBuilder& pb, absl::Span<NodeAndPredecessors const> token_dag,
-    ChannelStrictness strictness) {
+    ChannelStrictness strictness, NameUniquer& channel_name_uniquer) {
   ActivationNetwork activations;
 
   // First, make new predicate channels. The adapter will non-blocking receive
@@ -747,7 +751,7 @@ absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
   pred_channels.reserve(token_dag.size());
   for (const auto& [node, _] : token_dag) {
     XLS_ASSIGN_OR_RETURN(StreamingChannel * pred_channel,
-                         MakePredicateChannel(node));
+                         MakePredicateChannel(node, channel_name_uniquer));
     pred_channels.insert({node, pred_channel});
   }
 
@@ -856,7 +860,8 @@ absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
 
 absl::Status AddAdapterForMultipleReceives(
     Package* p, StreamingChannel* channel,
-    const absl::flat_hash_set<Receive*>& ops) {
+    const absl::flat_hash_set<Receive*>& ops,
+    NameUniquer& channel_name_uniquer) {
   XLS_RET_CHECK_GT(ops.size(), 1);
 
   XLS_ASSIGN_OR_RETURN(auto token_dags,
@@ -872,7 +877,8 @@ absl::Status AddAdapterForMultipleReceives(
 
   XLS_ASSIGN_OR_RETURN(
       ActivationNetwork activations,
-      MakeActivationNetwork(pb, token_dags, channel->GetStrictness()));
+      MakeActivationNetwork(pb, token_dags, channel->GetStrictness(),
+                            channel_name_uniquer));
 
   BValue any_active;
   BValue external_recv_input_token;
@@ -894,14 +900,14 @@ absl::Status AddAdapterForMultipleReceives(
   BValue recv_data =
       pb.TupleIndex(recv, 1, SourceInfo(), "external_receive_data");
 
-  int64_t send_token_idx = 0;
   for (const auto& [node, _] : token_dags) {
     const ActivationNode& activation = activations.at(node);
 
     XLS_ASSIGN_OR_RETURN(
         Channel * new_data_channel,
         p->CloneChannel(
-            channel, absl::StrCat(channel->name(), "_", send_token_idx++),
+            channel,
+            channel_name_uniquer.GetSanitizedUniqueName(channel->name()),
             Package::CloneChannelOverrides()
                 .OverrideSupportedOps(ChannelOps::kSendReceive)
                 .OverrideFifoConfig(
@@ -923,7 +929,8 @@ absl::Status AddAdapterForMultipleReceives(
 }
 
 absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
-                                        const absl::flat_hash_set<Send*>& ops) {
+                                        const absl::flat_hash_set<Send*>& ops,
+                                        NameUniquer& channel_name_uniquer) {
   XLS_RET_CHECK_GT(ops.size(), 1);
 
   XLS_ASSIGN_OR_RETURN(auto token_dags,
@@ -939,7 +946,8 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
 
   XLS_ASSIGN_OR_RETURN(
       ActivationNetwork activations,
-      MakeActivationNetwork(pb, token_dags, channel->GetStrictness()));
+      MakeActivationNetwork(pb, token_dags, channel->GetStrictness(),
+                            channel_name_uniquer));
 
   BValue recv_after_all;
   BValue recv_data;
@@ -957,7 +965,8 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
       XLS_ASSIGN_OR_RETURN(
           Channel * new_data_channel,
           p->CloneChannel(
-              channel, absl::StrCat(channel->name(), "_", recv_tokens.size()),
+              channel,
+              channel_name_uniquer.GetSanitizedUniqueName(channel->name()),
               Package::CloneChannelOverrides()
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
                   .OverrideFifoConfig(
@@ -990,7 +999,7 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
 
   for (const auto& [node, _] : token_dags) {
     XLS_ASSIGN_OR_RETURN(StreamingChannel * completion_channel,
-                         MakeCompletionChannel(node));
+                         MakeCompletionChannel(node, channel_name_uniquer));
     pb.SendIf(completion_channel, send_token, activations.at(node).activate,
               empty_tuple_literal);
   }
@@ -1005,6 +1014,17 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
   VLOG(3) << "Running channel legalization pass.";
   bool changed = false;
   MultipleChannelOps multiple_ops = FindMultipleChannelOps(p);
+
+  if (multiple_ops.multiple_receives.empty() &&
+      multiple_ops.multiple_sends.empty()) {
+    return false;
+  }
+
+  NameUniquer channel_name_uniquer("__");
+  for (Channel* channel : p->channels()) {
+    channel_name_uniquer.GetSanitizedUniqueName(channel->name());
+  }
+
   for (const auto& [channel_name, ops] : multiple_ops.multiple_receives) {
     for (Receive* recv : ops) {
       if (!recv->is_blocking()) {
@@ -1029,8 +1049,8 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
     VLOG(3) << absl::StreamFormat(
         "Making receive channel adapter for channel `%s`, has receives (%s).",
         channel_name, absl::StrJoin(ops, ", "));
-    XLS_RETURN_IF_ERROR(
-        AddAdapterForMultipleReceives(p, streaming_channel, ops));
+    XLS_RETURN_IF_ERROR(AddAdapterForMultipleReceives(p, streaming_channel, ops,
+                                                      channel_name_uniquer));
     changed = true;
   }
   for (const auto& [channel_name, ops] : multiple_ops.multiple_sends) {
@@ -1049,7 +1069,8 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
     VLOG(3) << absl::StreamFormat(
         "Making send channel adapter for channel `%s`, has sends (%s).",
         channel_name, absl::StrJoin(ops, ", "));
-    XLS_RETURN_IF_ERROR(AddAdapterForMultipleSends(p, streaming_channel, ops));
+    XLS_RETURN_IF_ERROR(AddAdapterForMultipleSends(p, streaming_channel, ops,
+                                                   channel_name_uniquer));
     changed = true;
   }
   // If we've added an adapter, we likely want to inline it.
