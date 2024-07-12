@@ -158,6 +158,9 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
       "opt\n"
       "clean\n"
       "yosys rename -enumerate";
+  const std::string print_statistics =
+      absl::StrFormat("yosys stat -liberty %s -top %s;", synthesis_libraries_,
+                      request->top_module_name());
 
   const std::string write_json_netlist =
       absl::StrFormat("write_json %s", json_path.string());
@@ -175,6 +178,7 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
   yosys_tcl_vec.push_back(perform_abc_mapping);
   yosys_tcl_vec.push_back(perform_cleanup);
   yosys_tcl_vec.push_back(perform_optimizations);
+  yosys_tcl_vec.push_back(print_statistics);
 
   yosys_tcl_vec.push_back(write_json_netlist);
   yosys_tcl_vec.push_back(write_verilog_netlist);
