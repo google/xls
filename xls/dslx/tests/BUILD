@@ -374,6 +374,12 @@ dslx_lang_test(
     name = "match_overlapping_range_and_value",
 )
 
+dslx_lang_test(
+    name = "match_arms_with_tokens",
+    # No meaningful entry function to convert.
+    convert_to_ir = False,
+)
+
 dslx_lang_test(name = "elseif_sample")
 
 xls_dslx_library(
@@ -1164,6 +1170,12 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "proc_with_alias_from_parametric",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "proc_match_arms_with_recvs",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,
 )

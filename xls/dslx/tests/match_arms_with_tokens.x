@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn f(x: bool, tok: token) -> token {
+fn f(x: bool, tok_true: token, tok_false: token) -> token {
     match x {
-        true => tok,
-        _ => tok,
+        true => tok_true,
+        _ => tok_false,
     }
 }

@@ -882,7 +882,6 @@ class NodeChecker : public DfsVisitor {
           "Expected %s to have at least 2 operands", sel->GetName()));
     }
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(sel, /*operand_no=*/0));
-    XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(sel));
     int64_t selector_width = sel->selector()->BitCountOrDie();
     if (selector_width != sel->cases().size()) {
       return absl::InternalError(
@@ -941,7 +940,6 @@ class NodeChecker : public DfsVisitor {
     }
 
     XLS_RETURN_IF_ERROR(ExpectHasBitsType(sel->selector()));
-    XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(sel));
     const int64_t selector_width = sel->selector()->BitCountOrDie();
     const int64_t minimum_selector_width =
         Bits::MinBitCountUnsigned(sel->cases().size() - 1);

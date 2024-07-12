@@ -19,7 +19,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -35,17 +34,16 @@
 namespace xls {
 namespace {
 
-using status_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::FieldsAre;
-using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Key;
 using ::testing::Not;
 using ::testing::Pair;
 using ::testing::SizeIs;
+using ::testing::UnorderedElementsAre;
 
 class TokenProvenanceAnalysisTest : public IrTestBase {};
 
@@ -77,18 +75,26 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
                            TokenProvenanceAnalysis(proc));
 
-  EXPECT_EQ(provenance.at(token.node()).Get({}), token.node());
-  EXPECT_EQ(provenance.at(recv.node()).Get({0}), recv.node());
-  EXPECT_EQ(provenance.at(recv.node()).Get({1}), nullptr);
-  EXPECT_EQ(provenance.at(tuple.node()).Get({0}), recv.node());
-  EXPECT_EQ(provenance.at(tuple.node()).Get({1}), nullptr);
-  EXPECT_EQ(provenance.at(tuple.node()).Get({2, 0}), nullptr);
-  EXPECT_EQ(provenance.at(tuple.node()).Get({2, 1}), nullptr);
-  EXPECT_EQ(provenance.at(tuple.node()).Get({3, 0}), t2.node());
-  EXPECT_EQ(provenance.at(t3.node()).Get({}), t3.node());
-  EXPECT_EQ(provenance.at(t4.node()).Get({}), t4.node());
-  EXPECT_EQ(provenance.at(t5.node()).Get({}), t5.node());
-  EXPECT_EQ(provenance.at(t6.node()).Get({}), t6.node());
+  EXPECT_THAT(provenance.at(token.node()).Get({}),
+              UnorderedElementsAre(token.node()));
+  EXPECT_THAT(provenance.at(recv.node()).Get({0}),
+              UnorderedElementsAre(recv.node()));
+  EXPECT_THAT(provenance.at(recv.node()).Get({1}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node()).Get({0}),
+              UnorderedElementsAre(recv.node()));
+  EXPECT_THAT(provenance.at(tuple.node()).Get({1}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node()).Get({2, 0}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node()).Get({2, 1}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node()).Get({3, 0}),
+              UnorderedElementsAre(t2.node()));
+  EXPECT_THAT(provenance.at(t3.node()).Get({}),
+              UnorderedElementsAre(t3.node()));
+  EXPECT_THAT(provenance.at(t4.node()).Get({}),
+              UnorderedElementsAre(t4.node()));
+  EXPECT_THAT(provenance.at(t5.node()).Get({}),
+              UnorderedElementsAre(t5.node()));
+  EXPECT_THAT(provenance.at(t6.node()).Get({}),
+              UnorderedElementsAre(t6.node()));
 }
 
 TEST_F(TokenProvenanceAnalysisTest, VeryLongChain) {
@@ -106,7 +112,8 @@ TEST_F(TokenProvenanceAnalysisTest, VeryLongChain) {
   // The proc only consists of a token param and token-typed identity
   // operations.
   for (Node* node : proc->nodes()) {
-    EXPECT_EQ(provenance.at(node).Get({}), token.node());
+    EXPECT_THAT(provenance.at(node).Get({}),
+                UnorderedElementsAre(token.node()));
   }
 }
 
@@ -238,15 +245,21 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGNestedTuples) {
 
 TEST_F(TokenProvenanceAnalysisTest, SelectOfTokens) {
   auto p = std::make_unique<Package>(TestName());
-  // Turn off verification because a select of tokens is generally invalid.
-  ProcBuilder pb(TestName(), p.get(), /*should_verify=*/false);
-  BValue token = pb.StateElement("token", Value::Token());
-  BValue selector = pb.StateElement("selector", Value(UBits(0, 1)));
-  BValue select = pb.Select(selector, {token, token});
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({select, selector}));
-  EXPECT_THAT(TokenProvenanceAnalysis(proc),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Node type should not contain a token")));
+  ProcBuilder pb(TestName(), p.get());
+  BValue token1 = pb.StateElement("token1", Value::Token());
+  BValue token2 = pb.StateElement("token2", Value::Token());
+  BValue selector = pb.StateElement("selector", Value(UBits(0, 2)));
+  BValue select = pb.Select(selector, {token1, token2, token2, token1});
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({select, select, selector}));
+  XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
+                           TokenProvenanceAnalysis(proc));
+  EXPECT_THAT(provenance.at(token1.node()).Get({}),
+              UnorderedElementsAre(token1.node()));
+  EXPECT_THAT(provenance.at(token2.node()).Get({}),
+              UnorderedElementsAre(token2.node()));
+  EXPECT_THAT(provenance.at(selector.node()).Get({}), IsEmpty());
+  EXPECT_THAT(provenance.at(select.node()).Get({}),
+              UnorderedElementsAre(token1.node(), token2.node()));
 }
 
 }  // namespace

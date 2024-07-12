@@ -1348,14 +1348,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
     }
   }
 
-  if (arm_types[0]->HasToken()) {
-    return TypeInferenceErrorStatus(
-        node->arms()[0]->span(), arm_types[0].get(),
-        "Match arms cannot produce values with `token`s in them -- please "
-        "connect the tokens outside of the match (i.e. without producing "
-        "tokens from the match arms)");
-  }
-
   return std::move(arm_types[0]);
 }
 

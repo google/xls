@@ -68,9 +68,7 @@ namespace verilog {
 namespace {
 
 // Returns true if the given type is representable in the Verilog.
-bool IsRepresentable(Type* type) {
-  return !TypeHasToken(type) && type->GetFlatBitCount() > 0;
-}
+bool IsRepresentable(Type* type) { return type->GetFlatBitCount() > 0; }
 
 // Return the Verilog representation for the given node which has at least one
 // operand which is not represented by an Expression*.

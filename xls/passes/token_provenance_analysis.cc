@@ -14,12 +14,12 @@
 
 #include "xls/passes/token_provenance_analysis.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -57,14 +57,16 @@ inline bool OpHasTokenProvenance(Op op) {
   }
 }
 
-class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
+class TokenProvenanceVisitor
+    : public DataflowVisitor<absl::flat_hash_set<Node*>> {
  public:
   absl::Status DefaultHandler(Node* node) override {
-    LeafTypeTree<Node*> ltt(node->GetType(), nullptr);
+    LeafTypeTree<absl::flat_hash_set<Node*>> ltt(node->GetType(),
+                                                 absl::flat_hash_set<Node*>());
     if (OpHasTokenProvenance(node->op())) {
       for (int64_t i = 0; i < ltt.size(); ++i) {
         if (ltt.leaf_types().at(i)->IsToken()) {
-          ltt.elements().at(i) = node;
+          ltt.elements().at(i) = {node};
         }
       }
     } else if (TypeHasToken(node->GetType())) {
@@ -79,12 +81,13 @@ class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
         "Node type should not contain a token: %s", node->ToString()));
   }
 
-  // Returns true if all leaf elements of each LeafTypeTree in `trees` is null.
-  static bool AreAllElementsNull(
-      absl::Span<const LeafTypeTreeView<Node*>> trees) {
-    for (const LeafTypeTreeView<Node*> tree : trees) {
-      for (const Node* n : tree.elements()) {
-        if (n != nullptr) {
+  // Returns true if all leaf elements of each LeafTypeTree in `trees` are
+  // empty.
+  static bool AreAllElementsEmpty(
+      absl::Span<const LeafTypeTreeView<absl::flat_hash_set<Node*>>> trees) {
+    for (const LeafTypeTreeView<absl::flat_hash_set<Node*>> tree : trees) {
+      for (const absl::flat_hash_set<Node*>& sources : tree.elements()) {
+        if (!sources.empty()) {
           return false;
         }
       }
@@ -92,17 +95,20 @@ class TokenProvenanceVisitor : public DataflowVisitor<Node*> {
     return true;
   }
 
-  absl::StatusOr<Node*> JoinElements(
-      Type* element_type, absl::Span<Node* const* const> data_sources,
-      absl::Span<const LeafTypeTreeView<Node*>> control_sources, Node* node,
-      absl::Span<const int64_t> index) const override {
-    // Tokens should never be joined.
-    if (!std::all_of(data_sources.begin(), data_sources.end(),
-                     [](Node* const* n) { return *n == nullptr; }) ||
-        !AreAllElementsNull(control_sources)) {
+  absl::StatusOr<absl::flat_hash_set<Node*>> JoinElements(
+      Type* element_type,
+      absl::Span<absl::flat_hash_set<Node*> const* const> data_sources,
+      absl::Span<const LeafTypeTreeView<absl::flat_hash_set<Node*>>>
+          control_sources,
+      Node* node, absl::Span<const int64_t> index) const override {
+    if (!AreAllElementsEmpty(control_sources)) {
       return TokenError(node);
     }
-    return nullptr;
+    absl::flat_hash_set<Node*> result;
+    for (absl::flat_hash_set<Node*> const* const data_source : data_sources) {
+      result.insert(data_source->begin(), data_source->end());
+    }
+    return result;
   }
 };
 
@@ -137,7 +143,7 @@ absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f) {
   TokenProvenanceVisitor visitor;
   XLS_RETURN_IF_ERROR(f->Accept(&visitor));
 
-  absl::flat_hash_map<Node*, LeafTypeTree<Node*>> result;
+  absl::flat_hash_map<Node*, LeafTypeTree<absl::flat_hash_set<Node*>>> result;
   for (Node* node : f->nodes()) {
     result.insert({node, visitor.ConsumeValue(node)});
   }
@@ -154,9 +160,13 @@ std::string ToString(const TokenProvenance& provenance) {
       continue;
     }
     lines.push_back(absl::StrFormat(
-        "  %s : %s", node->GetName(), provenance.at(node).ToString([](Node* n) {
-          return n == nullptr ? "(nullptr)" : n->GetName();
-        })));
+        "  %s : {%s}", node->GetName(),
+        provenance.at(node).ToString(
+            [](const absl::flat_hash_set<Node*>& sources) {
+              std::vector<Node*> sorted_sources(sources.begin(), sources.end());
+              absl::c_sort(sorted_sources, Node::NodeIdLessThan());
+              return absl::StrJoin(sorted_sources, ", ");
+            })));
   }
   return absl::StrJoin(lines, "\n");
 }
@@ -170,10 +180,9 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
         node->op() == Op::kMinDelay) {
       for (Node* operand : node->operands()) {
         if (operand->GetType()->IsToken()) {
-          Node* child = provenance.at(operand).Get({});
-          if (child != nullptr) {
-            dag[node].insert(child);
-          }
+          const absl::flat_hash_set<Node*>& child =
+              provenance.at(operand).Get({});
+          dag[node].insert(child.cbegin(), child.cend());
         }
       }
     }
@@ -193,10 +202,9 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> ComputeTopoSortedTokenDAG(
     NodeAndPredecessors entry{.node = node};
     for (Node* operand : node->operands()) {
       if (operand->GetType()->IsToken()) {
-        Node* child = visitor.GetValue(operand).Get({});
-        if (child != nullptr) {
-          entry.predecessors.insert(child);
-        }
+        const absl::flat_hash_set<Node*>& child =
+            visitor.GetValue(operand).Get({});
+        entry.predecessors.insert(child.cbegin(), child.cend());
       }
     }
     result.push_back(std::move(entry));

@@ -949,6 +949,7 @@ cc_library(
     hdrs = ["token_provenance_analysis.h"],
     deps = [
         ":dataflow_visitor",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -2294,7 +2295,6 @@ cc_test(
     srcs = ["token_provenance_analysis_test.cc"],
     deps = [
         ":token_provenance_analysis",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

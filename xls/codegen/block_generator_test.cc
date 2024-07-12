@@ -1502,6 +1502,64 @@ proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
                                  verilog);
 }
 
+TEST_P(BlockGeneratorTest, SelectWithTokens) {
+  const std::string ir_text = R"(package test
+chan ctrl(bits[1], id=100, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan in0(bits[7], id=101, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan in1(bits[7], id=102, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan out(bits[7], id=103, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc mux_proc(tkn: token, init={token}) {
+  receive.1: (token, bits[1]) = receive(tkn, channel=ctrl, id=1)
+  ctrl_tkn: token = tuple_index(receive.1, index=0, id=2)
+  ctrl_1: bits[1] = tuple_index(receive.1, index=1, id=3)
+  ctrl_0: bits[1] = not(ctrl_1, id=4)
+  recv_0: (token, bits[7]) = receive(ctrl_tkn, predicate=ctrl_0, channel=in0, id=5)
+  recv_1: (token, bits[7]) = receive(ctrl_tkn, predicate=ctrl_1, channel=in1, id=6)
+  received: (token, bits[7]) = sel(ctrl_1, cases=[recv_0, recv_1], id=7)
+  new_tkn: token = tuple_index(received, index=0, id=8)
+  data: bits[7] = tuple_index(received, index=1, id=9)
+  send.10: token = send(new_tkn, data, channel=out, id=10)
+  next_value.11: () = next_value(param=tkn, value=send.10, id=11)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("mux_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.top_block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.top_block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<BlockGeneratorTest>);

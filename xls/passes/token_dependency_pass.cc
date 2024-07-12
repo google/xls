@@ -54,9 +54,9 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
   };
 
   // This is a relation over the set of side-effecting nodes (and AfterAlls) in
-  // the program. If a token consumed by node A was produced by node B (ignoring
-  // intervening tuples or identity functions), then there will be an edge from
-  // B to A in this relation.
+  // the program. If a token consumed by node A could be produced by node B
+  // (ignoring intervening tuples or identity functions), then there will be an
+  // edge from B to A in this relation.
   NodeRelation token_deps;
   {
     XLS_ASSIGN_OR_RETURN(TokenProvenance provenance,
@@ -66,8 +66,9 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
         if (!provenance.contains(child)) {
           continue;
         }
-        for (Node* element : provenance.at(child).elements()) {
-          if (element != nullptr) {
+        for (const absl::flat_hash_set<Node*>& sources :
+             provenance.at(child).elements()) {
+          for (Node* element : sources) {
             token_deps[element].insert(node);
           }
         }

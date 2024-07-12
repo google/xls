@@ -1,0 +1,59 @@
+module pipelined_proc(
+  input wire clk,
+  input wire rst,
+  input wire ctrl_data,
+  input wire ctrl_valid,
+  input wire [6:0] in0_data,
+  input wire in0_valid,
+  input wire [6:0] in1_data,
+  input wire in1_valid,
+  input wire out_ready,
+  output wire [6:0] out_data,
+  output wire out_valid,
+  output wire ctrl_ready,
+  output wire in0_ready,
+  output wire in1_ready
+);
+  reg [6:0] __out_data_reg;
+  reg __out_data_valid_reg;
+  wire ctrl_0;
+  wire p0_all_active_inputs_valid;
+  wire p0_all_active_states_valid;
+  wire out_data_valid_inv;
+  wire __out_valid_buf;
+  wire out_data_valid_load_en;
+  wire out_data_load_en;
+  wire [6:0] in0_select;
+  wire [6:0] in1_select;
+  wire p0_stage_done;
+  wire pipeline_enable;
+  wire [6:0] received;
+  wire [6:0] data;
+  assign ctrl_0 = ~ctrl_data;
+  assign p0_all_active_inputs_valid = ctrl_valid & (~ctrl_0 | in0_valid) & (~ctrl_data | in1_valid);
+  assign p0_all_active_states_valid = 1'h1;
+  assign out_data_valid_inv = ~__out_data_valid_reg;
+  assign __out_valid_buf = p0_all_active_inputs_valid & p0_all_active_states_valid & 1'h1;
+  assign out_data_valid_load_en = out_ready | out_data_valid_inv;
+  assign out_data_load_en = __out_valid_buf & out_data_valid_load_en;
+  assign in0_select = ctrl_0 ? in0_data : 7'h00;
+  assign in1_select = ctrl_data ? in1_data : 7'h00;
+  assign p0_stage_done = p0_all_active_states_valid & p0_all_active_inputs_valid & out_data_load_en;
+  assign pipeline_enable = p0_stage_done & p0_stage_done;
+  assign received = ctrl_data ? {in1_select} : {in0_select};
+  assign data = received[6:0];
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      __out_data_reg <= 7'h00;
+      __out_data_valid_reg <= 1'h0;
+    end else begin
+      __out_data_reg <= out_data_load_en ? data : __out_data_reg;
+      __out_data_valid_reg <= out_data_valid_load_en ? __out_valid_buf : __out_data_valid_reg;
+    end
+  end
+  assign out_data = __out_data_reg;
+  assign out_valid = __out_data_valid_reg;
+  assign ctrl_ready = pipeline_enable;
+  assign in0_ready = ctrl_0 & pipeline_enable;
+  assign in1_ready = ctrl_data & pipeline_enable;
+endmodule
