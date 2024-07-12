@@ -362,9 +362,12 @@ absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
           package->GetBitsType(1),
           /*initial_values=*/{},
           // This is an internal channel that may be inlined during proc
-          // inlining, set FIFO depth to 1.
+          // inlining, set FIFO depth to 1. Break cycles by registering push
+          // outputs.
+          // TODO: github/xls#1509 - revisit this if we have better ways of
+          // avoiding cycles in adapters.
           /*fifo_config=*/
-          FifoConfig(/*depth=*/1, /*bypass=*/true,
+          FifoConfig(/*depth=*/1, /*bypass=*/false,
                      /*register_push_outputs=*/true,
                      /*register_pop_outputs=*/false)));
 
@@ -424,10 +427,13 @@ absl::StatusOr<StreamingChannel*> MakeCompletionChannel(Node* operation) {
           package->GetTupleType({}),
           /*initial_values=*/{},
           // This is an internal channel that may be inlined during proc
-          // inlining, set FIFO depth to 1.
+          // inlining, set FIFO depth to 0. Completion channels seem to not
+          // cause cycles when they have timing paths between push and pop.
+          // TODO: github/xls#1509 - revisit this if we have better ways of
+          // avoiding cycles in adapters.
           /*fifo_config=*/
-          FifoConfig(/*depth=*/1, /*bypass=*/true,
-                     /*register_push_outputs=*/true,
+          FifoConfig(/*depth=*/0, /*bypass=*/true,
+                     /*register_push_outputs=*/false,
                      /*register_pop_outputs=*/false)));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
@@ -707,8 +713,6 @@ void MakeMutualExclusionAssertions(
 }
 
 // Make a trace to aid debugging. It only fires when all ops are done.
-// TODO(google/xls#1082): make trace configurable to avoid too much noise during
-// RTL sim.
 void MakeDebugTrace(BValue condition,
                     absl::Span<NodeAndPredecessors const> token_dag,
                     ActivationNetwork& activations, ProcBuilder& pb) {
@@ -896,14 +900,19 @@ absl::Status AddAdapterForMultipleReceives(
 
     XLS_ASSIGN_OR_RETURN(
         Channel * new_data_channel,
-        p->CloneChannel(channel,
-                        absl::StrCat(channel->name(), "_", send_token_idx++),
-                        Package::CloneChannelOverrides()
-                            .OverrideSupportedOps(ChannelOps::kSendReceive)
-                            .OverrideFifoConfig(
-                                FifoConfig(/*depth=*/1, /*bypass=*/true,
-                                           /*register_push_outputs=*/true,
-                                           /*register_push_inputs=*/false))));
+        p->CloneChannel(
+            channel, absl::StrCat(channel->name(), "_", send_token_idx++),
+            Package::CloneChannelOverrides()
+                .OverrideSupportedOps(ChannelOps::kSendReceive)
+                .OverrideFifoConfig(
+                    // This is an internal channel that may be inlined during
+                    // proc inlining, set FIFO depth to 1. Break cycles by
+                    // registering push outputs.
+                    // TODO: github/xls#1509 - revisit this if we have better
+                    // ways of avoiding cycles in adapters.
+                    FifoConfig(/*depth=*/1, /*bypass=*/false,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false))));
     XLS_RETURN_IF_ERROR(
         ReplaceChannelUsedByNode(node, new_data_channel->name()));
     BValue send_token = pb.AfterAll({activation.pred_recv_token, recv_token});
@@ -952,7 +961,12 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
               Package::CloneChannelOverrides()
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
                   .OverrideFifoConfig(
-                      FifoConfig(/*depth=*/1, /*bypass=*/true,
+                      // This is an internal channel that may be inlined during
+                      // proc inlining, set FIFO depth to 1. Break cycles by
+                      // registering push outputs.
+                      // TODO: github/xls#1509 - revisit this if we have better
+                      // ways of avoiding cycles in adapters.
+                      FifoConfig(/*depth=*/1, /*bypass=*/false,
                                  /*register_push_outputs=*/true,
                                  /*register_pop_outputs=*/false))));
       XLS_RETURN_IF_ERROR(
