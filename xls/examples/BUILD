@@ -171,10 +171,134 @@ xls_dslx_test(
     deps = [":fir_filter_dslx"],
 )
 
+xls_dslx_library(
+    name = "riscv_simple_dslx",
+    srcs = ["riscv_simple.x"],
+)
+
 xls_dslx_opt_ir(
-    name = "riscv_simple",
+    name = "riscv_simple_opt_ir",
     srcs = ["riscv_simple.x"],
     dslx_top = "run_instruction",
+    ir_file = "riscv_simple.ir",
+    opt_ir_file = "riscv_simple.opt.ir",
+)
+
+xls_ir_verilog(
+    name = "riscv_simple_sv",
+    src = ":riscv_simple_opt_ir",
+    codegen_args = {
+        "module_name": "run_instruction",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "4",
+        "reset": "rst",
+        "reset_data_path": "false",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "worst_case_throughput": "3",
+        "assert_format": "\\;",
+    },
+    verilog_file = "riscv_simple.sv",
+)
+
+verilog_library(
+    name = "riscv_simple_verilog",
+    srcs = [":riscv_simple.sv"],
+    tags = ["DSLX"],
+)
+
+synthesize_rtl(
+    name = "riscv_simple_verilog_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
+    tags = ["manual"],
+    top_module = "run_instruction",
+    deps = [":riscv_simple_verilog"],
+)
+
+benchmark_synth(
+    name = "riscv_simple_benchmark_synth_asap7",
+    synth_target = ":riscv_simple_verilog_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "riscv_simple_place_and_route_asap7",
+    # ~1 GHz
+    clock_period = "1000",  # units of clock period for ASAP7 are picoseconds
+    core_padding_microns = 1,
+    die_height_microns = 500,
+    die_width_microns = 500,
+    min_pin_distance = "0.2",
+    placement_density = "0.6",
+    synthesized_rtl = ":riscv_simple_verilog_synth_asap7",
+    tags = ["manual"],
+)
+
+xls_ir_verilog(
+    name = "riscv_simple_sv_sky130",
+    src = ":riscv_simple_opt_ir",
+    codegen_args = {
+        "module_name": "run_instruction",
+        "generator": "pipeline",
+        "delay_model": "sky130",
+        "pipeline_stages": "4",
+        "reset": "rst",
+        "reset_data_path": "false",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "worst_case_throughput": "3",
+        "assert_format": "\\;",
+    },
+    verilog_file = "riscv_simple_sky130.sv",
+)
+
+verilog_library(
+    name = "riscv_simple_verilog_sky130",
+    srcs = [":riscv_simple_sky130.sv"],
+    tags = ["DSLX"],
+)
+
+synthesize_rtl(
+    name = "riscv_simple_verilog_synth_sky130",
+    tags = ["manual"],
+    top_module = "run_instruction",
+    deps = [":riscv_simple_verilog_sky130"],
+)
+
+benchmark_synth(
+    name = "riscv_simple_benchmark_synth_sky130",
+    synth_target = ":riscv_simple_verilog_synth_sky130",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "riscv_simple_place_and_route_sky130",
+    # 1 GHZ
+    clock_period = "1.0",  # units of clock period for SKY130 are nanoseconds
+    core_padding_microns = 2,
+    die_height_microns = 5000,
+    die_width_microns = 5000,
+    min_pin_distance = "2",
+    placement_density = "0.5",
+    synthesized_rtl = ":riscv_simple_verilog_synth_sky130",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
