@@ -432,19 +432,50 @@ TEST_P(MaterializeFifosPassTest, BasicFifoBypass) {
                                          });
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    MaterializeFifosPassTest, MaterializeFifosPassTest,
-    testing::ValuesIn<PartialConfig>({PartialConfig{
-                                          .bypass = false,
-                                          .reg_push_outputs = false,
-                                          .reg_pop_outputs = false,
-                                      },
-                                      PartialConfig{
-                                          .bypass = true,
-                                          .reg_push_outputs = false,
-                                          .reg_pop_outputs = false,
-                                      }}),
-    testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(MaterializeFifosPassTest, MaterializeFifosPassTest,
+                         testing::ValuesIn<PartialConfig>({
+                             PartialConfig{
+                                 .bypass = false,
+                                 .reg_push_outputs = false,
+                                 .reg_pop_outputs = false,
+                             },
+                             PartialConfig{
+                                 .bypass = false,
+                                 .reg_push_outputs = true,
+                                 .reg_pop_outputs = false,
+                             },
+                             PartialConfig{
+                                 .bypass = false,
+                                 .reg_push_outputs = false,
+                                 .reg_pop_outputs = true,
+                             },
+                             PartialConfig{
+                                 .bypass = false,
+                                 .reg_push_outputs = true,
+                                 .reg_pop_outputs = true,
+                             },
+                             PartialConfig{
+                                 .bypass = true,
+                                 .reg_push_outputs = false,
+                                 .reg_pop_outputs = false,
+                             },
+                             PartialConfig{
+                                 .bypass = true,
+                                 .reg_push_outputs = true,
+                                 .reg_pop_outputs = false,
+                             },
+                             PartialConfig{
+                                 .bypass = true,
+                                 .reg_push_outputs = false,
+                                 .reg_pop_outputs = true,
+                             },
+                             PartialConfig{
+                                 .bypass = true,
+                                 .reg_push_outputs = true,
+                                 .reg_pop_outputs = true,
+                             },
+                         }),
+                         testing::PrintToStringParamName());
 
 class MaterializeFifosPassFuzzTest : public MaterializeFifosPassTestHelper {
  public:
@@ -453,6 +484,15 @@ class MaterializeFifosPassFuzzTest : public MaterializeFifosPassTestHelper {
   }
   std::string TestName() const override { return "FuzzTest"; }
 };
+
+auto FifoConfigDomain() {
+  return fuzztest::ConstructorOf<FifoConfig>(
+      /*depth=*/fuzztest::InRange(1, 10),
+      /*bypass=*/fuzztest::Arbitrary<bool>(),
+      /*register_push_outputs=*/fuzztest::Arbitrary<bool>(),
+      /*register_pop_outputs=*/fuzztest::Arbitrary<bool>());
+}
+
 auto OperationDomain() {
   return fuzztest::OneOf(
       fuzztest::ConstructorOf<Operation>(fuzztest::ConstructorOf<Pop>()),
@@ -467,24 +507,14 @@ auto OperationDomain() {
       fuzztest::ConstructorOf<Operation>(
           fuzztest::ConstructorOf<ResetPushPop>()));
 }
-void FuzzTestBasicFifo(uint32_t depth, const std::vector<Operation>& ops) {
-  FifoConfig cfg(depth, false, false, false);
+
+void FuzzTestFifo(FifoConfig cfg, const std::vector<Operation>& ops) {
   MaterializeFifosPassFuzzTest fixture;
   fixture.RunTestVector(cfg, ops);
 }
 
-void FuzzTestBypassFifo(uint32_t depth, const std::vector<Operation>& ops) {
-  FifoConfig cfg(depth, true, false, false);
-  MaterializeFifosPassFuzzTest fixture;
-  fixture.RunTestVector(cfg, ops);
-}
-
-FUZZ_TEST(MaterializeFifosPassFuzzTest, FuzzTestBasicFifo)
-    .WithDomains(fuzztest::InRange(1, 10),
-                 fuzztest::VectorOf(OperationDomain()).WithMaxSize(1000));
-
-FUZZ_TEST(MaterializeFifosPassFuzzTest, FuzzTestBypassFifo)
-    .WithDomains(fuzztest::InRange(1, 10),
+FUZZ_TEST(MaterializeFifosPassFuzzTest, FuzzTestFifo)
+    .WithDomains(FifoConfigDomain(),
                  fuzztest::VectorOf(OperationDomain()).WithMaxSize(1000));
 
 }  // namespace

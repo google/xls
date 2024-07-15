@@ -46,20 +46,18 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                                        FifoInstantiation* inst,
                                        const xls::Reset& reset_behavior) {
   const FifoConfig& config = inst->fifo_config();
-  if (config.register_push_outputs()) {
-    return absl::UnimplementedError("PushReg Not yet supported");
-  }
-  if (config.register_pop_outputs()) {
-    return absl::UnimplementedError("PopReg Not yet supported");
-  }
   int64_t depth = config.depth();
   Type* u1 = p->GetBitsType(1);
   Type* ty = inst->data_type();
   bool bypass = config.bypass();
+  bool register_push = config.register_push_outputs();
+  bool register_pop = config.register_pop_outputs();
 
   BlockBuilder bb(uniquer.GetSanitizedUniqueName(absl::StrFormat(
-                      "fifo_for_depth_%d_ty_%s_%s", depth, ty->ToString(),
-                      bypass ? "with_bypass" : "no_bypass")),
+                      "fifo_for_depth_%d_ty_%s_%s%s%s", depth, ty->ToString(),
+                      bypass ? "with_bypass" : "no_bypass",
+                      register_pop ? "_register_pop" : "",
+                      register_push ? "_register_push" : "")),
                   p);
   XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
   XLS_ASSIGN_OR_RETURN(
@@ -142,10 +140,12 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   if (bypass) {
     // NB No need to handle the 'full and bypass and both read & write case
     // specially since we have an extra slot to store those values in.
-    BValue bypass_possible = bb.And(pop_ready, push_valid);
+    BValue bypass_possible = register_pop ? bb.Literal(Value::Bool(false))
+                                          : bb.And(pop_ready, push_valid);
     BValue is_pushable = bb.Or(can_do_push, bypass_possible);
     BValue is_popable = bb.Or(not_empty_bool, bypass_possible);
-    pop_valid = bb.Or(not_empty_bool, push_valid);
+    pop_valid =
+        register_pop ? not_empty_bool : bb.Or(not_empty_bool, push_valid);
     push_ready = bb.Or(can_do_push, pop_ready);
     BValue is_empty_bool = bb.Eq(head, tail);
     BValue did_no_write_bypass_occur = bb.And(is_empty_bool, bypass_possible);
@@ -162,6 +162,10 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
     pop_data_value = current_queue_tail;
     did_pop_occur_bool = bb.And(pop_valid, pop_ready);
     did_push_occur_bool = bb.And(push_ready, push_valid);
+  }
+  if (register_push) {
+    push_ready = not_full_bool;
+    did_push_occur_bool = bb.And(did_push_occur_bool, not_full_bool);
   }
   bb.OutputPort(FifoInstantiation::kPushReadyPortName, push_ready);
 
