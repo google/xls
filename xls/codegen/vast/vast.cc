@@ -496,6 +496,15 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string return_type =
       return_value_def_->data_type()->EmitWithIdentifier(line_info, name());
+  if (!absl::StartsWith(return_type, " ")) {
+    return_type = absl::StrCat(" ", return_type);
+  }
+  if (return_value_def_->data_type()->IsScalar() &&
+      file()->use_system_verilog()) {
+    // Preface the return type with "logic", so there's always a type provided.
+    return_type =
+        absl::StrCat(" ", DataKindToString(DataKind::kLogic), return_type);
+  }
   std::string parameters =
       absl::StrJoin(argument_defs_, ", ", [=](std::string* out, Def* d) {
         absl::StrAppend(out, "input ", d->EmitNoSemi(line_info));
@@ -509,9 +518,6 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
   lines.push_back(statement_block_->Emit(line_info));
   LineInfoIncrease(line_info, 1);
   LineInfoEnd(line_info, this);
-  if (!absl::StartsWith(return_type, " ")) {
-    return_type = absl::StrCat(" ", return_type);
-  }
   return absl::StrCat(
       absl::StrFormat("function automatic%s (%s);\n", return_type, parameters),
       Indent(absl::StrJoin(lines, "\n")), "\nendfunction");

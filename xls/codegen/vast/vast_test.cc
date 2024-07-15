@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -1714,15 +1715,16 @@ TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
       f.Make<VerilogFunctionCall>(SourceInfo(), func,
                                   std::vector<Expression*>{}));
   EXPECT_EQ(m->Emit(nullptr),
-            R"(module top;
-  function automatic func ();
+            absl::StrFormat(R"(module top;
+  function automatic %sfunc ();
     begin
       func = 1;
     end
   endfunction
   wire qux;
   assign qux = func();
-endmodule)");
+endmodule)",
+                            UseSystemVerilog() ? "logic " : ""));
 }
 
 TEST_P(VastTest, DeferredImmediateAssertionTest) {
