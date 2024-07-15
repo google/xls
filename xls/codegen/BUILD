@@ -1497,6 +1497,7 @@ cc_library(
         "//xls/ir:name_uniquer",
         "//xls/ir:register",
         "//xls/ir:source_location",
+        "//xls/ir:value",
         "//xls/ir:value_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",

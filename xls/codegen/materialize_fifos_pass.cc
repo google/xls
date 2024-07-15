@@ -37,6 +37,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
 namespace xls::verilog {
@@ -45,9 +46,6 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                                        FifoInstantiation* inst,
                                        const xls::Reset& reset_behavior) {
   const FifoConfig& config = inst->fifo_config();
-  if (config.bypass()) {
-    return absl::UnimplementedError("Bypass Not yet supported");
-  }
   if (config.register_push_outputs()) {
     return absl::UnimplementedError("PushReg Not yet supported");
   }
@@ -57,8 +55,11 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   int64_t depth = config.depth();
   Type* u1 = p->GetBitsType(1);
   Type* ty = inst->data_type();
+  bool bypass = config.bypass();
+
   BlockBuilder bb(uniquer.GetSanitizedUniqueName(absl::StrFormat(
-                      "fifo_for_depth_%d_ty_%s", depth, ty->ToString())),
+                      "fifo_for_depth_%d_ty_%s_%s", depth, ty->ToString(),
+                      bypass ? "with_bypass" : "no_bypass")),
                   p);
   XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
   XLS_ASSIGN_OR_RETURN(
@@ -124,23 +125,53 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   BValue can_do_push =
       bb.Or(not_full_bool, pop_ready, SourceInfo(), "can_do_push");
   // Ready to take things if we are not full.
-  bb.OutputPort(FifoInstantiation::kPushReadyPortName, can_do_push);
-
-  // Empty is head == tail so ne means there's something to pop.
   BValue not_empty_bool = bb.Ne(head, tail);
-  bb.OutputPort(FifoInstantiation::kPopValidPortName, not_empty_bool);
 
+  // NB we don't bother clearing data after a pop.
   BValue next_tail_value_if_pop_occurs =
       add_mod_buf_size(tail, one_lit, "next_tail_if_pop");
   BValue next_head_value_if_push_occurs =
       add_mod_buf_size(head, one_lit, "next_head_if_push");
-  // NB we don't bother clearing data after a pop.
+
+  BValue push_ready;
+  BValue pop_valid;
   BValue next_buf_value_if_push_occurs = bb.ArrayUpdate(buf, push_data, {head});
+  BValue pop_data_value;
+  BValue did_pop_occur_bool;
+  BValue did_push_occur_bool;
+  if (bypass) {
+    // NB No need to handle the 'full and bypass and both read & write case
+    // specially since we have an extra slot to store those values in.
+    BValue bypass_possible = bb.And(pop_ready, push_valid);
+    BValue is_pushable = bb.Or(can_do_push, bypass_possible);
+    BValue is_popable = bb.Or(not_empty_bool, bypass_possible);
+    pop_valid = bb.Or(not_empty_bool, push_valid);
+    push_ready = bb.Or(can_do_push, pop_ready);
+    BValue is_empty_bool = bb.Eq(head, tail);
+    BValue did_no_write_bypass_occur = bb.And(is_empty_bool, bypass_possible);
+    BValue did_visible_push_occur_bool = bb.And(is_pushable, push_valid);
+    BValue did_visible_pop_occur_bool = bb.And(is_popable, pop_ready);
+    pop_data_value = bb.Select(is_empty_bool, {current_queue_tail, push_data});
+    did_pop_occur_bool =
+        bb.And(did_visible_pop_occur_bool, bb.Not(did_no_write_bypass_occur));
+    did_push_occur_bool =
+        bb.And(did_visible_push_occur_bool, bb.Not(did_no_write_bypass_occur));
+  } else {
+    push_ready = can_do_push;
+    pop_valid = not_empty_bool;
+    pop_data_value = current_queue_tail;
+    did_pop_occur_bool = bb.And(pop_valid, pop_ready);
+    did_push_occur_bool = bb.And(push_ready, push_valid);
+  }
+  bb.OutputPort(FifoInstantiation::kPushReadyPortName, push_ready);
 
-  BValue did_push_occur_bool = bb.And(can_do_push, push_valid);
-  BValue did_pop_occur_bool = bb.And(not_empty_bool, pop_ready);
+  // Empty is head == tail so ne means there's something to pop.
+  bb.OutputPort(FifoInstantiation::kPopValidPortName, pop_valid);
 
-  bb.OutputPort(FifoInstantiation::kPopDataPortName, current_queue_tail);
+  // We could always send the current data. If not r/v the data is ignored
+  // anyway. Since this is testing might as well send mux in a zero if we
+  // aren't ready.
+  bb.OutputPort(FifoInstantiation::kPopDataPortName, pop_data_value);
 
   bb.RegisterWrite(buf_reg, next_buf_value_if_push_occurs,
                    /*load_enable=*/did_push_occur_bool);
