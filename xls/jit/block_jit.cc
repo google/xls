@@ -20,9 +20,11 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -30,7 +32,10 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/block_inlining_pass.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/materialize_fifos_pass.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
@@ -39,6 +44,7 @@
 #include "xls/ir/clone_package.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -77,6 +83,7 @@ class CheckNoInstantiationsOnTop : public verilog::CodegenPass {
 std::unique_ptr<verilog::CodegenCompoundPass> PrepareForJitPassPipeline() {
   auto passes = std::make_unique<verilog::CodegenCompoundPass>(
       "prepare_for_jit", "Process the IR to make it compatible with the jit");
+  passes->Add<verilog::MaterializeFifosPass>();
   passes->Add<verilog::BlockInliningPass>();
   passes->Add<CheckNoInstantiationsOnTop>();
   return passes;
@@ -91,9 +98,11 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
  public:
   ElaboratedBlockJitContinuation(
       Block* blk, BlockJit* jit, const JittedFunctionBase& jit_func,
-      const absl::flat_hash_map<std::string, std::string>& reg_rename_map)
+      const absl::flat_hash_map<std::string, std::string>& reg_rename_map,
+      const absl::flat_hash_map<std::string, Type*>& materialized_impl_regs)
       : BlockJitContinuation(blk, jit, jit_func),
-        reg_rename_map_(reg_rename_map) {}
+        reg_rename_map_(reg_rename_map),
+        materialized_impl_regs_(materialized_impl_regs) {}
 
   absl::flat_hash_map<std::string, Value> GetRegistersMap() const override {
     absl::flat_hash_map<std::string, Value> base =
@@ -123,12 +132,26 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
         translated_regs[rename] = translated_regs.extract(orig).mapped();
       }
     }
-    return BlockJitContinuation::SetRegisters(translated_regs);
+    // Registers inserted to implement elaboration don't have any analogue on
+    // the original elaboration so they might not be in the register set. If
+    // they aren't present give them a default value.
+    for (const auto& [reg_name, ty] : materialized_impl_regs_) {
+      XLS_RET_CHECK(reg_rename_map_.contains(reg_name));
+      std::string_view renamed = reg_rename_map_.at(reg_name);
+      if (!translated_regs.contains(renamed)) {
+        translated_regs[renamed] = ZeroOfType(ty);
+      }
+    }
+    XLS_RETURN_IF_ERROR(BlockJitContinuation::SetRegisters(translated_regs));
+    return absl::OkStatus();
   }
 
  private:
   // Map from path::style::name -> real_flat_style_name
   const absl::flat_hash_map<std::string, std::string>& reg_rename_map_;
+  // Registers added to prepare for jitting (like fifo implementation
+  // registers). These need to be manually setup to zero.
+  const absl::flat_hash_map<std::string, Type*>& materialized_impl_regs_;
 };
 
 // Specialized block-jit that intercepts and renames some registers to match
@@ -137,22 +160,25 @@ class ElaboratedBlockJit : public BlockJit {
  public:
   std::unique_ptr<BlockJitContinuation> NewContinuation() override {
     return std::make_unique<ElaboratedBlockJitContinuation>(
-        block_, this, function_, reg_rename_map_);
+        block_, this, function_, reg_rename_map_, materialized_impl_regs_);
   }
 
  private:
   ElaboratedBlockJit(
       std::unique_ptr<Package> jit_pkg, Block* block,
       absl::flat_hash_map<std::string, std::string> reg_rename_map,
+      absl::flat_hash_map<std::string, Type*> materialized_impl_regs,
       std::unique_ptr<JitRuntime> runtime, std::unique_ptr<OrcJit> jit,
       JittedFunctionBase function)
       : BlockJit(block, std::move(runtime), std::move(jit),
                  std::move(function)),
         jit_pkg_(std::move(jit_pkg)),
-        reg_rename_map_(std::move(reg_rename_map)) {}
+        reg_rename_map_(std::move(reg_rename_map)),
+        materialized_impl_regs_(std::move(materialized_impl_regs)) {}
 
   std::unique_ptr<Package> jit_pkg_;
   absl::flat_hash_map<std::string, std::string> reg_rename_map_;
+  absl::flat_hash_map<std::string, Type*> materialized_impl_regs_;
 
   friend class BlockJit;
 };
@@ -180,18 +206,29 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
                                                   std::move(orc_jit),
                                                   std::move(function)));
   }
+  std::string_view top_name = elab.top()->block().value()->name();
   XLS_RET_CHECK(elab.top()->block())
       << "Top block of elaboration must be an XLS 'block' in order to use JIT";
+
+  // TODO(allight): We should just support this.
+  XLS_RET_CHECK_EQ(absl::c_count_if(elab.package()->GetFunctionBases(),
+                                    [&](FunctionBase* fb) {
+                                      return fb->name() == top_name;
+                                    }),
+                   1)
+      << "Multiple blocks have the same name as the top block. Unable to "
+         "inline reliably.";
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Package> jit_package,
       ClonePackage(elab.package(),
                    absl::StrFormat("jit_clone_of_%s", elab.package()->name())));
-  XLS_ASSIGN_OR_RETURN(
-      Block * cloned_top,
-      jit_package->GetBlock(elab.top()->block().value()->name()));
+  XLS_ASSIGN_OR_RETURN(Block * cloned_top, jit_package->GetBlock(top_name));
   verilog::CodegenPassUnit pass_unit(jit_package.get(), cloned_top);
   verilog::CodegenPassResults results;
-  verilog::CodegenPassOptions opts;
+  verilog::CodegenPassOptions opts{
+      .codegen_options = verilog::CodegenOptions().reset(
+          FifoInstantiation::kResetPortName, /*asynchronous=*/false,
+          /*active_low=*/false, /*reset_data_path=*/false)};
   XLS_RETURN_IF_ERROR(
       PrepareForJitPassPipeline()->Run(&pass_unit, opts, &results).status());
   Block* jit_block = pass_unit.top_block;
@@ -199,7 +236,8 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
                        JittedFunctionBase::Build(jit_block, *orc_jit));
   return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
       std::move(jit_package), jit_block, std::move(results.register_renames),
-      std::move(jit_runtime), std::move(orc_jit), std::move(jit_entrypoint)));
+      std::move(results.inserted_registers), std::move(jit_runtime),
+      std::move(orc_jit), std::move(jit_entrypoint)));
 }
 
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {

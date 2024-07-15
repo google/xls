@@ -25,6 +25,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/block_evaluator_test_base.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
@@ -196,8 +198,46 @@ TEST_F(BlockJitTest, ExternInstantiationIsAnError) {
                ContainsRegex("Jit is unable to implement instantiations")));
 }
 
+// TODO(allight): We should just support this.
+TEST_F(BlockJitTest, ErrorOnUnhandledNameCollision) {
+  // VerifiedPackage CHECKs there are no collisions.
+  auto p = std::make_unique<Package>("not-verified");
+  // Block without any instantiations that can be jitted even with name
+  // collisions.
+  BlockBuilder bb1("foo", p.get());
+  bb1.OutputPort("a", bb1.InputPort("b", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b1, bb1.Build());
+
+  // Same name but now has fifo which needs the package to not have duplicate
+  // 'foo' blocks.
+  BlockBuilder bb("foo", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(FifoInstantiation * fifo_inst,
+                           bb.block()->AddFifoInstantiation(
+                               "fifo_inst", FifoConfig(10, false, false, false),
+                               p->GetBitsType(32)));
+  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+  bb.InstantiationInput(fifo_inst, "rst",
+                        bb.InputPort("reset", p->GetBitsType(1)));
+  bb.InstantiationInput(fifo_inst, "push_data",
+                        bb.InputPort("push_data", p->GetBitsType(32)));
+  bb.InstantiationInput(fifo_inst, "push_valid",
+                        bb.InputPort("push_valid", p->GetBitsType(1)));
+  bb.InstantiationInput(fifo_inst, "pop_ready",
+                        bb.InputPort("pop_ready", p->GetBitsType(1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b2, bb.Build());
+
+  XLS_ASSERT_OK(kJitBlockEvaluator.NewContinuation(b1).status());
+  ASSERT_THAT(kJitBlockEvaluator.NewContinuation(b2).status(),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::HasSubstr("Multiple blocks have the same name")));
+}
+
 inline constexpr BlockEvaluatorTestParam kJitTestParam = {
-    .evaluator = &kJitBlockEvaluator, .supports_fifos = false};
+    .evaluator = &kJitBlockEvaluator, .supports_fifos = true};
 
 INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
                          testing::Values(kJitTestParam), [](const auto& v) {

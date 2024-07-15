@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
@@ -37,6 +36,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
@@ -207,6 +207,7 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
     return false;
   }
   NameUniquer uniquer("___");
+  // Intermediate list new blocks created.
 
   absl::flat_hash_map<xls::Instantiation*, Block*> impls;
   for (FifoInstantiation* f : insts) {
@@ -231,6 +232,18 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
               absl::StrFormat("materialized_fifo_%s_", i->name()),
               impls.at(i)));
       XLS_RETURN_IF_ERROR(b->ReplaceInstantiationWith(i, new_inst));
+    }
+  }
+
+  // Record all the elaboration registers added by this new block.
+  XLS_ASSIGN_OR_RETURN(BlockElaboration new_elab,
+                       BlockElaboration::Elaborate(unit->top_block));
+  for (const auto& [i, blk] : impls) {
+    for (BlockInstance* inst : new_elab.GetInstances(blk)) {
+      for (Register* reg : blk->GetRegisters()) {
+        results->inserted_registers[absl::StrFormat(
+            "%s%s", inst->RegisterPrefix(), reg->name())] = reg->type();
+      }
     }
   }
   return true;

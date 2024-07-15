@@ -315,6 +315,10 @@ struct CodegenPassResults : public PassResults {
   // first renames 'a' -> 'b' and the second 'b' -> 'c' you would see both
   // renames in this map (i.e. 2 elements).
   absl::flat_hash_map<std::string, std::string> register_renames;
+  // Map from register name (including instantiation path) to type of the
+  // register of registers some pass inserted which was not initially a part of
+  // the design (eg FIFO implementation registers).
+  absl::flat_hash_map<std::string, Type*> inserted_registers;
 };
 
 using CodegenPass =
