@@ -29,6 +29,7 @@
 #include "xls/codegen/mulp_combining_pass.h"
 #include "xls/codegen/name_legalization_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
+#include "xls/codegen/priority_select_reduction_pass.h"
 #include "xls/codegen/ram_rewrite_pass.h"
 #include "xls/codegen/register_combining_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
@@ -84,6 +85,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Filter out traces filtered by verbosity config.
   top->Add<TraceVerbosityPass>();
+
+  // Replace provably-unneeded priority-select operations with simpler selects.
+  top->Add<PrioritySelectReductionPass>();
 
   // Update assert conditions to be guarded by pipeline_valid signals.
   top->Add<SideEffectConditionPass>();

@@ -42,7 +42,6 @@ namespace xls {
 namespace verilog {
 // Properties for selectors that are relevant for codegen.
 struct SelectorProperties {
-  bool one_hot;
   bool never_zero;
 };
 

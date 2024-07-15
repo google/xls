@@ -26,18 +26,18 @@ module DifferentPrioritySelects(
       endcase
     end
   endfunction
-  function automatic [31:0] priority_sel_32b_1way_soh (input reg sel, input reg [31:0] case0, input reg [31:0] default_value);
+  function automatic [31:0] priority_sel_32b_1way (input reg sel, input reg [31:0] case0, input reg [31:0] default_value);
     begin
       unique casez (sel)
         1'b1: begin
-          priority_sel_32b_1way_soh = case0;
+          priority_sel_32b_1way = case0;
         end
         1'b0: begin
-          priority_sel_32b_1way_soh = default_value;
+          priority_sel_32b_1way = default_value;
         end
         default: begin
           // Propagate X
-          priority_sel_32b_1way_soh = 'X;
+          priority_sel_32b_1way = 'X;
         end
       endcase
     end
@@ -45,5 +45,5 @@ module DifferentPrioritySelects(
   wire [31:0] priority_select1;
   wire [31:0] priority_select2;
   assign priority_select1 = priority_sel_32b_2way(s1, x1, y1, d1);
-  assign priority_select2 = priority_sel_32b_1way_soh(s2, x2, d2);
+  assign priority_select2 = priority_sel_32b_1way(s2, x2, d2);
 endmodule

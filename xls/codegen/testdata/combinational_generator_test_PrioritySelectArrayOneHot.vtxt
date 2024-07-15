@@ -5,29 +5,6 @@ module main(
   input wire [63:0] d,
   output wire [63:0] out
 );
-  function automatic [15:0] priority_sel_64b_2way_soh_snz_element16 (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
-    begin
-      casez (sel)
-        2'b?1: begin
-          priority_sel_64b_2way_soh_snz_element16 = case0;
-        end
-        2'b10: begin
-          priority_sel_64b_2way_soh_snz_element16 = case1;
-        end
-        2'b00: begin
-          `ifndef SYNTHESIS
-            $error("Zero selector not allowed.");
-          `endif
-          // Never taken, propagate X
-          priority_sel_64b_2way_soh_snz_element16 = 16'dx;
-        end
-        default: begin
-          // Propagate X
-          priority_sel_64b_2way_soh_snz_element16 = 16'dx;
-        end
-      endcase
-    end
-  endfunction
   wire [15:0] x_unflattened[0:3];
   assign x_unflattened[0] = x[15:0];
   assign x_unflattened[1] = x[31:16];
@@ -43,10 +20,14 @@ module main(
   assign d_unflattened[1] = d[31:16];
   assign d_unflattened[2] = d[47:32];
   assign d_unflattened[3] = d[63:48];
-  wire [15:0] priority_sel_12[0:3];
-  assign priority_sel_12[0] = priority_sel_64b_2way_soh_snz_element16({!p, p}, x_unflattened[0], y_unflattened[0], d_unflattened[0]);
-  assign priority_sel_12[1] = priority_sel_64b_2way_soh_snz_element16({!p, p}, x_unflattened[1], y_unflattened[1], d_unflattened[1]);
-  assign priority_sel_12[2] = priority_sel_64b_2way_soh_snz_element16({!p, p}, x_unflattened[2], y_unflattened[2], d_unflattened[2]);
-  assign priority_sel_12[3] = priority_sel_64b_2way_soh_snz_element16({!p, p}, x_unflattened[3], y_unflattened[3], d_unflattened[3]);
-  assign out = {priority_sel_12[3], priority_sel_12[2], priority_sel_12[1], priority_sel_12[0]};
+  wire [1:0] one_hot_11;
+  wire [2:0] one_hot_14;
+  wire [15:0] one_hot_sel_19[0:3];
+  assign one_hot_11 = {!p, p};
+  assign one_hot_14 = {one_hot_11[1:0] == 2'h0, one_hot_11[1] && !one_hot_11[0], one_hot_11[0]};
+  assign one_hot_sel_19[0] = x_unflattened[0] & {16{one_hot_11[0]}} | y_unflattened[0] & {16{one_hot_11[1]}};
+  assign one_hot_sel_19[1] = x_unflattened[1] & {16{one_hot_11[0]}} | y_unflattened[1] & {16{one_hot_11[1]}};
+  assign one_hot_sel_19[2] = x_unflattened[2] & {16{one_hot_11[0]}} | y_unflattened[2] & {16{one_hot_11[1]}};
+  assign one_hot_sel_19[3] = x_unflattened[3] & {16{one_hot_11[0]}} | y_unflattened[3] & {16{one_hot_11[1]}};
+  assign out = {one_hot_sel_19[3], one_hot_sel_19[2], one_hot_sel_19[1], one_hot_sel_19[0]};
 endmodule

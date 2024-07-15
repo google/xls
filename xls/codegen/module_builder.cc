@@ -179,12 +179,6 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
   if (use_system_verilog) {
     // If using system verilog, always use the "unique" keyword.
     case_type.modifier = CaseModifier::kUnique;
-    // If the selector is one hot, our case labels can be ???1???. The unique
-    // keyword (SystemVerilog only) will generate an error if the selector is
-    // not one hot.
-    if (selector_properties.one_hot) {
-      case_label_bottom_bits = FourValueBit::kHighZ;
-    }
   }
 
   Case* case_statement =
@@ -726,7 +720,6 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
 absl::StatusOr<SelectorProperties> ModuleBuilder::GetSelectorProperties(
     Node* selector) {
   XLS_RET_CHECK(selector->GetType()->IsBits());
-  bool one_hot = false;
   bool never_zero = false;
   if (!query_engine_.has_value()) {
     query_engine_ = BddQueryEngine(BddFunction::kDefaultPathLimit);
@@ -734,10 +727,9 @@ absl::StatusOr<SelectorProperties> ModuleBuilder::GetSelectorProperties(
         query_engine_->Populate(selector->function_base()).status());
   }
   if (query_engine_.has_value()) {
-    one_hot = query_engine_->AtMostOneBitTrue(selector);
     never_zero = query_engine_->AtLeastOneBitTrue(selector);
   }
-  return SelectorProperties{.one_hot = one_hot, .never_zero = never_zero};
+  return SelectorProperties{.never_zero = never_zero};
 }
 
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
@@ -1425,18 +1417,13 @@ absl::StatusOr<std::string> ModuleBuilder::VerilogFunctionName(Node* node) {
       XLS_ASSIGN_OR_RETURN(
           SelectorProperties selector_properties,
           GetSelectorProperties(node->As<PrioritySelect>()->selector()));
-      std::string_view one_hot_str;
       std::string_view never_zero_str;
-      if (selector_properties.one_hot) {
-        one_hot_str = "_soh";  // selector one hot
-      }
       if (selector_properties.never_zero) {
         never_zero_str = "_snz";  // selector never zero
       }
-      return absl::StrFormat("%s_%db_%dway%s%s", OpToString(node->op()),
+      return absl::StrFormat("%s_%db_%dway%s", OpToString(node->op()),
                              node->GetType()->GetFlatBitCount(),
-                             node->operand(0)->BitCountOrDie(), one_hot_str,
-                             never_zero_str);
+                             node->operand(0)->BitCountOrDie(), never_zero_str);
     }
     case Op::kSDiv:
     case Op::kUDiv:

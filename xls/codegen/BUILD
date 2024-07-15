@@ -428,6 +428,7 @@ cc_library(
         ":mulp_combining_pass",
         ":name_legalization_pass",
         ":port_legalization_pass",
+        ":priority_select_reduction_pass",
         ":ram_rewrite_pass",
         ":register_combining_pass",
         ":register_legalization_pass",
@@ -454,6 +455,28 @@ cc_library(
         "//xls/ir:value_utils",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "priority_select_reduction_pass",
+    srcs = ["priority_select_reduction_pass.cc"],
+    hdrs = ["priority_select_reduction_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "//xls/codegen/vast",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "//xls/passes:bdd_function",
+        "//xls/passes:bdd_query_engine",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

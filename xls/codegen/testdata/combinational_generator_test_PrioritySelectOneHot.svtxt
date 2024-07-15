@@ -5,29 +5,10 @@ module main(
   input wire [15:0] d,
   output wire [15:0] out
 );
-  function automatic [15:0] priority_sel_16b_2way_soh_snz (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
-    begin
-      unique casez (sel)
-        2'b?1: begin
-          priority_sel_16b_2way_soh_snz = case0;
-        end
-        2'b1?: begin
-          priority_sel_16b_2way_soh_snz = case1;
-        end
-        2'b00: begin
-          `ifndef SYNTHESIS
-            $error("Zero selector not allowed.");
-          `endif
-          // Never taken, propagate X
-          priority_sel_16b_2way_soh_snz = 'X;
-        end
-        default: begin
-          // Propagate X
-          priority_sel_16b_2way_soh_snz = 'X;
-        end
-      endcase
-    end
-  endfunction
-
-  assign out = priority_sel_16b_2way_soh_snz({!p, p}, x, y, d);
+  wire [1:0] one_hot_11;
+  wire [2:0] one_hot_14;
+  assign one_hot_11 = {!p, p};
+  assign one_hot_14 = {one_hot_11[1:0] == 2'h0, one_hot_11[1] && !one_hot_11[0], one_hot_11[0]};
+  priority_sel_12_selector_one_hot_A: assert final ($isunknown(one_hot_11 == one_hot_14[1:0]) || one_hot_11 == one_hot_14[1:0]) else $fatal(0, "Selector one_hot.11 was expected to be one-hot, and is not.");
+  assign out = x & {16{one_hot_11[0]}} | y & {16{one_hot_11[1]}};
 endmodule
