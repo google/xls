@@ -101,13 +101,24 @@ static absl::StatusOr<ModuleSignature> GenerateModuleSignature(
 
 // Returns all of the DUT inputs for the DUT described by `metadata`. Excludes
 // clock and optionally reset.
-std::vector<DutInput> GetAllDutInputs(const TestbenchMetadata& metadata,
-                                      ZeroOrX initial_values,
-                                      bool exclude_reset) {
+absl::StatusOr<std::vector<DutInput>> GetAllDutInputs(
+    const TestbenchMetadata& metadata, InitialValues initial_values,
+    bool exclude_reset) {
   std::vector<DutInput> dut_inputs;
-  auto get_initial_value = [&](int64_t width) {
-    return initial_values == ZeroOrX::kZero ? BitsOrX{UBits(0, width)}
-                                            : BitsOrX{IsX()};
+  auto get_initial_value =
+      [&](std::string_view port) -> absl::StatusOr<BitsOrX> {
+    if (auto it = initial_values.values.find(port);
+        it != initial_values.values.end()) {
+      return it->second;
+    }
+    if (!initial_values.default_value.has_value()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("No initial value specified for port `%s`", port));
+    }
+    if (initial_values.default_value == ZeroOrX::kZero) {
+      return UBits(0, metadata.GetPortWidth(port));
+    }
+    return IsX();
   };
   for (const std::string& port : metadata.dut_input_ports()) {
     // Exclude the clock as an input and reset if `exclude_reset` is true.
@@ -117,9 +128,9 @@ std::vector<DutInput> GetAllDutInputs(const TestbenchMetadata& metadata,
          metadata.reset_proto()->name() == port)) {
       continue;
     }
-    dut_inputs.push_back(DutInput{
-        .port_name = port,
-        .initial_value = get_initial_value(metadata.GetPortWidth(port))});
+    XLS_ASSIGN_OR_RETURN(BitsOrX initial_value, get_initial_value(port));
+    dut_inputs.push_back(
+        DutInput{.port_name = port, .initial_value = initial_value});
   }
   return dut_inputs;
 }
@@ -218,12 +229,12 @@ absl::Status ModuleTestbench::CreateInitialThreads() {
 
 absl::StatusOr<ModuleTestbenchThread*>
 ModuleTestbench::CreateThreadDrivingAllInputs(std::string_view thread_name,
-                                              ZeroOrX initial_value,
+                                              InitialValues initial_values,
                                               bool wait_until_done) {
-  return CreateThread(thread_name,
-                      GetAllDutInputs(metadata_, initial_value,
-                                      /*exclude_reset=*/reset_dut_),
-                      wait_until_done,
+  XLS_ASSIGN_OR_RETURN(std::vector<DutInput> dut_inputs,
+                       GetAllDutInputs(metadata_, std::move(initial_values),
+                                       /*exclude_reset=*/reset_dut_));
+  return CreateThread(thread_name, dut_inputs, wait_until_done,
                       /*wait_for_reset=*/true);
 }
 

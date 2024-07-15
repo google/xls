@@ -30,6 +30,7 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/ir/bits.h"
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/testbench_metadata.h"
 #include "xls/simulation/testbench_signal_capture.h"
@@ -46,6 +47,11 @@ namespace verilog {
 static constexpr int64_t kDefaultSimulationCycleLimit = 10'000;
 
 enum class ZeroOrX : int8_t { kZero, kX };
+
+struct InitialValues {
+  absl::flat_hash_map<std::string, xls::Bits> values;
+  std::optional<ZeroOrX> default_value;
+};
 
 // Test class which does a cycle-by-cycle simulation of a Verilog module.
 class ModuleTestbench {
@@ -94,12 +100,20 @@ class ModuleTestbench {
   // Convenience method which creates a thread which drives *all* input ports of
   // the DUT. The clock port is always excluded and the reset port is also
   // excluded if `reset_dut` was specified when the testbench was constructed
-  // (in this case the reset port is driven internally in the
-  // testbench). `initial_value` specifies the initial value
-  // to drive on the input ports: either zero or X.
+  // (in this case the reset port is driven internally in the testbench). All
+  // other ports are set per `initial_values`; they use the value from the map
+  // if given, and otherwise use the default value. If no default value is
+  // specified and a port is not found in the map, returns an
+  // absl::InvalidArgumentError.
   absl::StatusOr<ModuleTestbenchThread*> CreateThreadDrivingAllInputs(
-      std::string_view thread_name, ZeroOrX initial_value,
+      std::string_view thread_name, InitialValues initial_values,
       bool wait_until_done = true);
+  absl::StatusOr<ModuleTestbenchThread*> CreateThreadDrivingAllInputs(
+      std::string_view thread_name, ZeroOrX default_value,
+      bool wait_until_done = true) {
+    return CreateThreadDrivingAllInputs(
+        thread_name, {.default_value = default_value}, wait_until_done);
+  }
 
   // Generates the Verilog representation of the testbench.
   std::string GenerateVerilog() const;
