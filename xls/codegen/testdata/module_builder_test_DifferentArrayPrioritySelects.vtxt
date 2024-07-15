@@ -28,7 +28,7 @@ module DifferentArrayPrioritySelects(
   endfunction
   function automatic [31:0] priority_sel_12288b_1way_element32 (input reg sel, input reg [31:0] case0, input reg [31:0] default_value);
     begin
-      casez (sel)
+      case (sel)
         1'b1: begin
           priority_sel_12288b_1way_element32 = case0;
         end

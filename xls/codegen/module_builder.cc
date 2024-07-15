@@ -173,7 +173,8 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
   Expression* default_value = func->AddArgument(
       "default_value", file->BitVectorType(tpe->GetFlatBitCount(), loc), loc);
 
-  CaseType case_type(CaseKeyword::kCasez);
+  CaseType case_type(selector->BitCountOrDie() > 1 ? CaseKeyword::kCasez
+                                                   : CaseKeyword::kCase);
   const FourValueBit case_label_top_bits = FourValueBit::kHighZ;
   FourValueBit case_label_bottom_bits = FourValueBit::kZero;
   if (use_system_verilog) {
