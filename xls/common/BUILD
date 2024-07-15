@@ -655,3 +655,12 @@ cc_library(
     srcs = ["undeclared_outputs.cc"],
     hdrs = ["undeclared_outputs.h"],
 )
+
+cc_library(
+    name = "remove_empty_lines",
+    srcs = ["remove_empty_lines.cc"],
+    hdrs = ["remove_empty_lines.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+    ],
+)

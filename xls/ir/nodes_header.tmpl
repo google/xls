@@ -37,11 +37,13 @@ class {{ op_class.name }} final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const final;
+
 {% for method in op_class.methods() -%}
 {{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) {%if method.is_const %} const{% endif %}
   {% if method.expression %}  {% if method.expression_is_body %} { {{ method.expression }} } {% else %} { return {{ method.expression }}; }  {% endif %}
   {% else %}; {% endif %}
 {% endfor -%}
+
 {% for op_set in op_class.optional_operands() -%}
 {% if not op_set.operand.manual_optional_implementation %}
   absl::StatusOr<int64_t> {{op_set.operand.name}}_operand_number() const {

@@ -19,6 +19,7 @@ These datapoints can be used in a delay model (where they will be interpolated)
 format.
 """
 
+import functools
 import multiprocessing as mp
 import multiprocessing.pool as mp_pool
 import os
@@ -34,7 +35,6 @@ from xls.common import gfile
 from xls.delay_model import delay_model_pb2
 from xls.delay_model import delay_model_utils
 from xls.delay_model import op_module_generator
-from xls.ir.op_specification import OPS
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
 
@@ -68,7 +68,15 @@ _MAX_THREADS = flags.DEFINE_integer(
     'Max number of threads for parallelizing the generation of data points.',
 )
 
-ENUM2NAME_MAP = dict((op.enum_name, op.name) for op in OPS)
+
+@functools.cache
+def get_enum2name_map():
+    lines = runfiles.get_contents_as_text('xls/ir/enum_op_pairs.txt').splitlines()
+    m = {}
+    for line in lines:
+        enum, name = line.split()
+        m[enum] = name
+    return m
 
 
 def check_delay_offset(results: delay_model_pb2.DataPoints):
@@ -240,7 +248,7 @@ def _run_point(
   specialization = spec.op_samples.specialization
   attributes = spec.op_samples.attributes
 
-  op_name = ENUM2NAME_MAP[op]
+  op_name = get_enum2name_map()[op]
 
   # Result type - bitwidth and optionally element count(s)
   res_bit_count = spec.point.result_width
