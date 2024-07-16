@@ -2,7 +2,8 @@ module ReturnArrayLiteral(
   input wire clk,
   output wire [1:0] out
 );
-  wire literal_2[2] = '{1'h0, 1'h1};
+  wire literal_2[2];
+  assign literal_2 = '{1'h0, 1'h1};
 
   // ===== Pipe stage 0:
   assign out = {literal_2[1], literal_2[0]};

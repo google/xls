@@ -469,14 +469,11 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
   } else {
     data_type = file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
   }
-  if (!value.IsArray() || options_.use_system_verilog()) {
-    Expression* rhs;
-    if (value.IsArray()) {
-      XLS_ASSIGN_OR_RETURN(rhs, ValueToArrayAssignmentPattern(value, file_));
-    } else {
-      XLS_ASSIGN_OR_RETURN(rhs, FlattenValueToExpression(value, file_));
-    }
-    XLS_RET_CHECK_NE(rhs, nullptr);
+  // Verilator does not like declaration of arrays and assignments in the same
+  // line so declare and assign separately.
+  if (!value.IsArray()) {
+    XLS_ASSIGN_OR_RETURN(Expression * rhs,
+                         FlattenValueToExpression(value, file_));
     // Add wire with init.
     return module_->AddWire(SanitizeIdentifier(name), data_type, rhs,
                             SourceInfo(), constants_section());

@@ -1,7 +1,8 @@
 module ReturnConstantArray(
   output wire [41:0] out
 );
-  wire [6:0] ar[2][3] = '{'{7'h33, 7'h12, 7'h42}, '{7'h01, 7'h02, 7'h03}};
+  wire [6:0] ar[2][3];
+  assign ar = '{'{7'h33, 7'h12, 7'h42}, '{7'h01, 7'h02, 7'h03}};
 
   assign out = {{ar[1][2], ar[1][1], ar[1][0]}, {ar[0][2], ar[0][1], ar[0][0]}};
 endmodule

@@ -5,7 +5,8 @@ module pipelined_proc(
   output wire [6:0] out_data,
   output wire out_valid
 );
-  wire [6:0] lookup_table[1][4] = '{'{7'h00, 7'h00, 7'h00, 7'h00}};
+  wire [6:0] lookup_table[1][4];
+  assign lookup_table = '{'{7'h00, 7'h00, 7'h00, 7'h00}};
   reg __x;
   reg __z;
   reg [6:0] __out_data_reg;
