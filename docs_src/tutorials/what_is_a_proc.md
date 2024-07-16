@@ -157,12 +157,40 @@ pub proc fallback {
   }
 
   next(st: ()) {
-    let (tok, data_A) = recv(join(), A);
-    let (tok, data_B) = recv_if(tok, B, data_A != u32:0, u32:0);
-    let val = if data_A == u32:0 {
-      data_B
+    let (tok, x) = recv(join(), A);
+    let (tok, y) = recv_if(tok, B, x == u32:0, u32:0);
+    let val = if x != u32:0 {
+      x
     } else {
-      data_A
+      y
+    };
+    send(tok, C, val);
+  }
+}
+```
+
+We could also write this a bit more naturally by putting the channel-`B` receive
+inside the correct branch of our `if` expression. As you might expect, the
+receive will only trigger if that branch is taken.
+
+```dslx
+pub proc fallback {
+  A: chan<u32> in;
+  B: chan<u32> in;
+  C: chan<u32> out;
+
+  init { () }
+
+  config (A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) {
+    (A, B, C)
+  }
+
+  next(st: ()) {
+    let (tok, x) = recv(join(), A);
+    let (tok, val) = if x != u32:0 {
+      (tok, x)
+    } else {
+      recv(tok, B)
     };
     send(tok, C, val);
   }
@@ -170,10 +198,8 @@ pub proc fallback {
 ```
 
 !!! NOTE
-    You might be surprised that we didn't simply put the `data_B` conditional
-    receive inside the correct branch of our `if` expression. DSLX does not
-    currently allow receives to happen in conditional expressions, so we need to
-    control them separately.
+    This also works with `match` expressions; side-effecting operations inside
+    a match arm will only trigger if the arm is chosen.
 
 ### State
 
