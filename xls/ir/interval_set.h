@@ -15,6 +15,7 @@
 #ifndef XLS_IR_INTERVAL_SET_H_
 #define XLS_IR_INTERVAL_SET_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iosfwd>
@@ -24,6 +25,7 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "xls/common/iterator_range.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 
@@ -62,6 +64,17 @@ class IntervalSet {
   // building a large set of intervals).
   int64_t NumberOfIntervals() const { return intervals_.size(); }
 
+  // Returns the number of intervals in the set assuming that there is a cut
+  // between INT_MAX and INT_MIN. This is either exactly NumberOfIntervals() or
+  // one more than it.
+  int64_t NumberOfSignedIntervals() const {
+    if (Covers(Bits::MaxSigned(BitCount())) &&
+        Covers(Bits::MinSigned(BitCount()))) {
+      return NumberOfIntervals() + 1;
+    }
+    return NumberOfIntervals();
+  }
+
   // Get all the intervals contained within this interval set.
   // The set must be normalized prior to calling this.
   absl::Span<const Interval> Intervals() const& {
@@ -73,6 +86,56 @@ class IntervalSet {
     CHECK(is_normalized_);
     return intervals_;
   }
+
+  class SignedIntervalIterator {
+   public:
+    using difference_type = std::ptrdiff_t;
+    using value_type = const Interval&;
+
+    SignedIntervalIterator(SignedIntervalIterator&&) = default;
+    SignedIntervalIterator(const SignedIntervalIterator&) = default;
+    SignedIntervalIterator& operator=(SignedIntervalIterator&&) = default;
+    SignedIntervalIterator& operator=(const SignedIntervalIterator&) = default;
+
+    const Interval& operator*() const;
+    SignedIntervalIterator& operator++();
+    SignedIntervalIterator operator++(int) {
+      SignedIntervalIterator tmp = *this;
+      ++*this;
+      return tmp;
+    }
+
+    bool operator==(const SignedIntervalIterator& o) const {
+      if (InSplit() && o.InSplit() && in_negatives_ != o.in_negatives_) {
+        return false;
+      }
+      return cur_ == o.cur_;
+    }
+
+   private:
+    explicit SignedIntervalIterator(
+        absl::Span<const Interval>::const_iterator cur,
+        absl::Span<const Interval>::const_iterator end, bool in_negatives)
+        : cur_(cur), end_(end), in_negatives_(in_negatives) {}
+    bool InSplit() const;
+
+    absl::Span<const Interval>::const_iterator cur_;
+    absl::Span<const Interval>::const_iterator end_;
+
+    // If this is 'InSplit' what side of it we are on.
+    bool in_negatives_;
+
+    // Holder for the split interval.
+    mutable std::optional<Interval> sign_swap_interval_;
+
+    friend class IntervalSet;
+  };
+
+  // Get all the intervals contained in the interval_set. The set must be
+  // normalized prior to calling this. The iteration order is all positive
+  // intervals followed by all negative intervals. Every interval will contain
+  // only positive or negative numbers.
+  xabsl::iterator_range<SignedIntervalIterator> SignedIntervals() const;
 
   // Returns the `BitCount()` of all intervals in the interval set.
   int64_t BitCount() const {

@@ -26,6 +26,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/iterator_range.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
@@ -419,6 +420,59 @@ std::string IntervalSet::ToString() const {
     strings.push_back(interval.ToString());
   }
   return absl::StrFormat("[%s]", absl::StrJoin(strings, ", "));
+}
+
+xabsl::iterator_range<IntervalSet::SignedIntervalIterator>
+IntervalSet::SignedIntervals() const {
+  return {
+      IntervalSet::SignedIntervalIterator(Intervals().cbegin(),
+                                          Intervals().cend(), false),
+      IntervalSet::SignedIntervalIterator(Intervals().cend(),
+                                          Intervals().cend(), true),
+  };
+}
+
+const Interval& IntervalSet::SignedIntervalIterator::operator*() const {
+  const Interval& raw = *cur_;
+  // TODO(allight): We could avoid building a bits object here. Probably not
+  // worth it though.
+  if (!InSplit()) {
+    return raw;
+  }
+  // This interval needs to be split.
+  // NB We clear the sign_swap_interval on every ++ so no need to check the
+  // value.
+  if (!sign_swap_interval_) {
+    if (in_negatives_) {
+      sign_swap_interval_ =
+          Interval(Bits::MinSigned(raw.BitCount()), raw.UpperBound());
+    } else {
+      sign_swap_interval_ =
+          Interval(raw.LowerBound(), Bits::MaxSigned(raw.BitCount()));
+    }
+  }
+  return *sign_swap_interval_;
+}
+
+IntervalSet::SignedIntervalIterator&
+IntervalSet::SignedIntervalIterator::operator++() {
+  sign_swap_interval_.reset();
+  auto raw = *cur_;
+
+  if (InSplit() && !in_negatives_) {
+    in_negatives_ = true;
+    return *this;
+  }
+  ++cur_;
+  return *this;
+}
+
+bool IntervalSet::SignedIntervalIterator::InSplit() const {
+  if (cur_ == end_) {
+    return false;
+  }
+  return cur_->Covers(Bits::MinSigned(cur_->BitCount())) &&
+         cur_->Covers(Bits::MaxSigned(cur_->BitCount()));
 }
 
 }  // namespace xls

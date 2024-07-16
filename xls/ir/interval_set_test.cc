@@ -44,6 +44,12 @@ namespace {
 Interval MakeInterval(uint64_t start, uint64_t end, int64_t width) {
   return Interval(UBits(start, width), UBits(end, width));
 }
+MATCHER_P3(IsInterval, low, high, bits,
+           absl::StrFormat("Matches interval [%d, %d] (width: %d)", low, high,
+                           bits)) {
+  return testing::ExplainMatchResult(MakeInterval(low, high, bits), arg,
+                                     result_listener);
+}
 
 TEST(IntervalTest, Normalize) {
   IntervalSet is_sorted(32);
@@ -482,6 +488,63 @@ TEST(IntervalSetTest, Disjoint) {
     IntervalSet l = Intervals({{1, 1}, {3, 3}, {5, 5}});
     IntervalSet r = Intervals({{2, 2}, {4, 4}, {6, 6}});
     EXPECT_THAT(l, DisjointWith(r));
+  }
+}
+
+TEST(IntervalSetTest, SignedIterator) {
+  {
+    IntervalSet all_positive = Intervals({{0, 4}, {8, 12}, {18, 127}}, 8);
+    auto rng = all_positive.SignedIntervals();
+    auto it = rng.begin();
+    EXPECT_THAT(*it, IsInterval(0, 4, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(8, 12, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(18, 127, 8));
+    ++it;
+    EXPECT_TRUE(it == rng.end());
+  }
+  {
+    IntervalSet all_neg = Intervals({{128, 133}, {138, 144}, {155, 255}}, 8);
+    auto rng = all_neg.SignedIntervals();
+    auto it = rng.begin();
+    EXPECT_THAT(*it, IsInterval(128, 133, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(138, 144, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(155, 255, 8));
+    ++it;
+    EXPECT_TRUE(it == rng.end());
+  }
+  {
+    IntervalSet cov =
+        Intervals({{0, 4}, {8, 12}, {18, 133}, {138, 144}, {155, 255}}, 8);
+    auto rng = cov.SignedIntervals();
+    auto it = rng.begin();
+    EXPECT_THAT(*it, IsInterval(0, 4, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(8, 12, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(18, 127, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(128, 133, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(138, 144, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(155, 255, 8));
+    ++it;
+    EXPECT_TRUE(it == rng.end());
+  }
+
+  {
+    IntervalSet unbound = Intervals({{0, 255}}, 8);
+    auto rng = unbound.SignedIntervals();
+    auto it = rng.begin();
+    EXPECT_THAT(*it, IsInterval(0, 127, 8));
+    ++it;
+    EXPECT_THAT(*it, IsInterval(128, 255, 8));
+    ++it;
+    EXPECT_TRUE(it == rng.end());
   }
 }
 
