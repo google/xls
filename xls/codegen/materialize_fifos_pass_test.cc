@@ -19,7 +19,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -31,12 +30,12 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/fifo_model_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
@@ -49,146 +48,6 @@
 
 namespace xls::verilog {
 namespace {
-using testing::AllOf;
-using testing::Contains;
-using testing::Pair;
-
-MATCHER_P2(
-    UsableOutputsMatch, input_set, output_set,
-    absl::StrFormat(
-        "All ready/valid signals to match and the data signal to match if "
-        "ready & valid is asserted for output: %s, input %s",
-        testing::PrintToString(output_set),
-        testing::PrintToString(input_set))) {
-  const absl::flat_hash_map<std::string, Value>& inputs = input_set;
-  const absl::flat_hash_map<std::string, Value>& outputs = output_set;
-  if (outputs.at(FifoInstantiation::kPopValidPortName).bits().IsOne() &&
-      inputs.at(FifoInstantiation::kPopReadyPortName).bits().IsOne()) {
-    return testing::ExplainMatchResult(
-        testing::UnorderedElementsAreArray(outputs), arg, result_listener);
-  }
-  // It would be nice to check the pop_data value is the same too but it
-  // doesn't seem useful if the data can't be read.
-  return testing::ExplainMatchResult(
-      AllOf(Contains(Pair(FifoInstantiation::kPopValidPortName,
-                          outputs.at(FifoInstantiation::kPopValidPortName))),
-            Contains(Pair(FifoInstantiation::kPushReadyPortName,
-                          outputs.at(FifoInstantiation::kPushReadyPortName)))),
-      arg, result_listener);
-}
-
-class BaseOperation {
- public:
-  virtual ~BaseOperation() = default;
-  virtual absl::flat_hash_map<std::string, Value> InputSet() const = 0;
-};
-struct Push : public BaseOperation {
-  explicit Push(int32_t v) : v(v) {}
-  int32_t v;
-
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(v, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
-    };
-  }
-};
-struct Pop : public BaseOperation {
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(0xf0f0f0f0, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushValidPortName),
-         Value::Bool(false)},
-    };
-  }
-};
-struct PushAndPop : public BaseOperation {
-  explicit PushAndPop(int32_t v) : v(v) {}
-  uint32_t v;
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(v, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
-    };
-  }
-};
-struct NotReady : public BaseOperation {
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(987654321, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushValidPortName),
-         Value::Bool(false)},
-    };
-  }
-};
-struct Reset : public BaseOperation {
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushValidPortName),
-         Value::Bool(false)},
-    };
-  }
-};
-struct ResetPop : public BaseOperation {
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushValidPortName),
-         Value::Bool(false)},
-    };
-  }
-};
-struct ResetPush : public BaseOperation {
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
-    };
-  }
-};
-struct ResetPushPop : public BaseOperation {
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
-        {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
-        {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
-    };
-  }
-};
-class Operation : public BaseOperation,
-                  public std::variant<Push, Pop, PushAndPop, NotReady, Reset,
-                                      ResetPush, ResetPop, ResetPushPop> {
- public:
-  using std::variant<Push, Pop, PushAndPop, NotReady, Reset, ResetPush,
-                     ResetPop, ResetPushPop>::variant;
-  absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return std::visit([&](auto v) { return v.InputSet(); }, *this);
-  }
-};
 
 class MaterializeFifosPassTestHelper {
  public:
@@ -403,7 +262,7 @@ TEST_F(MaterializeFifosPassTest, ResetFullFifo) {
                          PushAndPop{9},
                          PushAndPop{10},
                          PushAndPop{11},
-                         Reset{},
+                         ResetOp{},
                          NotReady{},
                          NotReady{},
                          NotReady{},
@@ -484,30 +343,6 @@ class MaterializeFifosPassFuzzTest : public MaterializeFifosPassTestHelper {
   }
   std::string TestName() const override { return "FuzzTest"; }
 };
-
-auto FifoConfigDomain() {
-  return fuzztest::ConstructorOf<FifoConfig>(
-      /*depth=*/fuzztest::InRange(1, 10),
-      /*bypass=*/fuzztest::Arbitrary<bool>(),
-      /*register_push_outputs=*/fuzztest::Arbitrary<bool>(),
-      /*register_pop_outputs=*/fuzztest::Arbitrary<bool>());
-}
-
-auto OperationDomain() {
-  return fuzztest::OneOf(
-      fuzztest::ConstructorOf<Operation>(fuzztest::ConstructorOf<Pop>()),
-      fuzztest::ConstructorOf<Operation>(fuzztest::ConstructorOf<NotReady>()),
-      fuzztest::ConstructorOf<Operation>(
-          fuzztest::ConstructorOf<Push>(fuzztest::InRange(1, 1000))),
-      fuzztest::ConstructorOf<Operation>(
-          fuzztest::ConstructorOf<PushAndPop>(fuzztest::InRange(1, 1000))),
-      fuzztest::ConstructorOf<Operation>(fuzztest::ConstructorOf<Reset>()),
-      fuzztest::ConstructorOf<Operation>(fuzztest::ConstructorOf<ResetPush>()),
-      fuzztest::ConstructorOf<Operation>(fuzztest::ConstructorOf<ResetPop>()),
-      fuzztest::ConstructorOf<Operation>(
-          fuzztest::ConstructorOf<ResetPushPop>()));
-}
-
 void FuzzTestFifo(FifoConfig cfg, const std::vector<Operation>& ops) {
   MaterializeFifosPassFuzzTest fixture;
   fixture.RunTestVector(cfg, ops);
@@ -524,7 +359,7 @@ TEST(FifoFuzzTest, FuzzTestJitRegression) {
 
 TEST(FifoFuzzTest, FuzzTestJitRegression2) {
   FuzzTestFifo(xls::FifoConfig(10, true, false, false),
-               {Operation(Reset()), Operation(Reset())});
+               {Operation(ResetOp()), Operation(ResetOp())});
 }
 
 }  // namespace

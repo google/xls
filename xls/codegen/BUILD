@@ -35,6 +35,21 @@ cc_library(
 )
 
 cc_library(
+    name = "fifo_model_test_utils",
+    testonly = True,
+    hdrs = ["fifo_model_test_utils.h"],
+    deps = [
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "combinational_generator",
     srcs = ["combinational_generator.cc"],
     hdrs = ["combinational_generator.h"],
@@ -1534,6 +1549,7 @@ cc_test(
     srcs = ["materialize_fifos_pass_test.cc"],
     deps = [
         ":codegen_pass",
+        ":fifo_model_test_utils",
         ":materialize_fifos_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
