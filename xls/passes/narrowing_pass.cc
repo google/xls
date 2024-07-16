@@ -48,6 +48,7 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
+#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -865,36 +866,59 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     if (lhs->BitCountOrDie() != rhs->BitCountOrDie()) {
       return NoChange();
     }
+
     // Figure out how many known bits we have.
     int64_t leading_zeros = CountLeadingKnownZeros(sub, /*user=*/std::nullopt);
-    int64_t leading_ones = CountLeadingKnownOnes(sub, /*user=*/std::nullopt);
-    if (leading_zeros == 0 && leading_ones == 0) {
+    // TODO(allight): Even with only ternary there should be some things we can
+    // do for known-negative results.
+    if (leading_zeros != 0) {
+      int64_t known_leading = leading_zeros;
+      int64_t required_bits = bit_count - known_leading;
+      XLS_ASSIGN_OR_RETURN(Node * new_lhs, MaybeNarrow(lhs, required_bits));
+      XLS_ASSIGN_OR_RETURN(Node * new_rhs, MaybeNarrow(rhs, required_bits));
+      XLS_ASSIGN_OR_RETURN(Node * new_sub,
+                           sub->function_base()->MakeNode<BinOp>(
+                               sub->loc(), new_lhs, new_rhs, Op::kSub));
+      XLS_RETURN_IF_ERROR(
+          sub->ReplaceUsesWithNew<ExtendOp>(new_sub, bit_count, Op::kZeroExt)
+              .status());
+      return Change();
+    }
+    if (analysis_ == AnalysisType::kTernary) {
+      // Ternary means we can't get any real information about ranges so we are
+      // limited to only optimizing cases where the values are known to have the
+      // same sign.
       return NoChange();
     }
-    bool is_one = leading_ones != 0;
-    int64_t known_leading = is_one ? leading_ones : leading_zeros;
-    int64_t required_bits = bit_count - known_leading;
-    if (is_one) {
-      // XLS_ASSIGN_OR_RETURN(
-      //     Node * all_ones,
-      //     sub->function_base()->MakeNode<Literal>(
-      //         sub->loc(), Value(Bits::AllOnes(known_leading))));
-      // XLS_RETURN_IF_ERROR(sub->ReplaceUsesWithNew<Concat>(
-      //                            absl::MakeConstSpan({all_ones, new_sub}))
-      //                         .status());
-      // TODO(allight) 2023-11-08: We should extend range analysis to catch
-      // known-negative results. Until we do though this is dead code.
-      return NoChange();
+
+    XLS_ASSIGN_OR_RETURN(IntervalSetTree lhs_tree, GetIntervals(lhs));
+    XLS_ASSIGN_OR_RETURN(IntervalSetTree rhs_tree, GetIntervals(rhs));
+    int64_t min_signed_size =
+        std::max(interval_ops::MinimumSignedBitCount(lhs_tree.Get({})),
+                 interval_ops::MinimumSignedBitCount(rhs_tree.Get({})));
+    if (min_signed_size < sub->BitCountOrDie()) {
+      if (min_signed_size == 0) {
+        // Implies that the sub is actually unused somehow, can't do anything in
+        // any case.
+        return NoChange();
+      }
+      int64_t width = min_signed_size + 1;
+      XLS_ASSIGN_OR_RETURN(Node * narrowed_lhs,
+                           lhs->function_base()->MakeNode<BitSlice>(
+                               lhs->loc(), lhs, /*start=*/0, /*width=*/width));
+      XLS_ASSIGN_OR_RETURN(Node * narrowed_rhs,
+                           rhs->function_base()->MakeNode<BitSlice>(
+                               rhs->loc(), rhs, /*start=*/0, /*width=*/width));
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_sub,
+          sub->function_base()->MakeNode<BinOp>(sub->loc(), narrowed_lhs,
+                                                narrowed_rhs, Op::kSub));
+      XLS_RETURN_IF_ERROR(sub->ReplaceUsesWithNew<ExtendOp>(
+                                 narrowed_sub, bit_count, Op::kSignExt)
+                              .status());
+      return Change();
     }
-    XLS_ASSIGN_OR_RETURN(Node * new_lhs, MaybeNarrow(lhs, required_bits));
-    XLS_ASSIGN_OR_RETURN(Node * new_rhs, MaybeNarrow(rhs, required_bits));
-    XLS_ASSIGN_OR_RETURN(Node * new_sub,
-                         sub->function_base()->MakeNode<BinOp>(
-                             sub->loc(), new_lhs, new_rhs, Op::kSub));
-    XLS_RETURN_IF_ERROR(
-        sub->ReplaceUsesWithNew<ExtendOp>(new_sub, bit_count, Op::kZeroExt)
-            .status());
-    return Change();
+    return NoChange();
   }
   absl::Status HandleAdd(BinOp* add) override {
     VLOG(3) << "Trying to narrow add: " << add->ToString();
@@ -912,6 +936,21 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         std::min(CountLeadingKnownZeros(lhs, /*user=*/add),
                  CountLeadingKnownZeros(rhs, /*user=*/add));
 
+    auto make_narrow_add = [&](Node* lhs, Node* rhs, int64_t width,
+                               Op extend) -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(Node * narrowed_lhs,
+                           lhs->function_base()->MakeNode<BitSlice>(
+                               lhs->loc(), lhs, /*start=*/0, /*width=*/width));
+      XLS_ASSIGN_OR_RETURN(Node * narrowed_rhs,
+                           rhs->function_base()->MakeNode<BitSlice>(
+                               rhs->loc(), rhs, /*start=*/0, /*width=*/width));
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_add,
+          add->function_base()->MakeNode<BinOp>(add->loc(), narrowed_lhs,
+                                                narrowed_rhs, Op::kAdd));
+      return add->ReplaceUsesWithNew<ExtendOp>(narrowed_add, bit_count, extend)
+          .status();
+    };
     if (common_leading_zeros > 1) {
       // Narrow the add removing all but one of the known-zero leading
       // bits. Example:
@@ -924,21 +963,31 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         return NoChange();
       }
       int64_t narrowed_bit_count = bit_count - common_leading_zeros + 1;
-      XLS_ASSIGN_OR_RETURN(Node * narrowed_lhs,
-                           lhs->function_base()->MakeNode<BitSlice>(
-                               lhs->loc(), lhs, /*start=*/0,
-                               /*width=*/narrowed_bit_count));
-      XLS_ASSIGN_OR_RETURN(Node * narrowed_rhs,
-                           rhs->function_base()->MakeNode<BitSlice>(
-                               rhs->loc(), rhs, /*start=*/0,
-                               /*width=*/narrowed_bit_count));
-      XLS_ASSIGN_OR_RETURN(
-          Node * narrowed_add,
-          add->function_base()->MakeNode<BinOp>(add->loc(), narrowed_lhs,
-                                                narrowed_rhs, Op::kAdd));
-      XLS_RETURN_IF_ERROR(add->ReplaceUsesWithNew<ExtendOp>(
-                                 narrowed_add, bit_count, Op::kZeroExt)
-                              .status());
+      XLS_RETURN_IF_ERROR(
+          make_narrow_add(lhs, rhs, narrowed_bit_count, Op::kZeroExt));
+      return Change();
+    }
+
+    if (analysis_ == AnalysisType::kTernary) {
+      // Don't bother doing expensive interval checks if the intervals come from
+      // ternary which won't have any useful information.
+      return NoChange();
+    }
+    XLS_ASSIGN_OR_RETURN(IntervalSetTree lhs_tree, GetIntervals(lhs));
+    XLS_ASSIGN_OR_RETURN(IntervalSetTree rhs_tree, GetIntervals(rhs));
+    int64_t min_signed_size =
+        std::max(interval_ops::MinimumSignedBitCount(lhs_tree.Get({})),
+                 interval_ops::MinimumSignedBitCount(rhs_tree.Get({})));
+    if (min_signed_size < add->BitCountOrDie()) {
+      if (min_signed_size == 0) {
+        // Unusual situation where we've proven the inputs have no values.
+        // Implies this add is actually dead.
+        return NoChange();
+      }
+      // We can do a smaller add and sign-extend. Need to leave an extra bit to
+      // ensure we don't overflow.
+      XLS_RETURN_IF_ERROR(
+          make_narrow_add(lhs, rhs, min_signed_size + 1, Op::kSignExt));
       return Change();
     }
 
@@ -1336,6 +1385,13 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       ++leading_zeros;
     }
     return leading_zeros;
+  }
+
+  absl::StatusOr<IntervalSetTree> GetIntervals(Node* node) const {
+    const QueryEngine& node_query_engine =
+        specialized_query_engine_.ForNode(node);
+    XLS_RET_CHECK(node_query_engine.IsTracked(node));
+    return node_query_engine.GetIntervals(node);
   }
 
   // Return the number of leading known ones in the given nodes values when
