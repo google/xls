@@ -1559,7 +1559,6 @@ cc_test(
         "//xls/interpreter:block_evaluator",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
-        "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
