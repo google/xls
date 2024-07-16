@@ -28,6 +28,5 @@ cc_library(
         "@com_google_fuzztest//fuzztest:domain_core",
         "@com_google_fuzztest//fuzztest:fuzztest_macros",
         "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
-        "@com_google_fuzztest//fuzztest:init_fuzztest",
     ],
 )
