@@ -63,6 +63,13 @@ class FifoConfig {
 
   std::string ToString() const;
 
+  template <typename H>
+  friend H AbslHashValue(H h, const FifoConfig& config) {
+    return H::combine(std::move(h), config.depth_, config.bypass_,
+                      config.register_push_outputs_,
+                      config.register_pop_outputs_);
+  }
+
  private:
   int64_t depth_;
   bool bypass_;
