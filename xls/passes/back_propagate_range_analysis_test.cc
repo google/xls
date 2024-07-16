@@ -539,5 +539,19 @@ TEST_F(BackPropagateRangeAnalysisTest, OrReduce) {
                   Pair(target.node(), IntervalSet::Precise(UBits(1, 1)))));
 }
 
+TEST_F(BackPropagateRangeAnalysisTest, ImpossibleSignedCmp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // Impossible comparison.
+  auto cmp = fb.SGt(fb.Literal(UBits(1, 32)), fb.Literal(UBits(9, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+  EXPECT_THAT(PropagateGivensBackwards(
+                  qe, f, {{cmp.node(), IntervalSet::Precise(UBits(1, 1))}}),
+              status_testing::IsOk());
+}
+
 }  // namespace
 }  // namespace xls

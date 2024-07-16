@@ -397,6 +397,10 @@ class BackPropagate : public DfsVisitorWithDefault {
         auto [scaled_new_left, scaled_new_right] =
             range_unsigned(unsigned_op, interval_ops::Add(offset, left_range),
                            interval_ops::Add(offset, right_range));
+        if (scaled_new_left.IsEmpty() || scaled_new_right.IsEmpty()) {
+          // Implies that the givens are impossible. Can't do anything more.
+          return absl::OkStatus();
+        }
         new_left = interval_ops::Sub(scaled_new_left, offset);
         new_right = interval_ops::Sub(scaled_new_right, offset);
         break;
