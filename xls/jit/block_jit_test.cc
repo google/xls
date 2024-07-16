@@ -20,10 +20,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/block_evaluator_test_base.h"
+#include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -32,6 +36,7 @@
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
 
@@ -235,6 +240,56 @@ TEST_F(BlockJitTest, ErrorOnUnhandledNameCollision) {
                   absl::StatusCode::kInternal,
                   testing::HasSubstr("Multiple blocks have the same name")));
 }
+
+struct RegInput {
+  uint32_t data;
+  bool load_enable;
+  bool reset;
+  template <typename S>
+  friend void AbslStringify(S& sink, RegInput reg) {
+    absl::Format(&sink, "{data: %d, load_enable: %v, reset: %v}", reg.data,
+                 reg.load_enable, reg.reset);
+  }
+};
+
+void RegisterResetBehavior(absl::Span<RegInput const> inputs) {
+  VerifiedPackage p("fuzz_test");
+  BlockBuilder bb("fuzz_test", &p);
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto reg,
+      bb.block()->AddRegister("foo", p.GetBitsType(32),
+                              Reset{
+                                  .reset_value = Value(UBits(1234, 32)),
+                                  .asynchronous = false,
+                                  .active_low = false,
+                              }));
+  bb.RegisterWrite(reg, bb.InputPort("reg_data", p.GetBitsType(32)),
+                   bb.InputPort("le", p.GetBitsType(1)),
+                   bb.InputPort("reset", p.GetBitsType(1)));
+  bb.OutputPort("reg_out", bb.RegisterRead(reg));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto oracle,
+                           kInterpreterBlockEvaluator.NewContinuation(blk));
+  XLS_ASSERT_OK_AND_ASSIGN(auto test, kJitBlockEvaluator.NewContinuation(blk));
+  for (const auto& [data, le, reset] : inputs) {
+    absl::flat_hash_map<std::string, Value> input{
+        {"reg_data", Value(UBits(data, 32))},
+        {"le", Value::Bool(le)},
+        {"reset", Value::Bool(reset)}};
+    XLS_ASSERT_OK(oracle->RunOneCycle(input));
+    XLS_ASSERT_OK(test->RunOneCycle(input));
+    ASSERT_EQ(test->output_ports(), oracle->output_ports());
+    ASSERT_EQ(test->registers(), oracle->registers());
+  }
+}
+
+FUZZ_TEST(BlockJitFuzz, RegisterResetBehavior)
+    .WithDomains(fuzztest::VectorOf(fuzztest::StructOf<RegInput>(
+                                        fuzztest::InRange<uint32_t>(1, 20),
+                                        fuzztest::Arbitrary<bool>(),
+                                        fuzztest::Arbitrary<bool>()))
+                     .WithMaxSize(20));
 
 inline constexpr BlockEvaluatorTestParam kJitTestParam = {
     .evaluator = &kJitBlockEvaluator, .supports_fifos = true};
