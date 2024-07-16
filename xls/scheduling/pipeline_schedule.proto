@@ -48,6 +48,10 @@ message PipelineScheduleProto {
 
   // The set of stages comprising this schedule.
   repeated StageProto stages = 2;
+
+  // The minimum possible clock period for the schedule, if computed. This is
+  // purely for tracing purposes.
+  optional int64 min_clock_period_ps = 3;
 }
 
 // Holds pipeline schedules for a subset of functions/procs in a package.

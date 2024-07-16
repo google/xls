@@ -65,8 +65,11 @@ int64_t MaximumCycle(const ScheduleCycleMap& cycle_map) {
 
 PipelineSchedule::PipelineSchedule(FunctionBase* function_base,
                                    ScheduleCycleMap cycle_map,
-                                   std::optional<int64_t> length)
-    : function_base_(function_base), cycle_map_(std::move(cycle_map)) {
+                                   std::optional<int64_t> length,
+                                   std::optional<int64_t> min_clock_period_ps)
+    : function_base_(function_base),
+      cycle_map_(std::move(cycle_map)),
+      min_clock_period_ps_(min_clock_period_ps) {
   // Build the mapping from cycle to the vector of nodes in that cycle.
   int64_t max_cycle = MaximumCycle(cycle_map_);
   if (length.has_value()) {
@@ -123,7 +126,12 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
       cycle_map[node] = stage.stage();
     }
   }
-  return PipelineSchedule(function, cycle_map);
+  std::optional<int64_t> min_clock_period_ps;
+  if (schedule_it->second.has_min_clock_period_ps()) {
+    min_clock_period_ps = schedule_it->second.min_clock_period_ps();
+  }
+  return PipelineSchedule(function, cycle_map, /*length=*/std::nullopt,
+                          min_clock_period_ps);
 }
 
 absl::StatusOr<PipelineSchedule> PipelineSchedule::SingleStage(
@@ -532,9 +540,8 @@ PipelineScheduleProto PipelineSchedule::ToProto(
     int64_t delay_to_node_start = 0;
     for (Node* operand : node->operands()) {
       if (cycle(operand) == cycle(node)) {
-        if (delay_to_node_start < node_path_delays.at(operand)) {
-          delay_to_node_start = node_path_delays.at(operand);
-        }
+        delay_to_node_start =
+            std::max(delay_to_node_start, node_path_delays.at(operand));
       }
     }
     int64_t node_delay = delay_estimator.GetOperationDelayInPs(node).value();
@@ -554,6 +561,10 @@ PipelineScheduleProto PipelineSchedule::ToProto(
       timed_node->set_node_delay_ps(node_delays[node]);
       timed_node->set_path_delay_ps(node_path_delays[node]);
     }
+  }
+
+  if (min_clock_period_ps_.has_value()) {
+    proto.set_min_clock_period_ps(*min_clock_period_ps_);
   }
   return proto;
 }

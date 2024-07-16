@@ -359,6 +359,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
   }
 
+  std::optional<int64_t> min_clock_period_ps_for_tracing;
   int64_t clock_period_ps;
   if (options.clock_period_ps().has_value()) {
     clock_period_ps = *options.clock_period_ps();
@@ -385,6 +386,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
         clock_period_ps,
         FindMinimumClockPeriod(f, options.pipeline_stages(), input_delay_added,
                                *sdc_scheduler, options.failure_behavior()));
+    min_clock_period_ps_for_tracing = clock_period_ps;
 
     if (options.period_relaxation_percent().has_value()) {
       int64_t relaxation_percent = options.period_relaxation_percent().value();
@@ -475,6 +477,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
               f, options.pipeline_stages(), input_delay_added, *sdc_scheduler,
               options.failure_behavior(), target_clock_period_ps);
           if (min_clock_period_ps.ok()) {
+            min_clock_period_ps_for_tracing = *min_clock_period_ps;
             if (options.recover_after_minimizing_clock().value_or(false)) {
               LOG(WARNING) << "Continuing with clock period = "
                            << *min_clock_period_ps << " ps.";
@@ -582,7 +585,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     }
   }
 
-  auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
+  auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages(),
+                                   min_clock_period_ps_for_tracing);
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(
       schedule.VerifyTiming(clock_period_ps, input_delay_added));

@@ -433,8 +433,12 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
                                const DelayEstimator& delay_estimator,
                                std::optional<int64_t> clock_period_ps) {
   if (std::holds_alternative<PipelineSchedule>(schedules)) {
-    return PrintScheduleInfo(f, std::get<PipelineSchedule>(schedules),
-                             bdd_query_engine, delay_estimator,
+    const PipelineSchedule& schedule = std::get<PipelineSchedule>(schedules);
+    if (schedule.min_clock_period_ps().has_value()) {
+      std::cout << absl::StreamFormat("Min clock period ps: %d\n",
+                                      *schedule.min_clock_period_ps());
+    }
+    return PrintScheduleInfo(f, schedule, bdd_query_engine, delay_estimator,
                              clock_period_ps);
   }
 

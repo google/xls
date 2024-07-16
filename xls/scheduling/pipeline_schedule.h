@@ -52,7 +52,8 @@ class PipelineSchedule {
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
   PipelineSchedule(FunctionBase* function_base, ScheduleCycleMap cycle_map,
-                   std::optional<int64_t> length = std::nullopt);
+                   std::optional<int64_t> length = std::nullopt,
+                   std::optional<int64_t> min_clock_period_ps = std::nullopt);
 
   FunctionBase* function_base() const { return function_base_; }
 
@@ -87,6 +88,12 @@ class PipelineSchedule {
   // of the pipeline.
   int64_t length() const { return cycle_to_nodes_.size(); }
 
+  // Returns the minimum possible clock period, if this was computed while
+  // creating the schedule. This is purely for tracing purposes.
+  const std::optional<int64_t>& min_clock_period_ps() const {
+    return min_clock_period_ps_;
+  }
+
   // Verifies various invariants of the schedule (each node scheduled exactly
   // once, node not scheduled before operands, etc.).
   absl::Status Verify() const;
@@ -120,6 +127,9 @@ class PipelineSchedule {
 
   // The nodes scheduled each cycle.
   std::vector<std::vector<Node*>> cycle_to_nodes_;
+
+  // The minimum possible clock period, if known.
+  std::optional<int64_t> min_clock_period_ps_;
 };
 
 // Group of PipelineSchedules for subset of FunctionBases in a package.

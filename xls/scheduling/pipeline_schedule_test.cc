@@ -580,6 +580,7 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
       RunPipelineSchedule(func, TestDelayEstimator(),
                           SchedulingOptions().pipeline_stages(3)));
 
+  ASSERT_TRUE(schedule.min_clock_period_ps().has_value());
   PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
   PackagePipelineSchedulesProto package_schedules_proto;
   package_schedules_proto.mutable_schedules()->emplace(func->name(),
@@ -590,6 +591,8 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
   for (const Node* node : func->nodes()) {
     EXPECT_EQ(schedule.cycle(node), clone.cycle(node));
   }
+  ASSERT_TRUE(clone.min_clock_period_ps().has_value());
+  EXPECT_EQ(*clone.min_clock_period_ps(), *schedule.min_clock_period_ps());
 }
 
 TEST_F(PipelineScheduleTest, NodeDelayInScheduleProto) {
