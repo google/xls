@@ -79,24 +79,15 @@ dslx::Span CreateNodeSpan(verilog::VastNode* node) {
 // A helper class that translates VAST trees to DSLX.
 class VastToDslxTranslator {
  public:
-  static absl::StatusOr<std::unique_ptr<VastToDslxTranslator>> Create(
-      verilog::Module* vast_target_module, dslx::Module* module,
-      std::string_view dslx_stdlib_path,
-      absl::flat_hash_map<verilog::Expression*, verilog::DataType*>
-          vast_type_map) {
-    return std::make_unique<VastToDslxTranslator>(
-        vast_target_module, module, dslx_stdlib_path, std::move(vast_type_map));
-  }
-
   VastToDslxTranslator(
-      verilog::Module* vast_target_module, dslx::Module* module,
-      std::string_view dslx_stdlib_path,
+      verilog::Module* vast_target_module, std::string_view dslx_stdlib_path,
       absl::flat_hash_map<verilog::Expression*, verilog::DataType*>
           vast_type_map)
       : vast_target_module_(vast_target_module),
         warnings_(dslx::kDefaultWarningsSet),
-        dslx_builder_(*module, dslx_stdlib_path, std::move(vast_type_map),
-                      warnings_) {}
+        resolver_(vast_target_module->name()),
+        dslx_builder_(vast_target_module->name(), &resolver_, dslx_stdlib_path,
+                      std::move(vast_type_map), warnings_) {}
 
   absl::Status TranslateModule(verilog::Module* vast_module) {
     current_module_ = vast_module;
@@ -131,8 +122,8 @@ class VastToDslxTranslator {
  private:
   // Function parameters are the only nodes of this type as of yet encountered.
   absl::StatusOr<dslx::Param*> TranslateFunctionArgument(verilog::Def* def) {
-    dslx::NameDef* name_def = dslx_builder_.MakeNameDef(
-        CreateNodeSpan(def), SymbolName(def->GetName()));
+    dslx::NameDef* name_def = resolver_.MakeNameDef(
+        dslx_builder_, CreateNodeSpan(def), def->GetName());
     XLS_ASSIGN_OR_RETURN(dslx::TypeAnnotation * annot,
                          TranslateType(def->data_type()));
     auto* param = module().Make<dslx::Param>(name_def, annot);
@@ -291,11 +282,9 @@ class VastToDslxTranslator {
       verilog::Parameter* parameter) {
     XLS_ASSIGN_OR_RETURN(dslx::Expr * expr,
                          TranslateExpression(parameter->rhs()));
-    // TODO(b/338397279): For params/local vars, we should drop the module
-    // prefix.
-    std::string name = SymbolName(parameter->GetName());
-    return dslx_builder_.HandleConstantDecl(
-        CreateNodeSpan(parameter), current_module_, parameter, name, expr);
+    return dslx_builder_.HandleConstantDecl(CreateNodeSpan(parameter),
+                                            current_module_, parameter,
+                                            parameter->GetName(), expr);
   }
 
   absl::StatusOr<dslx::EnumDef*> TranslateEnumWithName(
@@ -345,8 +334,9 @@ class VastToDslxTranslator {
   }
 
   absl::StatusOr<dslx::AstNode*> TranslateTypedef(verilog::Typedef* type_def) {
-    dslx::NameDef* name_def = dslx_builder_.MakeNameDef(
-        CreateNodeSpan(type_def), SymbolName(type_def->GetName()));
+    dslx::NameDef* name_def =
+        resolver_.MakeNameDef(dslx_builder_, CreateNodeSpan(type_def),
+                              type_def->GetName(), type_def, current_module_);
     verilog::DataType* data_type = type_def->data_type();
     if (auto* struct_def = dynamic_cast<verilog::Struct*>(data_type);
         struct_def) {
@@ -452,7 +442,8 @@ class VastToDslxTranslator {
     int next_auto_value = 0;
     for (verilog::EnumMember* member : vast_members) {
       dslx::NameDef* name_def =
-          dslx_builder_.MakeNameDef(CreateNodeSpan(member), member->GetName());
+          resolver_.MakeNameDef(dslx_builder_, CreateNodeSpan(member),
+                                member->GetName(), member, current_module_);
       if (member->rhs()) {
         XLS_ASSIGN_OR_RETURN(dslx::Expr * constant_value,
                              TranslateExpression(member->rhs()));
@@ -509,12 +500,10 @@ class VastToDslxTranslator {
   absl::StatusOr<dslx::Expr*> TranslateFunctionCall(
       verilog::VerilogFunctionCall* call) {
     dslx::Span span = CreateNodeSpan(call);
-    XLS_ASSIGN_OR_RETURN(verilog::Module * target_module,
-                         dslx_builder_.FindRefTargetModule(call->func()));
     XLS_ASSIGN_OR_RETURN(
         dslx::NameRef * name_ref,
-        dslx_builder_.MakeNameRef(
-            span, SymbolName(call->func()->name(), target_module->name())));
+        resolver_.MakeNameRef(dslx_builder_, span, call->func()->name(),
+                              call->func()));
     XLS_ASSIGN_OR_RETURN(std::vector<dslx::Expr*> args,
                          TranslateFunctionCallArgs(call->args()));
 
@@ -545,8 +534,9 @@ class VastToDslxTranslator {
     dslx::StatementBlock* block = module().Make<dslx::StatementBlock>(
         CreateNodeSpan(function), std::vector<dslx::Statement*>{stmt},
         /*trailing_semi=*/false);
-    dslx::NameDef* fn_name = dslx_builder_.MakeNameDef(
-        CreateNodeSpan(function), SymbolName(function->name()));
+    dslx::NameDef* fn_name =
+        resolver_.MakeNameDef(dslx_builder_, CreateNodeSpan(function),
+                              function->name(), function, current_module_);
     auto* fn = module().Make<dslx::Function>(
         CreateNodeSpan(function), fn_name,
         /*parametric_bindings=*/std::vector<dslx::ParametricBinding*>(), params,
@@ -554,7 +544,6 @@ class VastToDslxTranslator {
         /*is_public=*/true);
     XLS_RETURN_IF_ERROR(module().AddTop(fn, /*make_collision_error=*/nullptr));
     fn_name->set_definer(fn);
-    dslx_builder_.SetRefTargetModule(function, current_module_);
     return fn;
   }
 
@@ -630,11 +619,9 @@ class VastToDslxTranslator {
 
   absl::StatusOr<dslx::Expr*> TranslateParameterRef(
       verilog::ParameterRef* ref) {
-    XLS_ASSIGN_OR_RETURN(verilog::Module * target_module,
-                         dslx_builder_.FindRefTargetModule(ref->parameter()));
-    return dslx_builder_.MakeNameRefAndMaybeCast(
-        ref, CreateNodeSpan(ref),
-        SymbolName(ref->parameter()->GetName(), target_module->name()));
+    return dslx_builder_.MakeNameRefAndMaybeCast(ref, CreateNodeSpan(ref),
+                                                 ref->parameter()->GetName(),
+                                                 ref->parameter());
   }
 
   absl::StatusOr<dslx::Expr*> TranslateEnumMemberRef(
@@ -642,9 +629,9 @@ class VastToDslxTranslator {
     dslx::Span span = CreateNodeSpan(ref);
     XLS_ASSIGN_OR_RETURN(verilog::Typedef * type_def,
                          dslx_builder_.ReverseEnumTypedef(ref->enum_def()));
-    XLS_ASSIGN_OR_RETURN(
-        dslx::NameRef * type_def_ref,
-        dslx_builder_.MakeNameRef(span, SymbolName(type_def->GetName())));
+    XLS_ASSIGN_OR_RETURN(dslx::NameRef * type_def_ref,
+                         resolver_.MakeNameRef(dslx_builder_, span,
+                                               type_def->GetName(), type_def));
     return dslx_builder_.MaybeCastToInferredVastType(
         ref, module().Make<dslx::ColonRef>(span, type_def_ref,
                                            ref->member()->GetName()));
@@ -652,7 +639,7 @@ class VastToDslxTranslator {
 
   absl::StatusOr<dslx::Expr*> TranslateLogicRef(verilog::LogicRef* ref) {
     return dslx_builder_.MakeNameRefAndMaybeCast(ref, CreateNodeSpan(ref),
-                                                 SymbolName(ref->GetName()));
+                                                 ref->GetName(), ref->def());
   }
 
   absl::StatusOr<dslx::Expr*> TranslateUnary(verilog::Unary* op) {
@@ -715,17 +702,6 @@ class VastToDslxTranslator {
     return module().Make<dslx::ArrayTypeAnnotation>(span, base_type, bit_width);
   }
 
-  // Simply prepends a module name to the given name.
-  // If no module name is given, then the current module is assumed.
-  std::string SymbolName(const std::string& base, std::string module = "") {
-    module = module.empty() ? current_module_->name() : module;
-    if (module == vast_target_module_->name()) {
-      return base;
-    }
-    return absl::StrCat(module.empty() ? current_module_->name() : module, "_",
-                        base);
-  }
-
   std::string SvName(const verilog::Typedef* type_def,
                      std::optional<std::string> module_name = std::nullopt) {
     std::string real_module_name =
@@ -772,6 +748,7 @@ class VastToDslxTranslator {
 
   verilog::Module* vast_target_module_;
   dslx::WarningCollector warnings_;
+  DslxResolver resolver_;
   DslxBuilder dslx_builder_;
 
   // The name of the current module being traversed.
@@ -790,8 +767,6 @@ absl::StatusOr<std::string> TranslateVastToDslx(
   DCHECK(!dslx_stdlib_path.empty());
   DCHECK(!verilog_paths_in_order.empty());
   DCHECK(!verilog_files.empty());
-  auto module = std::make_unique<dslx::Module>(std::string(module_name),
-                                               /*fs_path=*/std::nullopt);
   const std::filesystem::path& target_path =
       verilog_paths_in_order[verilog_paths_in_order.size() - 1];
 
@@ -817,10 +792,8 @@ absl::StatusOr<std::string> TranslateVastToDslx(
     }
   }
   XLS_ASSIGN_OR_RETURN(auto vast_types, InferVastTypes(verilog_file_vector));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<VastToDslxTranslator> translator,
-                       VastToDslxTranslator::Create(target_module, module.get(),
-                                                    dslx_stdlib_path.string(),
-                                                    std::move(vast_types)));
+  auto translator = std::make_unique<VastToDslxTranslator>(
+      target_module, dslx_stdlib_path.string(), std::move(vast_types));
   // Preserve the ordering in the DSLX output.
   for (const std::filesystem::path& path : verilog_paths_in_order) {
     const auto file_it = verilog_files.find(path);

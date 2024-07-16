@@ -36,29 +36,63 @@
 
 namespace xls {
 
+class DslxBuilder;
+
 absl::StatusOr<dslx::InterpValue> InterpretExpr(dslx::ImportData& import_data,
                                                 dslx::TypeInfo& type_info,
                                                 dslx::Expr* expr);
+
+// An object that deals out DSLX `NameDef` and `NameRef` objects for a Verilog
+// corpus being translated, applying a namespacing scheme. There should be one
+// resolver object for the whole corpus, so that it can govern how cross-module
+// references work.
+class DslxResolver {
+ public:
+  // Creates a resolver that assumes the translated corpus has the module as its
+  // main module, and does not apply any pseudo-namespacing to the entities in
+  // that module.
+  explicit DslxResolver(std::string_view main_module_name)
+      : main_module_name_(main_module_name) {}
+
+  // Creates a ref to the given `target` whose unadorned name is `name`.
+  absl::StatusOr<dslx::NameRef*> MakeNameRef(DslxBuilder& builder,
+                                             const dslx::Span& span,
+                                             std::string_view name,
+                                             verilog::VastNode* target);
+
+  // Creates a def for the given `name` that typically represents a particular
+  // `vast_node` in a `vast_module`, unless it is completely fabricated as a
+  // translation artifact.
+  dslx::NameDef* MakeNameDef(
+      DslxBuilder& builder, const dslx::Span& span, std::string_view name,
+      std::optional<verilog::VastNode*> vast_node = std::nullopt,
+      std::optional<verilog::Module*> vast_module = std::nullopt);
+
+ private:
+  std::string GetNamespacedName(
+      dslx::Module& module, std::string_view name,
+      std::optional<verilog::Module*> vast_module = std::nullopt);
+
+  const std::string main_module_name_;
+  absl::flat_hash_map<std::string, dslx::NameDef*> name_to_namedef_;
+  absl::flat_hash_map<verilog::VastNode*, verilog::Module*> defining_modules_;
+};
 
 // Helper class for building a DSLX translation in `TranslateVastToDslx`. This
 // attempts to separate most of the DSLX-related logic from AST traversal.
 class DslxBuilder {
  public:
-  DslxBuilder(dslx::Module& module, std::string_view dslx_stdlib_path,
+  DslxBuilder(std::string_view main_module_name, DslxResolver* resolver,
+              std::string_view dslx_stdlib_path,
               absl::flat_hash_map<verilog::Expression*, verilog::DataType*>
                   vast_type_map,
               dslx::WarningCollector& warnings);
-
-  dslx::NameDef* MakeNameDef(const dslx::Span& span, std::string_view name);
-
-  absl::StatusOr<dslx::NameRef*> MakeNameRef(const dslx::Span& span,
-                                             std::string_view name);
 
   // Creates a name ref with a cast, if necessary, to the equivalent of the
   // inferred VAST type in the type map.
   absl::StatusOr<dslx::Expr*> MakeNameRefAndMaybeCast(
       verilog::Expression* vast_expr, const dslx::Span& span,
-      std::string_view name);
+      std::string_view name, verilog::VastNode* target);
 
   // Registers a VAST typedef, and what it maps to in DSLX, for later lookup via
   // `FindTypedef`.
@@ -115,13 +149,6 @@ class DslxBuilder {
       const dslx::Span& span, verilog::Module* module,
       verilog::Parameter* parameter, std::string_view name, dslx::Expr* expr);
 
-  void SetRefTargetModule(verilog::VastNode* target, verilog::Module* module) {
-    ref_target_to_module_.emplace(target, module);
-  }
-
-  absl::StatusOr<verilog::Module*> FindRefTargetModule(
-      verilog::VastNode* target) const;
-
   // Returns the inferred type for `expr` from the type map.
   absl::StatusOr<verilog::DataType*> GetVastDataType(
       verilog::Expression* expr) const;
@@ -144,23 +171,21 @@ class DslxBuilder {
   std::optional<std::string> GenerateSizeCommentIfNotObvious(
       verilog::DataType* data_type, bool compute_size_if_struct);
 
-  dslx::Module& module_;
+  dslx::Module module_;
+  DslxResolver* const resolver_;
   const std::string dslx_stdlib_path_;
   dslx::ImportData import_data_;
   dslx::WarningCollector warnings_;
-  dslx::TypeInfo* type_info_;
+  dslx::TypeInfo* const type_info_;
 
   dslx::DeduceCtx deduce_ctx_;
   dslx::InterpBindings bindings_;
 
   const absl::flat_hash_map<verilog::Expression*, verilog::DataType*>
       vast_type_map_;
-  absl::flat_hash_map<std::string, dslx::NameDef*> name_to_namedef_;
   absl::flat_hash_map<std::string, dslx::TypeDefinition>
       typedefs_by_loc_string_;
   absl::flat_hash_map<verilog::DataType*, verilog::Typedef*> reverse_typedefs_;
-  absl::flat_hash_map<verilog::VastNode*, verilog::Module*>
-      ref_target_to_module_;
 
   // Comments describing the sizes of types and values of constants are
   // generated here while building the DSLX AST, and actually applied to the

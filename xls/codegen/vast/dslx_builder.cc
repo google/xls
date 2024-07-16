@@ -20,7 +20,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -137,11 +136,67 @@ absl::StatusOr<dslx::InterpValue> InterpretExpr(dslx::ImportData& import_data,
                                               /*args=*/{});
 }
 
+std::string DslxResolver::GetNamespacedName(
+    dslx::Module& module, std::string_view name,
+    std::optional<verilog::Module*> vast_module) {
+  std::string vast_module_name = module.name();
+  if (vast_module.has_value()) {
+    vast_module_name = (*vast_module)->name();
+  }
+  return vast_module_name == main_module_name_
+             ? std::string(name)
+             : absl::StrCat(vast_module_name, "_", name);
+}
+
+dslx::NameDef* DslxResolver::MakeNameDef(
+    DslxBuilder& builder, const dslx::Span& span, std::string_view name,
+    std::optional<verilog::VastNode*> vast_node,
+    std::optional<verilog::Module*> vast_module) {
+  const std::string namespaced_name =
+      vast_node.has_value() &&
+              dynamic_cast<verilog::EnumMember*>(*vast_node) != nullptr
+          ? GetNamespacedName(builder.module(), name)
+          : GetNamespacedName(builder.module(), name, vast_module);
+  VLOG(3) << "MakeNameDef; span: " << span << " name: `" << namespaced_name
+          << "`";
+  auto* name_def = builder.module().Make<dslx::NameDef>(span, namespaced_name,
+                                                        /*definer=*/nullptr);
+  name_to_namedef_.emplace(namespaced_name, name_def);
+  if (vast_node.has_value() && vast_module.has_value()) {
+    defining_modules_.emplace(*vast_node, *vast_module);
+  }
+  return name_def;
+}
+
+absl::StatusOr<dslx::NameRef*> DslxResolver::MakeNameRef(
+    DslxBuilder& builder, const dslx::Span& span, std::string_view name,
+    verilog::VastNode* target) {
+  std::optional<verilog::Module*> vast_module;
+  const auto module_it = defining_modules_.find(target);
+  if (module_it != defining_modules_.end()) {
+    vast_module = module_it->second;
+  }
+  const std::string namespaced_name =
+      GetNamespacedName(builder.module(), name, vast_module);
+  VLOG(3) << "MakeNameRef; span: " << span << " name: `" << namespaced_name
+          << "`" << " vast module: "
+          << (vast_module.has_value() ? (*vast_module)->name() : "none");
+  const auto it = name_to_namedef_.find(namespaced_name);
+  if (it == name_to_namedef_.end()) {
+    return absl::NotFoundError(
+        absl::StrCat("Reference to undefined name: ", namespaced_name));
+  }
+  return builder.module().Make<dslx::NameRef>(span, namespaced_name,
+                                              it->second);
+}
+
 DslxBuilder::DslxBuilder(
-    dslx::Module& module, std::string_view dslx_stdlib_path,
+    std::string_view main_module_name, DslxResolver* resolver,
+    std::string_view dslx_stdlib_path,
     absl::flat_hash_map<verilog::Expression*, verilog::DataType*> vast_type_map,
     dslx::WarningCollector& warnings)
-    : module_(module),
+    : module_(std::string(main_module_name), /*fs_path=*/std::nullopt),
+      resolver_(resolver),
       dslx_stdlib_path_(dslx_stdlib_path),
       import_data_(dslx::CreateImportData(
           dslx_stdlib_path,
@@ -150,38 +205,21 @@ DslxBuilder::DslxBuilder(
       warnings_(warnings),
       type_info_(GetTypeInfoOrDie(import_data_, &module_)),
       deduce_ctx_(
-          type_info_, &module, dslx::Deduce, &dslx::TypecheckFunction,
+          type_info_, &module_, dslx::Deduce, &dslx::TypecheckFunction,
           [this](dslx::Module*) {
             return dslx::TypecheckModule(&module_, &import_data_, &warnings_);
           },
           dslx::TypecheckInvocation, &import_data_, &warnings_,
           /*parent=*/nullptr),
       vast_type_map_(std::move(vast_type_map)) {
-  deduce_ctx_.fn_stack().push_back(dslx::FnStackEntry::MakeTop(&module));
-}
-
-dslx::NameDef* DslxBuilder::MakeNameDef(const dslx::Span& span,
-                                        std::string_view name) {
-  VLOG(3) << "MakeNameDef; span: " << span << " name: `" << name << "`";
-  auto* name_def = module().Make<dslx::NameDef>(span, std::string(name),
-                                                /*definer=*/nullptr);
-  name_to_namedef_[name] = name_def;
-  return name_def;
-}
-
-absl::StatusOr<dslx::NameRef*> DslxBuilder::MakeNameRef(const dslx::Span& span,
-                                                        std::string_view name) {
-  const auto it = name_to_namedef_.find(name);
-  if (it == name_to_namedef_.end()) {
-    return absl::NotFoundError(
-        absl::StrCat("Reference to undefined name: ", name));
-  }
-  return module().Make<dslx::NameRef>(span, std::string(name), it->second);
+  deduce_ctx_.fn_stack().push_back(dslx::FnStackEntry::MakeTop(&module_));
 }
 
 absl::StatusOr<dslx::Expr*> DslxBuilder::MakeNameRefAndMaybeCast(
-    verilog::Expression* expr, const dslx::Span& span, std::string_view name) {
-  XLS_ASSIGN_OR_RETURN(dslx::NameRef * ref, MakeNameRef(span, name));
+    verilog::Expression* expr, const dslx::Span& span, std::string_view name,
+    verilog::VastNode* target) {
+  XLS_ASSIGN_OR_RETURN(dslx::Expr * ref,
+                       resolver_->MakeNameRef(*this, span, name, target));
   return MaybeCastToInferredVastType(expr, ref);
 }
 
@@ -248,7 +286,8 @@ absl::StatusOr<verilog::Typedef*> DslxBuilder::ReverseEnumTypedef(
 absl::StatusOr<dslx::ConstantDef*> DslxBuilder::HandleConstantDecl(
     const dslx::Span& span, verilog::Module* vast_module,
     verilog::Parameter* parameter, std::string_view name, dslx::Expr* expr) {
-  auto* name_def = MakeNameDef(span, name);
+  auto* name_def =
+      resolver_->MakeNameDef(*this, span, name, parameter, vast_module);
   auto* constant_def = module().Make<dslx::ConstantDef>(
       span, name_def, /*type_annotation=*/nullptr, expr,
       /*is_public=*/true);
@@ -274,7 +313,6 @@ absl::StatusOr<dslx::ConstantDef*> DslxBuilder::HandleConstantDecl(
     VLOG(2) << "Failed to deduce constant def type: "
             << def_deduced_type.status();
   }
-  SetRefTargetModule(parameter, vast_module);
   // Add a comment with the value, if it is not obvious and can be folded.
   if (parameter->rhs() != nullptr && !parameter->rhs()->IsLiteral()) {
     absl::StatusOr<int64_t> folded_value =
@@ -287,9 +325,10 @@ absl::StatusOr<dslx::ConstantDef*> DslxBuilder::HandleConstantDecl(
                                     /*force_builtin=*/true)
               ->ToString();
       constant_def_comments_.emplace(
-          name, *folded_value >= 0x100000
-                    ? absl::StrFormat(" %s:0x%x", type_str, *folded_value)
-                    : absl::StrFormat(" %s:%d", type_str, *folded_value));
+          name_def->identifier(),
+          *folded_value >= 0x100000
+              ? absl::StrFormat(" %s:0x%x", type_str, *folded_value)
+              : absl::StrFormat(" %s:%d", type_str, *folded_value));
     }
   }
   return constant_def;
@@ -419,7 +458,7 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
                              },
                              import_tokens, &import_data_, dslx::Span::Fake()));
 
-    auto* name_def = MakeNameDef(span, tail);
+    auto* name_def = resolver_->MakeNameDef(*this, span, tail);
     auto* import = module().Make<dslx::Import>(span, import_tokens.pieces(),
                                                *name_def, std::nullopt);
     name_def->set_definer(import);
@@ -583,16 +622,6 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::Cast(verilog::DataType* vast_type,
   return module().Make<dslx::Cast>(
       expr->span(), expr,
       VastTypeToDslxTypeForCast(expr->span(), vast_type, force_builtin));
-}
-
-absl::StatusOr<verilog::Module*> DslxBuilder::FindRefTargetModule(
-    verilog::VastNode* target) const {
-  const auto it = ref_target_to_module_.find(target);
-  if (it == ref_target_to_module_.end()) {
-    return absl::NotFoundError(
-        absl::StrCat("No ref target module for: ", target->Emit(nullptr)));
-  }
-  return it->second;
 }
 
 absl::StatusOr<verilog::DataType*> DslxBuilder::GetVastDataType(

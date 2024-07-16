@@ -234,8 +234,8 @@ pub enum a_enum_t : bits[1] {
     kElem1 = 0b1,
 }
 
-pub fn a_compute_a(a_in_val: a_enum_t) -> s32 {
-    if a_in_val == a_enum_t::kElem0 { s32:3 } else { s32:4 }
+pub fn a_compute_a(in_val: a_enum_t) -> s32 {
+    if in_val == a_enum_t::kElem0 { s32:3 } else { s32:4 }
 }
 
 #[sv_type("b::enum_t")]
