@@ -39,6 +39,26 @@ cc_library(
 )
 
 cc_library(
+    name = "iter_util",
+    hdrs = ["iter_util.h"],
+    deps = [
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "iter_util_test",
+    srcs = ["iter_util_test.cc"],
+    deps = [
+        ":iter_util",
+        ":xls_gunit_main",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "bits_util",
     hdrs = ["bits_util.h"],
     deps = [
