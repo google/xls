@@ -517,5 +517,15 @@ FUZZ_TEST(MaterializeFifosPassFuzzTest, FuzzTestFifo)
     .WithDomains(FifoConfigDomain(),
                  fuzztest::VectorOf(OperationDomain()).WithMaxSize(1000));
 
+TEST(FifoFuzzTest, FuzzTestJitRegression) {
+  FuzzTestFifo(xls::FifoConfig(1, false, false, false),
+               {Operation(NotReady()), Operation(Pop())});
+}
+
+TEST(FifoFuzzTest, FuzzTestJitRegression2) {
+  FuzzTestFifo(xls::FifoConfig(10, true, false, false),
+               {Operation(Reset()), Operation(Reset())});
+}
+
 }  // namespace
 }  // namespace xls::verilog

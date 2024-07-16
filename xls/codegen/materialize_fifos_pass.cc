@@ -69,8 +69,13 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   // easier since full is always tail + size == head
   Type* buf_type = p->GetArrayType(depth + 1, ty);
   Type* ptr_type = p->GetBitsType(Bits::MinBitCountUnsigned(depth + 1));
-  XLS_ASSIGN_OR_RETURN(Register * buf_reg,
-                       bb.block()->AddRegister("buf", buf_type));
+  XLS_ASSIGN_OR_RETURN(
+      Register * buf_reg,
+      bb.block()->AddRegister(
+          "buf", buf_type,
+          xls::Reset{.reset_value = ZeroOfType(buf_type),
+                     .asynchronous = reset_behavior.asynchronous,
+                     .active_low = reset_behavior.active_low}));
   XLS_ASSIGN_OR_RETURN(
       Register * head_reg,
       bb.block()->AddRegister(
@@ -178,7 +183,7 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   bb.OutputPort(FifoInstantiation::kPopDataPortName, pop_data_value);
 
   bb.RegisterWrite(buf_reg, next_buf_value_if_push_occurs,
-                   /*load_enable=*/did_push_occur_bool);
+                   /*load_enable=*/did_push_occur_bool, reset_port_bvalue);
   bb.RegisterWrite(head_reg, next_head_value_if_push_occurs,
                    /*load_enable=*/did_push_occur_bool, reset_port_bvalue);
   bb.RegisterWrite(tail_reg, next_tail_value_if_pop_occurs,
