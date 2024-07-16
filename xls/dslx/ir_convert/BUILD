@@ -161,7 +161,7 @@ cc_test(
 filegroup(
     name = "ir_converter_test_sh",
     srcs = ["ir_converter_test.sh"],
-    visibility = ["//xls:xls_users"],
+    visibility = ["//visibility:private"],
 )
 
 cc_library(
