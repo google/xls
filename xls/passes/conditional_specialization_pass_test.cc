@@ -1110,5 +1110,25 @@ TEST_F(ConditionalSpecializationPassTest, CorrectIdentityValueTracked) {
               m::Concat(m::And(m::Param("x"), m::Literal(0))));
 }
 
+// Verify that we correctly handle scenarios where it's provably impossible for
+// one arm to be chosen.
+//
+// Discovered by fuzz-testing as crasher e8f52f00.
+TEST_F(ConditionalSpecializationPassTest, ImpossibleArm) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue false_literal = fb.Literal(UBits(0, 1));
+  BValue false_or = fb.Or(false_literal, false_literal);
+  BValue priority_sel =
+      fb.PrioritySelect(false_or, {false_literal}, false_literal);
+  BValue nor = fb.Nor({false_literal, false_or, priority_sel});
+  BValue result = fb.And({nor, false_literal, false_or});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Nor(), m::Literal(0), m::Or()));
+}
+
 }  // namespace
 }  // namespace xls

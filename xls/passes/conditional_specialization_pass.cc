@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -330,7 +331,17 @@ std::optional<TernaryVector> ImpliedNodeTernary(
       VLOG(4) << absl::StreamFormat("%s trivially implies %s==%s",
                                     condition_set.ToString(), node->GetName(),
                                     xls::ToString(condition.value));
-      CHECK_OK(ternary_ops::UpdateWithUnion(result, condition.value));
+      if (absl::Status update_status =
+              ternary_ops::UpdateWithUnion(result, condition.value);
+          !update_status.ok()) {
+        CHECK(absl::IsInvalidArgument(update_status));
+        // This is impossible, as the conditions contradict each other. For now,
+        // we can't do anything about this; it might be worth finding a way to
+        // propagate this information.
+        VLOG(1) << "Proved this condition is impossible: "
+                << condition_set.ToString();
+        return std::nullopt;
+      }
     }
   }
   if (ternary_ops::IsFullyKnown(result)) {
@@ -345,7 +356,17 @@ std::optional<TernaryVector> ImpliedNodeTernary(
     VLOG(4) << absl::StreamFormat("%s implies %s==%s", condition_set.ToString(),
                                   node->GetName(),
                                   xls::ToString(*implied_ternary));
-    CHECK_OK(ternary_ops::UpdateWithUnion(result, *implied_ternary));
+    if (absl::Status update_status =
+            ternary_ops::UpdateWithUnion(result, *implied_ternary);
+        !update_status.ok()) {
+      CHECK(absl::IsInvalidArgument(update_status));
+      // This is impossible, as the conditions contradict each other. For now,
+      // we can't do anything about this; it might be worth finding a way to
+      // propagate this information.
+      VLOG(1) << "Proved this condition is impossible: "
+              << condition_set.ToString();
+      return std::nullopt;
+    }
   }
 
   return result;
