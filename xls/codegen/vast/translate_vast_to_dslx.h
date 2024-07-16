@@ -22,32 +22,44 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast/vast.h"
 
 namespace xls {
 
-// Translates a corpus of VAST `VerilogFile` objects into DSLX code. Currently
-// this only works for a subset of VAST focused on typedefs and constants, and
-// is intended for porting such entities from Verilog to a DSLX code base.
+// Translates a corpus of VAST `VerilogFile` objects into corresponding DSLX
+// files in `out_dir`. Currently this only works for a subset of VAST focused on
+// typedefs and constants, and is intended for porting such entities from
+// Verilog to a DSLX code base.
+//
+// The generated DSLX is guaranteed to parse and type-check successfully, if
+// this function does not error.
 //
 // Input:
-//   module_name: The name to give to the generated DSLX Module.
+//   out_dir: The path in which to generate the DSLX files, overwriting existing
+//      files by the same name where necessary.
 //   dslx_stdlib_path: The path to the DSLX standard library, in case it needs
 //      to be used, e.g., for translating `clog2` to `std::clog2`.
 //   verilog_paths_in_order: The paths in the Verilog corpus being translated,
 //      in the order the caller would like the corresponding DSLX to be output.
 //      It is assumed that the last one is "main" file and the others are its
-//      dependencies. This function may add pseudo-namespacing to the DSLX for
-//      non-main files.
+//      dependencies.
 //   warnings: Optional vector into which any generated warning messages will
 //       be placed.
-//
-// Return value:
-//   The DSLX code, which is guaranteed to parse and type-check successfully, if
-//   this function does not error.
-absl::StatusOr<std::string> TranslateVastToDslx(
-    std::string_view module_name, const std::filesystem::path& dslx_stdlib_path,
+absl::Status TranslateVastToDslx(
+    std::filesystem::path out_dir, std::string_view dslx_stdlib_path,
+    const std::vector<std::filesystem::path>& verilog_paths_in_order,
+    const absl::flat_hash_map<std::filesystem::path,
+                              std::unique_ptr<verilog::VerilogFile>>&
+        verilog_files,
+    std::vector<std::string>* warnings = nullptr);
+
+// Variant of `TranslateVastToDslx` that generates one combined DSLX module from
+// the whole Verilog corpus, applying pseudo-namespacing to distinguish names in
+// non-main modules. Returns the DSLX source code for the combined module.
+absl::StatusOr<std::string> TranslateVastToCombinedDslx(
+    std::string_view dslx_stdlib_path,
     const std::vector<std::filesystem::path>& verilog_paths_in_order,
     const absl::flat_hash_map<std::filesystem::path,
                               std::unique_ptr<verilog::VerilogFile>>&

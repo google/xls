@@ -15,6 +15,7 @@
 #include "xls/codegen/vast/dslx_builder.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,6 +33,7 @@
 #include "absl/types/variant.h"
 #include "xls/codegen/vast/fold_vast_constants.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -123,6 +125,14 @@ dslx::TypeInfo* GetTypeInfoOrDie(dslx::ImportData& import_data,
   return *result;
 }
 
+std::vector<std::filesystem::path> WrapOptionalPathInVector(
+    const std::optional<std::filesystem::path>& path) {
+  if (path.has_value()) {
+    return {*path};
+  }
+  return {};
+}
+
 }  // namespace
 
 absl::StatusOr<dslx::InterpValue> InterpretExpr(dslx::ImportData& import_data,
@@ -157,50 +167,135 @@ dslx::NameDef* DslxResolver::MakeNameDef(
               dynamic_cast<verilog::EnumMember*>(*vast_node) != nullptr
           ? GetNamespacedName(builder.module(), name)
           : GetNamespacedName(builder.module(), name, vast_module);
+  const std::string name_in_dslx_code =
+      generate_combined_dslx_module_ ? namespaced_name : std::string(name);
   VLOG(3) << "MakeNameDef; span: " << span << " name: `" << namespaced_name
           << "`";
-  auto* name_def = builder.module().Make<dslx::NameDef>(span, namespaced_name,
+  auto* name_def = builder.module().Make<dslx::NameDef>(span, name_in_dslx_code,
                                                         /*definer=*/nullptr);
-  name_to_namedef_.emplace(namespaced_name, name_def);
+  namespaced_name_to_namedef_.emplace(namespaced_name, name_def);
+  std::optional<std::string> loc_string;
   if (vast_node.has_value() && vast_module.has_value()) {
-    defining_modules_.emplace(*vast_node, *vast_module);
+    loc_string = loc_string = (*vast_node)->loc().ToString();
+    defining_modules_by_loc_string_.emplace(*loc_string, *vast_module);
   }
   return name_def;
 }
 
-absl::StatusOr<dslx::NameRef*> DslxResolver::MakeNameRef(
+absl::StatusOr<dslx::Expr*> DslxResolver::MakeNameRef(
     DslxBuilder& builder, const dslx::Span& span, std::string_view name,
     verilog::VastNode* target) {
   std::optional<verilog::Module*> vast_module;
-  const auto module_it = defining_modules_.find(target);
-  if (module_it != defining_modules_.end()) {
+  const auto module_it =
+      defining_modules_by_loc_string_.find(target->loc().ToString());
+  if (module_it != defining_modules_by_loc_string_.end()) {
     vast_module = module_it->second;
   }
   const std::string namespaced_name =
       GetNamespacedName(builder.module(), name, vast_module);
-  VLOG(3) << "MakeNameRef; span: " << span << " name: `" << namespaced_name
+  const std::string name_in_dslx_code =
+      generate_combined_dslx_module_ ? namespaced_name : std::string(name);
+  VLOG(3) << "MakeNameRef; span: " << span << " name: `" << name_in_dslx_code
           << "`" << " vast module: "
           << (vast_module.has_value() ? (*vast_module)->name() : "none");
-  const auto it = name_to_namedef_.find(namespaced_name);
-  if (it == name_to_namedef_.end()) {
+  const auto it = namespaced_name_to_namedef_.find(namespaced_name);
+  if (it == namespaced_name_to_namedef_.end()) {
     return absl::NotFoundError(
-        absl::StrCat("Reference to undefined name: ", namespaced_name));
+        absl::StrCat("Reference to undefined name: ", name_in_dslx_code));
   }
-  return builder.module().Make<dslx::NameRef>(span, namespaced_name,
-                                              it->second);
+  if (generate_combined_dslx_module_ || !vast_module.has_value() ||
+      (*vast_module)->name() == builder.module().name()) {
+    return builder.module().Make<dslx::NameRef>(span, name_in_dslx_code,
+                                                it->second);
+  }
+  return builder.CreateColonRef(span, (*vast_module)->name(),
+                                name_in_dslx_code);
+}
+
+absl::StatusOr<dslx::ColonRef*> DslxBuilder::CreateColonRef(
+    const dslx::Span& span, std::string_view module_name,
+    std::string_view name) {
+  XLS_ASSIGN_OR_RETURN(
+      dslx::Import * import,
+      GetOrImportModule(dslx::ImportTokens({std::string(module_name)})));
+  auto* module_ref = module().Make<dslx::NameRef>(
+      span, std::string(module_name), &import->name_def());
+  return module().Make<dslx::ColonRef>(span, module_ref, std::string(name));
+}
+
+dslx::ColonRef::Subject DslxResolver::NameRefToColonRefSubject(
+    dslx::Expr* ref) {
+  if (auto* name_ref = dynamic_cast<dslx::NameRef*>(ref); name_ref) {
+    return name_ref;
+  }
+  return down_cast<dslx::ColonRef*>(ref);
+}
+
+void DslxResolver::AddTypedef(dslx::Module& module, verilog::Module* definer,
+                              verilog::Typedef* type_def,
+                              dslx::TypeDefinition dslx_type) {
+  // Note that we use the loc as a key because it's resilient to the creation
+  // of derivative `DataType` objects by VAST type inference, e.g. during
+  // constant folding. This way we can look up a DSLX typedef by either the
+  // original `verilog::Typedef` object or one that is an artifact of type
+  // inference.
+  const std::string loc_string = type_def->loc().ToString();
+  typedefs_by_loc_string_.emplace(loc_string, dslx_type);
+  defining_modules_by_loc_string_.emplace(loc_string, definer);
+  if (dynamic_cast<verilog::Enum*>(type_def->data_type())) {
+    reverse_typedefs_.emplace(type_def->data_type(), type_def);
+  }
+}
+
+absl::StatusOr<dslx::TypeDefinition> DslxResolver::FindTypedef(
+    DslxBuilder& builder, verilog::TypedefType* typedef_type) {
+  const std::string loc_string = typedef_type->type_def()->loc().ToString();
+  const auto it = typedefs_by_loc_string_.find(loc_string);
+  if (it == typedefs_by_loc_string_.end()) {
+    return absl::NotFoundError(
+        absl::StrCat("Typedef ", typedef_type->type_def()->GetName(), " at ",
+                     typedef_type->loc().ToString(),
+                     " has not been associated with a DSLX type."));
+  }
+  if (!generate_combined_dslx_module_) {
+    const auto definer_it = defining_modules_by_loc_string_.find(loc_string);
+    QCHECK(definer_it != defining_modules_by_loc_string_.end());
+    if (definer_it->second->name() != builder.module().name()) {
+      VLOG(3) << "Found external typedef "
+              << typedef_type->type_def()->GetName();
+      return builder.CreateColonRef(dslx::Span(), definer_it->second->name(),
+                                    typedef_type->type_def()->GetName());
+    }
+  }
+  VLOG(3) << "Found internal typedef " << typedef_type->type_def()->GetName();
+  return it->second;
+}
+
+absl::StatusOr<verilog::Typedef*> DslxResolver::ReverseEnumTypedef(
+    verilog::Enum* enum_def) {
+  const auto it = reverse_typedefs_.find(enum_def);
+  if (it == reverse_typedefs_.end()) {
+    return absl::NotFoundError(
+        absl::StrCat("Data type ", enum_def->Emit(nullptr),
+                     " has not been associated with a typedef."));
+  }
+  return it->second;
 }
 
 DslxBuilder::DslxBuilder(
     std::string_view main_module_name, DslxResolver* resolver,
+    const std::optional<std::filesystem::path>& additional_search_path,
     std::string_view dslx_stdlib_path,
-    absl::flat_hash_map<verilog::Expression*, verilog::DataType*> vast_type_map,
+    const absl::flat_hash_map<verilog::Expression*, verilog::DataType*>&
+        vast_type_map,
     dslx::WarningCollector& warnings)
     : module_(std::string(main_module_name), /*fs_path=*/std::nullopt),
       resolver_(resolver),
       dslx_stdlib_path_(dslx_stdlib_path),
+      additional_search_paths_(
+          WrapOptionalPathInVector(additional_search_path)),
       import_data_(dslx::CreateImportData(
-          dslx_stdlib_path,
-          /*additional_search_paths=*/{},
+          dslx_stdlib_path, additional_search_paths_,
           /*enabled_warnings=*/dslx::kDefaultWarningsSet)),
       warnings_(warnings),
       type_info_(GetTypeInfoOrDie(import_data_, &module_)),
@@ -211,7 +306,7 @@ DslxBuilder::DslxBuilder(
           },
           dslx::TypecheckInvocation, &import_data_, &warnings_,
           /*parent=*/nullptr),
-      vast_type_map_(std::move(vast_type_map)) {
+      vast_type_map_(vast_type_map) {
   deduce_ctx_.fn_stack().push_back(dslx::FnStackEntry::MakeTop(&module_));
 }
 
@@ -223,17 +318,10 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::MakeNameRefAndMaybeCast(
   return MaybeCastToInferredVastType(expr, ref);
 }
 
-void DslxBuilder::AddTypedef(verilog::Typedef* type_def,
+void DslxBuilder::AddTypedef(verilog::Module* definer,
+                             verilog::Typedef* type_def,
                              dslx::TypeDefinition dslx_type) {
-  // Note that we use the loc as a key because it's resilient to the creation
-  // of derivative `DataType` objects by VAST type inference, e.g. during
-  // constant folding. This way we can look up a DSLX typedef by either the
-  // original `verilog::Typedef` object or one that is an artifact of type
-  // inference.
-  typedefs_by_loc_string_.emplace(type_def->loc().ToString(), dslx_type);
-  if (dynamic_cast<verilog::Enum*>(type_def->data_type())) {
-    reverse_typedefs_.emplace(type_def->data_type(), type_def);
-  }
+  resolver_->AddTypedef(module(), definer, type_def, dslx_type);
   std::optional<std::string> comment = GenerateSizeCommentIfNotObvious(
       type_def->data_type(), /*compute_size_if_struct=*/true);
   if (comment.has_value()) {
@@ -257,30 +345,6 @@ void DslxBuilder::AddTypedef(verilog::Typedef* type_def,
       }
     }
   }
-}
-
-absl::StatusOr<dslx::TypeDefinition> DslxBuilder::FindTypedef(
-    verilog::TypedefType* typedef_type) {
-  const auto it =
-      typedefs_by_loc_string_.find(typedef_type->type_def()->loc().ToString());
-  if (it == typedefs_by_loc_string_.end()) {
-    return absl::NotFoundError(
-        absl::StrCat("Typedef ", typedef_type->type_def()->GetName(), " at ",
-                     typedef_type->loc().ToString(),
-                     " has not been associated with a DSLX type."));
-  }
-  return it->second;
-}
-
-absl::StatusOr<verilog::Typedef*> DslxBuilder::ReverseEnumTypedef(
-    verilog::Enum* enum_def) {
-  const auto it = reverse_typedefs_.find(enum_def);
-  if (it == reverse_typedefs_.end()) {
-    return absl::NotFoundError(
-        absl::StrCat("Data type ", enum_def->Emit(nullptr),
-                     " has not been associated with a typedef."));
-  }
-  return it->second;
 }
 
 absl::StatusOr<dslx::ConstantDef*> DslxBuilder::HandleConstantDecl(
@@ -320,10 +384,12 @@ absl::StatusOr<dslx::ConstantDef*> DslxBuilder::HandleConstantDecl(
     absl::StatusOr<verilog::DataType*> folded_type =
         GetVastDataType(parameter->rhs());
     if (folded_value.ok() && folded_type.ok()) {
-      const std::string type_str =
+      absl::StatusOr<dslx::TypeAnnotation*> type =
           VastTypeToDslxTypeForCast(dslx::Span(), *folded_type,
-                                    /*force_builtin=*/true)
-              ->ToString();
+                                    /*force_builtin=*/true);
+      // This can't fail because it's pre-folded.
+      QCHECK_OK(type);
+      const std::string type_str = (*type)->ToString();
       constant_def_comments_.emplace(
           name_def->identifier(),
           *folded_value >= 0x100000
@@ -334,14 +400,16 @@ absl::StatusOr<dslx::ConstantDef*> DslxBuilder::HandleConstantDecl(
   return constant_def;
 }
 
-dslx::Number* DslxBuilder::HandleConstVal(
+absl::StatusOr<dslx::Number*> DslxBuilder::HandleConstVal(
     const dslx::Span& span, const Bits& bits,
     FormatPreference format_preference, verilog::DataType* vast_type,
-    dslx::TypeAnnotation* force_dslx_type) {
-  return module().Make<dslx::Number>(
-      span, BitsToString(bits, format_preference), dslx::NumberKind::kOther,
-      force_dslx_type != nullptr ? force_dslx_type
-                                 : VastTypeToDslxTypeForCast(span, vast_type));
+    dslx::TypeAnnotation* dslx_type) {
+  if (dslx_type == nullptr) {
+    XLS_ASSIGN_OR_RETURN(dslx_type, VastTypeToDslxTypeForCast(span, vast_type));
+  }
+  return module().Make<dslx::Number>(span,
+                                     BitsToString(bits, format_preference),
+                                     dslx::NumberKind::kOther, dslx_type);
 }
 
 absl::StatusOr<dslx::Expr*> DslxBuilder::ConvertMaxToWidth(
@@ -546,13 +614,13 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::MaybeCast(verilog::DataType* vast_type,
   return expr;
 }
 
-dslx::TypeAnnotation* DslxBuilder::VastTypeToDslxTypeForCast(
+absl::StatusOr<dslx::TypeAnnotation*> DslxBuilder::VastTypeToDslxTypeForCast(
     const dslx::Span& span, verilog::DataType* vast_type, bool force_builtin) {
   // If it's a typedef, then use the DSLX counterpart.
   if (auto* typedef_type = dynamic_cast<verilog::TypedefType*>(vast_type);
       typedef_type && !force_builtin) {
     absl::StatusOr<dslx::TypeDefinition> target_type =
-        FindTypedef(typedef_type);
+        resolver_->FindTypedef(*this, typedef_type);
     if (target_type.ok()) {
       return module().Make<dslx::TypeRefTypeAnnotation>(
           span, module().Make<dslx::TypeRef>(span, *target_type),
@@ -562,10 +630,10 @@ dslx::TypeAnnotation* DslxBuilder::VastTypeToDslxTypeForCast(
             << ", which is not associated with a DSLX type; using raw type.";
   }
   // Try to use a concrete built-in type.
-  absl::StatusOr<int64_t> bit_count = vast_type->FlatBitCountAsInt64();
-  if (bit_count.ok() && (*bit_count <= dslx::kConcreteBuiltinTypeLimit)) {
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, vast_type->FlatBitCountAsInt64());
+  if (bit_count <= dslx::kConcreteBuiltinTypeLimit) {
     absl::StatusOr<dslx::BuiltinType> concrete_type =
-        dslx::GetBuiltinType(vast_type->is_signed(), *bit_count);
+        dslx::GetBuiltinType(vast_type->is_signed(), bit_count);
     if (concrete_type.ok()) {
       return module().Make<dslx::BuiltinTypeAnnotation>(
           span, *concrete_type,
@@ -579,7 +647,7 @@ dslx::TypeAnnotation* DslxBuilder::VastTypeToDslxTypeForCast(
       span, builtin_type, module().GetOrCreateBuiltinNameDef(builtin_type));
   return module().Make<dslx::ArrayTypeAnnotation>(
       span, builtin_type_annot,
-      module().Make<dslx::Number>(span, std::to_string(*bit_count),
+      module().Make<dslx::Number>(span, std::to_string(bit_count),
                                   dslx::NumberKind::kOther,
                                   /*type_annotation=*/nullptr));
 }
@@ -608,9 +676,12 @@ std::optional<std::string> DslxBuilder::GenerateSizeCommentIfNotObvious(
       if (dynamic_cast<verilog::Struct*>(data_type) != nullptr) {
         return absl::StrFormat(" %d bits", *bit_count);
       }
-      dslx::TypeAnnotation* type_annot = VastTypeToDslxTypeForCast(
-          dslx::Span(), *folded_type, /*force_builtin=*/true);
-      return absl::StrFormat(" %s", type_annot->ToString());
+      absl::StatusOr<dslx::TypeAnnotation*> type_annot =
+          VastTypeToDslxTypeForCast(dslx::Span(), *folded_type,
+                                    /*force_builtin=*/true);
+      // This can't fail because we have guaranteed the bit count is ok.
+      QCHECK_OK(type_annot);
+      return absl::StrFormat(" %s", (*type_annot)->ToString());
     }
   }
   return std::nullopt;
@@ -619,9 +690,10 @@ std::optional<std::string> DslxBuilder::GenerateSizeCommentIfNotObvious(
 absl::StatusOr<dslx::Expr*> DslxBuilder::Cast(verilog::DataType* vast_type,
                                               dslx::Expr* expr,
                                               bool force_builtin) {
-  return module().Make<dslx::Cast>(
-      expr->span(), expr,
+  XLS_ASSIGN_OR_RETURN(
+      dslx::TypeAnnotation * type,
       VastTypeToDslxTypeForCast(expr->span(), vast_type, force_builtin));
+  return module().Make<dslx::Cast>(expr->span(), expr, type);
 }
 
 absl::StatusOr<verilog::DataType*> DslxBuilder::GetVastDataType(
@@ -658,8 +730,7 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
   dslx::Scanner scanner(file_name, text);
   dslx::Parser parser(module_.name(), &scanner, /*options=*/{});
   auto import_data =
-      dslx::CreateImportData(dslx_stdlib_path_,
-                             /*additional_search_paths=*/{},
+      dslx::CreateImportData(dslx_stdlib_path_, additional_search_paths_,
                              /*enabled_warnings=*/dslx::kDefaultWarningsSet);
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule parsed_module,

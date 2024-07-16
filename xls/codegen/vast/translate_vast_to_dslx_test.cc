@@ -20,8 +20,10 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -30,7 +32,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -43,8 +48,8 @@ namespace xls {
 namespace verilog {
 namespace {
 
-// Translates the given `std::unique_ptr<VerilogFile>` objects to DSLX using the
-// function under test.
+// Translates the given `std::unique_ptr<VerilogFile>` objects to one combined
+// DSLX file using the function under test.
 template <typename... T>
 absl::StatusOr<std::string> Translate(T... files) {
   std::vector<std::string> warnings;
@@ -60,9 +65,44 @@ absl::StatusOr<std::string> Translate(T... files) {
     paths_to_files.emplace(path, std::move(file));
   };
   (add_file(std::move(files)), ...);
-  return TranslateVastToDslx("temp_module",
-                             /*dslx_stdlib_path=*/kDefaultDslxStdlibPath, paths,
-                             paths_to_files);
+  return TranslateVastToCombinedDslx(
+      /*dslx_stdlib_path=*/kDefaultDslxStdlibPath, paths, paths_to_files);
+}
+
+// Translates the given `std::unique_ptr<VerilogFile>` objects to multiple DSLX
+// files using the function under test.
+template <typename... T>
+absl::StatusOr<std::vector<std::string>> TranslateToMultiDslx(
+    const std::filesystem::path& out_dir_path, T... files) {
+  std::vector<std::string> warnings;
+  std::vector<std::filesystem::path> paths;
+  std::vector<std::filesystem::path> out_paths;
+  absl::flat_hash_map<std::filesystem::path,
+                      std::unique_ptr<verilog::VerilogFile>>
+      paths_to_files;
+  int i = 0;
+  auto add_file = [&](std::unique_ptr<VerilogFile> file) {
+    // The output paths are real.
+    for (auto& member : file->members()) {
+      if (std::holds_alternative<verilog::Module*>(member)) {
+        out_paths.push_back(
+            out_dir_path /
+            absl::StrCat(std::get<verilog::Module*>(member)->name(), ".x"));
+      }
+    }
+    // The input paths are fictitious and not actually used on disk.
+    std::filesystem::path path = absl::StrCat("/tmp/file", i++);
+    paths.push_back(path);
+    paths_to_files.emplace(path, std::move(file));
+  };
+  (add_file(std::move(files)), ...);
+  XLS_RETURN_IF_ERROR(TranslateVastToDslx(out_dir_path, kDefaultDslxStdlibPath,
+                                          paths, paths_to_files));
+  std::vector<std::string> results(out_paths.size());
+  for (i = 0; i < results.size(); i++) {
+    XLS_ASSIGN_OR_RETURN(results[i], GetFileContents(out_paths[i]));
+  }
+  return results;
 }
 
 // This is a workaround for the fact that all "ok and holds" shortcuts output
@@ -603,6 +643,68 @@ pub const my_param = a_typedef_t:0xbeef;
   XLS_ASSERT_OK_AND_ASSIGN(std::string actual,
                            Translate(file_a.release(), file_b.release()));
   ASSERT_EQ(actual, kExpected);
+}
+
+TEST_F(TranslateVastToDslxTest, NoPseudoNamespacesWithMultiFile) {
+  // package a;
+  //   typedef logic[15:0] typedef_t;
+  //   parameter foo = 3;
+  // endpackage
+  VerilogFileHelper file_a = CreateFile();
+  Module* a = file_a->AddModule("a", file_a.NextLoc());
+  Typedef* type_def = a->AddTypedef(
+      file_a->Make<Def>(file_a.NextLoc(), "typedef_t", DataKind::kLogic,
+                        file_a->BitVectorType(16, file_a.NextLoc())),
+      file_a.NextLoc());
+  ParameterRef* foo =
+      a->AddParameter("foo", file_a.BareLiteral(3), file_a.NextLoc());
+
+  // package b;
+  //   parameter a::typedef_t my_param = 16'hbeef;
+  //   parameter logic[47:0] my_param2 = a::foo + 4;
+  // endpackage
+  VerilogFileHelper file_b = CreateFile();
+  Module* b = file_b->AddModule("b", file_b.NextLoc());
+  b->AddParameter(
+      file_b->Make<Def>(file_b.NextLoc(), "my_param", DataKind::kUser,
+                        file_b->Make<TypedefType>(file_b.NextLoc(), type_def)),
+      file_b.LiteralWithBitCount(16, 0xbeef, FormatPreference::kHex),
+      file_b.NextLoc());
+  b->AddParameter(
+      file_b->Make<Def>(
+          file_b.NextLoc(), "my_param2", DataKind::kLogic,
+          file_b->Make<BitVectorType>(file_b.NextLoc(), file_b.BareLiteral(47),
+                                      /*is_signed=*/false,
+                                      /*size_expr_is_max=*/true)),
+      file_b->Add(foo, file_b.BareLiteral(4), file_b.NextLoc()),
+      file_b.NextLoc());
+
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<std::string> results,
+      TranslateToMultiDslx(temp_dir.path(), file_a.release(),
+                           file_b.release()));
+
+  const std::string kExpectedA = R"(#![allow(nonstandard_constant_naming)]
+#![allow(nonstandard_member_naming)]
+
+#[sv_type("a::typedef_t")]
+pub type typedef_t = bits[16];
+
+pub const foo = s32:3;
+)";
+
+  const std::string kExpectedB = R"(#![allow(nonstandard_constant_naming)]
+#![allow(nonstandard_member_naming)]
+
+import a;
+
+pub const my_param = a::typedef_t:0xbeef;
+pub const my_param2 = a::foo as u48 + u48:4;  // u48:7
+)";
+
+  EXPECT_THAT(results, testing::ElementsAre(kExpectedA, kExpectedB));
 }
 
 // Verifies that _extremely_ simple (single-statement) functions can be
