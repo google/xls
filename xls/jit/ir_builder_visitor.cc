@@ -3181,6 +3181,12 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
        llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 1)});
   data_buffer->setName("data_buffer");
 
+  // Always initialize the data buffer to zero.
+  llvm::Type* data_type =
+      type_converter()->ConvertToLlvmType(recv->GetPayloadType());
+  node_context.entry_builder().CreateStore(
+      LlvmTypeConverter::ZeroOfType(data_type), data_buffer);
+
   if (recv->predicate().has_value()) {
     llvm::Value* predicate = node_context.LoadOperand(1);
 
@@ -3199,16 +3205,12 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
                                           data_buffer, instance_context));
     true_builder.CreateBr(join_block);
 
-    // And the same for a false predicate - this will store a zero
-    // value into the data buffer.
+    // And the same for a false predicate - this will keep the stored
+    // zero value in the data buffer.
     llvm::BasicBlock* false_block =
         llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_false"),
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> false_builder(false_block);
-    llvm::Type* data_type =
-        type_converter()->ConvertToLlvmType(recv->GetPayloadType());
-    false_builder.CreateStore(LlvmTypeConverter::ZeroOfType(data_type),
-                              data_buffer);
     false_builder.CreateBr(join_block);
 
     // Next, create a branch op w/the original builder,

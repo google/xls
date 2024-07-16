@@ -1149,5 +1149,51 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceives) {
   EXPECT_THAT(out0_queue.Read(), Optional(Value(UBits(43, 32))));
 }
 
+TEST_P(ProcEvaluatorTestBase, NonBlockingReceivesZeroRecv) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in0, package->CreateStreamingChannel(
+                                              "in0", ChannelOps::kReceiveOnly,
+                                              package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out0, package->CreateStreamingChannel(
+                                               "out0", ChannelOps::kSendOnly,
+                                               package->GetBitsType(32)));
+
+  TokenlessProcBuilder pb("nb_recv", /*token_name=*/"tok", package.get());
+
+  auto [in0_data, in0_valid] = pb.ReceiveNonBlocking(in0);
+  pb.Send(out0, in0_data);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(package.get());
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get());
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  ChannelQueue& in0_queue = queue_manager->GetQueue(in0);
+  ChannelQueue& out0_queue = queue_manager->GetQueue(out0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * out0_instance,
+      queue_manager->elaboration().GetUniqueInstance(out0));
+
+  EXPECT_TRUE(in0_queue.IsEmpty());
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = out0_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+
+  // Reads on an empty channel should return default value of zero.
+  EXPECT_THAT(out0_queue.Read(), Optional(Value(UBits(0, 32))));
+}
+
 }  // namespace
 }  // namespace xls
