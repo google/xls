@@ -1699,6 +1699,22 @@ TEST_F(RangeQueryEngineTest, SignExtend) {
             BitsLTT(expr.node(), {Interval(SBits(-500, 40), SBits(700, 40))}));
 }
 
+TEST_F(RangeQueryEngineTest, SignExtendFromUnknown) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue expr = fb.SignExtend(x, 40);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Sign extension is monotone.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(expr.node(), {Interval(SBits(-128, 40), SBits(127, 40))}));
+}
+
 TEST_F(RangeQueryEngineTest, Sub) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

@@ -27,6 +27,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "xls/common/iter_util.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
@@ -256,15 +257,39 @@ struct ArgumentBehavior {
   // by 1 cause a change in the output by 1 (either up or down depending on
   // tonicity).
   bool size_preserving;
+
+  // Whether the operation has non-linear, discontinuous or otherwise unusual
+  // behavior near the 'INT_MAX/INT_MIN' split point. For example the
+  // sign-extend operation adjacent values in the pre-image remain adjacent
+  // after the sign extend except for the (INT_MAX,INT_MIN) pair where the
+  // results end up far away from each other.
+  bool sign_sensitive;
+
+  constexpr ArgumentBehavior SignSensitive() const {
+    return {
+        .tonicity = tonicity,
+        .size_preserving = sign_sensitive,
+        .sign_sensitive = true,
+    };
+  }
 };
+
 static constexpr ArgumentBehavior kMonotoneSizePreserving{
-    .tonicity = Tonicity::Monotone, .size_preserving = true};
+    .tonicity = Tonicity::Monotone,
+    .size_preserving = true,
+    .sign_sensitive = false};
 static constexpr ArgumentBehavior kMonotoneNonSizePreserving{
-    .tonicity = Tonicity::Monotone, .size_preserving = false};
+    .tonicity = Tonicity::Monotone,
+    .size_preserving = false,
+    .sign_sensitive = false};
 static constexpr ArgumentBehavior kAntitoneSizePreserving{
-    .tonicity = Tonicity::Antitone, .size_preserving = true};
+    .tonicity = Tonicity::Antitone,
+    .size_preserving = true,
+    .sign_sensitive = false};
 static constexpr ArgumentBehavior kAntitoneNonSizePreserving{
-    .tonicity = Tonicity::Antitone, .size_preserving = false};
+    .tonicity = Tonicity::Antitone,
+    .size_preserving = false,
+    .sign_sensitive = false};
 
 TernaryValue OneBitRangeToTernary(const IntervalSet& is) {
   CHECK_EQ(is.BitCount(), 1);
@@ -336,14 +361,10 @@ IntervalSet PerformVariadicOp(Calculate calc,
     return IntervalSet::Precise(calc(real_values).result);
   }
 
-  std::vector<int64_t> radix;
-  radix.reserve(operands.size());
-  for (const IntervalSet& interval_set : operands) {
-    radix.push_back(interval_set.NumberOfIntervals());
-  }
-
   IntervalSet result_intervals(result_bit_size);
   bool overflow_is_size_preserving = true;
+  bool any_sign_sensitive = absl::c_any_of(
+      behaviors, [](const ArgumentBehavior& b) { return b.sign_sensitive; });
   int64_t count_non_precise = 0;
   for (int64_t i = 0; overflow_is_size_preserving && i < behaviors.size();
        ++i) {
@@ -363,13 +384,14 @@ IntervalSet PerformVariadicOp(Calculate calc,
 
   // Each iteration of this do-while loop explores a different choice of
   // intervals from each interval set associated with a parameter.
-  MixedRadixIterate(radix, [&](const std::vector<int64_t>& indexes) -> bool {
+  auto handle_combo =
+      [&](auto /*absl::Span<Iterator of Interval>*/ values_ptrs) -> bool {
     std::vector<Bits> lower_bounds;
-    lower_bounds.reserve(indexes.size());
+    lower_bounds.reserve(values_ptrs.size());
     std::vector<Bits> upper_bounds;
-    upper_bounds.reserve(indexes.size());
-    for (int64_t i = 0; i < indexes.size(); ++i) {
-      Interval interval = operands[i].Intervals()[indexes[i]];
+    upper_bounds.reserve(values_ptrs.size());
+    for (int64_t i = 0; i < values_ptrs.size(); ++i) {
+      Interval interval = *values_ptrs[i];
       switch (behaviors[i].tonicity) {
         case Tonicity::Monotone: {
           // The essential property of a unary monotone function `f` is that
@@ -429,7 +451,25 @@ IntervalSet PerformVariadicOp(Calculate calc,
         Interval(lower.result, Bits::AllOnes(result_bit_size)));
     result_intervals.AddInterval(Interval(Bits(result_bit_size), upper.result));
     return false;
-  });
+  };
+  if (any_sign_sensitive) {
+    using SignedIntervalIter =
+        decltype(std::declval<IntervalSet>().SignedIntervals());
+    std::vector<SignedIntervalIter> intervals;
+    intervals.reserve(operands.size());
+    for (const IntervalSet& i : operands) {
+      intervals.push_back(i.SignedIntervals());
+    }
+    IteratorProduct<SignedIntervalIter>(intervals, handle_combo);
+  } else {
+    using IntervalIter = absl::Span<Interval const>;
+    std::vector<IntervalIter> intervals;
+    intervals.reserve(operands.size());
+    for (const IntervalSet& i : operands) {
+      intervals.push_back(i.Intervals());
+    }
+    IteratorProduct<IntervalIter>(intervals, handle_combo);
+  }
 
   result_intervals.Normalize();
   return MinimizeIntervals(result_intervals, /*size=*/16);
@@ -718,7 +758,9 @@ IntervalSet Decode(const IntervalSet& a, int64_t width) {
 IntervalSet SignExtend(const IntervalSet& a, int64_t width) {
   return PerformUnaryOp(
       [&](const Bits& b) -> Bits { return bits_ops::SignExtend(b, width); }, a,
-      kMonotoneSizePreserving, width);
+      // NB Monotone in unsigned domain as all values either stay the same
+      // (positive) or increase (2s complement negatives).
+      kMonotoneNonSizePreserving.SignSensitive(), width);
 }
 IntervalSet ZeroExtend(const IntervalSet& a, int64_t width) {
   return PerformUnaryOp(

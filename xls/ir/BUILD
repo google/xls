@@ -236,6 +236,7 @@ cc_library(
         ":interval_set",
         ":ir",
         ":ternary",
+        "//xls/common:iter_util",
         "//xls/passes:ternary_evaluator",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log:check",

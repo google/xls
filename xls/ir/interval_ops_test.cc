@@ -571,8 +571,23 @@ TEST(IntervalOpsTest, SignExtend) {
     EXPECT_EQ(SignExtend(lhs, 32), FromRanges({{2, 12}}, 32));
   }
   {
+    // NB This has the available values:
+    // [12, 13, 14, ..., 126, 127, -128, -127, ..., -6, -5, -4]
     IntervalSet lhs = FromRanges({{12, 0xfc /* -4 */}}, 8);
-    EXPECT_EQ(SignExtend(lhs, 32), FromRanges({{12, 0xfffffffc /* -4 */}}, 32));
+    EXPECT_EQ(SignExtend(lhs, 32),
+              FromRanges(
+                  {
+                      {12, 127},
+                      {0xffffff80 /* -128 */, 0xfffffffc /* -4 */},
+                  },
+                  32));
+  }
+  {
+    IntervalSet full = IntervalSet::Maximal(8);
+    EXPECT_EQ(
+        SignExtend(full, 32),
+        FromRanges({{0, 127}, {0xffffff80 /* -128 */, 0xffffffff /* 128 */}},
+                   32));
   }
 }
 
