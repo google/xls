@@ -83,6 +83,7 @@ class BaseProcJitWrapper {
         new RealType(std::move(package), proc, std::move(aot), runtime));
   }
 
+  Package* package() const { return package_.get(); }
   ProcRuntime* runtime() const { return runtime_.get(); }
 
   // Reset the state of all of the procs to their initial state.
