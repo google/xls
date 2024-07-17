@@ -1630,6 +1630,63 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     return true;
   }
 
+  // Replace one-hot-select using a one-hotted selector with a priority select,
+  // if the selector's one-hot has no uses other than as a selector for
+  // other one-hot-selects.
+  auto is_only_a_one_hot_selector = [](Node* selector) {
+    if (selector->function_base()->HasImplicitUse(selector)) {
+      return false;
+    }
+    for (Node* user : selector->users()) {
+      if (!user->Is<OneHotSelect>()) {
+        return false;
+      }
+      absl::Span<Node* const> cases = user->As<OneHotSelect>()->cases();
+      if (absl::c_find(cases, selector) != cases.end()) {
+        // This uses `selector` as something other than a one-hot selector.
+        return false;
+      }
+    }
+    return true;
+  };
+  if (node->Is<OneHotSelect>() &&
+      node->As<OneHotSelect>()->selector()->Is<OneHot>() &&
+      is_only_a_one_hot_selector(node->As<OneHotSelect>()->selector())) {
+    OneHotSelect* ohs = node->As<OneHotSelect>();
+    Node* selector = ohs->selector()->As<OneHot>()->operand(0);
+    LsbOrMsb priority = ohs->selector()->As<OneHot>()->priority();
+
+    // OneHot extends the value with an extra bit that's set iff the original
+    // value is exactly zero; PrioritySelect's custom default value lets us
+    // recreate that effect without the extra bit.
+    absl::Span<Node* const> cases = ohs->cases();
+    Node* default_value = cases.back();
+    cases.remove_suffix(1);
+
+    Node* new_selector = nullptr;
+    std::vector<Node*> new_cases(cases.begin(), cases.end());
+    switch (priority) {
+      case LsbOrMsb::kLsb: {
+        new_selector = selector;
+        break;
+      }
+      case LsbOrMsb::kMsb: {
+        XLS_ASSIGN_OR_RETURN(new_selector,
+                             node->function_base()->MakeNode<UnOp>(
+                                 node->loc(), selector, Op::kReverse));
+        std::reverse(new_cases.begin(), new_cases.end());
+        break;
+      }
+    }
+    XLS_RET_CHECK_NE(new_selector, nullptr)
+        << absl::StreamFormat("invalid OneHot priority: %v", priority);
+
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<PrioritySelect>(
+                                new_selector, new_cases, default_value)
+                            .status());
+    return true;
+  }
+
   // Replace a single-bit input kOneHot with the concat of the input and its
   // inverse.
   if (NarrowingEnabled(opt_level) && node->Is<OneHot>() &&
