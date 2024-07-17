@@ -203,9 +203,14 @@ class FunctionBase {
   }
 
   // Comparator used for sorting by name.
+  static bool NameLessThan(const FunctionBase* a, const FunctionBase* b) {
+    return a->name() < b->name();
+  }
+
+  // Struct form for passing comparators as template arguments.
   struct NameLessThan {
     bool operator()(const FunctionBase* a, const FunctionBase* b) const {
-      return a->name() < b->name();
+      return FunctionBase::NameLessThan(a, b);
     }
   };
 

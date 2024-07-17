@@ -174,9 +174,14 @@ class Channel {
   }
 
   // Comparator used for sorting by name.
+  static bool NameLessThan(const Channel* a, const Channel* b) {
+    return a->name() < b->name();
+  }
+
+  // Struct form for passing comparators as template arguments.
   struct NameLessThan {
     bool operator()(const Channel* a, const Channel* b) const {
-      return a->name() < b->name();
+      return Channel::NameLessThan(a, b);
     }
   };
 

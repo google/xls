@@ -41,12 +41,13 @@ namespace {
 // Data structure describing relationships between procs and channels.
 struct ChannelProcMap {
   // Map from proc to the set of channels used by the proc.
-  absl::flat_hash_map<Proc*, absl::btree_set<Channel*, Channel::NameLessThan>>
+  absl::flat_hash_map<Proc*,
+                      absl::btree_set<Channel*, struct Channel::NameLessThan>>
       proc_to_channels;
 
   // Map from channel to the set of procs which use the channel.
   absl::flat_hash_map<Channel*,
-                      absl::btree_set<Proc*, FunctionBase::NameLessThan>>
+                      absl::btree_set<Proc*, struct FunctionBase::NameLessThan>>
       channel_to_procs;
 
   // Map from (proc, channel) pair to the operations (send and/or receive) which

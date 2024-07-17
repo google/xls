@@ -3388,7 +3388,8 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
 
   XLS_RET_CHECK(package->GetTop().has_value());
   FunctionBase* top = *package->GetTop();
-  absl::btree_map<FunctionBase*, PipelineSchedule, FunctionBase::NameLessThan>
+  absl::btree_map<FunctionBase*, PipelineSchedule,
+                  struct FunctionBase::NameLessThan>
       sorted_schedules(schedules.begin(), schedules.end());
   // Make `unit` optional because we haven't created the top block yet. We will
   // create it on the first iteration and emplace `unit`.

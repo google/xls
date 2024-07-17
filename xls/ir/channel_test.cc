@@ -20,14 +20,19 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+
+namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -249,6 +254,26 @@ TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
     EXPECT_EQ(ch.GetBlockName().value(), "my_block");
     EXPECT_EQ(ch.GetDataPortName().value(), "my_block_data");
   }
+}
+
+TEST(ChannelTest, NameLessThan) {
+  Package p("my_package");
+  Type* u32 = p.GetBitsType(32);
+  XLS_ASSERT_OK(
+      p.CreateStreamingChannel("c", ChannelOps::kSendOnly, u32).status());
+  XLS_ASSERT_OK(
+      p.CreateStreamingChannel("b", ChannelOps::kSendOnly, u32).status());
+  XLS_ASSERT_OK(
+      p.CreateSingleValueChannel("a", ChannelOps::kSendOnly, u32).status());
+  absl::btree_set<Channel*, struct Channel::NameLessThan> channel_set(
+      p.channels().begin(), p.channels().end());
+  EXPECT_THAT(channel_set,
+              ElementsAre(m::Channel("a"), m::Channel("b"), m::Channel("c")));
+  std::vector<Channel*> channel_vector(p.channels().begin(),
+                                       p.channels().end());
+  absl::c_sort(channel_vector, Channel::NameLessThan);
+  EXPECT_THAT(channel_vector,
+              ElementsAre(m::Channel("a"), m::Channel("b"), m::Channel("c")));
 }
 
 }  // namespace
