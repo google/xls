@@ -13,33 +13,37 @@
 // limitations under the License.
 
 #define ZSTD_STATIC_LINKING_ONLY 1
-#include <zstd.h>
 
-#include <bitset>
+#include <algorithm>
 #include <climits>
+#include <cstdint>
 #include <cstdio>
-#include <fstream>
-#include <memory>
-#include <random>
-#include <sstream>
+#include <filesystem>
+#include <ios>
+#include <iostream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
+#include "external/com_github_facebook_zstd/lib/common/zstd_errors.h"
+#include "external/com_github_facebook_zstd/lib/zstd.h"
 #include "fuzztest/fuzztest.h"
 #include "fuzztest/googletest_fixture_adapter.h"
 #include "gtest/gtest.h"
-#include "lib/common/zstd_errors.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/ir/events.h"
-#include "xls/ir/ir_parser.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/value.h"
 #include "xls/modules/zstd/data_generator.h"
 
 namespace xls {
@@ -57,7 +61,7 @@ enum FrameHeaderStatus {
 class FrameHeaderTest : public xls::IrTestBase {
  public:
   // Prepare simulation environment
-  void SetUp() {
+  void SetUp() override {
     XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path path,
                              xls::GetXlsRunfilePath(this->file));
     XLS_ASSERT_OK_AND_ASSIGN(std::string module_text,
@@ -131,10 +135,11 @@ class FrameHeaderTest : public xls::IrTestBase {
         // have `result` bytes, got `buffer.size()` bytes.
         expected_status = FrameHeaderStatus::NO_ENOUGH_DATA;
       }
-    // Make sure that the FCS does not exceed max window buffer size
-    // Frame Header decoding failed - Special case - difference between the reference library and the decoder
+      // Make sure that the FCS does not exceed max window buffer size
+      // Frame Header decoding failed - Special case - difference between the
+      // reference library and the decoder
     } else if (!window_size_valid(zstd_fh.windowSize)) {
-        expected_status = FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE;
+      expected_status = FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE;
     }
 
     auto input = CreateDSLXSimulationInput(buffer.size(), input_buffer);
@@ -167,46 +172,49 @@ class FrameHeaderTest : public xls::IrTestBase {
   // as per https://datatracker.ietf.org/doc/html/rfc8878#name-window-descriptor
   const uint64_t MAX_MANTISSA = 0b111;
 
-  // Calculate maximal accepted window_size for given WINDOW_LOG_MAX and return whether given
-  // window_size should be accepted or discarded.
-  // Based on window_size calculation from: RFC 8878
+  // Calculate maximal accepted window_size for given WINDOW_LOG_MAX and return
+  // whether given window_size should be accepted or discarded. Based on
+  // window_size calculation from: RFC 8878
   // https://datatracker.ietf.org/doc/html/rfc8878#name-window-descriptor
   bool window_size_valid(uint64_t window_size) {
-      auto max_window_size = (1 << TEST_WINDOW_LOG_MAX_LIBZSTD) + (((1 << TEST_WINDOW_LOG_MAX_LIBZSTD) >> 3) * MAX_MANTISSA);
+    auto max_window_size =
+        (1 << TEST_WINDOW_LOG_MAX_LIBZSTD) +
+        (((1 << TEST_WINDOW_LOG_MAX_LIBZSTD) >> 3) * MAX_MANTISSA);
 
-      return window_size <= max_window_size;
+    return window_size <= max_window_size;
   }
 
   void PrintZSTDFrameHeader(ZSTD_frameHeader* fh) {
     std::cout << std::hex;
     std::cout << "zstd_fh->frameContentSize: 0x" << fh->frameContentSize
-              << std::endl;
-    std::cout << "zstd_fh->windowSize: 0x" << fh->windowSize << std::endl;
-    std::cout << "zstd_fh->blockSizeMax: 0x" << fh->blockSizeMax << std::endl;
-    std::cout << "zstd_fh->frameType: 0x" << fh->frameType << std::endl;
-    std::cout << "zstd_fh->headerSize: 0x" << fh->headerSize << std::endl;
-    std::cout << "zstd_fh->dictID: 0x" << fh->dictID << std::endl;
-    std::cout << "zstd_fh->checksumFlag: 0x" << fh->checksumFlag << std::endl;
+              << "\n";
+    std::cout << "zstd_fh->windowSize: 0x" << fh->windowSize << "\n";
+    std::cout << "zstd_fh->blockSizeMax: 0x" << fh->blockSizeMax << "\n";
+    std::cout << "zstd_fh->frameType: 0x" << fh->frameType << "\n";
+    std::cout << "zstd_fh->headerSize: 0x" << fh->headerSize << "\n";
+    std::cout << "zstd_fh->dictID: 0x" << fh->dictID << "\n";
+    std::cout << "zstd_fh->checksumFlag: 0x" << fh->checksumFlag << "\n";
   }
 
   // Form DSLX Value representing ZSTD Frame header based on data parsed with
   // ZSTD library. Represents DSLX struct `FrameHeader`.
-  Value CreateExpectedFrameHeader(ZSTD_frameHeader* fh, FrameHeaderStatus expected_status) {
+  Value CreateExpectedFrameHeader(ZSTD_frameHeader* fh,
+                                  FrameHeaderStatus expected_status) {
     if (expected_status == FrameHeaderStatus::CORRUPTED ||
-        expected_status == FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE)
+        expected_status == FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE) {
       return Value::Tuple({
           /*window_size:*/ Value(UBits(0, 64)),
           /*frame_content_size:*/ Value(UBits(0, 64)),
           /*dictionary_id:*/ Value(UBits(0, 32)),
           /*content_checksum_flag: */ Value(UBits(0, 1)),
       });
-    else
-      return Value::Tuple({
-          /*window_size:*/ Value(UBits(fh->windowSize, 64)),
-          /*frame_content_size:*/ Value(UBits(fh->frameContentSize, 64)),
-          /*dictionary_id:*/ Value(UBits(fh->dictID, 32)),
-          /*content_checksum_flag: */ Value(UBits(fh->checksumFlag, 1)),
-      });
+    }
+    return Value::Tuple({
+        /*window_size:*/ Value(UBits(fh->windowSize, 64)),
+        /*frame_content_size:*/ Value(UBits(fh->frameContentSize, 64)),
+        /*dictionary_id:*/ Value(UBits(fh->dictID, 32)),
+        /*content_checksum_flag: */ Value(UBits(fh->checksumFlag, 1)),
+    });
   }
 
   // Create DSLX Value representing Buffer contents after parsing frame header
@@ -216,13 +224,15 @@ class FrameHeaderTest : public xls::IrTestBase {
                              uint32_t consumed_bytes_count,
                              FrameHeaderStatus expected_status) {
     // Return original buffer contents
-    if (expected_status == FrameHeaderStatus::NO_ENOUGH_DATA)
+    if (expected_status == FrameHeaderStatus::NO_ENOUGH_DATA) {
       return dslx_simulation_input;
+    }
     // Critical failure - return empty buffer
     if (expected_status == FrameHeaderStatus::CORRUPTED ||
-        expected_status == FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE)
+        expected_status == FrameHeaderStatus::UNSUPPORTED_WINDOW_SIZE) {
       return Value::Tuple({/*contents:*/ Value(UBits(0, dslx_buffer_size)),
                            /*length:*/ Value(UBits(0, 32))});
+    }
 
     // Frame Header parsing succeeded. Expect output buffer contents with
     // removed first `consumed_bytes_count` bytes and extended to
@@ -254,8 +264,9 @@ class FrameHeaderTest : public xls::IrTestBase {
                                         Value dslx_simulation_input,
                                         absl::Span<const uint8_t> input_buffer,
                                         FrameHeaderStatus expected_status) {
-    auto expected_buffer = CreateExpectedBuffer(
-        dslx_simulation_input, input_buffer, fh->headerSize, expected_status);
+    auto expected_buffer =
+        CreateExpectedBuffer(std::move(dslx_simulation_input), input_buffer,
+                             fh->headerSize, expected_status);
     auto expected_frame_header = CreateExpectedFrameHeader(fh, expected_status);
     return Value::Tuple({/*status:*/ Value(UBits(expected_status, 2)),
                          /*header:*/ expected_frame_header,
@@ -269,7 +280,9 @@ class FrameHeaderTest : public xls::IrTestBase {
     size_t size = buffer_size;
 
     // ignore buffer contents that won't fit into specialized buffer
-    if (buffer_size > dslx_buffer_size_bytes) size = dslx_buffer_size_bytes;
+    if (buffer_size > dslx_buffer_size_bytes) {
+      size = dslx_buffer_size_bytes;
+    }
 
     return Value::Tuple(
         {/*contents:*/ Value(Bits::FromBytes(input_buffer, dslx_buffer_size)),
@@ -309,18 +322,23 @@ TEST_F(FrameHeaderTest, ParseFrameHeaderFailNoEnoughDataReservedBit) {
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedFrameContentSizeThroughSingleSegment) {
+TEST_F(FrameHeaderTest,
+       ParseFrameHeaderFailUnsupportedFrameContentSizeThroughSingleSegment) {
   std::vector<uint8_t> buffer{0261, 015, 91, 91, 91, 0364};
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedVeryLargeFrameContentSizeThroughSingleSegment) {
-  std::vector<uint8_t> buffer{0344, 'y', ':', 0245, '=', '?', 0263, 0026, ':', 0201, 0266, 0235, 'e', 0300};
+TEST_F(
+    FrameHeaderTest,
+    ParseFrameHeaderFailUnsupportedVeryLargeFrameContentSizeThroughSingleSegment) {
+  std::vector<uint8_t> buffer{0344, 'y', ':',  0245, '=',  '?', 0263,
+                              0026, ':', 0201, 0266, 0235, 'e', 0300};
   this->ParseAndCompareWithZstd(buffer);
 }
 
 TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedWindowSize) {
-  std::vector<uint8_t> buffer{'S', 0301, 'i', 0320, 0, 0256, 'd', 'D', 0226, 'F', 'Z', 'Z', 0332, 0370, 'A'};
+  std::vector<uint8_t> buffer{'S',  0301, 'i', 0320, 0,    0256, 'd', 'D',
+                              0226, 'F',  'Z', 'Z',  0332, 0370, 'A'};
   this->ParseAndCompareWithZstd(buffer);
 }
 
@@ -346,7 +364,8 @@ INSTANTIATE_TEST_SUITE_P(
 class FrameHeaderFuzzTest
     : public fuzztest::PerFuzzTestFixtureAdapter<FrameHeaderTest> {
  public:
-  void ParseMultipleRandomFrameHeaders(std::vector<uint8_t> frame_header) {
+  void ParseMultipleRandomFrameHeaders(
+      const std::vector<uint8_t>& frame_header) {
     this->ParseAndCompareWithZstd(frame_header);
   }
 };

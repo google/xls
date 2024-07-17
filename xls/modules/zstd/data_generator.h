@@ -15,23 +15,10 @@
 #ifndef XLS_MODULES_ZSTD_DATA_GENERATOR_H_
 #define XLS_MODULES_ZSTD_DATA_GENERATOR_H_
 
-#include <algorithm>
-#include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <iterator>
-#include <optional>
-#include <string>
+#include <cstdint>
 #include <vector>
 
-#include "absl/time/time.h"
-#include "absl/types/span.h"
-#include "xls/common/file/filesystem.h"
-#include "xls/common/file/get_runfile_path.h"
-#include "xls/common/status/status_macros.h"
-#include "xls/common/subprocess.h"
-#include "xls/ir/value.h"
+#include "absl/status/statusor.h"
 
 namespace xls::zstd {
 

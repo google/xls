@@ -16,32 +16,27 @@
 #include "xls/modules/zstd/data_generator.h"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
-#include "xls/ir/value.h"
 
 namespace xls::zstd {
-
-static void PrintRawDataVector(std::vector<uint8_t> vector) {
-  for (int i = 0; i < vector.size(); ++i) {
-    std::cout << std::setfill('0') << std::setw(8) << std::hex << i << ": "
-              << "0x" << std::setw(2) << std::hex << int(vector[i])
-              << std::endl;
-  }
-}
 
 static absl::StatusOr<std::vector<uint8_t>> ReadFileAsRawData(
     const std::filesystem::path& path) {
@@ -79,7 +74,7 @@ static std::string CreateNameForGeneratedFile(
 
 static absl::StatusOr<SubprocessResult> CallDecodecorpus(
     absl::Span<const std::string> args,
-    std::optional<std::filesystem::path> cwd = std::nullopt,
+    const std::optional<std::filesystem::path>& cwd = std::nullopt,
     std::optional<absl::Duration> timeout = std::nullopt) {
   XLS_ASSIGN_OR_RETURN(
       std::filesystem::path path,
@@ -115,9 +110,12 @@ absl::StatusOr<std::vector<uint8_t>> GenerateFrame(int seed, BlockType btype) {
       std::filesystem::path(
           CreateNameForGeneratedFile(absl::MakeSpan(args), ".zstd", "fh"));
   args.push_back("-p" + std::string(output_path));
-  if (btype != BlockType::RANDOM)
+  if (btype != BlockType::RANDOM) {
     args.push_back("--block-type=" + std::to_string(btype));
-  if (btype == BlockType::RLE) args.push_back("--content-size");
+  }
+  if (btype == BlockType::RLE) {
+    args.push_back("--content-size");
+  }
   // Test payloads up to 16KB
   args.push_back("--max-content-size-log=14");
 

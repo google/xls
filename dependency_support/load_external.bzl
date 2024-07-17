@@ -344,4 +344,3 @@ def load_external_repositories():
         # Modify decodecorpus to allow generation of zstd frame headers only
         patches = ["//dependency_support/com_github_facebook_zstd:decodecorpus.patch"],
     )
-

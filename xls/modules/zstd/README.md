@@ -28,11 +28,42 @@ and routed to the history buffer,
 ### Top level Proc
 This state machine is responsible for receiving encoded ZSTD frames, buffering the input and passing it to decoder's internal components based on the state of the proc.
 The states defined for the processing of ZSTD frame are as follows:
-* DECODE_MAGIC_NUMBER
-* DECODE_FRAME_HEADER
-* DECODE_BLOCK_HEADER
-* FEED_BLOCK_DECODER
-* DECODE_CHECKSUM
+
+```mermaid
+stateDiagram
+    direction LR
+
+    [*] --> DECODE_MAGIC_NUMBER
+
+    DECODE_MAGIC_NUMBER --> DECODE_MAGIC_NUMBER: Not enough data
+    DECODE_MAGIC_NUMBER --> DECODE_FRAME_HEADER: Got magic number
+    DECODE_MAGIC_NUMBER --> ERROR: Corrupted
+
+    DECODE_FRAME_HEADER --> DECODE_FRAME_HEADER: Not enough data
+    DECODE_FRAME_HEADER --> DECODE_BLOCK_HEADER: Header decoded
+    DECODE_FRAME_HEADER --> ERROR: Unsupported window size
+    DECODE_FRAME_HEADER --> ERROR: Corrupted
+
+    DECODE_BLOCK_HEADER --> DECODE_BLOCK_HEADER: Not enough data
+    DECODE_BLOCK_HEADER --> FEED_BLOCK_DECODER: Feed raw data
+    DECODE_BLOCK_HEADER --> FEED_BLOCK_DECODER: Feed RLE data
+    DECODE_BLOCK_HEADER --> FEED_BLOCK_DECODER: Feed compressed data
+    DECODE_BLOCK_HEADER --> ERROR: Corrupted
+
+    state if_decode_checksum <<choice>>
+    state if_block_done <<choice>>
+
+    FEED_BLOCK_DECODER --> if_decode_checksum: Is the checksum available?
+    if_decode_checksum --> DECODE_CHECKSUM: True
+    if_decode_checksum --> DECODE_MAGIC_NUMBER: False
+    FEED_BLOCK_DECODER --> if_block_done: Is the block decoding done?
+    if_block_done --> DECODE_BLOCK_HEADER: Decode next block
+    if_block_done --> FEED_BLOCK_DECODER: Continue feeding
+
+    DECODE_CHECKSUM --> DECODE_MAGIC_NUMBER: Frame decoded
+
+    ERROR --> [*]
+```
 
 After going through initial stages of decoding magic number and frame header, decoder starts the block division process.
 It decodes block headers to calculate how many bytes must be sent to the block dispatcher and when the current frame's last data block is being processed.

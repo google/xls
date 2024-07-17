@@ -20,11 +20,10 @@ load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
-    "xls_dslx_ir",
     "xls_benchmark_verilog",
+    "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_test",
-    "xls_ir_opt_ir",
     "xls_dslx_verilog",
 )
 
@@ -80,8 +79,8 @@ xls_dslx_verilog(
         "inline_procs": "true",
         "top": "__window_buffer__WindowBuffer64__WindowBuffer_0__64_32_48_next",
     },
-    verilog_file = "window_buffer.v",
     tags = ["manual"],
+    verilog_file = "window_buffer.v",
 )
 
 xls_benchmark_ir(
@@ -105,11 +104,11 @@ verilog_library(
 synthesize_rtl(
     name = "window_buffer_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "WindowBuffer64",
     deps = [
         ":window_buffer_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -126,8 +125,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":window_buffer_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -155,10 +154,8 @@ cc_library(
     ],
     deps = [
         "//xls/common:subprocess",
-        "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
-        "//xls/ir",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
@@ -210,6 +207,7 @@ cc_test(
         ":frame_header_test_dslx",
     ],
     shard_count = 50,
+    tags = ["manual"],
     deps = [
         ":data_generator",
         "//xls/common:xls_gunit_main",
@@ -218,20 +216,20 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
-        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/ir:bits",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@com_github_facebook_zstd//:zstd",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/types:span",
         "@com_google_fuzztest//fuzztest",
         "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
         "@com_google_googletest//:gtest",
     ],
-    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -246,8 +244,8 @@ xls_dslx_verilog(
     },
     dslx_top = "parse_frame_header_128",
     library = ":frame_header_test_dslx",
-    verilog_file = "frame_header.v",
     tags = ["manual"],
+    verilog_file = "frame_header.v",
 )
 
 xls_benchmark_ir(
@@ -271,11 +269,11 @@ verilog_library(
 synthesize_rtl(
     name = "frame_header_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "FrameHeaderDecoder",
     deps = [
         ":frame_header_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -292,8 +290,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":frame_header_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -324,8 +322,8 @@ xls_dslx_verilog(
     },
     dslx_top = "RawBlockDecoder",
     library = ":raw_block_dec_dslx",
-    verilog_file = "raw_block_dec.v",
     tags = ["manual"],
+    verilog_file = "raw_block_dec.v",
 )
 
 xls_benchmark_ir(
@@ -349,11 +347,11 @@ verilog_library(
 synthesize_rtl(
     name = "raw_block_dec_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "RawBlockDecoder",
     deps = [
         ":raw_block_dec_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -370,8 +368,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":raw_block_dec_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -410,8 +408,8 @@ xls_dslx_verilog(
         "inline_procs": "true",
         "top": "__rle_block_dec__RleBlockDecoder__BatchPacker_0_next",
     },
-    verilog_file = "rle_block_dec.v",
     tags = ["manual"],
+    verilog_file = "rle_block_dec.v",
 )
 
 xls_benchmark_ir(
@@ -435,11 +433,11 @@ verilog_library(
 synthesize_rtl(
     name = "rle_block_dec_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "RleBlockDecoder",
     deps = [
         ":rle_block_dec_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -456,8 +454,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":rle_block_dec_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -504,8 +502,8 @@ xls_dslx_verilog(
     },
     dslx_top = "DecoderMux",
     library = ":dec_mux_dslx",
-    verilog_file = "dec_mux.v",
     tags = ["manual"],
+    verilog_file = "dec_mux.v",
 )
 
 xls_benchmark_ir(
@@ -529,11 +527,11 @@ verilog_library(
 synthesize_rtl(
     name = "dec_mux_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "DecoderMux",
     deps = [
         ":dec_mux_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -550,8 +548,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":dec_mux_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -582,8 +580,8 @@ xls_dslx_verilog(
     },
     dslx_top = "DecoderDemux",
     library = ":dec_demux_dslx",
-    verilog_file = "dec_demux.v",
     tags = ["manual"],
+    verilog_file = "dec_demux.v",
 )
 
 xls_benchmark_ir(
@@ -607,11 +605,11 @@ verilog_library(
 synthesize_rtl(
     name = "dec_demux_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "DecoderDemux",
     deps = [
         ":dec_demux_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -628,8 +626,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":dec_demux_synth_asap7",
-    target_die_utilization_percentage = "5",
     tags = ["manual"],
+    target_die_utilization_percentage = "5",
 )
 
 xls_dslx_library(
@@ -669,8 +667,8 @@ xls_dslx_verilog(
         "inline_procs": "true",
         "top": "__xls_modules_zstd_dec_mux__BlockDecoder__DecoderMux_0_next",
     },
-    verilog_file = "block_dec.v",
     tags = ["manual"],
+    verilog_file = "block_dec.v",
 )
 
 xls_benchmark_ir(
@@ -694,11 +692,11 @@ verilog_library(
 synthesize_rtl(
     name = "block_dec_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "BlockDecoder",
     deps = [
         ":block_dec_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -715,8 +713,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":block_dec_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -788,8 +786,8 @@ xls_dslx_verilog(
         "inline_procs": "true",
         "top": "__sequence_executor__SequenceExecutorZstd__SequenceExecutor_0__64_0_0_0_13_8192_65536_next",
     },
-    verilog_file = "sequence_executor.v",
     tags = ["manual"],
+    verilog_file = "sequence_executor.v",
 )
 
 xls_benchmark_ir(
@@ -804,8 +802,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "sequence_executor_verilog_benchmark",
-    verilog_target = "sequence_executor_verilog",
     tags = ["manual"],
+    verilog_target = "sequence_executor_verilog",
 )
 
 verilog_library(
@@ -819,11 +817,11 @@ verilog_library(
 synthesize_rtl(
     name = "sequence_executor_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "sequence_executor",
     deps = [
         ":sequence_executor_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -840,8 +838,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":sequence_executor_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -871,8 +869,8 @@ xls_dslx_verilog(
     },
     dslx_top = "Repacketizer",
     library = ":repacketizer_dslx",
-    verilog_file = "repacketizer.v",
     tags = ["manual"],
+    verilog_file = "repacketizer.v",
 )
 
 xls_benchmark_ir(
@@ -896,11 +894,11 @@ verilog_library(
 synthesize_rtl(
     name = "repacketizer_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "Repacketizer",
     deps = [
         ":repacketizer_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -917,8 +915,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":repacketizer_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -976,8 +974,8 @@ xls_dslx_verilog(
     opt_ir_args = {
         "inline_procs": "true",
     },
-    verilog_file = "zstd_dec.v",
     tags = ["manual"],
+    verilog_file = "zstd_dec.v",
 )
 
 xls_dslx_ir(
@@ -990,6 +988,7 @@ xls_dslx_ir(
 
 cc_test(
     name = "zstd_dec_cc_test",
+    size = "large",
     srcs = [
         "zstd_dec_test.cc",
     ],
@@ -997,22 +996,28 @@ cc_test(
         ":zstd_dec_test.ir",
     ],
     shard_count = 50,
-    size = "large",
+    tags = ["manual"],
     deps = [
         ":data_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
-        "//xls/interpreter:interpreter_proc_runtime",
-        "//xls/jit:jit_proc_runtime",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:serial_proc_runtime",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
         "//xls/ir:events",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
+        "//xls/jit:jit_proc_runtime",
         "@com_github_facebook_zstd//:zstd",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
-    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1037,11 +1042,11 @@ verilog_library(
 synthesize_rtl(
     name = "zstd_dec_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "ZstdDecoder",
     deps = [
         ":zstd_dec_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -1058,6 +1063,6 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":zstd_dec_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )

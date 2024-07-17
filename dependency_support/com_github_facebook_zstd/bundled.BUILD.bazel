@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Builds everything together similarly to the zstd cmake file:
+https://github.com/facebook/zstd/blob/dev/build/cmake/lib/CMakeLists.txt
+but with legacy support and defines as in the zstd BUCK file:
+https://github.com/facebook/zstd/blob/dev/lib/BUCK
+"""
+
 package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])
-
-# Builds everything together similarly to the zstd cmake file:
-# https://github.com/facebook/zstd/blob/dev/build/cmake/lib/CMakeLists.txt
-# but with legacy support and defines as in the zstd BUCK file:
-# https://github.com/facebook/zstd/blob/dev/lib/BUCK
 
 cc_library(
     name = "zstd",
