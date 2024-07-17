@@ -294,49 +294,47 @@ class FrameHeaderTest : public xls::IrTestBase {
 
 TEST(ZstdLib, Version) { ASSERT_EQ(ZSTD_VERSION_STRING, "1.4.7"); }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderSuccess) {
+TEST_F(FrameHeaderTest, Success) {
   std::vector<uint8_t> buffer{0xC2, 0x09, 0xFE, 0xCA, 0xEF, 0xCD,
                               0xAB, 0x90, 0x78, 0x56, 0x34, 0x12};
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderFailCorruptedReservedBit) {
+TEST_F(FrameHeaderTest, FailCorruptedReservedBit) {
   std::vector<uint8_t> buffer{0xEA, 0xFE, 0xCA, 0xEF, 0xCD, 0xAB,
                               0x90, 0x78, 0x56, 0x34, 0x12};
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedWindowSizeTooBig) {
+TEST_F(FrameHeaderTest, FailUnsupportedWindowSizeTooBig) {
   std::vector<uint8_t> buffer{0x10, 0xD3};
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderFailNoEnoughData) {
+TEST_F(FrameHeaderTest, FailNoEnoughData) {
   std::vector<uint8_t> buffer{0xD3, 0xED};
   this->ParseAndCompareWithZstd(buffer);
 }
 
 // NO_ENOUGH_DATA has priority over CORRUPTED from reserved bit
-TEST_F(FrameHeaderTest, ParseFrameHeaderFailNoEnoughDataReservedBit) {
+TEST_F(FrameHeaderTest, FailNoEnoughDataReservedBit) {
   std::vector<uint8_t> buffer{0xED, 0xD3};
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest,
-       ParseFrameHeaderFailUnsupportedFrameContentSizeThroughSingleSegment) {
+TEST_F(FrameHeaderTest, FailUnsupportedFrameContentSizeThroughSingleSegment) {
   std::vector<uint8_t> buffer{0261, 015, 91, 91, 91, 0364};
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(
-    FrameHeaderTest,
-    ParseFrameHeaderFailUnsupportedVeryLargeFrameContentSizeThroughSingleSegment) {
+TEST_F(FrameHeaderTest,
+       FailUnsupportedVeryLargeFrameContentSizeThroughSingleSegment) {
   std::vector<uint8_t> buffer{0344, 'y', ':',  0245, '=',  '?', 0263,
                               0026, ':', 0201, 0266, 0235, 'e', 0300};
   this->ParseAndCompareWithZstd(buffer);
 }
 
-TEST_F(FrameHeaderTest, ParseFrameHeaderFailUnsupportedWindowSize) {
+TEST_F(FrameHeaderTest, FailUnsupportedWindowSize) {
   std::vector<uint8_t> buffer{'S',  0301, 'i', 0320, 0,    0256, 'd', 'D',
                               0226, 'F',  'Z', 'Z',  0332, 0370, 'A'};
   this->ParseAndCompareWithZstd(buffer);
