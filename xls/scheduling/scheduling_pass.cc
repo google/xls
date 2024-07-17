@@ -72,7 +72,12 @@ SchedulingUnit::GetSchedulableFunctions() const {
   // Package* means 'all FunctionBases in the package'
   if (std::holds_alternative<Package*>(schedulable_unit_)) {
     XLS_RET_CHECK_EQ(ir_, std::get<Package*>(schedulable_unit_));
-    return ir_->GetFunctionBases();
+    // FFI functions are not schedulable.
+    std::vector<FunctionBase*> schedulable_functions = ir_->GetFunctionBases();
+    std::erase_if(schedulable_functions, [](FunctionBase* f) {
+      return f->ForeignFunctionData().has_value();
+    });
+    return schedulable_functions;
   }
   // Otherwise, return the specified FunctionBase (if it still exists in the
   // package).

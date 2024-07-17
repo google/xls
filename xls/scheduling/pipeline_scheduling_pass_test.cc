@@ -323,5 +323,53 @@ TEST_F(PipelineSchedulingPassTest, FunctionWithFFI) {
       IsOkAndHolds(Pair(true, SchedulingUnitWithElements(UnorderedElementsAre(
                                   Pair(caller, VerifiedPipelineSchedule()))))));
 }
+
+TEST_F(PipelineSchedulingPassTest, MultiProcWithFFI) {
+  auto p = CreatePackage();
+  Type* u17 = p->GetBitsType(17);
+  Type* u32 = p->GetBitsType(32);
+
+  Function* ffi_fun;
+  {
+    FunctionBuilder fb("ffi_func", p.get());
+    const BValue param_a = fb.Param("a", u32);
+    const BValue param_b = fb.Param("b", u17);
+    const BValue add = fb.Add(param_a, fb.ZeroExtend(param_b, 32));
+    XLS_ASSERT_OK_AND_ASSIGN(ForeignFunctionData ffd,
+                             ForeignFunctionDataCreateFromTemplate(
+                                 "foo {fn} (.ma({a}), .mb{b}) .out({return})"));
+    fb.SetForeignFunctionData(ffd);
+    XLS_ASSERT_OK_AND_ASSIGN(ffi_fun, fb.BuildWithReturnValue(add));
+  }
+
+  Proc* caller;
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * ch_a,
+        p->CreateStreamingChannel("a", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * ch_b,
+        p->CreateStreamingChannel("b", ChannelOps::kReceiveOnly, u17));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Channel * ch_c,
+        p->CreateStreamingChannel("c", ChannelOps::kSendOnly, u32));
+
+    ProcBuilder pb("caller", p.get());
+    BValue recv_a = pb.Receive(ch_a, pb.Literal(Value::Token()));
+    BValue recv_b = pb.Receive(ch_b, pb.Literal(Value::Token()));
+    BValue result = pb.Invoke(
+        {pb.TupleIndex(recv_a, 1), pb.TupleIndex(recv_b, 1)}, ffi_fun);
+    pb.Send(ch_c, pb.Literal(Value::Token()), result);
+    XLS_ASSERT_OK_AND_ASSIGN(caller, pb.Build({}));
+  }
+
+  // Test that multi-proc scheduling doesn't try to schedule the FFI function.
+  EXPECT_THAT(
+      RunPipelineSchedulingPass(
+          p.get(),
+          SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)),
+      IsOkAndHolds(Pair(true, SchedulingUnitWithElements(UnorderedElementsAre(
+                                  Pair(caller, VerifiedPipelineSchedule()))))));
+}
 }  // namespace
 }  // namespace xls
