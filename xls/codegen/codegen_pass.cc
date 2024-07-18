@@ -21,6 +21,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
@@ -110,6 +111,38 @@ void CodegenPassUnit::GcMetadata() {
       }
     }
   }
+}
+
+/* static */ ChannelMap ChannelMap::Create(const CodegenPassUnit& unit) {
+  ChannelMap::StreamingInputMap channel_to_streaming_input;
+  ChannelMap::StreamingOutputMap channel_to_streaming_output;
+  for (auto& [block, metadata] : unit.metadata) {
+    for (auto& inputs : metadata.streaming_io_and_pipeline.inputs) {
+      for (auto& input : inputs) {
+        VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
+                                      input.channel->name());
+        if (!input.IsExternal()) {
+          VLOG(5) << absl::StreamFormat("Skipping internal input %s",
+                                        input.channel->name());
+          continue;
+        }
+        channel_to_streaming_input[input.channel] = &input;
+      }
+    }
+    for (auto& outputs : metadata.streaming_io_and_pipeline.outputs) {
+      for (auto& output : outputs) {
+        VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
+                                      output.channel->name());
+        if (!output.IsExternal()) {
+          VLOG(5) << absl::StreamFormat("Skipping internal output %s",
+                                        output.channel->name());
+          continue;
+        }
+        channel_to_streaming_output[output.channel] = &output;
+      }
+    }
+  }
+  return ChannelMap(channel_to_streaming_input, channel_to_streaming_output);
 }
 
 }  // namespace xls::verilog

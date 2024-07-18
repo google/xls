@@ -89,7 +89,7 @@ MULTI_PROC_IR = """package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
         flow_control=ready_valid, metadata="")
 chan internal(bits[32], id=1, kind=streaming, ops=send_receive,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid, bypass=false, fifo_depth=1, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only,
         flow_control=ready_valid, metadata="")
 
@@ -457,46 +457,38 @@ class CodeGenMainTest(parameterized.TestCase):
 
   def test_multi_proc(self):
     ir_file = self.create_tempfile(content=MULTI_PROC_IR)
-    with self.assertRaises(subprocess.CalledProcessError) as cm:
-      subprocess.check_output(
-          [
-              CODEGEN_MAIN_PATH,
-              '--generator=pipeline',
-              '--pipeline_stages=2',
-              '--reset=rst',
-              '--multi_proc',
-              '--delay_model=unit',
-              '--alsologtostderr',
-              '--top=proc0',
-              '--module_name=multi_proc',
-              ir_file.full_path,
-          ],
-          stderr=subprocess.STDOUT,
-      ).decode('utf-8')
-    self.assertContainsExactSubsequence(
-        str(cm.exception.output), 'Block stitching not implemented'
-    )
+    verilog = subprocess.check_output(
+        [
+            CODEGEN_MAIN_PATH,
+            '--generator=pipeline',
+            '--pipeline_stages=2',
+            '--reset=rst',
+            '--multi_proc',
+            '--delay_model=unit',
+            '--alsologtostderr',
+            '--top=proc0',
+            '--module_name=multi_proc',
+            ir_file.full_path,
+        ],
+    ).decode('utf-8')
+    self._compare_to_golden(verilog)
 
   def test_multi_proc_container_has_name_of_block(self):
     ir_file = self.create_tempfile(content=MULTI_PROC_IR)
-    with self.assertRaises(subprocess.CalledProcessError) as cm:
-      subprocess.check_output(
-          [
-              CODEGEN_MAIN_PATH,
-              '--generator=pipeline',
-              '--pipeline_stages=2',
-              '--reset=rst',
-              '--multi_proc',
-              '--delay_model=unit',
-              '--alsologtostderr',
-              '--top=proc0',
-              ir_file.full_path,
-          ],
-          stderr=subprocess.STDOUT,
-      ).decode('utf-8')
-    self.assertContainsExactSubsequence(
-        str(cm.exception.output), 'Block stitching not implemented'
-    )
+    verilog = subprocess.check_output(
+        [
+            CODEGEN_MAIN_PATH,
+            '--generator=pipeline',
+            '--pipeline_stages=2',
+            '--reset=rst',
+            '--multi_proc',
+            '--delay_model=unit',
+            '--alsologtostderr',
+            '--top=proc0',
+            ir_file.full_path,
+        ],
+    ).decode('utf-8')
+    self._compare_to_golden(verilog)
 
   def test_high_ii_with_register_sharing(self):
     ir_file = self.create_tempfile(content=HIGH_II_PROC_IR)

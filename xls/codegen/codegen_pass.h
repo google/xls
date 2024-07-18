@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -326,6 +327,33 @@ using CodegenPass =
 using CodegenCompoundPass =
     CompoundPassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
 using CodegenInvariantChecker = CodegenCompoundPass::InvariantChecker;
+
+// Map from channel to block inputs/outputs.
+class ChannelMap {
+ public:
+  using StreamingInputMap =
+      absl::flat_hash_map<Channel*, const StreamingInput*>;
+  using StreamingOutputMap =
+      absl::flat_hash_map<Channel*, const StreamingOutput*>;
+
+  // Populate mapping from channel to block inputs/outputs for all blocks.
+  static ChannelMap Create(const CodegenPassUnit& unit);
+
+  const StreamingInputMap& channel_to_streaming_input() const {
+    return channel_to_streaming_input_;
+  }
+  const StreamingOutputMap& channel_to_streaming_output() const {
+    return channel_to_streaming_output_;
+  }
+
+ private:
+  ChannelMap(StreamingInputMap channel_to_streaming_input,
+             StreamingOutputMap channel_to_streaming_output)
+      : channel_to_streaming_input_(std::move(channel_to_streaming_input)),
+        channel_to_streaming_output_(std::move(channel_to_streaming_output)) {}
+  StreamingInputMap channel_to_streaming_input_;
+  StreamingOutputMap channel_to_streaming_output_;
+};
 
 }  // namespace xls::verilog
 
