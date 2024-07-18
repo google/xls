@@ -70,6 +70,8 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.pb.h"
 
 namespace m = xls::op_matchers;
 
@@ -423,7 +425,11 @@ class ProcConversionTestFixture : public BlockConversionTest {
         p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
     XLS_ASSIGN_OR_RETURN(
         Channel * ch_internal,
-        p->CreateStreamingChannel("internal", ChannelOps::kSendReceive, u32));
+        p->CreateStreamingChannel("internal", ChannelOps::kSendReceive, u32,
+                                  /*initial_values=*/{}, /*fifo_config=*/
+                                  FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                             /*register_push_outputs=*/false,
+                                             /*register_pop_outputs=*/false)));
     XLS_ASSIGN_OR_RETURN(
         Channel * ch_out,
         p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -5708,31 +5714,103 @@ TEST_F(BlockConversionTest, NonTopBlockNamedModuleName) {
   EXPECT_THAT(p->GetBlock("B__1").value()->nodes(), Contains(m::Literal(48)));
 }
 
-TEST_F(ProcConversionTestFixture, DISABLED_SimpleMultiProcConversion) {
+TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            CreateMultiProcPackage());
-  PackagePipelineSchedules schedules;
-  for (const std::unique_ptr<Proc>& proc : p->procs()) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        PipelineSchedule schedule,
-        RunPipelineSchedule(proc.get(), TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(2)));
-    schedules.emplace(proc.get(), std::move(schedule));
-  }
+  SchedulingOptionsFlagsProto scheduling_options;
+  scheduling_options.set_pipeline_stages(2);
+  scheduling_options.set_delay_model("unit");
+  scheduling_options.set_multi_proc(true);
 
-  CodegenOptions options;
-  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
-  options.valid_control("input_valid", "output_valid");
-  options.reset("rst", false, false, true);
-  options.streaming_channel_data_suffix("_data");
-  options.streaming_channel_valid_suffix("_valid");
-  options.streaming_channel_ready_suffix("_ready");
-  options.add_idle_output(true);
-  options.module_name("p");
+  CodegenFlagsProto codegen_options;
+  codegen_options.set_flop_inputs(false);
+  codegen_options.set_flop_outputs(false);
+  codegen_options.set_reset("rst");
+  codegen_options.set_streaming_channel_data_suffix("_data");
+  codegen_options.set_streaming_channel_valid_suffix("_valid");
+  codegen_options.set_streaming_channel_ready_suffix("_ready");
+  codegen_options.set_module_name("p");
+  codegen_options.set_register_merge_strategy(
+      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
+  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenPassUnit unit,
-      PackageToPipelinedBlocks(schedules, options, p.get()));
+      CodegenResult result,
+      ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
+                         /*with_delay_model=*/true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"rst", 1}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 15, {{"rst", 0}, {"in_valid", 0}, {"in_data", 1}, {"out_ready", 1}},
+      inputs));
+
+  // Cycle 16: Blocked on input, stage 1 has valid so still not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      16, 16, {{"rst", 0}, {"in_valid", 0}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 17-18: Blocked on input, stage 1 no longer has valid so idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      17, 18, {{"rst", 0}, {"in_valid", 0}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 19: No longer blocked, so not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      19, 19, {{"rst", 0}, {"in_valid", 1}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 20: Blocked on input, again, but not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 20, {{"rst", 0}, {"in_valid", 0}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      21, 21, {{"rst", 0}, {"in_valid", 1}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      22, 22, {{"rst", 0}, {"in_valid", 1}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      23, 23, {{"rst", 0}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      24, 24, {{"rst", 0}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                           InterpretSequentialBlock(top_block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"in_data", SignalType::kInput},
+                              {"in_valid", SignalType::kInput},
+                              {"in_ready", SignalType::kOutput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    if (i < 10) {
+      EXPECT_EQ(inputs[i]["rst"], 1)
+          << absl::StrFormat("Cycle %d, expected rst==1", i);
+    } else if (i == 17 || i == 18) {
+      EXPECT_EQ(inputs[i]["rst"], 0)
+          << absl::StrFormat("Cycle %d, expected rst==0", i);
+    } else {
+      EXPECT_EQ(inputs[i]["rst"], 0)
+          << absl::StrFormat("Cycle %d, expected rst==0", i);
+    }
+  }
 }
 
 }  // namespace
