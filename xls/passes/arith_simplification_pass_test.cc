@@ -1686,5 +1686,44 @@ TEST_F(ArithSimplificationPassTest, GuardedShiftOperationLowLimit) {
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Select()));
 }
 
+TEST_F(ArithSimplificationPassTest, UMulCompare) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  fb.Eq(fb.Literal(UBits(1000, 50)),
+        fb.UMul(x, fb.Literal(UBits(100, 32)), 50));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(x.node(), m::Literal(UBits(10, 32))));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulCompareOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  // This can overflow which makes getting the inverse more difficult.
+  // TODO(allight): It might be nice to do this when we can.
+  fb.Eq(fb.Literal(UBits(1, 3)), fb.UMul(x, fb.Literal(UBits(5, 3)), 3));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulCompareImpossible) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  fb.Eq(fb.Literal(UBits(1001, 50)),
+        fb.UMul(x, fb.Literal(UBits(100, 32)), 50));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(Value::Bool(false)));
+}
+
 }  // namespace
 }  // namespace xls

@@ -237,6 +237,16 @@ bool IsCompatible(TernarySpan pattern, const Bits& bits) {
   return true;
 }
 
+int64_t MinimumBitCount(TernarySpan t) {
+  int64_t len = t.size();
+  for (int64_t i = 0; i < t.size(); ++i) {
+    if (t.crbegin()[i] == TernaryValue::kKnownZero) {
+      len--;
+    }
+  }
+  return len;
+}
+
 void UpdateWithIntersection(TernaryVector& lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
 

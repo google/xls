@@ -116,6 +116,10 @@ void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs);
 // Returns the number of known bits in the given `TernaryVector`.
 int64_t NumberOfKnownBits(TernarySpan vec);
 
+// Returns the number of bits required to represent every possible value the
+// ternary may take.
+int64_t MinimumBitCount(TernarySpan t);
+
 inline bool IsKnown(TernaryValue t) { return t != TernaryValue::kUnknown; }
 inline bool IsUnknown(TernaryValue t) { return t == TernaryValue::kUnknown; }
 

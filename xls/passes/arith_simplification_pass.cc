@@ -37,6 +37,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
@@ -283,6 +284,9 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
   if (!compare.has_value()) {
     return false;
   }
+  // TODO(allight): Support other comparisons when possible.
+  // NB This is required for the subtraction simplifications to be accurate
+  // because otherwise the direction of the comparison might need to change.
   if (compare->op != Op::kEq && compare->op != Op::kNe) {
     return false;
   }
@@ -291,17 +295,31 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
   if (!binary_op.has_value()) {
     return false;
   }
-  // TODO(meheff): 2024/01/29 Add support for full-width (non-truncating) kUMul.
-  if (binary_op->op != Op::kAdd && binary_op->op != Op::kSub) {
+  if (binary_op->op != Op::kAdd && binary_op->op != Op::kSub &&
+      binary_op->op != Op::kUMul) {
     return false;
+  }
+  if (binary_op->op == Op::kUMul) {
+    // Check if the binary op can overflow.
+    int64_t op_width = compare->operand->BitCountOrDie();
+    int64_t op_size = ternary_ops::MinimumBitCount(
+        query_engine.GetTernary(binary_op->operand).Get({}));
+    int64_t const_size = binary_op->constant.bits().bit_count() -
+                         binary_op->constant.bits().CountLeadingZeros();
+    // If op_width is greater than or equal to the combined sizes of the
+    // operands then overflow is impossible since there would need to be at
+    // least one more add to hit the next bit.
+    if (op_width < op_size + const_size) {
+      // Overflow possible.
+      return false;
+    }
   }
   Bits solution;
   if (binary_op->op == Op::kAdd) {
     // (X + C_0) cmp C_1  => x cmp C_1 - C_0
     solution =
         bits_ops::Sub(compare->constant.bits(), binary_op->constant.bits());
-  } else {
-    XLS_RET_CHECK_EQ(binary_op->op, Op::kSub);
+  } else if (binary_op->op == Op::kSub) {
     if (binary_op->constant_on_lhs) {
       // (C_0 - X) cmp C_1  => x cmp C_0 - C_1
       solution =
@@ -311,6 +329,23 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
       solution =
           bits_ops::Add(compare->constant.bits(), binary_op->constant.bits());
     }
+  } else {
+    XLS_RET_CHECK_EQ(binary_op->op, Op::kUMul);
+    // Need to be careful not to break the case where the comparison is actually
+    // impossible to satisfy or reject (eg 2*x == 3).
+    if (!compare->constant.bits().IsZero() &&
+        !bits_ops::UMod(compare->constant.bits(), binary_op->constant.bits())
+             .IsZero()) {
+      VLOG(2) << "FOUND: Constant umul comparison.";
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<Literal>(Value::Bool(compare->op == Op::kNe))
+              .status());
+      return true;
+    }
+    // (C_0 * X) cmp C_1 => X cmp C_1 / C_0
+    solution = bits_ops::Truncate(
+        bits_ops::UDiv(compare->constant.bits(), binary_op->constant.bits()),
+        binary_op->operand->BitCountOrDie());
   }
   XLS_ASSIGN_OR_RETURN(
       Literal * new_literal,
