@@ -44,6 +44,7 @@
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -69,6 +70,8 @@
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/testbench_signal_capture.h"
 #include "xls/simulation/verilog_test_base.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/verilog_include.h"
 
 namespace xls {
@@ -191,6 +194,60 @@ class BlockGeneratorTest : public VerilogTestBase {
     BValue result = bb.InstantiationOutput(instantiation, "result");
     bb.OutputPort("z", result);
     return bb.Build();
+  }
+  absl::StatusOr<CodegenResult> MakeMultiProc(FifoConfig fifo_config) {
+    Package package(TestName());
+    Type* u32 = package.GetBitsType(32);
+    XLS_ASSIGN_OR_RETURN(
+        Channel * in,
+        package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32, {},
+                                       std::nullopt, FlowControl::kReadyValid));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * internal,
+        package.CreateStreamingChannel(
+            "internal", ChannelOps::kSendReceive, u32, {},
+            /*fifo_config=*/fifo_config, FlowControl::kReadyValid));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * out,
+        package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32, {},
+                                       std::nullopt, FlowControl::kReadyValid));
+    TokenlessProcBuilder in_pb("proc_in", "tkn", &package);
+    {
+      BValue in_value = in_pb.Receive(in);
+      in_pb.Send(internal, in_value);
+    }
+
+    TokenlessProcBuilder out_pb("proc_out", "tkn", &package);
+    {
+      BValue in_value = out_pb.Receive(internal);
+      out_pb.Send(out, in_value);
+    }
+
+    XLS_RET_CHECK_OK(in_pb.Build({}).status());
+    XLS_RET_CHECK_OK(out_pb.Build({}).status());
+
+    SchedulingOptionsFlagsProto scheduling_options_flags_proto;
+    scheduling_options_flags_proto.set_delay_model("unit");
+    scheduling_options_flags_proto.set_pipeline_stages(2);
+    scheduling_options_flags_proto.set_multi_proc(true);
+    CodegenFlagsProto codegen_flags_proto;
+    codegen_flags_proto.set_top("proc_in");
+    codegen_flags_proto.set_generator(
+        ::xls::GeneratorKind::GENERATOR_KIND_PIPELINE);
+    codegen_flags_proto.set_reset("rst");
+    codegen_flags_proto.set_reset_active_low(false);
+    codegen_flags_proto.set_reset_data_path(true);
+    codegen_flags_proto.set_register_merge_strategy(
+        RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
+    codegen_flags_proto.set_flop_inputs(true);
+    codegen_flags_proto.set_flop_outputs(true);
+    codegen_flags_proto.set_module_name("pipelined_proc");
+    codegen_flags_proto.set_use_system_verilog(UseSystemVerilog());
+    codegen_flags_proto.set_streaming_channel_valid_suffix("_vld");
+    codegen_flags_proto.set_streaming_channel_ready_suffix("_rdy");
+
+    return ScheduleAndCodegen(&package, scheduling_options_flags_proto,
+                              codegen_flags_proto, /*with_delay_model=*/true);
   }
 };
 
@@ -1500,6 +1557,73 @@ proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
+}
+
+TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenResult result,
+      MakeMultiProc(FifoConfig(/*depth=*/1, /*bypass=*/false,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)));
+  VerilogInclude fifo_definition{.relative_path = "fifo.v",
+                                 .verilog_text = std::string{kFifoRTLText}};
+  std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
+
+  result.module_generator_result.verilog_text = absl::StrCat(
+      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.module_generator_result.verilog_text,
+                                 /*macro_definitions=*/{}, include_definitions);
+
+  ModuleSimulator simulator = NewModuleSimulator(
+      result.module_generator_result.verilog_text,
+      result.module_generator_result.signature, include_definitions);
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["in"] = {UBits(0, 32), UBits(20, 32), UBits(30, 32)};
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+  };
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"in", valid_holdoffs}}};
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> output_values{
+      {"out", {UBits(0, 32), UBits(20, 32), UBits(30, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, {{"out", 3}},
+                                           ready_valid_holdoffs),
+              status_testing::IsOkAndHolds(output_values));
+}
+
+TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenResult result,
+      MakeMultiProc(FifoConfig(/*depth=*/0, /*bypass=*/true,
+                               /*register_push_outputs=*/false,
+                               /*register_pop_outputs=*/false)));
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.module_generator_result.verilog_text);
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.module_generator_result.verilog_text,
+                         result.module_generator_result.signature);
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["in"] = {UBits(0, 32), UBits(20, 32), UBits(30, 32)};
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+  };
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"in", valid_holdoffs}}};
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> output_values{
+      {"out", {UBits(0, 32), UBits(20, 32), UBits(30, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, {{"out", 3}},
+                                           ready_valid_holdoffs),
+              status_testing::IsOkAndHolds(output_values));
 }
 
 TEST_P(BlockGeneratorTest, SelectWithTokens) {
