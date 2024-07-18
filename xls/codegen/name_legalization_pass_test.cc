@@ -39,6 +39,8 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::xls::status_testing::IsOkAndHolds;
@@ -225,6 +227,29 @@ TEST_P(NameLegalizationPassRtlTest, KeywordFunctionNameCausesError) {
   EXPECT_THAT(GenerateCombinationalModule(f, options),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Module name `output` is a keyword")));
+}
+
+MATCHER_P(RegisterWithName, name_matcher, "") {
+  return ExplainMatchResult(name_matcher, arg->name(), result_listener);
+}
+
+TEST_P(NameLegalizationPassRtlTest, KeywordRegisterIsRenamed) {
+  VerifiedPackage p(TestName());
+  Type* u32 = p.GetBitsType(32);
+  BlockBuilder bb("test_module", &p);
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  BValue a = bb.InputPort("a", u32);
+  bb.OutputPort("b", bb.InsertRegister("buf", a));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(block->GetRegisters(), ElementsAre(RegisterWithName(Eq("buf"))));
+
+  EXPECT_THAT(
+      RunLegalizationPass(block, /*use_system_verilog=*/UseSystemVerilog()),
+      IsOkAndHolds(true));
+
+  EXPECT_THAT(block->GetRegisters(),
+              ElementsAre(RegisterWithName(Eq("buf__1"))));
 }
 
 INSTANTIATE_TEST_SUITE_P(NameLegalizationPassRtlTestInstantiation,

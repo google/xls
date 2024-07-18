@@ -16,6 +16,8 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
@@ -27,6 +29,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/register.h"
 
 namespace xls::verilog {
 namespace {
@@ -302,6 +306,45 @@ const absl::flat_hash_set<std::string>& SystemVerilogKeywords() {
   return *kKeywords;
 }
 
+// Add a new copy of register `old_reg` to get a new name. Replace all uses of
+// the old register with the new one and remove the old register.
+// This effectively renames the `old_reg`.
+absl::Status RenameRegister(Block* block, Register* old_reg) {
+  std::string_view old_name = old_reg->name();
+  XLS_ASSIGN_OR_RETURN(
+      Register * new_reg,
+      block->AddRegister(old_reg->name(), old_reg->type(), old_reg->reset()));
+  XLS_RET_CHECK_NE(old_name, new_reg->name());
+
+  std::vector<Node*> to_remove;
+
+  for (Node* node : block->nodes()) {
+    if (node->Is<RegisterRead>() &&
+        node->As<RegisterRead>()->GetRegister() == old_reg) {
+      RegisterRead* old_read = node->As<RegisterRead>();
+      XLS_RETURN_IF_ERROR(
+          old_read->ReplaceUsesWithNew<RegisterRead>(new_reg).status());
+      to_remove.push_back(old_read);
+    }
+    if (node->Is<RegisterWrite>() &&
+        node->As<RegisterWrite>()->GetRegister() == old_reg) {
+      RegisterWrite* old_write = node->As<RegisterWrite>();
+      XLS_RETURN_IF_ERROR(old_write
+                              ->ReplaceUsesWithNew<RegisterWrite>(
+                                  old_write->data(), old_write->load_enable(),
+                                  old_write->reset(), new_reg)
+                              .status());
+      to_remove.push_back(old_write);
+    }
+  }
+
+  for (Node* node : to_remove) {
+    XLS_RETURN_IF_ERROR(block->RemoveNode(node));
+  }
+
+  return block->RemoveRegister(old_reg);
+}
+
 absl::StatusOr<bool> LegalizeNames(Block* block, bool use_system_verilog) {
   const absl::flat_hash_set<std::string>& sv_keywords = SystemVerilogKeywords();
   const absl::flat_hash_set<std::string>& v_keywords = VerilogKeywords();
@@ -321,6 +364,15 @@ absl::StatusOr<bool> LegalizeNames(Block* block, bool use_system_verilog) {
   }
 
   bool changed = false;
+  std::vector<Register*> registers(block->GetRegisters().begin(),
+                                   block->GetRegisters().end());
+  for (Register* reg : registers) {
+    if (!keywords.contains(reg->name())) {
+      continue;
+    }
+    XLS_RETURN_IF_ERROR(RenameRegister(block, reg));
+  }
+
   for (Node* node : block->nodes()) {
     std::string old_name = node->GetName();
     if (!keywords.contains(old_name)) {
