@@ -699,7 +699,6 @@ cc_library(
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_pass",
         "//xls/codegen:materialize_fifos_pass",
-        "//xls/codegen:module_signature_cc_proto",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/interpreter:block_evaluator",

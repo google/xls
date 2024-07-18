@@ -16,6 +16,7 @@
 #define XLS_DSLX_FRONTEND_TOKEN_PARSER_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
