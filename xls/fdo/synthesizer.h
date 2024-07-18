@@ -129,7 +129,7 @@ class SynthesizerManager {
   // provide a SynthesizerParameters object that matches the type. For example
   // "yosys" must be a YosysSynthesizerParameters.
   absl::StatusOr<std::unique_ptr<Synthesizer>> MakeSynthesizer(
-      std::string_view, SynthesizerParameters &parameters);
+      std::string_view, const SynthesizerParameters &parameters);
 
   // Make synthesizer using SchedulingOptions proto
   absl::StatusOr<std::unique_ptr<Synthesizer>> MakeSynthesizer(

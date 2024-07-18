@@ -169,7 +169,7 @@ absl::StatusOr<SynthesizerFactory *> SynthesizerManager::GetSynthesizerFactory(
 
 absl::StatusOr<std::unique_ptr<Synthesizer>>
 SynthesizerManager::MakeSynthesizer(std::string_view name,
-                                    SynthesizerParameters &parameters) {
+                                    const SynthesizerParameters &parameters) {
   XLS_ASSIGN_OR_RETURN(SynthesizerFactory * factory,
                        GetSynthesizerFactory(name));
   return factory->CreateSynthesizer(parameters);
