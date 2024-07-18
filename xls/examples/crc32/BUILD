@@ -46,7 +46,6 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "crc32_dslx_test",
     srcs = ["crc32.x"],
-    deps = [":crc32_dslx"],
 )
 
 xls_dslx_opt_ir(

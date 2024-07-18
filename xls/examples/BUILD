@@ -74,7 +74,6 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "lfsr_dslx_test",
     srcs = ["lfsr.x"],
-    deps = [":lfsr_dslx"],
 )
 
 xls_dslx_library(
@@ -97,7 +96,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "capitalize_dslx_test",
     srcs = ["capitalize.x"],
-    deps = [":capitalize_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -157,7 +155,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "dot_product_dslx_test",
     srcs = ["dot_product.x"],
-    deps = [":dot_product_dslx"],
 )
 
 xls_dslx_library(
@@ -168,7 +165,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "fir_filter_dslx_test",
     srcs = ["fir_filter.x"],
-    deps = [":fir_filter_dslx"],
 )
 
 xls_dslx_library(
@@ -664,7 +660,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "large_array_dslx_test",
     srcs = ["large_array.x"],
-    deps = [":large_array"],
 )
 
 xls_dslx_opt_ir(
@@ -867,7 +862,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "constraint_dslx_test",
     srcs = ["constraint.x"],
-    deps = [":constraint_dslx"],
 )
 
 xls_dslx_ir(
@@ -978,7 +972,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "overflow_detect_dslx_test",
     srcs = ["overflow_detect.x"],
-    deps = [":overflow_detect_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -997,7 +990,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "nested_sel_dslx_test",
     srcs = ["nested_sel.x"],
-    deps = [":nested_sel_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -1019,7 +1011,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "cubic_bezier_dslx_test",
     srcs = ["cubic_bezier.x"],
-    deps = [":cubic_bezier_dslx"],
 )
 
 xls_dslx_library(
@@ -1030,7 +1021,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "bitonic_sort_dslx_test",
     srcs = ["bitonic_sort.x"],
-    deps = [":bitonic_sort_dslx"],
 )
 
 xls_dslx_library(
@@ -1041,7 +1031,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "hack_cpu_dslx_test",
     srcs = ["hack_cpu.x"],
-    deps = [":hack_cpu_dslx"],
 )
 
 xls_dslx_library(
@@ -1128,7 +1117,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "passthrough_dslx_test",
     srcs = ["passthrough.x"],
-    deps = [":passthrough_dslx"],
 )
 
 xls_dslx_verilog(
@@ -1153,5 +1141,4 @@ xls_dslx_test(
     name = "gcd_test",
     size = "small",
     srcs = ["gcd.x"],
-    deps = [":gcd_dslx"],
 )

@@ -401,3 +401,13 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_test(
+    name = "union_find_test",
+    srcs = ["union_find_test.cc"],
+    deps = [
+        ":union_find",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)

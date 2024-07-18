@@ -1396,7 +1396,6 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 
@@ -1708,7 +1707,6 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         requirement("portpicker"),
-        "//xls/synthesis:timing_characterization_client",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
@@ -1737,7 +1735,6 @@ py_binary(
         "//xls/common:gfile",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
         "@com_google_protobuf//:protobuf_python",
     ],
 )

@@ -72,13 +72,11 @@ xls_dslx_fmt_test(
 xls_dslx_library(
     name = "apfloat_dslx",
     srcs = ["apfloat.x"],
-    deps = [":std_dslx"],
 )
 
 xls_dslx_test(
     name = "apfloat_dslx_test",
     srcs = ["apfloat.x"],
-    deps = [":apfloat_dslx"],
 )
 
 xls_dslx_prove_quickcheck_test(
@@ -96,7 +94,6 @@ xls_dslx_fmt_test(
 xls_dslx_library(
     name = "bfloat16_dslx",
     srcs = ["bfloat16.x"],
-    deps = [":std_dslx"],
 )
 
 xls_dslx_fmt_test(
@@ -108,7 +105,6 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "bfloat16_dslx_test",
     srcs = ["bfloat16.x"],
-    deps = [":bfloat16_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -173,7 +169,6 @@ xls_dslx_opt_ir(
 xls_dslx_library(
     name = "float32_dslx",
     srcs = ["float32.x"],
-    deps = [":std_dslx"],
 )
 
 xls_dslx_fmt_test(
@@ -185,7 +180,6 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "float32_dslx_test",
     srcs = ["float32.x"],
-    deps = [":float32_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -250,16 +244,10 @@ cc_test(
     deps = [
         ":float32_add_jit_wrapper",
         ":float32_test_utils",
-        "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common:math_util",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_utils",
-        "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
     ],
@@ -374,14 +362,9 @@ cc_test(
         ":float32_test_utils",
         ":float32_upcast_jit_wrapper",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_utils",
-        "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
     ],
@@ -435,7 +418,6 @@ cc_test(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
@@ -627,7 +609,6 @@ cc_library(
 xls_dslx_library(
     name = "float64_dslx",
     srcs = ["float64.x"],
-    deps = [":std_dslx"],
 )
 
 xls_dslx_fmt_test(
@@ -639,7 +620,6 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "float64_dslx_test",
     srcs = ["float64.x"],
-    deps = [":float64_dslx"],
 )
 
 xls_dslx_opt_ir(
@@ -682,14 +662,10 @@ cc_test(
         ":float64_add_jit_wrapper",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_utils",
-        "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
     ],
@@ -844,14 +820,9 @@ cc_test(
         ":float32_ceil_jit_wrapper",
         ":float32_test_utils",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_utils",
-        "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
     ],
@@ -886,14 +857,9 @@ cc_test(
         ":float32_floor_jit_wrapper",
         ":float32_test_utils",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_utils",
-        "//xls/ir:value_view_utils",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
     ],

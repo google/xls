@@ -181,7 +181,6 @@ py_library(
     srcs = ["synthesis_utils.py"],
     srcs_version = "PY3",
     deps = [
-        ":client_credentials",
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
         "@com_google_absl_py//absl/logging",

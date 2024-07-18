@@ -66,10 +66,7 @@ py_library(
     srcs = [
         "n_bit_nested_add_generator.py",
     ],
-    deps = [
-        ":flags_checks",
-        "//xls/common:gfile",
-    ],
+    deps = ["//xls/common:gfile"],
 )
 
 py_library(
@@ -77,10 +74,7 @@ py_library(
     srcs = [
         "n_bit_nested_mul_generator.py",
     ],
-    deps = [
-        ":flags_checks",
-        "//xls/common:gfile",
-    ],
+    deps = ["//xls/common:gfile"],
 )
 
 py_library(
@@ -143,7 +137,6 @@ py_binary(
     ],
     python_version = "PY3",
     deps = [
-        ":flags_checks",
         "//xls/common:gfile",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",

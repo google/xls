@@ -41,7 +41,6 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "assertions_dslx_test",
     srcs = ["assertions.x"],
-    deps = [":assertions_dslx"],
 )
 
 xls_dslx_ir(
