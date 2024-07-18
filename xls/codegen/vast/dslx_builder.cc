@@ -728,7 +728,7 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
   const std::string text = module_.ToString();
   const std::string file_name = module_.name() + ".x";
   dslx::Scanner scanner(file_name, text);
-  dslx::Parser parser(module_.name(), &scanner, /*options=*/{});
+  dslx::Parser parser(module_.name(), &scanner);
   auto import_data =
       dslx::CreateImportData(dslx_stdlib_path_, additional_search_paths_,
                              /*enabled_warnings=*/dslx::kDefaultWarningsSet);

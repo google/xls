@@ -76,21 +76,10 @@ XLS_DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
 
 constexpr ExprRestrictions kNoRestrictions = ExprRestrictions(0);
 
-enum class ProcNextImplicitTokenStyle : std::uint8_t { kConvert, kBlock };
-
-struct DslxParserOptions {
-  // TODO(https://github.com/google/xls/issues/1401): Remove support for the
-  // false token-param option.
-  ProcNextImplicitTokenStyle proc_next_implicit_token_style =
-      ProcNextImplicitTokenStyle::kBlock;
-};
-
 class Parser : public TokenParser {
  public:
-  Parser(std::string module_name, Scanner* scanner,
-         DslxParserOptions options = {})
+  Parser(std::string module_name, Scanner* scanner)
       : TokenParser(scanner),
-        options_(options),
         module_(new Module(std::move(module_name), scanner->filename())) {}
 
   absl::StatusOr<Function*> ParseFunction(
@@ -114,10 +103,7 @@ class Parser : public TokenParser {
   // returned.
   //
   // Takes an optional `prologue` of statements to prepend to the block.
-  // TODO(https://github.com/google/xls/issues/1401): Remove `prologue` once
-  // we've finished migrating away from the implicit token param.
-  absl::StatusOr<StatementBlock*> ParseBlockExpression(
-      Bindings& bindings, std::vector<Statement*> prologue = {});
+  absl::StatusOr<StatementBlock*> ParseBlockExpression(Bindings& bindings);
 
   absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings& bindings);
 
@@ -603,8 +589,6 @@ class Parser : public TokenParser {
   template <typename T>
   absl::StatusOr<T*> ParseProcLike(bool is_public, Bindings& outer_bindings,
                                    Keyword keyword);
-
-  DslxParserOptions options_;
 
   std::unique_ptr<Module> module_;
 

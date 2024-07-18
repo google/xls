@@ -820,7 +820,6 @@ cc_binary(
         "//xls/dslx/fmt:ast_fmt",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
-        "//xls/dslx/frontend:parser",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

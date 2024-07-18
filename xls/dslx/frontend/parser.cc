@@ -2268,13 +2268,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
   Pos params_end = GetPos();
 
-  std::optional<Param*> token_param = std::nullopt;
-  if (next_params.size() == 2 && options_.proc_next_implicit_token_style !=
-                                     ProcNextImplicitTokenStyle::kBlock) {
-    token_param = next_params.front();
-  }
-
-  if (next_params.size() != (token_param.has_value() ? 2 : 1)) {
+  if (next_params.size() != 1) {
     std::string next_params_str =
         absl::StrJoin(next_params, ", ", [](std::string* out, const Param* p) {
           absl::StrAppend(out, p->identifier());
@@ -2285,19 +2279,6 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                         "state element); got %d parameters: [%s]",
                         next_params.size(), next_params_str));
   }
-  if (next_params.size() == 2 &&
-      !TypeIsToken(next_params.front()->type_annotation())) {
-    return ParseErrorStatus(
-        Span(params_start, params_end),
-        absl::StrFormat(
-            "A Proc next function with two arguments must take a token and a "
-            "recurrent state element in that order; got %d parameters: [%s]",
-            next_params.size(),
-            absl::StrJoin(next_params, ", ",
-                          [](std::string* out, const Param* p) {
-                            absl::StrAppend(out, p->identifier());
-                          })));
-  }
 
   Param* state_param = next_params.back();
   if (HasChannelElement(state_param->type_annotation())) {
@@ -2305,46 +2286,11 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                             "Channels cannot be Proc next params.");
   }
 
-  std::vector<Statement*> prologue;
-  if (token_param.has_value()) {
-    switch (options_.proc_next_implicit_token_style) {
-      case ProcNextImplicitTokenStyle::kBlock:
-        return absl::InternalError(
-            "token_param present but old_style_proc_next is kBlock");
-      case ProcNextImplicitTokenStyle::kConvert: {
-        // Pretend that the token's implicit definition is one column past the
-        // start of the block.
-        Pos token_pos = GetPos().BumpCol();
-        Span token_span = Span(token_pos, token_pos);
-
-        std::string token_name = token_param.value()->identifier();
-        TypeAnnotation* token_type = token_param.value()->type_annotation();
-
-        // Build a zero-element join & bind it to the token parameter's name
-        // with an implied "let".
-        Invocation* new_token = module_->Make<Invocation>(
-            token_span,
-            module_->Make<NameRef>(token_span, "join",
-                                   module_->GetOrCreateBuiltinNameDef("join")),
-            std::vector<Expr*>());
-        NameDef* token_def =
-            module_->Make<NameDef>(token_span, token_name, new_token);
-        NameDefTree* token_def_tree =
-            module_->Make<NameDefTree>(token_span, token_def);
-        inner_bindings.Add(token_name, token_def);
-        prologue.push_back(module_->Make<Statement>(module_->Make<Let>(
-            token_span, token_def_tree, token_type, new_token,
-            /*is_const=*/false)));
-        break;
-      }
-    }
-  }
-
   XLS_ASSIGN_OR_RETURN(
       TypeAnnotation * return_type,
       CloneNodeSansTypeDefinitions(state_param->type_annotation()));
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
-                       ParseBlockExpression(inner_bindings, prologue));
+                       ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
   NameDef* name_def =
       module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
@@ -3012,14 +2958,14 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
 }
 
 absl::StatusOr<StatementBlock*> Parser::ParseBlockExpression(
-    Bindings& bindings, std::vector<Statement*> prologue) {
+    Bindings& bindings) {
   Bindings block_bindings(&bindings);
   Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   // For empty block we consider that it had a trailing semi and return unit
   // from it.
   bool last_expr_had_trailing_semi = true;
-  std::vector<Statement*> stmts = std::move(prologue);
+  std::vector<Statement*> stmts;
   while (true) {
     XLS_ASSIGN_OR_RETURN(bool dropped_cbrace, TryDropToken(TokenKind::kCBrace));
     if (dropped_cbrace) {
