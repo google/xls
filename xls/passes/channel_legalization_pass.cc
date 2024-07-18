@@ -1073,12 +1073,6 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
                                                    channel_name_uniquer));
     changed = true;
   }
-  // If we've added an adapter, we likely want to inline it.
-  // TODO(google/xls#950): remove this warning when multi-proc codegen is an
-  // option.
-  LOG_IF(ERROR, changed && !options.inline_procs)
-      << "An adapter proc was added, but proc inlining has not been enabled. "
-         "You likely want to inline the new proc!";
   return changed;
 }
 
