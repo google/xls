@@ -1010,8 +1010,7 @@ TEST_F(ParserTest, ZeroMacroSimpleBitsArray) {
   RoundTripExpr("zero!<bits[32][10]>()", {}, /*populate_dslx_builtins=*/true);
 }
 
-// TODO(google/xls#984): 2023-06-02
-TEST_F(ParserTest, DISABLED_ZeroMacroSimpleStructArray) {
+TEST_F(ParserTest, ZeroMacroSimpleStructArray) {
   const char* text = R"(zero!<MyType[10]>())";
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
@@ -1042,8 +1041,7 @@ TEST_F(ParserTest, DISABLED_ZeroMacroSimpleStructArray) {
   ASSERT_TRUE(expr_or.ok());
 }
 
-// TODO(google/xls#984): 2023-06-02
-TEST_F(ParserTest, DISABLED_ZeroMacroParametricStruct) {
+TEST_F(ParserTest, ZeroMacroParametricStruct) {
   const char* text = R"(zero!<MyType<MyParm0, MyParm1>>())";
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
@@ -1089,8 +1087,7 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStruct) {
   ASSERT_TRUE(expr_or.ok());
 }
 
-// TODO(google/xls#984): 2023-06-02
-TEST_F(ParserTest, DISABLED_ZeroMacroParametricStructArray) {
+TEST_F(ParserTest, ZeroMacroParametricStructArray) {
   const char* text = R"(zero!<MyType<MyParm0, MyParm1>[10]>())";
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};

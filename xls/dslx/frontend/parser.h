@@ -256,6 +256,11 @@ class Parser : public TokenParser {
   absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(
       Bindings& bindings, std::optional<Token> first = std::nullopt);
 
+  // Parses the parametrics and dims after a `TypeRef` that the caller has
+  // already parsed, producing a `TypeAnnotation` for the whole thing.
+  absl::StatusOr<TypeAnnotation*> ParseTypeRefParametricsAndDims(
+      Bindings& bindings, const Span& span, TypeRef* type_ref);
+
   absl::StatusOr<NameRef*> ParseNameRef(Bindings& bindings,
                                         const Token* tok = nullptr);
 

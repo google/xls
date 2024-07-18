@@ -860,7 +860,12 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   // If the leader is not builtin and not a tuple, it's some form of type
   // reference.
   XLS_ASSIGN_OR_RETURN(TypeRef * type_ref, ParseTypeRef(bindings, tok));
+  return ParseTypeRefParametricsAndDims(bindings, tok.span(), type_ref);
+}
 
+absl::StatusOr<TypeAnnotation*> Parser::ParseTypeRefParametricsAndDims(
+    Bindings& bindings, const Span& span, TypeRef* type_ref) {
+  VLOG(5) << "ParseTypeRefParametricsAndDims @ " << GetPos();
   std::vector<ExprOrType> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
@@ -873,8 +878,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
   }
 
-  Span span(tok.span().start(), GetPos());
-  return MakeTypeRefTypeAnnotation(span, type_ref, dims,
+  return MakeTypeRefTypeAnnotation(Span(span.start(), GetPos()), type_ref, dims,
                                    std::move(parametrics));
 }
 
@@ -3084,6 +3088,7 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
 }
 
 absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
+  VLOG(5) << "ParseParametricArg @ " << GetPos();
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (peek->kind() == TokenKind::kOBrace) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
@@ -3102,7 +3107,20 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
   }
 
   if (peek->kind() == TokenKind::kIdentifier) {
+    // In general, an identifier may refer to either a non-builtin type or
+    // value. If it's a type, get on the track that `ParseTypeAnnotation` takes
+    // with type refs.
     XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
+    absl::StatusOr<BoundNode> def =
+        bindings.ResolveNodeOrError(ToAstNode(nocr)->ToString(), peek->span());
+    if (def.ok() && IsOneOf<TypeAlias, EnumDef, StructDef>(ToAstNode(*def))) {
+      XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                           BoundNodeToTypeDefinition(*def));
+      return ParseTypeRefParametricsAndDims(
+          bindings, peek->span(),
+          module_->Make<TypeRef>(peek->span(), type_definition));
+    }
+    // Otherwise, it's a value.
     return ToExprNode(nocr);
   }
 
