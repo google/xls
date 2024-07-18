@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary only
-
 package(
     default_applicable_licenses = ["//:license"],
     features = [
@@ -36,9 +34,4 @@ cc_binary(
         "//xls/common/file:filesystem",
         "@com_googlesource_code_re2//:re2",
     ],
-)
-
-pytype_strict_binary(
-    name = "check_examples_have_targets",
-    srcs = ["check_examples_have_targets.py"],
 )
