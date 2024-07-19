@@ -1,4 +1,4 @@
-# Copyright 2023 The XLS Authors
+# Copyright 2024 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,39 +12,165 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+""" Builds zstd.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
 package(default_visibility = ["//visibility:public"])
 
-licenses(["notice"])
+filegroup(
+    name = "common_sources",
+    srcs = glob([
+        "lib/common/*.c",
+        "lib/common/*.h",
+    ]),
+)
 
-# Builds everything together similarly to the zstd cmake file:
-# https://github.com/facebook/zstd/blob/dev/build/cmake/lib/CMakeLists.txt
-# but with legacy support and defines as in the zstd BUCK file:
-# https://github.com/facebook/zstd/blob/dev/lib/BUCK
+filegroup(
+    name = "compress_sources",
+    srcs = glob([
+        "lib/compress/*.c",
+        "lib/compress/*.h",
+    ]),
+)
+
+filegroup(
+    name = "decompress_sources",
+    srcs = glob([
+        "lib/decompress/*.c",
+        "lib/decompress/*.h",
+    ]) + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": glob(["lib/decompress/*.S"]),
+    }),
+)
+
+filegroup(
+    name = "dictbuilder_sources",
+    srcs = glob([
+        "lib/dictBuilder/*.c",
+        "lib/dictBuilder/*.h",
+    ]),
+)
 
 cc_library(
     name = "zstd",
-    srcs = glob([
-        "lib/common/*.h",
-        "lib/common/*.c",
-        "lib/compress/*.h",
-        "lib/compress/*.c",
-        "lib/decompress/*.h",
-        "lib/decompress/*.c",
-        "lib/decompress/*.S",
-        "lib/deprecated/*.h",
-        "lib/deprecated/*.c",
-        "lib/dictBuilder/*.h",
-        "lib/dictBuilder/*.c",
-        "lib/legacy/*.h",
-        "lib/legacy/*.c",
-    ]),
+    srcs = [
+        ":common_sources",
+        ":compress_sources",
+        ":decompress_sources",
+        ":dictbuilder_sources",
+    ],
     hdrs = [
+        "lib/zdict.h",
         "lib/zstd.h",
+        "lib/zstd_errors.h",
     ],
-    strip_include_prefix = "lib",
+    includes = ["lib"],
+    linkopts = ["-pthread"],
+    linkstatic = True,
     local_defines = [
-        "ZSTD_LEGACY_SUPPORT=4",
         "XXH_NAMESPACE=ZSTD_",
+        "ZSTD_MULTITHREAD",
+        "ZSTD_BUILD_SHARED=OFF",
+        "ZSTD_BUILD_STATIC=ON",
+    ] + select({
+        "@platforms//os:windows": ["ZSTD_DISABLE_ASM"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_binary(
+    name = "zstd_cli",
+    srcs = glob(
+        include = [
+            "programs/*.c",
+            "programs/*.h",
+        ],
+        exclude = [
+            "programs/datagen.c",
+            "programs/datagen.h",
+            "programs/platform.h",
+            "programs/util.h",
+        ],
+    ),
+    deps = [
+        ":datagen",
+        ":util",
+        ":zstd",
     ],
-    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "util",
+    srcs = [
+        "programs/platform.h",
+        "programs/util.c",
+    ],
+    hdrs = [
+        "lib/common/compiler.h",
+        "lib/common/debug.h",
+        "lib/common/mem.h",
+        "lib/common/portability_macros.h",
+        "lib/common/zstd_deps.h",
+        "programs/util.h",
+    ],
+)
+
+cc_library(
+    name = "datagen",
+    srcs = [
+        "programs/datagen.c",
+        "programs/platform.h",
+    ],
+    hdrs = ["programs/datagen.h"],
+    deps = [":util"],
+)
+
+cc_binary(
+    name = "datagen_cli",
+    srcs = [
+        "programs/lorem.c",
+        "programs/lorem.h",
+        "tests/datagencli.c",
+        "tests/loremOut.c",
+        "tests/loremOut.h",
+    ],
+    includes = [
+        "programs",
+        "tests",
+    ],
+    deps = [":datagen"],
+)
+
+cc_test(
+    name = "fullbench",
+    srcs = [
+        "lib/decompress/zstd_decompress_internal.h",
+        "programs/benchfn.c",
+        "programs/benchfn.h",
+        "programs/benchzstd.c",
+        "programs/benchzstd.h",
+        "programs/lorem.c",
+        "programs/lorem.h",
+        "programs/timefn.c",
+        "programs/timefn.h",
+        "tests/fullbench.c",
+        "tests/loremOut.c",
+        "tests/loremOut.h",
+    ],
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-deprecated-declarations"],
+    }),
+    includes = [
+        "lib/common",
+        "programs",
+        "tests",
+    ],
+    deps = [
+        ":datagen",
+        ":zstd",
+    ],
 )
