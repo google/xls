@@ -192,15 +192,6 @@ def load_external_repositories():
         url = "https://github.com/google/riegeli/archive/cb68d579f108c96831b6a7815da43ff24b4e5242.tar.gz",
     )
 
-    # Needed by fuzztest. Release 2024-03-30, current as of 2024-06-26
-    http_archive(
-        name = "net_zstd",
-        build_file = "@com_google_riegeli//third_party:net_zstd.BUILD",
-        sha256 = "30f35f71c1203369dc979ecde0400ffea93c27391bfd2ac5a9715d2173d92ff7",
-        strip_prefix = "zstd-1.5.6/lib",
-        urls = ["https://github.com/facebook/zstd/archive/v1.5.6.tar.gz"],
-    )
-
     # Needed by fuzztest. Release 2024-05-21, current as of 2024-06-26
     http_archive(
         name = "snappy",
