@@ -17,7 +17,7 @@
 #include <climits>
 #include <cstdint>
 #include <cstdio>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <iomanip>
 #include <ios>
 #include <iostream>
@@ -33,7 +33,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "external/com_github_facebook_zstd/lib/zstd.h"
+#include "external/zstd/lib/zstd.h"
 #include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -247,7 +247,7 @@ class ZstdDecoderTest : public ::testing::Test {
 
 /* TESTS */
 
-TEST(ZstdLib, Version) { ASSERT_EQ(ZSTD_VERSION_STRING, "1.4.7"); }
+TEST(ZstdLib, Version) { ASSERT_EQ(ZSTD_VERSION_STRING, "1.5.6"); }
 
 TEST_F(ZstdDecoderTest, ParseFrameWithRawBlocks) {
   int seed = 3;  // Arbitrary seed value for small ZSTD frame

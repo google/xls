@@ -192,15 +192,6 @@ def load_external_repositories():
         url = "https://github.com/google/riegeli/archive/cb68d579f108c96831b6a7815da43ff24b4e5242.tar.gz",
     )
 
-    # Needed by fuzztest. Release 2024-03-30, current as of 2024-06-26
-    http_archive(
-        name = "net_zstd",
-        build_file = "@com_google_riegeli//third_party:net_zstd.BUILD",
-        sha256 = "30f35f71c1203369dc979ecde0400ffea93c27391bfd2ac5a9715d2173d92ff7",
-        strip_prefix = "zstd-1.5.6/lib",
-        urls = ["https://github.com/facebook/zstd/archive/v1.5.6.tar.gz"],
-    )
-
     # Needed by fuzztest. Release 2024-05-21, current as of 2024-06-26
     http_archive(
         name = "snappy",
@@ -332,15 +323,17 @@ def load_external_repositories():
     )
 
     # Used in C++ tests of the ZSTD Module
-    # Version 1.4.7 released on 17.12.2020
-    # https://github.com/facebook/zstd/releases/tag/v1.4.7
-    # Updated 27.06.2024
+    # Transitive dependency of fuzztest (required by riegeli in fuzztest workspace)
+    # Version 1.5.6 released on 2024-03-30
+    # https://github.com/facebook/zstd/releases/tag/v1.5.6
+    # Updated 2024-07-19
     http_archive(
-        name = "com_github_facebook_zstd",
-        sha256 = "192cbb1274a9672cbcceaf47b5c4e9e59691ca60a357f1d4a8b2dfa2c365d757",
-        strip_prefix = "zstd-1.4.7",
-        urls = ["https://github.com/facebook/zstd/releases/download/v1.4.7/zstd-1.4.7.tar.gz"],
+        name = "zstd",
+        sha256 = "8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1",
+        strip_prefix = "zstd-1.5.6",
+        urls = ["https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz"],
         build_file = "//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
         # Modify decodecorpus to allow generation of zstd frame headers only
         patches = ["//dependency_support/com_github_facebook_zstd:decodecorpus.patch"],
     )
+

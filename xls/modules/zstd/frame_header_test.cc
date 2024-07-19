@@ -18,7 +18,7 @@
 #include <climits>
 #include <cstdint>
 #include <cstdio>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <ios>
 #include <iostream>
 #include <string>
@@ -27,13 +27,12 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
-#include "external/com_github_facebook_zstd/lib/common/zstd_errors.h"
-#include "external/com_github_facebook_zstd/lib/zstd.h"
-#include "fuzztest/fuzztest.h"
-#include "fuzztest/googletest_fixture_adapter.h"
+#include "external/zstd/lib/zstd.h"
+#include "external/zstd/lib/zstd_errors.h"
 #include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -163,7 +162,7 @@ class FrameHeaderTest : public xls::IrTestBase {
   const uint32_t dslx_buffer_size_bytes =
       (dslx_buffer_size + CHAR_BIT - 1) / CHAR_BIT;
   // Largest allowed WindowLog accepted by libzstd decompression function
-  // https://github.com/facebook/zstd/blob/v1.4.7/lib/decompress/zstd_decompress.c#L296
+  // https://github.com/facebook/zstd/blob/v1.5.6/lib/decompress/zstd_decompress.c#L515
   // Use only in C++ tests when comparing DSLX ZSTD Decoder with libzstd
   // Must be in sync with TEST_WINDOW_LOG_MAX_LIBZSTD in frame_header_test.x
   const uint64_t TEST_WINDOW_LOG_MAX_LIBZSTD = 30;
@@ -292,7 +291,7 @@ class FrameHeaderTest : public xls::IrTestBase {
 
 /* TESTS */
 
-TEST(ZstdLib, Version) { ASSERT_EQ(ZSTD_VERSION_STRING, "1.4.7"); }
+TEST(ZstdLib, Version) { ASSERT_EQ(ZSTD_VERSION_STRING, "1.5.6"); }
 
 TEST_F(FrameHeaderTest, Success) {
   std::vector<uint8_t> buffer{0xC2, 0x09, 0xFE, 0xCA, 0xEF, 0xCD,

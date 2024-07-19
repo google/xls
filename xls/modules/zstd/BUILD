@@ -150,7 +150,7 @@ cc_library(
     srcs = ["data_generator.cc"],
     hdrs = ["data_generator.h"],
     data = [
-        "@com_github_facebook_zstd//:decodecorpus",
+        "@zstd//:decodecorpus",
     ],
     deps = [
         "//xls/common:subprocess",
@@ -213,6 +213,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
+        "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
@@ -223,12 +224,10 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
-        "@com_github_facebook_zstd//:zstd",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/types:span",
-        "@com_google_fuzztest//fuzztest",
-        "@com_google_fuzztest//fuzztest:googletest_fixture_adapter",
         "@com_google_googletest//:gtest",
+        "@zstd",
     ],
 )
 
@@ -1012,11 +1011,11 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/jit:jit_proc_runtime",
-        "@com_github_facebook_zstd//:zstd",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
+        "@zstd",
     ],
 )
 

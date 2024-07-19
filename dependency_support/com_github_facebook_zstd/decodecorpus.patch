@@ -1,11 +1,11 @@
 diff --git tests/decodecorpus.c tests/decodecorpus.c
-index 50935d31..c529fbfe 100644
+index 1abc7df8..f25e5dc7 100644
 --- tests/decodecorpus.c
 +++ tests/decodecorpus.c
-@@ -240,6 +240,12 @@ typedef enum {
-   gt_block,      /* generate compressed blocks without block/frame headers */
- } genType_e;
-
+@@ -247,6 +247,12 @@ typedef enum {
+     #define MIN(a, b) ((a) < (b) ? (a) : (b))
+ #endif
+ 
 +typedef enum {
 +  lt_raw,
 +  lt_rle,
@@ -15,8 +15,8 @@ index 50935d31..c529fbfe 100644
  /*-*******************************************************
  *  Global variables (set from command line)
  *********************************************************/
-@@ -252,7 +258,11 @@ U32 g_maxBlockSize = ZSTD_BLOCKSIZE_MAX;                       /* <= 128 KB */
-
+@@ -259,7 +265,11 @@ U32 g_maxBlockSize = ZSTD_BLOCKSIZE_MAX;                       /* <= 128 KB */
+ 
  struct {
      int contentSize; /* force the content size to be present */
 -} opts; /* advanced options on generation */
@@ -25,11 +25,11 @@ index 50935d31..c529fbfe 100644
 +    int frame_header_only; /* generate only frame header */
 +    int no_magic; /* do not generate magic number */
 +} opts;
-
+ 
  /* Generate and write a random frame header */
  static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
-@@ -281,10 +291,19 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
-
+@@ -288,10 +298,19 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+ 
      {
          /* Generate random content size */
 +        int force_block_type = opts.blockType != NULL;
@@ -48,9 +48,9 @@ index 50935d31..c529fbfe 100644
          } else if (RAND(seed) & 3) {
              /* do small content */
              highBit = 1ULL << RAND_range(seed, 0, MIN(7, 1U << g_maxDecompressedSizeLog));
-@@ -317,8 +336,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+@@ -324,8 +343,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
      }
-
+ 
      /* write out the header */
 -    MEM_writeLE32(op + pos, ZSTD_MAGICNUMBER);
 -    pos += 4;
@@ -58,10 +58,10 @@ index 50935d31..c529fbfe 100644
 +        MEM_writeLE32(op + pos, ZSTD_MAGICNUMBER);
 +        pos += 4;
 +    }
-
+ 
      {
          /*
-@@ -363,8 +384,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
+@@ -370,8 +391,10 @@ static void writeFrameHeader(U32* seed, frame_t* frame, dictInfo info)
  /* Write a literal block in either raw or RLE form, return the literals size */
  static size_t writeLiteralsBlockSimple(U32* seed, frame_t* frame, size_t contentSize)
  {
@@ -73,8 +73,8 @@ index 50935d31..c529fbfe 100644
      int const sizeFormatDesc = RAND(seed) % 8;
      size_t litSize;
      size_t maxLitSize = MIN(contentSize, g_maxBlockSize);
-@@ -612,8 +635,15 @@ static size_t writeLiteralsBlockCompressed(U32* seed, frame_t* frame, size_t con
-
+@@ -619,8 +642,15 @@ static size_t writeLiteralsBlockCompressed(U32* seed, frame_t* frame, size_t con
+ 
  static size_t writeLiteralsBlock(U32* seed, frame_t* frame, size_t contentSize)
  {
 -    /* only do compressed for larger segments to avoid compressibility issues */
@@ -91,7 +91,7 @@ index 50935d31..c529fbfe 100644
          return writeLiteralsBlockCompressed(seed, frame, contentSize);
      } else {
          return writeLiteralsBlockSimple(seed, frame, contentSize);
-@@ -1030,7 +1060,8 @@ static size_t writeCompressedBlock(U32* seed, frame_t* frame, size_t contentSize
+@@ -1034,7 +1064,8 @@ static size_t writeCompressedBlock(U32* seed, frame_t* frame, size_t contentSize
  static void writeBlock(U32* seed, frame_t* frame, size_t contentSize,
                         int lastBlock, dictInfo info)
  {
@@ -100,20 +100,20 @@ index 50935d31..c529fbfe 100644
 +    int const blockTypeDesc = (force_block_type) ? *(opts.blockType) : RAND(seed) % 8;
      size_t blockSize;
      int blockType;
-
-@@ -1069,7 +1100,7 @@ static void writeBlock(U32* seed, frame_t* frame, size_t contentSize,
-
+ 
+@@ -1073,7 +1104,7 @@ static void writeBlock(U32* seed, frame_t* frame, size_t contentSize,
+ 
          frame->data = op;
          compressedSize = writeCompressedBlock(seed, frame, contentSize, info);
 -        if (compressedSize >= contentSize) {   /* compressed block must be strictly smaller than uncompressed one */
 +        if (compressedSize >= contentSize && !force_block_type) {   /* compressed block must be strictly smaller than uncompressed one */
              blockType = 0;
              memcpy(op, frame->src, contentSize);
-
-@@ -1240,7 +1271,11 @@ static U32 generateFrame(U32 seed, frame_t* fr, dictInfo info)
+ 
+@@ -1244,7 +1275,11 @@ static U32 generateFrame(U32 seed, frame_t* fr, dictInfo info)
      DISPLAYLEVEL(3, "frame seed: %u\n", (unsigned)seed);
      initFrame(fr);
-
+ 
 +
      writeFrameHeader(&seed, fr, info);
 +    if (opts.frame_header_only)
@@ -121,8 +121,8 @@ index 50935d31..c529fbfe 100644
 +
      writeBlocks(&seed, fr, info);
      writeChecksum(fr);
-
-@@ -1768,6 +1803,9 @@ static void advancedUsage(const char* programName)
+ 
+@@ -1772,6 +1807,9 @@ static void advancedUsage(const char* programName)
      DISPLAY( " --max-block-size-log=#   : max block size log, must be in range [2, 17]\n");
      DISPLAY( " --max-content-size-log=# : max content size log, must be <= 20\n");
      DISPLAY( "                            (this is ignored with gen-blocks)\n");
@@ -130,9 +130,9 @@ index 50935d31..c529fbfe 100644
 +    DISPLAY( " --frame-header-only      : dump only frame header\n");
 +    DISPLAY( " --no-magic               : do not add magic number\n");
  }
-
+ 
  /*! readU32FromChar() :
-@@ -1889,6 +1927,18 @@ int main(int argc, char** argv)
+@@ -1893,6 +1931,18 @@ int main(int argc, char** argv)
                          U32 value = readU32FromChar(&argument);
                          g_maxDecompressedSizeLog =
                                  MIN(MAX_DECOMPRESSED_SIZE_LOG, value);
@@ -151,10 +151,10 @@ index 50935d31..c529fbfe 100644
                      } else {
                          advancedUsage(argv[0]);
                          return 1;
-@@ -1900,6 +1950,18 @@ int main(int argc, char** argv)
+@@ -1904,6 +1954,18 @@ int main(int argc, char** argv)
                      return 1;
      }   }   }   }   /* for (argNb=1; argNb<argc; argNb++) */
-
+ 
 +    if (opts.blockType) {
 +        if ((opts.contentSize == 0) && (*(opts.blockType) == bt_rle)) {
 +            DISPLAY("Error: content-size has to be used together with blockType=1 (rle block)\n");
