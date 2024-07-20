@@ -26,6 +26,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -315,11 +316,14 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
     }
   }
   Bits solution;
+  Node* new_op;
   if (binary_op->op == Op::kAdd) {
     // (X + C_0) cmp C_1  => x cmp C_1 - C_0
+    new_op = binary_op->operand;
     solution =
         bits_ops::Sub(compare->constant.bits(), binary_op->constant.bits());
   } else if (binary_op->op == Op::kSub) {
+    new_op = binary_op->operand;
     if (binary_op->constant_on_lhs) {
       // (C_0 - X) cmp C_1  => x cmp C_0 - C_1
       solution =
@@ -333,28 +337,59 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
     XLS_RET_CHECK_EQ(binary_op->op, Op::kUMul);
     // Need to be careful not to break the case where the comparison is actually
     // impossible to satisfy or reject (eg 2*x == 3).
-    if (!compare->constant.bits().IsZero() &&
-        !bits_ops::UMod(compare->constant.bits(), binary_op->constant.bits())
-             .IsZero()) {
+    bool const_is_zero = compare->constant.bits().IsZero();
+    bool mul_is_zero = binary_op->constant.bits().IsZero();
+    bool result_is_possible =
+        bits_ops::UMod(compare->constant.bits(), binary_op->constant.bits())
+            .IsZero();
+    if (const_is_zero && mul_is_zero) {
+      VLOG(2) << "FOUND: Constant umul comparison.";
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<Literal>(Value::Bool(compare->op == Op::kEq))
+              .status());
+      return true;
+    }
+    if (const_is_zero) {
+      solution = Bits(binary_op->operand->BitCountOrDie());
+    } else if (mul_is_zero || !result_is_possible) {
       VLOG(2) << "FOUND: Constant umul comparison.";
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Literal>(Value::Bool(compare->op == Op::kNe))
               .status());
       return true;
+    } else {
+      int64_t desired_bits = std::max({binary_op->constant.bits().bit_count(),
+                                       compare->constant.bits().bit_count(),
+                                       binary_op->operand->BitCountOrDie()});
+      auto extend_to_bits = [&](const Bits& b) -> Bits {
+        if (b.bit_count() >= desired_bits) {
+          return b;
+        }
+        return bits_ops::ZeroExtend(b, desired_bits);
+      };
+      // (C_0 * X) cmp C_1 => X cmp C_1 / C_0
+      solution = bits_ops::UDiv(extend_to_bits(compare->constant.bits()),
+                                extend_to_bits(binary_op->constant.bits()));
     }
-    // (C_0 * X) cmp C_1 => X cmp C_1 / C_0
-    solution = bits_ops::Truncate(
-        bits_ops::UDiv(compare->constant.bits(), binary_op->constant.bits()),
-        binary_op->operand->BitCountOrDie());
+    if (binary_op->operand->BitCountOrDie() == solution.bit_count()) {
+      new_op = binary_op->operand;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          new_op,
+          node->function_base()->MakeNodeWithName<ExtendOp>(
+              binary_op->operand->loc(), binary_op->operand,
+              solution.bit_count(), Op::kZeroExt,
+              absl::StrFormat("%s_extended", binary_op->operand->GetName())));
+    }
   }
   XLS_ASSIGN_OR_RETURN(
       Literal * new_literal,
       node->function_base()->MakeNode<Literal>(node->loc(), Value(solution)));
 
   VLOG(2) << "FOUND: compairson of injective operation.";
-  XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
-                              binary_op->operand, new_literal, compare->op)
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      node->ReplaceUsesWithNew<CompareOp>(new_op, new_literal, compare->op)
+          .status());
   return true;
 }
 

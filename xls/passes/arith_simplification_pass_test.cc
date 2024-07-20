@@ -19,9 +19,11 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -30,6 +32,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_test_utils.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -51,6 +54,7 @@ namespace {
 
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
+using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
@@ -1696,7 +1700,8 @@ TEST_F(ArithSimplificationPassTest, UMulCompare) {
   ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Eq(x.node(), m::Literal(UBits(10, 32))));
+  EXPECT_THAT(f->return_value(),
+              m::Eq(m::ZeroExt(x.node()), m::Literal(UBits(10, 50))));
 }
 
 TEST_F(ArithSimplificationPassTest, UMulCompareOverflow) {
@@ -1712,6 +1717,32 @@ TEST_F(ArithSimplificationPassTest, UMulCompareOverflow) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_F(ArithSimplificationPassTest, UMulCompareZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  // Make sure that x*<foo> == 0 is x == 0
+  fb.Eq(fb.Literal(UBits(0, 6)), fb.UMul(x, fb.Literal(UBits(5, 3)), 6));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Eq(x.node(), m::Literal(UBits(0, 3))));
+}
+
+TEST_F(ArithSimplificationPassTest, UMulMulAndCompareZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(3));
+  fb.Eq(fb.Literal(UBits(0, 3)), fb.UMul(x, fb.Literal(UBits(0, 3)), 3));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  // Just make sure that whatever we create for a vacuously true x*0 == 0 is
+  // consistent.
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOk());
+}
+
 TEST_F(ArithSimplificationPassTest, UMulCompareImpossible) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -1724,6 +1755,37 @@ TEST_F(ArithSimplificationPassTest, UMulCompareImpossible) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(Value::Bool(false)));
 }
+
+void UmulFuzz(const Bits& multiplicand, const Bits& result, int64_t var_width,
+              bool const_on_right, bool var_on_right) {
+  VerifiedPackage p("umul_fuzz");
+  FunctionBuilder fb("umul_fuzz", &p);
+  BValue eq_const = fb.Literal(result);
+  BValue mul_const = fb.Literal(multiplicand);
+  BValue var = fb.Param("param_val", p.GetBitsType(var_width));
+  BValue mul;
+  if (var_on_right) {
+    mul = fb.UMul(mul_const, var, result.bit_count());
+  } else {
+    mul = fb.UMul(var, mul_const, result.bit_count());
+  }
+  if (const_on_right) {
+    fb.Eq(mul, eq_const);
+  } else {
+    fb.Eq(eq_const, mul);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(&p);
+  PassResults results;
+  ASSERT_THAT(ArithSimplificationPass(kMaxOptLevel)
+                  .Run(&p, OptimizationPassOptions(), &results),
+              status_testing::IsOk());
+}
+
+FUZZ_TEST(ArithSimplificationPassFuzzTest, UmulFuzz)
+    .WithDomains(ArbitraryBits(16), ArbitraryBits(16), fuzztest::InRange(1, 40),
+                 fuzztest::Arbitrary<bool>(), fuzztest::Arbitrary<bool>());
 
 }  // namespace
 }  // namespace xls
