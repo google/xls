@@ -79,4 +79,6 @@ message CodegenFlagsProto {
   // Should annotated arguments be emitted with the sv_types they are annotated
   // with.
   optional bool emit_sv_types = 33;
+
+  optional string simulation_macro_name = 34;
 }

@@ -69,7 +69,8 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
       gate_recvs_(options.gate_recvs_),
       register_merge_strategy_(options.register_merge_strategy_),
       package_interface_(options.package_interface_),
-      emit_sv_types_(options.emit_sv_types_) {
+      emit_sv_types_(options.emit_sv_types_),
+      simulation_macro_name_(options.simulation_macro_name_) {
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
@@ -104,6 +105,8 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   register_merge_strategy_ = options.register_merge_strategy_;
   package_interface_ = options.package_interface_;
   emit_sv_types_ = options.emit_sv_types_;
+  simulation_macro_name_ = options.simulation_macro_name_;
+
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }

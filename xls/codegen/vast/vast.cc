@@ -1540,16 +1540,15 @@ std::string ConditionalDirectiveKindToString(ConditionalDirectiveKind kind) {
   return "";
 }
 
-ConditionalDirective::ConditionalDirective(ConditionalDirectiveKind kind,
-                                           std::string identifier,
-                                           VerilogFile* file,
-                                           const SourceInfo& loc)
+StatementConditionalDirective::StatementConditionalDirective(
+    ConditionalDirectiveKind kind, std::string identifier, VerilogFile* file,
+    const SourceInfo& loc)
     : Statement(file, loc),
       kind_(kind),
       identifier_(std::move(identifier)),
       consequent_(file->Make<MacroStatementBlock>(loc)) {}
 
-MacroStatementBlock* ConditionalDirective::AddAlternate(
+MacroStatementBlock* StatementConditionalDirective::AddAlternate(
     std::string identifier) {
   CHECK(alternates_.empty() || !alternates_.back().first.empty());
   alternates_.push_back(
@@ -1557,7 +1556,7 @@ MacroStatementBlock* ConditionalDirective::AddAlternate(
   return alternates_.back().second;
 }
 
-std::string ConditionalDirective::Emit(LineInfo* line_info) const {
+std::string StatementConditionalDirective::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result;
 
@@ -1579,6 +1578,47 @@ std::string ConditionalDirective::Emit(LineInfo* line_info) const {
   LineInfoEnd(line_info, this);
 
   return result;
+}
+
+ModuleConditionalDirective::ModuleConditionalDirective(
+    ConditionalDirectiveKind kind, std::string identifier, VerilogFile* file,
+    const SourceInfo& loc)
+    : VastNode(file, loc),
+      kind_(kind),
+      identifier_(std::move(identifier)),
+      consequent_(file->Make<ModuleSection>(loc)) {}
+
+ModuleSection* ModuleConditionalDirective::AddAlternate(
+    std::string identifier) {
+  CHECK(alternates_.empty() || !alternates_.back().first.empty());
+  alternates_.push_back(
+      {std::move(identifier), file()->Make<ModuleSection>(SourceInfo())});
+  return alternates_.back().second;
+}
+
+std::string ModuleConditionalDirective::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::vector<std::string> pieces;
+  pieces.push_back(
+      absl::StrCat(ConditionalDirectiveKindToString(kind_), " ", identifier_));
+  pieces.push_back(consequent_->Emit(line_info));
+  LineInfoIncrease(line_info, 2);
+
+  for (const auto& [identifier, block] : alternates_) {
+    if (identifier.empty()) {
+      pieces.push_back("`else");
+      pieces.push_back(block->Emit(line_info));
+    } else {
+      pieces.push_back(absl::StrCat("`elsif ", identifier));
+      pieces.push_back(block->Emit(line_info));
+    }
+    LineInfoIncrease(line_info, 2);
+  }
+  pieces.push_back("`endif");
+  LineInfoIncrease(line_info, 1);
+  LineInfoEnd(line_info, this);
+
+  return absl::StrJoin(pieces, "\n");
 }
 
 WhileStatement::WhileStatement(Expression* condition, VerilogFile* file,

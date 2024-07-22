@@ -169,6 +169,31 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
                                   HasSubstr("This is a simple trace.")));
 }
 
+TEST_P(TraceTest, ClockedSimpleTraceTestWithInvertedSimulationMacro) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(kSimpleTraceText));
+  std::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  FunctionBase* entry = top.value();
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(entry, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedule, entry,
+                           BuildPipelineOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .set_simulation_macro_name("!SYNTHESIS")));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(TraceTestInstantiation, TraceTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<TraceTest>);

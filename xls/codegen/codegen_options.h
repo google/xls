@@ -274,6 +274,12 @@ class CodegenOptions {
   }
   bool emit_sv_types() const { return emit_sv_types_; }
 
+  std::string simulation_macro_name() const { return simulation_macro_name_; }
+  CodegenOptions& set_simulation_macro_name(std::string macro_name) {
+    simulation_macro_name_ = std::move(macro_name);
+    return *this;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -304,6 +310,7 @@ class CodegenOptions {
   std::optional<PackageInterfaceProto> package_interface_;
   std::vector<std::string> includes_;
   bool emit_sv_types_ = true;
+  std::string simulation_macro_name_ = "SIMULATION";
 };
 
 template <typename Sink>

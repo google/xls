@@ -6,13 +6,13 @@ module main(
 
   // Registers for pipe stage 0:
   reg p0_cond;
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     p0_cond <= cond;
   end
 
   // ===== Pipe stage 1:
-  `ifdef SIMULATION
-  always @ (posedge clk) begin
+  `ifndef SYNTHESIS
+  always_ff @ (posedge clk) begin
     if (p0_cond) begin
       $display("This is a simple trace.");
     end

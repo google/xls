@@ -198,6 +198,8 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options.emit_sv_types(p.emit_sv_types());
   }
 
+  options.set_simulation_macro_name(p.simulation_macro_name());
+
   std::vector<std::unique_ptr<verilog::RamConfiguration>> ram_configurations;
   ram_configurations.reserve(p.ram_configurations_size());
   for (const std::string& config_text : p.ram_configurations()) {

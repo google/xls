@@ -81,6 +81,8 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
 void AppendMacroDefinitionsToArgs(
     absl::Span<const VerilogSimulator::MacroDefinition> macro_definitions,
     std::vector<std::string>& args) {
+  args.push_back(
+      absl::StrFormat("-D%s", VerilogSimulator::kSimulationMacroName));
   for (const VerilogSimulator::MacroDefinition& macro : macro_definitions) {
     if (macro.value.has_value()) {
       args.push_back(absl::StrFormat("-D%s=%s", macro.name, *macro.value));
@@ -102,7 +104,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
     }
     XLS_ASSIGN_OR_RETURN(TempDirectory temp_top, TempDirectory::Create());
     XLS_RETURN_IF_ERROR(RecursivelyCreateDir(temp_top.path()));
-    std::filesystem::path temp_dir = temp_top.path();
+    const std::filesystem::path& temp_dir = temp_top.path();
 
     std::string top_v_path = temp_dir / GetTopFileName(file_type);
     XLS_RETURN_IF_ERROR(SetFileContents(top_v_path, text));
@@ -128,7 +130,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
     }
     XLS_ASSIGN_OR_RETURN(TempDirectory temp_top, TempDirectory::Create());
     XLS_RETURN_IF_ERROR(RecursivelyCreateDir(temp_top.path()));
-    std::filesystem::path temp_dir = temp_top.path();
+    const std::filesystem::path& temp_dir = temp_top.path();
 
     std::string top_v_path = temp_dir / GetTopFileName(file_type);
     XLS_RETURN_IF_ERROR(SetFileContents(top_v_path, text));

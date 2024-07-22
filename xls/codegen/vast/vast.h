@@ -782,11 +782,12 @@ inline std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
-// Represents an `ifdef block.
-class ConditionalDirective : public Statement {
+// Represents an `ifdef block within a statement context.
+class StatementConditionalDirective : public Statement {
  public:
-  ConditionalDirective(ConditionalDirectiveKind kind, std::string identifier,
-                       VerilogFile* file, const SourceInfo& loc);
+  StatementConditionalDirective(ConditionalDirectiveKind kind,
+                                std::string identifier, VerilogFile* file,
+                                const SourceInfo& loc);
 
   // Returns a pointer to the statement block of the consequent.
   MacroStatementBlock* consequent() const { return consequent_; }
@@ -2073,6 +2074,7 @@ class VerilogFunctionCall : public Expression {
 };
 
 class ModuleSection;
+class ModuleConditionalDirective;
 
 // Represents a member of a module.
 using ModuleMember =
@@ -2090,7 +2092,8 @@ using ModuleMember =
                  InlineVerilogStatement*,  // InlineVerilog string statement.
                  VerilogFunction*,         // Function definition
                  Typedef*, Enum*, Cover*, ConcurrentAssertion*,
-                 DeferredImmediateAssertion*, ModuleSection*>;
+                 DeferredImmediateAssertion*, ModuleConditionalDirective*,
+                 ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may
@@ -2126,6 +2129,34 @@ class ModuleSection : public VastNode {
 
  private:
   std::vector<ModuleMember> members_;
+};
+
+// Represents an `ifdef block within a module context.
+class ModuleConditionalDirective : public VastNode {
+ public:
+  ModuleConditionalDirective(ConditionalDirectiveKind kind,
+                             std::string identifier, VerilogFile* file,
+                             const SourceInfo& loc);
+
+  // Returns a pointer to the statement block of the consequent.
+  ModuleSection* consequent() const { return consequent_; }
+
+  // Adds an alternate clause ("`elsif" or "`else") and returns a pointer to the
+  // consequent. The alternate is final (an "`else") if identifier is empty.
+  // Dies if a final alternate ("`else") clause has been previously added.
+  ModuleSection* AddAlternate(std::string identifier = "");
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  ConditionalDirectiveKind kind_;
+  std::string identifier_;
+  ModuleSection* consequent_;
+
+  // The alternate clauses ("`elsif" and "`else"). If the string is empty then
+  // the alternate is unconditional ("`else"). This can only appear as the final
+  // alternate.
+  std::vector<std::pair<std::string, ModuleSection*>> alternates_;
 };
 
 // Represents a module port.

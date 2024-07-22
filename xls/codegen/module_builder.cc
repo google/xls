@@ -31,8 +31,10 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
@@ -61,6 +63,18 @@ namespace xls {
 namespace verilog {
 
 namespace {
+
+// Returns the name and polarity (ifdef/ifndef) of the macro used to guard
+// simulation-only constructs.
+std::pair<std::string, ConditionalDirectiveKind> SimulationMacroNameAndPolarity(
+    const CodegenOptions& options) {
+  if (absl::StartsWith(options.simulation_macro_name(), "!")) {
+    return {
+        std::string{absl::StripPrefix(options.simulation_macro_name(), "!")},
+        ConditionalDirectiveKind::kIfndef};
+  }
+  return {options.simulation_macro_name(), ConditionalDirectiveKind::kIfdef};
+}
 
 // Returns the bounds of the potentially-nested array type as a vector of
 // int64_t. Ordering of the vector is outer-most bound to inner-most. For
@@ -154,7 +168,7 @@ absl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
 absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
     Node* selector, Type* tpe, int64_t num_cases, const SourceInfo& loc,
     std::string_view function_name, ModuleSection* section,
-    SelectorProperties selector_properties, bool use_system_verilog) {
+    SelectorProperties selector_properties, const CodegenOptions& options) {
   VerilogFile* file = section->file();
 
   VerilogFunction* func = section->Add<VerilogFunction>(
@@ -177,7 +191,7 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
                                                    : CaseKeyword::kCase);
   const FourValueBit case_label_top_bits = FourValueBit::kHighZ;
   FourValueBit case_label_bottom_bits = FourValueBit::kZero;
-  if (use_system_verilog) {
+  if (options.use_system_verilog()) {
     // If using system verilog, always use the "unique" keyword.
     case_type.modifier = CaseModifier::kUnique;
   }
@@ -209,7 +223,7 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
   Expression* zero_label = file->Literal(0, selector->BitCountOrDie(), loc,
                                          FormatPreference::kBinary);
   Expression* x_literal;
-  if (use_system_verilog) {
+  if (options.use_system_verilog()) {
     // Use 'X when generating SystemVerilog.
     x_literal = file->Make<XLiteral>(loc);
   } else {
@@ -227,12 +241,12 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
     Expression* error_message =
         file->Make<QuotedString>(loc, "Zero selector not allowed.");
     StatementBlock* case_block = case_statement->AddCaseArm(zero_label);
-    MacroStatementBlock* ifndef_block =
+    auto [macro_name, polarity] = SimulationMacroNameAndPolarity(options);
+    MacroStatementBlock* ifdef_block =
         case_block
-            ->Add<ConditionalDirective>(loc, ConditionalDirectiveKind::kIfndef,
-                                        "SYNTHESIS")
+            ->Add<StatementConditionalDirective>(loc, polarity, macro_name)
             ->consequent();
-    ifndef_block->Add<SystemTaskCall>(
+    ifdef_block->Add<SystemTaskCall>(
         loc, "error", std::initializer_list<Expression*>{error_message});
     case_block->Add<Comment>(loc, "Never taken, propagate X");
     case_block->Add<BlockingAssignment>(loc, func->return_value_ref(),
@@ -1023,7 +1037,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
                   node->As<PrioritySelect>()->selector(), /*tpe=*/element_type,
                   /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
                   /*loc=*/node->loc(), function_name, functions_section_,
-                  selector_properties, options_.use_system_verilog()));
+                  selector_properties, options_));
           node_functions_[function_name] = func;
         }
         auto priority_sel_element = [&](absl::Span<Expression* const> inputs) {
@@ -1107,32 +1121,37 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
 absl::StatusOr<Display*> ModuleBuilder::EmitTrace(
     xls::Trace* trace, Expression* condition,
     absl::Span<Expression* const> trace_args) {
+  auto [macro_name, polarity] = SimulationMacroNameAndPolarity(options_);
+  ModuleConditionalDirective* directive =
+      trace_section_->Add<ModuleConditionalDirective>(SourceInfo(), polarity,
+                                                      macro_name);
+
   StructuredProcedure* trace_always;
   std::vector<SensitivityListElement> sensitivity_list;
   if (options_.use_system_verilog()) {
     if (clk_ != nullptr) {
       // Even though this is purely behavioral and not synthesizable, use
       // always_ff as a stylistic choice.
-      trace_always = trace_section_->Add<AlwaysFf>(
+      trace_always = directive->consequent()->Add<AlwaysFf>(
           trace->loc(), std::initializer_list<SensitivityListElement>{
                             file_->Make<PosEdge>(trace->loc(), clk_)});
 
     } else {
       // When targeting SystemVerilog with no clock, we use `always_comb` and
       // have no need for a sensitivity list.
-      trace_always = trace_section_->Add<AlwaysComb>(trace->loc());
+      trace_always = directive->consequent()->Add<AlwaysComb>(trace->loc());
     }
   } else {
     if (clk_ != nullptr) {
       // When targeting Verilog with a clock, we use `always` triggered on the
       // posedge.
-      trace_always = trace_section_->Add<Always>(
+      trace_always = directive->consequent()->Add<Always>(
           trace->loc(), std::initializer_list<SensitivityListElement>{
                             file_->Make<PosEdge>(trace->loc(), clk_)});
     } else {
       // When targeting Verilog with no clock, we use `always` and need to
       // populate the sensitivity list with the implicit event expression.
-      trace_always = trace_section_->Add<Always>(
+      trace_always = directive->consequent()->Add<Always>(
           trace->loc(), std::initializer_list<SensitivityListElement>{
                             ImplicitEventExpression{}});
     }
@@ -1891,7 +1910,7 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
               node->As<PrioritySelect>()->selector(), /*tpe=*/node->GetType(),
               /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
               /*loc=*/node->loc(), function_name, functions_section_,
-              selector_properties, options_.use_system_verilog()));
+              selector_properties, options_));
       break;
     }
     case Op::kUDiv:

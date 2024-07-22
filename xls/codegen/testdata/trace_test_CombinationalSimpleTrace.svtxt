@@ -1,9 +1,11 @@
 module main(
   input wire cond
 );
+  `ifdef SIMULATION
   always_comb begin
     if (cond) begin
       $display("This is a simple trace.");
     end
   end
+  `endif
 endmodule

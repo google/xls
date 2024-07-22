@@ -155,6 +155,10 @@ ABSL_FLAG(std::string, register_merge_strategy, "IdentityOnly",
 ABSL_FLAG(bool, emit_sv_types, true,
           "Should types annotated with #[sv_type(NAME)] be emitted into "
           "verilog as NAME.");
+ABSL_FLAG(std::string, simulation_macro_name, "SIMULATION",
+          "Verilog macro name to use in an `ifdef guard for "
+          "simulation-specific constructs such as $display statements. If "
+          "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //xls/build_rules/xls_providers.bzl,
@@ -235,6 +239,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
   POPULATE_FLAG(flop_inputs);
   POPULATE_FLAG(flop_outputs);
   POPULATE_FLAG(emit_sv_types);
+  POPULATE_FLAG(simulation_macro_name);
 
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_inputs_kind,

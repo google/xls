@@ -18,7 +18,7 @@ module NeverZeroPrioritySelectAsFunction(
           priority_sel_32b_3way_snz = case2;
         end
         3'b000: begin
-          `ifndef SYNTHESIS
+          `ifdef SIMULATION
             $error("Zero selector not allowed.");
           `endif
           // Never taken, propagate X
