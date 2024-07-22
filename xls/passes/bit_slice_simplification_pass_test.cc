@@ -544,6 +544,70 @@ TEST_F(BitSliceSimplificationPassTest, SlicedOhsWithMultipleSliceUsers) {
                         sliced_ohs));
 }
 
+TEST_F(BitSliceSimplificationPassTest, SlicedPrioritySelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue sel = fb.PrioritySelect(fb.Param("p", u2),
+                                 {fb.Param("x", u32), fb.Param("y", u32)},
+                                 fb.Param("d", u32));
+  fb.BitSlice(sel, /*start=*/10, /*width=*/7);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::Param("p"),
+                        /*cases=*/
+                        {m::BitSlice(m::Param("x"), 10, 7),
+                         m::BitSlice(m::Param("y"), 10, 7)},
+                        /*default_value=*/m::BitSlice(m::Param("d"), 10, 7)));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       SlicedPrioritySelectWithMoreThanOneUser) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue sel = fb.PrioritySelect(fb.Param("p", u2),
+                                 {fb.Param("x", u32), fb.Param("y", u32)},
+                                 fb.Param("d", u32));
+  fb.Add(sel, sel);
+  fb.BitSlice(sel, /*start=*/12, /*width=*/15);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::BitSlice(m::PrioritySelect()));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       SlicedPrioritySelectWithMultipleSliceUsers) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue sel = fb.PrioritySelect(fb.Param("p", u2),
+                                 {fb.Param("x", u32), fb.Param("y", u32)},
+                                 fb.Param("d", u32));
+  BValue sel_slice1 = fb.BitSlice(sel, /*start=*/10, /*width=*/7);
+  BValue sel_slice2 = fb.BitSlice(sel, /*start=*/12, /*width=*/15);
+  BValue sel_slice3 = fb.BitSlice(sel, /*start=*/10, /*width=*/18);
+  fb.Concat({sel_slice1, sel_slice2, sel_slice3});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence check_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto sliced_sel = m::PrioritySelect(
+      m::Param("p"),
+      /*cases=*/
+      {m::BitSlice(m::Param("x"), 10, 18), m::BitSlice(m::Param("y"), 10, 18)},
+      /*default_value=*/m::BitSlice(m::Param("d"), 10, 18));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::BitSlice(sliced_sel, /*start=*/0, /*width=*/7),
+                        m::BitSlice(sliced_sel, /*start=*/2, /*width=*/15),
+                        sliced_sel));
+}
+
 TEST_F(BitSliceSimplificationPassTest, SlicedSelect) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

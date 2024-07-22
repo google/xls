@@ -457,15 +457,16 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     return true;
   }
 
-  // Hoist slices above selects and one-hot-selects. Only perform this if all
-  // users are slices entirely contained within this slice.
+  // Hoist slices above selects, priority-selects, and one-hot-selects. Only
+  // perform this if all users are slices entirely contained within this slice.
   if (NarrowingEnabled(opt_level) &&
-      (operand->Is<Select>() || operand->Is<OneHotSelect>()) &&
+      (operand->Is<Select>() || operand->Is<OneHotSelect>() ||
+       operand->Is<PrioritySelect>()) &&
       all_operand_users_are_subslices()) {
     Node* select = operand;
     std::vector<Node*> new_operands;
-    // Operand 0 is the selector in both Select and OneHotSelect operations and
-    // is unchanged.
+    // Operand 0 is the selector in all Select/PrioritySelect/OneHotSelect
+    // operations and is unchanged.
     new_operands.push_back(select->operand(0));
     // The remaining operands are the cases and should all be sliced.
     for (int64_t i = 1; i < select->operand_count(); ++i) {
@@ -478,7 +479,8 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
     }
     XLS_ASSIGN_OR_RETURN(Node * new_select, select->Clone(new_operands));
     VLOG(3) << absl::StreamFormat(
-        "Replacing bitslice(sel(s, [...])) => sel(s, [bitslice(), ...]): %s",
+        "Replacing bitslice(%s(s, [...])) => %s(s, [bitslice(), ...]): %s",
+        xls::OpToString(select->op()), xls::OpToString(new_select->op()),
         bit_slice->GetName());
     XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(new_select));
     std::vector<Node*> users(operand->users().begin(), operand->users().end());
