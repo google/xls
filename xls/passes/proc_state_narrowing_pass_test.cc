@@ -210,9 +210,9 @@ TEST_F(ProcStateNarrowingPassTest, MultiPath) {
   auto reset_val = pb.ReceiveNonBlocking(reset, send_tok);
   // Either current state or the value in range 0-7 received from the channel.
   // 0-7 fits in 4 bit range of the state element.
-  auto state_or_reset =
-      pb.Select(pb.TupleIndex(reset_val, 2),
-                {state, pb.ZeroExtend(pb.TupleIndex(reset_val, 1), 32)});
+  auto state_or_reset = pb.PrioritySelect(
+      pb.TupleIndex(reset_val, 2),
+      {pb.ZeroExtend(pb.TupleIndex(reset_val, 1), 32)}, state);
   pb.Next(state, pb.Add(state_or_reset, pb.Literal(UBits(1, 32))), in_loop);
   // If we aren't looping the value just stays permanently at the end state.
   pb.Next(state, state, pb.Not(in_loop));
@@ -396,9 +396,10 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
   // NB by having the state halved through a select the back-prop doesn't reach
   // all the way to the state so the input state itself is considered
   // unconstrained.
-  auto next_state = pb.Add(
-      pb.Literal(UBits(1, 32)),
-      pb.Select(halve, {state, pb.Shrl(state, pb.Literal(UBits(1, 32)))}));
+  auto next_state =
+      pb.Add(pb.Literal(UBits(1, 32)),
+             pb.PrioritySelect(
+                 halve, {pb.Shrl(state, pb.Literal(UBits(1, 32)))}, state));
   auto cont = pb.SLt(next_state, pb.Literal(UBits(8, 32)));
   pb.Next(state, state, pause);
   pb.Next(state, next_state, pb.And(pb.Not(pause), cont));
@@ -511,7 +512,7 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
   auto reset =
       pb.TupleIndex(pb.Receive(reset_chan, pb.Literal(Value::Token())), 1);
   auto next_state =
-      pb.Subtract(pb.Select(reset, {pb.Literal(UBits(8, 32)), state}),
+      pb.Subtract(pb.PrioritySelect(reset, {pb.Literal(UBits(8, 32))}, state),
                   pb.Literal(UBits(1, 32)));
   auto cont = pb.SGt(next_state, pb.Literal(UBits(0, 32)));
   pb.Next(state, next_state, cont);

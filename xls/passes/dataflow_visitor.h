@@ -190,6 +190,17 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     return SetValue(sel, std::move(result));
   }
 
+  absl::Status HandlePrioritySel(PrioritySelect* sel) override {
+    std::vector<LeafTypeTreeView<LeafT>> cases;
+    for (Node* c : sel->cases()) {
+      cases.push_back(GetValue(c));
+    }
+    cases.push_back(GetValue(sel->default_value()));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
+                         Join(cases, {GetValue(sel->selector())}, sel));
+    return SetValue(sel, std::move(result));
+  }
+
   absl::Status HandleSel(Select* sel) override {
     std::vector<LeafTypeTreeView<LeafT>> cases;
     for (Node* c : sel->cases()) {
