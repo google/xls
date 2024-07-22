@@ -311,6 +311,11 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Array*> ParseArray(Bindings& bindings);
 
+  // If the next token is a colon, then parses a cast to `type`; otherwise just
+  // returns `type`.
+  absl::StatusOr<ExprOrType> MaybeParseCast(Bindings& bindings,
+                                            TypeAnnotation* type);
+
   absl::StatusOr<Expr*> ParseCast(Bindings& bindings,
                                   TypeAnnotation* type = nullptr);
 

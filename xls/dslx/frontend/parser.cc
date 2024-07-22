@@ -1167,6 +1167,16 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings& bindings) {
   return module_->Make<Array>(span, std::move(exprs), has_trailing_ellipsis);
 }
 
+absl::StatusOr<ExprOrType> Parser::MaybeParseCast(Bindings& bindings,
+                                                  TypeAnnotation* type) {
+  XLS_ASSIGN_OR_RETURN(const bool peek_is_colon,
+                       PeekTokenIs(TokenKind::kColon));
+  if (peek_is_colon) {
+    return ParseCast(bindings, type);
+  }
+  return type;
+}
+
 absl::StatusOr<Expr*> Parser::ParseCast(Bindings& bindings,
                                         TypeAnnotation* type) {
   VLOG(5) << "ParseCast @ " << GetPos()
@@ -3062,39 +3072,54 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
     if (def.ok() && IsOneOf<TypeAlias, EnumDef, StructDef>(ToAstNode(*def))) {
       XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                            BoundNodeToTypeDefinition(*def));
-      return ParseTypeRefParametricsAndDims(
-          bindings, peek->span(),
-          module_->Make<TypeRef>(peek->span(), type_definition));
+      XLS_ASSIGN_OR_RETURN(
+          TypeAnnotation * type_annotation,
+          ParseTypeRefParametricsAndDims(
+              bindings, peek->span(),
+              module_->Make<TypeRef>(peek->span(), type_definition)));
+      return MaybeParseCast(bindings, type_annotation);
     }
-    // It may be an imported type followed by parametrics and dims, in which
-    // case we preserve the ColonRef in the type definition without resolution.
-    // Note: we may eventually need more elaborate deferral of the type vs.
-    // value decision, if we want to support e.g. ColonRef + dims to refer to a
-    // constant value here.
     if (std::holds_alternative<ColonRef*>(nocr)) {
       Span identifier_span = peek->span();
       XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+      // It may be an imported type followed by parametrics and dims, in which
+      // case we preserve the ColonRef in the type definition without
+      // resolution. Note: we may eventually need more elaborate deferral of the
+      // type vs. value decision, if we want to support e.g. ColonRef + dims to
+      // refer to a constant value here.
       if (peek->IsKindIn({TokenKind::kOAngle, TokenKind::kOBrack})) {
-        return ParseTypeRefParametricsAndDims(
-            bindings, identifier_span,
-            module_->Make<TypeRef>(identifier_span, std::get<ColonRef*>(nocr)));
+        XLS_ASSIGN_OR_RETURN(
+            TypeAnnotation * type_annotation,
+            ParseTypeRefParametricsAndDims(
+                bindings, identifier_span,
+                module_->Make<TypeRef>(identifier_span,
+                                       std::get<ColonRef*>(nocr))));
+        return MaybeParseCast(bindings, type_annotation);
+      }
+      // A ColonRef followed by a colon should be a cast. In all other cases, we
+      // don't know if a ColonRef is a value or type, so we don't want to just
+      // make a TypeAnnotation and do a MaybeCast here.
+      XLS_ASSIGN_OR_RETURN(const bool peek_is_colon,
+                           PeekTokenIs(TokenKind::kColon));
+      if (peek_is_colon) {
+        XLS_ASSIGN_OR_RETURN(
+            TypeAnnotation * type_annotation,
+            MakeTypeRefTypeAnnotation(
+                identifier_span,
+                module_->Make<TypeRef>(identifier_span,
+                                       std::get<ColonRef*>(nocr)),
+                /*dims=*/{}, /*parametrics=*/{}));
+        return ParseCast(bindings, type_annotation);
       }
     }
     // Otherwise, it's a value or an unadorned imported type.
     return ToExprNode(nocr);
   }
 
+  // If it's not an identifier, it must be a built-in type or cast to one.
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
                        ParseTypeAnnotation(bindings));
-
-  {
-    XLS_ASSIGN_OR_RETURN(const Token* peek2, PeekToken());
-    if (peek2->kind() == TokenKind::kColon) {
-      return ParseCast(bindings, type_annotation);
-    }
-  }
-
-  return type_annotation;
+  return MaybeParseCast(bindings, type_annotation);
 }
 
 absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(

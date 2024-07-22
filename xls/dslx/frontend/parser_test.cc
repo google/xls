@@ -1407,6 +1407,26 @@ TEST_F(ParserTest, ModuleWithParametric) {
 
 TEST_F(ParserTest, ParametricInvocation) { RoundTripExpr("f<u32:2>()", {"f"}); }
 
+TEST_F(ParserTest, ParametricInvocationWithCastToTypeAlias) {
+  RoundTrip(R"(type foo_t = bits[32];
+fn f<N: u32>(x: u32) -> u32 {
+    N + x
+}
+fn main(x: u32) -> u32 {
+    f<foo_t:1>(x)
+})");
+}
+
+TEST_F(ParserTest, ParametricInvocationWithCastToColonRef) {
+  RoundTrip(R"(import foo;
+fn f<N: u32>(x: u32) -> u32 {
+    N + x
+}
+fn main(x: u32) -> u32 {
+    f<foo::bar_t:1>(x)
+})");
+}
+
 TEST_F(ParserTest, ParametricColonRefInvocation) {
   RoundTripExpr("f<BuiltinEnum::VALUE>()", {"f", "BuiltinEnum"});
 }
