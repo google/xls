@@ -158,6 +158,8 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
       "opt\n"
       "clean\n"
       "yosys rename -enumerate";
+  const std::string print_statistics_marker_start =
+      absl::StrFormat("puts \"XLS marker: statistics section starts here\";");
   const std::string print_statistics =
       absl::StrFormat("yosys stat -liberty %s -top %s;", synthesis_libraries_,
                       request->top_module_name());
@@ -178,6 +180,7 @@ std::string YosysSynthesisServiceImpl::BuildYosysTcl(
   yosys_tcl_vec.push_back(perform_abc_mapping);
   yosys_tcl_vec.push_back(perform_cleanup);
   yosys_tcl_vec.push_back(perform_optimizations);
+  yosys_tcl_vec.push_back(print_statistics_marker_start);
   yosys_tcl_vec.push_back(print_statistics);
 
   yosys_tcl_vec.push_back(write_json_netlist);
@@ -260,6 +263,11 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
     (*result->mutable_instance_count()
           ->mutable_cell_histogram())[name_count.first] = name_count.second;
   }
+
+  result->set_num_unknown_area_cell_types(
+      parse_stats.cell_type_with_unknown_area.size());
+  result->set_area(parse_stats.area);
+  result->set_sequential_area(parse_stats.sequential_area);
 
   // If only synthesis requested, done.
   if (synthesis_only_) {

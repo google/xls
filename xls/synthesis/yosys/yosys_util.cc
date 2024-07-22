@@ -26,6 +26,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -69,12 +70,25 @@ absl::StatusOr<int64_t> ParseNextpnrOutput(std::string_view nextpnr_output) {
 absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
     std::string_view yosys_output) {
   YosysSynthesisStatistics stats;
+  stats.area = -1.0f;
+  stats.sequential_area = -1.0f;
   std::vector<std::string> lines = absl::StrSplit(yosys_output, '\n');
   std::vector<std::string>::iterator parse_line_itr = lines.begin();
 
+  // Advance parse_line_index until a line starting with 'key' is found.
+  // Return false if 'key' is not found, otherwise true.
+  auto parse_until_found_string_starts_with = [&](std::string_view key) {
+    for (; parse_line_itr != lines.end(); ++parse_line_itr) {
+      if (absl::StartsWith(*parse_line_itr, key)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // Advance parse_line_index until a line containing 'key' is found.
   // Return false if 'key' is not found, otherwise true.
-  auto parse_until_found = [&](std::string_view key) {
+  auto parse_until_found_string_contains = [&](std::string_view key) {
     for (; parse_line_itr != lines.end(); ++parse_line_itr) {
       if (absl::StrContains(*parse_line_itr, key)) {
         return true;
@@ -83,31 +97,25 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
     return false;
   };
 
-  // This function requies the top level module to have been identified
-  // in order to work correctly (however, we do not need to parse
-  // the name of the top level module).
-  if (!parse_until_found("Top module:")) {
-    return absl::FailedPreconditionError(
-        "ParseYosysOutput could not find the term \"Top module\" in the yosys "
-        "output");
+  // Find the XLS marker for the statistics section - the set of statistics
+  // we are interested in is printed after this marker.
+  if (!parse_until_found_string_starts_with(
+          "XLS marker: statistics section starts here")) {
+    return absl::InternalError(
+        "ParseYosysOutput could not find the term \"XLS marker: statistics "
+        "section starts here\" in the yosys output");
   }
-
-  // Find the last printed statistics - these describe the whole design rather
-  // than a single module.
-  std::optional<std::vector<std::string>::iterator> last_num_cell_itr;
-  while (parse_until_found("Number of cells:")) {
-    last_num_cell_itr = parse_line_itr;
-    ++parse_line_itr;
-  }
-  if (!last_num_cell_itr.has_value()) {
+  // Find the "Number of cells:" line. The cell histogram is printed immediately
+  // after this line.
+  if (!parse_until_found_string_contains("Number of cells:")) {
     return absl::InternalError(
         "ParseYosysOutput could not find the term \"Number of cells:\" in the "
         "yosys output");
   }
+  parse_line_itr++;
 
   // Process cell histogram.
-  for (parse_line_itr = last_num_cell_itr.value() + 1;
-       parse_line_itr != lines.end(); ++parse_line_itr) {
+  for (; parse_line_itr != lines.end(); ++parse_line_itr) {
     int64_t cell_count;
     std::string cell_name;
     if (RE2::FullMatch(*parse_line_itr, "\\s+(\\w+)\\s+(\\d+)\\s*", &cell_name,
@@ -117,6 +125,44 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
     } else {
       break;
     }
+  }
+
+  constexpr std::string_view floating_point_regex = "([0-9\\+\\-e\\.]+)";
+  // The stats related to area, if exists, should come immediately after the
+  // cell histogram. We need to be careful of not jumping to another set of
+  // statistics. Ideally, we should have an end marker as the area part might or
+  // might not exist. However, we find that printing another marker after
+  // calling `yosys stats` might result in the marker getting mixed in the
+  // statistics output. Therefore, we use the following heuristic: if we see the
+  // "Number of cells:" line again, we are probably in another set of
+  // statistics, and we should stop parsing.
+  while (parse_line_itr != lines.end() &&
+         !absl::StrContains(*parse_line_itr, "Number of cells:")) {
+    double parsed_area = -1.0f;
+    double parsed_sequential_area = -1.0f;
+    std::string parsed_cell_type_area_unknown;
+    // TODO(hnpl): We should use LazyRE2 for this and the rest of the file.
+    if (RE2::FullMatch(*parse_line_itr,
+                       "\\s+Area for cell type (\\w+) is unknown!",
+                       &parsed_cell_type_area_unknown)) {
+      stats.cell_type_with_unknown_area.push_back(
+          parsed_cell_type_area_unknown);
+    }
+    if (RE2::FullMatch(
+            *parse_line_itr,
+            absl::StrCat("\\s+Chip area for .+: ", floating_point_regex),
+            &parsed_area)) {
+      stats.area = parsed_area;
+    }
+    if (RE2::PartialMatch(
+            *parse_line_itr,
+            absl::StrCat("\\s+of which used for sequential elements: ",
+                         floating_point_regex, " "),
+            &parsed_sequential_area)) {
+      stats.sequential_area = parsed_sequential_area;
+      break;
+    }
+    ++parse_line_itr;
   }
 
   return stats;

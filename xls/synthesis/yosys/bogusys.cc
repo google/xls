@@ -60,6 +60,26 @@ Top module:  \__input__fun
 checking module __input__fun..
 found and reported 0 problems.
 
+XLS marker: statistics section starts here
+
+9. Printing statistics.
+
+=== __input__fun ===
+
+   Number of wires:                 11
+   Number of wire bits:            578
+   Number of public wires:          11
+   Number of public wire bits:     578
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                224
+     CCU2C                          32
+     TRELLIS_FF                    192
+
+   Chip area for module '\__input__fun': 1074.385620
+     of which used for sequential elements: 37.324800 (3.47%)
+
 ....
 )";
 

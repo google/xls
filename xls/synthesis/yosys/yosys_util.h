@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
@@ -35,6 +36,10 @@ absl::StatusOr<int64_t> ParseNextpnrOutput(std::string_view nextpnr_output);
 struct YosysSynthesisStatistics {
   // Could add other fields for things like wires / memory...
   absl::flat_hash_map<std::string, int64_t> cell_histogram;
+  // `area` is the total area, which includes the sequential area.
+  double area;
+  double sequential_area;
+  std::vector<std::string> cell_type_with_unknown_area;
 };
 
 absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
