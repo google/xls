@@ -236,8 +236,8 @@ This technique underlies all of XLS' floating-point libraries. Common operations
 are defined in common files, such as
 [apfloat.x](https://github.com/google/xls/tree/main/xls/dslx/stdlib/apfloat.x) (general
 utilities). Specializations of the above are then available in, e.g.,
-[float32.x](https://github.com/google/xls/tree/main/xls/stdlib/float32.x) to hide internal
-implementation details from end users.
+[float32.x](https://github.com/google/xls/tree/main/xls/dslx/stdlib/float32.x) to hide
+internal implementation details from end users.
 
 With this technique, you can write single implementations of functionality that
 can be applicable across all sorts of hardware configurations for minimal
