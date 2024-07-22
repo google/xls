@@ -1010,6 +1010,27 @@ TEST_F(ParserTest, ZeroMacroSimpleBitsArray) {
   RoundTripExpr("zero!<bits[32][10]>()", {}, /*populate_dslx_builtins=*/true);
 }
 
+TEST_F(ParserTest, ZeroMacroArrayOfImportedType) {
+  RoundTrip(R"(import bar;
+fn foo() -> bar::T[2] {
+    zero!<bar::T[2]>()
+})");
+}
+
+TEST_F(ParserTest, ZeroMacroImportedTypeWithParametric) {
+  RoundTrip(R"(import bar;
+fn foo() -> bar::T<2> {
+    zero!<bar::T<2>>()
+})");
+}
+
+TEST_F(ParserTest, ZeroMacroArrayOfImportedTypeWithParametric) {
+  RoundTrip(R"(import bar;
+fn foo() -> bar::T<2>[3] {
+    zero!<bar::T<2>[3]>()
+})");
+}
+
 TEST_F(ParserTest, ZeroMacroSimpleStructArray) {
   const char* text = R"(zero!<MyType[10]>())";
   Scanner s{"test.x", std::string{text}};

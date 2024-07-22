@@ -3066,7 +3066,21 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
           bindings, peek->span(),
           module_->Make<TypeRef>(peek->span(), type_definition));
     }
-    // Otherwise, it's a value.
+    // It may be an imported type followed by parametrics and dims, in which
+    // case we preserve the ColonRef in the type definition without resolution.
+    // Note: we may eventually need more elaborate deferral of the type vs.
+    // value decision, if we want to support e.g. ColonRef + dims to refer to a
+    // constant value here.
+    if (std::holds_alternative<ColonRef*>(nocr)) {
+      Span identifier_span = peek->span();
+      XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+      if (peek->IsKindIn({TokenKind::kOAngle, TokenKind::kOBrack})) {
+        return ParseTypeRefParametricsAndDims(
+            bindings, identifier_span,
+            module_->Make<TypeRef>(identifier_span, std::get<ColonRef*>(nocr)));
+      }
+    }
+    // Otherwise, it's a value or an unadorned imported type.
     return ToExprNode(nocr);
   }
 
