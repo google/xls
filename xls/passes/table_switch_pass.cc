@@ -242,8 +242,16 @@ absl::StatusOr<std::optional<Value>> LinksToTable(
   }
   VLOG(3) << "map.size(): " << map.size();
 
-  if (index_space_size.has_value() && map.size() < index_space_size.value() &&
-      map.size() * 2 > index_space_size.value()) {
+  // As a special case, even when dealing with an "infinite" index space, we can
+  // rely on the saturating semantics of ArrayIndex to convert the select
+  // sequence to a table lookup. Specifically, if the index is OOB, ArrayIndex
+  // returns the element of the array at the max index - so as long as we fill
+  // the last entry with the else_value, we can proceed as if the index space
+  // was [0, max_key + 1] (with size = max_key + 2).
+  index_space_size =
+      std::min(index_space_size.value_or(std::numeric_limits<uint64_t>::max()),
+               max_key + 2);
+  if (map.size() < *index_space_size && map.size() * 2 > *index_space_size) {
     // There are holes in the index space, but most of the index space is
     // covered. Necessarily, if the index assumes one of the missing values the
     // expression returns else_value so fill in the holes with else_value and
@@ -258,26 +266,14 @@ absl::StatusOr<std::optional<Value>> LinksToTable(
     return array;
   }
 
-  // As a special case we can rely on the saturating semantics of ArrayIndex to
-  // convert the select sequence to a table lookup. Specifically, if the index
-  // is OOB, ArrayIndex returns the element of the array at the max index. We
-  // put the else_value at the maximum index. For this to work, the map must be
-  // dense from zero on up.
-  if (map.size() == max_key + 1) {
-    // The condition above should imply that the min key is zero.
-    XLS_RET_CHECK_EQ(min_key, 0);
-    map[max_key + 1] = else_value;
-    XLS_ASSIGN_OR_RETURN(Value array, map_to_array_value(map));
-    return array;
-  }
-
   // Possible improvements that could be handled here:
-  //  - Handling non-zero start indexes.
+  //  - Handling large start indices (e.g., shifted index spaces).
   //  - Support non-1 index strides:
   //    - Extract a constant factor, e.g., 0, 4, 8, ... -> 0, 1, 2, ...
   //  - Handle "partial" chains - those that only cover part of the match space
 
-  VLOG(3) << "Cannot convert link chain to table lookup";
+  VLOG(3) << "Cannot convert link chain to table lookup; min_key: " << min_key
+          << ", max_key: " << max_key << ", map.size(): " << map.size();
   return std::nullopt;
 }
 

@@ -276,39 +276,76 @@ fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
               IsOkAndHolds(false));
 }
 
-// Verifies that non-dense index sets (e.g., [0, 1, 2, 5]) aren't switched, but
-// subsets >= the minimum size are.
-TEST_F(TableSwitchPassTest, DenseOnly) {
+// Verifies that non-zero index sets, even with holes (e.g., [1, 2, 3, 5]), can
+// be switched to tables.
+TEST_F(TableSwitchPassTest, NonzeroStart) {
   const std::string program = R"(
 fn main(index: bits[32]) -> bits[32] {
-  literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
   literal.2: bits[32] = literal(value=2)
-  literal.4: bits[32] = literal(value=4)
+  literal.3: bits[32] = literal(value=3)
   literal.5: bits[32] = literal(value=5)
   literal.50: bits[32] = literal(value=0)
   literal.51: bits[32] = literal(value=111)
   literal.52: bits[32] = literal(value=222)
   literal.53: bits[32] = literal(value=333)
   literal.55: bits[32] = literal(value=555)
-  literal.56: bits[32] = literal(value=666)
-  eq.10: bits[1] = eq(index, literal.0)
   eq.11: bits[1] = eq(index, literal.1)
   eq.12: bits[1] = eq(index, literal.2)
-  eq.14: bits[1] = eq(index, literal.4)
+  eq.13: bits[1] = eq(index, literal.3)
   eq.15: bits[1] = eq(index, literal.5)
-  sel.20: bits[32] = sel(eq.10, cases=[literal.50, literal.51])
-  sel.21: bits[32] = sel(eq.11, cases=[sel.20, literal.52])
-  sel.22: bits[32] = sel(eq.12, cases=[sel.21, literal.53])
-  sel.24: bits[32] = sel(eq.14, cases=[sel.22, literal.55])
-  ret sel.25: bits[32] = sel(eq.15, cases=[sel.24, literal.56])
+  sel.21: bits[32] = sel(eq.11, cases=[literal.50, literal.51])
+  sel.22: bits[32] = sel(eq.12, cases=[sel.21, literal.52])
+  sel.23: bits[32] = sel(eq.13, cases=[sel.22, literal.53])
+  ret sel.25: bits[32] = sel(eq.15, cases=[sel.23, literal.55])
 }
 )";
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value array, Value::UBitsArray({0, 111, 222, 333, 0, 555, 0}, 32));
+  EXPECT_THAT(f->return_value(), m::ArrayIndex(m::Literal(array),
+                                               /*indices=*/{m::Param()}));
+}
+
+// Verifies that non-dense index sets (e.g., [0, 1, 3, 7, 9]) aren't switched,
+// but subsets >= the minimum size are.
+TEST_F(TableSwitchPassTest, DenseOnly) {
+  const std::string program = R"(
+fn main(index: bits[32]) -> bits[32] {
+  literal.0: bits[32] = literal(value=0)
+  literal.1: bits[32] = literal(value=1)
+  literal.3: bits[32] = literal(value=3)
+  literal.7: bits[32] = literal(value=7)
+  literal.9: bits[32] = literal(value=9)
+  literal.50: bits[32] = literal(value=0)
+  literal.51: bits[32] = literal(value=111)
+  literal.52: bits[32] = literal(value=222)
+  literal.53: bits[32] = literal(value=333)
+  literal.57: bits[32] = literal(value=777)
+  literal.59: bits[32] = literal(value=999)
+  eq.10: bits[1] = eq(index, literal.0)
+  eq.11: bits[1] = eq(index, literal.1)
+  eq.13: bits[1] = eq(index, literal.3)
+  eq.17: bits[1] = eq(index, literal.7)
+  eq.19: bits[1] = eq(index, literal.9)
+  sel.20: bits[32] = sel(eq.10, cases=[literal.50, literal.51])
+  sel.21: bits[32] = sel(eq.11, cases=[sel.20, literal.52])
+  sel.22: bits[32] = sel(eq.13, cases=[sel.21, literal.53])
+  sel.24: bits[32] = sel(eq.17, cases=[sel.22, literal.57])
+  ret sel.25: bits[32] = sel(eq.19, cases=[sel.24, literal.59])
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
-                           Value::UBitsArray({111, 222, 333, 0}, 32));
+                           Value::UBitsArray({111, 222, 0, 333, 0}, 32));
   bool has_array_index = false;
   for (const Node* node : f->nodes()) {
     if (node->op() == Op::kArrayIndex) {
