@@ -96,9 +96,10 @@ AotCompiler::CreateTargetMachine() {
       error_or_target_builder->addFeatures(features);
       break;
     }
-    case llvm::Triple::aarch64:
-      return absl::UnimplementedError(
-          "Support AOT feature flag setting for aarch64 compilation.");
+    case llvm::Triple::aarch64: {
+      error_or_target_builder->getFeatures() = llvm::SubtargetFeatures();
+      break;
+    }
     default:
       return absl::InvalidArgumentError(
           "Compiling on unrecognized host architecture for AOT "
