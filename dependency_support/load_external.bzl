@@ -231,6 +231,7 @@ def load_external_repositories():
     http_archive(
         name = "com_github_grpc_grpc",
         urls = ["https://github.com/grpc/grpc/archive/v1.64.2.tar.gz"],
+        patches = ["//dependency_support/com_github_grpc_grpc:0001-Add-absl-status-to-deps.patch"],
         sha256 = "c682fc39baefc6e804d735e6b48141157b7213602cc66dbe0bf375b904d8b5f9",
         strip_prefix = "grpc-1.64.2",
         repo_mapping = {
