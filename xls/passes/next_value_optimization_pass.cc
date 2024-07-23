@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
@@ -212,9 +213,10 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
   }
   PrioritySelect* selected_value = next->value()->As<PrioritySelect>();
 
+  VLOG(2) << "Splitting next value over priority select: " << *selected_value;
   int64_t depth = 1;
   if (auto it = split_depth.find(next); it != split_depth.end()) {
-    depth = it->second + 1;
+    depth = it->second + CeilOfLog2(selected_value->cases().size() + 1);
   }
 
   std::vector<Next*> new_next_values;
