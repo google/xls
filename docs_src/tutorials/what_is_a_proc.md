@@ -360,8 +360,9 @@ let (response_tok, response) = recv(full_request_tok, B);
 // ...
 ```
 
-In this example, our `send()`s can happen in any order, but we know that the
-`recv()` will not block until after all the `send()`s have finished.
+In this example, our `send()`s can happen in any order. Since the `recv()`
+depends on the tokens produced by the `send()`s, it will not be allowed to go
+off until all three `send()`s have completed.
 
 #### Cross-Activation Tokens
 
