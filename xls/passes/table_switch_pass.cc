@@ -15,10 +15,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -87,13 +89,14 @@ std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(
   return std::nullopt;
 }
 
-// Return type of the MatchLink function. See MatchLink comment for details.
+// Return type of the MatchLinks function. See MatchLinks comment for details.
 struct Link {
-  Select* node;
+  Node* node;
   Node* index;
   uint64_t key;
   const Value& value;
   Node* next;
+  std::optional<int64_t> next_case = std::nullopt;
 };
 
 // Matches the given node against the following Select instruction patterns:
@@ -103,52 +106,182 @@ struct Link {
 //  Sel({index} != {key}, cases=[{value}, {next}])
 //  Sel({key} != {index}, cases=[{value}, {next}])
 //
+//  and the equivalents with a default value, as well as:
+//
+//  PrioritySel({index} == {key}, cases=[{value}], default={next})
+//  PrioritySel({key} == {index}, cases=[{value}], default={next})
+//  PrioritySel({index} != {key}, cases=[{next}], default={value})
+//  PrioritySel({key} != {index}, cases=[{next}], default={value})
+//
 // Where:
 //   {key}   : A literal whose value fits in a uint64_t.
 //   {index} : Equal to the argument 'index' if 'index' is non-null.
 //   {next}  : Arbitrary node.
 //   {value} : A literal node.
 //
+// We also try to recognize PrioritySelects that merge multiple links in the
+// chain, where the selector is a concat of single bit selectors. In this case,
+// we return multiple Links, and all intermediate Links include a {next_case}
+// entry to indicate which case of the PrioritySelect picks up from there.
+//
 // If a match is found, the respective Link fields are filled in (as named
-// above). Otherwise std::nullopt is returned.
-std::optional<Link> MatchLink(QueryEngine& query_engine, Node* node,
-                              Node* index = nullptr) {
-  if (!IsBinarySelect(node)) {
-    return std::nullopt;
-  }
-  Select* select = node->As<Select>();
-
-  // The selector must be a comparison to a literal which fits in a uint64_t.
-  std::optional<Uint64Comparison> match =
-      MatchCompareEqAgainstUint64(select->selector(), query_engine);
-  if (!match.has_value()) {
-    return std::nullopt;
+// above). Otherwise an empty vector is returned.
+std::vector<Link> MatchLinks(QueryEngine& query_engine, Node* node,
+                             Node* index = nullptr, int64_t first_case = 0) {
+  if (!node->OpIn({Op::kSel, Op::kPrioritySel})) {
+    return {};
   }
 
-  Node* next;
-  Node* value_node;
-  if (match->comparison_op == Op::kEq) {
-    next = select->get_case(0);
-    value_node = select->get_case(1);
-  } else {
-    CHECK_EQ(match->comparison_op, Op::kNe);
-    next = select->get_case(1);
-    value_node = select->get_case(0);
+  if (node->Is<Select>() ||
+      node->As<PrioritySelect>()->selector()->BitCountOrDie() == 1) {
+    Node* selector;
+    Node* false_case;
+    Node* true_case;
+    if (node->Is<Select>()) {
+      Select* sel = node->As<Select>();
+      if (sel->cases().size() + (sel->default_value().has_value() ? 1 : 0) !=
+          2) {
+        return {};
+      }
+      selector = sel->selector();
+      false_case = sel->get_case(0);
+      if (sel->default_value().has_value()) {
+        true_case = *sel->default_value();
+      } else {
+        true_case = sel->get_case(1);
+      }
+    } else {
+      PrioritySelect* sel = node->As<PrioritySelect>();
+      if (sel->cases().size() != 1) {
+        return {};
+      }
+      selector = sel->selector();
+      true_case = sel->get_case(0);
+      false_case = sel->default_value();
+    }
+
+    // The selector must be a comparison to a literal which fits in a uint64_t.
+    std::optional<Uint64Comparison> match =
+        MatchCompareEqAgainstUint64(selector, query_engine);
+    if (!match.has_value()) {
+      return {};
+    }
+
+    Node* next;
+    Node* value_node;
+    if (match->comparison_op == Op::kEq) {
+      next = false_case;
+      value_node = true_case;
+    } else {
+      CHECK_EQ(match->comparison_op, Op::kNe);
+      next = true_case;
+      value_node = false_case;
+    }
+
+    // The select instruction must have a literal value for the index-match
+    // case.
+    if (!value_node->Is<Literal>()) {
+      return {};
+    }
+    const Value& value = value_node->As<Literal>()->value();
+
+    // The index, if given, must match the non-literal operand of the eq.
+    if (index != nullptr && index != match->index) {
+      return {};
+    }
+
+    return {Link{.node = node,
+                 .index = match->index,
+                 .key = match->key,
+                 .value = value,
+                 .next = next}};
   }
 
-  // The select instruction must have a literal value for the selector is true
-  // case.
-  if (!value_node->Is<Literal>()) {
-    return std::nullopt;
-  }
-  const Value& value = value_node->As<Literal>()->value();
+  PrioritySelect* sel = node->As<PrioritySelect>();
+  CHECK_LT(first_case, sel->cases().size());
 
-  // The index, if given, must match the non-literal operand of the eq.
-  if (index != nullptr && index != match->index) {
-    return std::nullopt;
+  // We currently only support priority selects with a single bit selector, or
+  // where the selector is a concat of single bit selectors.
+  if (!sel->selector()->Is<Concat>()) {
+    return {};
   }
 
-  return Link{select, match->index, match->key, value, next};
+  absl::Span<Node* const> selector_operands = sel->selector()->operands();
+  std::vector<Node*> selectors(selector_operands.begin(),
+                               selector_operands.end());
+  // Reverse the selectors to match the order of the cases.
+  absl::c_reverse(selectors);
+
+  int64_t current_selector = -1;
+  int64_t selector_bit = first_case;
+  for (int64_t i = 0; i < selectors.size(); ++i) {
+    int64_t bit_count = selectors[i]->BitCountOrDie();
+    if (selector_bit < bit_count) {
+      current_selector = i;
+      break;
+    }
+    selector_bit -= bit_count;
+  }
+  CHECK_GE(current_selector, 0);
+
+  std::vector<Link> links;
+  std::optional<int64_t> next_case;
+  for (int64_t i = first_case; i < sel->cases().size(); ++i) {
+    Node* selector = selectors[current_selector];
+    if (selector->BitCountOrDie() > 1) {
+      // We only recognize single-bit selectors as potential links in a chain.
+      break;
+    }
+    // The selector must be a comparison to a literal which fits in a uint64_t.
+    std::optional<Uint64Comparison> match =
+        MatchCompareEqAgainstUint64(selector, query_engine);
+    if (!match.has_value()) {
+      break;
+    }
+
+    Node* true_case = sel->get_case(i);
+
+    Node* false_case;
+    if (i < sel->cases().size() - 1) {
+      false_case = sel;
+      next_case = i + 1;
+    } else {
+      false_case = sel->default_value();
+    }
+
+    Node* next;
+    Node* value_node;
+    if (next_case.has_value() || match->comparison_op == Op::kEq) {
+      value_node = true_case;
+      next = false_case;
+    } else {
+      value_node = false_case;
+      next = true_case;
+    }
+
+    // The select instruction must have a literal value for the index-match
+    // case.
+    if (!value_node->Is<Literal>()) {
+      break;
+    }
+    const Value& value = value_node->As<Literal>()->value();
+
+    // The index, if given, must match the non-literal operand of the eq.
+    if (index == nullptr) {
+      index = match->index;
+    } else if (index != match->index) {
+      break;
+    }
+
+    links.push_back({.node = node,
+                     .index = match->index,
+                     .key = match->key,
+                     .value = value,
+                     .next = next,
+                     .next_case = next_case});
+    current_selector++;
+  }
+  return links;
 }
 
 // Returns an array Value of the table lookup effectively performed by the given
@@ -294,8 +427,21 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     }
     // Check if this node is the start of a chain of selects. This also
     // identifies the common index.
-    std::optional<Link> start = MatchLink(query_engine, node);
-    if (!start.has_value()) {
+    int64_t first_case = 0;
+    std::vector<Link> links;
+    if (node->Is<PrioritySelect>()) {
+      for (; first_case < node->As<PrioritySelect>()->cases().size();
+           ++first_case) {
+        links = MatchLinks(query_engine, node,
+                           /*index=*/nullptr, first_case);
+        if (!links.empty()) {
+          break;
+        }
+      }
+    } else {
+      links = MatchLinks(query_engine, node);
+    }
+    if (links.empty()) {
       VLOG(3) << absl::StreamFormat("%s is not the start of a chain.",
                                     node->GetName());
       continue;
@@ -321,12 +467,14 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     //
     // In each link, the 'next' value points up to the next element in the
     // chain.
-    Node* next = start->next;
-    Node* index = start->index;
-    std::vector<Link> links = {start.value()};
-    while (std::optional<Link> link = MatchLink(query_engine, next, index)) {
-      next = link->next;
-      links.push_back(link.value());
+    std::vector<Link> new_links =
+        MatchLinks(query_engine, links.back().next, links.back().index,
+                   links.back().next_case.value_or(0));
+    while (!new_links.empty()) {
+      absl::c_move(new_links, std::back_inserter(links));
+      new_links =
+          MatchLinks(query_engine, links.back().next, links.back().index,
+                     links.back().next_case.value_or(0));
     }
 
     VLOG(3) << absl::StreamFormat("Chain of length %d found", links.size());
@@ -357,9 +505,28 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
 
     XLS_ASSIGN_OR_RETURN(Literal * array_literal,
                          f->MakeNode<Literal>(node->loc(), table.value()));
-    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<ArrayIndex>(
-                                array_literal, std::vector<Node*>({index}))
-                            .status());
+    if (first_case > 0) {
+      XLS_RET_CHECK(node->Is<PrioritySelect>());
+      PrioritySelect* sel = node->As<PrioritySelect>();
+      XLS_ASSIGN_OR_RETURN(Node * array_index,
+                           sel->function_base()->MakeNode<ArrayIndex>(
+                               sel->loc(), array_literal,
+                               std::vector<Node*>({links.back().index})));
+      XLS_ASSIGN_OR_RETURN(
+          Node * truncated_selector,
+          sel->function_base()->MakeNode<BitSlice>(
+              node->loc(), sel->selector(), /*start=*/0, /*width=*/first_case));
+      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWithNew<PrioritySelect>(
+                                 truncated_selector,
+                                 sel->cases().subspan(0, /*len=*/first_case),
+                                 /*default_value=*/array_index)
+                              .status());
+    } else {
+      XLS_RETURN_IF_ERROR(
+          node->ReplaceUsesWithNew<ArrayIndex>(
+                  array_literal, std::vector<Node*>({links.back().index}))
+              .status());
+    }
 
     // Mark the replaced nodes as being transformed to avoid quadratic
     // behavior. These nodes will be skipped in future iterations.
