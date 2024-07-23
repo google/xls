@@ -123,7 +123,8 @@ class Z3AbstractEvaluator
 
 // Returns the index with the proper bitwidth for the given array_type.
 Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, Z3_ast index,
-                                ArrayType* array_type) {
+                                ArrayType* array_type,
+                                Z3_ast* is_out_of_bounds = nullptr) {
   // In XLS, array indices can be of any sort, whereas in Z3, index types need
   // to be declared w/the array (the "domain" argument - we declare that to be
   // the smallest bit vector that covers all indices. Thus, we need to "cast"
@@ -134,6 +135,15 @@ Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, Z3_ast index,
   if (z3_width < target_width) {
     index = Z3_mk_zero_ext(ctx, target_width - z3_width, index);
   } else if (z3_width > target_width) {
+    if (is_out_of_bounds != nullptr) {
+      // Record whether the index is out of bounds. We have to do this before
+      // the extract, as otherwise the extract will throw away high bits that
+      // might be needed for the comparison.
+      Z3OpTranslator t(ctx);
+      Z3_ast array_max_index =
+          Z3_mk_int64(ctx, array_type->size() - 1, Z3_get_sort(ctx, index));
+      *is_out_of_bounds = t.UGtBool(index, array_max_index);
+    }
     index = Z3_mk_extract(ctx, target_width - 1, /*low=*/0, index);
   }
 
@@ -737,13 +747,17 @@ absl::Status IrTranslator::HandleTuple(Tuple* tuple) {
 
 Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
                                      Z3_ast index) {
-  index = GetAsFormattedArrayIndex(ctx_, index, array_type);
+  Z3_ast is_out_of_bounds = nullptr;
+  index = GetAsFormattedArrayIndex(ctx_, index, array_type, &is_out_of_bounds);
   // To follow XLS semantics, if the index exceeds the array size, then return
   // the element at the max index.
   Z3OpTranslator t(ctx_);
   Z3_ast array_max_index =
       Z3_mk_int64(ctx_, array_type->size() - 1, Z3_get_sort(ctx_, index));
-  index = t.Min(index, array_max_index);
+  if (is_out_of_bounds == nullptr) {
+    is_out_of_bounds = t.UGtBool(index, array_max_index);
+  }
+  index = Z3_mk_ite(ctx_, is_out_of_bounds, array_max_index, index);
   return Z3_mk_select(ctx_, array, index);
 }
 

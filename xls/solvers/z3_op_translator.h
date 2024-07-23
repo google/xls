@@ -155,8 +155,24 @@ class Z3OpTranslator {
     return Msb(Sub(ZextBy1b(lhs), ZextBy1b(rhs)));
   }
   Z3_ast ULe(Z3_ast lhs, Z3_ast rhs) { return Or(ULt(lhs, rhs), Eq(lhs, rhs)); }
+  Z3_ast UGt(Z3_ast lhs, Z3_ast rhs) { return Not(ULe(lhs, rhs)); }
   Z3_ast UGe(Z3_ast lhs, Z3_ast rhs) { return Not(ULt(lhs, rhs)); }
 
+  Z3_ast ULtBool(Z3_ast lhs, Z3_ast rhs) {
+    return Z3_mk_bvult(z3_ctx_, lhs, rhs);
+  }
+  Z3_ast ULeBool(Z3_ast lhs, Z3_ast rhs) {
+    return Z3_mk_bvule(z3_ctx_, lhs, rhs);
+  }
+  Z3_ast UGtBool(Z3_ast lhs, Z3_ast rhs) {
+    return Z3_mk_bvugt(z3_ctx_, lhs, rhs);
+  }
+  Z3_ast UGeBool(Z3_ast lhs, Z3_ast rhs) {
+    return Z3_mk_bvuge(z3_ctx_, lhs, rhs);
+  }
+
+  // Returns whether lhs < rhs -- this is determined by sign-extending the
+  // values and testing whether lhs - rhs < 0
   Z3_ast SLt(Z3_ast lhs, Z3_ast rhs) {
     return Msb(Sub(SextBy1b(lhs), SextBy1b(rhs)));
   }

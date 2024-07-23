@@ -2647,6 +2647,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:value",
+        "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_googletest//:gtest",
     ],
 )

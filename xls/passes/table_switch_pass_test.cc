@@ -37,6 +37,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -55,7 +56,7 @@ class TableSwitchPassTest : public IrTestBase {
   }
 
   // Returns a vector holding the results of the given function when run with
-  // the values from 0 to "max_index" before the table swich pass is applied.
+  // the values from 0 to "max_index" before the table switch pass is applied.
   absl::StatusOr<std::vector<Value>> GetBeforeData(Function* f, int max_index,
                                                    int width = 32) {
     // Run a bunch of data past the intended bounds, just for extra safety.
@@ -122,6 +123,7 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Value array,
                            Value::UBitsArray({1, 2, 3, 4, 5, 6, 0}, 32));

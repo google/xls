@@ -62,6 +62,10 @@ ScopedVerifyEquivalence::~ScopedVerifyEquivalence() {
           f_->name(), " before & after changes"));
   EXPECT_THAT(TryProveEquivalence(original_f_, f_, timeout_),
               IsOkAndHolds(VariantWith<ProvenTrue>(_)));
+  if (testing::Test::HasFailure()) {
+    testing::Test::RecordProperty("original", original_f_->DumpIr());
+    testing::Test::RecordProperty("final", f_->DumpIr());
+  }
 }
 
 ScopedVerifyProcEquivalence::ScopedVerifyProcEquivalence(
