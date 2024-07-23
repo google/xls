@@ -28,6 +28,11 @@
 #include "xls/common/status/status_macros.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <sys/syslimits.h>
+#endif /* __APPLE__ */
+
 namespace xls {
 namespace {
 
@@ -35,11 +40,6 @@ using ::bazel::tools::cpp::runfiles::Runfiles;
 
 static absl::Mutex mutex(absl::kConstInit);
 static Runfiles* runfiles;
-
-#ifdef __APPLE__
-#include <mach-o/dyld.h>
-#include <sys/syslimits.h>
-#endif /* __APPLE__ */
 
 absl::StatusOr<std::filesystem::path> GetSelfExecutablePath() {
 #if __linux__
