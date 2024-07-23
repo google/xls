@@ -38,27 +38,23 @@ namespace synthesis {
 absl::StatusOr<int64_t> ParseNextpnrOutput(std::string_view nextpnr_output) {
   bool found = false;
   double max_mhz = 0.0;
+
   // We're looking for lines of the form:
   //
   //   Info: Max frequency for clock 'foo': 125.28 MHz (PASS at 100.00 MHz)
   //
   // And we want to extract 125.28.
-  // TODO(meheff): Use regular expressions for this. Unfortunately using RE2
-  // causes multiple definition link errors when building yosys_server_test.
-  for (auto line : absl::StrSplit(nextpnr_output, '\n')) {
-    if (absl::StartsWith(line, "Info: Max frequency for clock") &&
-        absl::StrContains(line, " MHz ")) {
-      std::vector<std::string_view> tokens = absl::StrSplit(line, ' ');
-      for (int64_t i = 1; i < tokens.size(); ++i) {
-        if (tokens[i] == "MHz") {
-          if (absl::SimpleAtod(tokens[i - 1], &max_mhz)) {
-            found = true;
-            break;
-          }
-        }
-      }
-    }
+
+  // Finds the last line following the above pattern.
+  static constexpr LazyRE2 max_frequency_regex = {
+      .pattern_ = R"(Info: Max frequency for clock '.*': ([\d\.]+) MHz)"};
+  double parsed_max_mhz = 0.0;
+  while (RE2::FindAndConsume(&nextpnr_output, *max_frequency_regex,
+                             &parsed_max_mhz)) {
+    found = true;
+    max_mhz = parsed_max_mhz;
   }
+
   if (!found) {
     return absl::NotFoundError(
         "Could not find maximum frequency in nextpnr output.");
