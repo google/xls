@@ -29,12 +29,12 @@ http_archive(
     strip_prefix = "rules_cc-0.0.9",
 )
 
-# Commit on  2024-02-13, current as of 2024-02-13.
+# Commit on  2024-07-19, current as of 2024-07-21.
 http_archive(
     name = "toolchains_llvm",
-    sha256 = "916ee9a85287058dbd00fdc3659ab92176d9019590f8e8b763cd49d85476e253",
-    strip_prefix = "toolchains_llvm-1ca11e2755544e5305d442d72018234eca914604",
-    url = "https://github.com/bazel-contrib/toolchains_llvm/archive/1ca11e2755544e5305d442d72018234eca914604.tar.gz",
+    integrity = "sha256-RVp0bZsDrelQAtxswWOLB4j8zCXQy/cSe1m3wL/E2PU=",
+    strip_prefix = "toolchains_llvm-01132cfdae7d7187a885cf79d5a3ac1ed8a02e5a",
+    url = "https://github.com/bazel-contrib/toolchains_llvm/archive/01132cfdae7d7187a885cf79d5a3ac1ed8a02e5a.tar.gz",
 )
 
 load("@toolchains_llvm//toolchain:deps.bzl", "bazel_toolchain_dependencies")
