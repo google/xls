@@ -916,6 +916,18 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     }
   }
 
+  // Absorb inverted 1-bit selectors into their selects.
+  if (node->OpIn({Op::kSel, Op::kPrioritySel}) &&
+      node->operand(0)->op() == Op::kNot &&
+      node->operand(0)->BitCountOrDie() == 1) {
+    VLOG(2) << absl::StrFormat("Select with an inverted one-bit selector: %s",
+                               node->ToString());
+    XLS_RETURN_IF_ERROR(
+        node->ReplaceOperandNumber(0, node->operand(0)->operand(0)));
+    node->SwapOperands(1, 2);
+    return true;
+  }
+
   // We explode single-bit muxes into their constituent gates to expose more
   // optimization opportunities. Since this creates more ops in the general
   // case, we look for certain sub-cases:
