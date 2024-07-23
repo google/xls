@@ -16,7 +16,6 @@
 #include "xls/synthesis/yosys/yosys_util.h"
 
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -26,7 +25,6 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -68,8 +66,8 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
   YosysSynthesisStatistics stats;
   stats.area = -1.0f;
   stats.sequential_area = -1.0f;
-  std::vector<std::string> lines = absl::StrSplit(yosys_output, '\n');
-  std::vector<std::string>::iterator parse_line_itr = lines.begin();
+  std::vector<std::string_view> lines = absl::StrSplit(yosys_output, '\n');
+  std::vector<std::string_view>::iterator parse_line_itr = lines.begin();
 
   // Advance parse_line_index until a line starting with 'key' is found.
   // Return false if 'key' is not found, otherwise true.
@@ -110,11 +108,13 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
   }
   parse_line_itr++;
 
+  static constexpr LazyRE2 cell_histogram_regex = {
+      .pattern_ = R"(\s+(\w+)\s+(\d+)\s*)"};
   // Process cell histogram.
   for (; parse_line_itr != lines.end(); ++parse_line_itr) {
     int64_t cell_count;
     std::string cell_name;
-    if (RE2::FullMatch(*parse_line_itr, "\\s+(\\w+)\\s+(\\d+)\\s*", &cell_name,
+    if (RE2::FullMatch(*parse_line_itr, *cell_histogram_regex, &cell_name,
                        &cell_count)) {
       XLS_RET_CHECK(!stats.cell_histogram.contains(cell_name));
       stats.cell_histogram[cell_name] = cell_count;
@@ -123,7 +123,14 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
     }
   }
 
-  constexpr std::string_view floating_point_regex = "([0-9\\+\\-e\\.]+)";
+  static constexpr LazyRE2 unknown_cell_area_regex = {
+      .pattern_ = R"(\s+Area for cell type (\w+) is unknown!)"};
+  static constexpr LazyRE2 area_regex = {
+      .pattern_ = R"(\s+Chip area for .+: ([0-9\+\-e\.]+))"};
+  static constexpr LazyRE2 sequential_area_regex = {
+      .pattern_ = R"(\s+of which used for sequential elements: )"
+                  R"(([0-9\+\-e\.]+))"};
+
   // The stats related to area, if exists, should come immediately after the
   // cell histogram. We need to be careful of not jumping to another set of
   // statistics. Ideally, we should have an end marker as the area part might or
@@ -138,23 +145,16 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
     double parsed_sequential_area = -1.0f;
     std::string parsed_cell_type_area_unknown;
     // TODO(hnpl): We should use LazyRE2 for this and the rest of the file.
-    if (RE2::FullMatch(*parse_line_itr,
-                       "\\s+Area for cell type (\\w+) is unknown!",
+    if (RE2::FullMatch(*parse_line_itr, *unknown_cell_area_regex,
                        &parsed_cell_type_area_unknown)) {
       stats.cell_type_with_unknown_area.push_back(
           parsed_cell_type_area_unknown);
     }
-    if (RE2::FullMatch(
-            *parse_line_itr,
-            absl::StrCat("\\s+Chip area for .+: ", floating_point_regex),
-            &parsed_area)) {
+    if (RE2::FullMatch(*parse_line_itr, *area_regex, &parsed_area)) {
       stats.area = parsed_area;
     }
-    if (RE2::PartialMatch(
-            *parse_line_itr,
-            absl::StrCat("\\s+of which used for sequential elements: ",
-                         floating_point_regex, " "),
-            &parsed_sequential_area)) {
+    if (RE2::PartialMatch(*parse_line_itr, *sequential_area_regex,
+                          &parsed_sequential_area)) {
       stats.sequential_area = parsed_sequential_area;
       break;
     }
@@ -173,6 +173,11 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
   std::string slack_ps;
   bool period_ok = false, slack_ok = false;
 
+  static constexpr LazyRE2 clk_period_regex = {
+      .pattern_ = R"(op_clk period_min = (\d+\.\d+) fmax = (\d+\.\d+))"};
+  static constexpr LazyRE2 slack_regex = {.pattern_ =
+                                              R"(^worst slack (-?\d+.\d+))"};
+
   for (std::string_view line : absl::StrSplit(sta_output, '\n')) {
     line = absl::StripAsciiWhitespace(line);
     // We're looking for lines with this outline, all in ps, freq in mhz
@@ -181,16 +186,14 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
     //   worst slack -96.67
     // And we want to extract 116.71 and 8568.43 and -96.67
 
-    if (RE2::PartialMatch(line,
-                          R"(op_clk period_min = (\d+\.\d+) fmax = (\d+\.\d+))",
-                          &clk_period_ps, &freq_mhz)) {
+    if (RE2::PartialMatch(line, *clk_period_regex, &clk_period_ps, &freq_mhz)) {
       XLS_RET_CHECK(absl::SimpleAtof(clk_period_ps, &stats.period_ps));
       stats.max_frequency_hz = static_cast<int64_t>(
           1e12 / stats.period_ps);  // use clk in ps for accuracy
       period_ok = true;
     }
 
-    if (RE2::PartialMatch(line, R"(^worst slack (-?\d+.\d+))", &slack_ps)) {
+    if (RE2::PartialMatch(line, *slack_regex, &slack_ps)) {
       XLS_RET_CHECK(absl::SimpleAtof(slack_ps, &tmp_float));
       stats.slack_ps = static_cast<int64_t>(tmp_float);
       // ensure that negative slack (even small) is reported as negative!
