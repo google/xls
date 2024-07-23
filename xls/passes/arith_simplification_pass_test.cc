@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -1635,9 +1636,32 @@ TEST_F(ArithSimplificationPassTest, GuardedShiftOperationWithDefault) {
   BValue amt = fb.Param("amt", p->GetBitsType(32));
   BValue limit = fb.Literal(Value(UBits(100, 32)));
   BValue clamped_amt =
-      fb.Select(fb.UGt(amt, limit), /*cases=*/{limit}, /*default_value=*/amt);
+      fb.Select(fb.UGt(amt, limit), /*cases=*/absl::MakeConstSpan({amt}),
+                /*default_value=*/limit);
   fb.Shll(x, clamped_amt);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(
+      f->return_value(),
+      m::Shll(m::Param("x"), m::Select(m::UGt(), /*cases=*/{m::Param("amt")},
+                                       /*default_value=*/m::Literal())));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Param("amt")));
+}
+
+TEST_F(ArithSimplificationPassTest, GuardedShiftOperationWithPrioritySelect) {
+  // Test that a shift amount clamped to the shift's width is removed.
+  // Uses a priority select.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(100));
+  BValue amt = fb.Param("amt", p->GetBitsType(32));
+  BValue limit = fb.Literal(Value(UBits(100, 32)));
+  BValue clamped_amt = fb.PrioritySelect(fb.UGt(amt, limit), /*cases=*/{limit},
+                                         /*default_value=*/amt);
+  fb.Shll(x, clamped_amt);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Param("amt")));
 }

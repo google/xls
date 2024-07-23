@@ -15,6 +15,7 @@
 #include "xls/passes/arith_simplification_pass.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -89,6 +90,7 @@ bool IsBitsCompare(Node* node) {
 //
 //  Select(UGt(x, LIMIT), cases=[x, LIMIT])
 //  Select(UGt(x, LIMIT), cases=[x], default=LIMIT)
+//  PrioritySelect(UGt(x, LIMIT), cases=[LIMIT], default=x)
 //
 // Where LIMIT is a literal. Returns a ClampExpr containing 'x' and 'LIMIT'
 // values.
@@ -98,29 +100,39 @@ struct ClampExpr {
 };
 std::optional<ClampExpr> MatchClampUpperLimit(Node* n,
                                               const QueryEngine& query_engine) {
-  if (!n->Is<Select>()) {
-    return std::nullopt;
-  }
-  Select* select = n->As<Select>();
-  Node* cmp = select->selector();
-  int total_cases =
-      select->cases().size() + (select->default_value().has_value() ? 1 : 0);
-  if (total_cases != 2) {
-    return std::nullopt;
-  }
-  Node* consequent = select->get_case(0);
+  Node* cmp;
+  Node* consequent;
   Node* alternative;
-  if (select->default_value().has_value()) {
-    alternative = *select->default_value();
+  if (n->Is<Select>()) {
+    Select* select = n->As<Select>();
+    size_t total_cases =
+        select->cases().size() + (select->default_value().has_value() ? 1 : 0);
+    if (total_cases != 2) {
+      return std::nullopt;
+    }
+    cmp = select->selector();
+    alternative = select->get_case(0);
+    if (select->default_value().has_value()) {
+      consequent = *select->default_value();
+    } else {
+      consequent = select->get_case(1);
+    }
+  } else if (n->Is<PrioritySelect>()) {
+    PrioritySelect* select = n->As<PrioritySelect>();
+    if (select->cases().size() != 1) {
+      return std::nullopt;
+    }
+    cmp = select->selector();
+    consequent = select->get_case(0);
+    alternative = select->default_value();
   } else {
-    alternative = select->get_case(1);
+    return std::nullopt;
   }
-  if (select->selector()->op() == Op::kUGt &&
-      query_engine.IsFullyKnown(alternative) &&
-      cmp->operand(1) == alternative && cmp->operand(0) == consequent) {
+  if (cmp->op() == Op::kUGt && query_engine.IsFullyKnown(consequent) &&
+      cmp->operand(1) == consequent && cmp->operand(0) == alternative) {
     return ClampExpr{
         .node = cmp->operand(0),
-        .upper_limit = *query_engine.KnownValueAsBits(alternative),
+        .upper_limit = *query_engine.KnownValueAsBits(consequent),
     };
   }
   return std::nullopt;
