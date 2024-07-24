@@ -124,7 +124,6 @@ std::string CriticalPathToString(
     absl::Span<const CriticalPathEntry> critical_path,
     std::optional<std::function<std::string(Node*)>> extra_info) {
   std::string result;
-  absl::flat_hash_map<Op, std::pair<int64_t, int64_t>> op_to_sum;
   for (const CriticalPathEntry& entry : critical_path) {
     absl::StrAppendFormat(&result, " %6dps (+%3dps)%s: %s\n",
                           entry.path_delay_ps, entry.node_delay_ps,
@@ -135,6 +134,21 @@ std::string CriticalPathToString(
     }
   }
   return result;
+}
+
+CriticalPathProto CriticalPathToProto(
+    absl::Span<const CriticalPathEntry> critical_path) {
+  CriticalPathProto proto;
+  for (const CriticalPathEntry& entry : critical_path) {
+    DelayInfoNodeProto* node = proto.add_nodes();
+    node->set_op(ToOpProto(entry.node->op()));
+    node->set_node_delay_ps(entry.node_delay_ps);
+    node->set_total_delay_ps(entry.path_delay_ps);
+    node->set_id(entry.node->id());
+    node->set_ir(entry.node->ToStringWithOperandTypes());
+  }
+  proto.set_total_delay_ps(critical_path.front().path_delay_ps);
+  return proto;
 }
 
 }  // namespace xls

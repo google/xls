@@ -37,11 +37,13 @@
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/delay_model/delay_info.pb.h"
 #include "xls/fdo/grpc_synthesizer.h"
 #include "xls/fdo/synthesized_delay_diff_utils.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -86,6 +88,9 @@ ABSL_FLAG(int, abs_delay_diff_min_ps, 0,
           "`compare_to_synthesis` must also be true.");
 ABSL_FLAG(std::optional<int>, stage, std::nullopt,
           "Only analyze the specified, zero-based stage of the pipeline.");
+ABSL_FLAG(std::optional<std::string>, proto_out, std::nullopt,
+          "File to write a binary xls.DelayInfoProto to containing delay info "
+          "of the input.");
 
 namespace xls::tools {
 namespace {
@@ -120,12 +125,20 @@ absl::Status RealMain(std::string_view input_path) {
         synthesis::GetSynthesizerManagerSingleton().MakeSynthesizer(
             parameters.name(), parameters));
   }
+  std::optional<DelayInfoProto> delay_proto;
+  if (absl::GetFlag(FLAGS_proto_out)) {
+    delay_proto.emplace();
+  }
   std::optional<synthesis::SynthesizedDelayDiff> total_diff;
   if (absl::GetFlag(FLAGS_schedule_path).empty()) {
     XLS_ASSIGN_OR_RETURN(
         std::vector<CriticalPathEntry> critical_path,
         AnalyzeCriticalPath(top, /*clock_period_ps=*/std::nullopt,
                             *delay_estimator));
+    if (delay_proto) {
+      *delay_proto->mutable_combinational_critical_path() =
+          CriticalPathToProto(critical_path);
+    }
     std::cout << "# Critical path:\n";
     if (synthesizer) {
       XLS_ASSIGN_OR_RETURN(
@@ -161,6 +174,10 @@ absl::Status RealMain(std::string_view input_path) {
         continue;
       }
       std::cout << absl::StrFormat("# Critical path for stage %d:\n", i);
+      const std::vector<CriticalPathEntry>& real_critical_path =
+          requested_stage.has_value()
+              ? total_diff->critical_path
+              : diff_by_stage->stage_diffs[i].critical_path;
       if (requested_stage.has_value()) {
         // If a particular stage was specified by the user, `total_diff` is for
         // that stage.
@@ -178,6 +195,11 @@ absl::Status RealMain(std::string_view input_path) {
         std::cout << CriticalPathToString(
             diff_by_stage->stage_diffs[i].critical_path);
       }
+      if (delay_proto) {
+        delay_proto->mutable_pipelined_critical_path()
+            ->mutable_stage()
+            ->emplace(i, CriticalPathToProto(real_critical_path));
+      }
       std::cout << "\n";
     }
   }
@@ -191,6 +213,15 @@ absl::Status RealMain(std::string_view input_path) {
                                       delay_status.value());
     } else {
       std::cout << absl::StreamFormat("%-15s : <unknown>\n", node->GetName());
+    }
+    if (delay_proto) {
+      DelayInfoNodeProto* node_proto = delay_proto->add_all_nodes();
+      node_proto->set_id(node->id());
+      node_proto->set_ir(node->ToStringWithOperandTypes());
+      node_proto->set_op(ToOpProto(node->op()));
+      if (delay_status.ok()) {
+        node_proto->set_node_delay_ps(delay_status.value());
+      }
     }
   }
 
@@ -208,6 +239,11 @@ absl::Status RealMain(std::string_view input_path) {
           "The yosys delay absolute diff was not in the specified range.");
     }
     std::cout << "The absolute delay diff is within the specified range.\n";
+  }
+  if (delay_proto) {
+    XLS_RETURN_IF_ERROR(SetFileContents(*absl::GetFlag(FLAGS_proto_out),
+                                        delay_proto->SerializeAsString()))
+        << "Unable to write proto file";
   }
 
   return absl::OkStatus();

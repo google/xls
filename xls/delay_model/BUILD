@@ -19,6 +19,7 @@ load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -126,6 +127,7 @@ cc_library(
     hdrs = ["analyze_critical_path.h"],
     deps = [
         ":delay_estimator",
+        ":delay_info_cc_proto",
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -407,4 +409,23 @@ xls_delay_model_generation(
     samples_file = ":samples.textproto",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",
     tags = ["manual"],
+)
+
+proto_library(
+    name = "delay_info_proto",
+    srcs = ["delay_info.proto"],
+    visibility = ["//xls:xls_users"],
+    deps = ["//xls/ir:op_proto"],
+)
+
+cc_proto_library(
+    name = "delay_info_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":delay_info_proto"],
+)
+
+py_proto_library(
+    name = "delay_info_py_pb2",
+    visibility = ["//xls:xls_users"],
+    deps = [":delay_info_proto"],
 )

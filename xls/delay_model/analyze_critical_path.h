@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_info.pb.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
@@ -70,6 +71,9 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
 std::string CriticalPathToString(
     absl::Span<const CriticalPathEntry> critical_path,
     std::optional<std::function<std::string(Node*)>> extra_info = std::nullopt);
+
+CriticalPathProto CriticalPathToProto(
+    absl::Span<const CriticalPathEntry> critical_path);
 
 }  // namespace xls
 
