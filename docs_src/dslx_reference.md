@@ -711,8 +711,10 @@ Note [google/xls#917](https://github.com/google/xls/issues/917): arrays with
 length zero will typecheck, but fail to work in most circumstances. Eventually,
 XLS should support them but they can't be used currently.
 
+<!--
 TODO(meheff): Explain arrays and the intricacies of our bits type interpretation
 and how it affects arrays of bits etc.
+-->
 
 #### Character String Constants
 
@@ -878,16 +880,16 @@ type from its operand expressions.
 [^usebeforedef]: Otherwise there'd be a use-before-definition error.
 
 DSLX uses deductive type inference to check the types present in the program.
-Deductive type inference is a set of (typically straight-forward) deduction
+Deductive type inference is a set of (typically straightforward) deduction
 rules: Hindley-Milner style deductive type inference determines the result type
 of a function with a rule that only observes the input types to that function.
 (Note that operators like '+' are just slightly special functions in that they
-have pre-defined special-syntax-rule names.)
+have predefined special-syntax-rule names.)
 
 #### Bindings and Environment
 
 In DSLX code, the "environment" where names are bound (sometimes also referred
-to as a symbol table) is called the
+to as a *symbol table*) is called the
 [`Bindings`](https://github.com/google/xls/tree/main/xls/dslx/frontend/bindings.h) -- it
 maps identifiers to the AST node that defines the name (`{string: AstNode}`),
 which can be combined with a mapping from AST node to its deduced type
@@ -899,15 +901,15 @@ variables, etc.).
 #### Operator Example
 
 For example, consider the binary (meaning takes two operands) / infix (meaning
-it syntactically is placed in the center of its operands) '+' operator. The
-simple deductive type inference rule for '+' is:
+it syntactically is placed between its operands) '+' operator. The simple
+deductive type inference rule for '+' is:
 
 `(T, T) -> T`
 
-Meaning that the left hand side operand to the '+' operator is of some type
-(call it T), the right hand side operand to the '+' operator must be of that
-same type, T, and the result of that operator is then (deduced) to be of the
-same type as its operands, T.
+This means that the left hand side operand to the '+' operator is of some type
+(call it `T`), the right hand side operand to the '+' operator must be of that
+same type, `T`, and the result of that operator is then (deduced) to be of the
+same type as its operands, `T`.
 
 Let's instantiate this rule in a function:
 
@@ -925,13 +927,13 @@ the point the add is performed):
 
 `(bits[2], bits[2]) -> ?`
 
-To resolve the '?' the following procedure is being used:
+To resolve the `?` the following procedure is being used:
 
-*   Pattern match the rule given above `(T, T) -> T` to determine the type T:
-    the left hand side operand is `bits[2]`, called T.
-*   Check that the right hand side is also that same T, which it is: another
-    `bits[2]`.
-*   Deduce that the result type is that same type T: `bits[2]`.
+*   Pattern match the rule given above `(T, T) -> T` to determine the type `T`:
+    the left hand side operand is `bits[2]`, called `T`.
+*   Check that the right hand side operand is also that same `T`, which it is:
+    another `bits[2]`.
+*   Deduce that the result type is that same type `T`: `bits[2]`.
 *   That becomes the return type of the body of the function. Check that it is
     the same type as the annotated return type for the function, and it is!
 
@@ -949,10 +951,10 @@ fn add_wrapper(x: bits[2], y: bits[3]) -> bits[2] {
 ```
 
 Applying the type deduction rule for '+' finds an inconsistency. The left hand
-side operand has type `bits[2]`, called T, but the right hand side is `bits[3]`,
-which is not the same as T. Because the deductive type inference rule does not
-say what to do when the operand types are different, it results in a type error
-which is flagged at this point in the program.
+side operand has type `bits[2]`, called `T`, but the right hand side is
+`bits[3]`, which is not the same as `T`. Because the deductive type inference
+rule does not say what to do when the operand types are different, it results in
+a type error which is flagged at this point in the program.
 
 #### Let Bindings, Names, and the Environment
 
@@ -960,7 +962,7 @@ In the DSL, `let` is an expression. It may not seem obvious at a glance, but it
 is! As a primer see the [type inference background](#type-inference-background)
 and how [names are resolved in an environment](#bindings-and-environment).
 
-"let" expressions are of the (Rust-inspired) form:
+`let` expressions are of the (Rust-inspired) form:
 
 `let $name: $annotated_type = $expr; $subexpr`
 
@@ -970,18 +972,19 @@ determine the type of `$subexpr`, which is the type of the overall "let
 expression".
 
 In this example, the result of the `let` expression is the return value --
-`$subexpr` (`x+x`) can use the `$name` (`x`) which was "bound":
+`$subexpr` (`x + x`) can use the `$name` (`x`) which was "bound":
 
 ```dslx
 fn main(y: u32) -> u64 {
   let x: u64 = y as u64;
-  x+x
+  x + x
 }
 ```
 
 If we invoke `main(u32:2)` we will the evaluate `let` expression -- it creates a
-binding of `x` to the value `u64:2`, and then evaluates the expression `x+x` in
-that environment, so the result of the `let` expression's `$subexpr` is `u64:4`.
+binding of `x` to the value `u64:2`, and then evaluates the expression `x + x`
+in that environment, so the result of the `let` expression's `$subexpr` is
+`u64:4`.
 
 ## Statements
 
@@ -1011,12 +1014,12 @@ after the last dot) `imported_module`; e.g. the program can refer to
 `imported_module::IMPORTED_MODULE_PUBLIC_CONSTANT`.
 
 NOTE Imports are relative to the Bazel "depot root" -- for external use of the
-tools a `DSLX_PATH` will be exposed, akin to a `PYTHONPATH`, for users to
+tools, a `DSLX_PATH` will be exposed, akin to a `PYTHONPATH`, for users to
 indicate paths where were should attempt module discovery.
 
 NOTE Importing **does not** introduce any names into the current file other than
 the one referred to by the import statement. That is, if `imported_module` had a
-constant defined in it `FOO`, this is referred to via `imported_module::FOO`,
+constant `FOO` defined in it, this is referred to via `imported_module::FOO`;
 `FOO` does not "magically" get put in the current scope. This is analogous to
 how wildcard imports are discouraged in other languages (e.g. `from import *` in
 Python) on account of leading to "namespace pollution" and needing to specify
@@ -1092,9 +1095,9 @@ fn test_main() {
 
 ### Module attributes
 
-A limited number of attributes are able to be applied at module scope (currently
-just one), using the following syntax, which is conventionally placed at the top
-of the module (`.x` file):
+A limited number of attributes may be applied at module scope (currently just
+one), using the following syntax, which is conventionally placed at the top of
+the module (`.x` file):
 
 ```dslx-snippet
 #![allow(nonstandard_constant_naming)]
@@ -1105,13 +1108,13 @@ of the module (`.x` file):
 This disables the warning that is usually produced for non-standard constant
 names -- typically DSLX warns if they are not `SCREAMING_SNAKE_CASE` as per the
 Rust style guide. (This is useful for things like automatically generated files
-where perhaps we'd prefer not to rewrite names vs leaving them in some other,
+where perhaps we'd prefer not to rewrite names vs. leaving them in some other,
 nonstandard, identifier form.)
 
 ### Const
 
 The `const` keyword is used to define module-level constant values. Named
-constants should be usable anywhere a literal value can be used:
+constants are usable anywhere a literal value can be used:
 
 ```dslx
 const FOO = u8:42;
@@ -1155,7 +1158,7 @@ example `u16:1` is a 16-wide bit array with its least significant bit set to
 one. Similarly `s8:12` is an 8-wide bit array with its least significant four
 bits set to `1100`.
 
-DSLX supports initializing using binary, hex or decimal syntax. So
+DSLX supports initializing using binary, hex or decimal syntax:
 
 ```dslx
 #[test]
@@ -1165,8 +1168,8 @@ fn test_literal_initialization() {
 }
 ```
 
-When constructing literals DSLX will trigger an error if the constant will not
-fit in a bit array of the annotated sized, so for example trying to construct
+When constructing literals, DSLX will trigger an error if the constant will not
+fit in a bit array of the annotated sized. So for example, trying to construct
 the literal `u8:256` will trigger an error of the form:
 
 `TypeInferenceError: uN[8] Value '256' does not fit in the bitwidth of a uN[8]
@@ -1183,12 +1186,12 @@ fn test_signed_literal_initialization() {
 }
 ```
 
-What is happening here is that, 128 is being used as a bit pattern rather than
-as the number 128 to initialize the literal. It is only when the bit pattern
+What is happening here is that 128 is being used as a *bit pattern* rather than
+as the *number* 128 to initialize the literal. It is only when the bit pattern
 cannot fit in the width of the literal that an error is triggered.
 
-**Note that behaviour is different from Rust, where it will trigger an error,
-and the fact that DSLX considers this valid may change in the
+**Note that this behavior is different from Rust, where it will trigger an
+error, but the fact that DSLX considers this valid may change in the
 [future](https://github.com/google/xls/issues/471).**
 
 ### Grouping Expression
@@ -1204,14 +1207,14 @@ DSLX supports two types of unary expressions with type signature `(xN[N]) ->
 xN[N]`:
 
 *   bit-wise not (the `!` operator)
-*   negate (the `-` operator, computes the two's complement negation)
+*   negate (the `-` operator, which computes two's complement negation)
 
 ### Binary Expressions
 
 DSLX supports a familiar set of binary expressions. There are two categories of
 binary expressions. A category where both operands to the expression must be of
 the same bit type (i.e., not arrays or tuples), and a category where the
-operands can be of arbitrary bit types (i.e. shift expressions).
+operands can be of arbitrary bit types (i.e., shift expressions).
 
 #### Expressions with operands of the same type.
 
@@ -1224,11 +1227,11 @@ The following expressions have type signature `(xN[N], xN[N]) -> xN[N]`.
 *   subtract (`-`)
 *   multiply (`*`)
 
-Things like
+Functions like
 [`std::smul`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+smul%22)
 are convenient helpers when you are working with mixed widths. Because these
 expressions return the same type as the operands, if you want a carry you need
-to widen the inputs (e.g.
+to widen the inputs (e.g.,
 [`std::uadd_with_overflow`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+uadd_with_overflow%22)
 ). The optimizer will narrow the operands and produce efficient hardware,
 especially with trivial zero-/sign-extended operands like `std::smul` and
@@ -1251,9 +1254,9 @@ Shift expressions include:
 
 These are binary operations that don't require the same type on the left and
 right hand side. The right hand side must be unsigned, but it does not need to
-be the same type or width as the left hand side, i.e. the type signature for
-these operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a
-literal value it does not need to be type annotated. For example:
+be the same type or width as the left hand side, so the type signature for these
+operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a literal
+value it does not need to be type annotated. For example:
 
 ```dslx
 fn shr_two(x: s32) -> s32 {
@@ -1269,7 +1272,7 @@ shift-right (logical).
 
 ### Comparison Expressions
 
-For comparison expressions the types of both operands must match. However these
+For comparison expressions, the types of both operands must match. However these
 operations return a result of type `bits[1]`, aka `bool`.
 
 *   equal (`==`)
@@ -1282,10 +1285,10 @@ operations return a result of type `bits[1]`, aka `bool`.
 ### Concat Expression
 
 Bitwise concatenation is performed with the `++` operator. The value on the left
-hand side becomes the most significant bits, the value on the right hand side
-becomes the least significant bits. Both of the operands must be unsigned (see
-[numerical conversions](#numerical-conversions) for details on converting signed
-numbers to unsigned).
+hand side becomes the most significant bits, and the value on the right hand
+side becomes the least significant bits. Both of the operands must be unsigned.
+(See [numerical conversions](#numerical-conversions) for details on converting
+signed numbers to unsigned.)
 
 Concatenation operations may be chained together as shown:
 
@@ -1302,7 +1305,7 @@ fn test_bits_concat() {
 
 ### Block Expressions
 
-Block expressions enable subordinate scopes to be defined, e.g.:
+Block expressions enable subordinate scopes to be defined, e.g.,:
 
 ```
 let a = {
@@ -1313,8 +1316,8 @@ let a = {
 
 Above, `a` is equal to `4`.
 
-The value of a block expression is that of its last contained expression, or (),
-if a final expression is omitted:
+The value of a block expression is that of its last contained expression, or
+`()` if a final expression is omitted:
 
 ```
 let a = { let b = u32:1; };
@@ -1330,9 +1333,9 @@ the following uses:
 *   to limit the scope of variables
 *   to increase readability
 
-### Match Expression
+### `match` Expression
 
-Match expressions permit "pattern matching" on data, like a souped-up switch
+`match` expressions permit "pattern matching" on data, like a souped-up "switch"
 statement. It can both test for values (like a conditional guard) and bind
 values to identifiers for subsequent use. For example:
 
@@ -1350,7 +1353,7 @@ member back as-is from the function. Otherwise, we add `77` to the value and
 return that. The `_` symbolizes "I don't care about this value".
 
 Just like literal constants, pattern matching can also match via named
-constants; For example, consider this variation on the above:
+constants. For example, consider this variation on the above:
 
 ```dslx
 const MY_FAVORITE_NUMBER = u8:42;
@@ -1375,17 +1378,17 @@ fn f(t: (u8, (u16, u32))) -> u32 {
 }
 ```
 
-Here we use a "catch all" wildcard pattern in the last match arm to ensure the
-match expression always matches the input somehow.
+Here we use a "catch all" wildcard pattern in the last `match` arm to ensure the
+`match` expression always matches the input somehow.
 
 !!! WARNING
     This "catch all" (i.e. an
     [irrefutable pattern](https://doc.rust-lang.org/book/ch18-02-refutability.html))
     is [currently required](https://github.com/google/xls/issues/204) in **all**
-    match expressions, even if the other match arms form an exhaustive set of
-    refutable patterns (e.g. matching against fully specified enumerators).
+    `match` expressions, even if the other `match` arms form an exhaustive set of
+    refutable patterns (e.g., matching against fully specified enumerators).
 
-We can also match on ranges of values using the range syntax:
+We can also `match` on ranges of values using the "range" syntax:
 
 ```dslx
 fn f(x: u32) -> u32 {
@@ -1407,7 +1410,7 @@ fn test_f() {
 #### Redundant Patterns
 
 `match` will flag an error if a *syntactically identical* pattern is typed
-twice; e.g.
+twice; e.g.,
 
 ```dslx-bad
 const FOO = u32:42;
@@ -1438,8 +1441,8 @@ fn f(x: u32) -> u2 {
 
 ### `let` Expression
 
-let expressions work the same way as let expressions in other functional
-languages (such as the ML family languages). let expressions provide a nested,
+`let` expressions work the same way as let expressions in other functional
+languages (such as the ML family languages). `let` expressions provide a nested,
 lexically-scoped, list of binding definitions. The scope of the binding is the
 expression on the right hand side of the declaration. For example:
 
@@ -1460,13 +1463,13 @@ return b
 ```
 
 However, `let` expressions are lexically scoped. In above example, the value `3`
-is bound to `a` only during the combined let expression sequence. There is no
+is bound to `a` only during the combined `let` expression sequence. There is no
 other type of scoping in DSLX.
 
-### If Expression
+### `if` Expression
 
 DSLX offers an `if` expression, which is very similar to the Rust `if`
-expression. Blueprint:
+expression:
 
 ```
 if condition { consequent } else { alternate }
@@ -1480,7 +1483,8 @@ condition ? consequent : alternate
 
 Note: both the `if` and `else` are *required* to be present, as with the `?:`
 operator, unlike a C++ `if` statement. This is because it is an *expression*
-that *produces* a result value, not a *statement* that causes a mutating effect.
+that must always *produce* a result value, not a *statement* that causes a
+mutating effect.
 
 Furthermore, you can have multiple branches via `else if`:
 
@@ -1491,7 +1495,7 @@ if condition0 { consequent0 } else if condition1 { consequent1 } else { alternat
 which corresponds to the C/C++:
 
 ```
-condition0 ? consequent0 : (contition1 ? consequent1 : alternate)
+condition0 ? consequent0 : (condition1 ? consequent1 : alternate)
 ```
 
 Note: a `match` expression can often be a better choice than having a long
@@ -1508,10 +1512,10 @@ let result_exponent = if wide_exponent < u9:255 { wide_exponent as u8 } else { u
 
 ### Iterable Expression
 
-Iterable expressions are used in counted for loops. DSLX currently supports two
-types of iterable expressions, `range` and `enumerate`.
+Iterable expressions are used in counted `for` loops. DSLX currently supports
+two types of iterable expressions: range and `enumerate`.
 
-The range expression `m..n` represents a range of values from m to n-1. This
+The range expression `m..n` represents a range of values from `m` to `n-1`. This
 example will run from 0 to 4 (exclusive):
 
 ```
@@ -1525,8 +1529,8 @@ There also exists a `range()` builtin function that performs the same operation.
 Go.
 
 In the example below, the loop will iterate 8 times, following the array
-dimension of `x`. Each iteration produces a tuple with the current index (`i`
-ranging from 0 to 7) and the value at the index (`e = x[i]`).
+dimension of `x`. Each iteration produces a tuple with the current index `i`
+ranging from 0 to 7 and the value at the index `e = x[i]`.
 
 ```
 fn prefix_scan_eq(x: u32[8]) -> bits[8,3] {
@@ -1535,18 +1539,18 @@ fn prefix_scan_eq(x: u32[8]) -> bits[8,3] {
         in enumerate(x) {...
 ```
 
-### for Expression
+### `for` Expression
 
-DSLX currently supports synthesis of "counted" for loops (loops that have a
+DSLX currently supports synthesis of "counted" `for` loops (loops that have a
 clear upper bound on their number of iterations). These loops are capable of
 being generated as unrolled pipeline stages: when generating a pipeline, the XLS
 compiler will unroll and specialize the iterations.
 
-NOTE In the future support for loops with an unbounded number of iterations may
-be permitted, but will only be possible to synthesize as a time-multiplexed
+NOTE In the future, support `for` loops with an unbounded number of iterations
+may be permitted, but will only be possible to synthesize as a time-multiplexed
 implementation, since pipelines cannot be unrolled indefinitely.
 
-#### Blueprint
+#### Syntax
 
 ```
 for (index, accumulator): (type-of-index, type-of-accumulator) in iterable {
@@ -1554,12 +1558,12 @@ for (index, accumulator): (type-of-index, type-of-accumulator) in iterable {
 } (initial-accumulator-value)
 ```
 
-The type annotation in the above "blueprint" is optional, but often helpful to
-include for increased clarity.
+The type annotations in the above example is optional, but often helpful to be
+included for increased clarity.
 
-Because DSLX is a pure dataflow description, a for loop is an expression that
-produces a value. As a result, you grab the output of a for loop just like any
-other expression:
+Because DSLX is a pure dataflow description, a `for` loop is an expression that
+produces a value. As a result, you can use the output of a `for` loop just like
+any other expression:
 
 ```dslx-snippet
 let final_accum = for (i, accum) in u32:0..u32:8 {
@@ -1568,8 +1572,8 @@ let final_accum = for (i, accum) in u32:0..u32:8 {
 }(init_accum);
 ```
 
-Conceptually the for loop "evolves" the accumulator as it iterates, and
-ultimately pops it out as the result of its evaluation.
+Conceptually the `for` loop "evolves" the accumulator as it iterates, and
+ultimately evaluates to the last value of that accumulator.
 
 #### Examples
 
@@ -1602,8 +1606,8 @@ for (i, accum): (u32, u32) in u32:0..u32:4 {
 ```
 
 Both the index and accumulator can be of any valid type, in particular, the
-accumulator can be a tuple type, which is useful for evolving a bunch of values.
-For example, this for loop "evolves" two arrays:
+accumulator can be a tuple type, which is useful for evolving a group of values.
+For example, this `for` loop "evolves" two arrays:
 
 ```dslx-snippet
 for (i, (xs, ys)): (u32, (u16[3], u8[3])) in u32:0..u32:4 {
@@ -1632,7 +1636,7 @@ for semantics of numeric casts:
     *   This means that **truncating signed values does not preserve the
         previous value of the sign bit**.
 *   Casting from a smaller bit-width to a larger bit-width will zero-extend if
-    the source is unsigned, sign-extend if the source is signed.
+    the source is unsigned, or sign-extend if the source is signed.
 *   Casting from a bit-width to its own bit-width, between signed/unsigned, is a
     no-op.
 
@@ -1718,16 +1722,16 @@ fn test_cast_to_array() {
 ### Bit Slice Expressions
 
 DSLX supports Python-style bit slicing over *unsigned* bits types. Note that
-bits are numbered 0..N starting "from the right (as you would write it on
-paper)" -- least significant bit, AKA LSb -- for example, for the value
-`u7:0b100_0111`:
+bits are numbered 0..N starting from the right (as you would write it on paper);
+the least significant bit, AKA LSb, is rightmost. See for example, the value
+`u7:0b100_0111`, which is written as:
 
 ```
     Bit    6 5 4 3 2 1 0
   Value    1 0 0 0 1 1 1
 ```
 
-A slice expression `[N:M]` means to get from bit `N` (inclusive) to bit `M`
+A slice expression `[N:M]` means to take from bit `N` (inclusive) to bit `M`
 exclusive. The start and limit in the slice expression must be signed integral
 values.
 
@@ -1747,14 +1751,14 @@ For example, the expression `[0:2]` would yield:
   Result:  0b11
 ```
 
-Note that, as of now, the indices for this `[N:M]` form must be literal numbers
+Note that, as of now, the indices for the `[N:M]` form must be literal numbers
 (so the compiler can determine the width of the result). To perform a slice with
-a non-literal-number start position, see the `+:` form described below.
+a non-literal-number start position, use the `+:` form described below.
 
-The slicing operation also support the python style slices with offsets from
+The slicing operations also support Python-style slices with offsets from the
 start or end. To visualize, one can think of `x[ : -1]` as the equivalent of
 `x[from the start : bitwidth - 1]`. Correspondingly, `x[-1 : ]` can be
-visualized as `[ bitwidth - 1 : to the end]`.
+visualized as `x[ bitwidth - 1 : to the end]`.
 
 For example, to get all bits, *except* the MSb (from the beginning, until the
 top element minus 1):
@@ -1769,9 +1773,9 @@ Or to get the two most significant bits:
 x[-2:]
 ```
 
-This results in the nice property that a the original complete value can be
-sliced into complementary slices such as `:-2` (all but the two most significant
-bits) and `-2:` (the two most significant bits):
+This results in the nice property that the original complete value can be sliced
+into complementary slices such as `[:-2]` (all but the two most significant
+bits) and `[-2:]` (the two most significant bits):
 
 ```dslx
 #[test]
@@ -1871,13 +1875,13 @@ fn add_wrapper<T: type, U: type>(x: T, y: U) -> T {
 }
 ```
 
-Based on the inference rule, we know that '+' can only type check when the
+Based on the inference rule, we know that `+` can only type check when the
 operand types are the same. This means we can conclude that type `T` is the same
 as type `U`. Once we determine this, we need to make sure anywhere `U` is used
-it is consistent with the fact it is the same as `T`. In a sense the + operator
-is "adding a constraint" that `T` is equivalent to `U`, and trying to check that
-fact is valid is under the purview of type inference. The fact that the
-constraint is added that `T` and `U` are the same type is referred to as
+it is consistent with the fact it is the same as `T`. In a sense the `+`
+operator is "adding a constraint" that `T` is equivalent to `U`, and trying to
+check that fact is valid is under the purview of type inference. The fact that
+the constraint is added that `T` and `U` are the same type is referred to as
 "unification", as what was previously two entities with potentially different
 constraints now has a single set of constraints that comes from the union of its
 operand types.
@@ -1914,13 +1918,13 @@ unary `-` `!`               | n/a
 DSLX allows specifying tests right in the implementation file via the `test` and
 `quickcheck` directives.
 
-Having key test code in the implementation file serves two purposes. It helps to
-ensure the code behaves as expected. Additionally it serves as 'executable'
-documentation, similar in spirit to Python doc strings.
+Having test code in the implementation file serves two purposes. It helps to
+ensure the code behaves as expected. Additionally, it serves as 'executable'
+documentation, similar in spirit to Python docstrings.
 
 ### Unit Tests
 
-Unit tests are specified by the `test` directive, as seen below:
+As in Rust, unit tests are specified by the `test` directive, as seen below:
 
 ```dslx
 #[test]
@@ -1939,7 +1943,7 @@ Unless otherwise specified in the implementation's build configs, functions
 called by unit tests are also converted to XLS IR and run through the
 toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
 LLVM JIT are compared against each other to assert equality. This is to ensure
-DSLX implementations are IR-convertible and that IR translation is correct.
+that DSLX implementations are IR-convertible and that IR translation is correct.
 
 #### Test Filtering
 
@@ -1947,19 +1951,19 @@ The DSLX main (runner) binary can also filter what tests are run from a file via
 the `--test_filter=REGEXP` flag.
 
 Unit tests run via Bazel can also be filtered via the typical Bazel
-`--test_filter` flag; i.e.
+`--test_filter` flag; i.e.,
 
 ```
 bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed
 ```
 
-vs selecting one test:
+selecting one test:
 
 ```
 bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=one_x_one_plus_one_f32
 ```
 
-vs selecting multiple tests to run via regular expression:
+selecting multiple tests to run via regular expression:
 
 ```
 bazel test -c opt //xls/dslx/stdlib:apfloat_dslx_test --test_output=streamed --test_filter=.*f32.*
@@ -1984,10 +1988,10 @@ fn prop_double_reverse(x: u32) -> bool {
 }
 ```
 
-The DSLX interpreter will also execute all functions that are proceeded by a
+The DSLX interpreter will execute all functions that are preceded by a
 `quickcheck` directive. These functions should be non-parametric and return a
 `bool`. The framework will provide randomized input based on the types of the
-arguments to the function (e.g. above, the framework will provided randomized
+arguments to the function (e.g., above, the framework will provided randomized
 `u32`'s as `x`).
 
 By default, the framework will run the function against 1000 sets of randomized
@@ -1998,9 +2002,9 @@ inputs. This default may be changed by specifying the `test_count` key in the
 #[quickcheck(test_count=50000)]
 ```
 
-The framework also allows programmers to specify a seed to use in generating the
-random inputs, as opposed to letting the framework pick one. The seed chosen for
-production can be found in the execution log.
+The framework also allows programmers to specify a *seed* to use in generating
+the random inputs, as opposed to letting the framework pick one. The seed chosen
+for production can be found in the execution log.
 
 For determinism, the DSLX interpreter should be run with the `seed` flag:
 `./interpreter_main --seed=1234 <DSLX source file>`
@@ -2009,19 +2013,19 @@ For determinism, the DSLX interpreter should be run with the `seed` flag:
 
 ## Communicating Sequential Processes (AKA procs)
 
-Functions conceptually exist independent of "time". They describe "feed forward"
-dataflow computation; i.e. they cannot describe carrying a value forward over
-"time steps", and don't have the ability to send messages to other functions
-that are also iterating in time.
+Functions conceptually exist independent of "time". They describe a "feed
+forward" dataflow computation; they cannot describe carrying a value forward
+over "time steps", and don't have the ability to send messages to other
+functions that are also iterating in time.
 
 XLS has a more powerful construct for exactly this additional set of
-capabilities, called `proc`s, short for "communicating process", in the
+capabilities, called `proc`s, short for "communicating process". They are in the
 tradition of
 [Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes),
 similar to those seen in Go, Erlang, and various other "actor model" programming
 environments.
 
-This is a simple proc:
+This is a simple `proc`:
 
 ```dslx
 proc CountUp {
@@ -2047,15 +2051,14 @@ proc CountUp {
 }
 ```
 
-This proc counts a 32-bit value upwards and sends it out on a channel. To do
+This `proc` counts a 32-bit value upwards and sends it out on a channel. To do
 things in time, beyond what functions do, you need some connections that work
 for sending and receiving messages over time (`chan`) and some state that you
 can carry over the course of time (`state`).
 
 ### Proc Syntax Template
 
-Procs are shaped as follows, generalizing what we saw in the `CountUp` proc
-above:
+`proc`s are shaped as follows, generalizing what we saw in `CountUp` above:
 
 ```
 proc $NAME [$PARAMETRICS] {
@@ -2076,18 +2079,19 @@ proc $NAME [$PARAMETRICS] {
 }
 ```
 
-Note that procs can be parameterized, similar to
-[functions](#parametric-functions), and that the proc scope can contain
+Note that `proc`s can be parameterized, similar to
+[functions](#parametric-functions), and that the `proc` scope can contain
 `const_assert!`s and type aliases, which can be convenient to define within the
 parameterized scope for all of the `init`/`config`/`next` function definitions.
 
-Note that the `config` function is all evaluated at compile time (i.e. it is all
-"constexpr" evaluated) -- this "configuration time" is a form of elaboration
-where channels are connected and the communicating process hierarchy is created.
+Note that the `config` function is evaluated completely at compile time (i.e.,
+it is all "constexpr" evaluated) -- this "configuration time" is a form of
+elaboration where channels are connected and the communicating process hierarchy
+is created.
 
-A proc can create a sub-proc via the `spawn` keyword, and this "spawning"
+A `proc` can create a sub-`proc` via the `spawn` keyword, and this "spawning"
 happens at configuration time, whereas `next` reflects the "runtime" execution;
-e.g.
+e.g.,
 
 !!! WARNING
     Though DSLX organizes procs into a tree based on `spawn`s the
@@ -2104,17 +2108,17 @@ e.g.
     setting top to a spawned procs. See below for more information.
 
 !!! NOTE
-    If one wishes to spawn procs one may use an empty proc with only spawns in
-    the `config`, however one must manually set the `dslx_top` to the mangled name
-    of the spawned proc and have a separate `xls_ir_opt_ir` target for each spawned
-    proc independent group of procs. This can be used to instantiate a proc with
-    template parameters. For example see the
-    [proc_iota.x](https://github.com/google/xls/tree/main/xls/examples/proc_iota.x) program and
-    the
+    If one wishes to spawn `proc`s one may use an empty `proc` with only
+    `spawn`s in the `config`, however one must manually set the `dslx_top` to the
+    mangled name of the spawned `proc` and have a separate `xls_ir_opt_ir` target
+    for each spawned proc-independent group of procs. This can be used to
+    instantiate a `proc` with template parameters. For example see the
+    [proc_iota.x](https://github.com/google/xls/tree/main/xls/examples/proc_iota.x) program
+    and the
     [associated build targets](https://github.com/google/xls/tree/main/xls/examples/BUILD;l=377).
-    Note how the procs `spawn`ed by main are manually `opt_ir`d using the mangled
-    identifiers in the build-files instead of simply using the existing 'main' proc
-    to spawn them both. In almost all cases simply picking any random proc
+    Note how the `proc`s `spawn`ed by main are manually `opt_ir`d using the mangled
+    identifiers in the build-files instead of simply using the existing 'main'
+    `proc` to spawn them both. In almost all cases simply picking any random `proc`
     instantiated in the proc-tree of the true `top` to act as `dslx_top` is
     sufficient.
 
