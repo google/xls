@@ -839,25 +839,6 @@ class StatementBlock : public Expr {
   absl::Span<Statement* const> statements() const { return statements_; }
   bool trailing_semi() const { return trailing_semi_; }
   bool empty() const { return statements_.empty(); }
-
-  // Use sparingly! Mutation routine that adds statements to a block; e.g.
-  // sometimes we discover we want to create some invariant of the AST at parse
-  // time and want to add some statements to do that.
-  void AddStatement(Statement* statement) {
-    CHECK(statement->parent() == nullptr) << statement->ToString();
-    statements_.push_back(statement);
-    SetParentage();
-  }
-
-  // Use sparsingly! Mutation routine that disables the fact that this block
-  // has a trailing semicolon. This is used e.g. when we want to maintain the
-  // invariant that a proc config function has a tuple as its trailing
-  // expression by materializing it implicitly for the user.
-  void DisableTrailingSemi() {
-    CHECK(trailing_semi_);
-    trailing_semi_ = false;
-  }
-
   int64_t size() const { return statements_.size(); }
 
  private:
@@ -1224,8 +1205,6 @@ class TypeRef : public AstNode {
   const TypeDefinition& type_definition() const { return type_definition_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
-
-  std::optional<std::string> extern_type_name() const;
 
  private:
   Span span_;
@@ -1967,7 +1946,6 @@ class Spawn : public Instantiation {
 
   Invocation* config() const { return config_; }
   Invocation* next() const { return next_; }
-  bool IsParametric() { return !explicit_parametrics().empty(); }
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
@@ -2468,8 +2446,6 @@ class WidthSlice : public AstNode {
 // hand side.
 using IndexRhs = std::variant<Expr*, Slice*, WidthSlice*>;
 
-absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node);
-
 // Represents an index expression; e.g. `a[i]`
 //
 // * `lhs()` is the subject being indexed
@@ -2683,7 +2659,6 @@ class XlsTuple : public Expr {
 
   std::string_view GetNodeTypeName() const override { return "XlsTuple"; }
   absl::Span<Expr* const> members() const { return members_; }
-  int64_t size() const { return members_.size(); }
   bool empty() const { return members_.empty(); }
   bool has_trailing_comma() const { return has_trailing_comma_; }
 
@@ -2775,11 +2750,11 @@ class UnrollFor : public Expr {
   std::string_view GetNodeTypeName() const override { return "unroll-for"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  NameDefTree* names() const { return names_; }
+  [[maybe_unused]] NameDefTree* names() const { return names_; }
   TypeAnnotation* types() const { return types_; }
   Expr* iterable() const { return iterable_; }
   StatementBlock* body() const { return body_; }
-  Expr* init() const { return init_; }
+  [[maybe_unused]] Expr* init() const { return init_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
@@ -2990,7 +2965,9 @@ class NameDefTree : public AstNode {
     return absl::OkStatus();
   }
 
-  const std::variant<Nodes, Leaf>& tree() const { return tree_; }
+  [[maybe_unused]] const std::variant<Nodes, Leaf>& tree() const {
+    return tree_;
+  }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 

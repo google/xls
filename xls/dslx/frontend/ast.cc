@@ -802,17 +802,6 @@ std::string TypeRef::ToString() const {
 
 TypeRef::~TypeRef() = default;
 
-std::optional<std::string> TypeRef::extern_type_name() const {
-  using Res = std::optional<std::string>;
-  return absl::visit(
-      Visitor{
-          [](TypeAlias* ta) -> Res { return ta->extern_type_name(); },
-          [](StructDef* sd) -> Res { return sd->extern_type_name(); },
-          [](EnumDef* ed) -> Res { return ed->extern_type_name(); },
-          [](ColonRef* cr) -> Res { return std::nullopt; },
-      },
-      type_definition_);
-}
 // -- class Import
 
 Import::Import(Module* owner, Span span, std::vector<std::string> subject,
@@ -889,16 +878,6 @@ std::string ChannelDecl::ToStringInternal() const {
   return absl::StrFormat("chan<%s%s>%s(%s)", type_->ToString(), fifo_depth_str,
                          absl::StrJoin(dims, ""),
                          channel_name_expr_.ToString());
-}
-
-absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node) {
-  // clang-format off
-  if (auto* n = dynamic_cast<Slice*     >(node)) { return IndexRhs(n); }
-  if (auto* n = dynamic_cast<WidthSlice*>(node)) { return IndexRhs(n); }
-  if (auto* n = dynamic_cast<Expr*      >(node)) { return IndexRhs(n); }
-  // clang-format on
-  return absl::InvalidArgumentError("AST node is not a valid 'index': " +
-                                    node->ToString());
 }
 
 TypeAnnotation::~TypeAnnotation() = default;
