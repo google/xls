@@ -217,6 +217,11 @@ proto_library(
     srcs = ["delay_model.proto"],
 )
 
+cc_proto_library(
+    name = "delay_model_cc_proto",
+    deps = [":delay_model_proto"],
+)
+
 py_proto_library(
     name = "delay_model_py_pb2",
     deps = [":delay_model_proto"],
@@ -348,6 +353,54 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+cc_library(
+    name = "sample_point_extraction_utils",
+    srcs = ["sample_point_extraction_utils.cc"],
+    hdrs = ["sample_point_extraction_utils.h"],
+    deps = [
+        ":delay_estimator",
+        ":delay_model_cc_proto",
+        "//xls/common:case_converters",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "sample_point_extraction_utils_test",
+    srcs = ["sample_point_extraction_utils_test.cc"],
+    deps = [
+        ":delay_estimator",
+        ":delay_model_cc_proto",
+        ":sample_point_extraction_utils",
+        "//xls/common:proto_test_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
