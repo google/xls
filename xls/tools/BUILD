@@ -1774,3 +1774,24 @@ py_binary(
         "@com_google_protobuf//:protobuf_python",
     ],
 )
+
+py_test(
+    name = "delay_model_stats_test",
+    srcs = ["delay_model_stats_test.py"],
+    data = [
+        "testdata/asap7_delay_data_points.textproto",
+        "testdata/asap7_delay_model_stats.csv",
+        "testdata/sky130_delay_data_points.textproto",
+        "testdata/sky130_delay_model_stats.csv",
+        "testdata/unit_delay_data_points.textproto",
+        "testdata/unit_delay_model_stats.csv",
+        ":delay_model_stats",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)

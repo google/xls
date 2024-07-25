@@ -48,7 +48,8 @@ def stats_for_op_model(
     csv_handle,
     op_model: delay_model.OpModel,
     specialization_kind: Optional[str] = None,
-):
+    specialization_details: Optional[delay_model.SpecializationDetails] = None,
+) -> None:
   """Write one row of a CSV spreadsheet with this op's curve fitting error.
 
   Summarizes the difference between the regression-fitted curve and the
@@ -62,11 +63,19 @@ def stats_for_op_model(
     csv_handle: file handle for output CSV (can be None).
     op_model: OpModel to summarize.
     specialization_kind: Optional kind of specialization.
+    specialization_details: Optional details about the specified specialization.
   """
+
   if not isinstance(
       op_model, delay_model.RegressionEstimator
   ) and not isinstance(op_model, delay_model.BoundingBoxEstimator):
     return
+
+  if specialization_details and not specialization_kind:
+    raise ValueError(
+        'specialization_kind must be specified when using '
+        'specialization_details'
+    )
 
   def delay_f(*args):
     return op_model.raw_delay(args)
@@ -74,6 +83,9 @@ def stats_for_op_model(
   title = op_model.op
   if specialization_kind:
     title += ' ' + specialization_kind
+
+  if specialization_details:
+    title += ' ' + str(specialization_details)
 
   for dp in op_model.raw_data_points:
     x_actual = dp.delay_factors
@@ -155,11 +167,15 @@ def main(argv):
     op_model = dm.op_model(op)
     stats_for_op_model(csv_handle, op_model.estimator)
 
-    for specialization_kind, estimator in op_model.specializations.items():
+    for (
+        specialization_kind,
+        specialization_details,
+    ), estimator in op_model.specializations.items():
       stats_for_op_model(
           csv_handle,
           estimator,
           delay_model_pb2.SpecializationKind.Name(specialization_kind),
+          specialization_details,
       )
 
   if csv_handle:
