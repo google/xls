@@ -14,6 +14,8 @@
 # limitations under the License.
 """Tests for xls/tools/gather_design_stats.py."""
 
+import filecmp
+import pathlib
 import subprocess
 
 from absl.testing import absltest
@@ -44,11 +46,9 @@ class GatherDesignStatsMainTest(test_base.TestCase):
         ],
         check=True,
     )
-    wc_output = subprocess.check_output([
-        'wc',
-        out_textproto_file.full_path,
-    ]).decode('utf-8')
-    self.assertIn('0 0 0', wc_output)
+    out_textproto_file_path = pathlib.Path(out_textproto_file)
+    self.assertTrue(out_textproto_file_path.exists())
+    self.assertEqual(out_textproto_file_path.stat().st_size, 0)
 
   def test_sample_use(self):
     out_textproto_file = self.create_tempfile()
@@ -62,12 +62,9 @@ class GatherDesignStatsMainTest(test_base.TestCase):
         ],
         check=True,
     )
-    diff_output = subprocess.check_output([
-        'diff',
-        out_textproto_file.full_path,
-        _EXP_TEXTPROTO_PATH,
-    ]).decode('utf-8')
-    self.assertEmpty(diff_output)
+    self.assertTrue(
+        filecmp.cmp(out_textproto_file.full_path, _EXP_TEXTPROTO_PATH)
+    )
 
 
 if __name__ == '__main__':
