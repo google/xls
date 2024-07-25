@@ -111,7 +111,7 @@ pub proc LiteralsDispatcher {
             LiteralType::COMP == literals_type || LiteralType::COMP_4 == literals_type ||
             LiteralType::TREELESS == literals_type || LiteralType::TREELESS_4 == literals_type
         );
-        assert!(do_send_huff, "Huffmann coding not implemented yet");
+        assert!(!do_send_huff, "Huffmann coding not implemented yet");
         let tok = send_if(tok, huff_literals_s, false, zero!<LiteralsDataWithSync>());
 
         // empty RLE literals with last not set will not be sent by RLE decoder to buffer

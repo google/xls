@@ -136,14 +136,29 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
         // only if any of the literas has it set. Also if any literal has set
         // this flag, then the flag in following literal must also be set. In
         // other case, the assertion is triggered.
-        let (last, _, packet_valid) = for (i, (last, prev_literal_last, packet_valid)): (u32, (bool, bool, bool)) in range(u32:0, RAM_NUM) {
+        let (last, _, packet_valid, _) = for (i, (last, prev_literal_last, packet_valid, prev_calc)): (u32, (bool, bool, bool, bool)) in range(u32:0, RAM_NUM) {
             let literal_last = (literals.content >> (RAM_DATA_WIDTH * (i + u32:1) - u32:1)) as u1;
-            (
+            let calc = if (i == literals.length as uN[32]) {
+              false
+            } else {
+              prev_calc
+            };
+            if (calc) {
+              (
                 last | literal_last,
                 literal_last,
                 packet_valid & (!prev_literal_last | literal_last),
-            )
-        }((false, false, true));
+                calc
+              )
+            } else {
+              (
+                last,
+                literal_last,
+                packet_valid,
+                calc
+              )
+            }
+        }((false, false, true, true));
 
         assert!(packet_valid && (literals.last == last), "Invalid packet");
 
@@ -174,7 +189,7 @@ const TEST_LITERALS_IN: SequenceExecutorPacket<RAM_DATA_WIDTH>[4] = [
     SequenceExecutorPacket<RAM_DATA_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
-        content: literals_content(u8:0xAB, u1:1, u3:0),
+        content: literals_content(u8:0xAB, u1:0, u3:0),
         last: false,
     },
     SequenceExecutorPacket<RAM_DATA_WIDTH> {
@@ -219,7 +234,7 @@ const TEST_LITERALS_OUT: SequenceExecutorPacket<common::SYMBOL_WIDTH>[4] = [
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:1,
         content: CopyOrMatchContent:0xAB,
-        last: true,
+        last: false,
     },
     SequenceExecutorPacket<common::SYMBOL_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
@@ -469,7 +484,7 @@ proc LiteralsBufferWriter<
         let (_, sync_data, sync_data_valid) = recv_non_blocking(tok0, buffer_sync_r, zero!<LiteralsBufferReaderToWriterSync>());
 
         if (sync_data_valid) {
-            trace_fmt!("Received bufffer reader-to-writer sync data {:#x}", sync_data);
+            trace_fmt!("Received buffer reader-to-writer sync data {:#x}", sync_data);
         } else {};
 
         // read literals
@@ -748,10 +763,15 @@ proc LiteralsBufferReader<
         let tok2_7 = send_if(tok1, rd_req_m7_s, read_reqs[7].mask != RAM_REQ_MASK_NONE, read_reqs[7]);
 
         let tok2 = join(tok2_0, tok2_1, tok2_2, tok2_3, tok2_4, tok2_5, tok2_6, tok2_7);
+        let last_access = if (state.left_to_read > u32:0) {
+          false
+        } else {
+          state.ctrl_last
+        };
 
         let (do_read, rd_resp_handler_data) =
             parallel_rams::create_ram_rd_data<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>(
-                read_reqs, read_start, read_len, false, true
+                read_reqs, read_start, read_len, last_access, !last_access
             );
         if do_read {
             trace_fmt!("Sending request to RamRdRespHandler: {:#x}", rd_resp_handler_data);

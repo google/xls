@@ -412,6 +412,7 @@ proc LiteralsDecoder_test {
     init { }
 
     next (state: ()) {
+        let tok = join();
         // send literals
         let tok = for ((i, test_data), tok): ((u32, LiteralsData), token) in enumerate(TEST_DATA) {
             let tok = send(tok, literals_data_s, test_data);
