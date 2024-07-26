@@ -95,6 +95,11 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
       steps.push_back(FormatPreference::kPlainBinary);
       continue;
     }
+    if (consume_substr("{:0b}")) {
+      push_fragment();
+      steps.push_back(FormatPreference::kZeroPaddedBinary);
+      continue;
+    }
     if (consume_substr("{:#b}")) {
       push_fragment();
       steps.push_back(FormatPreference::kBinary);

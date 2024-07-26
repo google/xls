@@ -658,6 +658,9 @@ Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size) {
 std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
                             bool emit_leading_zeros) {
   CHECK_NE(preference, FormatPreference::kDefault);
+  if (preference == FormatPreference::kZeroPaddedBinary) {
+    emit_leading_zeros = true;
+  }
   if (preference == FormatPreference::kSignedDecimal) {
     // Leading zeros don't make a lot of sense in decimal format as there is no
     // clean correspondence between decimal digits and binary digits.
@@ -679,8 +682,9 @@ std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
     return "0";
   }
 
-  const bool binary_format = (preference == FormatPreference::kBinary) ||
-                             (preference == FormatPreference::kPlainBinary);
+  const bool binary_format = preference == FormatPreference::kBinary ||
+                             preference == FormatPreference::kPlainBinary ||
+                             preference == FormatPreference::kZeroPaddedBinary;
   const bool hex_format = (preference == FormatPreference::kHex) ||
                           (preference == FormatPreference::kPlainHex);
   const bool plain_format = (preference == FormatPreference::kPlainBinary) ||

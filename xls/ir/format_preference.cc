@@ -22,22 +22,33 @@
 
 namespace xls {
 
+constexpr std::string_view kBinaryName = "binary";
+constexpr std::string_view kDefaultName = "default";
+constexpr std::string_view kHexName = "hex";
+constexpr std::string_view kPlainBinaryName = "plain_binary";
+constexpr std::string_view kPlainHexName = "plain_hex";
+constexpr std::string_view kSignedDecimalName = "signed-decimal";
+constexpr std::string_view kUnsignedDecimalName = "unsigned-decimal";
+constexpr std::string_view kZeroPaddedBinaryName = "zero-padded-binary";
+
 std::string_view FormatPreferenceToString(FormatPreference preference) {
   switch (preference) {
     case FormatPreference::kDefault:
-      return "default";
+      return kDefaultName;
     case FormatPreference::kBinary:
-      return "binary";
+      return kBinaryName;
     case FormatPreference::kSignedDecimal:
-      return "signed-decimal";
+      return kSignedDecimalName;
     case FormatPreference::kUnsignedDecimal:
-      return "unsigned-decimal";
+      return kUnsignedDecimalName;
     case FormatPreference::kHex:
-      return "hex";
+      return kHexName;
     case FormatPreference::kPlainBinary:
-      return "plain_binary";
+      return kPlainBinaryName;
     case FormatPreference::kPlainHex:
-      return "plain_hex";
+      return kPlainHexName;
+    case FormatPreference::kZeroPaddedBinary:
+      return kZeroPaddedBinaryName;
   }
 
   return "<invalid format preference>";
@@ -59,6 +70,8 @@ std::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
       return "{:b}";
     case FormatPreference::kPlainHex:
       return "{:x}";
+    case FormatPreference::kZeroPaddedBinary:
+      return "{:0b}";
   }
 
   return "<invalid format preference>";
@@ -90,6 +103,8 @@ std::string_view FormatPreferenceToVerilogSpecifier(
       return "%b";
     case FormatPreference::kPlainHex:
       return "%h";
+    case FormatPreference::kZeroPaddedBinary:
+      return "%b";
   }
 
   return "<invalid format preference>";
@@ -97,26 +112,29 @@ std::string_view FormatPreferenceToVerilogSpecifier(
 
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     std::string_view s) {
-  if (s == "default") {
+  if (s == kDefaultName) {
     return FormatPreference::kDefault;
   }
-  if (s == "binary") {
+  if (s == kBinaryName) {
     return FormatPreference::kBinary;
   }
-  if (s == "hex") {
+  if (s == kHexName) {
     return FormatPreference::kHex;
   }
-  if (s == "signed-decimal") {
+  if (s == kSignedDecimalName) {
     return FormatPreference::kSignedDecimal;
   }
-  if (s == "unsigned-decimal") {
+  if (s == kUnsignedDecimalName) {
     return FormatPreference::kUnsignedDecimal;
   }
-  if (s == "plain_binary") {
+  if (s == kPlainBinaryName) {
     return FormatPreference::kPlainBinary;
   }
-  if (s == "plain_hex") {
+  if (s == kPlainHexName) {
     return FormatPreference::kPlainHex;
+  }
+  if (s == kZeroPaddedBinaryName) {
+    return FormatPreference::kZeroPaddedBinary;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid format preference: \"%s\"", s));
