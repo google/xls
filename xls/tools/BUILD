@@ -1789,6 +1789,7 @@ py_test(
     ],
     python_version = "PY3",
     srcs_version = "PY3",
+    tags = ["nomsan"],  # scipy seems not to be msan-clean.
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
