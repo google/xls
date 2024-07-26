@@ -307,7 +307,7 @@ std::optional<CommentData> Scanner::TryPopComment() {
     DropChar(2);
     Token token = PopComment(start_pos);
     CHECK(token.GetValue().has_value());
-    return CommentData{token.span(), token.GetValue().value()};
+    return CommentData{.span = token.span(), .text = token.GetValue().value()};
   }
   return std::nullopt;
 }
@@ -431,6 +431,12 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
     return ScanErrorStatus(
         Span(GetPos(), GetPos()),
         "Expected character after single quote, saw end of file.");
+  }
+  if (PeekChar() == '\n') {
+    return ScanErrorStatus(
+        Span(start_pos, GetPos()),
+        "Newline found in character literal. Newlines are not allowed in "
+        "character literals.");
   }
   XLS_ASSIGN_OR_RETURN(char c, ScanCharLiteral());
   if (AtCharEof() || !TryDropChar('\'')) {

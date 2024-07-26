@@ -504,14 +504,16 @@ cc_test(
     tags = ["componentid:1408685"],
     deps = [
         ":bindings",
+        ":pos",
         ":scanner",
         ":token",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
         "@com_google_googletest//:gtest",
     ],
 )

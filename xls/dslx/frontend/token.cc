@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -112,10 +113,11 @@ std::string Token::ToString() const {
     return absl::StrCat("//", GetValue().value());
   }
   if (kind() == TokenKind::kCharacter) {
-    return absl::StrCat("'", GetValue().value(), "'");
+    return absl::StrCat("'", absl::Utf8SafeCHexEscape(GetValue().value()), "'");
   }
   if (kind() == TokenKind::kString) {
-    return absl::StrCat("\"", GetValue().value(), "\"");
+    return absl::StrCat("\"", absl::Utf8SafeCHexEscape(GetValue().value()),
+                        "\"");
   }
   if (GetValue().has_value()) {
     return GetValue().value();
