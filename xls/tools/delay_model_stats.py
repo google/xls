@@ -124,10 +124,15 @@ def stats_for_op_model(
         for dp in op_model.raw_data_points
     ])
 
+    # Round and add 0. to switch -0.0 values to 0.0.
+    max_pct_error = round(max_pct_error, 2) + 0.0
+    mean_abs_pct_error = round(mean_abs_pct_error, 3) + 0.0
+    mean_pct_error = round(mean_pct_error, 3) + 0.0
+    mean_square_error = round(mean_square_error**0.5, 2) + 0.0
+
     csv_line = (
-        f'{title}, {round(max_pct_error,2)}, '
-        f'{round(mean_abs_pct_error,3)}, {round(mean_pct_error,3)}, '
-        f'{round(mean_square_error ** 0.5,2)}'
+        f'{title}, {max_pct_error}, {mean_abs_pct_error}, {mean_pct_error}, '
+        f'{mean_square_error}'
     )
     print(csv_line)
     if csv_handle:
