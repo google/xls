@@ -261,6 +261,7 @@ py_test(
     srcs = ["delay_model_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
+    tags = ["nomsan"],  # scipy seems not to be msan-clean.
     deps = [
         ":delay_model",
         ":delay_model_py_pb2",
