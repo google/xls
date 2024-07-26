@@ -3,22 +3,6 @@ module TwoWayPrioritySelectAsFunction(
   input wire [31:0] x,
   input wire [31:0] d
 );
-  function automatic [31:0] priority_sel_32b_1way (input reg sel, input reg [31:0] case0, input reg [31:0] default_value);
-    begin
-      unique case (sel)
-        1'b1: begin
-          priority_sel_32b_1way = case0;
-        end
-        1'b0: begin
-          priority_sel_32b_1way = default_value;
-        end
-        default: begin
-          // Propagate X
-          priority_sel_32b_1way = 'X;
-        end
-      endcase
-    end
-  endfunction
   wire [31:0] priority_select;
-  assign priority_select = priority_sel_32b_1way(s, x, d);
+  assign priority_select = s ? x : d;
 endmodule

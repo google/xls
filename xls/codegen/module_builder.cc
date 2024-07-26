@@ -1020,6 +1020,28 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
           element_type = element_type->AsArrayOrDie()->element_type();
         }
         absl::Span<Expression* const> cases_and_default = inputs.subspan(1);
+        if (cases_and_default.size() == 2) {
+          // Selects an element from the set of cases 'inputs' according to the
+          // semantics of the select instruction. 'inputs' is the set of all
+          // cases including the optional default case which appears last.
+          auto priority_sel_element =
+              [&](absl::Span<Expression* const> inputs) {
+                Expression* selected_expr = inputs[0];
+                Expression* default_expr = inputs[1];
+                return file_->Ternary(selector_expression, selected_expr,
+                                      default_expr, node->loc());
+              };
+          XLS_RETURN_IF_ERROR(AddAssignmentToGeneratedExpression(
+              array_type, /*lhs=*/ref, /*inputs=*/cases_and_default,
+              /*gen_rhs_expr=*/priority_sel_element,
+              /*add_assignment=*/
+              [&](Expression* lhs, Expression* rhs) {
+                assignment_section()->Add<ContinuousAssignment>(node->loc(),
+                                                                lhs, rhs);
+              },
+              /*sv_array_expr=*/true));
+          break;
+        }
         XLS_ASSIGN_OR_RETURN(std::string function_name,
                              VerilogFunctionName(node));
         absl::StrAppend(&function_name, "_element",
@@ -1398,10 +1420,11 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
     case Op::kUMulp:
     case Op::kDynamicBitSlice:
     case Op::kBitSliceUpdate:
-    case Op::kPrioritySel:
     case Op::kSDiv:
     case Op::kUDiv:
       return true;
+    case Op::kPrioritySel:
+      return node->As<PrioritySelect>()->cases().size() > 1;
     default:
       return false;
   }

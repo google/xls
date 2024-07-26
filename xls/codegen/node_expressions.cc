@@ -609,8 +609,17 @@ absl::StatusOr<Expression*> NodeToExpression(
       return EmitOneHotSelect(node->As<OneHotSelect>(),
                               inputs[0]->AsIndexableExpressionOrDie(),
                               inputs.subspan(1), file);
-    case Op::kPrioritySel:
-      return unimplemented();
+    case Op::kPrioritySel: {
+      PrioritySelect* sel = node->As<PrioritySelect>();
+      if (sel->cases().size() > 1) {
+        return unimplemented();
+      }
+      XLS_RET_CHECK_EQ(inputs.size(), 3);
+      Expression* selector = inputs[0];
+      Expression* on_true = inputs[1];
+      Expression* on_false = inputs[2];
+      return file->Ternary(selector, on_true, on_false, sel->loc());
+    }
     case Op::kOr:
       return do_nary_op([file, node](Expression* lhs, Expression* rhs) {
         return file->BitwiseOr(lhs, rhs, node->loc());
