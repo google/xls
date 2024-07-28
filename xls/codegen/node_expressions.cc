@@ -445,6 +445,7 @@ absl::StatusOr<Expression*> EmitEqOrNe(Node* node,
   DecomposeExpression(inputs[1], node->operand(1)->GetType(), file, node->loc(),
                       &rhs_parts);
   std::vector<Expression*> comparisons;
+  comparisons.reserve(lhs_parts.size());
   for (int64_t i = 0; i < lhs_parts.size(); ++i) {
     comparisons.push_back(
         node->op() == Op::kEq
