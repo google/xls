@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -116,9 +117,13 @@ void CodegenPassUnit::GcMetadata() {
 /* static */ ChannelMap ChannelMap::Create(const CodegenPassUnit& unit) {
   ChannelMap::StreamingInputMap channel_to_streaming_input;
   ChannelMap::StreamingOutputMap channel_to_streaming_output;
+  ChannelMap::SingleValueInputMap channel_to_single_value_input;
+  ChannelMap::SingleValueOutputMap channel_to_single_value_output;
+
   for (auto& [block, metadata] : unit.metadata) {
-    for (auto& inputs : metadata.streaming_io_and_pipeline.inputs) {
-      for (auto& input : inputs) {
+    for (const std::vector<StreamingInput>& inputs :
+         metadata.streaming_io_and_pipeline.inputs) {
+      for (const StreamingInput& input : inputs) {
         VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
                                       input.channel->name());
         if (!input.IsExternal()) {
@@ -129,8 +134,15 @@ void CodegenPassUnit::GcMetadata() {
         channel_to_streaming_input[input.channel] = &input;
       }
     }
-    for (auto& outputs : metadata.streaming_io_and_pipeline.outputs) {
-      for (auto& output : outputs) {
+    for (const SingleValueInput& input :
+         metadata.streaming_io_and_pipeline.single_value_inputs) {
+      VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
+                                    input.channel->name());
+      channel_to_single_value_input[input.channel] = &input;
+    }
+    for (const std::vector<StreamingOutput>& outputs :
+         metadata.streaming_io_and_pipeline.outputs) {
+      for (const StreamingOutput& output : outputs) {
         VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
                                       output.channel->name());
         if (!output.IsExternal()) {
@@ -141,8 +153,17 @@ void CodegenPassUnit::GcMetadata() {
         channel_to_streaming_output[output.channel] = &output;
       }
     }
+    for (const SingleValueOutput& output :
+         metadata.streaming_io_and_pipeline.single_value_outputs) {
+      VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
+                                    output.channel->name());
+      channel_to_single_value_output[output.channel] = &output;
+    }
   }
-  return ChannelMap(channel_to_streaming_input, channel_to_streaming_output);
+  return ChannelMap(std::move(channel_to_streaming_input),
+                    std::move(channel_to_streaming_output),
+                    std::move(channel_to_single_value_input),
+                    std::move(channel_to_single_value_output));
 }
 
 }  // namespace xls::verilog

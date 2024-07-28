@@ -88,6 +88,7 @@ using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Contains;
 using ::testing::Each;
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::FieldsAre;
@@ -602,10 +603,19 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
     Block* block, const CodegenPassUnit::MetadataMap& metadata_map,
     const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs,
     std::optional<int64_t> num_cycles = std::nullopt) {
+  int64_t cycles = num_cycles.value_or(999) + 1;  // + 1 for the reset cycle
   BlockEvaluationResults evaluation_results;
   std::vector<ChannelSource> sources;
   std::vector<ChannelSink> sinks;
   absl::flat_hash_map<std::string, std::string_view> sink_names_by_data_name;
+
+  std::vector<absl::flat_hash_map<std::string, Value>> fixed_values;
+  fixed_values.reserve(cycles);
+  constexpr int64_t kResetCycles = 1;
+  for (int i = 0; i < cycles; ++i) {
+    fixed_values.push_back(
+        {{"rst", Value(UBits((i < kResetCycles) ? 1 : 0, 1))}});
+  }
 
   for (const auto& [_block, metadata] : metadata_map) {
     for (const std::vector<StreamingInput>& metadata_inputs :
@@ -631,6 +641,27 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
         sources.push_back(std::move(source));
       }
     }
+    for (const SingleValueInput& metadata_input :
+         metadata.streaming_io_and_pipeline.single_value_inputs) {
+      if (metadata_input.channel->supported_ops() == ChannelOps::kSendReceive) {
+        continue;
+      }
+      for (absl::flat_hash_map<std::string, Value>& cycle_values :
+           fixed_values) {
+        auto input_iter = inputs.find(metadata_input.port->GetName());
+        if (input_iter == inputs.end()) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("No input provided for channel %s",
+                              metadata_input.port->GetName()));
+        }
+        XLS_RET_CHECK_EQ(input_iter->second.size(), 1)
+            << "Single value channels may only have a single input";
+        XLS_RET_CHECK(metadata_input.port->GetType()->IsBits());
+        cycle_values[metadata_input.port->GetName()] =
+            Value(UBits(input_iter->second.front(),
+                        metadata_input.port->GetType()->GetFlatBitCount()));
+      }
+    }
 
     for (const std::vector<StreamingOutput>& outputs :
          metadata.streaming_io_and_pipeline.outputs) {
@@ -648,15 +679,6 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
     }
   }
 
-  std::vector<absl::flat_hash_map<std::string, Value>> rst_values;
-  int64_t cycles = num_cycles.value_or(999) + 1;  // + 1 for the reset cycle
-  rst_values.reserve(cycles);
-  constexpr int64_t kResetCycles = 1;
-  for (int i = 0; i < cycles; ++i) {
-    rst_values.push_back(
-        {{"rst", Value(UBits((i < kResetCycles) ? 1 : 0, 1))}});
-  }
-
   InterpreterBlockEvaluator evaluator;
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockContinuation> continuation,
                        evaluator.NewContinuation(block));
@@ -669,13 +691,32 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
   XLS_ASSIGN_OR_RETURN(BlockIOResults results,
                        evaluator.EvaluateChannelizedSequentialBlock(
                            block, absl::MakeSpan(sources),
-                           absl::MakeSpan(sinks), rst_values, reset_proto));
+                           absl::MakeSpan(sinks), fixed_values, reset_proto));
 
   absl::flat_hash_map<std::string, std::vector<uint64_t>> actual_outputs;
   for (const ChannelSink& sink : sinks) {
     XLS_ASSIGN_OR_RETURN(
         actual_outputs[sink_names_by_data_name.at(sink.data_name())],
         sink.GetOutputSequenceAsUint64());
+  }
+  for (const auto& [_block, metadata] : metadata_map) {
+    for (const SingleValueOutput& output :
+         metadata.streaming_io_and_pipeline.single_value_outputs) {
+      if (output.channel->supported_ops() == ChannelOps::kSendReceive) {
+        continue;
+      }
+      std::vector<uint64_t>& channel_int_outputs =
+          actual_outputs[output.port->name()];
+      channel_int_outputs.reserve(results.outputs.size());
+      for (const absl::flat_hash_map<std::string, Value>& value_map :
+           results.outputs) {
+        XLS_RET_CHECK(value_map.contains(output.port->name()));
+        const Value& value = value_map.at(output.port->name());
+        XLS_RET_CHECK(value.IsBits());
+        XLS_ASSIGN_OR_RETURN(int64_t value_int, value.bits().ToUint64());
+        channel_int_outputs.push_back(value_int);
+      }
+    }
   }
 
   return BlockEvaluationResults{
@@ -1234,9 +1275,15 @@ TEST_F(ProcInliningPassTest, NestedProcsWithSingleValue) {
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}}).status());
 
-  // TODO: enable when single-value channels supported.
-  ASSERT_THAT(RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-              StatusIs(absl::StatusCode::kInternal));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata, {{"in", {1}}}),
+      // Single value outputs show up for every cycle.
+      IsOkAndHolds(BlockOutputsMatch(ElementsAre(Pair("out", Each(Eq(2)))))));
 }
 
 TEST_F(ProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
@@ -1277,10 +1324,18 @@ TEST_F(ProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
                               {{"out", {2, 2, 6, 6, 10}}})
                     .status());
 
-  ASSERT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Single value channels are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 4, 5}}}),
+              IsOkAndHolds(BlockOutputsMatch(ElementsAre(
+                  // send_if is not specially codegen'd for single value
+                  // channels, nor is the value retained. It's just a direct
+                  // connection to the sometimes-invalid streaming channel's
+                  // data, so the value is garbage.
+                  Pair("out", _)))));
 }
 
 TEST_F(ProcInliningPassTest, NestedProcPassThrough) {
@@ -2302,7 +2357,7 @@ TEST_F(ProcInliningPassTest, NonTopProcsWithExternalSingleValueIO) {
       Channel * x_plus_y,
       p->CreateStreamingChannel("pass_x_plus_y", ChannelOps::kSendReceive, u32,
                                 /*initial_values=*/{},
-                                /*fifo_config=*/FifoConfigWithDepth(0)));
+                                /*fifo_config=*/FifoConfigWithDepth(1)));
 
   {
     ProcBuilder ab("A", p.get());
@@ -2326,10 +2381,15 @@ TEST_F(ProcInliningPassTest, NonTopProcsWithExternalSingleValueIO) {
                                {"x_minus_y_out", {113, 12, 32}}})
                     .status());
 
-  ASSERT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Single value channels are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  EXPECT_TRUE(changed);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata,
+                        {{"x", {123, 22, 42}}, {"y_sv", {10}}},
+                        /*num_cycles=*/15),
+              IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 32, 52}},
+                                           {"x_minus_y_out", {113, 12, 32}}})));
 }
 
 TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
@@ -2346,7 +2406,7 @@ TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
       Channel * pass_x,
       p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32,
                                 /*initial_values=*/{},
-                                /*fifo_config=*/FifoConfigWithDepth(0)));
+                                /*fifo_config=*/FifoConfigWithDepth(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_sv,
       p->CreateSingleValueChannel("pass_sv", ChannelOps::kSendReceive, u32));
@@ -2384,12 +2444,17 @@ TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
                               {{"sum", {148, 47, 67}}})
                     .status());
 
-  ASSERT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Single value channels are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
 
   EXPECT_EQ(p->blocks().size(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata, {{"x", {123, 22, 42}}, {"sv", {10}}}),
+      IsOkAndHolds(BlockOutputsEq({{"sum", {133, 32, 52}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata, {{"x", {123, 22, 42}}, {"sv", {25}}}),
+      IsOkAndHolds(BlockOutputsEq({{"sum", {148, 47, 67}}})));
 }
 
 TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
@@ -2861,6 +2926,22 @@ TEST_F(ProcInliningPassTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
       IsOkAndHolds(BlockOutputsEq({{"out", {}}})));
 }
 
+// In the original proc inlining test, these
+// 'SingleValueChannelWithVariantElements' tests had a single value channel for
+// `pass_inputs`. This was fine in proc inlining because the inter-proc channel
+// became a wire within the inlined proc, and proc codegen ensured the input
+// from `x` was valid when sending on `pass_inputs`. With multi-proc, the
+// situation is different because the the two procs tick truly independently, so
+// we need this channel to be streaming to synchronize the two procs.
+//
+// Note that the original test also relied on the behavior of single value
+// channels holding their output. The tuple accumulator proc received twice for
+// each send on `pass_inputs`. This results in deadlock on a streaming channel,
+// so now we send the same data twice. In order for *that* to work, we need to
+// set a channel strictness that is not kProvenMutuallyExclusive so we get an
+// adapter. So... this test doesn't really look like the original test. Still,
+// we end up getting the same outputs as the original test and `y` is still a
+// single value channel.
 TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
@@ -2875,8 +2956,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
-                                  u32_u64));
+      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
+                                u32_u64, /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfigWithDepth(0),
+                                /*flow_control=*/FlowControl::kReadyValid,
+                                /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
@@ -2906,6 +2990,9 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
     BValue send_inputs =
         ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
                 ab.Tuple({ab.TupleIndex(rcv_x, 1), ab.TupleIndex(rcv_y, 1)}));
+    send_inputs =
+        ab.Send(pass_inputs, send_inputs,
+                ab.Tuple({ab.TupleIndex(rcv_x, 1), ab.TupleIndex(rcv_y, 1)}));
 
     BValue rcv_result = ab.Receive(pass_result, send_inputs);
     BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
@@ -2925,10 +3012,17 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
                                {"result1_out", {20, 40, 60}}})
                     .status());
 
-  ASSERT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Single value channels are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  // A, B, adapter, and the top block.
+  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      IsOkAndHolds(BlockOutputsEq(
+          {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}})));
 }
 
 TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
@@ -2945,8 +3039,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
-                                  u32_u64));
+      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
+                                u32_u64, /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfigWithDepth(0),
+                                /*flow_control=*/FlowControl::kReadyValid,
+                                /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
@@ -2977,6 +3074,8 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
     BValue y_plus_1 = ab.Add(ab.TupleIndex(rcv_y, 1), ab.Literal(UBits(1, 64)));
     BValue send_inputs = ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
                                  ab.Tuple({x_plus_1, y_plus_1}));
+    send_inputs =
+        ab.Send(pass_inputs, send_inputs, ab.Tuple({x_plus_1, y_plus_1}));
 
     BValue rcv_result = ab.Receive(pass_result, send_inputs);
     BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
@@ -2996,10 +3095,16 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
                                {"result1_out", {22, 44, 66}}})
                     .status());
 
-  ASSERT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Single value channels are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      IsOkAndHolds(BlockOutputsEq(
+          {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}})));
 }
 
 TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
@@ -3015,8 +3120,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
-                                  u32_u32));
+      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
+                                u32_u32, /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfigWithDepth(0),
+                                /*flow_control=*/FlowControl::kReadyValid,
+                                /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
@@ -3047,6 +3155,8 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
     BValue y = ab.TupleIndex(rcv_y, 1);
     BValue send_inputs = ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
                                  ab.Tuple({y, ab.Add(x, y)}));
+    send_inputs =
+        ab.Send(pass_inputs, send_inputs, ab.Tuple({y, ab.Add(x, y)}));
 
     BValue rcv_result = ab.Receive(pass_result, send_inputs);
     BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
@@ -3066,10 +3176,15 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  ASSERT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Single value channels are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  EXPECT_TRUE(changed);
+  EXPECT_EQ(p->blocks().size(), 4);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      IsOkAndHolds(BlockOutputsEq(
+          {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}})));
 }
 
 TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
@@ -3085,8 +3200,11 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
-                                  u32_u32));
+      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
+                                u32_u32, /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfigWithDepth(0),
+                                /*flow_control=*/FlowControl::kReadyValid,
+                                /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
@@ -3117,6 +3235,8 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
     BValue y = ab.TupleIndex(rcv_y, 1);
     BValue send_inputs = ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
                                  ab.Tuple({x, ab.Add(x, y)}));
+    send_inputs =
+        ab.Send(pass_inputs, send_inputs, ab.Tuple({x, ab.Add(x, y)}));
 
     BValue rcv_result = ab.Receive(pass_result, send_inputs);
     BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
@@ -3136,10 +3256,15 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  ASSERT_THAT(
-      RunBlockStitchingPass(p.get(), /*top_name=*/"A"),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Single value channels are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  EXPECT_TRUE(changed);
+  EXPECT_EQ(p->blocks().size(), 4);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      IsOkAndHolds(BlockOutputsEq(
+          {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}})));
 }
 
 TEST_F(ProcInliningPassTest, TokenFanIn) {

@@ -314,19 +314,137 @@ absl::Status ExposeStreamingInput(
   return absl::OkStatus();
 }
 
+// Stitch two ends of a single value channels together.
+absl::Status StitchSingleValueChannel(
+    Block* container, SingleValueChannel* channel,
+    const ChannelMap& channel_map,
+    const absl::flat_hash_map<Block*, ::xls::Instantiation*>& instantiations) {
+  auto input_iter = channel_map.channel_to_single_value_input().find(channel);
+  auto output_iter = channel_map.channel_to_single_value_output().find(channel);
+  bool has_input =
+      input_iter != channel_map.channel_to_single_value_input().end();
+  bool has_output =
+      output_iter != channel_map.channel_to_single_value_output().end();
+  const SingleValueInput* subblock_input =
+      has_input ? input_iter->second : nullptr;
+  const SingleValueOutput* subblock_output =
+      has_output ? output_iter->second : nullptr;
+
+  if (!has_input && !has_output) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Could not find an input or an output for channel %s.",
+                        channel->name()));
+  }
+
+  Node* input_node = nullptr;
+  if (has_output) {
+    auto subblock_inst_iter = instantiations.find(
+        subblock_output->port->function_base()->AsBlockOrDie());
+    if (subblock_inst_iter == instantiations.end()) {
+      return absl::NotFoundError(absl::StrCat(
+          "Could not find inst for ", *subblock_output->port->function_base()));
+    }
+    XLS_ASSIGN_OR_RETURN(input_node,
+                         container->MakeNode<InstantiationOutput>(
+                             SourceInfo(), subblock_inst_iter->second,
+                             subblock_output->port->GetName()));
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        input_node, container->AddInputPort(subblock_input->port->GetName(),
+                                            subblock_input->port->GetType()));
+  }
+  if (has_input) {
+    auto subblock_inst_iter = instantiations.find(
+        subblock_input->port->function_base()->AsBlockOrDie());
+    if (subblock_inst_iter == instantiations.end()) {
+      return absl::NotFoundError(absl::StrCat(
+          "Could not find inst for ", *subblock_output->port->function_base()));
+    }
+    return container
+        ->MakeNode<InstantiationInput>(SourceInfo(), input_node,
+                                       subblock_inst_iter->second,
+                                       subblock_input->port->GetName())
+        .status();
+  }
+  return container->AddOutputPort(subblock_output->port->GetName(), input_node)
+      .status();
+}
+
+// Stitch two ends of a streaming channel together.
+absl::Status StitchStreamingChannel(
+    Block* container, StreamingChannel* channel, const ChannelMap& channel_map,
+    const absl::flat_hash_map<Block*, ::xls::Instantiation*>& instantiations) {
+  auto input_iter = channel_map.channel_to_streaming_input().find(channel);
+  auto output_iter = channel_map.channel_to_streaming_output().find(channel);
+  bool has_input = input_iter != channel_map.channel_to_streaming_input().end();
+  bool has_output =
+      output_iter != channel_map.channel_to_streaming_output().end();
+  const StreamingInput* input = has_input ? input_iter->second : nullptr;
+  const StreamingOutput* output = has_output ? output_iter->second : nullptr;
+
+  if (!has_input && !has_output) {
+    VLOG(3) << "Saw loopback channel " << channel->name()
+            << ", no stitching required.";
+    return absl::OkStatus();
+  }
+
+  // Instantiate FIFO and the two blocks.
+  if (has_input && has_output) {
+    std::string inst_name = absl::StrCat("fifo_", channel->name());
+    XLS_RET_CHECK(channel->fifo_config().has_value()) << absl::StreamFormat(
+        "Channel %s has no fifo config.", channel->name());
+    if (channel->fifo_config()->depth() > 0) {
+      XLS_ASSIGN_OR_RETURN(
+          xls::Instantiation * instantiation,
+          container->AddInstantiation(
+              inst_name,
+              std::make_unique<xls::FifoInstantiation>(
+                  inst_name, *channel->fifo_config(), channel->type(),
+                  channel->name(), container->package())));
+      XLS_RET_CHECK(container->GetResetPort().has_value());
+      XLS_RETURN_IF_ERROR(container
+                              ->MakeNode<xls::InstantiationInput>(
+                                  SourceInfo(), *container->GetResetPort(),
+                                  instantiation,
+                                  FifoInstantiation::kResetPortName)
+                              .status());
+      XLS_RETURN_IF_ERROR(StitchStreamingOutputToFifo(instantiations, container,
+                                                      instantiation, output));
+      XLS_RETURN_IF_ERROR(StitchStreamingInputToFifo(instantiations, container,
+                                                     instantiation, input));
+    } else {
+      XLS_RETURN_IF_ERROR(StitchStreamingOutputToInput(
+          instantiations, container, input, output));
+    }
+  } else if (has_input && !has_output) {
+    XLS_RETURN_IF_ERROR(ExposeStreamingInput(instantiations, container, input));
+  } else if (!has_input && has_output) {
+    XLS_RETURN_IF_ERROR(
+        ExposeStreamingOutput(instantiations, container, output));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status StitchChannel(
+    Block* container, Channel* channel, const ChannelMap& channel_map,
+    const absl::flat_hash_map<Block*, ::xls::Instantiation*>& instantiations) {
+  switch (channel->kind()) {
+    case ChannelKind::kStreaming:
+      return StitchStreamingChannel(container,
+                                    down_cast<StreamingChannel*>(channel),
+                                    channel_map, instantiations);
+    case ChannelKind::kSingleValue:
+      return StitchSingleValueChannel(container,
+                                      down_cast<SingleValueChannel*>(channel),
+                                      channel_map, instantiations);
+  }
+}
+
 // Stitch all blocks in the container block together, punching external
 // sends/receives through the container.
 absl::Status StitchBlocks(CodegenPassUnit& unit,
                           const CodegenOptions& options) {
   VLOG(2) << "Stitching blocks for " << unit.top_block->name();
-  for (auto& [block, metadata] : unit.metadata) {
-    XLS_RET_CHECK(
-        metadata.streaming_io_and_pipeline.single_value_inputs.empty())
-        << "Single value channels are not yet supported by multi-proc codegen.";
-    XLS_RET_CHECK(
-        metadata.streaming_io_and_pipeline.single_value_outputs.empty())
-        << "Single value channels are not yet supported by multi-proc codegen.";
-  }
   auto channel_map = ChannelMap::Create(unit);
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<Block*, ::xls::Instantiation*> instantiations),
@@ -339,58 +457,8 @@ absl::Status StitchBlocks(CodegenPassUnit& unit,
   absl::c_sort(channels_sorted_by_name, Channel::NameLessThan);
 
   for (Channel* channel : channels_sorted_by_name) {
-    auto input_iter = channel_map.channel_to_streaming_input().find(channel);
-    auto output_iter = channel_map.channel_to_streaming_output().find(channel);
-    bool has_input =
-        input_iter != channel_map.channel_to_streaming_input().end();
-    bool has_output =
-        output_iter != channel_map.channel_to_streaming_output().end();
-    const StreamingInput* input = has_input ? input_iter->second : nullptr;
-    const StreamingOutput* output = has_output ? output_iter->second : nullptr;
-
-    if (!has_input && !has_output) {
-      continue;
-    }
-
-    XLS_RET_CHECK(channel->kind() == ChannelKind::kStreaming);
-    StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
-
-    // Instantiate FIFO and the two blocks.
-    if (has_input && has_output) {
-      std::string inst_name = absl::StrCat("fifo_", channel->name());
-      XLS_RET_CHECK(streaming_channel->fifo_config().has_value())
-          << absl::StreamFormat("Channel %s has no fifo config.",
-                                channel->name());
-      if (streaming_channel->fifo_config()->depth() > 0) {
-        XLS_ASSIGN_OR_RETURN(
-            xls::Instantiation * instantiation,
-            unit.top_block->AddInstantiation(
-                inst_name, std::make_unique<xls::FifoInstantiation>(
-                               inst_name, *streaming_channel->fifo_config(),
-                               streaming_channel->type(),
-                               streaming_channel->name(), unit.package)));
-        XLS_RET_CHECK(options.reset().has_value());
-        XLS_RETURN_IF_ERROR(
-            unit.top_block
-                ->MakeNode<xls::InstantiationInput>(
-                    SourceInfo(), unit.top_block->GetResetPort().value(),
-                    instantiation, FifoInstantiation::kResetPortName)
-                .status());
-        XLS_RETURN_IF_ERROR(StitchStreamingOutputToFifo(
-            instantiations, unit.top_block, instantiation, output));
-        XLS_RETURN_IF_ERROR(StitchStreamingInputToFifo(
-            instantiations, unit.top_block, instantiation, input));
-      } else {
-        XLS_RETURN_IF_ERROR(StitchStreamingOutputToInput(
-            instantiations, unit.top_block, input, output));
-      }
-    } else if (has_input && !has_output) {
-      XLS_RETURN_IF_ERROR(
-          ExposeStreamingInput(instantiations, unit.top_block, input));
-    } else if (!has_input && has_output) {
-      XLS_RETURN_IF_ERROR(
-          ExposeStreamingOutput(instantiations, unit.top_block, output));
-    }
+    XLS_RETURN_IF_ERROR(
+        StitchChannel(unit.top_block, channel, channel_map, instantiations));
   }
 
   return absl::OkStatus();
