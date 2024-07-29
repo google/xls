@@ -16,10 +16,12 @@
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/tests/trace_fmt_issue_651/test_target_enum_wrapper.h"
-#include "xls/dslx/tests/trace_fmt_issue_651/test_target_s32_wrapper.h"
-#include "xls/dslx/tests/trace_fmt_issue_651/test_target_u16_wrapper.h"
-#include "xls/dslx/tests/trace_fmt_issue_651/test_target_u21_wrapper.h"
+#include "xls/dslx/tests/trace_fmt_issue_651/trace_enum_wrapper.h"
+#include "xls/dslx/tests/trace_fmt_issue_651/trace_s32_wrapper.h"
+#include "xls/dslx/tests/trace_fmt_issue_651/trace_u16_hex_wrapper.h"
+#include "xls/dslx/tests/trace_fmt_issue_651/trace_u16_wrapper.h"
+#include "xls/dslx/tests/trace_fmt_issue_651/trace_u21_hex_wrapper.h"
+#include "xls/dslx/tests/trace_fmt_issue_651/trace_u21_wrapper.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/value.h"
@@ -109,13 +111,57 @@ TEST(TraceFmt, ZeroPaddedS32) {
 }
 
 TEST(TraceFmt, Enum) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::TraceEnum::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::Trace_enum::Create());
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
                            trace->jit()->Run(absl::Span<Value>()));
 
   EXPECT_THAT(res.events.assert_msgs, IsEmpty());
   EXPECT_THAT(res.events.trace_msgs,
               ElementsAre(TraceMessage("0_0000_0011_0000_0011_1001")));
+}
+
+TEST(TraceFmt, LeadingOne16Hex) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::Trace_u16_hex::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto input,
+                           ValueBuilder::Bits(UBits(0xff00, 16)).Build());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
+                           trace->jit()->Run({input}));
+
+  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
+  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("ff00")));
+}
+
+TEST(TraceFmt, ZeroPadded16Hex) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::Trace_u16_hex::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto input,
+                           ValueBuilder::Bits(UBits(0x70, 16)).Build());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
+                           trace->jit()->Run({input}));
+
+  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
+  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("0070")));
+}
+
+TEST(TraceFmt, LeadingOne21Hex) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::Trace_u21_hex::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto input,
+                           ValueBuilder::Bits(UBits(0x1fff00, 21)).Build());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
+                           trace->jit()->Run({input}));
+
+  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
+  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("1f_ff00")));
+}
+
+TEST(TraceFmt, ZeroPadded21Hex) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto trace, wrapped::Trace_u21_hex::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto input,
+                           ValueBuilder::Bits(UBits(0xfff00, 21)).Build());
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> res,
+                           trace->jit()->Run({input}));
+
+  EXPECT_THAT(res.events.assert_msgs, IsEmpty());
+  EXPECT_THAT(res.events.trace_msgs, ElementsAre(TraceMessage("0f_ff00")));
 }
 }  // namespace
 }  // namespace xls

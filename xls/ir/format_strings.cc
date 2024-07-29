@@ -85,6 +85,11 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
       steps.push_back(FormatPreference::kPlainHex);
       continue;
     }
+    if (consume_substr("{:0x}")) {
+      push_fragment();
+      steps.push_back(FormatPreference::kZeroPaddedHex);
+      continue;
+    }
     if (consume_substr("{:#x}")) {
       push_fragment();
       steps.push_back(FormatPreference::kHex);

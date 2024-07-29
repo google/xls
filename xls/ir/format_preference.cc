@@ -30,6 +30,7 @@ constexpr std::string_view kPlainHexName = "plain_hex";
 constexpr std::string_view kSignedDecimalName = "signed-decimal";
 constexpr std::string_view kUnsignedDecimalName = "unsigned-decimal";
 constexpr std::string_view kZeroPaddedBinaryName = "zero-padded-binary";
+constexpr std::string_view kZeroPaddedHexName = "zero-padded-hex";
 
 std::string_view FormatPreferenceToString(FormatPreference preference) {
   switch (preference) {
@@ -49,6 +50,8 @@ std::string_view FormatPreferenceToString(FormatPreference preference) {
       return kPlainHexName;
     case FormatPreference::kZeroPaddedBinary:
       return kZeroPaddedBinaryName;
+    case FormatPreference::kZeroPaddedHex:
+      return kZeroPaddedHexName;
   }
 
   return "<invalid format preference>";
@@ -72,6 +75,8 @@ std::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
       return "{:x}";
     case FormatPreference::kZeroPaddedBinary:
       return "{:0b}";
+    case FormatPreference::kZeroPaddedHex:
+      return "{:0x}";
   }
 
   return "<invalid format preference>";
@@ -105,6 +110,8 @@ std::string_view FormatPreferenceToVerilogSpecifier(
       return "%h";
     case FormatPreference::kZeroPaddedBinary:
       return "%b";
+    case FormatPreference::kZeroPaddedHex:
+      return "%h";
   }
 
   return "<invalid format preference>";
@@ -135,6 +142,9 @@ absl::StatusOr<FormatPreference> FormatPreferenceFromString(
   }
   if (s == kZeroPaddedBinaryName) {
     return FormatPreference::kZeroPaddedBinary;
+  }
+  if (s == kZeroPaddedHexName) {
+    return FormatPreference::kZeroPaddedHex;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid format preference: \"%s\"", s));

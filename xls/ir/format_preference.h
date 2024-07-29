@@ -35,7 +35,8 @@ enum class FormatPreference {
   kPlainBinary,  // No 0b prefix and no separators as in Rust {:b} and Verilog
                  // %b
   kZeroPaddedBinary,  // No 0b prefix, with separators and Verilog %b
-  kPlainHex  // No 0x prefix and no separators as in Rust {:x} and Verilog %h
+  kPlainHex,  // No 0x prefix and no separators as in Rust {:x} and Verilog %h
+  kZeroPaddedHex  // similar to kPlainHex, but with zero padding
 };
 
 std::string_view FormatPreferenceToString(FormatPreference preference);

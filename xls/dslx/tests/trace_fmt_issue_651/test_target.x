@@ -40,3 +40,11 @@ enum foo: u21 {BAR=12345,}
 fn trace_enum() {
     trace_u21(foo::BAR as u21);
 }
+
+fn trace_u16_hex(v: u16) {
+    trace_fmt!("{:0x}", v);
+}
+
+fn trace_u21_hex(v: u21) {
+    trace_fmt!("{:0x}", v);
+}
