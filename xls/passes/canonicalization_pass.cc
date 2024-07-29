@@ -271,6 +271,12 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
     return true;
   }
 
+  // Remove useless bitwise reductions of a single bit.
+  if (n->Is<BitwiseReductionOp>() && n->operand(0)->BitCountOrDie() == 1) {
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
   // For a two-way select with an inverted selector, the NOT can be
   // removed and the cases interchanged.
   //

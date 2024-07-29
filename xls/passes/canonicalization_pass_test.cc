@@ -106,6 +106,22 @@ TEST_F(CanonicalizePassTest, ZeroExtendReplacedWithConcat) {
   EXPECT_THAT(f->return_value(), m::Concat(m::Literal(0), m::Param()));
 }
 
+TEST_F(CanonicalizePassTest, NopBitwiseReductions) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn nop_bitwise_reductions(x: bits[1]) -> (bits[1], bits[1], bits[1]) {
+        and_reduce.1: bits[1] = and_reduce(x)
+        or_reduce.2: bits[1] = or_reduce(x)
+        xor_reduce.3: bits[1] = xor_reduce(x)
+        ret tuple: (bits[1], bits[1], bits[1]) = tuple(and_reduce.1, or_reduce.2, xor_reduce.3)
+     }
+  )",
+                                                       p.get()));
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Tuple(m::Param(), m::Param(), m::Param()));
+}
+
 TEST_F(CanonicalizePassTest, ComparisonWithLiteralCanonicalization) {
   {
     auto p = CreatePackage();

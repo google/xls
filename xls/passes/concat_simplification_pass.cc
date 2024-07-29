@@ -458,9 +458,12 @@ absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
 
   std::vector<Node*> new_reductions;
   for (Node* cat_operand : concat->operands()) {
-    if (cat_operand->GetType()->GetFlatBitCount() > 0) {
+    int64_t bit_count = cat_operand->GetType()->GetFlatBitCount();
+    if (bit_count > 1) {
       XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}));
       new_reductions.push_back(reduce);
+    } else if (bit_count == 1) {
+      new_reductions.push_back(cat_operand);
     }
   }
 
