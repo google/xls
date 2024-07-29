@@ -117,7 +117,7 @@ Please see the two corresponding command lines below -- we start by assuming
 ~$ git clone https://github.com/google/xls.git
 ~$ cd xls
 
-~/xls$ # Follow the bazel install instructions to install bazel 7 (also 6 works)
+~/xls$ # Follow the bazel install instructions to install bazel 7
 ~/xls$ # https://bazel.build/install/ubuntu
 
 ~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
