@@ -689,6 +689,62 @@ TEST_P(BlockGeneratorTest, BlockWithTrace) {
   }
 }
 
+TEST_P(BlockGeneratorTest, BlockWithTraceZeroPaddedBinary) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Trace(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))), {a},
+          "a ({:0b}) is not greater than 42");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  EXPECT_THAT(verilog,
+              HasSubstr(R"($display("a (%b) is not greater than 42", a)"));
+}
+
+TEST_P(BlockGeneratorTest, BlockWithTraceBinary) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Trace(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))), {a},
+          "a ({:b}) is not greater than 42");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  EXPECT_THAT(verilog,
+              HasSubstr(R"($display("a (%0b) is not greater than 42", a)"));
+}
+
+TEST_P(BlockGeneratorTest, BlockWithTraceZeroPaddedHex) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Trace(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))), {a},
+          "a ({:0x}) is not greater than 42");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  EXPECT_THAT(verilog,
+              HasSubstr(R"($display("a (%h) is not greater than 42", a)"));
+}
+
+TEST_P(BlockGeneratorTest, BlockWithTraceBinaryHex) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Trace(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))), {a},
+          "a ({:x}) is not greater than 42");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  EXPECT_THAT(verilog,
+              HasSubstr(R"($display("a (%0h) is not greater than 42", a)"));
+}
+
 TEST_P(BlockGeneratorTest, BlockWithExtraBracesTrace) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);

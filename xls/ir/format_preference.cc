@@ -104,10 +104,18 @@ std::string_view FormatPreferenceToVerilogSpecifier(
       return "0b%b";
     case FormatPreference::kHex:
       return "0x%h";
+    // Plain binary ({:b} in dslx) now corresponds to non-zero-padded binary
+    // (%0b) in Verilog. This makes the dslx semantics the same as the Rust
+    // semantics. Similar for plain hex ({:x} in dslx/%0h in Verilog).
     case FormatPreference::kPlainBinary:
-      return "%b";
+      return "%0b";
     case FormatPreference::kPlainHex:
-      return "%h";
+      return "%0h";
+    // Zero-padded binary ({:0b} in dslx) now corresponds to zero-padded binary
+    // (%b) in Verilog. This makes the dslx semantics close to the Rust
+    // semantics; in Rust you must specify the size (e.g., {:032b} to get
+    // 32 bits with zero padding). Similar for zero-padded hex ({:0x} in dslx/%h
+    // in Verilog).
     case FormatPreference::kZeroPaddedBinary:
       return "%b";
     case FormatPreference::kZeroPaddedHex:
