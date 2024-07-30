@@ -914,10 +914,6 @@ absl::StatusOr<int64_t> InterpValue::GetBitValueSigned() const {
   return b.ToInt64();
 }
 
-bool InterpValue::FitsInInt64() const {
-  return HasBits() && GetBitsOrDie().FitsInInt64();
-}
-
 bool InterpValue::FitsInNBitsSigned(int64_t n) const {
   return HasBits() && GetBitsOrDie().FitsInNBitsSigned(n);
 }
@@ -1019,16 +1015,6 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
 
 bool InterpValue::operator>=(const InterpValue& rhs) const {
   return !(*this < rhs);
-}
-
-std::optional<Module*> GetFunctionValueOwner(
-    const InterpValue& function_value) {
-  if (function_value.IsBuiltinFunction()) {
-    return std::nullopt;
-  }
-  const auto& fn_data =
-      std::get<InterpValue::UserFnData>(function_value.GetFunctionOrDie());
-  return fn_data.function->owner();
 }
 
 }  // namespace xls::dslx

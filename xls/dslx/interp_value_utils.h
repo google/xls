@@ -44,11 +44,6 @@ absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value);
 // Creates a zero-valued InterpValue from the given Type.
 absl::StatusOr<InterpValue> CreateZeroValueFromType(const Type& type);
 
-// Places a "flat" representation of the input value (if it's a tuple) in
-// `result`. Converts, e.g., (a, (b, c), d) into {a, b, c, d}.
-absl::Status FlattenTuple(const InterpValue& value,
-                          std::vector<InterpValue>* result);
-
 // Finds the first index in the LHS and RHS sequences at which values differ or
 // nullopt if the two are equal.
 absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(

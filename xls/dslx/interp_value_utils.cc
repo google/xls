@@ -201,22 +201,6 @@ absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value) {
   }
 }
 
-absl::Status FlattenTuple(const InterpValue& value,
-                          std::vector<InterpValue>* result) {
-  if (!value.IsTuple()) {
-    result->push_back(value);
-    return absl::OkStatus();
-  }
-
-  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* values,
-                       value.GetValues());
-  for (const auto& value : *values) {
-    XLS_RETURN_IF_ERROR(FlattenTuple(value, result));
-  }
-
-  return absl::OkStatus();
-}
-
 absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(
     absl::Span<const InterpValue> lhs, absl::Span<const InterpValue> rhs) {
   if (lhs.size() != rhs.size()) {

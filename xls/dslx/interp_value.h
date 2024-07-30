@@ -209,9 +209,8 @@ class InterpValue {
   absl::StatusOr<int64_t> GetBitValueSigned() const;
 
   // Returns true iff the value HasBits and the bits values fits in a
-  // (u)int64_t.
+  // uint64_t.
   bool FitsInUint64() const;
-  bool FitsInInt64() const;
 
   // Returns true if the value HasBits and the (unsigned/signed) value fits in
   // 'n' bits.
@@ -417,12 +416,6 @@ class InterpValue {
   InterpValueTag tag_;
   Payload payload_;
 };
-
-// Retrieves the module associated with the function_value if it is user
-// defined.
-//
-// Check-fails if function_value is not a function-typed value.
-std::optional<Module*> GetFunctionValueOwner(const InterpValue& function_value);
 
 template <typename H>
 H AbslHashValue(H state, const InterpValue::UserFnData& v) {

@@ -35,14 +35,6 @@
 
 namespace xls::dslx {
 
-/* static */ InterpBindings InterpBindings::CloneWith(
-    InterpBindings* parent, NameDefTree* name_def_tree, InterpValue value) {
-  InterpBindings new_bindings(/*parent=*/parent);
-  new_bindings.AddValueTree(name_def_tree, value);
-  new_bindings.set_fn_ctx(parent->fn_ctx_);
-  return new_bindings;
-}
-
 /* static */ std::string_view InterpBindings::VariantAsString(const Entry& e) {
   if (std::holds_alternative<InterpValue>(e)) {
     return "Value";
@@ -65,23 +57,6 @@ namespace xls::dslx {
 InterpBindings::InterpBindings(const InterpBindings* parent) : parent_(parent) {
   if (parent_ != nullptr) {
     fn_ctx_ = parent_->fn_ctx();
-  }
-}
-
-void InterpBindings::AddValueTree(NameDefTree* name_def_tree,
-                                  InterpValue value) {
-  if (name_def_tree->is_leaf()) {
-    NameDefTree::Leaf leaf = name_def_tree->leaf();
-    if (std::holds_alternative<NameDef*>(leaf)) {
-      NameDef* name_def = std::get<NameDef*>(leaf);
-      AddValue(name_def->identifier(), value);
-    }
-    return;
-  }
-  for (int64_t i = 0; i < value.GetLength().value(); ++i) {
-    NameDefTree* sub_tree = name_def_tree->nodes()[i];
-    const InterpValue& sub_value = value.GetValuesOrDie()[i];
-    AddValueTree(sub_tree, sub_value);
   }
 }
 
@@ -120,47 +95,6 @@ absl::StatusOr<Module*> InterpBindings::ResolveModule(
   return absl::InvalidArgumentError(absl::StrFormat(
       "Attempted to resolve a module but identifier \"%s\" was bound to a %s",
       identifier, VariantAsString(entry.value())));
-}
-
-absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
-    std::string_view identifier) const {
-  std::optional<Entry> entry = ResolveEntry(identifier);
-  if (!entry.has_value()) {
-    return absl::NotFoundError(
-        absl::StrFormat("No binding for identifier \"%s\"", identifier));
-  }
-  if (std::holds_alternative<EnumDef*>(entry.value())) {
-    return std::get<EnumDef*>(entry.value())->type_annotation();
-  }
-  if (std::holds_alternative<TypeAlias*>(entry.value())) {
-    return &std::get<TypeAlias*>(entry.value())->type_annotation();
-  }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Attempted to resolve a type but identifier \"%s\" was bound to a %s",
-      identifier, VariantAsString(entry.value())));
-}
-
-absl::StatusOr<std::variant<TypeAnnotation*, EnumDef*, StructDef*>>
-InterpBindings::ResolveTypeDefinition(std::string_view identifier) const {
-  std::optional<Entry> entry = ResolveEntry(identifier);
-  if (!entry.has_value()) {
-    return absl::NotFoundError(absl::StrFormat(
-        "Could not resolve type definition for identifier: \"%s\"",
-        identifier));
-  }
-  if (std::holds_alternative<TypeAlias*>(entry.value())) {
-    return &std::get<TypeAlias*>(entry.value())->type_annotation();
-  }
-  if (std::holds_alternative<EnumDef*>(entry.value())) {
-    return std::get<EnumDef*>(entry.value());
-  }
-  if (std::holds_alternative<StructDef*>(entry.value())) {
-    return std::get<StructDef*>(entry.value());
-  }
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Attempted to resolve a type definition but identifier "
-                      "\"%s\" was bound to a %s",
-                      identifier, VariantAsString(entry.value())));
 }
 
 absl::flat_hash_set<std::string> InterpBindings::GetKeys() const {
