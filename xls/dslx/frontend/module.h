@@ -52,8 +52,6 @@ Pos GetPos(const ModuleMember& module_member);
 
 std::string_view GetModuleMemberTypeName(const ModuleMember& module_member);
 
-absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
-
 enum class ModuleAnnotation : uint8_t {
   // Suppresses the "constant naming" warning.
   kAllowNonstandardConstantNaming,
@@ -158,7 +156,6 @@ class Module : public AstNode {
   }
 
   std::optional<Function*> GetFunction(std::string_view target_name);
-  std::optional<Proc*> GetProc(std::string_view target_name);
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.

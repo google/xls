@@ -223,20 +223,8 @@ class Bindings {
     std::sort(result.begin(), result.end());
     return result;
   }
-  absl::flat_hash_set<std::string> GetAllBindings() const {
-    absl::flat_hash_set<std::string> result;
-    if (parent_ != nullptr) {
-      result = parent_->GetAllBindings();
-    }
-    for (const auto& [k, v] : local_bindings_) {
-      result.insert(k);
-    }
-    return result;
-  }
 
  private:
-  Bindings* GetTop();
-
   Bindings* parent_;
   absl::flat_hash_map<std::string, BoundNode> local_bindings_;
 

@@ -119,18 +119,6 @@ std::optional<Function*> Module::GetFunction(std::string_view target_name) {
   return std::nullopt;
 }
 
-std::optional<Proc*> Module::GetProc(std::string_view target_name) {
-  for (ModuleMember& member : top_) {
-    if (std::holds_alternative<Proc*>(member)) {
-      Proc* p = std::get<Proc*>(member);
-      if (p->identifier() == target_name) {
-        return p;
-      }
-    }
-  }
-  return std::nullopt;
-}
-
 absl::StatusOr<TestFunction*> Module::GetTest(std::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (std::holds_alternative<TestFunction*>(member)) {
@@ -381,22 +369,6 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](ConstAssert*) { return "const-assert"; },
                      },
                      module_member);
-}
-
-absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
-  XLS_RET_CHECK(node != nullptr);
-  // clang-format off
-  if (auto* n = dynamic_cast<Function*    >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<TestFunction*>(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<QuickCheck*  >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<TypeAlias*   >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<StructDef*   >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<ConstantDef* >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<EnumDef*     >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<Import*      >(node)) { return ModuleMember(n); }
-  // clang-format on
-  return absl::InvalidArgumentError("AST node is not a module-level member: " +
-                                    node->ToString());
 }
 
 bool IsPublic(const ModuleMember& member) {

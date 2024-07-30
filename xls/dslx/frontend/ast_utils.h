@@ -80,15 +80,6 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
     const ArrayTypeAnnotation* type, uint64_t constexpr_dim,
     std::string_view attr);
 
-// Returns the indentation level of the given AST node.
-//
-// That is, the contents of the AST node when formatted (flat) should be
-// indented by kSpacesPerIndent * $retval.
-//
-// This is used for determining indentation level at an arbitrary point in the
-// AST for formatting.
-int64_t DetermineIndentLevel(const AstNode& n);
-
 // -- Template Metaprogramming helpers for dealing with AST node variants
 
 // TMP helper that gets the Nth type from a parameter pack.

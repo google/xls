@@ -270,33 +270,6 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
       absl::StrFormat("Invalid attribute of builtin array type: %s", attr));
 }
 
-int64_t DetermineIndentLevel(const AstNode& n) {
-  switch (n.kind()) {
-    case AstNodeKind::kModule:
-      return 0;
-    case AstNodeKind::kStatementBlock: {
-      CHECK(n.parent() != nullptr);
-      return DetermineIndentLevel(*n.parent()) + 1;
-    }
-    case AstNodeKind::kFunction: {
-      const Function* function = down_cast<const Function*>(&n);
-      switch (function->tag()) {
-        case FunctionTag::kProcInit:
-        case FunctionTag::kProcNext:
-        case FunctionTag::kProcConfig:
-          return 1;
-        case FunctionTag::kNormal:
-          return 0;
-      }
-    }
-    default: {
-      AstNode* parent = n.parent();
-      CHECK(parent != nullptr);
-      return DetermineIndentLevel(*parent);
-    }
-  }
-}
-
 std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
     const TypeAnnotation* type_annotation) {
   bool is_enum = false;
