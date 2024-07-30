@@ -116,7 +116,7 @@ class ScopedMockLog : public absl::LogSink {
     // We don't use CHECK(), which can generate a new LOG message, and
     // thus can confuse ScopedMockLog objects or other registered
     // LogSinks.
-    ABSL_RAW_CHECK(
+    ABSL_RAW_CHECK(  // NOLINT implicitly provided by logging internals
         !is_capturing_logs_,
         "StartCapturingLogs() can be called only when the ScopedMockLog "
         "object is not capturing logs.");
@@ -134,7 +134,7 @@ class ScopedMockLog : public absl::LogSink {
     // We don't use CHECK(), which can generate a new LOG message, and
     // thus can confuse ScopedMockLog objects or other registered
     // LogSinks.
-    ABSL_RAW_CHECK(
+    ABSL_RAW_CHECK(  // NOLINT implicitly provided by logging internals
         is_capturing_logs_,
         "StopCapturingLogs() can be called only when the ScopedMockLog "
         "object is capturing logs.");

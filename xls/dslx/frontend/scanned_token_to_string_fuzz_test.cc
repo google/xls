@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"

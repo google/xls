@@ -35,6 +35,7 @@
 #include "xls/common/case_converters.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_model.pb.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"

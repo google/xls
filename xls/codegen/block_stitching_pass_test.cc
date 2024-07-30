@@ -45,6 +45,7 @@
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/side_effect_condition_pass.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
@@ -60,6 +61,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/events.h"
 #include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
@@ -682,7 +684,7 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
   InterpreterBlockEvaluator evaluator;
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BlockContinuation> continuation,
                        evaluator.NewContinuation(block));
-  verilog::ResetProto reset_proto;
+  ResetProto reset_proto;
   reset_proto.set_name("rst");
   reset_proto.set_asynchronous(false);
   reset_proto.set_active_low(false);

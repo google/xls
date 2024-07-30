@@ -30,6 +30,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
