@@ -629,6 +629,23 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
                                  "but block has no reset signal")));
 }
 
+TEST_P(BlockGeneratorTest, BlockWithAssertWithInvalidSVLabel) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Assert(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))),
+           "a is not greater than 42", "a bad label");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  CodegenOptions options = codegen_options();
+  options.use_system_verilog(true);
+  EXPECT_THAT(
+      GenerateVerilog(block, options),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Assert label must be a valid SystemVerilog identifier.")));
+}
+
 TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
   if (!UseSystemVerilog()) {
     return;

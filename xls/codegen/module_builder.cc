@@ -1103,6 +1103,13 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     return UnrepresentedSentinel();
   }
 
+  if (asrt->label().has_value()) {
+    if (asrt->label().value() != SanitizeIdentifier(asrt->label().value())) {
+      return absl::InvalidArgumentError(
+          "Assert label must be a valid SystemVerilog identifier.");
+    }
+  }
+
   Expression* disable_iff;
   if (reset().has_value()) {
     // Disable the assert when in reset.
