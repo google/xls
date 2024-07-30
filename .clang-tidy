@@ -76,6 +76,7 @@ Checks: >
   -modernize-use-default-member-init,
   -modernize-use-emplace,
   -modernize-use-nodiscard,
+  -modernize-use-std-format,
   -modernize-use-trailing-return-type,
   -modernize-use-transparent-functors,
   misc-*,
