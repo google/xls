@@ -54,7 +54,9 @@ proc CommandConstructor {
 
     init { zero!<State>() }
 
-    next(tok0: token, state: State) {
+    next(state: State) {
+        let tok0 = join();
+
         let recv_command = state.status == Status::RECV_COMMAND;
         let (tok1_0, command) =
             recv_if(tok0, sequence_decoder_r, recv_command, zero!<SequenceExecutorPacket>());
@@ -131,7 +133,8 @@ proc FakeLiteralsBuffer {
 
     init { zero!<FakeLiteralsBufferState>() }
 
-    next(tok: token, state: FakeLiteralsBufferState) {
+    next(state: FakeLiteralsBufferState) {
+        let tok = join();
         let do_recv_req = state.status == FakeLiteralsBufferStatus::RECV;
         let (tok, resp) =
             recv_if(tok, literals_buffer_req_r, do_recv_req, zero!<LiteralsBufferCtrl>());
@@ -207,8 +210,10 @@ proc CommandConstructorTest {
 
     init {  }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         const EMPTY_PACKET = zero!<SequenceExecutorPacket>();
+
+        let tok = join();
 
         let sequence_packet1 = SequenceExecutorPacket {
             msg_type: SequenceExecutorMessageType::SEQUENCE,

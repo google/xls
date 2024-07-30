@@ -87,7 +87,8 @@ pub proc FseInputBuffer<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
 
     init {  }
 
-    next(tok0: token, state: ()) {
+    next(state: ()) {
+        let tok0 = join();
         let (tok1, recv_data, recv_valid) = recv_non_blocking(tok0, in_data_r, zero!<SequenceData>());
 
         let shift_buffer_data = BufferInput {
@@ -174,13 +175,15 @@ pub proc FseProbaFreqDecoder<
 
     init { zero!<State>() }
 
-    next(tok0: token, state: State) {
+    next(state: State) {
         type BufferCtrl = shift_buffer::ShiftBufferCtrl<LENGTH_WIDTH>;
         type BufferOutput = shift_buffer::ShiftBufferOutput<DATA_WIDTH, LENGTH_WIDTH>;
         type RamWriteReq = ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>;
         type RamWriteResp = ram::WriteResp;
         type RamReadReq = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
         type RamReadResp = ram::ReadResp<RAM_DATA_WIDTH>;
+
+        let tok0 = join();
 
         let (do_buff_ctrl_recv, do_buff_data_recv) = match (state.status) {
             Status::RECV_ACCURACY_LOG => (true, false),
@@ -509,7 +512,7 @@ proc FseProbaFreqDecoderInst {
     }
 
     init { }
-    next(tok: token, state: ()) { }
+    next(state: ()) { }
 }
 
 const TEST_RAM_DATA_WIDTH = u32:16;
@@ -572,7 +575,7 @@ proc FseProbaFreqDecoderTest {
 
     init { }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         // * accuracy_log = 8
         // * probability frequencies:
         // | value | probability | bits (real) | symbol number |
@@ -600,6 +603,8 @@ proc FseProbaFreqDecoderTest {
             RamDataSigned:-1 as RamData,
             RamData:5
         ];
+
+        let tok = join();
 
         let tok = send(tok, seq_data_s, common::SequenceData {
             bytes: u64:0b111_000_00_001_011_01_11_001_110111_01110101_01100001_0011,

@@ -38,7 +38,9 @@ proc RamWrRespHandler<CNT_WIDTH: u32> {
 
     init { WriteCnt:0 }
 
-    next(tok0: token, wr_cnt: WriteCnt) {
+    next(wr_cnt: WriteCnt) {
+        let tok0 = join();
+
         let (tok1, reset) = recv(tok0, input_r);
         recv(tok1, wr_resp_r);
 
@@ -64,7 +66,7 @@ proc RamWrRespHandlerInst {
     }
 
     init { }
-    next(tok0: token, state: ()) { }
+    next(state: ()) { }
 }
 
 const TEST_CNT_WIDTH = u32:32;
@@ -119,7 +121,9 @@ proc RamWrRespHandlerTest {
         zero!<State>()
     }
 
-    next(tok0: token, state: State) {
+    next(state: State) {
+        let tok0 = join();
+
         let start = (state.rd_cnt == u32:0);
         const MASK = std::unsigned_max_value<TEST_RAM_NUM_PARTITIONS>();
 

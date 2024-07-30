@@ -102,12 +102,14 @@ proc RamDemux<
         }
     }
 
-    next(tok: token, state: RamDemuxState<QUEUE_LEN>) {
+    next(state: RamDemuxState<QUEUE_LEN>) {
         let sel = state.sel;
         let sel_q_rd = state.sel_q_rd;
         let sel_q_wr = state.sel_q_wr;
         let sel_q_rd_end = state.sel_q_rd_end;
         let sel_q_wr_end = state.sel_q_wr_end;
+
+        let tok = join();
 
         // receive requests from input channel
         // conditional reading is not required here ase the queue would
@@ -283,7 +285,8 @@ proc RamDemuxTest {
 
     init {  }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
+        let tok = join();
         // test case 0: write data with demux to ram0 and read directly
         let addr = TestDemuxAddr:0;
         // request
@@ -486,7 +489,7 @@ pub proc RamDemuxInst {
 
     init {  }
 
-    next(tok: token, state: ()) {  }
+    next(state: ()) {  }
 }
 
 struct RamDemuxNaiveState { sel: u1 }
@@ -549,7 +552,9 @@ proc RamDemuxNaive<
 
     init { RamDemuxNaiveState { sel: INIT_SEL } }
 
-    next(tok: token, state: RamDemuxNaiveState) {
+    next(state: RamDemuxNaiveState) {
+        let tok = join();
+
         let sel = state.sel;
 
         // receive requests from input channel
@@ -668,7 +673,8 @@ proc RamDemuxNaiveTest {
 
     init {  }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
+        let tok = join();
         // test case 0: write data with demux to ram0 and read directly
         let addr = TestDemuxAddr:0;
         // request
@@ -772,5 +778,5 @@ pub proc RamDemuxNaiveInst {
 
     init {  }
 
-    next(tok: token, state: ()) {  }
+    next(state: ()) {  }
 }

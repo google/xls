@@ -44,9 +44,11 @@ proc FseTableIterator {
 
     init { zero!<State>() }
 
-    next(tok0: token, state: State) {
+    next(state: State) {
         const ZERO_STATE = zero!<State>();
         const ZERO_IDX_OPTION = (false, u16:0);
+
+        let tok0 = join();
 
         let do_recv_ctrl = state.status == Status::CONFIGURE;
         let (tok1, ctrl) = recv_if(tok0, ctrl_r, do_recv_ctrl, zero!<Ctrl>());
@@ -107,7 +109,8 @@ proc FseTableIteratorTest {
 
     init {  }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
+        let tok = join();
         let tok = send(
             tok, ctrl_s, Ctrl { accuracy_log: AccuracyLog:5, negative_proba_count: SymbolCount:5 });
         let tok = for (exp_idx, tok): (Index, token) in TEST_EXPECTRED_IDX {

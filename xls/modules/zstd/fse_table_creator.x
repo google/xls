@@ -192,7 +192,7 @@ proc FseTableCreator<
 
     init { zero!<State>() }
 
-    next(tok0: token, state: State) {
+    next(state: State) {
         const DPD_RAM_REQ_MASK_ALL = std::unsigned_max_value<DPD_RAM_NUM_PARTITIONS>();
         const FSE_RAM_REQ_MASK_ALL = std::unsigned_max_value<FSE_RAM_NUM_PARTITIONS>();
         const FSE_RAM_REQ_MASK_SYMBOL = u3:0b001;
@@ -206,6 +206,8 @@ proc FseTableCreator<
         type TmpRamWriteReq = ram::WriteReq<TMP_RAM_ADDR_WIDTH, TMP_RAM_DATA_WIDTH, TMP_RAM_NUM_PARTITIONS>;
         type TestRamWriteResp = ram::WriteResp;
         type TmpRamReadReq = ram::ReadReq<TMP_RAM_ADDR_WIDTH, TMP_RAM_NUM_PARTITIONS>;
+
+        let tok0 = join();
 
         // dummy operations on unused channels
         send_if(tok0, dpd_wr_req_s, false, zero!<DpdRamWriteReq>());
@@ -534,7 +536,7 @@ proc FseTableCreatorInst {
 
     init {  }
 
-    next(tok: token, state: ()) {  }
+    next(state: ()) {  }
 }
 
 const TEST_OFFSET_CODE_TABLE = FseTableRecord[32]:[
@@ -661,9 +663,12 @@ proc FseTableCreatorTest {
 
     init {  }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         const DPD_RAM_REQ_MASK_ALL = std::unsigned_max_value<TEST_DPD_RAM_NUM_PARTITIONS>();
         const FSE_RAM_REQ_MASK_ALL = std::unsigned_max_value<TEST_FSE_RAM_NUM_PARTITIONS>();
+
+        let tok = join();
+
         let dist_arr_length = array_size(common::FSE_OFFSET_DEFAULT_DIST);
         let accuracy_log = AccuracyLog:5;
         // 1. Fill the DPD Ram with default probability distribution

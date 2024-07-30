@@ -83,7 +83,7 @@ pub proc ShiftBuffer<DATA_WIDTH: u32, LENGTH_WIDTH: u32, BUFFER_WIDTH: u32 = {bu
         zero!<BufferState>()
     }
 
-    next(tok0: token, state: ShiftBufferState<BUFFER_WIDTH, LENGTH_WIDTH>) {
+    next(state: ShiftBufferState<BUFFER_WIDTH, LENGTH_WIDTH>) {
         type Data = uN[DATA_WIDTH];
         type Length = uN[LENGTH_WIDTH];
         type BufferData = uN[BUFFER_WIDTH];
@@ -93,6 +93,8 @@ pub proc ShiftBuffer<DATA_WIDTH: u32, LENGTH_WIDTH: u32, BUFFER_WIDTH: u32 = {bu
         type State = ShiftBufferState<BUFFER_WIDTH, LENGTH_WIDTH>;
         type Status = ShiftBufferStatus;
         type OutputType = ShiftBufferOutputType;
+
+        let tok0 = join();
 
         // Receive control
         let (tok1_0, ctrl, ctrl_valid) =
@@ -174,7 +176,7 @@ proc ShiftBufferInst {
 
     init {  }
 
-    next(tok: token, state: ()) {  }
+    next(state: ()) {  }
 }
 
 const TEST_DATA_WIDTH = u32:64;
@@ -201,13 +203,15 @@ proc ShiftBufferTest {
 
     init {  }
 
-    next(tok: token, state: ()) {
+    next(state: ()) {
         type Data = uN[TEST_DATA_WIDTH];
         type Length = uN[TEST_LENGTH_WIDTH];
         type OutputType = ShiftBufferOutputType;
         type Input = ShiftBufferInput;
         type Output = ShiftBufferOutput;
         type Ctrl = ShiftBufferCtrl;
+
+        let tok = join();
 
         let tok = send(tok, in_data_s, Input { data: Data:0xDD_44, length: Length:16, last: false });
         let tok = send(tok, in_data_s, Input { data: Data:0xAA_11_BB_22_CC_33, length: Length:48, last: false });
