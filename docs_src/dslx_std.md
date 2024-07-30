@@ -555,7 +555,7 @@ fn f() -> MyStruct {
 ### `trace_fmt!`
 
 DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
-dumping of current values to stdout. For example:
+dumping values to stdout. For example:
 
 ```dslx
 // Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging,
@@ -591,8 +591,25 @@ I0607 10:11:02.908208  810431 shifty.x:8] y as s8: -1
 [...]
 ```
 
+The following formats are available, given an `s20` input of `0xbeef`:
+
+Format string | Description               | Example
+------------- | ------------------------- | --------------------------
+`{}`          | Default                   | `48879`
+`{:d}`        | Signed decimal            | `48879`
+`{:u}`        | Unsigned decimal          | `48879`
+`{:x}`        | Plain hex                 | `beef`
+`{:#x}`       | Hex with `0x` prefix      | `0xbeef`
+`{:0x}`       | Hex with leading zeros    | `0_beef`
+`{:b}`        | Plain binary              | `1011111011101111`
+`{:#b}`       | Binary with `0b` prefix   | `0b1011_1110_1110_1111`
+`{:0b}`       | Binary with leading zeros | `0000_1011_1110_1110_1111`
+
+The number of digits for zero-padding is determined by the actual type of the
+input, e.g., a `u16` pads up to 16 binary digits or 4 hexadecimal digits.
+
 !!! NOTE
-    `trace!` currently exists as a builtin but is in the process of being
+    `trace!` currently also exists as a builtin but is in the process of being
     removed, as it provided the user with only a "global flag" way of specifying the
     desired format for output values -- `trace_fmt!` is more powerful.
 
