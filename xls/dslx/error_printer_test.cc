@@ -14,7 +14,6 @@
 
 #include "xls/dslx/error_printer.h"
 
-#include <filesystem>  // NOLINT
 #include <functional>
 #include <sstream>
 #include <string>

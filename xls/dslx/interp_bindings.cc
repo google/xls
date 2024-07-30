@@ -14,13 +14,11 @@
 
 #include "xls/dslx/interp_bindings.h"
 
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
