@@ -199,6 +199,45 @@ cc_test(
     ],
 )
 
+cc_binary(
+    name = "extract_sample_points_from_ir_main",
+    srcs = ["extract_sample_points_from_ir_main.cc"],
+    deps = [
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
+        "//xls/delay_model:sample_point_extraction_utils",
+        "//xls/ir:ir_parser",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+py_test(
+    name = "extract_sample_points_from_ir_main_test",
+    srcs = ["extract_sample_points_from_ir_main_test.py"],
+    data = [":extract_sample_points_from_ir_main"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:gfile",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/delay_model:delay_model_py_pb2",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
 cc_library(
     name = "extract_segment",
     srcs = ["extract_segment.cc"],
