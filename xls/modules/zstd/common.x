@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import std;
+import xls.examples.ram;
+import xls.modules.zstd.shift_buffer;
 
 pub const DATA_WIDTH = u32:64;
 pub const MAX_ID = u32::MAX;
@@ -21,6 +23,7 @@ pub const BLOCK_SIZE_WIDTH = u32:21;
 pub const OFFSET_WIDTH = u32:22;
 pub const HISTORY_BUFFER_SIZE_KB = u32:64;
 pub const BUFFER_WIDTH = u32:128;
+pub const MAX_BLOCK_SIZE_KB = u32:64;
 
 pub const BLOCK_PACKET_WIDTH = u32:32;
 
@@ -62,9 +65,19 @@ pub struct LiteralsBufferCtrl {
 
 pub struct SequenceExecutorPacket {
     msg_type: SequenceExecutorMessageType,
-    length: CopyOrMatchLength,  // Literal length or match length
-    content: CopyOrMatchContent,  // Literal data or match offset
-    last: bool,  // Last packet in frame
+    length: CopyOrMatchLength, // Literal length or match length
+    content: CopyOrMatchContent, // Literal data or match offset
+    last: bool, // Last packet in frame
+}
+
+pub struct BlockSyncData {
+    id: u32,
+    last_block: bool,
+}
+
+pub struct CommandConstructorData {
+    sync: BlockSyncData,
+    data: SequenceExecutorPacket,
 }
 
 // Defines output format of the ZSTD Decoder
@@ -107,10 +120,15 @@ pub const FSE_SYMBOL_COUNT_WIDTH = std::clog2(FSE_MAX_SYMBOLS + u32:1);
 pub const FSE_REMAINING_PROBA_WIDTH = std::clog2((u32:1 << FSE_MAX_ACCURACY_LOG) + u32:1);
 pub const FSE_TABLE_INDEX_WIDTH = std::clog2(u32:1 << FSE_MAX_ACCURACY_LOG);
 
+pub const FSE_PROB_DIST_WIDTH = u32:16;
+pub const FSE_MAX_PROB_DIST = u32:256;
+pub const FSE_SYMBOL_WIDTH = u32:16;
+
 pub type FseRemainingProba = uN[FSE_REMAINING_PROBA_WIDTH];
 pub type FseAccuracyLog = uN[FSE_ACCURACY_LOG_WIDTH];
 pub type FseSymbolCount = uN[FSE_SYMBOL_COUNT_WIDTH];
 pub type FseTableIndex = uN[FSE_TABLE_INDEX_WIDTH];
+
 
 // defined in https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.3.2.2.1
 pub const FSE_LITERAL_LENGTH_DEFAULT_DIST = s16[36]:[
@@ -146,6 +164,12 @@ pub enum FSETableType : u2 {
     MATCH = 2,
 }
 
+pub struct FseTableRecord {
+    symbol: u8,
+    num_of_bits: u8,
+    base: u16
+}
+
 pub struct FseRemainder { value: u1, valid: bool }
 pub struct FseProbaFreqDecoderCtrl { remainder: FseRemainder, finished: bool }
 
@@ -155,3 +179,64 @@ pub struct FseTableCreatorCtrl {
 }
 
 pub fn highest_set_bit<N: u32>(num: uN[N]) -> u16 { std::flog2<N>(num) }
+
+// SequenceDecoder
+
+pub const SEQDEC_DPD_RAM_DATA_WIDTH = FSE_PROB_DIST_WIDTH;
+pub const SEQDEC_DPD_RAM_SIZE = FSE_MAX_PROB_DIST;
+pub const SEQDEC_DPD_RAM_WORD_PARTITION_SIZE = SEQDEC_DPD_RAM_DATA_WIDTH;
+pub const SEQDEC_DPD_RAM_ADDR_WIDTH = std::clog2(SEQDEC_DPD_RAM_SIZE);
+pub const SEQDEC_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(SEQDEC_DPD_RAM_WORD_PARTITION_SIZE, SEQDEC_DPD_RAM_DATA_WIDTH);
+
+pub const SEQDEC_TMP_RAM_DATA_WIDTH = FSE_PROB_DIST_WIDTH;
+pub const SEQDEC_TMP_RAM_SIZE = FSE_MAX_PROB_DIST;
+pub const SEQDEC_TMP_RAM_WORD_PARTITION_SIZE = SEQDEC_TMP_RAM_DATA_WIDTH;
+pub const SEQDEC_TMP_RAM_ADDR_WIDTH = std::clog2(SEQDEC_TMP_RAM_SIZE);
+pub const SEQDEC_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(SEQDEC_TMP_RAM_WORD_PARTITION_SIZE, SEQDEC_TMP_RAM_DATA_WIDTH);
+
+pub const SEQDEC_FSE_RAM_DATA_WIDTH = u32:32;
+pub const SEQDEC_FSE_RAM_SIZE = FSE_MAX_SYMBOLS;
+pub const SEQDEC_FSE_RAM_WORD_PARTITION_SIZE = SEQDEC_FSE_RAM_DATA_WIDTH / u32:3;
+pub const SEQDEC_FSE_RAM_ADDR_WIDTH: u32 = std::clog2(SEQDEC_FSE_RAM_SIZE);
+pub const SEQDEC_FSE_RAM_NUM_PARTITIONS: u32 = ram::num_partitions(SEQDEC_FSE_RAM_WORD_PARTITION_SIZE, SEQDEC_FSE_RAM_DATA_WIDTH);
+
+pub const SEQDEC_BLOCK_RAM_DATA_WIDTH = DATA_WIDTH;
+pub const SEQDEC_BLOCK_RAM_SIZE = (MAX_BLOCK_SIZE_KB * u32:1024 * u32:8) / SEQDEC_BLOCK_RAM_DATA_WIDTH;
+pub const SEQDEC_BLOCK_RAM_WORD_PARTITION_SIZE = SEQDEC_BLOCK_RAM_DATA_WIDTH;
+pub const SEQDEC_BLOCK_RAM_ADDR_WIDTH = std::clog2(SEQDEC_BLOCK_RAM_SIZE);
+pub const SEQDEC_BLOCK_RAM_NUM_PARTITIONS: u32 = ram::num_partitions(SEQDEC_BLOCK_RAM_WORD_PARTITION_SIZE, SEQDEC_BLOCK_RAM_DATA_WIDTH);
+
+pub const SEQDEC_SHIFT_BUFFER_DATA_WIDTH = DATA_WIDTH;
+pub const SEQDEC_SHIFT_BUFFER_LENGTH_WIDTH = std::clog2(SEQDEC_SHIFT_BUFFER_DATA_WIDTH + u32:1);
+
+pub type SeqDecDpdRamReadReq = ram::ReadReq<SEQDEC_DPD_RAM_ADDR_WIDTH, SEQDEC_DPD_RAM_NUM_PARTITIONS>;
+pub type SeqDecDpdRamReadResp = ram::ReadResp<SEQDEC_DPD_RAM_DATA_WIDTH>;
+pub type SeqDecDpdRamWriteReq = ram::WriteReq<SEQDEC_DPD_RAM_ADDR_WIDTH, SEQDEC_DPD_RAM_DATA_WIDTH, SEQDEC_DPD_RAM_NUM_PARTITIONS>;
+pub type SeqDecDpdRamWriteResp = ram::WriteResp;
+pub type SeqDecDpdRamAddr = bits[SEQDEC_DPD_RAM_ADDR_WIDTH];
+pub type SeqDecDpdRamData = bits[SEQDEC_DPD_RAM_DATA_WIDTH];
+
+pub type SeqDecTmpRamReadReq = ram::ReadReq<SEQDEC_TMP_RAM_ADDR_WIDTH, SEQDEC_TMP_RAM_NUM_PARTITIONS>;
+pub type SeqDecTmpRamReadResp = ram::ReadResp<SEQDEC_TMP_RAM_DATA_WIDTH>;
+pub type SeqDecTmpRamWriteReq = ram::WriteReq<SEQDEC_TMP_RAM_ADDR_WIDTH, SEQDEC_TMP_RAM_DATA_WIDTH, SEQDEC_TMP_RAM_NUM_PARTITIONS>;
+pub type SeqDecTmpRamWriteResp = ram::WriteResp;
+pub type SeqDecTmpRamAddr = bits[SEQDEC_TMP_RAM_ADDR_WIDTH];
+pub type SeqDecTmpRamData = bits[SEQDEC_TMP_RAM_DATA_WIDTH];
+
+pub type SeqDecFseRamReadReq = ram::ReadReq<SEQDEC_FSE_RAM_ADDR_WIDTH, SEQDEC_FSE_RAM_NUM_PARTITIONS>;
+pub type SeqDecFseRamReadResp = ram::ReadResp<SEQDEC_FSE_RAM_DATA_WIDTH>;
+pub type SeqDecFseRamWriteReq = ram::WriteReq<SEQDEC_FSE_RAM_ADDR_WIDTH, SEQDEC_FSE_RAM_DATA_WIDTH, SEQDEC_FSE_RAM_NUM_PARTITIONS>;
+pub type SeqDecFseRamWriteResp = ram::WriteResp;
+pub type SeqDecFseRamAddr = bits[SEQDEC_FSE_RAM_ADDR_WIDTH];
+pub type SeqDecFseRamData = bits[SEQDEC_FSE_RAM_DATA_WIDTH];
+
+pub type SeqDecBlockRamReadReq = ram::ReadReq<SEQDEC_BLOCK_RAM_ADDR_WIDTH, SEQDEC_BLOCK_RAM_NUM_PARTITIONS>;
+pub type SeqDecBlockRamReadResp = ram::ReadResp<SEQDEC_BLOCK_RAM_DATA_WIDTH>;
+pub type SeqDecBlockRamWriteReq = ram::WriteReq<SEQDEC_BLOCK_RAM_ADDR_WIDTH, SEQDEC_BLOCK_RAM_DATA_WIDTH, SEQDEC_BLOCK_RAM_NUM_PARTITIONS>;
+pub type SeqDecBlockRamWriteResp = ram::WriteResp;
+pub type SeqDecBlockRamAddr = bits[SEQDEC_BLOCK_RAM_ADDR_WIDTH];
+pub type SeqDecBlockRamData = bits[SEQDEC_BLOCK_RAM_DATA_WIDTH];
+
+pub type SeqDecShiftBufferCtrl = shift_buffer::ShiftBufferCtrl<SEQDEC_SHIFT_BUFFER_LENGTH_WIDTH>;
+pub type SeqDecShiftBufferInput = shift_buffer::ShiftBufferInput<SEQDEC_SHIFT_BUFFER_DATA_WIDTH, SEQDEC_SHIFT_BUFFER_LENGTH_WIDTH>;
+pub type SeqDecShiftBufferOutput = shift_buffer::ShiftBufferOutput<SEQDEC_SHIFT_BUFFER_DATA_WIDTH, SEQDEC_SHIFT_BUFFER_LENGTH_WIDTH>;

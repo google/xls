@@ -178,7 +178,10 @@ xls_dslx_library(
     srcs = [
         "common.x",
     ],
-    deps = [],
+    deps = [
+        "//xls/examples:ram_dslx",
+        ":shift_buffer_dslx",
+    ],
 )
 
 xls_dslx_test(
@@ -1684,5 +1687,86 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":fse_table_creator_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "fse_dec_dslx",
+    srcs = [
+        "fse_dec.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+        ":common_dslx",
+        ":shift_buffer_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "fse_dec_dslx_test",
+    library = ":fse_dec_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_verilog(
+    name = "fse_dec_verilog",
+    codegen_args = {
+        "module_name": "FseDecoder",
+        "delay_model": "asap7",
+        "pipeline_stages": "3",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "FseDecoder",
+    library = ":fse_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "fse_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "fse_dec_opt_ir_benchmark",
+    src = ":fse_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "delay_model": "asap7",
+        "pipeline_stages": "3",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "fse_dec_verilog_lib",
+    srcs = [
+        ":fse_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "fse_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "FseDecoder",
+    deps = [
+        ":fse_dec_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "fse_dec_benchmark_synth",
+    synth_target = ":fse_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "fse_dec_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    die_height_microns = 100,
+    die_width_microns = 100,
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":fse_dec_synth_asap7",
+    tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
