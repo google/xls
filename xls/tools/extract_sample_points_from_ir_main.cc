@@ -27,6 +27,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -37,6 +38,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/delay_model/delay_model.pb.h"
 #include "xls/delay_model/sample_point_extraction_utils.h"
 #include "xls/ir/ir_parser.h"
 
