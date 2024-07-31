@@ -195,7 +195,7 @@ fn x31(x32: x19) -> (bool, ()) {
 }
 fn main(x0: u34, x1: u3, x2: u48, x3: u24, x4: u56, x5: u40, x6: u4) -> (x37[W32_V5], u4) {
     {
-        let x7: u34 = priority_sel(x1, [x0, x0, x0]);
+        let x7: u34 = priority_sel(x1, [x0, x0, x0], u34:0);
         let x8: u48 = !x2;
         let x9: u23 = x3[0+:u23];
         let x10: u4 = -x6;

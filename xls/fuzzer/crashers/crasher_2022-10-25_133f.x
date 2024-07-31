@@ -179,7 +179,7 @@ fn main(x0: u4) -> (u4, (u54, u4, u4, u4, u34, u4), u54, u4) {
   let x3: u54 = -(x2);
   let x4: u34 = u34:0x2_c000_3c07;
   let x5: u4 = -(x1);
-  let x6: u4 = priority_sel(x5, [x1, x5, x5, x0]);
+  let x6: u4 = priority_sel(x5, [x1, x5, x5, x0], u4:0);
   let x7: (u54, u4, u4, u4, u34, u4) = (x2, x5, x1, x1, x4, x1);
   let x8: u6 = u6:0x3f;
   let x9: u4 = (x6)[x8+:u4];

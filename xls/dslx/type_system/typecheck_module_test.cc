@@ -2583,12 +2583,26 @@ TEST(TypecheckErrorTest, PrioritySelectOnNonBitsType) {
       Typecheck(R"(
 struct MyStruct { }
 
-fn f() { priority_sel(u2:0b00, MyStruct[2]:[MyStruct{}, MyStruct{}]) }
+fn f() {
+let default_value = MyStruct{};
+priority_sel(u2:0b00, MyStruct[2]:[MyStruct{}, MyStruct{}], default_value) }
 )")
           .status(),
       IsPosError(
           "TypeInferenceError",
-          HasSubstr("Want arg 1 element type to be bits; got MyStruct")));
+          HasSubstr("Want argument 1 element type to be bits; got MyStruct")));
+}
+
+TEST(TypecheckErrorTest, PrioritySelectDefaultWrongSize) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f() { priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4], u5:0); }
+)")
+          .status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Want argument 2 type uN[4] to match argument 1 element type")));
 }
 
 TEST(TypecheckErrorTest, OperatorOnParametricBuiltin) {

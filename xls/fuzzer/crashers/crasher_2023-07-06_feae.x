@@ -189,7 +189,7 @@ fn main(x0: (u4, s48), x1: s59, x2: s61, x3: x4[10]) -> (u12, x8[W32_V1653], s61
         let x20: u3 = x18 as u3 & x14;
         let x21: u4 = x0.0;
         let x22: u12 = x14 as u12 ^ x16;
-        let x23: u12 = priority_sel(x19, [x13, x15]);
+        let x23: u12 = priority_sel(x19, [x13, x15], u12:0);
         let x24: u12 = x16[x22+:u12];
         let x25: s48 = x0.1;
         let x26: u12 = x23[0+:u12];

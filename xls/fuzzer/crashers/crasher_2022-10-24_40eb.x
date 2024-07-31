@@ -188,7 +188,7 @@ fn main(x0: (u1,), x1: u1, x2: u6) -> (bool, bool, bool, bool, u5, bool) {
   let x19: u5 = u5:0x1f;
   let x20: bool = (x18) < (x15);
   let x21: bool = -(x15);
-  let x22: bool = priority_sel(x16, [x5, x14, x10, x14, x14, x17]);
+  let x22: bool = priority_sel(x16, [x5, x14, x10, x14, x14, x17], false);
   let x23: u2 = (x11) ++ (x17);
   let x24: bool = !(x11);
   let x25: (u1, bool, u6, u6) = (x9, x22, x16, x16);

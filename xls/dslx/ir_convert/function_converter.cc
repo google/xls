@@ -3215,16 +3215,17 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(const Invocation* node) {
 
 absl::Status FunctionConverter::HandleBuiltinPrioritySel(
     const Invocation* node) {
-  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue selector, Use(node->args()[0]));
 
-  // See implementation note for HandleBuildinOneHotSel().
+  // See implementation note for HandleBuiltinOneHotSel().
   const Expr* cases_arg = node->args()[1];
   std::vector<BValue> cases;
 
   XLS_ASSIGN_OR_RETURN(BValue bvalue_cases_arg, Use(cases_arg));
   XLS_ASSIGN_OR_RETURN(xls::ArrayType * cases_arg_type,
                        bvalue_cases_arg.GetType()->AsArray());
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->args()[2]));
 
   Def(node, [&](const SourceInfo& loc) {
     for (int64_t i = 0; i < cases_arg_type->size(); ++i) {
@@ -3233,9 +3234,6 @@ absl::Status FunctionConverter::HandleBuiltinPrioritySel(
           function_builder_->ArrayIndex(bvalue_cases_arg, {index}, loc);
       cases.push_back(bvalue_case);
     }
-
-    BValue default_value = function_builder_->Literal(
-        ZeroOfType(cases_arg_type->element_type()), loc);
 
     return function_builder_->PrioritySelect(selector, cases, default_value,
                                              loc);

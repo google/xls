@@ -1405,13 +1405,30 @@ fn main() -> u32 {
   let cases = u32[8]:[u32:0x1, u32:0x20, u32:0x300, u32:0x4000,
                       u32:0x50000, u32:0x600000, u32:0x7000000, u32:0x80000000];
   let selector = u8:0xaa;
-  priority_sel(selector, cases)
+  let default_value = u32:0xdeadbeef;
+  priority_sel(selector, cases, default_value)
 }
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   EXPECT_EQ(int_value, 0x00000020);
+}
+
+TEST(BytecodeInterpreterTest, BuiltinPrioritySelUsesDefault) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+  let cases = u32[8]:[u32:0x1, u32:0x20, u32:0x300, u32:0x4000,
+                      u32:0x50000, u32:0x600000, u32:0x7000000, u32:0x80000000];
+  let selector = u8:0x0;
+  let default_value = u32:0xdeadbeef;
+  priority_sel(selector, cases, default_value)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
+  EXPECT_EQ(int_value, 0xdeadbeef);
 }
 
 TEST(BytecodeInterpreterTest, BuiltinRange) {

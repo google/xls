@@ -314,9 +314,9 @@ absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode,
 
 absl::Status RunBuiltinPrioritySel(const Bytecode& bytecode,
                                    InterpreterStack& stack) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& selector,
-         const InterpValue& cases_array) -> absl::StatusOr<InterpValue> {
+  return RunTernaryBuiltin(
+      [](const InterpValue& selector, const InterpValue& cases_array,
+         const InterpValue& default_value) -> absl::StatusOr<InterpValue> {
         XLS_ASSIGN_OR_RETURN(Bits selector_bits, selector.GetBits());
         XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* cases,
                              cases_array.GetValues());
@@ -324,8 +324,6 @@ absl::Status RunBuiltinPrioritySel(const Bytecode& bytecode,
           return absl::InternalError(
               "At least one case must be specified for priority_sel.");
         }
-        XLS_ASSIGN_OR_RETURN(int64_t result_bit_count,
-                             cases->at(0).GetBitCount());
         for (int64_t i = 0; i < cases->size(); i++) {
           if (selector_bits.Get(i)) {
             XLS_ASSIGN_OR_RETURN(Bits case_bits, cases->at(i).GetBits());
@@ -333,8 +331,8 @@ absl::Status RunBuiltinPrioritySel(const Bytecode& bytecode,
           }
         }
 
-        Bits empty_result(result_bit_count);
-        return InterpValue::MakeBits(cases->at(0).tag(), empty_result);
+        XLS_ASSIGN_OR_RETURN(Bits default_bits, default_value.GetBits());
+        return InterpValue::MakeBits(cases->at(0).tag(), default_bits);
       },
       stack);
 }

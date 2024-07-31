@@ -684,6 +684,50 @@ static void AddZipLikeSignature(
 
 static void AddPrioritySelLikeSignature(
     absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["(uN[N], xN[M][N], xN[M]) -> xN[M]"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    const ArrayType* cases;
+    std::optional<BitsLikeProperties> bits;
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                       .Len(3)
+                       .IsUN(0, &bits)
+                       .IsArray(1, &cases);
+    XLS_RETURN_IF_ERROR(checker.status());
+
+    // Make sure the default param matches the type of the cases array.
+    // (We can't do this in the checker because we don't have a value for the
+    // return type yet.)
+    const Type& return_type = cases->element_type();
+    checker.TypesAreSame(return_type, *data.arg_types[2], [&] {
+      return absl::StrFormat(
+          "Want argument 2 type %s to match argument 1 element type %s",
+          return_type.ToString(), data.arg_types[2]->ToString());
+    });
+
+    // If the checker status is OK we should have a value for this.
+    XLS_RET_CHECK(bits.has_value());
+
+    checker.CheckIsBits(return_type, [&] {
+      return absl::StrFormat("Want argument 1 element type to be bits; got %s",
+                             return_type.ToString());
+    });
+    XLS_ASSIGN_OR_RETURN(
+        int64_t target,
+        std::get<InterpValue>(bits->size.value()).GetBitValueViaSign());
+    checker.CheckIsLen(*cases, target, [&] {
+      return absl::StrFormat("Bit width %d must match %s array size %s", target,
+                             cases->ToString(), cases->size().ToString());
+    });
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndParametricEnv{
+        .type = std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
+                                               return_type.CloneToUnique())};
+  };
+}
+
+static void AddOneHotSelLikeSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
   map["(uN[N], xN[M][N]) -> xN[M]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
@@ -700,7 +744,7 @@ static void AddPrioritySelLikeSignature(
 
     const Type& return_type = cases->element_type();
     checker.CheckIsBits(return_type, [&] {
-      return absl::StrFormat("Want arg 1 element type to be bits; got %s",
+      return absl::StrFormat("Want argument 1 element type to be bits; got %s",
                              return_type.ToString());
     });
     XLS_ASSIGN_OR_RETURN(
@@ -747,6 +791,7 @@ PopulateSignatureToLambdaMap() {
   AddByteArrayAndTProducesTSignature(map);
   AddZipLikeSignature(map);
   AddPrioritySelLikeSignature(map);
+  AddOneHotSelLikeSignature(map);
   AddAssertLikeSignature(map);
 
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =

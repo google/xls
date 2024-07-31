@@ -1384,18 +1384,18 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(
 absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
     Context* ctx) {
   XLS_ASSIGN_OR_RETURN(
-      TypedExpr lhs,
+      TypedExpr selector,
       ChooseEnvValueUBits(&ctx->env, /*bit_count=*/RandomIntWithExpectedValue(
                               5, /*lower_limit=*/1)));
 
-  LastDelayingOp last_delaying_op = lhs.last_delaying_op;
-  int64_t min_stage = lhs.min_stage;
+  LastDelayingOp last_delaying_op = selector.last_delaying_op;
+  int64_t min_stage = selector.min_stage;
 
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
   last_delaying_op = ComposeDelayingOps(last_delaying_op, rhs.last_delaying_op);
   min_stage = std::max(min_stage, rhs.min_stage);
   std::vector<Expr*> cases = {rhs.expr};
-  int64_t total_operands = GetTypeBitCount(lhs.type);
+  int64_t total_operands = GetTypeBitCount(selector.type);
   for (int64_t i = 0; i < total_operands - 1; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(&ctx->env, rhs.type));
     cases.push_back(e.expr);
@@ -1406,9 +1406,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
 
   auto* cases_array =
       module_->Make<Array>(fake_span_, cases, /*has_ellipsis=*/false);
-  auto* invocation =
-      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("priority_sel"),
-                                std::vector<Expr*>{lhs.expr, cases_array});
+  XLS_ASSIGN_OR_RETURN(TypedExpr default_value,
+                       ChooseEnvValue(&ctx->env, rhs.type));
+  auto* invocation = module_->Make<Invocation>(
+      fake_span_, MakeBuiltinNameRef("priority_sel"),
+      std::vector<Expr*>{selector.expr, cases_array, default_value.expr});
   return TypedExpr{
       .expr = invocation,
       .type = rhs.type,

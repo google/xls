@@ -15,7 +15,7 @@ in a user-defined function, and thus do not live in the standard library.
 This section describes the built-in functions provided for use in the DSL that
 do not need to be explicitly imported.
 
-Some of the built-ins have exlamation marks at the end; e.g. `assert!` --
+Some of the built-ins have exclamation marks at the end; e.g. `assert!` --
 exclamation marks in DSLX indicate built-in functions that have special
 facilities that normal functions are not capable of. This is intended to help
 the user discern when they're calling "something that will behave like a normal
@@ -302,21 +302,16 @@ though the compiler will when possible synthesize the equivalent code from a
 Implements a priority selector. Has the following signature:
 
 ```
-fn priority_sel(selector: uN[N], cases: xN[S][M][N]) -> xN[S][M]
+fn priority_sel(selector: uN[N], cases: xN[M][N], default_value: xN[M]) -> xN[M]
 ```
 
 That is, the selector is `N` bits, and we give `N` cases to choose from of
 `M`-bit values of arbitrary signedness.
 
-If the selector is zero, the zero-value (of the result type) is returned.
+If the selector is zero, the default value is returned.
 
 Example usage:
 [`dslx/tests/priority_sel.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/priority_sel.x).
-
-!!! NOTE
-    This operator is only defined for bits types because other types do not
-    have defined or-operators, and conceptually `priority_sel` desugars to a masked
-    or-reduction, which is why it produces the zero value when nothing is selected.
 
 ### `range`
 

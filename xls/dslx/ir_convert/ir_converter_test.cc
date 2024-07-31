@@ -821,7 +821,7 @@ TEST(IrConverterTest, PrioritySelSplat) {
   const char* program =
       R"(
 fn main(s: u2) -> u32 {
-  priority_sel(s, u32[2]:[2, 3])
+  priority_sel(s, u32[2]:[u32:2, u32:3], u32:4)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -840,7 +840,7 @@ TEST(IrConverterTest, PrioritySelNonArrayNode) {
       R"(
 fn main(s: u2) -> u32 {
   let cases = u32[2]:[2, 3];
-  priority_sel(s, cases)
+  priority_sel(s, cases, u32:4)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
