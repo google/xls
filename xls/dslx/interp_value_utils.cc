@@ -67,6 +67,7 @@ absl::StatusOr<InterpValue> CastBitsToArray(const InterpValue& bits_value,
 
   std::vector<InterpValue> values;
   XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type.size().GetAsInt64());
+  values.reserve(array_size);
   for (int64_t i = 0; i < array_size; ++i) {
     values.push_back(bit_slice_value_at_index(i));
   }
