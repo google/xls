@@ -1650,7 +1650,6 @@ static absl::StatusOr<std::unique_ptr<Type>> ConcretizeStructAnnotation(
   }
 
   absl::flat_hash_map<std::string, TypeDim> parametric_env;
-
   for (int64_t i = 0; i < type_annotation->parametrics().size(); ++i) {
     ParametricBinding* defined_parametric =
         struct_def->parametric_bindings()[i];
@@ -1692,13 +1691,19 @@ static absl::StatusOr<std::unique_ptr<Type>> ConcretizeStructAnnotation(
   }
 
   // Now evaluate all the dimensions according to the values we've got.
-  return base_type.MapSize([&](const TypeDim& dim) -> absl::StatusOr<TypeDim> {
-    if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
-      auto& parametric = std::get<TypeDim::OwnedParametric>(dim.value());
-      return TypeDim(parametric->Evaluate(env));
-    }
-    return dim;
-  });
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Type> mapped_type,
+      base_type.MapSize([&](const TypeDim& dim) -> absl::StatusOr<TypeDim> {
+        if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
+          auto& parametric = std::get<TypeDim::OwnedParametric>(dim.value());
+          return TypeDim(parametric->Evaluate(env));
+        }
+        return dim;
+      }));
+
+  // Attach the nominal parametrics to the type, so that we will remember the
+  // fact that we have instantiated e.g. Foo<M:u32, N:u32> as Foo<5, 6>.
+  return mapped_type->AddNominalTypeDims(std::move(parametric_env));
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRefTypeAnnotation(

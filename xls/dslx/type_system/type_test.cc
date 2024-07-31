@@ -25,6 +25,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
@@ -42,6 +43,9 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::ElementsAre;
 using testing::HasSubstr;
+using testing::IsEmpty;
+using testing::Pair;
+using testing::UnorderedElementsAre;
 
 const Pos kFakePos("<fake>", 0, 0);
 const Span kFakeSpan(kFakePos, kFakePos);
@@ -169,6 +173,114 @@ TEST(TypeTest, StructTypeGetTotalBitCount) {
   EXPECT_THAT(s.GetAllDims(),
               ElementsAre(TypeDim::CreateU32(8), TypeDim::CreateU32(1)));
   EXPECT_FALSE(s.HasEnum());
+}
+
+TEST(TypeTest, StructTypeNominalTypeDims) {
+  Module module("test", /*fs_path=*/std::nullopt);
+
+  std::vector<StructMember> ast_members;
+  ast_members.emplace_back(StructMember{
+      .name_span = kFakeSpan,
+      .name = "x",
+      .type = module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU8,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))});
+  ast_members.emplace_back(StructMember{
+      .name_span = kFakeSpan,
+      .name = "y",
+      .type = module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU1,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))});
+
+  std::vector<ParametricBinding*> bindings;
+  NameDef* type_m_name_def = module.Make<NameDef>(Span::Fake(), "M", nullptr);
+  BuiltinType u32_type = BuiltinTypeFromString("u32").value();
+  TypeAnnotation* u32_type_annot = module.Make<BuiltinTypeAnnotation>(
+      Span::Fake(), u32_type, module.GetOrCreateBuiltinNameDef(u32_type));
+  bindings.push_back(
+      module.Make<ParametricBinding>(type_m_name_def, u32_type_annot, nullptr));
+  NameDef* type_n_name_def = module.Make<NameDef>(Span::Fake(), "N", nullptr);
+  bindings.push_back(
+      module.Make<ParametricBinding>(type_n_name_def, u32_type_annot, nullptr));
+
+  auto* struct_def = module.Make<StructDef>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr), bindings,
+      ast_members, /*is_public=*/false);
+  std::vector<std::unique_ptr<Type>> members;
+  members.push_back(BitsType::MakeU8());
+  members.push_back(BitsType::MakeU1());
+  StructType s(std::move(members), *struct_def);
+  EXPECT_THAT(s.GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(9)));
+  EXPECT_THAT(s.GetAllDims(),
+              ElementsAre(TypeDim::CreateU32(8), TypeDim::CreateU32(1)));
+  EXPECT_FALSE(s.HasEnum());
+  EXPECT_THAT(s.nominal_type_dims_by_identifier(), IsEmpty());
+
+  absl::flat_hash_map<std::string, TypeDim> nominal_dims = {
+      {"M", TypeDim(InterpValue::MakeU32(5))},
+      {"N", TypeDim(InterpValue::MakeU32(6))}};
+  std::unique_ptr<Type> type_with_nominal_dims =
+      s.AddNominalTypeDims(nominal_dims);
+  EXPECT_THAT(
+      type_with_nominal_dims->AsStruct().nominal_type_dims_by_identifier(),
+      UnorderedElementsAre(Pair("M", TypeDim(InterpValue::MakeU32(5))),
+                           Pair("N", TypeDim(InterpValue::MakeU32(6)))));
+}
+
+TEST(TypeTest, StructTypeNominalTypeDimsWithExpr) {
+  Module module("test", /*fs_path=*/std::nullopt);
+
+  std::vector<StructMember> ast_members;
+  ast_members.emplace_back(StructMember{
+      .name_span = kFakeSpan,
+      .name = "x",
+      .type = module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU8,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))});
+  ast_members.emplace_back(StructMember{
+      .name_span = kFakeSpan,
+      .name = "y",
+      .type = module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU1,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))});
+
+  std::vector<ParametricBinding*> bindings;
+  NameDef* type_m_name_def = module.Make<NameDef>(Span::Fake(), "M", nullptr);
+  BuiltinType u32_type = BuiltinTypeFromString("u32").value();
+  TypeAnnotation* u32_type_annot = module.Make<BuiltinTypeAnnotation>(
+      Span::Fake(), u32_type, module.GetOrCreateBuiltinNameDef(u32_type));
+  bindings.push_back(
+      module.Make<ParametricBinding>(type_m_name_def, u32_type_annot, nullptr));
+  NameRef* type_m_name_ref =
+      module.Make<NameRef>(Span::Fake(), "M", type_m_name_def);
+  // Type N = M + M.
+  NameDef* type_n_name_def = module.Make<NameDef>(
+      Span::Fake(), "N",
+      module.Make<Binop>(Span::Fake(), BinopKind::kAdd, type_m_name_ref,
+                         type_m_name_ref));
+  bindings.push_back(
+      module.Make<ParametricBinding>(type_n_name_def, u32_type_annot, nullptr));
+
+  auto* struct_def = module.Make<StructDef>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr), bindings,
+      ast_members, /*is_public=*/false);
+  std::vector<std::unique_ptr<Type>> members;
+  members.push_back(BitsType::MakeU8());
+  members.push_back(BitsType::MakeU1());
+  StructType s(std::move(members), *struct_def);
+  EXPECT_THAT(s.GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(9)));
+  EXPECT_THAT(s.GetAllDims(),
+              ElementsAre(TypeDim::CreateU32(8), TypeDim::CreateU32(1)));
+  EXPECT_FALSE(s.HasEnum());
+  EXPECT_THAT(s.nominal_type_dims_by_identifier(), IsEmpty());
+
+  absl::flat_hash_map<std::string, TypeDim> nominal_dims = {
+      {"M", TypeDim(InterpValue::MakeU32(5))}};
+  std::unique_ptr<Type> type_with_nominal_dims =
+      s.AddNominalTypeDims(nominal_dims);
+  EXPECT_THAT(
+      type_with_nominal_dims->AsStruct().nominal_type_dims_by_identifier(),
+      UnorderedElementsAre(Pair("M", TypeDim(InterpValue::MakeU32(5)))));
 }
 
 TEST(TypeTest, EmptyStructTypeIsNotUnit) {

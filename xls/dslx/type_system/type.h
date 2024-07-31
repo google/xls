@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
@@ -263,6 +264,17 @@ class Type {
   virtual absl::StatusOr<std::unique_ptr<Type>> MapSize(
       const MapFn& f) const = 0;
 
+  // Returns a clone of this type that retains concrete nominal type dimensions,
+  // if the subclass desires to do that for traceability (the base
+  // implementation is a no-op clone). For example, if a parameterized type
+  // `Foo<M: u32, N:u32>` is instantiated somewhere as `Foo<u32:5, u32:6>`, then
+  // during the creation of that instance of the type, the deduction system
+  // would call this function with the `dims` being `5` and `6`, in that order.
+  virtual std::unique_ptr<Type> AddNominalTypeDims(
+      absl::flat_hash_map<std::string, TypeDim>) const {
+    return CloneToUnique();
+  }
+
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const Type& other) const;
 
@@ -325,6 +337,14 @@ class MetaType : public Type {
     XLS_ASSIGN_OR_RETURN(auto wrapped, wrapped_->MapSize(f));
     return std::make_unique<MetaType>(std::move(wrapped));
   }
+
+  std::unique_ptr<Type> AddNominalTypeDims(
+      absl::flat_hash_map<std::string, TypeDim> dims_by_identifier)
+      const override {
+    return std::make_unique<MetaType>(
+        wrapped_->AddNominalTypeDims(std::move(dims_by_identifier)));
+  }
+
   std::unique_ptr<Type> CloneToUnique() const override {
     return std::make_unique<MetaType>(wrapped_->CloneToUnique());
   }
@@ -387,7 +407,9 @@ class StructType : public Type {
   // Note: members must correspond to struct_def's members (same length and
   // order).
   StructType(std::vector<std::unique_ptr<Type>> members,
-             const StructDef& struct_def);
+             const StructDef& struct_def,
+             absl::flat_hash_map<std::string, TypeDim>
+                 nominal_type_dims_by_identifier = {});
 
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleStruct(*this);
@@ -405,7 +427,8 @@ class StructType : public Type {
   bool IsAggregate() const override { return true; }
 
   std::unique_ptr<Type> CloneToUnique() const override {
-    return std::make_unique<StructType>(CloneSpan(members_), struct_def_);
+    return std::make_unique<StructType>(CloneSpan(members_), struct_def_,
+                                        nominal_type_dims_by_identifier_);
   }
 
   std::optional<int64_t> IndexOf(const Type& e) const {
@@ -441,15 +464,34 @@ class StructType : public Type {
 
   const StructDef& nominal_type() const { return struct_def_; }
 
+  // The values of any parametrics that were explicitly specified in
+  // instantiating this type. For example, on instantiating the type
+  // `Foo<M:u32, N:u32 = {M + M}>` with the type argument `5` for `M`, there
+  // would be one nominal type dim encapsulating the value `5`. A `StructType`
+  // object representing the abstract `Foo`, with nothing bound to `M` or `N`,
+  // would have empty nominal type dims. Either of those would have equivalent
+  // `nominal_type()` results, because `StructDef` is always the abstract
+  // struct.
+  const absl::flat_hash_map<std::string, TypeDim>&
+  nominal_type_dims_by_identifier() const {
+    return nominal_type_dims_by_identifier_;
+  }
+
   bool HasNamedMember(std::string_view target) const;
 
   int64_t size() const { return members_.size(); }
 
   const std::vector<std::unique_ptr<Type>>& members() const { return members_; }
 
+  std::unique_ptr<Type> AddNominalTypeDims(
+      absl::flat_hash_map<std::string, TypeDim> dims_by_identifier)
+      const override;
+
  private:
   std::vector<std::unique_ptr<Type>> members_;
   const StructDef& struct_def_;
+  const absl::flat_hash_map<std::string, TypeDim>
+      nominal_type_dims_by_identifier_;
 };
 
 // Represents a tuple type. Tuples have unnamed members.

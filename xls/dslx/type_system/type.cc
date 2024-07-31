@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -464,9 +465,13 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
 
 // -- StructType
 
-StructType::StructType(std::vector<std::unique_ptr<Type>> members,
-                       const StructDef& struct_def)
-    : members_(std::move(members)), struct_def_(struct_def) {
+StructType::StructType(
+    std::vector<std::unique_ptr<Type>> members, const StructDef& struct_def,
+    absl::flat_hash_map<std::string, TypeDim> nominal_type_dims_by_identifier)
+    : members_(std::move(members)),
+      struct_def_(struct_def),
+      nominal_type_dims_by_identifier_(
+          std::move(nominal_type_dims_by_identifier)) {
   CHECK_EQ(members_.size(), struct_def_.members().size());
   for (const std::unique_ptr<Type>& member_type : members_) {
     CHECK(!member_type->IsMeta()) << *member_type;
@@ -551,6 +556,20 @@ std::vector<TypeDim> StructType::GetAllDims() const {
   return results;
 }
 
+std::unique_ptr<Type> StructType::AddNominalTypeDims(
+    absl::flat_hash_map<std::string, TypeDim> dims_by_identifier) const {
+  // Note that there may be no specified nominal dims for bindings that have
+  // expressions.
+  CHECK_LE(dims_by_identifier.size(), struct_def_.parametric_bindings().size());
+  std::vector<std::unique_ptr<Type>> cloned_members;
+  cloned_members.reserve(members_.size());
+  for (auto& next : members_) {
+    cloned_members.push_back(next->CloneToUnique());
+  }
+  return std::make_unique<StructType>(std::move(cloned_members), struct_def_,
+                                      std::move(dims_by_identifier));
+}
+
 absl::StatusOr<TypeDim> StructType::GetTotalBitCount() const {
   auto sum = TypeDim::CreateU32(0);
   for (const std::unique_ptr<Type>& t : members_) {
@@ -568,7 +587,8 @@ absl::StatusOr<std::unique_ptr<Type>> StructType::MapSize(
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> mapped, member->MapSize(f));
     new_members.push_back(std::move(mapped));
   }
-  return std::make_unique<StructType>(std::move(new_members), struct_def_);
+  return std::make_unique<StructType>(std::move(new_members), struct_def_,
+                                      nominal_type_dims_by_identifier_);
 }
 
 bool StructType::HasNamedMember(std::string_view target) const {
