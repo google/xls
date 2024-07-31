@@ -359,7 +359,7 @@ absl::Status StitchSingleValueChannel(
         subblock_input->port->function_base()->AsBlockOrDie());
     if (subblock_inst_iter == instantiations.end()) {
       return absl::NotFoundError(absl::StrCat(
-          "Could not find inst for ", *subblock_output->port->function_base()));
+          "Could not find inst for ", *subblock_input->port->function_base()));
     }
     return container
         ->MakeNode<InstantiationInput>(SourceInfo(), input_node,
