@@ -408,12 +408,10 @@ cc_test(
     name = "function_jit_test",
     timeout = "long",
     srcs = ["function_jit_test.cc"],
-    # 2020-01-08 //xls/jit/function_jit_test \
-    #               --gtest_list_tests 2>/dev/null | wc -l
-    # shows ~140
+    # 2024-07-30 <//xls/jit:function_jit_test binary>
+    #               --gunit_list_tests 2>/dev/null | wc -l
+    # shows ~200
     shard_count = 50,
-    # TODO(meheff): Make sure the target can be build with FuzzTest.
-    tags = ["noautofuzz"],
     deps = [
         ":function_base_jit",
         ":function_jit",
@@ -727,8 +725,6 @@ cc_library(
 cc_test(
     name = "block_jit_test",
     srcs = ["block_jit_test.cc"],
-    # TODO(meheff): Make sure the target can be build with FuzzTest.
-    tags = ["noautofuzz"],
     deps = [
         ":block_jit",
         "//xls/common:xls_gunit_main",
