@@ -41,6 +41,7 @@
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 
 namespace xls::verilog {
@@ -50,9 +51,7 @@ namespace {
 // Returns a map that identifies each block with its instantiation in the
 // container block.
 absl::StatusOr<absl::flat_hash_map<Block*, ::xls::Instantiation*>>
-InstantiateBlocksInContainer(
-    Block* container,
-    const std::optional<::xls::verilog::ResetProto>& reset_proto) {
+InstantiateBlocksInContainer(Block* container, const CodegenOptions& options) {
   std::vector<Block*> blocks_to_instantiate;
   for (std::unique_ptr<Block>& block : container->package()->blocks()) {
     if (block.get() == container) {
@@ -61,6 +60,10 @@ InstantiateBlocksInContainer(
     blocks_to_instantiate.push_back(block.get());
   }
   absl::c_sort(blocks_to_instantiate, &FunctionBase::NameLessThan);
+  std::vector<Node*> idle_outputs;
+  if (options.add_idle_output()) {
+    idle_outputs.reserve(blocks_to_instantiate.size());
+  }
   // Instantiate all blocks in the container block.
   absl::flat_hash_map<Block*, ::xls::Instantiation*> instantiations;
   for (Block* block : blocks_to_instantiate) {
@@ -82,8 +85,23 @@ InstantiateBlocksInContainer(
                                   instantiation, (*block_reset)->GetName())
                               .status());
     } else {
-      XLS_RET_CHECK(!reset_proto.has_value());
+      XLS_RET_CHECK(!options.reset().has_value());
     }
+    // Connect idle output if it exists.
+    if (options.add_idle_output()) {
+      XLS_ASSIGN_OR_RETURN(Node * block_idle_output,
+                           container->MakeNode<xls::InstantiationOutput>(
+                               SourceInfo(), instantiation, "idle"));
+      idle_outputs.push_back(block_idle_output);
+    }
+  }
+
+  if (options.add_idle_output()) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * container_idle_output,
+        container->MakeNode<xls::NaryOp>(SourceInfo(), idle_outputs, Op::kAnd));
+    XLS_RETURN_IF_ERROR(
+        container->AddOutputPort("idle", container_idle_output).status());
   }
   return instantiations;
 }
@@ -449,7 +467,7 @@ absl::Status StitchBlocks(CodegenPassUnit& unit,
   auto channel_map = ChannelMap::Create(unit);
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<Block*, ::xls::Instantiation*> instantiations),
-      InstantiateBlocksInContainer(unit.top_block, options.reset()));
+      InstantiateBlocksInContainer(unit.top_block, options));
   std::vector<Channel*> channels_sorted_by_name;
   channels_sorted_by_name.reserve(unit.package->channels().size());
   for (Channel* channel : unit.package->channels()) {
@@ -509,11 +527,7 @@ absl::StatusOr<bool> BlockStitchingPass::RunInternal(
     return false;
   }
 
-  // TODO: google/xls#1336 - support these codegen options.
-  if (options.codegen_options.add_idle_output()) {
-    return absl::UnimplementedError(
-        "Idle output is not supported by block stitching.");
-  }
+  // TODO: google/xls#1336 - support this codegen option.
   if (options.codegen_options.split_outputs()) {
     return absl::UnimplementedError(
         "Splitting outputs is not supported by block stitching.");

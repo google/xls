@@ -1536,6 +1536,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:name_uniquer",
+        "//xls/ir:op",
         "//xls/ir:source_location",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",

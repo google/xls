@@ -112,12 +112,26 @@ FifoConfig FifoConfigWithDepth(int64_t depth) {
                     /*register_pop_outputs=*/false);
 }
 
+CodegenOptions DefaultCodegenOptions() {
+  return CodegenOptions()
+      .flop_inputs(false)
+      .flop_outputs(false)
+      .clock_name("clk")
+      .valid_control("input_valid", "output_valid")
+      .reset("rst", false, false, true)
+      .streaming_channel_data_suffix("_data")
+      .streaming_channel_valid_suffix("_valid")
+      .streaming_channel_ready_suffix("_ready");
+}
+
 // Run channel legalization, multi-proc scheduling, block conversion,
 // side-effect condition pass, and ultimately the  block stitching pass on the
 // given package. If `unit_out` is non-null, the codegen unit will be returned
 // in it.
 absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
-    Package* p, std::string_view top_name = "top_proc") {
+    Package* p, std::string_view top_name = "top_proc",
+    CodegenOptions options = DefaultCodegenOptions()) {
+  options.module_name(top_name);
   if (!p->GetTop().has_value()) {
     XLS_RETURN_IF_ERROR(p->SetTop(p->GetFunctionBases().front()));
   }
@@ -138,15 +152,6 @@ absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
                                     .schedule_all_procs(true),
                                 &delay_estimator));
   XLS_RET_CHECK(std::holds_alternative<PackagePipelineSchedules>(schedule));
-
-  CodegenOptions options;
-  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
-  options.valid_control("input_valid", "output_valid");
-  options.reset("rst", false, false, true);
-  options.streaming_channel_data_suffix("_data");
-  options.streaming_channel_valid_suffix("_valid");
-  options.streaming_channel_ready_suffix("_ready");
-  options.module_name(top_name);
 
   XLS_ASSIGN_OR_RETURN(
       CodegenPassUnit unit,
@@ -534,6 +539,52 @@ TEST_F(BlockStitchingPassTest, StitchBlockWithFfi) {
   EXPECT_THAT(p->blocks(), UnorderedElementsAre(m::Block("top_proc__1"),
                                                 m::Block("top_proc"),
                                                 m::Block(proc1->name())));
+}
+
+TEST_F(BlockStitchingPassTest, StitchBlockWithIdleOutput) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ch0,
+      p->CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ch1,
+      p->CreateStreamingChannel("ch1", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{},
+                                /*fifo_config=*/
+                                FifoConfigWithDepth(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ch2,
+      p->CreateStreamingChannel("ch2", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb0(absl::StrCat(TestName(), 0), p.get());
+  BValue rcv0 = pb0.Receive(ch0, pb0.AfterAll({}));
+  pb0.Send(ch1, pb0.TupleIndex(rcv0, 0), pb0.TupleIndex(rcv0, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc0, pb0.Build());
+
+  ProcBuilder pb1(absl::StrCat(TestName(), 1), p.get());
+  BValue rcv1 = pb1.Receive(ch1, pb1.AfterAll({}));
+  pb1.Send(ch2, pb1.TupleIndex(rcv1, 0), pb1.TupleIndex(rcv1, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
+  XLS_ASSERT_OK(p->SetTop(proc0));
+
+  EXPECT_THAT(RunBlockStitchingPass(
+                  p.get(), /*top_name=*/"top_proc",
+                  /*options=*/DefaultCodegenOptions().add_idle_output(true)),
+              IsOkAndHolds(Pair(true, _)));
+  EXPECT_THAT(p->blocks(), UnorderedElementsAre(m::Block("top_proc__1"),
+                                                m::Block("top_proc"),
+                                                m::Block(proc1->name())));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
+  ASSERT_EQ(top_block->GetInstantiations().size(), 2);
+  EXPECT_THAT(
+      top_block->nodes(),
+      Contains(m::OutputPort(
+          "idle", m::And(m::InstantiationOutput(
+                             "idle", top_block->GetInstantiations().at(0)),
+                         m::InstantiationOutput(
+                             "idle", top_block->GetInstantiations().at(1))))));
 }
 
 std::string ValueMapToString(
