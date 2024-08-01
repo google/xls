@@ -624,10 +624,6 @@ cc_test(
         "//xls/examples:custom_schedule.schedule_options.textproto",
         "//xls/examples:custom_schedule.sig.textproto",
     ],
-    tags = [
-        # TODO(mikex): Remove once linking issue is resolved.
-        "nofuzzing",
-    ],
     deps = [
         ":module_signature_cc_proto",
         "//xls/common:xls_gunit_main",
