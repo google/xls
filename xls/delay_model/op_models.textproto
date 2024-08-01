@@ -519,7 +519,8 @@ op_models {
   op: "kArrayIndex"
   # Array index is basically a mux. The width of the mux is the result width,
   # and the fan-in factor of the mux is (flattened array width / result width).
-  # TODO: Why don't we directly use operand 0's OPERAND_ELEMENT_COUNT?
+  # We can't directly use operand 0's OPERAND_ELEMENT_COUNT, since we might be
+  # indexing more than one step into a multidimensional array.
   estimator {
     regression {
       expressions {
