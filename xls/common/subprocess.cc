@@ -15,16 +15,16 @@
 #include "xls/common/subprocess.h"
 
 #include <fcntl.h>
-#include <poll.h>    // IWYU pragma: keep
 #include <signal.h>  // NOLINT
 #include <spawn.h>
+#include <stdlib.h>  // NOLINT for WIFEXITED, WEXITSTATUS; not in <cstdlib>
+#include <sys/poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <atomic>
 #include <cerrno>
-#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <filesystem>  // NOLINT
