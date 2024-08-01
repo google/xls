@@ -27,9 +27,6 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
   static const absl::NoDestructor<
       absl::flat_hash_map<std::string, BuiltinsData>>
       map({
-          {"add_with_carry",
-           {.signature = "(uN[T], uN[T]) -> (u1, uN[T])",
-            .is_ast_node = false}},
           {"assert_eq", {.signature = "(T, T) -> ()", .is_ast_node = false}},
           {"assert_lt",
            {.signature = "(xN[N], xN[N]) -> ()", .is_ast_node = false}},

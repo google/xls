@@ -403,17 +403,6 @@ absl::Status RunBuiltinUMulp(const Bytecode& bytecode,
       stack);
 }
 
-absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode,
-                                    InterpreterStack& stack) {
-  VLOG(3) << "Executing builtin AddWithCarry.";
-  XLS_RET_CHECK_GE(stack.size(), 2);
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, stack.Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue rhs, stack.Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.AddWithCarry(rhs));
-  stack.Push(result);
-  return absl::OkStatus();
-}
-
 absl::Status RunBuiltinAndReduce(const Bytecode& bytecode,
                                  InterpreterStack& stack) {
   VLOG(3) << "Executing builtin AndReduce.";

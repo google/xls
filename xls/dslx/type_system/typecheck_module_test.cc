@@ -1211,14 +1211,6 @@ fn f(x: u32) -> u32 {
           HasSubstr("Test type for conditional expression is not \"bool\"")));
 }
 
-TEST(TypecheckTest, AddWithCarryBuiltin) {
-  XLS_EXPECT_OK(Typecheck(R"(
-fn f(x: u32) -> (u1, u32) {
-  add_with_carry(x, x)
-}
-)"));
-}
-
 TEST(TypecheckErrorTest, ArraySizeOfBitsType) {
   EXPECT_THAT(
       Typecheck(R"(

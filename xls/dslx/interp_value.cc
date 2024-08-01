@@ -542,26 +542,6 @@ absl::StatusOr<InterpValue> InterpValue::Mul(const InterpValue& other) const {
   return InterpValue(tag_, bits_ops::UMul(lhs, rhs).Slice(0, lhs.bit_count()));
 }
 
-absl::StatusOr<InterpValue> InterpValue::AddWithCarry(
-    const InterpValue& other) const {
-  XLS_RET_CHECK(IsUBits());
-  XLS_RET_CHECK(other.IsUBits());
-  XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
-  XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
-
-  // First zero-extend the operands so we can observe the carry bit in the
-  // result.
-  int64_t extended = std::max(lhs.bit_count(), rhs.bit_count()) + 1;
-  Bits new_lhs = bits_ops::ZeroExtend(lhs, extended);
-  Bits new_rhs = bits_ops::ZeroExtend(rhs, extended);
-  Bits result = bits_ops::Add(new_lhs, new_rhs);
-  InterpValue low_bits(InterpValueTag::kUBits,
-                       result.Slice(0, /*width=*/extended - 1));
-  InterpValue carry(InterpValueTag::kUBits,
-                    result.Slice(extended - 1, /*width=*/1));
-  return InterpValue::MakeTuple({carry, low_bits});
-}
-
 absl::StatusOr<InterpValue> InterpValue::Slice(
     const InterpValue& start, const InterpValue& length) const {
   if (IsBits()) {

@@ -1322,20 +1322,6 @@ fn main() -> u32 {
   EXPECT_EQ(int_value, 300);
 }
 
-TEST(BytecodeInterpreterTest, BuiltinAddWithCarry) {
-  constexpr std::string_view kProgram = R"(
-fn main() -> (u1, u8) {
-  let x = u8:0xff;
-  let y = u8:0x2;
-  add_with_carry(x, y)
-})";
-
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue actual, Interpret(kProgram, "main"));
-  auto expected = InterpValue::MakeTuple(
-      {InterpValue::MakeUBits(1, 1), InterpValue::MakeUBits(8, 1)});
-  EXPECT_TRUE(expected.Eq(actual));
-}
-
 TEST(BytecodeInterpreterTest, BuiltinBitSliceUpdate) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {

@@ -61,8 +61,6 @@ absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode,
 // Common handler for the range bytecode and builtin range() fn.
 absl::Status BuiltinRangeInternal(InterpreterStack& stack);
 
-absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode,
-                                    InterpreterStack& stack);
 absl::Status RunBuiltinAndReduce(const Bytecode& bytecode,
                                  InterpreterStack& stack);
 absl::Status RunBuiltinClz(const Bytecode& bytecode, InterpreterStack& stack);

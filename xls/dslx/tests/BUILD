@@ -69,11 +69,6 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "simple_add_with_carry_builtin",
-    convert_to_ir = False,
-)
-
 dslx_lang_test(name = "builtin_zip")
 
 dslx_lang_test(

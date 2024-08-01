@@ -30,18 +30,6 @@ e.g. special side-effects".
     potentially enable optimizations and analyses on their higher level ("lifted")
     form. As of now, `map` is the sole parallel-primitive-oriented built-in.
 
-### `add_with_carry`
-
-Operation that produces the result of the add, as well as the carry bit as an
-output. The binary add operators works similar to software programming
-languages, preserving the length of the input operands, so this built-in can
-assist when easy access to the carry out value is desired. Has the following
-signature:
-
-```
-fn add_with_carry<N>(x: uN[N], y: uN[N]) -> (u1, uN[N])
-```
-
 ### `array_size`
 
 `array_size` returns the number of elements in a given array-typed argument.

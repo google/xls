@@ -28,7 +28,6 @@
 namespace xls::dslx {
 
 #define XLS_DSLX_BUILTIN_EACH(X)          \
-  X("add_with_carry", kAddWithCarry)      \
   X("and_reduce", kAndReduce)             \
   X("array_rev", kArrayRev)               \
   X("array_size", kArraySize)             \

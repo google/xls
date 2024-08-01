@@ -1363,8 +1363,6 @@ absl::Status BytecodeInterpreter::EvalXor(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
                                                Builtin builtin) {
   switch (builtin) {
-    case Builtin::kAddWithCarry:
-      return RunBuiltinAddWithCarry(bytecode, stack_);
     case Builtin::kAndReduce:
       return RunBuiltinAndReduce(bytecode, stack_);
     case Builtin::kAssertEq:
