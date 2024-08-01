@@ -529,13 +529,13 @@ class RegressionEstimator(Estimator):
     return self.delay_function(xargs)
 
   def cpp_delay_code(self, node_identifier: str) -> str:
-    terms = [repr(self.params[0])]
+    terms = [repr(float(self.params[0]))]
     for i, expression in enumerate(self.delay_expressions):
       e_str = _delay_expression_cpp_expression(expression, node_identifier)
-      terms.append('{!r} * {}'.format(self.params[2 * i + 1], e_str))
+      terms.append('{!r} * {}'.format(float(self.params[2 * i + 1]), e_str))
       terms.append(
           '{w!r} * std::log2({e} < 1.0 ? 1.0 : {e})'.format(
-              w=self.params[2 * i + 2], e=e_str
+              w=float(self.params[2 * i + 2]), e=e_str
           )
       )
     return 'return std::round({});'.format(' + '.join(terms))
