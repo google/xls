@@ -14,6 +14,7 @@
 
 #include "xls/passes/dfe_pass.h"
 
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -24,9 +25,9 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/data_structures/union_find.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"  // IWYU pragma: keep
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
@@ -91,7 +92,14 @@ struct FunctionBaseLiveness {
   absl::flat_hash_set<Channel*> live_global_channels;
 };
 
-absl::StatusOr<FunctionBaseLiveness> LivenessFromTopProc(Proc* top) {
+// Analyzes the package to determine which Procs are live. For
+// old-style procs, this is determined by looking for procs that use external
+// channels (i.e send_only or receive_only) or procs that communicate with other
+// live procs over internal channels. For new-style procs, this is determined by
+// looking at the procs that are instantiated by the top proc.
+//
+// The top proc is always considered live.
+absl::StatusOr<FunctionBaseLiveness> ProcLiveness(Proc* top) {
   if (top->is_new_style_proc()) {
     XLS_ASSIGN_OR_RETURN(ProcElaboration elab, ProcElaboration::Elaborate(top));
     return FunctionBaseLiveness{.live_roots = std::vector<FunctionBase*>(
@@ -101,57 +109,51 @@ absl::StatusOr<FunctionBaseLiveness> LivenessFromTopProc(Proc* top) {
 
   Package* p = top->package();
 
-  // Mapping from proc to channel, where channel is a representative value for
-  // all the channel names in the UnionFind. If the proc uses no channels then
-  // the value will be nullopt.
-  absl::flat_hash_map<Proc*, std::optional<std::string_view>>
-      representative_channels;
-  representative_channels.reserve(p->procs().size());
-  // Channels in the same proc will be union'd.
-  UnionFind<std::string_view> channel_union;
-  for (const std::unique_ptr<Proc>& proc : p->procs()) {
-    std::optional<std::string_view> representative_proc_channel;
+  std::deque<Proc*> worklist;
+  absl::flat_hash_map<Channel*, std::vector<Proc*>> channel_to_proc;
+  absl::flat_hash_map<Proc*, std::vector<Channel*>> proc_to_channel;
+
+  worklist.push_back(top);
+  for (std::unique_ptr<Proc>& proc : p->procs()) {
+    auto [proc_to_channel_iter, inserted] =
+        proc_to_channel.insert({proc.get(), {}});
+    bool saw_channel = false;
     for (Node* node : proc->nodes()) {
-      if (IsChannelNode(node)) {
-        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-        channel_union.Insert(channel->name());
-        if (representative_proc_channel.has_value()) {
-          channel_union.Union(representative_proc_channel.value(),
-                              channel->name());
-        } else {
-          representative_proc_channel = channel->name();
-        }
+      if (!IsChannelNode(node)) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      channel_to_proc[channel].push_back(proc.get());
+      proc_to_channel_iter->second.push_back(channel);
+
+      if (channel->supported_ops() == ChannelOps::kSendReceive) {
+        continue;
+      }
+      if (!saw_channel) {
+        worklist.push_back(proc.get());
+        saw_channel = true;
       }
     }
-    representative_channels[proc.get()] = representative_proc_channel;
   }
 
   FunctionBaseLiveness liveness;
+  absl::flat_hash_set<Proc*> seen;
+  while (!worklist.empty()) {
+    Proc* proc = worklist.front();
+    liveness.live_roots.push_back(proc);
+    seen.insert(proc);
 
-  // Add procs to the live set if they are connected to `top` via channels.
-  for (const std::unique_ptr<Proc>& proc : p->procs()) {
-    if (proc.get() == top) {
-      liveness.live_roots.push_back(proc.get());
-      continue;
-    }
-    if (representative_channels.at(top).has_value() &&
-        representative_channels.at(proc.get()) &&
-        channel_union.Find(representative_channels.at(top).value()) ==
-            channel_union.Find(
-                representative_channels.at(proc.get()).value())) {
-      liveness.live_roots.push_back(proc.get());
-    }
-  }
-
-  // Add channels to the live set if they are connected to `top`.
-  if (representative_channels.at(top).has_value()) {
-    for (Channel* channel : p->channels()) {
-      if (channel_union.Find(channel->name()) ==
-          channel_union.Find(representative_channels.at(top).value())) {
-        liveness.live_global_channels.insert(channel);
+    for (Channel* channel : proc_to_channel.at(proc)) {
+      liveness.live_global_channels.insert(channel);
+      for (Proc* proc_for_channel : channel_to_proc.at(channel)) {
+        if (!seen.contains(proc_for_channel)) {
+          worklist.push_back(proc_for_channel);
+        }
       }
     }
+    worklist.pop_front();
   }
+
   return liveness;
 }
 
@@ -169,7 +171,7 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
 
   FunctionBaseLiveness liveness;
   if ((*top)->IsProc()) {
-    XLS_ASSIGN_OR_RETURN(liveness, LivenessFromTopProc((*top)->AsProcOrDie()));
+    XLS_ASSIGN_OR_RETURN(liveness, ProcLiveness((*top)->AsProcOrDie()));
   } else {
     liveness.live_roots = {*top};
   }

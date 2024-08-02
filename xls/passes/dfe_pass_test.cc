@@ -166,10 +166,10 @@ TEST_F(DeadFunctionEliminationPassTest, MultipleProcs) {
       p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_in_c,
-      p->CreateStreamingChannel("in_c", ChannelOps::kReceiveOnly, u32));
+      p->CreateStreamingChannel("in_c", ChannelOps::kSendReceive, u32));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out_c,
-      p->CreateStreamingChannel("out_c", ChannelOps::kSendOnly, u32));
+      p->CreateStreamingChannel("out_c", ChannelOps::kSendReceive, u32));
 
   {
     TokenlessProcBuilder b("A", "tkn", p.get());
@@ -188,22 +188,25 @@ TEST_F(DeadFunctionEliminationPassTest, MultipleProcs) {
     b.Send(ch_out_c, b.Receive(ch_in_c));
     XLS_ASSERT_OK(b.Build({}).status());
   }
+  {
+    TokenlessProcBuilder b("D", "tkn", p.get());
+    b.Send(ch_in_c, b.Receive(ch_out_c));
+    XLS_ASSERT_OK(b.Build({}).status());
+  }
 
-  // Proc "C" should be removed as well as the its channels.
-  EXPECT_EQ(p->procs().size(), 3);
+  // Procs "C" and "D" should be removed as well as their channels.
+  EXPECT_EQ(p->procs().size(), 4);
   XLS_EXPECT_OK(p->GetProc("C").status());
+  XLS_EXPECT_OK(p->GetProc("D").status());
   EXPECT_EQ(p->channels().size(), 6);
   XLS_EXPECT_OK(p->GetChannel("in_c").status());
   XLS_EXPECT_OK(p->GetChannel("out_c").status());
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
-  EXPECT_EQ(p->procs().size(), 2);
-  EXPECT_THAT(p->GetProc("C"), StatusIs(absl::StatusCode::kNotFound));
-  EXPECT_EQ(p->channels().size(), 4);
-  EXPECT_THAT(p->GetChannel("in_c").status(),
-              StatusIs(absl::StatusCode::kNotFound));
-  EXPECT_THAT(p->GetChannel("out_c"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(p->procs(), UnorderedElementsAre(m::Proc("A"), m::Proc("B")));
+  EXPECT_THAT(p->channels(), Not(AnyOf(Contains(m::Channel("in_c")),
+                                       Contains(m::Channel("out_c")))));
 }
 
 TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
@@ -299,17 +302,18 @@ TEST_F(DeadFunctionEliminationPassTest, BlockWithInstantiation) {
               StatusIs(absl::StatusCode::kNotFound));
 }
 
-TEST_F(DeadFunctionEliminationPassTest, ProcsUsingTheSameExternalChannels) {
+TEST_F(DeadFunctionEliminationPassTest, ProcsUsingExternalChannels) {
   // The following IR shows procs 'connected' only by their communication on
   // external channels. test_proc0 and test_proc1 use channel a, and test_proc1
   // and test_proc2 both use channel b. test_proc2 also calls a function
   // (negate). All of these should *not* be removed by DFE. test_proc3, however,
-  // is the only proc that uses channel d and should be removed by DFE.
+  // is the only proc that doesn't use an external channel (channel d is
+  // internal), so it should be removed by DFE.
   constexpr std::string_view ir_text = R"(package text
 chan a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan d(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
 
 top proc test_proc0(state:(), init={()}) {
   tkn: token = literal(value=token)
@@ -342,8 +346,10 @@ proc test_proc2(state:(), init={()}) {
 
 proc test_proc3(state:(), init={()}) {
   tkn: token = literal(value=token)
-  literal0: bits[32] = literal(value=0)
-  send_token: token = send(tkn, literal0, channel=d)
+  rcv: (token, bits[32]) = receive(tkn, channel=d)
+  rcv_token: token = tuple_index(rcv, index=0)
+  rcv_data: bits[32] = tuple_index(rcv, index=1)
+  send_token: token = send(rcv_token, rcv_data, channel=d)
   next (state)
 }
 )";
@@ -363,11 +369,11 @@ proc test_proc3(state:(), init={()}) {
 }
 
 TEST_F(DeadFunctionEliminationPassTest, TopProcWithNoChannelsWork) {
+  // All the other procs are talking over internal channels and are therefore
+  // not observable and can be removed.
   constexpr std::string_view ir_text = R"(package text
-chan a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan a(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
+chan b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
 
 top proc test_proc0(state:(), init={()}) {
   next (state)
@@ -388,18 +394,18 @@ fn negate(in: bits[32]) -> bits[32] {
 
 proc test_proc2(state:(), init={()}) {
   tkn: token = literal(value=token)
-  rcv: (token, bits[32]) = receive(tkn, channel=c)
+  rcv: (token, bits[32]) = receive(tkn, channel=b)
   rcv_token: token = tuple_index(rcv, index=0)
   rcv_data: bits[32] = tuple_index(rcv, index=1)
   send_data: bits[32] = invoke(rcv_data, to_apply=negate)
-  send_token: token = send(rcv_token, rcv_data, channel=b)
+  send_token: token = send(rcv_token, rcv_data, channel=a)
   next (state)
 }
 
 proc test_proc3(state:(), init={()}) {
   tkn: token = literal(value=token)
   literal0: bits[32] = literal(value=0)
-  send_token: token = send(tkn, literal0, channel=d)
+  send_token: token = send(tkn, literal0, channel=a)
   next (state)
 }
 )";
