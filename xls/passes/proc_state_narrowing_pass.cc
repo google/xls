@@ -469,10 +469,16 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
     const NodeDependencyAnalysis& nda) {
   ConstantValueIrInterpreter interp;
   std::vector<DependencyBitmap> next_deps;
+  absl::flat_hash_set<Node*> visited_next_values;
   XLS_RET_CHECK(orig_param->GetType()->IsBits());
   Proc* proc = orig_param->function_base()->AsProcOrDie();
   next_deps.reserve(proc->next_values(orig_param).size());
+  visited_next_values.reserve(proc->next_values(orig_param).size());
   for (Next* n : proc->next_values(orig_param)) {
+    if (auto [it, inserted] = visited_next_values.insert(n->value());
+        !inserted) {
+      continue;
+    }
     XLS_ASSIGN_OR_RETURN(DependencyBitmap bm, nda.GetDependents(n->value()));
     next_deps.push_back(bm);
   }
@@ -489,7 +495,12 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
   }
   absl::flat_hash_set<Bits> param_values;
   param_values.insert(proc->GetInitValue(orig_param)->bits());
+  visited_next_values.clear();
   for (Next* n : proc->next_values(orig_param)) {
+    if (auto [it, inserted] = visited_next_values.insert(n->value());
+        !inserted) {
+      continue;
+    }
     const auto& values = interp.values();
     if (!values.contains(n->value())) {
       continue;
@@ -575,7 +586,13 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
 
     // Get what this says all ranges are.
     IntervalSet run_intervals = active_intervals;
+    absl::flat_hash_set<Node*> visited_next_values;
+    visited_next_values.reserve(proc->next_values(param).size());
     for (Next* n : proc->next_values(param)) {
+      if (auto [it, inserted] = visited_next_values.insert(n->value());
+          !inserted) {
+        continue;
+      }
       // Nexts which don't update anything don't need to be taken into account.
       if (n->value() != n->param() &&
           (!n->predicate() || !rqe.IsAllZeros(*n->predicate()))) {
