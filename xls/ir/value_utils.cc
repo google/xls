@@ -48,6 +48,7 @@ Value ValueOfType(Type* type,
     }
     case TypeKind::kArray: {
       std::vector<Value> elements;
+      elements.reserve(type->AsArrayOrDie()->size());
       for (int64_t i = 0; i < type->AsArrayOrDie()->size(); ++i) {
         elements.push_back(
             ValueOfType(type->AsArrayOrDie()->element_type(), fbits));

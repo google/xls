@@ -304,6 +304,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const BValue> case_clauses,
         loc);
   }
   std::vector<Case> cases;
+  cases.reserve(case_clauses.size());
   for (int64_t i = 0; i < case_clauses.size(); ++i) {
     cases.push_back(Case{case_clauses[i], case_values[i]});
   }

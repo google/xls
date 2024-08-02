@@ -63,6 +63,7 @@ VB BuilderFromBoxedValue(LeafTypeTreeView<std::vector<BoxedBool>> input) {
   }
   if (input.type()->IsTuple()) {
     std::vector<VB> elements;
+    elements.reserve(input.type()->AsTupleOrDie()->size());
     for (int64_t i = 0; i < input.type()->AsTupleOrDie()->size(); ++i) {
       elements.push_back(BuilderFromBoxedValue(input.AsView({i})));
     }
@@ -70,6 +71,7 @@ VB BuilderFromBoxedValue(LeafTypeTreeView<std::vector<BoxedBool>> input) {
   }
   CHECK(input.type()->IsArray());
   std::vector<VB> elements;
+  elements.reserve(input.type()->AsArrayOrDie()->size());
   for (int64_t i = 0; i < input.type()->AsArrayOrDie()->size(); ++i) {
     elements.push_back(BuilderFromBoxedValue(input.AsView({i})));
   }
