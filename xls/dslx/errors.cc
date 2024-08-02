@@ -22,6 +22,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_record.h"
@@ -29,6 +30,21 @@
 #include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
+namespace {
+
+template <typename TypeOrAnnotation>
+absl::Status TypeInferenceErrorStatusInternal(
+    const Span& span, const TypeOrAnnotation* type_or_annotation,
+    std::string_view message) {
+  std::string type_str;
+  if (type_or_annotation != nullptr) {
+    type_str = type_or_annotation->ToString() + " ";
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "TypeInferenceError: %s %s%s", span.ToString(), type_str, message));
+}
+
+}  // namespace
 
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
                                          std::string_view message) {
@@ -57,12 +73,13 @@ absl::Status InvalidIdentifierErrorStatus(const Span& span,
 
 absl::Status TypeInferenceErrorStatus(const Span& span, const Type* type,
                                       std::string_view message) {
-  std::string type_str;
-  if (type != nullptr) {
-    type_str = type->ToString() + " ";
-  }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "TypeInferenceError: %s %s%s", span.ToString(), type_str, message));
+  return TypeInferenceErrorStatusInternal(span, type, message);
+}
+
+absl::Status TypeInferenceErrorStatusForAnnotation(
+    const Span& span, const TypeAnnotation* type_annotation,
+    std::string_view message) {
+  return TypeInferenceErrorStatusInternal(span, type_annotation, message);
 }
 
 absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user) {

@@ -14,17 +14,24 @@
 
 #include "xls/dslx/type_system/typecheck_function.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -60,6 +67,67 @@ void WarnIfConfusinglyNamedLikeTest(Function& f, DeduceCtx* ctx) {
                         "not marked as a unit test via #[test]",
                         f.identifier()));
   }
+}
+
+// Checks that an actual `TypeDim` for one parametric argument matches that of a
+// formal type (e.g. a `TypeDim` in an actual return type of a function vs. the
+// counterpart `TypeDim` in its declared return type).
+absl::Status TypecheckParametric(
+    const TypeDim& actual_dim, const TypeDim& formal_dim,
+    const TypeRefTypeAnnotation* formal_containing_type, const Span& error_span,
+    DeduceCtx* ctx) {
+  // Note that, in the case of a struct type with a nominal dim that is an
+  // actual constant, as in
+  //    `const FOO = u32:3;`
+  //     fn f() -> S<FOO> { ... }`
+  // the value of the `TypeDim` in that instance of `S` is a `ParametricSymbol`
+  // referencing `FOO`, which there is no good way to evaluate. We can't tie
+  // that back to the `NameDef`, due to `ParametricExpression` being like a
+  // separate AST. So for now, we only attempt to check dims that have been
+  // reduced to an `InterpValue`.
+  absl::StatusOr<int64_t> actual_dim_value = actual_dim.GetAsInt64();
+  absl::StatusOr<int64_t> formal_dim_value = formal_dim.GetAsInt64();
+  if (actual_dim_value.ok() && formal_dim_value.ok() &&
+      actual_dim_value != formal_dim_value) {
+    return TypeInferenceErrorStatusForAnnotation(
+        error_span, formal_containing_type,
+        absl::StrFormat(
+            "Parametric argument of the returned value does not match the "
+            "function return type. Expected %s; got %s.",
+            formal_dim.ToString(), actual_dim.ToString()));
+  }
+  return absl::OkStatus();
+}
+
+// Checks that the parametric values in the actual type of a struct match the
+// formal type (e.g., the actual return value of a function vs. its declared
+// return type).
+absl::Status TypecheckStructParametrics(
+    const StructType& actual_type, const TypeRefTypeAnnotation* formal_type,
+    const Span& error_span, DeduceCtx* ctx) {
+  const absl::flat_hash_map<std::string, TypeDim>& actual_nominal_dims =
+      actual_type.nominal_type_dims_by_identifier();
+  const std::vector<ExprOrType>& formal_parametrics =
+      formal_type->parametrics();
+  // There may be fewer actual parametrics specified than formal ones, in
+  // which case the later formal ones are derived via expressions and not
+  // relevant to this check. If there are too many actual ones, that is caught
+  // elsewhere.
+  const size_t dim_count_to_check =
+      std::min(actual_nominal_dims.size(), formal_parametrics.size());
+  for (int i = 0; i < dim_count_to_check; i++) {
+    Expr* formal_type_expr = std::get<Expr*>(formal_parametrics[i]);
+    XLS_ASSIGN_OR_RETURN(TypeDim formal_dim,
+                         DimToConcreteUsize(formal_type_expr, ctx));
+    const auto actual_dim_it = actual_nominal_dims.find(
+        actual_type.nominal_type().parametric_bindings()[i]->identifier());
+    if (actual_dim_it != actual_nominal_dims.end()) {
+      const TypeDim& actual_dim = actual_dim_it->second;
+      XLS_RETURN_IF_ERROR(TypecheckParametric(actual_dim, formal_dim,
+                                              formal_type, error_span, ctx));
+    }
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace
@@ -158,6 +226,13 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
         absl::StrFormat(
             "Parametric type being returned from function -- types must be "
             "fully resolved, please fully instantiate the type"));
+  }
+  if (return_type->IsStruct() &&
+      !body_type->AsStruct().nominal_type_dims_by_identifier().empty()) {
+    XLS_RETURN_IF_ERROR(TypecheckStructParametrics(
+        body_type->AsStruct(),
+        down_cast<const TypeRefTypeAnnotation*>(f.return_type()),
+        f.body()->span(), ctx));
   }
 
   // Implementation note: we have to check for defined-but-unused values before

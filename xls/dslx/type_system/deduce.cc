@@ -1362,107 +1362,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBuiltinTypeAnnotation(
   return std::make_unique<MetaType>(std::move(t));
 }
 
-// Converts an AST expression in "dimension position" (e.g. in an array type
-// annotation's size) and converts it into a TypeDim value that can be
-// used in (e.g.) a ConcreteStruct. The result is either a constexpr-evaluated
-// value or a ParametricSymbol (for a parametric binding that has not yet been
-// defined).
-//
-// Note: this is not capable of expressing more complex ASTs -- it assumes
-// something is either fully constexpr-evaluatable, or symbolic.
-static absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
-                                                  DeduceCtx* ctx) {
-  std::unique_ptr<BitsType> u32 = BitsType::MakeU32();
-  auto validate_high_bit = [&u32](const Span& span, uint32_t value) {
-    if ((value >> 31) == 0) {
-      return absl::OkStatus();
-    }
-    return TypeInferenceErrorStatus(
-        span, u32.get(),
-        absl::StrFormat("Dimension value is too large, high bit is set: %#x; "
-                        "was a negative number accidentally cast to a size?",
-                        value));
-  };
-
-  // We allow numbers in dimension position to go without type annotations -- we
-  // implicitly make the type of the dimension u32, as we generally do with
-  // dimension values.
-  if (auto* number = dynamic_cast<const Number*>(dim_expr)) {
-    if (number->type_annotation() == nullptr) {
-      XLS_RETURN_IF_ERROR(TryEnsureFitsInBitsType(*number, *u32));
-      ctx->type_info()->SetItem(number, *u32);
-    } else {
-      XLS_ASSIGN_OR_RETURN(auto dim_type, ctx->Deduce(number));
-      if (*dim_type != *u32) {
-        return ctx->TypeMismatchError(
-            dim_expr->span(), nullptr, *dim_type, nullptr, *u32,
-            absl::StrFormat(
-                "Dimension %s must be a `u32` (soon to be `usize`, see "
-                "https://github.com/google/xls/issues/450 for details).",
-                dim_expr->ToString()));
-      }
-    }
-
-    XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
-    const uint32_t value_u32 = static_cast<uint32_t>(value);
-    XLS_RET_CHECK_EQ(value, value_u32);
-
-    XLS_RETURN_IF_ERROR(validate_high_bit(number->span(), value_u32));
-
-    // No need to use the ConstexprEvaluator here. We've already got the goods.
-    // It'd have trouble anyway, since this number isn't type-decorated.
-    ctx->type_info()->NoteConstExpr(dim_expr, InterpValue::MakeU32(value_u32));
-    return TypeDim::CreateU32(value_u32);
-  }
-
-  // First we check that it's a u32 (in the future we'll want it to be a usize).
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> dim_type, ctx->Deduce(dim_expr));
-  if (*dim_type != *u32) {
-    return ctx->TypeMismatchError(
-        dim_expr->span(), nullptr, *dim_type, nullptr, *u32,
-        absl::StrFormat(
-            "Dimension %s must be a `u32` (soon to be `usize`, see "
-            "https://github.com/google/xls/issues/450 for details).",
-            dim_expr->ToString()));
-  }
-
-  // Now we try to constexpr evaluate it.
-  const ParametricEnv parametric_env = ctx->GetCurrentParametricEnv();
-  VLOG(5) << "Attempting to evaluate dimension expression: `"
-          << dim_expr->ToString() << "` via parametric env: " << parametric_env;
-  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
-      dim_expr, dim_type.get()));
-  if (ctx->type_info()->IsKnownConstExpr(dim_expr)) {
-    XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
-                         ctx->type_info()->GetConstExpr(dim_expr));
-    XLS_ASSIGN_OR_RETURN(uint64_t int_value,
-                         constexpr_value.GetBitValueViaSign());
-    uint32_t u32_value = static_cast<uint32_t>(int_value);
-    XLS_RETURN_IF_ERROR(validate_high_bit(dim_expr->span(), u32_value));
-    XLS_RET_CHECK_EQ(u32_value, int_value);
-    return TypeDim::CreateU32(u32_value);
-  }
-
-  // If there wasn't a known constexpr we could evaluate it to at this point, we
-  // attempt to turn it into a parametric expression.
-  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr_or =
-      ExprToParametric(dim_expr, ctx);
-  if (parametric_expr_or.ok()) {
-    return TypeDim(std::move(parametric_expr_or).value());
-  }
-
-  VLOG(3) << "Could not convert dim expr to parametric expr; status: "
-          << parametric_expr_or.status();
-
-  // If we can't evaluate it to a parametric expression we give an error.
-  return TypeInferenceErrorStatus(
-      dim_expr->span(), nullptr,
-      absl::StrFormat(
-          "Could not evaluate dimension expression `%s` to a constant value.",
-          dim_expr->ToString()));
-}
-
 // As above, but converts to a TypeDim value that is boolean.
 static absl::StatusOr<TypeDim> DimToConcreteBool(const Expr* dim_expr,
                                                  DeduceCtx* ctx) {
@@ -2045,6 +1944,99 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
                                                        DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> deduced, ctx->Deduce(node));
   return Resolve(*deduced, ctx);
+}
+
+absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
+                                           DeduceCtx* ctx) {
+  std::unique_ptr<BitsType> u32 = BitsType::MakeU32();
+  auto validate_high_bit = [&u32](const Span& span, uint32_t value) {
+    if ((value >> 31) == 0) {
+      return absl::OkStatus();
+    }
+    return TypeInferenceErrorStatus(
+        span, u32.get(),
+        absl::StrFormat("Dimension value is too large, high bit is set: %#x; "
+                        "was a negative number accidentally cast to a size?",
+                        value));
+  };
+
+  // We allow numbers in dimension position to go without type annotations -- we
+  // implicitly make the type of the dimension u32, as we generally do with
+  // dimension values.
+  if (auto* number = dynamic_cast<const Number*>(dim_expr)) {
+    if (number->type_annotation() == nullptr) {
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInBitsType(*number, *u32));
+      ctx->type_info()->SetItem(number, *u32);
+    } else {
+      XLS_ASSIGN_OR_RETURN(auto dim_type, ctx->Deduce(number));
+      if (*dim_type != *u32) {
+        return ctx->TypeMismatchError(
+            dim_expr->span(), nullptr, *dim_type, nullptr, *u32,
+            absl::StrFormat(
+                "Dimension %s must be a `u32` (soon to be `usize`, see "
+                "https://github.com/google/xls/issues/450 for details).",
+                dim_expr->ToString()));
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
+    const uint32_t value_u32 = static_cast<uint32_t>(value);
+    XLS_RET_CHECK_EQ(value, value_u32);
+
+    XLS_RETURN_IF_ERROR(validate_high_bit(number->span(), value_u32));
+
+    // No need to use the ConstexprEvaluator here. We've already got the goods.
+    // It'd have trouble anyway, since this number isn't type-decorated.
+    ctx->type_info()->NoteConstExpr(dim_expr, InterpValue::MakeU32(value_u32));
+    return TypeDim::CreateU32(value_u32);
+  }
+
+  // First we check that it's a u32 (in the future we'll want it to be a usize).
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> dim_type, ctx->Deduce(dim_expr));
+  if (*dim_type != *u32) {
+    return ctx->TypeMismatchError(
+        dim_expr->span(), nullptr, *dim_type, nullptr, *u32,
+        absl::StrFormat(
+            "Dimension %s must be a `u32` (soon to be `usize`, see "
+            "https://github.com/google/xls/issues/450 for details).",
+            dim_expr->ToString()));
+  }
+
+  // Now we try to constexpr evaluate it.
+  const ParametricEnv parametric_env = ctx->GetCurrentParametricEnv();
+  VLOG(5) << "Attempting to evaluate dimension expression: `"
+          << dim_expr->ToString() << "` via parametric env: " << parametric_env;
+  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+      ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
+      dim_expr, dim_type.get()));
+  if (ctx->type_info()->IsKnownConstExpr(dim_expr)) {
+    XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                         ctx->type_info()->GetConstExpr(dim_expr));
+    XLS_ASSIGN_OR_RETURN(uint64_t int_value,
+                         constexpr_value.GetBitValueViaSign());
+    uint32_t u32_value = static_cast<uint32_t>(int_value);
+    XLS_RETURN_IF_ERROR(validate_high_bit(dim_expr->span(), u32_value));
+    XLS_RET_CHECK_EQ(u32_value, int_value);
+    return TypeDim::CreateU32(u32_value);
+  }
+
+  // If there wasn't a known constexpr we could evaluate it to at this point, we
+  // attempt to turn it into a parametric expression.
+  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr_or =
+      ExprToParametric(dim_expr, ctx);
+  if (parametric_expr_or.ok()) {
+    return TypeDim(std::move(parametric_expr_or).value());
+  }
+
+  VLOG(3) << "Could not convert dim expr to parametric expr; status: "
+          << parametric_expr_or.status();
+
+  // If we can't evaluate it to a parametric expression we give an error.
+  return TypeInferenceErrorStatus(
+      dim_expr->span(), nullptr,
+      absl::StrFormat(
+          "Could not evaluate dimension expression `%s` to a constant value.",
+          dim_expr->ToString()));
 }
 
 }  // namespace xls::dslx

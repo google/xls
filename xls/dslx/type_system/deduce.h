@@ -53,6 +53,17 @@ absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type, DeduceCtx* ctx);
 absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
                                                        DeduceCtx* ctx);
 
+// Converts an AST expression in "dimension position" (e.g. in an array type
+// annotation's size) and converts it into a `TypeDim` value that can be used
+// in, e.g., an `ArrayType`. The result is either a constexpr-evaluated value or
+// a `ParametricExpression` (for a parametric binding that has not yet been
+// defined).
+//
+// Note: this is not capable of evaluating more complex ASTs; it assumes
+// something is either fully constexpr-evaluatable, or symbolic.
+absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
+                                           DeduceCtx* ctx);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_H_

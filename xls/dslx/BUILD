@@ -125,6 +125,7 @@ cc_library(
     deps = [
         ":import_record",
         ":interp_value",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",

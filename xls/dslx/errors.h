@@ -18,6 +18,7 @@
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_record.h"
@@ -47,6 +48,13 @@ absl::Status InvalidIdentifierErrorStatus(const Span& span,
 // To be raised when an error occurs during type inference.
 absl::Status TypeInferenceErrorStatus(const Span& span, const Type* type,
                                       std::string_view message);
+
+// Variant of `TypeInferenceErrorStatus` for when there is only a
+// `type_annotation` available, or its readability is better than that of the
+// corresponding `Type` (e.g. due to erasure of parametric bindings).
+absl::Status TypeInferenceErrorStatusForAnnotation(
+    const Span& span, const TypeAnnotation* type_annotation,
+    std::string_view message);
 
 // Creates a TypeMissingError status value referencing the given node (which has
 // its type missing) and user (which found that its type was missing).

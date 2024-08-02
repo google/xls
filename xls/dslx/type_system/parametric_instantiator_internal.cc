@@ -63,7 +63,7 @@ namespace internal {
 namespace {
 
 // Resolves possibly-parametric type 'annotated' via 'parametric_env_map'.
-absl::StatusOr<std::unique_ptr<Type>> Resolve(
+absl::StatusOr<std::unique_ptr<Type>> ResolveInternal(
     const Type& annotated,
     const absl::flat_hash_map<std::string, InterpValue>& parametric_env_map) {
   XLS_ASSIGN_OR_RETURN(
@@ -78,6 +78,19 @@ absl::StatusOr<std::unique_ptr<Type>> Resolve(
             ToParametricEnv(ParametricEnv(parametric_env_map)));
         return TypeDim(std::move(evaluated));
       }));
+  if (!parametric_env_map.empty()) {
+    // We need to add nominal dims upon parametric instantiation, in order for
+    // e.g. the return type of `bar` to get 8 rather than a meaningless `N` as
+    // the nominal dim in:
+    //    `struct S<N:u32> { ... }
+    //     fn foo<N: u32>() -> S<N> { ... }
+    //     fn bar() -> S<u32:8> { foo<u32:8>() }`
+    absl::flat_hash_map<std::string, TypeDim> nominal_dims;
+    for (const auto& [key, interp_value] : parametric_env_map) {
+      nominal_dims.emplace(key, TypeDim(interp_value));
+    }
+    resolved = resolved->AddNominalTypeDims(std::move(nominal_dims));
+  }
   VLOG(5) << "Resolved " << annotated.ToString() << " to "
           << resolved->ToString();
   return resolved;
@@ -178,7 +191,8 @@ absl::Status EagerlyPopulateParametricEnvMap(
     // it, and ensure it's set as the resolved type in the type info before
     // interpretation.
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> expr_type, ctx->Deduce(expr));
-    XLS_ASSIGN_OR_RETURN(expr_type, Resolve(*expr_type, parametric_env_map));
+    XLS_ASSIGN_OR_RETURN(expr_type,
+                         ResolveInternal(*expr_type, parametric_env_map));
     XLS_RET_CHECK(!expr_type->HasParametricDims()) << expr_type->ToString();
     ctx->type_info()->SetItem(expr, *expr_type);
 
@@ -406,7 +420,7 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
     const Type& param_type = *param_types_[i];
     const Type& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> instantiated_param_type,
-                         Resolve(param_type, parametric_env_map()));
+                         ResolveInternal(param_type, parametric_env_map()));
     if (*instantiated_param_type != arg_type) {
       // Although it's not the *original* parameter (which could be a little
       // confusing to the user) we want to show what the mismatch was directly,
@@ -422,7 +436,7 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
   // Resolve the return type according to the bindings we collected.
   const Type& orig = function_type_->return_type();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved,
-                       Resolve(orig, parametric_env_map()));
+                       ResolveInternal(orig, parametric_env_map()));
   VLOG(5) << "Resolved return type from " << orig.ToString() << " to "
           << resolved->ToString();
 
@@ -470,7 +484,7 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
     const Type& member_type = *member_types_[i];
     const Type& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> instantiated_member_type,
-                         Resolve(member_type, parametric_env_map()));
+                         ResolveInternal(member_type, parametric_env_map()));
     if (*instantiated_member_type != arg_type) {
       return ctx().TypeMismatchError(
           args()[i].span(), nullptr, *instantiated_member_type, nullptr,
@@ -479,7 +493,7 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved,
-                       Resolve(*struct_type_, parametric_env_map()));
+                       ResolveInternal(*struct_type_, parametric_env_map()));
   return TypeAndParametricEnv{
       .type = std::move(resolved),
       .parametric_env = ParametricEnv(parametric_env_map())};

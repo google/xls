@@ -557,17 +557,36 @@ std::vector<TypeDim> StructType::GetAllDims() const {
 }
 
 std::unique_ptr<Type> StructType::AddNominalTypeDims(
-    absl::flat_hash_map<std::string, TypeDim> dims_by_identifier) const {
-  // Note that there may be no specified nominal dims for bindings that have
-  // expressions.
-  CHECK_LE(dims_by_identifier.size(), struct_def_.parametric_bindings().size());
+    absl::flat_hash_map<std::string, TypeDim> added_dims_by_identifier) const {
+  absl::flat_hash_map<std::string, TypeDim> combined_dims =
+      nominal_type_dims_by_identifier_;
+  for (const ParametricBinding* binding : struct_def_.parametric_bindings()) {
+    const auto existing_it = combined_dims.find(binding->identifier());
+    // Don't overwrite a dim that already has a concrete value, because that
+    // could lead to the parametric instantiator mis-attributing the `X` in
+    // `foo` to the unrelated `X` in `Bar` for something like:
+    //   `struct Bar<X:u32> { ... }
+    //    fn foo<X:u32> { Bar<u32:8>{...} }`
+    // Really the instantiator should eventually be re-factored to not even come
+    // close to doing this.
+    if (existing_it != combined_dims.end() &&
+        !std::holds_alternative<TypeDim::OwnedParametric>(
+            existing_it->second.value())) {
+      continue;
+    }
+    const auto it = added_dims_by_identifier.find(binding->identifier());
+    if (it != added_dims_by_identifier.end()) {
+      combined_dims.insert_or_assign(binding->identifier(),
+                                     std::move(it->second));
+    }
+  }
   std::vector<std::unique_ptr<Type>> cloned_members;
   cloned_members.reserve(members_.size());
   for (auto& next : members_) {
     cloned_members.push_back(next->CloneToUnique());
   }
   return std::make_unique<StructType>(std::move(cloned_members), struct_def_,
-                                      std::move(dims_by_identifier));
+                                      std::move(combined_dims));
 }
 
 absl::StatusOr<TypeDim> StructType::GetTotalBitCount() const {

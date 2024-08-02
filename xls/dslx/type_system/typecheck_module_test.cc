@@ -1932,6 +1932,67 @@ TEST(TypecheckParametricStructInstanceTest, TooManyParametricArgs) {
           HasSubstr("Expected 2 parametric arguments for 'Point'; got 3")));
 }
 
+TEST(TypecheckParametricStructInstanceTest,
+     PhantomParametricStructReturnTypeMismatch) {
+  // Erroneous code.
+  EXPECT_THAT(
+      Typecheck(
+          R"(struct MyStruct<N: u32> {}
+          fn main(x: MyStruct<u32:8>) -> MyStruct<u32:42> { x }
+      )"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Parametric argument of the returned value does not match "
+                    "the function return type. Expected 42; got 8.")));
+
+  // Fixed version.
+  XLS_EXPECT_OK(Typecheck(
+      R"(struct MyStruct<N: u32> {}
+          fn main(x: MyStruct<u32:42>) -> MyStruct<u32:42> { x }
+      )"));
+}
+
+TEST(TypecheckParametricStructInstanceTest,
+     PhantomParametricParameterizedStructReturnType) {
+  // Erroneous code.
+  EXPECT_THAT(
+      Typecheck(
+          R"(struct MyStruct<N: u32> {}
+          fn foo<N: u32>(x: MyStruct<u32:8>) -> MyStruct<N> { x }
+          fn bar(x: MyStruct<u32:8>) -> MyStruct<u32:8> { foo<u32:42>(x) }
+      )"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Parametric argument of the returned value does not match "
+                    "the function return type. Expected 8; got 42.")));
+
+  // Fixed version.
+  XLS_EXPECT_OK(Typecheck(
+      R"(struct MyStruct<N: u32> {}
+          fn foo<N: u32>(x: MyStruct<u32:8>) -> MyStruct<N> { x }
+          fn bar(x: MyStruct<u32:8>) -> MyStruct<u32:8> { foo<u32:8>(x) }
+      )"));
+}
+
+TEST(TypecheckParametricStructInstanceTest, PhantomParametricWithExpr) {
+  // Erroneous code.
+  EXPECT_THAT(
+      Typecheck(
+          R"(struct MyStruct<M: u32, N: u32 = {M + M}> {}
+          fn main(x: MyStruct<u32:8, u32:16>) -> MyStruct<u32:42, u32:84> { x }
+      )"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Parametric argument of the returned value does not match "
+                    "the function return type. Expected 42; got 8.")));
+
+  // Fixed version.
+  XLS_EXPECT_OK(Typecheck(
+      R"(struct MyStruct<M: u32, N: u32 = {M + M}> {}
+          fn main(x: MyStruct<u32:8, u32:16>) -> MyStruct<u32:8, u32:16> { x }
+      )"));
+}
+
 TEST(TypecheckParametricStructInstanceTest, OutOfOrderOk) {
   XLS_EXPECT_OK(TypecheckParametricStructInstance(
       "fn f() -> Point<32, 64> { Point { y: u64:42, x: u32:255 } }"));
