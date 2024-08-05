@@ -27,7 +27,7 @@ from xls.delay_model import delay_model_pb2
 flags.DEFINE_string(
     'model_name',
     None,
-    'Name of model. Should be a short string (e.g., "e"). Used as the '
+    'Name of model. Should be a short string (e.g., "asap7"). Used as the '
     'identifier when accessing the mode via xls::GetDelayEstimator.',
 )
 flags.DEFINE_enum(
