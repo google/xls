@@ -251,10 +251,10 @@ place_and_route(
     # ~0.83 GHz
     clock_period = "1.2",
     core_padding_microns = 2,
-    die_height_microns = 120,
-    die_width_microns = 120,
+    die_height_microns = 180,
+    die_width_microns = 180,
     min_pin_distance = "2",
-    placement_density = "0.95",
+    placement_density = "0.85",
     synthesized_rtl = ":rle_dec_synth_sky130",
 )
 
