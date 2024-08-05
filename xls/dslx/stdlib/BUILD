@@ -96,6 +96,11 @@ xls_dslx_library(
     srcs = ["bfloat16.x"],
 )
 
+xls_dslx_prove_quickcheck_test(
+    name = "bfloat16_dslx_prove_quickcheck_test",
+    srcs = ["bfloat16.x"],
+)
+
 xls_dslx_fmt_test(
     name = "bfloat16_dslx_fmt_test",
     src = "bfloat16.x",

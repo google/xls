@@ -14,6 +14,7 @@
 
 // bfloat16 routines.
 import apfloat;
+import std;
 
 pub const BF16_EXP_SZ = u32:8;  // Exponent bits
 pub const BF16_FRACTION_SZ = u32:7;  // Fraction bits
@@ -164,3 +165,70 @@ pub fn has_negative_exponent(f: BF16) -> bool { apfloat::has_negative_exponent(f
 pub fn ceil(f: BF16) -> BF16 { apfloat::ceil(f) }
 
 pub fn floor(f: BF16) -> BF16 { apfloat::floor(f) }
+
+// Converts the given signed integer to bfloat16. For s8, all values can be
+// captured exactly, so no need to round or handle overflow.
+pub fn from_int8(x: s8) -> BF16 {
+    const MAX_EXPONENT = u4:6;
+    const BIAS = u8:127;
+
+    let sign = std::msb(x as u8);
+    let unsigned = if sign { -x as u7 } else { x as u7 };
+
+    // Remove leading 1.
+    let lz = clz(unsigned) as u4;
+    let fraction = unsigned << (lz + u4:1);
+
+    let exp = MAX_EXPONENT - lz;
+    let bexp = exp as u8 + BIAS;
+
+    let result = BF16 { sign, bexp, fraction };
+
+    // Handle special cases: zero and max negative s8.
+    let result = if unsigned == u7:0 { zero(sign) } else { result };
+    let max_neg_s8 = BF16 { sign: u1:1, bexp: u8:134, fraction: u7:0 };
+    let result = if x == s8:-128 { max_neg_s8 } else { result };
+    result
+}
+
+#[test]
+fn from_int8_test() {
+    let expected = BF16 { sign: u1:0, bexp: u8:130, fraction: u7:64 };
+    let actual = from_int8(s8:12);
+    assert_eq(expected, actual);
+
+    let expected = one(u1:1);
+    let actual = from_int8(s8:-1);
+    assert_eq(expected, actual);
+
+    let val = s8:35;
+    let actual = to_int16(from_int8(val));
+    assert_eq(val as s16, actual);
+
+    let val = s8:-35;
+    let actual = to_int16(from_int8(val));
+    assert_eq(val as s16, actual);
+
+    let val = s8:127;
+    let actual = to_int16(from_int8(val));
+    assert_eq(val as s16, actual);
+
+    let val = s8:-150;
+    let actual = to_int16(from_int8(val));
+    assert_eq(val as s16, actual);
+
+    let val = s8:-42;
+    let actual = to_int16(from_int8(val));
+    assert_eq(val as s16, actual);
+
+    let val = s8:0;
+    let actual = to_int16(from_int8(val));
+    assert_eq(val as s16, actual);
+
+    let val = s8:-128;
+    let actual = to_int16(from_int8(val));
+    assert_eq(val as s16, actual);
+}
+
+#[quickcheck]
+fn int_roundtrip(x: s8) -> bool { to_int16(from_int8(x)) == x as s16 }
