@@ -1506,9 +1506,9 @@ package p
 fn f() -> bits[32] {
   zero: bits[32] = literal(value=0)
   one: bits[32] = literal(value=1)
-  forty_two: bits[32] = literal(value=42)
+  thirty_seven: bits[32] = literal(value=37)
   array: bits[32][2] = array(zero, zero)
-  updated_array: bits[32][2] = array_update(array, forty_two, indices=[forty_two])
+  updated_array: bits[32][2] = array_update(array, thirty_seven, indices=[thirty_seven])
   element_0: bits[32] = array_index(updated_array, indices=[zero])
   ret element_1: bits[32] = array_index(updated_array, indices=[one])
 }

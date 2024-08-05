@@ -121,6 +121,24 @@ class Z3AbstractEvaluator
   mutable Z3OpTranslator translator_;
 };
 
+Z3_sort GetArrayIndexSort(Z3_context ctx, ArrayType* array_type) {
+  uint32_t target_width = static_cast<uint32_t>(
+      Bits::MinBitCountUnsigned(static_cast<uint64_t>(array_type->size())));
+  CHECK_GT(target_width, 0);
+  return Z3_mk_bv_sort(ctx, target_width);
+}
+
+Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, int64_t index,
+                                ArrayType* array_type,
+                                Z3_ast* is_out_of_bounds = nullptr) {
+  if (is_out_of_bounds != nullptr) {
+    *is_out_of_bounds =
+        (index >= array_type->size()) ? Z3_mk_true(ctx) : Z3_mk_false(ctx);
+  }
+  Z3_ast index_z3 = Z3_mk_int64(ctx, index, GetArrayIndexSort(ctx, array_type));
+  return index_z3;
+}
+
 // Returns the index with the proper bitwidth for the given array_type.
 Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, Z3_ast index,
                                 ArrayType* array_type,
@@ -129,24 +147,29 @@ Z3_ast GetAsFormattedArrayIndex(Z3_context ctx, Z3_ast index,
   // to be declared w/the array (the "domain" argument - we declare that to be
   // the smallest bit vector that covers all indices. Thus, we need to "cast"
   // appropriately here.
-  uint32_t target_width = static_cast<uint32_t>(
-      Bits::MinBitCountUnsigned(static_cast<uint64_t>(array_type->size())));
+  Z3_sort target_sort = GetArrayIndexSort(ctx, array_type);
+  uint32_t target_width = Z3_get_bv_sort_size(ctx, target_sort);
   int z3_width = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, index));
   if (z3_width < target_width) {
-    index = Z3_mk_zero_ext(ctx, target_width - z3_width, index);
-  } else if (z3_width > target_width) {
     if (is_out_of_bounds != nullptr) {
-      // Record whether the index is out of bounds. We have to do this before
-      // the extract, as otherwise the extract will throw away high bits that
-      // might be needed for the comparison.
-      Z3OpTranslator t(ctx);
-      Z3_ast array_max_index =
-          Z3_mk_int64(ctx, array_type->size() - 1, Z3_get_sort(ctx, index));
-      *is_out_of_bounds = t.UGtBool(index, array_max_index);
+      *is_out_of_bounds = Z3_mk_false(ctx);
     }
-    index = Z3_mk_extract(ctx, target_width - 1, /*low=*/0, index);
+    return Z3_mk_zero_ext(ctx, target_width - z3_width, index);
   }
 
+  if (is_out_of_bounds != nullptr) {
+    // Record whether the index is out of bounds. We have to do this before
+    // any extract, as otherwise the extract will throw away high bits that
+    // might be needed for the comparison.
+    Z3OpTranslator t(ctx);
+    Z3_ast array_max_index =
+        Z3_mk_int64(ctx, array_type->size() - 1, Z3_get_sort(ctx, index));
+    *is_out_of_bounds = t.UGtBool(index, array_max_index);
+  }
+
+  if (z3_width > target_width) {
+    return Z3_mk_extract(ctx, target_width - 1, /*low=*/0, index);
+  }
   return index;
 }
 
@@ -448,11 +471,8 @@ absl::StatusOr<Z3_ast> GetValueAtIndices(Type* type, Z3_context ctx,
       case Z3_ARRAY_SORT: {
         XLS_ASSIGN_OR_RETURN(ArrayType * array_type, type->AsArray());
         // Need to take care to get the right sort/width for Z3 array indexing.
-        Z3_sort index_sort =
-            Z3_mk_bv_sort(ctx, static_cast<uint32_t>(Bits::MinBitCountUnsigned(
-                                   static_cast<uint64_t>(array_type->size()))));
-        Z3_ast index_z3 = Z3_mk_int64(ctx, indices.front(), index_sort);
-        index_z3 = GetAsFormattedArrayIndex(ctx, index_z3, array_type);
+        Z3_ast index_z3 =
+            GetAsFormattedArrayIndex(ctx, indices.front(), array_type);
         value = Z3_mk_select(ctx, value, index_z3);
         type = array_type->element_type();
         break;
@@ -687,12 +707,11 @@ Z3_ast IrTranslator::CreateArray(ArrayType* type,
   // Zero-element arrays are A Thing, so we need to synthesize a Z3 zero value
   // for all our array element types.
   Z3_ast default_value = ZeroOfSort(element_sort);
-  Z3_sort index_sort =
-      Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(type->size()));
-  Z3_ast z3_array = Z3_mk_const_array(ctx_, index_sort, default_value);
+  Z3_ast z3_array =
+      Z3_mk_const_array(ctx_, GetArrayIndexSort(ctx_, type), default_value);
   Z3OpTranslator op_translator(ctx_);
   for (int i = 0; i < type->size(); i++) {
-    Z3_ast index = Z3_mk_int64(ctx_, i, index_sort);
+    Z3_ast index = GetAsFormattedArrayIndex(ctx_, i, type);
     z3_array = Z3_mk_store(ctx_, z3_array, index, elements[i]);
   }
 
@@ -751,12 +770,8 @@ Z3_ast IrTranslator::GetArrayElement(ArrayType* array_type, Z3_ast array,
   index = GetAsFormattedArrayIndex(ctx_, index, array_type, &is_out_of_bounds);
   // To follow XLS semantics, if the index exceeds the array size, then return
   // the element at the max index.
-  Z3OpTranslator t(ctx_);
   Z3_ast array_max_index =
-      Z3_mk_int64(ctx_, array_type->size() - 1, Z3_get_sort(ctx_, index));
-  if (is_out_of_bounds == nullptr) {
-    is_out_of_bounds = t.UGtBool(index, array_max_index);
-  }
+      GetAsFormattedArrayIndex(ctx_, array_type->size() - 1, array_type);
   index = Z3_mk_ite(ctx_, is_out_of_bounds, array_max_index, index);
   return Z3_mk_select(ctx_, array, index);
 }
@@ -781,18 +796,19 @@ Z3_ast IrTranslator::UpdateArrayElement(Type* type, Z3_ast array, Z3_ast value,
     return Z3_mk_ite(ctx_, cond, value, array);
   }
   ArrayType* array_type = type->AsArrayOrDie();
-  Z3_sort index_sort =
-      Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
   std::vector<Z3_ast> elements;
+  Z3_ast is_out_of_bounds = nullptr;
+  Z3_ast updated_index = GetAsFormattedArrayIndex(
+      ctx_, indices.front(), array_type, &is_out_of_bounds);
+  Z3_ast is_in_bounds = Z3_mk_not(ctx_, is_out_of_bounds);
   for (int64_t i = 0; i < array_type->size(); ++i) {
-    Z3_ast this_index = GetAsFormattedArrayIndex(
-        ctx_, Z3_mk_int64(ctx_, i, index_sort), array_type);
-    Z3_ast updated_index =
-        GetAsFormattedArrayIndex(ctx_, indices.front(), array_type);
+    Z3_ast this_index = GetAsFormattedArrayIndex(ctx_, i, array_type);
     // In the recursive call, the condition is updated by whether the current
-    // index matches.
-    Z3_ast and_args[] = {cond, Z3_mk_eq(ctx_, this_index, updated_index)};
-    Z3_ast new_cond = Z3_mk_and(ctx_, 2, and_args);
+    // index is in bounds and matches; following XLS semantics, if the index is
+    // out of bounds, then no update is made.
+    Z3_ast and_args[] = {cond, is_in_bounds,
+                         Z3_mk_eq(ctx_, this_index, updated_index)};
+    Z3_ast new_cond = Z3_mk_and(ctx_, 3, and_args);
     elements.push_back(UpdateArrayElement(
         /*type=*/array_type->element_type(),
         /*array=*/Z3_mk_select(ctx_, array, this_index),
@@ -827,13 +843,10 @@ absl::Status IrTranslator::HandleArrayConcat(ArrayConcat* array_concat) {
     ArrayType* array_type = operand->GetType()->AsArrayOrDie();
     int64_t element_count = array_type->size();
 
-    Z3_sort index_sort =
-        Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(element_count));
-
     Z3_ast array = GetValue(operand);
 
     for (int64_t i = 0; i < element_count; ++i) {
-      Z3_ast index = Z3_mk_int64(ctx_, i, index_sort);
+      Z3_ast index = GetAsFormattedArrayIndex(ctx_, i, array_type);
       Z3_ast element = Z3_mk_select(ctx_, array, index);
       elements.push_back(element);
     }
@@ -856,7 +869,7 @@ absl::Status IrTranslator::HandleArraySlice(ArraySlice* array_slice) {
 
   std::vector<Z3_ast> elements;
   for (uint64_t i = 0; i < array_slice->width(); ++i) {
-    Z3_ast i_ast = Z3_mk_int64(ctx_, i, Z3_get_sort(ctx_, formatted_start_ast));
+    Z3_ast i_ast = GetAsFormattedArrayIndex(ctx_, i, input_type);
     Z3_ast index_ast = Z3_mk_bvadd(ctx_, i_ast, formatted_start_ast);
     elements.push_back(GetArrayElement(input_type, array_ast, index_ast));
   }
@@ -1154,10 +1167,8 @@ std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value,
     case TypeKind::kArray: {
       ArrayType* array_type = type->AsArrayOrDie();
       std::vector<Z3_ast> flattened;
-      Z3_sort index_sort =
-          Z3_mk_bv_sort(ctx_, Bits::MinBitCountUnsigned(array_type->size()));
       for (int i = 0; i < array_type->size(); i++) {
-        Z3_ast index = Z3_mk_int64(ctx_, i, index_sort);
+        Z3_ast index = GetAsFormattedArrayIndex(ctx_, i, array_type);
         Z3_ast element = GetArrayElement(array_type, value, index);
         std::vector<Z3_ast> flat_child =
             FlattenValue(array_type->element_type(), element, little_endian);
