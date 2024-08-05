@@ -1474,9 +1474,8 @@ String* AstGenerator::GenerateString(int64_t char_count) {
   for (int64_t index = 0; index < char_count; ++index) {
     // Codes 32 to 126 are the printable characters. There are 95 printable
     // characters in total. Ref: https://en.wikipedia.org/wiki/ASCII.
-    int64_t printable_character =
+    string_literal[index] =
         absl::Uniform<uint8_t>(absl::IntervalClosed, bit_gen_, 32, 126);
-    string_literal[index] = static_cast<uint8_t>(printable_character);
   }
   return module_->Make<String>(fake_span_, string_literal);
 }

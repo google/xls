@@ -20,13 +20,15 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
-#include "absl/strings/str_replace.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 
 namespace xls::dslx {
@@ -51,8 +53,16 @@ GetSizedTypeKeywordsMetadata() {
 }
 
 std::string Escape(std::string_view original) {
-  std::string result = absl::CHexEscape(original);
-  return absl::StrReplaceAll(result, {{"\\x00", "\\0"}});
+  // Simple literal delimiter doesn't work because strlen will report an empty
+  // string when constructing the string_view delimiter in absl::StrSplit.
+  constexpr std::string_view kNullDelim("\0", 1);
+  std::vector<std::string_view> segments = absl::StrSplit(original, kNullDelim);
+  std::vector<std::string> escaped_segments;
+  escaped_segments.reserve(segments.size());
+  for (const auto& segment : segments) {
+    escaped_segments.push_back(absl::CHexEscape(segment));
+  }
+  return absl::StrJoin(escaped_segments, "\\0");
 }
 
 bool IsScreamingSnakeCase(std::string_view identifier) {

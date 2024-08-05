@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> u8[13] {
+fn main() -> u8[14] {
     // Declaring each ascii escape character supported.
     let newline: u8 = '\n';
     let carriage_return: u8 = '\r';
@@ -27,11 +27,12 @@ fn main() -> u8[13] {
     let dash_deduced_type = '-';  // negation symbol
     let char_escape: u8 = '_';  // underscore
     let continuation_byte: u8 = '\x80';  // continuation byte
+    let null_hex_escape: u8 = '\x00';
     [
         newline, carriage_return, tab, backslash, null, single_quote, double_quote, random_char,
-        random_char_deduced_type, dash, dash_deduced_type, char_escape, continuation_byte,
+        random_char_deduced_type, dash, dash_deduced_type, char_escape, continuation_byte, null_hex_escape,
     ]
 }
 
 #[test]
-fn conversion_test() { assert_eq(main(), "\n\r\t\\\0\'\"cc--_\x80") }
+fn conversion_test() { assert_eq(main(), "\n\r\t\\\0\'\"cc--_\x80\0") }
