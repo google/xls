@@ -412,8 +412,6 @@ cc_test(
     #               --gunit_list_tests 2>/dev/null | wc -l
     # shows ~200
     shard_count = 50,
-    # TODO: Reenable this after the fuzzing Cluster gets enough resources.
-    tags = ["nofuzzing"],
     deps = [
         ":function_base_jit",
         ":function_jit",
