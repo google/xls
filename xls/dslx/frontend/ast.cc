@@ -287,6 +287,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "quick-check";
     case AstNodeKind::kXlsTuple:
       return "tuple";
+    case AstNodeKind::kRestOfTuple:
+      return "rest of tuple";
     case AstNodeKind::kFor:
       return "for";
     case AstNodeKind::kStatementBlock:
@@ -1867,6 +1869,10 @@ std::optional<Span> Statement::GetSpan() const {
 // -- class WildcardPattern
 
 WildcardPattern::~WildcardPattern() = default;
+
+// -- class RestOfTuple
+
+RestOfTuple::~RestOfTuple() = default;
 
 // -- class QuickCheck
 

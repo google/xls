@@ -1206,6 +1206,9 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
             [&](WildcardPattern* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               return Bytecode::MatchArmItem::MakeWildcard();
             },
+            [&](RestOfTuple* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
+              return Bytecode::MatchArmItem::MakeRestOfTuple();
+            },
         },
         tree->leaf());
   }
@@ -1224,6 +1227,13 @@ void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
     if (std::holds_alternative<WildcardPattern*>(tree->leaf())) {
       Add(Bytecode::MakePop(tree->span()));
       // We can just drop this one.
+      return;
+    }
+    if (std::holds_alternative<RestOfTuple*>(tree->leaf())) {
+      // TODO(davidplass): Implement this; for now, drop it as if it were a
+      // wildcard.
+      VLOG(1) << "Dropping rest-of-tuple for now";
+      Add(Bytecode::MakePop(tree->span()));
       return;
     }
 

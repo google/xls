@@ -70,6 +70,7 @@ enum class AstNodeKind : uint8_t {
   kRecvIf,
   kRecvIfNonBlocking,
   kRecvNonBlocking,
+  kRestOfTuple,
   kSend,
   kSendIf,
   kSlice,

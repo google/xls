@@ -232,6 +232,7 @@ class Bytecode {
     static MatchArmItem MakeRange(InterpValue start, InterpValue limit);
     static MatchArmItem MakeTuple(std::vector<MatchArmItem> elements);
     static MatchArmItem MakeWildcard();
+    static MatchArmItem MakeRestOfTuple();
 
     enum class Kind : uint8_t {
       kInterpValue,
@@ -240,6 +241,7 @@ class Bytecode {
       kStore,
       kTuple,
       kWildcard,
+      kRestOfTuple,
     };
 
     struct RangeData {

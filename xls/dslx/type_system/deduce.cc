@@ -289,6 +289,9 @@ static absl::Status BindNames(const NameDefTree* name_def_tree,
                         type.ToString()));
   }
 
+  // TODO(davidplass): Handle RestOfTuple: 1. allow mismatched tree sizes
+  // 2. disallow multiple RestOfTuple in the same level of the tree 3. Set the
+  // types of the non-skipped tuple values appropriately.
   if (name_def_tree->nodes().size() != tuple_type->size()) {
     return TypeInferenceErrorStatus(
         name_def_tree->span(), &type,
@@ -1244,6 +1247,8 @@ static absl::Status Unify(NameDefTree* name_def_tree, const Type& other,
       ctx->type_info()->SetItem(ToAstNode(leaf), *resolved_rhs_type);
     } else if (std::holds_alternative<WildcardPattern*>(leaf)) {
       // Nothing to do.
+    } else if (std::holds_alternative<RestOfTuple*>(leaf)) {
+      // This will be handled in BindNames.
     } else if (std::holds_alternative<Number*>(leaf) ||
                std::holds_alternative<ColonRef*>(leaf)) {
       // For a reference (or literal) the types must be consistent.
@@ -1319,10 +1324,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
       // Deduce types for all patterns with types that can be checked.
       //
       // Note that NameDef is handled in the Unify() call below, and
-      // WildcardPattern has no type because it's a black hole.
+      // WildcardPattern has no type because it's a black hole,
+      // and similar for RestOfTuple.
       for (NameDefTree::Leaf leaf : pattern->Flatten()) {
         if (!std::holds_alternative<NameDef*>(leaf) &&
-            !std::holds_alternative<WildcardPattern*>(leaf)) {
+            !std::holds_alternative<WildcardPattern*>(leaf) &&
+            !std::holds_alternative<RestOfTuple*>(leaf)) {
           XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(leaf)).status());
         }
       }
@@ -1877,6 +1884,9 @@ class DeduceVisitor : public AstNodeVisitor {
     return Fatal(n);
   }
   absl::Status HandleWildcardPattern(const WildcardPattern* n) override {
+    return Fatal(n);
+  }
+  absl::Status HandleRestOfTuple(const RestOfTuple* n) override {
     return Fatal(n);
   }
 

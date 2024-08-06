@@ -947,6 +947,9 @@ absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
     case Kind::kWildcard:
       return true;
 
+    case Kind::kRestOfTuple:
+      return true;
+
     case Kind::kTuple: {
       // Otherwise, we're a tuple. Recurse.
       XLS_ASSIGN_OR_RETURN(auto item_elements, item.tuple_elements());

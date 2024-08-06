@@ -2841,11 +2841,16 @@ absl::StatusOr<TypeAnnotation*> Parser::MakeTypeRefTypeAnnotation(
   return elem_type;
 }
 
-absl::StatusOr<std::variant<NameDef*, WildcardPattern*>>
+absl::StatusOr<std::variant<NameDef*, WildcardPattern*, RestOfTuple*>>
 Parser::ParseNameDefOrWildcard(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(std::optional<Token> tok, TryPopIdentifierToken("_"));
   if (tok) {
     return module_->Make<WildcardPattern>(tok->span());
+  }
+  XLS_ASSIGN_OR_RETURN(std::optional<Token> rest,
+                       TryPopToken(TokenKind::kDoubleDot));
+  if (rest) {
+    return module_->Make<RestOfTuple>(rest->span());
   }
   return ParseNameDef(bindings);
 }
@@ -3175,9 +3180,13 @@ absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings& bindings) {
   return module_->Make<TestProc>(p);
 }
 
-const Span& GetSpan(const std::variant<NameDef*, WildcardPattern*>& v) {
+const Span& GetSpan(
+    const std::variant<NameDef*, WildcardPattern*, RestOfTuple*>& v) {
   if (std::holds_alternative<NameDef*>(v)) {
     return std::get<NameDef*>(v)->span();
+  }
+  if (std::holds_alternative<RestOfTuple*>(v)) {
+    return std::get<RestOfTuple*>(v)->span();
   }
   return std::get<WildcardPattern*>(v)->span();
 }

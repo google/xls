@@ -265,7 +265,7 @@ class Parser : public TokenParser {
 
   absl::StatusOr<NameDef*> ParseNameDef(Bindings& bindings);
 
-  absl::StatusOr<std::variant<NameDef*, WildcardPattern*>>
+  absl::StatusOr<std::variant<NameDef*, WildcardPattern*, RestOfTuple*>>
   ParseNameDefOrWildcard(Bindings& bindings);
 
   // Parses tree of name defs and returns it.
@@ -611,7 +611,8 @@ class Parser : public TokenParser {
   int64_t approximate_expression_depth_ = 0;
 };
 
-const Span& GetSpan(const std::variant<NameDef*, WildcardPattern*>& v);
+const Span& GetSpan(
+    const std::variant<NameDef*, WildcardPattern*, RestOfTuple*>& v);
 
 }  // namespace xls::dslx
 

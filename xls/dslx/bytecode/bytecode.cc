@@ -360,6 +360,9 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
   return MatchArmItem(Kind::kWildcard);
 }
 
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeRestOfTuple() {
+  return MatchArmItem(Kind::kRestOfTuple);
+}
 /* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeRange(
     InterpValue start, InterpValue limit) {
   return MatchArmItem(Kind::kRange,
@@ -447,6 +450,8 @@ std::string Bytecode::MatchArmItem::ToString() const {
     }
     case Kind::kWildcard:
       return "wildcard";
+    case Kind::kRestOfTuple:
+      return "restOfTuple";
   }
 
   return "<invalid MatchArmItem>";

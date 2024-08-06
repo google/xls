@@ -1283,6 +1283,34 @@ TEST_F(ParserTest, LetDestructureWildcard) {
 })");
 }
 
+TEST_F(ParserTest, LetDestructureRestEnd) {
+  RoundTripExpr(R"({
+    let (x, ..): (u32, u32, u32) = (1, 2, 3);
+    x
+})");
+}
+
+TEST_F(ParserTest, LetDestructureRestBeginning) {
+  RoundTripExpr(R"({
+    let (.., x): (u32, u32, u32) = (1, 2, 3);
+    x
+})");
+}
+
+TEST_F(ParserTest, LetDestructureRestMiddle) {
+  RoundTripExpr(R"({
+    let (x, .., y): (u32, u32, u32) = (1, 2, 3);
+    x
+})");
+}
+
+TEST_F(ParserTest, LetDestructureZeroMatches) {
+  RoundTripExpr(R"({
+    let (x, .., y): (u32, u32) = (1, 2);
+    x
+})");
+}
+
 TEST_F(ParserTest, For) {
   RoundTripExpr(R"({
     let accum: u32 = 0;

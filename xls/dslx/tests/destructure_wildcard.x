@@ -18,3 +18,13 @@ fn destructure_test() {
     let (_, _, v) = t;
     assert_eq(v, true)
 }
+
+#[test]
+fn destructure_rest_of_tuple_test() {
+    let t = (u32:2, u8:3);
+
+    // Since this has the "correct" number of matches, this acts like a
+    // wildcard, for now.
+    let (a, ..) = t;
+    assert_eq(u32:2, a)
+}

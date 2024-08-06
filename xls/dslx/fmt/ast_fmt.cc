@@ -382,6 +382,10 @@ DocRef Fmt(const WildcardPattern& n, const Comments& comments,
   return arena.underscore();
 }
 
+DocRef Fmt(const RestOfTuple& n, const Comments& comments, DocArena& arena) {
+  return arena.dot_dot();
+}
+
 static DocRef FmtFlat(const Array& n, const Comments& comments,
                       DocArena& arena) {
   std::vector<DocRef> flat_pieces;
@@ -1401,6 +1405,7 @@ DocRef Fmt(const NameDefTree::Leaf& n, const Comments& comments,
           [&](const NameDef* n) { return Fmt(*n, comments, arena); },
           [&](const NameRef* n) { return Fmt(*n, comments, arena); },
           [&](const WildcardPattern* n) { return Fmt(*n, comments, arena); },
+          [&](const RestOfTuple* n) { return Fmt(*n, comments, arena); },
           [&](const Number* n) { return Fmt(*n, comments, arena); },
           [&](const ColonRef* n) { return Fmt(*n, comments, arena); },
           [&](const Range* n) { return Fmt(*n, comments, arena); },

@@ -455,34 +455,9 @@ class AstCloner : public AstNodeVisitor {
 
     if (n->is_leaf()) {
       NameDefTree::Leaf leaf;
-      XLS_RETURN_IF_ERROR(absl::visit(
-          Visitor{
-              [&](ColonRef* colon_ref) -> absl::Status {
-                leaf = down_cast<ColonRef*>(old_to_new_.at(colon_ref));
-                return absl::OkStatus();
-              },
-              [&](NameDef* name_def) -> absl::Status {
-                leaf = down_cast<NameDef*>(old_to_new_.at(name_def));
-                return absl::OkStatus();
-              },
-              [&](NameRef* name_ref) -> absl::Status {
-                leaf = down_cast<NameRef*>(old_to_new_.at(name_ref));
-                return absl::OkStatus();
-              },
-              [&](Number* number) -> absl::Status {
-                leaf = down_cast<Number*>(old_to_new_.at(number));
-                return absl::OkStatus();
-              },
-              [&](WildcardPattern* wp) -> absl::Status {
-                leaf = down_cast<WildcardPattern*>(old_to_new_.at(wp));
-                return absl::OkStatus();
-              },
-              [&](Range* r) -> absl::Status {
-                leaf = down_cast<Range*>(old_to_new_.at(r));
-                return absl::OkStatus();
-              },
-          },
-          n->leaf()));
+      absl::visit(
+          [&](auto* x) { leaf = down_cast<decltype(x)>(old_to_new_.at(x)); },
+          n->leaf());
       old_to_new_[n] = module_->Make<NameDefTree>(n->span(), leaf);
       return absl::OkStatus();
     }
@@ -866,6 +841,11 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleWildcardPattern(const WildcardPattern* n) override {
     old_to_new_[n] = module_->Make<WildcardPattern>(n->span());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleRestOfTuple(const RestOfTuple* n) override {
+    old_to_new_[n] = module_->Make<RestOfTuple>(n->span());
     return absl::OkStatus();
   }
 

@@ -330,6 +330,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ParametricBinding)
   INVALID(MatchArm)
   INVALID(WildcardPattern)
+  INVALID(RestOfTuple)
   INVALID(WidthSlice)
   INVALID(Slice)
   INVALID(NameDef)
@@ -1213,6 +1214,10 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
             return absl::InternalError(
                 "Induction variable cannot be a name-reference");
           },
+          [&](RestOfTuple*) -> absl::StatusOr<BValue> {
+            return absl::InternalError(
+                "Induction variable cannot be a \"rest of tuple\"");
+          },
       },
       ivar);
   XLS_ASSIGN_OR_RETURN(auto loop_index, loop_index_or);
@@ -1425,6 +1430,12 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
               return Def(matcher, [&](const SourceInfo& loc) {
                 return function_builder_->Literal(UBits(1, 1), loc);
               });
+            },
+            [&](RestOfTuple* n) -> absl::StatusOr<BValue> {
+              // TODO(davidplass): Implement this.
+              return absl::UnimplementedError(
+                  "The \"rest of tuple\" operator (..) is not implemented "
+                  "yet.");
             },
             [&](Number* n) -> absl::StatusOr<BValue> { return equality(); },
             [&](ColonRef* n) -> absl::StatusOr<BValue> { return equality(); },

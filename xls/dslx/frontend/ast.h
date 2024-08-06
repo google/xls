@@ -96,6 +96,7 @@
   X(Proc)                         \
   X(ProcMember)                   \
   X(QuickCheck)                   \
+  X(RestOfTuple)                  \
   X(Slice)                        \
   X(Statement)                    \
   X(StructDef)                    \
@@ -2412,6 +2413,37 @@ class SplatStructInstance : public Expr {
   Expr* splatted_;
 };
 
+// Represents a tuple-destructuring instantiation that omits one or more values
+// e.g.,
+//    let (x, .., y) = (1, 2, 3, 4); // assigns x=1, y=4
+class RestOfTuple : public AstNode {
+ public:
+  RestOfTuple(Module* owner, Span span)
+      : AstNode(owner), span_(std::move(span)) {}
+
+  ~RestOfTuple() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kRestOfTuple; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleRestOfTuple(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "RestOfTuple"; }
+
+  std::string ToString() const override { return ".."; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  }
+
+  const Span& span() const { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
+
+ private:
+  Span span_;
+};
+
 // Represents a slice in the AST; e.g. `-4+:u2`
 class WidthSlice : public AstNode {
  public:
@@ -2891,7 +2923,7 @@ class NameDefTree : public AstNode {
  public:
   using Nodes = std::vector<NameDefTree*>;
   using Leaf = std::variant<NameDef*, NameRef*, WildcardPattern*, Number*,
-                            ColonRef*, Range*>;
+                            ColonRef*, Range*, RestOfTuple*>;
 
   NameDefTree(Module* owner, Span span, std::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(std::move(tree)) {}
