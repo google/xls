@@ -251,8 +251,8 @@ class Tokenizer {
       // digit. Literal numbers can also contain '_'s after the first
       // character which are used to improve readability (example:
       // '0xabcd_ef00').
-      if (isdigit(current()) ||
-          (current() == '-' && next().has_value() && isdigit(*next()))) {
+      if ((isdigit(current()) != 0) ||
+          (current() == '-' && next().has_value() && (isdigit(*next()) != 0))) {
         std::string_view value = CaptureWhile(
             [](char c) { return absl::ascii_isalnum(c) || c == '_'; },
             /*min_chars=*/1);

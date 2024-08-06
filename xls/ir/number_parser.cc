@@ -115,9 +115,8 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
     rope.push_back(unnarrowed);
     rope.push_back(Bits(bit_count - unnarrowed.bit_count()));
     return rope.Build();
-  } else {
-    return unnarrowed.Slice(0, bit_count);
   }
+  return unnarrowed.Slice(0, bit_count);
 }
 
 absl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(std::string_view input,
@@ -177,8 +176,8 @@ absl::StatusOr<Bits> ParseNumber(std::string_view input) {
     // We want to return the narrowest Bits object which can hold the (negative)
     // twos-complement number. Shave off all but one of the leading ones.
     int64_t leading_ones = 0;
-    for (int64_t i = result.bit_count() - 1; i >= 0 && result.Get(i) == 1;
-         --i) {
+    for (int64_t i = result.bit_count() - 1;
+         i >= 0 && static_cast<int>(result.Get(i)) == 1; --i) {
       ++leading_ones;
     }
     XLS_RET_CHECK_GT(leading_ones, 0);

@@ -29,7 +29,9 @@ namespace xls {
 
 namespace {
 
-bool IsAllowed(char c) { return (absl::ascii_isalnum(c) != 0) || c == '_'; }
+bool IsAllowed(char c) {
+  return (static_cast<int>(absl::ascii_isalnum(c)) != 0) || c == '_';
+}
 
 // Sanitizes and returns the name. Unallowed characters will be replaced with
 // '_'. The result will match the regexp "[a-zA-Z_][a-zA-Z0-9_]*". Names which

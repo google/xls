@@ -115,7 +115,7 @@ Bits BigInt::ToSignedBits() const {
   if (BN_is_zero(&bn_)) {
     return Bits();
   }
-  bool is_negative = BN_is_negative(&bn_);
+  bool is_negative = BN_is_negative(&bn_) != 0;
 
   // In twos-complement, negative values are stored as their positive
   // counterpart - 1, bit inverted. First compute the positive counterpart - 1.
@@ -298,7 +298,8 @@ int64_t BigInt::UnsignedBitCount() const {
 
 /* static */ BigInt BigInt::Negate(const BigInt& input) {
   BigInt value = input;
-  BN_set_negative(&value.bn_, !BN_is_negative(&value.bn_));
+  BN_set_negative(&value.bn_,
+                  static_cast<int>(BN_is_negative(&value.bn_) == 0));
   return value;
 }
 

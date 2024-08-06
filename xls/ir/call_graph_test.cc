@@ -25,7 +25,6 @@ namespace xls {
 namespace {
 
 using ::testing::ElementsAre;
-using ::testing::Optional;
 using ::testing::UnorderedElementsAre;
 
 class CallGraphTest : public IrTestBase {};

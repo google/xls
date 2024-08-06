@@ -61,10 +61,12 @@ class TestAbstractEvaluator
   BoxedBool Zero() const { return {false}; }
   BoxedBool Not(const BoxedBool& input) const { return {!input.value}; }
   BoxedBool And(const BoxedBool& a, const BoxedBool& b) const {
-    return {static_cast<bool>(a.value & b.value)};
+    return {static_cast<bool>(static_cast<int>(a.value) &
+                              static_cast<int>(b.value))};
   }
   BoxedBool Or(const BoxedBool& a, const BoxedBool& b) const {
-    return {static_cast<bool>(a.value | b.value)};
+    return {static_cast<bool>(static_cast<int>(a.value) |
+                              static_cast<int>(b.value))};
   }
 };
 
