@@ -21,11 +21,13 @@
 
 namespace xls {
 
-int ExitStatus(const absl::Status& status) {
+int ExitStatus(const absl::Status& status, bool log_on_error) {
   if (status.ok()) {
     return EXIT_SUCCESS;
   }
-  std::cerr << "Error: " << status;
+  if (log_on_error) {
+    std::cerr << "Error: " << status;
+  }
   return EXIT_FAILURE;
 }
 

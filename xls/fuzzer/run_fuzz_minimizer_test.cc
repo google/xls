@@ -114,7 +114,7 @@ TEST_F(RunFuzzMinimizerTest, MinimizeIRMinimizationPossible) {
   ASSERT_THAT(
       RunSample(sample, GetTempPath()),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("codegen_main returned non-zero exit status")));
+               HasSubstr("codegen_main returned a non-zero exit status")));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::optional<std::filesystem::path> minimized_ir_path,
       MinimizeIr(sample, GetTempPath()));

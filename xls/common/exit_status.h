@@ -19,7 +19,7 @@
 
 namespace xls {
 
-int ExitStatus(const absl::Status& status);
+int ExitStatus(const absl::Status& status, bool log_on_error = true);
 
 }  // namespace xls
 

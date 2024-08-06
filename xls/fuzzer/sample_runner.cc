@@ -167,7 +167,8 @@ absl::StatusOr<std::vector<dslx::InterpValue>> InterpretDslxFunction(
   return results;
 }
 
-// Runs the given command, returning the command's stdout if successful.
+// Runs the given command, returning the command's stdout if successful, and
+// attaching the command's stderr to the resulting status if not.
 absl::StatusOr<std::string> RunCommand(
     std::string_view desc, const SampleRunner::Commands::Command& command,
     std::vector<std::string> args, const std::filesystem::path& run_dir,
@@ -232,7 +233,9 @@ absl::StatusOr<std::string> RunCommand(
   VLOG(1) << desc << " complete, elapsed " << elapsed;
   if (!result.normal_termination) {
     return absl::InternalError(
-        absl::StrCat("Subprocess call failed: ", command_string));
+        absl::StrFormat("Subprocess call failed: %s\n\n"
+                        "Subprocess stderr:\n%s",
+                        command_string, result.stderr_content));
   }
   if (result.exit_status != EXIT_SUCCESS) {
     if (absl::c_any_of(filters, [&](const std::shared_ptr<RE2>& re) {
@@ -244,8 +247,10 @@ absl::StatusOr<std::string> RunCommand(
                           executable.string(), result.exit_status));
     }
     return absl::InternalError(
-        absl::StrCat(executable.string(), " returned non-zero exit status (",
-                     result.exit_status, "): ", command_string));
+        absl::StrFormat("%s returned a non-zero exit status (%d): %s\n\n"
+                        "Subprocess stderr:\n%s",
+                        executable.string(), result.exit_status, command_string,
+                        result.stderr_content));
   }
   return result.stdout_content;
 }

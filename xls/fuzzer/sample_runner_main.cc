@@ -125,8 +125,10 @@ int main(int argc, char** argv) {
     }
   }
 
-  return xls::ExitStatus(xls::RealMain(
-      run_dir, absl::GetFlag(FLAGS_options_file),
-      absl::GetFlag(FLAGS_input_file), absl::GetFlag(FLAGS_args_file),
-      absl::GetFlag(FLAGS_ir_channel_names_file)));
+  return xls::ExitStatus(
+      xls::RealMain(run_dir, absl::GetFlag(FLAGS_options_file),
+                    absl::GetFlag(FLAGS_input_file),
+                    absl::GetFlag(FLAGS_args_file),
+                    absl::GetFlag(FLAGS_ir_channel_names_file)),
+      /*log_on_error=*/false);
 }

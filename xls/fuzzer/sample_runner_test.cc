@@ -721,7 +721,8 @@ TEST_F(SampleRunnerTest, BadIRInput) {
   EXPECT_THAT(runner.Run(Sample(std::string(ir_text), options, args_batch)),
               StatusIs(absl::StatusCode::kInternal,
                        AllOf(HasSubstr("eval_ir_main"),
-                             HasSubstr("returned non-zero exit status"))));
+                             HasSubstr("returned a non-zero exit status"),
+                             HasSubstr("Expected 'package' keyword"))));
   EXPECT_THAT(GetFileContents(GetTempPath() / "eval_ir_main.stderr"),
               IsOkAndHolds(HasSubstr("Expected 'package' keyword")));
 }
