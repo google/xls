@@ -246,6 +246,7 @@ std::vector<Link> MatchLinks(QueryEngine& query_engine, Node* node,
       next_case = i + 1;
     } else {
       false_case = sel->default_value();
+      next_case = std::nullopt;
     }
 
     Node* next;
