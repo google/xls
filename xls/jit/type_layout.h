@@ -105,6 +105,10 @@ class TypeLayout {
   // `buffer`.
   Value NativeLayoutToValue(const uint8_t* buffer) const;
 
+  // Get a string which is a bitmask of which bits contribute to the native
+  // representations value.
+  std::vector<uint8_t> mask() const;
+
   absl::Span<const ElementLayout> elements() const { return elements_; }
 
   // Returns the number of bytes an instances of the type occupies.

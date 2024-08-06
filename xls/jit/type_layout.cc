@@ -189,6 +189,13 @@ TypeLayoutProto TypeLayout::ToProto() const {
   return proto;
 }
 
+std::vector<uint8_t> TypeLayout::mask() const {
+  std::vector<uint8_t> res(size(), '\0');
+  Value mask = AllOnesOfType(type_);
+  ValueToNativeLayout(mask, res.data());
+  return res;
+}
+
 std::ostream& operator<<(std::ostream& os, ElementLayout layout) {
   os << layout.ToString();
   return os;
