@@ -1724,22 +1724,40 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
       return absl::OkStatus();
     }
 
+    absl::Status HandleStatementBlock(const StatementBlock* node) override {
+      for (auto child : node->GetChildren(/*want_types=*/false)) {
+        XLS_RETURN_IF_ERROR(child->Accept(this));
+      }
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleStatement(const Statement* node) override {
+      for (auto child : node->GetChildren(/*want_types=*/false)) {
+        XLS_RETURN_IF_ERROR(child->Accept(this));
+      }
+      return absl::OkStatus();
+    }
+
     absl::Status HandleLet(const Let* node) override {
       XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
       return absl::OkStatus();
     }
 
     absl::Status HandleNumber(const Number* node) override {
-      if (!type_info_->GetConstExpr(node).ok()) {
-        all_numbers_constexpr_ = false;
+      if (type_info_->GetConstExpr(node).ok()) {
+        constexpr_numbers_seen_++;
+      } else {
+        nonconstexpr_numbers_seen_++;
       }
       return absl::OkStatus();
     }
 
-    bool all_numbers_constexpr() { return all_numbers_constexpr_; }
+    int constexpr_numbers_seen() { return constexpr_numbers_seen_; }
+    int nonconstexpr_numbers_seen() { return nonconstexpr_numbers_seen_; }
 
    private:
-    bool all_numbers_constexpr_ = true;
+    int constexpr_numbers_seen_ = 0;
+    int nonconstexpr_numbers_seen_ = 0;
     TypeInfo* type_info_;
   };
 
@@ -1759,7 +1777,8 @@ fn main() {
                            tm.module->GetMemberOrError<Function>("main"));
   IsConstVisitor visitor(tm.type_info);
   XLS_ASSERT_OK(f->Accept(&visitor));
-  EXPECT_TRUE(visitor.all_numbers_constexpr());
+  EXPECT_EQ(visitor.constexpr_numbers_seen(), 2);
+  EXPECT_EQ(visitor.nonconstexpr_numbers_seen(), 0);
 }
 
 TEST(TypecheckTest, BasicTupleIndex) {
