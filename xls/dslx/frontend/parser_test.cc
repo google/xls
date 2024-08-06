@@ -184,6 +184,17 @@ TEST_F(ParserTest, TestIdentityFunction) {
 })");
 }
 
+TEST_F(ParserTest, DuplicateFn) {
+  EXPECT_NONFATAL_FAILURE(
+      RoundTrip(R"(fn f(){} fn f(){})"),
+      "Function 'f' is defined in this module multiple times");
+}
+
+TEST_F(ParserTest, DuplicateMember) {
+  EXPECT_NONFATAL_FAILURE(RoundTrip(R"(fn f(){} struct f {})"),
+                          "already contains a member named `f`");
+}
+
 TEST_F(ParserTest, TestIdentityFunctionWithLet) {
   std::unique_ptr<Module> module = RoundTrip(R"(fn f(x: u32) -> u32 {
     let y = x;
@@ -308,6 +319,21 @@ TEST_F(ParserTest, ParseLetWildcardBinding) {
       std::get<WildcardPattern*>(let->name_def_tree()->leaf());
   ASSERT_NE(wildcard, nullptr);
   ASSERT_TRUE(let->name_def_tree()->IsWildcardLeaf());
+}
+
+TEST_F(ParserTest, ParseLetWildcardBindingTwice) {
+  const char* text = R"({
+  let (y, y) = (u32:0, u32:0);
+})";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+  Bindings b;
+  auto block_or = p.ParseBlockExpression(/*bindings=*/b);
+  ASSERT_FALSE(block_or.ok());
+  EXPECT_THAT(block_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr(
+                           "Name 'y' is defined twice in this pattern")));
 }
 
 TEST_F(ParserTest, ParseLetExpressionWithShadowing) {
@@ -1479,6 +1505,36 @@ const ZERO = u32:0;
 const ARR = u32[2]:[MOL, ZERO, ...];)");
 }
 
+TEST_F(ParserTest, EllipsisNotInTrailingMiddle) {
+  const char* text = R"({
+  const ARR = u32[2]:[u32:0, ..., u32:0];
+})";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+  Bindings b;
+  auto block_or = p.ParseBlockExpression(/*bindings=*/b);
+  ASSERT_FALSE(block_or.ok());
+  EXPECT_THAT(block_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr(
+                           "Ellipsis may only be in trailing position.")));
+}
+
+TEST_F(ParserTest, EllipsisNotInTrailingLeading) {
+  const char* text = R"({
+  const ARR = u32[2]:[..., u32:0];
+})";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+  Bindings b;
+  auto block_or = p.ParseBlockExpression(/*bindings=*/b);
+  ASSERT_FALSE(block_or.ok());
+  EXPECT_THAT(block_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       testing::HasSubstr(
+                           "Ellipsis may only be in trailing position.")));
+}
+
 TEST_F(ParserTest, QuickCheckDirective) {
   RoundTrip(R"(#[quickcheck]
 fn foo(x: u5) -> bool {
@@ -2103,8 +2159,7 @@ TEST_F(ParserTest, UnterminatedEscapedHexChar) {
   EXPECT_THAT(
       module_or,
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Unexpected EOF in escaped hexadecimal character")))
-      << module_or.status();
+               HasSubstr("Unexpected EOF in escaped hexadecimal character")));
 }
 
 TEST_F(ParserTest, ConstShadowsImport) {
@@ -2125,8 +2180,7 @@ TEST_F(ParserTest, ZeroLengthStringAtEof) {
   auto module_or = parser.ParseModule();
   EXPECT_THAT(module_or,
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Zero-length strings are not supported.")))
-      << module_or.status();
+                       HasSubstr("Zero-length strings are not supported.")));
 }
 
 TEST_F(ParserTest, RepetitiveImport) {
@@ -2139,8 +2193,7 @@ import repetitively;)";
       module_or,
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Import of `repetitively` is shadowing an existing "
-                         "definition at test.x:1:1-1:7")))
-      << module_or.status();
+                         "definition at test.x:1:1-1:7")));
 }
 
 TEST_F(ParserTest, UnreasonablyDeepExpr) {
@@ -2151,9 +2204,9 @@ TEST_F(ParserTest, UnreasonablyDeepExpr) {
   Scanner s{"test.x", std::string(kProgram)};
   Parser parser{"test", &s};
   auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or, StatusIs(absl::StatusCode::kInvalidArgument,
-                                  HasSubstr("Expression is too deeply nested")))
-      << module_or.status();
+  EXPECT_THAT(module_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expression is too deeply nested")));
 }
 
 TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
@@ -2165,8 +2218,7 @@ TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
       module_or,
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Type before ':' for presumed array literal was not a "
-                         "type definition; got `4` (kind: number)")))
-      << module_or.status();
+                         "type definition; got `4` (kind: number)")));
 }
 
 TEST(ParserErrorTest, WildcardPatternExpressionStatement) {
@@ -2185,8 +2237,35 @@ fn test_f() {
       module_or.status(),
       IsPosError(
           "ParseError",
-          HasSubstr("Wildcard pattern `_` cannot be used as a reference")))
-      << module_or.status();
+          HasSubstr("Wildcard pattern `_` cannot be used as a reference")));
+}
+
+TEST(ParserErrorTest, BadTestTarget) {
+  constexpr std::string_view kProgram = R"(#[test] let x=42;)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or.status(),
+              IsPosError("ParseError", HasSubstr("Invalid test type: let")));
+}
+
+TEST(ParserErrorTest, BadDirectiveTokenType) {
+  constexpr std::string_view kProgram = R"(#[3])";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError", HasSubstr("Expected attribute identifier")));
+}
+
+TEST(ParserErrorTest, BadDirective) {
+  constexpr std::string_view kProgram = R"(#[foo])";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or.status(),
+              IsPosError("ParseError", HasSubstr("Unknown directive: 'foo'")));
 }
 
 TEST(ParserErrorTest, FailLabelVerilogIdentifierConstraintReported) {
@@ -2204,13 +2283,11 @@ fn will_fail(x:u32) -> u32 {
       module_or.status(),
       IsPosError(
           "ParseError",
-          HasSubstr("The label parameter to fail!() must be a valid Verilog")))
-      << module_or.status();
+          HasSubstr("The label parameter to fail!() must be a valid Verilog")));
 
   // Highlight span of the label parameter
   EXPECT_THAT(module_or.status(), StatusIs(absl::StatusCode::kInvalidArgument,
-                                           HasSubstr("test.x:3:10-3:30")))
-      << module_or.status();
+                                           HasSubstr("test.x:3:10-3:30")));
 }
 
 TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
