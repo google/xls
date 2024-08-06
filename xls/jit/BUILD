@@ -16,7 +16,7 @@
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
-# pytype binary only
+# pytype binary and test
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
@@ -1130,4 +1130,36 @@ xls_aot_generate(
     name = "multi_proc_aot",
     src = ":multi_proc",
     with_msan = XLS_IS_MSAN_BUILD,
+)
+
+cc_binary(
+    name = "type_layout_main",
+    srcs = ["type_layout_main.cc"],
+    deps = [
+        ":type_layout",
+        ":type_layout_cc_proto",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+py_test(
+    name = "type_layout_main_test",
+    srcs = ["type_layout_main_test.py"],
+    data = [":type_layout_main"],
+    deps = [
+        ":type_layout_py_pb2",
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
 )
