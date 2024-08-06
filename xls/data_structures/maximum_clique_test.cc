@@ -137,6 +137,7 @@ TEST(MaximumCliqueTest, ConnectedUnionOfCG4AndCG3) {
 
 TEST(MaximumCliqueTest, Big) {
   std::vector<V> nodes;
+  nodes.reserve(100);
   for (int64_t i = 0; i < 100; ++i) {
     nodes.push_back(absl::StrFormat("%d", i));
   }

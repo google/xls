@@ -221,6 +221,7 @@ TEST(BinaryDecisionDiagramTest, Parity) {
   // Construct and test a 64-bit even parity expression.
   BinaryDecisionDiagram bdd;
   std::vector<BddNodeIndex> variables;
+  variables.reserve(64);
   for (int64_t i = 0; i < 64; ++i) {
     variables.push_back(bdd.NewVariable());
   }
@@ -259,6 +260,7 @@ TEST(BinaryDecisionDiagramTest, ThreeVariableExhaustive) {
   // possible inputs.
   BinaryDecisionDiagram bdd;
   std::vector<BddNodeIndex> vars;
+  vars.reserve(3);
   for (int64_t i = 0; i < 3; ++i) {
     vars.push_back(bdd.NewVariable());
   }

@@ -115,6 +115,7 @@ std::string ToStringHelper(Type* subtype,
   std::string indentation(indent, ' ');
   if (subtype->IsArray()) {
     std::vector<std::string> pieces;
+    pieces.reserve(subtype->AsArrayOrDie()->size());
     for (int64_t i = 0; i < subtype->AsArrayOrDie()->size(); ++i) {
       pieces.push_back(ToStringHelper(subtype->AsArrayOrDie()->element_type(),
                                       elements, multiline, indent + 2,
@@ -128,6 +129,7 @@ std::string ToStringHelper(Type* subtype,
   }
   if (subtype->IsTuple()) {
     std::vector<std::string> pieces;
+    pieces.reserve(subtype->AsTupleOrDie()->size());
     for (int64_t i = 0; i < subtype->AsTupleOrDie()->size(); ++i) {
       pieces.push_back(ToStringHelper(subtype->AsTupleOrDie()->element_type(i),
                                       elements, multiline, indent + 2,
