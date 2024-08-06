@@ -14,6 +14,8 @@
 
 # Build rules for the IR JIT - converts XLS IR into native host code.
 
+# cc_proto_library is used in this file
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 # pytype binary and test
@@ -35,7 +37,7 @@ load(
     "//xls/build_rules:xls_internal_build_defs.bzl",
     "XLS_IS_MSAN_BUILD",
 )
-# cc_proto_library is used in this file
+load(":aot_test_helper.bzl", "aot_protobuf")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -460,8 +462,8 @@ cc_test(
         "function_jit_aot_test.cc",
     ],
     data = [
-        ":multi_function_aot",
         ":multi_function_with_trace.ir",
+        ":multi_function_with_trace_aot_pb",
     ],
     deps = [
         ":aot_entrypoint_cc_proto",
@@ -469,7 +471,7 @@ cc_test(
         ":function_jit",
         ":jit_callbacks",
         ":jit_runtime",
-        ":multi_function_aot",  # build_cleaner: keep
+        ":multi_function_with_trace_aot",  # build_cleaner: keep
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -1036,6 +1038,22 @@ xls_dslx_ir(
     library = ":multi_function_dslx",
 )
 
+xls_aot_generate(
+    name = "multi_function_aot",
+    testonly = True,
+    src = ":multi_function",
+    top = "multi_function_one",
+    with_msan = XLS_IS_MSAN_BUILD,
+)
+
+# This is needed since xls_aot_generate isn't really meant to be used directly
+# so doesn't register the protobuf as a pre-declared output file, complicating its use in a genrule.
+aot_protobuf(
+    name = "multi_function_aot_pb",
+    testonly = True,
+    aot = ":multi_function_aot",
+)
+
 xls_dslx_library(
     name = "multi_function_with_trace_dslx",
     srcs = ["multi_func_with_trace.x"],
@@ -1089,10 +1107,16 @@ cc_xls_ir_jit_wrapper(
 )
 
 xls_aot_generate(
-    name = "multi_function_aot",
+    name = "multi_function_with_trace_aot",
     src = ":multi_function_with_trace.ir",
     top = "multi_function_one",
     with_msan = XLS_IS_MSAN_BUILD,
+)
+
+aot_protobuf(
+    name = "multi_function_with_trace_aot_pb",
+    testonly = True,
+    aot = ":multi_function_with_trace_aot",
 )
 
 # Procs get the file name embedded in their identifier when they have generics.
@@ -1162,4 +1186,48 @@ py_test(
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
     ],
+)
+
+py_binary(
+    name = "aot_main_wrapper_main",
+    srcs = ["aot_main_wrapper_main.py"],
+    data = [
+        ":aot_main_cc.tmpl",
+        ":type_layout_main",
+    ],
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        ":aot_entrypoint_py_pb2",
+        ":type_layout_py_pb2",
+        requirement("Jinja2"),
+        requirement("MarkupSafe"),
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+    ],
+)
+
+genrule(
+    name = "generate_aot_main_wrapper",
+    testonly = True,
+    srcs = [":multi_function_aot_pb"],
+    outs = ["generate_aot_main_wrapper.cc"],
+    cmd = """
+    $(location :aot_main_wrapper_main) -input 'bits[8]:3' -result 'bits[8]:15' -output $@ -package $(location :multi_function_aot_pb)
+    """,
+    tools = [":aot_main_wrapper_main"],
+)
+
+# Just makes sure that we can execute the wrapper.
+cc_test(
+    name = "aot_main_wrapper_main_test",
+    srcs = [":generate_aot_main_wrapper.cc"],
+    deps = [":multi_function_aot"],
+)
+
+bzl_library(
+    name = "aot_test_helper_bzl",
+    srcs = ["aot_test_helper.bzl"],
+    visibility = ["//visibility:private"],
+    deps = ["//xls/build_rules:xls_providers_bzl"],
 )

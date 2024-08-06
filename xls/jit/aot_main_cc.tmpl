@@ -1,0 +1,63 @@
+
+// We want to run against llvm Interpreter directly so best not to include *anything*
+using uint8_t = unsigned char;
+using int64_t = long long int;
+using size_t = decltype(sizeof(0));
+
+static_assert(sizeof(int64_t) == 8);
+static_assert(sizeof(uint8_t) == 1);
+
+extern "C" {
+void {{aot.extern_fn}}(const uint8_t* const* inputs,
+                       uint8_t* const* outputs,
+                       uint8_t* temp_buffer,
+                       void* events,
+                       void* unused,
+                       int64_t continuation_point);
+{% if aot.write_result %}
+int write(int fd, void* v, size_t s);
+{% endif %}
+}
+
+namespace {
+uint8_t kExpectedResults[] = {
+  {{aot.expected_result | join(", ")}}
+};
+uint8_t kResultMask[] = {
+  {{aot.expected_result_mask | join(", ")}}
+};
+int memcmp_masked(uint8_t* l, uint8_t* r, uint8_t* mask, int64_t n) {
+  for (int64_t i = 0; i < n; ++i) {
+    uint8_t rv = r[i] & mask[i];
+    uint8_t lv = l[i] & mask[i];
+    if (lv != rv) {
+      if (lv < rv) {
+        return -1;
+      } else {
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+}
+
+int main(int argc, char** argv) {
+  {% for arg in aot.args %}
+  alignas ({{ arg.alignment }}) uint8_t {{ arg.name }}[] = { {{arg.value | join(", ")}} };
+  {% endfor %}
+  uint8_t* arg_buffers[] = { {{ aot.args | map(attribute="name") | join(", ")}} };
+  alignas ({{aot.result_alignment }}) uint8_t result_buf[{{len(aot.expected_result)}}] = {};
+  uint8_t* result_buffers[1] = { result_buf };
+  alignas ({{aot.temp_alignment}}) uint8_t temp_buffer[{{aot.temp_size}}] = {};
+
+  {{aot.extern_fn}}(
+        arg_buffers, result_buffers, temp_buffer,
+        /*interpreter_events=*/nullptr, /*callbacks=*/nullptr,
+        /*continuation_point=*/0);
+  {% if aot.write_result %}
+  write(1, result_buf, sizeof(result_buf));
+  {% endif %}
+  // Exit 0 if matches expectation, 1 otherwise.
+  return memcmp_masked(kExpectedResults, result_buf, kResultMask, {{len(aot.expected_result)}}) == 0 ? 0 : 1;
+}

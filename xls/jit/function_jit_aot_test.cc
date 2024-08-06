@@ -76,7 +76,7 @@ static constexpr std::string_view kGoldIr =
 static constexpr std::string_view kGoldTopName =
     "__multi_func_with_trace__multi_function_one";
 static constexpr std::string_view kTestAotEntrypointsProto =
-    "xls/jit/multi_function_aot.pb";
+    "xls/jit/multi_function_with_trace_aot.pb";
 
 absl::StatusOr<AotPackageEntrypointsProto> GetEntrypointsProto() {
   AotPackageEntrypointsProto proto;
@@ -103,7 +103,8 @@ bool AreSymbolsAsExpected() {
 TEST(SymbolNames, AreAsExpected) {
   ASSERT_TRUE(AreSymbolsAsExpected())
       << "Symbols are not what we expected. This test needs to be updated to "
-         "match new jit-compiler symbol naming scheme";
+         "match new jit-compiler symbol naming scheme: "
+      << GetEntrypointsProto();
 }
 
 class FunctionJitAotTest : public testing::Test {
