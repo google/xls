@@ -69,6 +69,20 @@ std::string ConversionRecordsToString(
 
 }  // namespace
 
+// -- class ProcIdFactory
+
+ProcId ProcIdFactory::CreateProcId(const ProcId& parent, Proc* spawnee,
+                                   bool count_as_new_instance) {
+  std::vector<std::pair<Proc*, int>> new_stack = parent.proc_instance_stack;
+  int& instance_count =
+      instance_counts_[std::make_pair(parent, spawnee->identifier())];
+  new_stack.push_back(std::make_pair(spawnee, instance_count));
+  if (count_as_new_instance) {
+    ++instance_count;
+  }
+  return ProcId{.proc_instance_stack = std::move(new_stack)};
+}
+
 // -- class Callee
 
 /* static */ absl::StatusOr<Callee> Callee::Make(
@@ -295,15 +309,13 @@ class InvocationVisitor : public ExprVisitor {
     if (maybe_proc.has_value()) {
       XLS_RET_CHECK(proc_id_.has_value()) << "Functions cannot spawn procs.";
 
-      std::vector<Proc*> proc_stack = proc_id_.value().proc_stack;
-      proc_stack.push_back(maybe_proc.value());
-      proc_id = ProcId{proc_stack, proc_instances_[proc_stack]};
-      // Only increment on next so that Config & Next have the same ID.
-      // This assumes that we call a Proc's config & next calls in that order,
-      // which is indeed the case.
-      if (callee_info->callee->tag() == FunctionTag::kProcNext) {
-        proc_instances_[proc_stack]++;
-      }
+      // Only count `next` as a new instance, so that `config` and `next` have
+      // the same ID. This assumes that we call a proc's `config` and `next` in
+      // that order, which is indeed the case.
+      const bool count_as_new_instance =
+          callee_info->callee->tag() == FunctionTag::kProcNext;
+      proc_id = proc_id_factory_.CreateProcId(*proc_id_, maybe_proc.value(),
+                                              count_as_new_instance);
     }
 
     // See if there are parametric bindings to use in the callee for this
@@ -438,7 +450,8 @@ class InvocationVisitor : public ExprVisitor {
     Module* module = (*info)->module;
     XLS_ASSIGN_OR_RETURN(Function * f,
                          module->GetMemberOrError<Function>(colon_ref->attr()));
-    return CalleeInfo{module, f, (*info)->type_info};
+    return CalleeInfo{
+        .module = module, .callee = f, .type_info = (*info)->type_info};
   }
 
   // Helper for invocations of NameRef callees.
@@ -488,14 +501,15 @@ class InvocationVisitor : public ExprVisitor {
                                  identifier);
     }
 
-    return CalleeInfo{this_m, f, callee_type_info};
+    return CalleeInfo{
+        .module = this_m, .callee = f, .type_info = callee_type_info};
   }
 
   Module* module_;
   TypeInfo* type_info_;
   const ParametricEnv& bindings_;
   std::optional<ProcId> proc_id_;
-  absl::flat_hash_map<std::vector<Proc*>, int> proc_instances_;
+  ProcIdFactory proc_id_factory_;
 
   // Built up list of callee records discovered during traversal.
   std::vector<Callee> callees_;
@@ -717,13 +731,14 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
 
   // The next function of a proc is the entry function when converting a proc to
   // IR.
-  XLS_RETURN_IF_ERROR(AddToReady(&p->next(),
-                                 /*invocation=*/nullptr, p->owner(), type_info,
-                                 ParametricEnv(), &ready, ProcId{{p}, 0},
-                                 is_top));
+  XLS_RETURN_IF_ERROR(
+      AddToReady(&p->next(),
+                 /*invocation=*/nullptr, p->owner(), type_info, ParametricEnv(),
+                 &ready, ProcId{.proc_instance_stack = {{p, 0}}}, is_top));
   XLS_RETURN_IF_ERROR(AddToReady(&p->config(),
                                  /*invocation=*/nullptr, p->owner(), type_info,
-                                 ParametricEnv(), &ready, ProcId{{p}, 0}));
+                                 ParametricEnv(), &ready,
+                                 ProcId{.proc_instance_stack = {{p, 0}}}));
 
   // Constants and "member" vars are assigned and defined in Procs' "config'"
   // functions, so we need to execute those before their "next" functions.

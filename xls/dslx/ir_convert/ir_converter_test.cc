@@ -1768,33 +1768,16 @@ proc A {
 }
 )";
 
-  {
-    ConvertOptions options;
-    options.emit_fail_as_assert = false;
-    options.emit_positions = false;
-    // TODO(b/357942810) - Turn on verification once it can pass.
-    options.verify_ir = false;
-    auto import_data = CreateImportDataForTest();
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = true;
+  auto import_data = CreateImportDataForTest();
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::string converted,
-        ConvertOneFunctionForTest(kProgram, "A", import_data, options));
-    ExpectIr(converted, TestName());
-  }
-
-  // TODO(b/357942810) - Remove once verification error is fixed.
-  {
-    ConvertOptions options;
-    options.emit_fail_as_assert = false;
-    options.emit_positions = false;
-    options.verify_ir = true;
-    auto import_data = CreateImportDataForTest();
-
-    EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "A", import_data, options),
-                StatusIs(absl::StatusCode::kInternal,
-                         HasSubstr(" __test_module__A__B__C_0_next is not "
-                                   "unique within package")));
-  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, SendIfRecvIf) {

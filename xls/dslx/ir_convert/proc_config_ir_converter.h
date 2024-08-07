@@ -88,7 +88,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   NameUniquer channel_name_uniquer_;
 
   ProcConversionData* proc_data_;
-  absl::flat_hash_map<std::vector<Proc*>, int> instances_;
+  ProcIdFactory proc_id_factory_;
 
   const ParametricEnv& bindings_;
   ProcId proc_id_;

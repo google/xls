@@ -86,7 +86,7 @@ proc main {
   auto import_data = CreateImportDataForTest();
 
   ParametricEnv bindings;
-  ProcId proc_id{/*proc_stack=*/{}, /*instance=*/0};
+  ProcId proc_id;
 
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -142,7 +142,7 @@ proc main {
   auto import_data = CreateImportDataForTest();
 
   ParametricEnv bindings;
-  ProcId proc_id{/*proc_stack=*/{}, /*instance=*/0};
+  ProcId proc_id;
 
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -267,6 +267,51 @@ proc main {
   EXPECT_THAT(conv.package->channels(),
               AllOf(Contains(m::Channel("test_module__my_chan")),
                     Contains(m::Channel("test_module__my_chan__1"))));
+}
+
+TEST(ProcConfigIrConverterTest, MultipleNonLeafSpawnsOfSameProc) {
+  constexpr std::string_view kModule = R"(
+proc C {
+    init { () }
+    config() { () }
+    next(state: ()) { () }
+}
+
+proc B {
+    init { () }
+    config() {
+      spawn C();
+      ()
+    }
+    next(state: ()) { () }
+}
+
+proc A {
+    init { () }
+    config() {
+        spawn B();
+        spawn B();
+        ()
+    }
+    next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+
+  EXPECT_THAT(conv.package->procs(),
+              UnorderedElementsAre(m::Proc("__test_module__A_0_next"),
+                                   m::Proc("__test_module__A__B_0__C_0_next"),
+                                   m::Proc("__test_module__A__B_0_next"),
+                                   m::Proc("__test_module__A__B_1__C_0_next"),
+                                   m::Proc("__test_module__A__B_1_next")));
 }
 
 TEST(ProcConfigIrConverterTest,

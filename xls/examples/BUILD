@@ -708,7 +708,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "delay_opt_ir",
     src = "delay.ir",
-    top = "__delay__Delay32x2048_init3__Delay__DelayInternal_0__10_32_2048_64_1024_3_next",
+    top = "__delay__Delay32x2048_init3__Delay_0__DelayInternal_0__10_32_2048_64_1024_3_next",
 )
 
 xls_ir_verilog(

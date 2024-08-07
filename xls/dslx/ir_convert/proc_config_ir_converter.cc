@@ -46,15 +46,6 @@
 #include "xls/ir/value.h"
 
 namespace xls::dslx {
-namespace {
-
-std::string ProcStackToId(const std::vector<Proc*>& stack) {
-  return absl::StrJoin(stack, "->", [](std::string* out, const Proc* p) {
-    out->append(p->identifier());
-  });
-}
-
-}  // namespace
 
 ProcConfigIrConverter::ProcConfigIrConverter(
     PackageConversionData* conversion_info, Function* f, TypeInfo* type_info,
@@ -266,9 +257,7 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleSpawn : " << node->ToString();
   std::vector<ProcConfigValue> config_args;
   XLS_ASSIGN_OR_RETURN(Proc * p, ResolveProc(node->callee(), type_info_));
-  std::vector<Proc*> new_stack = proc_id_.proc_stack;
-  new_stack.push_back(p);
-  ProcId new_id{new_stack, instances_[new_stack]++};
+  ProcId new_id = proc_id_factory_.CreateProcId(proc_id_, p);
   for (const auto& arg : node->config()->args()) {
     XLS_RETURN_IF_ERROR(arg->Accept(this));
     config_args.push_back(node_to_ir_.at(arg));
