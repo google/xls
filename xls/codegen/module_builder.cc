@@ -674,28 +674,27 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
             assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs,
                                                             rhs);
           });
-    } else {
-      // Indices may or may not match the subarray/element being replaced with
-      // update value. Use a ternary expression to pick from rhs or update
-      // value. E.g:
-      //   assign lhs[i][j] = (i == idx) ? update_value[j] : rhs[j]
-      auto gen_ternary = [&](absl::Span<Expression* const> inputs) {
-        return file_->Ternary(std::get<Expression*>(index_match), inputs[0],
-                              inputs[1], SourceInfo());
-      };
-
-      // Emit a continuous assignment with a ternary select. The ternary
-      // operation supports array types in SystemVerilog so sv_array_expr is
-      // true.
-      return AddAssignmentToGeneratedExpression(
-          xls_type, lhs, /*inputs=*/{update_value, rhs}, gen_ternary,
-          /*add_assignment=*/
-          [&](Expression* lhs, Expression* rhs) {
-            assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs,
-                                                            rhs);
-          },
-          /*sv_array_expr=*/true);
     }
+    // Indices may or may not match the subarray/element being replaced with
+    // update value. Use a ternary expression to pick from rhs or update
+    // value. E.g:
+    //   assign lhs[i][j] = (i == idx) ? update_value[j] : rhs[j]
+    auto gen_ternary = [&](absl::Span<Expression* const> inputs) {
+      return file_->Ternary(std::get<Expression*>(index_match), inputs[0],
+                            inputs[1], SourceInfo());
+    };
+
+    // Emit a continuous assignment with a ternary select. The ternary
+    // operation supports array types in SystemVerilog so sv_array_expr is
+    // true.
+    return AddAssignmentToGeneratedExpression(
+        xls_type, lhs, /*inputs=*/{update_value, rhs}, gen_ternary,
+        /*add_assignment=*/
+        [&](Expression* lhs, Expression* rhs) {
+          assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs,
+                                                          rhs);
+        },
+        /*sv_array_expr=*/true);
   }
 
   // Iterate through array elements and recurse.
