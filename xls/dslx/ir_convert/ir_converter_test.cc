@@ -1705,6 +1705,98 @@ proc P {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, HandlesProcWithMultipleSpawn) {
+  const std::string kProgram = R"(
+proc C {
+    s: chan<u32> in;
+
+    config(s: chan<u32> in) {
+      (s,)
+    }
+
+    init { u32:0 }
+
+    next(state: u32) {
+      let (tok, data) = recv(join(), s);
+
+       state + data
+    }
+}
+
+proc B {
+    s: chan<u32> in;
+    s0_out: chan<u32> out;
+    config(s: chan<u32> in) {
+      let (s0_out, s0_in)  = chan<u32>("s0");
+
+      spawn C(s0_in);
+
+      (s, s0_out)
+    }
+
+    init { u32:0 }
+
+    next(state: u32) {
+      let (tok, data) = recv(join(), s);
+      send(tok, s0_out, data);
+
+      state + data
+    }
+}
+
+proc A {
+    s: chan<u32> in;
+    s0_out: chan<u32> out;
+    s1_out: chan<u32> out;
+
+    config(s: chan<u32> in) {
+        let (s0_out, s0_in)  = chan<u32>("s0");
+        let (s1_out, s1_in)  = chan<u32>("s1");
+
+        spawn B(s0_in);
+        spawn B(s1_in);
+        (s, s0_out, s1_out)
+    }
+
+    init {  }
+
+    next(state: ()) {
+        let (tok, data) = recv(join(), s);
+        send(tok, s0_out, data);
+        send(tok, s1_out, data);
+    }
+}
+)";
+
+  {
+    ConvertOptions options;
+    options.emit_fail_as_assert = false;
+    options.emit_positions = false;
+    // TODO(b/357942810) - Turn on verification once it can pass.
+    options.verify_ir = false;
+    auto import_data = CreateImportDataForTest();
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string converted,
+        ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+    ExpectIr(converted, TestName());
+  }
+
+  // TODO(b/357942810) - Remove once verification error is fixed.
+  {
+    ConvertOptions options;
+    options.emit_fail_as_assert = false;
+    options.emit_positions = false;
+    options.verify_ir = true;
+    auto import_data = CreateImportDataForTest();
+
+    EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "A", import_data, options),
+                StatusIs(absl::StatusCode::kInternal,
+                         HasSubstr(" __test_module__A__B__C_0_next is not "
+                                   "unique within package")));
+  }
+}
+
 TEST(IrConverterTest, SendIfRecvIf) {
   constexpr std::string_view kProgram = R"(proc producer {
   c: chan<u32> out;
