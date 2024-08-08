@@ -313,7 +313,6 @@ class FunctionConverter {
   absl::Status HandleNameRef(const NameRef* node);
   absl::Status HandleNumber(const Number* node);
   absl::Status HandleParam(const Param* node);
-  absl::Status HandleProcMember(const ProcMember* node);
   absl::Status HandleString(const String* node);
   absl::Status HandleUnop(const Unop* node);
   absl::Status HandleXlsTuple(const XlsTuple* node);
@@ -367,22 +366,7 @@ class FunctionConverter {
                                            NameRef* node, AstNode* arg,
                                            const ParametricEnv& parametric_env);
 
-  // Evaluates a constexpr AST Invocation via the DSLX interpreter.
-  //
-  // Evaluates an Invocation node whose argument values are all known at
-  // compile/interpret time, yielding a constant value that can be inserted
-  // into the IR.
-  //
-  // Args:
-  //  node: The Invocation node to evaluate.
-  //
-  // Returns:
-  //   The XLS (IR) Value containing the result.
-  absl::StatusOr<Value> EvaluateConstFunction(const Invocation* node);
-
   absl::StatusOr<BValue> HandleMap(const Invocation* node);
-
-  absl::StatusOr<BValue> HandleFail(const Invocation* node);
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(const Invocation* node);
@@ -420,17 +404,9 @@ class FunctionConverter {
 
   // Derefences the type definition to a struct definition.
   absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);
-  absl::StatusOr<StructDef*> DerefStruct(NameRef* name_ref) {
-    return DerefStructOrEnumFromNameRef<StructDef*>(
-        name_ref, [this](TypeDefinition td) { return DerefStruct(td); });
-  }
 
   // Derefences the type definition to a enum definition.
   absl::StatusOr<EnumDef*> DerefEnum(TypeDefinition node);
-  absl::StatusOr<EnumDef*> DerefEnum(NameRef* name_ref) {
-    return DerefStructOrEnumFromNameRef<EnumDef*>(
-        name_ref, [this](TypeDefinition td) { return DerefEnum(td); });
-  }
 
   absl::Status CastToArray(const Cast* node, const ArrayType& output_type);
   absl::Status CastFromArray(const Cast* node, const Type& output_type);
@@ -447,17 +423,6 @@ class FunctionConverter {
     int64_t bit_width;
   };
   absl::StatusOr<RangeData> GetRangeData(const Expr* iterable);
-
-  template <typename T>
-  absl::StatusOr<T> DerefStructOrEnumFromNameRef(
-      NameRef* name_ref,
-      const std::function<absl::StatusOr<T>(TypeDefinition)>& f) {
-    AnyNameDef any_name_def = name_ref->name_def();
-    const auto* name_def = std::get<const NameDef*>(any_name_def);
-    AstNode* definer = name_def->definer();
-    XLS_ASSIGN_OR_RETURN(TypeDefinition td, ToTypeDefinition(definer));
-    return f(td);
-  }
 
   struct AssertionLabelData {
     // The codegen-level label we'll apply to the corresponding assertion.
@@ -504,18 +469,6 @@ class FunctionConverter {
   CValue DefConst(const AstNode* node, Value ir_value);
 
   absl::Status Visit(const AstNode* node);
-
-  // Creates a predicate that corresponds to reaching the current program point
-  // being converted. Handlers that convert `match` constructs (and similar)
-  // have a notion of implied control flow to the user -- we have to add control
-  // predicates to side-effecting operations (like `fail!()`) that occur in
-  // those positions.
-  //
-  // In other words, control constructs are responsible for squirreling away a
-  // function that conjures the control predicate while they are being
-  // translated (and this is how the conversion process can access that function
-  // when needed).
-  BValue CreateControlPredicate();
 
   Package* package() const {
     return package_data_.conversion_info->package.get();
