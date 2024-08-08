@@ -5,8 +5,8 @@
 namespace xls {
 
 TEST(OpSpecificationTest, CanGetSingleton) {
-    const auto& singleton = GetOpClassKindsSingleton();
-    EXPECT_NE(singleton.size(), 0);
+  const auto& singleton = GetOpClassKindsSingleton();
+  EXPECT_NE(singleton.size(), 0);
 }
 
 }  // namespace xls

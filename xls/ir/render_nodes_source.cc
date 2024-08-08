@@ -1,13 +1,14 @@
 #include "xls/ir/render_nodes_source.h"
 
-#include "xls/ir/op_specification.h"
 #include "absl/strings/str_replace.h"
+#include "xls/ir/op_specification.h"
 
 namespace xls {
 namespace {
 
 std::string RenderDefinitelyEqualTo(const OpClass& op_class) {
-  const std::string_view kTemplate = R"(bool {OP_CLASS_NAME}::IsDefinitelyEqualTo(const Node* other) const {
+  const std::string_view kTemplate =
+      R"(bool {OP_CLASS_NAME}::IsDefinitelyEqualTo(const Node* other) const {
   if (this == other) {
     return true;
   }
@@ -18,16 +19,18 @@ std::string RenderDefinitelyEqualTo(const OpClass& op_class) {
   return {EQUAL_TO_EXPR};
 }
 )";
-  return absl::StrReplaceAll(kTemplate, {
-    {"{OP_CLASS_NAME}", op_class.name()},
-    {"{EQUAL_TO_EXPR}", op_class.GetEqualToExpr()},
-  });
+  return absl::StrReplaceAll(kTemplate,
+                             {
+                                 {"{OP_CLASS_NAME}", op_class.name()},
+                                 {"{EQUAL_TO_EXPR}", op_class.GetEqualToExpr()},
+                             });
 }
 
 }  // namespace
 
 std::string RenderConstructor(const OpClass& op_class) {
-  const std::string_view kTemplate = R"({OP_CLASS_NAME}::{OP_CLASS_NAME}({ARGS_STR})
+  const std::string_view kTemplate =
+      R"({OP_CLASS_NAME}::{OP_CLASS_NAME}({ARGS_STR})
     : {BASE_CONSTRUCTOR_INVOCATION}
       {INITIALIZER_LIST}
 {
@@ -39,31 +42,37 @@ std::string RenderConstructor(const OpClass& op_class) {
 
   // Note: if the initializer list is non-empty it should start with a comma
   // since base constructor initialization precedes it.
-  std::string base_constructor_invocation = op_class.GetBaseConstructorInvocation();
+  std::string base_constructor_invocation =
+      op_class.GetBaseConstructorInvocation();
 
   std::vector<std::string> initializer_list_parts;
   for (const DataMember& member : op_class.GetDataMembers()) {
-    initializer_list_parts.push_back(absl::StrFormat("%s(%s)", member.name, member.init));
+    initializer_list_parts.push_back(
+        absl::StrFormat("%s(%s)", member.name, member.init));
   }
 
-  const std::string initializer_list = absl::StrJoin(initializer_list_parts, ", ");
+  const std::string initializer_list =
+      absl::StrJoin(initializer_list_parts, ", ");
   if (!initializer_list.empty()) {
     base_constructor_invocation += ",";
   }
 
   std::vector<std::string> add_methods_parts;
   for (const auto& op : op_class.operands()) {
-    add_methods_parts.push_back(absl::StrFormat("%s(%s);", op->GetAddMethod(), op->name()));
+    add_methods_parts.push_back(
+        absl::StrFormat("%s(%s);", op->GetAddMethod(), op->name()));
   }
   std::string add_methods = absl::StrJoin(add_methods_parts, "\n  ");
 
-  return absl::StrReplaceAll(kTemplate, {
-    {"{OP_CLASS_NAME}", op_class.name()},
-    {"{ARGS_STR}", op_class.GetConstructorArgsStr()},
-    {"{BASE_CONSTRUCTOR_INVOCATION}", base_constructor_invocation},
-    {"{INITIALIZER_LIST}", initializer_list},
-    {"{ADD_METHODS}", add_methods},
-  });
+  return absl::StrReplaceAll(
+      kTemplate,
+      {
+          {"{OP_CLASS_NAME}", op_class.name()},
+          {"{ARGS_STR}", op_class.GetConstructorArgsStr()},
+          {"{BASE_CONSTRUCTOR_INVOCATION}", base_constructor_invocation},
+          {"{INITIALIZER_LIST}", initializer_list},
+          {"{ADD_METHODS}", add_methods},
+      });
 }
 
 std::string RenderStandardCloneMethod(const OpClass& op_class) {
@@ -73,7 +82,9 @@ std::string RenderStandardCloneMethod(const OpClass& op_class) {
     FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<%s>(%s);
-})", op_class.name(), op_class.name(), op_class.GetCloneArgsStr("new_operands"));
+})",
+                         op_class.name(), op_class.name(),
+                         op_class.GetCloneArgsStr("new_operands"));
 }
 
 std::string RenderNodesSource() {
@@ -360,15 +371,18 @@ bool Select::AllCases(std::function<bool(Node*)> p) const {
     }
   }
 
-  std::string definitely_equal_to = absl::StrJoin(definitely_equal_to_seq, "\n");
+  std::string definitely_equal_to =
+      absl::StrJoin(definitely_equal_to_seq, "\n");
   std::string constructors = absl::StrJoin(constructors_seq, "\n");
   std::string standard_clone = absl::StrJoin(standard_clone_seq, "\n");
 
-  return absl::StrReplaceAll(kTemplate, {
-    {"{OP_CLASS_CONSTRUCTORS}", constructors},
-    {"{OP_CLASS_STANDARD_CLONE_METHODS}", standard_clone},
-    {"{OP_CLASS_DEFINITELY_EQUAL_TO_METHODS}", definitely_equal_to},
-  });
+  return absl::StrReplaceAll(
+      kTemplate,
+      {
+          {"{OP_CLASS_CONSTRUCTORS}", constructors},
+          {"{OP_CLASS_STANDARD_CLONE_METHODS}", standard_clone},
+          {"{OP_CLASS_DEFINITELY_EQUAL_TO_METHODS}", definitely_equal_to},
+      });
 }
 
 }  // namespace xls

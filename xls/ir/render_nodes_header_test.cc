@@ -1,8 +1,8 @@
-#include "gtest/gtest.h"
-
 #include "xls/ir/render_nodes_header.h"
-#include "xls/ir/op_specification.h"
+
+#include "gtest/gtest.h"
 #include "xls/common/remove_empty_lines.h"
+#include "xls/ir/op_specification.h"
 
 namespace xls {
 namespace {

@@ -1,8 +1,8 @@
 #include "xls/common/remove_empty_lines.h"
 
-#include "absl/strings/str_split.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 
 namespace xls {
 

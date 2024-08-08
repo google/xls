@@ -1,12 +1,12 @@
 #ifndef XLS_IR_OP_SPECIFICATION_H_
 #define XLS_IR_OP_SPECIFICATION_H_
 
-#include <string>
 #include <optional>
+#include <string>
 
 #include "absl/container/btree_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_join.h"
 
 namespace xls {
@@ -36,7 +36,8 @@ struct DataMember {
 struct MethodOptions {
   // True iff expression should be used as a body rather than a return value.
   bool expression_is_body = false;
-  // Optional string of C++ parameters that get inserted into the method signature between "()"s.
+  // Optional string of C++ parameters that get inserted into the method
+  // signature between "()"s.
   std::string params;
   // The method is a const method.
   bool is_const = true;
@@ -45,15 +46,13 @@ struct MethodOptions {
 // Describes a method of the Node class.
 class Method {
  public:
-  explicit Method(std::string name,
-                  std::string return_cpp_type,
+  explicit Method(std::string name, std::string return_cpp_type,
                   std::optional<std::string> expression,
                   MethodOptions options = MethodOptions{})
-    : name_(std::move(name)),
-      return_cpp_type_(std::move(return_cpp_type)),
-      expression_(std::move(expression)),
-      options_(std::move(options))
-  {}
+      : name_(std::move(name)),
+        return_cpp_type_(std::move(return_cpp_type)),
+        expression_(std::move(expression)),
+        options_(std::move(options)) {}
 
   std::string_view name() const { return name_; }
   std::string_view return_cpp_type() const { return return_cpp_type_; }
@@ -81,30 +80,32 @@ struct AttributeOptions {
 
 // Desribes an attribute of a Node class.
 //
-// An Attribute desugars into a ConstructorArgument, DataMember, and an accessor Method.
+// An Attribute desugars into a ConstructorArgument, DataMember, and an accessor
+// Method.
 class Attribute {
  public:
-  explicit Attribute(
-    std::string_view name,
-    std::string_view cpp_type,
-    AttributeOptions options = AttributeOptions{})
-    : name_(name),
-      constructor_argument_(ConstructorArgument{
-        .name = std::string{name},
-        .cpp_type = options.arg_cpp_type.has_value() ? options.arg_cpp_type.value() : std::string{cpp_type},
-        .clone_expression = std::make_optional(absl::StrCat(name, "()"))
-      }),
-      data_member_(DataMember{
-        .name = absl::StrCat(name, "_"),
-        .cpp_type = std::string{cpp_type},
-        .init = options.init_args.empty() ? std::string{name} : absl::StrJoin(options.init_args, ", "),
-        .equals_tmpl = std::move(options.equals_tmpl),
-      }),
-      method_(Method{
-        std::string{name},
-        /*return_cpp_type=*/options.return_cpp_type.has_value() ? options.return_cpp_type.value() : std::string{cpp_type},
-        /*expression=*/std::make_optional(data_member_.name)
-      }) {}
+  explicit Attribute(std::string_view name, std::string_view cpp_type,
+                     AttributeOptions options = AttributeOptions{})
+      : name_(name),
+        constructor_argument_(ConstructorArgument{
+            .name = std::string{name},
+            .cpp_type = options.arg_cpp_type.has_value()
+                            ? options.arg_cpp_type.value()
+                            : std::string{cpp_type},
+            .clone_expression = std::make_optional(absl::StrCat(name, "()"))}),
+        data_member_(DataMember{
+            .name = absl::StrCat(name, "_"),
+            .cpp_type = std::string{cpp_type},
+            .init = options.init_args.empty()
+                        ? std::string{name}
+                        : absl::StrJoin(options.init_args, ", "),
+            .equals_tmpl = std::move(options.equals_tmpl),
+        }),
+        method_(Method{std::string{name},
+                       /*return_cpp_type=*/options.return_cpp_type.has_value()
+                           ? options.return_cpp_type.value()
+                           : std::string{cpp_type},
+                       /*expression=*/std::make_optional(data_member_.name)}) {}
 
   std::string_view name() const { return name_; }
   const ConstructorArgument& constructor_argument() const {
@@ -117,7 +118,8 @@ class Attribute {
   }
 
  private:
-  // Name of the attribute. The constructor argument and accessor method share this name. The data member is the same name with a '_' suffix.
+  // Name of the attribute. The constructor argument and accessor method share
+  // this name. The data member is the same name with a '_' suffix.
   std::string name_;
   // The ConstructorArgument of the attribute.
   ConstructorArgument constructor_argument_;
@@ -138,77 +140,84 @@ class Int64Attribute : public Attribute {
 };
 
 class TypeAttribute : public Attribute {
-  public:
-    explicit TypeAttribute(std::string_view name) : Attribute{name, "Type*"} {}
+ public:
+  explicit TypeAttribute(std::string_view name) : Attribute{name, "Type*"} {}
 };
 
 class FunctionAttribute : public Attribute {
  public:
   explicit FunctionAttribute(std::string_view name)
-    : Attribute(name, "Function*", AttributeOptions{
-        .equals_tmpl = "{lhs}->IsDefinitelyEqualTo({rhs})",
-      }) {}
-
+      : Attribute(name, "Function*",
+                  AttributeOptions{
+                      .equals_tmpl = "{lhs}->IsDefinitelyEqualTo({rhs})",
+                  }) {}
 };
 
 class ValueAttribute : public Attribute {
  public:
   explicit ValueAttribute(std::string_view name)
-    : Attribute{name, /*cpp_type=*/"Value", AttributeOptions{
-        .return_cpp_type="const Value&"
-      }} {}
+      : Attribute{name, /*cpp_type=*/"Value",
+                  AttributeOptions{.return_cpp_type = "const Value&"}} {}
 };
 
 class StringAttribute : public Attribute {
-  public:
-    explicit StringAttribute(std::string_view name) : Attribute{name, /*cpp_type=*/"std::string",
-      AttributeOptions{
-        .arg_cpp_type="std::string_view",
-        .return_cpp_type="const std::string&",
-      }} {}
+ public:
+  explicit StringAttribute(std::string_view name)
+      : Attribute{name, /*cpp_type=*/"std::string",
+                  AttributeOptions{
+                      .arg_cpp_type = "std::string_view",
+                      .return_cpp_type = "const std::string&",
+                  }} {}
 };
 
 class OptionalStringAttribute : public Attribute {
-  public:
-    explicit OptionalStringAttribute(std::string_view name) : Attribute{name, /*cpp_type=*/"std::optional<std::string>",
-    AttributeOptions{
-      .arg_cpp_type="std::optional<std::string>",
-      .return_cpp_type="std::optional<std::string>",
-    }} {}
+ public:
+  explicit OptionalStringAttribute(std::string_view name)
+      : Attribute{name, /*cpp_type=*/"std::optional<std::string>",
+                  AttributeOptions{
+                      .arg_cpp_type = "std::optional<std::string>",
+                      .return_cpp_type = "std::optional<std::string>",
+                  }} {}
 };
 
 class LsbOrMsbAttribute : public Attribute {
-  public:
-    explicit LsbOrMsbAttribute(std::string_view name) : Attribute{name, /*cpp_type=*/"LsbOrMsb",
-      AttributeOptions{
-        .arg_cpp_type="LsbOrMsb",
-        .return_cpp_type="LsbOrMsb",
-      }} {}
+ public:
+  explicit LsbOrMsbAttribute(std::string_view name)
+      : Attribute{name, /*cpp_type=*/"LsbOrMsb",
+                  AttributeOptions{
+                      .arg_cpp_type = "LsbOrMsb",
+                      .return_cpp_type = "LsbOrMsb",
+                  }} {}
 };
 
 class TypeVectorAttribute : public Attribute {
-  public:
-    explicit TypeVectorAttribute(std::string_view name) : Attribute{name, /*cpp_type=*/"std::vector<Type*>", AttributeOptions{
-      .arg_cpp_type = "absl::Span<Type* const>",
-      .return_cpp_type = "absl::Span<Type* const>",
-      .init_args = {absl::StrCat(name, ".begin()"), absl::StrCat(name, ".end()")},
-    }} {
-    }
+ public:
+  explicit TypeVectorAttribute(std::string_view name)
+      : Attribute{name, /*cpp_type=*/"std::vector<Type*>",
+                  AttributeOptions{
+                      .arg_cpp_type = "absl::Span<Type* const>",
+                      .return_cpp_type = "absl::Span<Type* const>",
+                      .init_args = {absl::StrCat(name, ".begin()"),
+                                    absl::StrCat(name, ".end()")},
+                  }} {}
 };
 
 class FormatStepsAttribute : public Attribute {
-  public:
-    explicit FormatStepsAttribute(std::string_view name) : Attribute{name, /*cpp_type=*/"std::vector<FormatStep>", 
-      AttributeOptions{
-        .arg_cpp_type="absl::Span<FormatStep const>",
-        .return_cpp_type="absl::Span<FormatStep const>",
-        .init_args = {absl::StrCat(name, ".begin()"), absl::StrCat(name, ".end()")},
-      }} {}
+ public:
+  explicit FormatStepsAttribute(std::string_view name)
+      : Attribute{name, /*cpp_type=*/"std::vector<FormatStep>",
+                  AttributeOptions{
+                      .arg_cpp_type = "absl::Span<FormatStep const>",
+                      .return_cpp_type = "absl::Span<FormatStep const>",
+                      .init_args = {absl::StrCat(name, ".begin()"),
+                                    absl::StrCat(name, ".end()")},
+                  }} {}
 };
 
 class InstantiationAttribute : public Attribute {
-  public:
-    explicit InstantiationAttribute(std::string_view name) : Attribute{name, /*cpp_type=*/"Instantiation*"} {}
+ public:
+  explicit InstantiationAttribute(std::string_view name)
+      : Attribute{name, /*cpp_type=*/"Instantiation*"} {}
 };
 
 // Enumeration of properties of Ops.
@@ -233,7 +242,7 @@ class OptionalOperand;
 class Operand {
  public:
   explicit Operand(std::string name, OperandKind kind = OperandKind::kDefault)
-    : name_(std::move(name)), kind_(kind) {}
+      : name_(std::move(name)), kind_(kind) {}
 
   virtual ~Operand() = default;
 
@@ -252,7 +261,8 @@ class Operand {
 
 class OperandSpan final : public Operand {
  public:
-  explicit OperandSpan(std::string name) : Operand{std::move(name), OperandKind::kSpan} {}
+  explicit OperandSpan(std::string name)
+      : Operand{std::move(name), OperandKind::kSpan} {}
 
   std::string_view GetAddMethod() const override { return "AddOperands"; }
 };
@@ -263,13 +273,20 @@ class OptionalOperand final : public Operand {
   // Args:
   //  name: The name of the operand.
   //  manual_optional_implementation: If a '<name>_operand_number()' function,
-  //    then has_<name>_ field and other helpers should be automatically created.
-  //    This should only be set to true if the operand folows an operand-span and the node has a custom implementation.
-  explicit OptionalOperand(std::string name, bool manual_optional_implementation)
-    : Operand{std::move(name), OperandKind::kOptional}, manual_optional_implementation_(manual_optional_implementation) {}
+  //    then has_<name>_ field and other helpers should be automatically
+  //    created. This should only be set to true if the operand folows an
+  //    operand-span and the node has a custom implementation.
+  explicit OptionalOperand(std::string name,
+                           bool manual_optional_implementation)
+      : Operand{std::move(name), OperandKind::kOptional},
+        manual_optional_implementation_(manual_optional_implementation) {}
 
-  std::string_view GetAddMethod() const override { return "AddOptionalOperand"; }
-  bool manual_optional_implementation() const { return manual_optional_implementation_; }
+  std::string_view GetAddMethod() const override {
+    return "AddOptionalOperand";
+  }
+  bool manual_optional_implementation() const {
+    return manual_optional_implementation_;
+  }
 
  private:
   bool manual_optional_implementation_;
@@ -279,7 +296,7 @@ class OptionalOperand final : public Operand {
 class OperandInfo {
  public:
   explicit OperandInfo(const Operand& operand, size_t index)
-    : operand_(operand), index_(index) {}
+      : operand_(operand), index_(index) {}
 
   const Operand& operand() const { return operand_; }
   size_t index() const { return index_; }
@@ -303,21 +320,21 @@ struct OpClassOptions {
 // Describes a C++ subclass of `xls::Node`.
 class OpClass {
  public:
-  explicit OpClass(
-    std::string name,
-    std::string op,
-    std::vector<std::unique_ptr<Operand>> operands,
-    std::string xls_type_expression,
-    OpClassOptions options = OpClassOptions{})
-    : name_(std::move(name)),
-      op_(std::move(op)),
-      operands_(std::move(operands)),
-      xls_type_expression_(std::move(xls_type_expression)),
-      options_(std::move(options)) {}
+  explicit OpClass(std::string name, std::string op,
+                   std::vector<std::unique_ptr<Operand>> operands,
+                   std::string xls_type_expression,
+                   OpClassOptions options = OpClassOptions{})
+      : name_(std::move(name)),
+        op_(std::move(op)),
+        operands_(std::move(operands)),
+        xls_type_expression_(std::move(xls_type_expression)),
+        options_(std::move(options)) {}
 
   std::string_view name() const { return name_; }
   std::string_view op() const { return op_; }
-  absl::Span<const std::unique_ptr<Operand>> operands() const { return operands_; }
+  absl::Span<const std::unique_ptr<Operand>> operands() const {
+    return operands_;
+  }
   std::string_view xls_type_expression() const { return xls_type_expression_; }
   bool custom_clone_method() const { return options_.custom_clone_method; }
 
@@ -375,11 +392,11 @@ class OpClass {
   // Returns: true iff the operand is not a span or an optional.
   bool IsFixedOperand(const Operand& op) const {
     switch (op.kind()) {
-     case OperandKind::kSpan:
-     case OperandKind::kOptional:
-      return false;
-     default:
-      return true;
+      case OperandKind::kSpan:
+      case OperandKind::kOptional:
+        return false;
+      default:
+        return true;
     }
   }
 

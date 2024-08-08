@@ -4,8 +4,8 @@
 
 #include <vector>
 
-#include "absl/strings/str_join.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "xls/ir/op_specification.h"
 
@@ -13,9 +13,7 @@ namespace xls {
 
 std::string RenderEnumClassOp() {
   std::vector<std::string> lines = {
-    "// Enumerates the operators for nodes in the IR.",
-    "enum class Op {"
-  };
+      "// Enumerates the operators for nodes in the IR.", "enum class Op {"};
   for (const Op& op : GetOpsSingleton()) {
     lines.push_back(absl::StrFormat("  %s,", op.enum_name));
   }
@@ -25,8 +23,8 @@ std::string RenderEnumClassOp() {
 
 std::string RenderFnAllOps() {
   std::vector<std::string> lines = {
-    "inline std::vector<Op> AllOps() {",
-    "  return {",
+      "inline std::vector<Op> AllOps() {",
+      "  return {",
   };
   for (const Op& op : GetOpsSingleton()) {
     lines.push_back(absl::StrFormat("    Op::%s,", op.enum_name));
@@ -122,7 +120,8 @@ static std::string RenderForwardDecls() {
 static std::string RenderIsOpClassSpecializations() {
   std::vector<std::string> lines;
   for (const auto& [_name, op_class] : GetOpClassKindsSingleton()) {
-    lines.push_back(absl::StrFormat("template<> bool IsOpClass<%s>(Op op);", op_class.name()));
+    lines.push_back(absl::StrFormat("template<> bool IsOpClass<%s>(Op op);",
+                                    op_class.name()));
   }
   return absl::StrJoin(lines, "\n");
 }
@@ -132,13 +131,15 @@ std::string RenderOpHeader() {
       "const int64_t kOpLimit = static_cast<int64_t>(Op::%s)+1;",
       GetOpsSingleton().back().enum_name);
 
-  return absl::StrReplaceAll(kHeaderTemplate, {
-    {"{ENUM_CLASS_OP}", RenderEnumClassOp()},
-    {"{FN_ALL_OPS}", RenderFnAllOps()},
-    {"{OP_LIMIT}", op_limit},
-    {"{FORWARD_DECLS}", RenderForwardDecls()},
-    {"{IS_OP_CLASS_SPECIALIZATIONS}", RenderIsOpClassSpecializations()},
-  });
+  return absl::StrReplaceAll(
+      kHeaderTemplate,
+      {
+          {"{ENUM_CLASS_OP}", RenderEnumClassOp()},
+          {"{FN_ALL_OPS}", RenderFnAllOps()},
+          {"{OP_LIMIT}", op_limit},
+          {"{FORWARD_DECLS}", RenderForwardDecls()},
+          {"{IS_OP_CLASS_SPECIALIZATIONS}", RenderIsOpClassSpecializations()},
+      });
 }
 
 }  // namespace xls

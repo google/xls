@@ -1,15 +1,17 @@
-#include "gtest/gtest.h"
-
 #include "xls/ir/render_nodes_source.h"
-#include "xls/ir/op_specification.h"
+
+#include "gtest/gtest.h"
 #include "xls/common/remove_empty_lines.h"
+#include "xls/ir/op_specification.h"
 
 namespace xls {
 namespace {
 
 TEST(RenderOpClassTest, BinOpConstructor) {
   const OpClass& o = GetOpClassKindsSingleton().at("BIN_OP");
-  EXPECT_EQ(RemoveEmptyLines(RenderConstructor(o)), R"(BinOp::BinOp(const SourceInfo& loc, Node* lhs, Node* rhs, Op op, std::string_view name, FunctionBase* function)
+  EXPECT_EQ(
+      RemoveEmptyLines(RenderConstructor(o)),
+      R"(BinOp::BinOp(const SourceInfo& loc, Node* lhs, Node* rhs, Op op, std::string_view name, FunctionBase* function)
     : Node(op, lhs->GetType(), loc, name, function)
 {
   CHECK(IsOpClass<BinOp>(op_))
@@ -22,7 +24,9 @@ TEST(RenderOpClassTest, BinOpConstructor) {
 
 TEST(RenderOpClassTest, ArithOpConstructor) {
   const OpClass& o = GetOpClassKindsSingleton().at("ARITH_OP");
-  EXPECT_EQ(RemoveEmptyLines(RenderConstructor(o)), R"(ArithOp::ArithOp(const SourceInfo& loc, Node* lhs, Node* rhs, int64_t width, Op op, std::string_view name, FunctionBase* function)
+  EXPECT_EQ(
+      RemoveEmptyLines(RenderConstructor(o)),
+      R"(ArithOp::ArithOp(const SourceInfo& loc, Node* lhs, Node* rhs, int64_t width, Op op, std::string_view name, FunctionBase* function)
     : Node(op, function->package()->GetBitsType(width), loc, name, function),
       width_(width)
 {
