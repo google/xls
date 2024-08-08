@@ -23,7 +23,7 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
@@ -446,7 +446,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
 
 // Try to simplify the given array update operation.
 absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
-    ArrayUpdate* array_update, const QueryEngine& query_engine) {
+    ArrayUpdate* array_update, const QueryEngine& query_engine,
+    int64_t opt_level) {
   FunctionBase* func = array_update->function_base();
 
   // An array update with a nil index (no index operands) can be replaced by the
@@ -663,11 +664,10 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
 // performed.
 absl::StatusOr<std::optional<std::vector<ArrayUpdate*>>>
 FlattenArrayUpdateChain(ArrayUpdate* array_update,
-                        const QueryEngine& query_engine) {
-  // Identify cases where an array is constructed via a sequence of array update
-  // operations and replace with a flat kArray operation gathering all the array
-  // values.
-  absl::flat_hash_map<uint64_t, Node*> index_to_element;
+                        const QueryEngine& query_engine, int64_t opt_level) {
+  // Identify cases where an array is manipulated via a sequence of array update
+  // operations, and replace with a flattened kArray operation gathering the
+  // updated values of each element.
 
   if (array_update->indices().empty()) {
     return std::nullopt;
@@ -680,22 +680,21 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   int64_t subarray_size = subarray_type->AsArrayOrDie()->size();
 
   // Walk up the chain of array updates.
+  struct Update {
+    std::variant<Node*, int64_t> index;
+    Node* value;
+  };
+  std::vector<Update> updates;
+  absl::flat_hash_set<std::variant<Node*, int64_t>> seen_indices;
   ArrayUpdate* current = array_update;
   Node* source_array = nullptr;
   std::optional<absl::Span<Node* const>> common_index_prefix;
+  int64_t max_index_width = 0;
   std::vector<ArrayUpdate*> update_chain;
+  bool has_unknown_indices = false;
+  bool has_intermediates_with_multiple_uses = false;
   while (true) {
-    if (!query_engine.IsFullyKnown(current->indices().back())) {
-      break;
-    }
-
-    Bits index_bits = *query_engine.KnownValueAsBits(current->indices().back());
-    if (bits_ops::UGreaterThanOrEqual(index_bits, subarray_size)) {
-      // Index is out of bound
-      break;
-    }
-    uint64_t index = index_bits.ToUint64().value();
-
+    Node* index = current->indices().back();
     absl::Span<Node* const> index_prefix =
         current->indices().subspan(0, current->indices().size() - 1);
     if (common_index_prefix.has_value()) {
@@ -706,11 +705,44 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
       common_index_prefix = index_prefix;
     }
 
-    // If this element is already in the map, then it has already been set by a
-    // later array update, this operation (current) can be ignored.
-    if (!index_to_element.contains(index)) {
-      index_to_element[index] = current->update_value();
+    std::optional<std::variant<Node*, int64_t>> updated_index = index;
+    int64_t updated_index_width = index->BitCountOrDie();
+    std::optional<Bits> index_bits = query_engine.KnownValueAsBits(index);
+    if (index_bits.has_value()) {
+      if (bits_ops::ULessThan(index_bits.value(), subarray_size)) {
+        updated_index = static_cast<int64_t>(*index_bits->ToUint64());
+        updated_index_width =
+            index_bits->bit_count() - index_bits->CountLeadingZeros();
+      } else {
+        // Past-the-end update; this is a no-op.
+        updated_index = std::nullopt;
+        updated_index_width = 0;
+      }
+    } else {
+      has_unknown_indices = true;
     }
+    if (current != array_update && !HasSingleUse(current)) {
+      has_intermediates_with_multiple_uses = true;
+    }
+    if (has_unknown_indices && has_intermediates_with_multiple_uses) {
+      // We don't want to flatten an intermediate update with multiple uses...
+      // unless all the index values so far are statically known, in which case
+      // it's worth it regardless, since we can compose the intermediate array
+      // at no cost. This is the first point where this condition obtains, so we
+      // stop the chain here.
+      break;
+    }
+    if (updated_index.has_value()) {
+      // If this is the first time we've seen this index, then we record it and
+      // the value written to this position. If not, then it has already been
+      // set by a later array update, so the current update can be ignored.
+      if (auto [it, inserted] = seen_indices.insert(*updated_index); inserted) {
+        updates.push_back(
+            {.index = *updated_index, .value = current->update_value()});
+        max_index_width = std::max(max_index_width, updated_index_width);
+      }
+    }
+
     update_chain.push_back(current);
     source_array = current->array_to_update();
     if (!source_array->Is<ArrayUpdate>()) {
@@ -723,33 +755,114 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
     // No transformation possible.
     return std::nullopt;
   }
-  XLS_RET_CHECK(source_array != nullptr);
+  XLS_RET_CHECK_NE(source_array, nullptr);
   XLS_RET_CHECK(!update_chain.empty());
 
-  // TODO(meheff): If at least half (>=) of the values are set then replace.
-  if (index_to_element.size() < (subarray_size + 1) / 2) {
+  // If splitting is not enabled, skip if the number of updates is less than
+  // half the size of the subarray. This is a heuristic to avoid the case where
+  // the subarray is mostly untouched and the transformation would just add
+  // clutter.
+  //
+  // Once splitting is enabled, we perform this optimization any time we can
+  // merge at least two array update operations, or at least half the size of
+  // the subarray.
+  int64_t min_updates = (subarray_size + 1) / 2;
+  if (SplitsEnabled(opt_level)) {
+    min_updates = std::min(min_updates, int64_t{2});
+  }
+  if (updates.size() < min_updates) {
+    return std::nullopt;
+  }
+
+  // Don't bother splitting a single array_update with an unknown index, even if
+  // the subarray size is 2; it saves nothing, and obstructs later
+  // optimizations.
+  if (updates.size() == 1 && has_unknown_indices) {
     return std::nullopt;
   }
 
   VLOG(2) << absl::StrFormat("Flattening chain of array-updates: %s",
                              array_update->ToString());
 
+  max_index_width =
+      std::max(max_index_width, Bits::MinBitCountUnsigned(subarray_size - 1));
+  for (Update& update : updates) {
+    if (std::holds_alternative<Node*>(update.index)) {
+      if (max_index_width > std::get<Node*>(update.index)->BitCountOrDie()) {
+        XLS_ASSIGN_OR_RETURN(
+            update.index,
+            array_update->function_base()->MakeNode<ExtendOp>(
+                array_update->loc(), std::get<Node*>(update.index),
+                max_index_width, Op::kZeroExt));
+      }
+    }
+  }
+
   std::vector<Node*> array_elements;
   for (int64_t i = 0; i < subarray_size; ++i) {
-    if (index_to_element.contains(i)) {
-      array_elements.push_back(index_to_element.at(i));
-    } else {
-      XLS_ASSIGN_OR_RETURN(Literal * literal_index,
-                           array_update->function_base()->MakeNode<Literal>(
-                               array_update->loc(), Value(UBits(i, 64))));
+    Node* literal_index_storage = nullptr;
+    auto get_literal_index = [&]() -> Node* {
+      if (literal_index_storage == nullptr) {
+        literal_index_storage =
+            array_update->function_base()
+                ->MakeNode<Literal>(array_update->loc(),
+                                    Value(UBits(i, max_index_width)))
+                .value();
+      }
+      return literal_index_storage;
+    };
+    std::vector<Node*> index_checks;
+    std::vector<Node*> values;
+    Node* default_value = nullptr;
+    index_checks.reserve(updates.size());
+    values.reserve(updates.size());
+    for (const Update& update : updates) {
+      if (std::holds_alternative<Node*>(update.index)) {
+        VLOG(4) << "Updating index "
+                << std::get<Node*>(update.index)->ToString() << " with value "
+                << update.value->ToString();
+        XLS_ASSIGN_OR_RETURN(
+            Node * index_check,
+            array_update->function_base()->MakeNode<CompareOp>(
+                array_update->loc(), std::get<Node*>(update.index),
+                get_literal_index(), Op::kEq));
+        index_checks.push_back(index_check);
+        values.push_back(update.value);
+      } else if (std::get<int64_t>(update.index) == i) {
+        VLOG(4) << "Updating index " << i << " with value "
+                << update.value->ToString();
+        default_value = update.value;
+        break;
+      } else {
+        VLOG(4) << "Update index " << std::get<int64_t>(update.index)
+                << " is not " << i << "; skipping";
+      }
+    }
+    if (default_value == nullptr) {
+      // Not updated by any constant-index update; defaults to the original
+      // value.
       std::vector<Node*> indices(common_index_prefix.value().begin(),
                                  common_index_prefix.value().end());
-      indices.push_back(literal_index);
-      XLS_ASSIGN_OR_RETURN(ArrayIndex * array_index,
+      indices.push_back(get_literal_index());
+      XLS_ASSIGN_OR_RETURN(default_value,
                            array_update->function_base()->MakeNode<ArrayIndex>(
                                array_update->loc(), source_array, indices));
-      array_elements.push_back(array_index);
     }
+    // Swap the index check order to match the MSB-first semantics of Concat.
+    absl::c_reverse(index_checks);
+    Node* selected_value;
+    if (index_checks.empty()) {
+      selected_value = default_value;
+    } else {
+      XLS_ASSIGN_OR_RETURN(Node * selector,
+                           array_update->function_base()->MakeNode<Concat>(
+                               array_update->loc(), index_checks));
+      XLS_ASSIGN_OR_RETURN(
+          selected_value,
+          array_update->function_base()->MakeNode<PrioritySelect>(
+              array_update->loc(), selector, values, default_value));
+    }
+    array_elements.push_back(selected_value);
   }
   XLS_ASSIGN_OR_RETURN(Array * array,
                        array_update->function_base()->MakeNode<Array>(
@@ -765,6 +878,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
                                               common_index_prefix.value())
             .status());
   }
+  VLOG(4) << "New IR:\n" << array_update->function_base()->DumpIr();
 
   return update_chain;
 }
@@ -772,7 +886,8 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
 // Walk the function and replace chains of sequential array updates with kArray
 // operations with gather the update values.
 absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
-                                              const QueryEngine& query_engine) {
+                                              const QueryEngine& query_engine,
+                                              int64_t opt_level) {
   absl::flat_hash_set<ArrayUpdate*> flattened_updates;
   bool changed = false;
   // Perform this optimization in reverse topo sort order because we are looking
@@ -786,8 +901,9 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
     if (flattened_updates.contains(array_update)) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(std::optional<std::vector<ArrayUpdate*>> flattened_vec,
-                         FlattenArrayUpdateChain(array_update, query_engine));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<std::vector<ArrayUpdate*>> flattened_vec,
+        FlattenArrayUpdateChain(array_update, query_engine, opt_level));
     if (flattened_vec.has_value()) {
       changed = true;
       flattened_updates.insert(flattened_vec->begin(), flattened_vec->end());
@@ -1154,8 +1270,9 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   // Before the worklist-driven optimization look and replace "macro" patterns
   // such as constructing an entire array with array update operations,
   // transforming selects of array to array of selects, etc.
-  XLS_ASSIGN_OR_RETURN(bool flatten_changed,
-                       FlattenSequentialUpdates(func, query_engine));
+  XLS_ASSIGN_OR_RETURN(
+      bool flatten_changed,
+      FlattenSequentialUpdates(func, query_engine, opt_level_));
   changed = changed || flatten_changed;
 
   std::deque<Node*> worklist;
@@ -1206,7 +1323,8 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
                            SimplifyArrayIndex(array_index, query_engine));
     } else if (node->Is<ArrayUpdate>()) {
       XLS_ASSIGN_OR_RETURN(
-          result, SimplifyArrayUpdate(node->As<ArrayUpdate>(), query_engine));
+          result, SimplifyArrayUpdate(node->As<ArrayUpdate>(), query_engine,
+                                      opt_level_));
     } else if (node->Is<Array>()) {
       XLS_ASSIGN_OR_RETURN(result,
                            SimplifyArray(node->As<Array>(), query_engine));

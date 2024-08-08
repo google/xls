@@ -1415,7 +1415,7 @@ cc_library(
         ":stateless_query_engine",
         ":ternary_query_engine",
         ":union_query_engine",
-        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
@@ -2622,6 +2622,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_googletest//:gtest",
     ],
 )

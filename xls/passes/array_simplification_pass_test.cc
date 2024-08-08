@@ -31,6 +31,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -298,11 +299,11 @@ TEST_F(ArraySimplificationPassTest,
   // if one of the updates in the chain has multiple uses.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
- fn func(a: bits[32][7], idx0: bits[32], idx1: bits[32], x: bits[32], y: bits[32]) -> (bits[32][7], bits[32][7]) {
+ fn func(a: bits[32][7], idx0: bits[32], idx1: bits[32], x: bits[32], y: bits[32]) -> (bits[32][7], bits[32][7], bits[32][7]) {
   update0: bits[32][7] = array_update(a, x, indices=[idx0])
   update1: bits[32][7] = array_update(update0, y, indices=[idx1])
   update2: bits[32][7] = array_update(update1, y, indices=[idx0])
-  ret result: (bits[32][7], bits[32][7]) = tuple(update1, update2)
+  ret result: (bits[32][7], bits[32][7], bits[32][7]) = tuple(update0, update1, update2)
  }
   )",
                                                        p.get()));
@@ -405,6 +406,42 @@ TEST_F(ArraySimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::ArrayUpdate(m::Param("a"), m::Param("y"),
                                                 /*indices=*/{m::Literal(1)}));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       SequentialArrayUpdatesToNonliteralLocations) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(a: bits[32][4], idx0: bits[2], x: bits[32], idx1: bits[8], y: bits[32]) -> bits[32][4] {
+  update0: bits[32][4] = array_update(a, x, indices=[idx0])
+  ret update1: bits[32][4] = array_update(update0, y, indices=[idx1])
+ }
+  )",
+                                                       p.get()));
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Array(m::PrioritySelect(
+                   m::Concat(m::Eq(m::ZeroExt(m::Param("idx0")), m::Literal(0)),
+                             m::Eq(m::Param("idx1"), m::Literal(0))),
+                   {m::Param("y"), m::Param("x")},
+                   m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(0)})),
+               m::PrioritySelect(
+                   m::Concat(m::Eq(m::ZeroExt(m::Param("idx0")), m::Literal(1)),
+                             m::Eq(m::Param("idx1"), m::Literal(1))),
+                   {m::Param("y"), m::Param("x")},
+                   m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(1)})),
+               m::PrioritySelect(
+                   m::Concat(m::Eq(m::ZeroExt(m::Param("idx0")), m::Literal(2)),
+                             m::Eq(m::Param("idx1"), m::Literal(2))),
+                   {m::Param("y"), m::Param("x")},
+                   m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(2)})),
+               m::PrioritySelect(
+                   m::Concat(m::Eq(m::ZeroExt(m::Param("idx0")), m::Literal(3)),
+                             m::Eq(m::Param("idx1"), m::Literal(3))),
+                   {m::Param("y"), m::Param("x")},
+                   m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(3)}))));
 }
 
 TEST_F(ArraySimplificationPassTest, ArrayConstructedBySequenceOfArrayUpdates) {
@@ -527,9 +564,9 @@ TEST_F(
   two: bits[4] = literal(value=2)
   three: bits[4] = literal(value=3)
   update0: bits[32][5][5] = array_update(a, w, indices=[two, zero])
-  update1: bits[32][5][5] = array_update(update0, x, indices=[two, one])
-  update2: bits[32][5][5] = array_update(update1, y, indices=[one, two])
-  ret update3: bits[32][5][5] = array_update(update2, z, indices=[two, three])
+  update1: bits[32][5][5] = array_update(update0, x, indices=[one, one])
+  update2: bits[32][5][5] = array_update(update1, y, indices=[two, two])
+  ret update3: bits[32][5][5] = array_update(update2, z, indices=[one, three])
  }
   )",
                                                        p.get()));
