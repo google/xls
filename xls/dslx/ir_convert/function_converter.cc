@@ -3360,6 +3360,7 @@ absl::Status FunctionConverter::CastToArray(const Cast* node,
   XLS_ASSIGN_OR_RETURN(int64_t array_size,
                        TypeDim::GetAs64Bits(output_type.size().value()));
   // MSb becomes lowest-indexed array element.
+  slices.reserve(array_size);
   for (int64_t i = 0; i < array_size; ++i) {
     slices.push_back(function_builder_->BitSlice(bits, i * element_bit_count,
                                                  element_bit_count));
