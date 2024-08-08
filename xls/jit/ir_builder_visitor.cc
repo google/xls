@@ -2238,6 +2238,7 @@ absl::Status IrBuilderVisitor::HandleInvoke(Invoke* invoke) {
 
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   std::vector<llvm::Value*> operand_ptrs;
+  operand_ptrs.reserve(invoke->operand_count());
   for (int64_t i = 0; i < invoke->operand_count(); ++i) {
     operand_ptrs.push_back(node_context.GetOperandPtr(i));
   }
@@ -3043,6 +3044,7 @@ absl::Status IrBuilderVisitor::HandleNaryOp(
       NewNodeIrContext(node,
                        NumberedStrings("operand", node->operand_count())));
   std::vector<llvm::Value*> args;
+  args.reserve(node->operand_count());
   for (int64_t i = 0; i < node->operand_count(); ++i) {
     args.push_back(node_context.LoadOperand(i));
   }

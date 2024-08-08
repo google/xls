@@ -127,6 +127,7 @@ Value TypeLayout::NativeLayoutToValueInternal(Type* element_type,
   if (element_type->IsTuple()) {
     TupleType* tuple_type = element_type->AsTupleOrDie();
     std::vector<Value> elements;
+    elements.reserve(tuple_type->size());
     for (int64_t i = 0; i < tuple_type->size(); ++i) {
       elements.push_back(NativeLayoutToValueInternal(
           tuple_type->element_type(i), buffer, leaf_index));
@@ -137,6 +138,7 @@ Value TypeLayout::NativeLayoutToValueInternal(Type* element_type,
   CHECK(element_type->IsArray());
   ArrayType* array_type = element_type->AsArrayOrDie();
   std::vector<Value> elements;
+  elements.reserve(array_type->size());
   for (int64_t i = 0; i < array_type->size(); ++i) {
     elements.push_back(NativeLayoutToValueInternal(array_type->element_type(),
                                                    buffer, leaf_index));
