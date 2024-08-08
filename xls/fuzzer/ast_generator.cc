@@ -2923,7 +2923,7 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
       .members = proc_properties_.members,
   };
   Proc* proc = module_->Make<Proc>(
-      fake_span_, name_def,
+      fake_span_, /*body_span=*/fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(), body,
       /*is_public=*/false);
   name_def->set_definer(proc);
