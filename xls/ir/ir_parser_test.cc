@@ -3781,4 +3781,23 @@ block my_block(in: bits[32], out: bits[32]) {
   }
 }
 
+TEST(IrParserTest, ParseWithDuplicateIds) {
+  std::string program = R"(
+package Package
+
+fn main() -> bits[16] {
+  x: bits[16] = literal(value=0)
+  y: bits[16] = literal(value=1, id=1)
+  z: bits[16] = add(x, y, id=2)
+  ret v: bits[16] = add(x, z)
+}
+)";
+
+  // TODO(https://github.com/google/xls/issues/1534): Check for passing parse
+  //  once ids are guaranteed to be unique.
+  EXPECT_THAT(Parser::ParsePackage(program),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("ID 1 is not unique")));
+}
+
 }  // namespace xls
