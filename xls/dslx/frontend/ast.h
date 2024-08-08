@@ -2978,6 +2978,10 @@ class NameDefTree : public AstNode {
     return is_leaf() && std::holds_alternative<WildcardPattern*>(leaf());
   }
 
+  bool IsRestOfTupleLeaf() const {
+    return is_leaf() && std::holds_alternative<RestOfTuple*>(leaf());
+  }
+
   // Performs a preorder traversal under this node in the NameDefTree.
   //
   // Args:

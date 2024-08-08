@@ -289,28 +289,58 @@ static absl::Status BindNames(const NameDefTree* name_def_tree,
                         type.ToString()));
   }
 
-  // TODO(davidplass): Handle RestOfTuple: 1. allow mismatched tree sizes
-  // 2. disallow multiple RestOfTuple in the same level of the tree 3. Set the
-  // types of the non-skipped tuple values appropriately.
-  if (name_def_tree->nodes().size() != tuple_type->size()) {
-    return TypeInferenceErrorStatus(
-        name_def_tree->span(), &type,
-        absl::StrFormat("Could not bind names, names are mismatched "
-                        "in number vs type; at this level of the tuple: %d "
-                        "names, %d types.",
-                        name_def_tree->nodes().size(), tuple_type->size()));
+  // Disallow multiple RestOfTuples in the same level of the tree
+  bool rest_of_tuple_found = false;
+  for (const NameDefTree* node : name_def_tree->nodes()) {
+    if (node->IsRestOfTupleLeaf()) {
+      if (rest_of_tuple_found) {
+        return TypeInferenceErrorStatus(
+            name_def_tree->span(), &type,
+            absl::StrFormat("\"..\" can only be used once per tuple pattern."));
+      }
+      rest_of_tuple_found = true;
+    }
   }
 
-  for (int64_t i = 0; i < name_def_tree->nodes().size(); ++i) {
-    NameDefTree* subtree = name_def_tree->nodes()[i];
-    const Type& subtype = tuple_type->GetMemberType(i);
+  int64_t number_of_tuple_elements = tuple_type->size();
+  int64_t number_of_names = name_def_tree->nodes().size();
+  bool number_mismatch = number_of_names != number_of_tuple_elements;
+  if (rest_of_tuple_found) {
+    // There's a "rest of tuple" in the name def tree; we only need to have
+    // enough tuple elements to bind to the required names.
+
+    // Subtract 1 for the  ".."
+    number_of_names--;
+    number_mismatch = number_of_names > number_of_tuple_elements;
+  }
+
+  if (number_mismatch) {
+    return TypeInferenceErrorStatus(
+        name_def_tree->span(), &type,
+        absl::StrFormat("Could not bind a %d-element tuple to %d names.",
+                        number_of_tuple_elements, number_of_names));
+  }
+
+  // Index into the current tuple type.
+  int64_t tuple_index = 0;
+  for (int64_t name_index = 0; name_index < name_def_tree->nodes().size();
+       ++name_index) {
+    NameDefTree* subtree = name_def_tree->nodes()[name_index];
+    if (subtree->IsRestOfTupleLeaf()) {
+      // Skip ahead.
+      tuple_index += number_of_tuple_elements - number_of_names;
+      continue;
+    }
+    const Type& subtype = tuple_type->GetMemberType(tuple_index);
     ctx->type_info()->SetItem(subtree, subtype);
 
     std::optional<InterpValue> sub_value;
     if (constexpr_value.has_value()) {
-      sub_value = constexpr_value.value().GetValuesOrDie()[i];
+      sub_value = constexpr_value.value().GetValuesOrDie()[tuple_index];
     }
     XLS_RETURN_IF_ERROR(BindNames(subtree, subtype, ctx, sub_value));
+
+    ++tuple_index;
   }
 
   return absl::OkStatus();

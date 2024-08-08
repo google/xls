@@ -1789,6 +1789,189 @@ fn main() -> u18 {
 )"));
 }
 
+TEST(TypecheckTest, DuplicateRestOfTupleError) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() {
+  let (x, .., ..) = (u32:7, u24:6, u18:5, u12:4, u8:3);
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("can only be used once")));
+}
+
+TEST(TypecheckTest, TupleCountMismatch) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() {
+  let (x, y) = (u32:7, u24:6, u18:5, u12:4, u8:3);
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("a 5-element tuple to 2 names")));
+}
+
+TEST(TypecheckTest, RestOfTupleCountMismatch) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() {
+  let (x, .., y, z) = (u32:7, u8:3);
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("a 2-element tuple to 3 names")));
+}
+
+TEST(TypecheckTest, RestOfTupleCountMismatchNested) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() {
+  let (x, .., (y, .., z)) = (u32:7, u8:3, (u12:4,));
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("a 1-element tuple to 2 names")));
+}
+
+TEST(TypecheckTest, TupleAssignsTypes) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y): (u32, s8) = (u32:7, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleSkipsMiddle) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., y) = (u32:7, u12:4, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleSkipsNone) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., y) = (u32:7, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTuplekSkipsNoneWithThree) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, .., z) = (u32:7, u12:4, s8:3);
+  let (xx, yy, zz): (u32, u12, s8) = (x, y, z);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleSkipsEnd) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, ..) = (u32:7, s8:3, u12:4);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleSkipsManyAtEnd) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, ..) = (u32:7, s8:3, u12:4, u32:0);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleSkipsManyInMiddle) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., y) = (u32:7, u8:3, u12:4, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleSkipsBeginning) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (.., x, y) = (u12:7, u8:3, u32:4, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleSkipsManyAtBeginning) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (.., x) = (u8:3, u12:4, u32:7);
+  let xx: u32 = x;
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleNested) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., (.., y)) = (u32:7, u8:3, u18:5, (u12:4, u11:5, s8:3));
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleNestedSingleton) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., (y,)) = (u32:7, u8:3, (s8:3,));
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleIsLikeWildcard) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., (.., y)) = (u32:7, u18:5, (u12:4, s8:3));
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleDeeplyNested) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, .., ((.., z), .., d)) = (u32:7, u8:1,
+                            ((u32:3, u64:4, uN[128]:5), u12:4, s8:3));
+  let (xx, yy, zz): (u32, u8, uN[128]) = (x, y, z);
+  }
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, RestOfTupleDeeplyNestedNonConstants) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  // Initial values
+  let (xi, yi, zi): (u32, u8, uN[128]) = (u32:7, u8:1, uN[128]:5);
+  let (x, y, .., ((.., z), .., d)) = (xi, yi,
+                            ((u32:3, u64:4, zi), u12:4, s8:3));
+  let (xx, yy, zz): (u32, u8, uN[128]) = (x, y, z);
+  }
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckTest, BasicRange) {
   constexpr std::string_view kProgram = R"(#[test]
 fn main() {
