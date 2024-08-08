@@ -109,9 +109,7 @@ class ProcLike : public AstNode {
 
   // Returns the span of the body block, i.e. from the opening '{' as the start
   // to the closing '}' as the limit.
-  const Span& body_span() const {
-    return body_span_;
-  }
+  const Span& body_span() const { return body_span_; }
 
   std::optional<Span> GetSpan() const override { return span_; }
 

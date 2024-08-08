@@ -1748,7 +1748,8 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
   // Mapping from function to comment data -- we emit these last so if we're
   // reordering them we want to make sure they stay associated with the
   // appropriate comments.
-  absl::flat_hash_map<const Function*, std::vector<const CommentData*>> fn_to_comments;
+  absl::flat_hash_map<const Function*, std::vector<const CommentData*>>
+      fn_to_comments;
 
   Pos last_stmt_limit = n.body_span().start();
 
@@ -1759,59 +1760,77 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
 
   std::vector<DocRef> stmt_pieces;
   for (const ProcStmt& stmt : n.stmts()) {
-    absl::visit(Visitor{
-                    [&](const Function* f) {
-                      // Note: we will emit these below.
-                      //
-                      // Though we defer emission, we still want to grab relevant comments.
-                      if (f == &n.config()) {
-                        config_comment_start_pos = last_stmt_limit;
-                      } else if (f == &n.init()) {
-                        init_comment_start_pos = last_stmt_limit;
-                      } else if (f == &n.next()) {
-                        next_comment_start_pos = last_stmt_limit;
-                      } else {
-                        LOG(FATAL) << "Unexpected proc member function: " << f->identifier() << " @ " << f->span();
-                      }
-                      last_stmt_limit = f->span().limit();
-                    },
-                    [&](const ProcMember* n) {
-                      if (std::optional<DocRef> maybe_doc = EmitCommentsBetween(last_stmt_limit, n->span().start(), comments, arena, nullptr)) {
-                        stmt_pieces.push_back(arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
-                      }
-                      stmt_pieces.push_back(Fmt(*n, comments, arena));
-                      stmt_pieces.push_back(arena.semi());
-                      stmt_pieces.push_back(arena.hard_line());
-                      last_stmt_limit = n->span().limit();
-                    },
-                    [&](const TypeAlias* n) {
-                      if (std::optional<DocRef> maybe_doc = EmitCommentsBetween(last_stmt_limit, n->span().start(), comments, arena, nullptr)) {
-                        stmt_pieces.push_back(arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
-                      }
-                      stmt_pieces.push_back(Fmt(*n, comments, arena));
-                      stmt_pieces.push_back(arena.semi());
-                      stmt_pieces.push_back(arena.hard_line());
-                      last_stmt_limit = n->span().limit();
-                    },
-                    [&](const ConstAssert* n) {
-                      if (std::optional<DocRef> maybe_doc = EmitCommentsBetween(last_stmt_limit, n->span().start(), comments, arena, nullptr)) {
-                        stmt_pieces.push_back(arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
-                      }
-                      stmt_pieces.push_back(Fmt(*n, comments, arena));
-                      stmt_pieces.push_back(arena.semi());
-                      stmt_pieces.push_back(arena.hard_line());
-                      last_stmt_limit = n->span().limit();
-                    },
-                },
-                stmt);
+    absl::visit(
+        Visitor{
+            [&](const Function* f) {
+              // Note: we will emit these below.
+              //
+              // Though we defer emission, we still want to grab relevant
+              // comments.
+              if (f == &n.config()) {
+                config_comment_start_pos = last_stmt_limit;
+              } else if (f == &n.init()) {
+                init_comment_start_pos = last_stmt_limit;
+              } else if (f == &n.next()) {
+                next_comment_start_pos = last_stmt_limit;
+              } else {
+                LOG(FATAL) << "Unexpected proc member function: "
+                           << f->identifier() << " @ " << f->span();
+              }
+              last_stmt_limit = f->span().limit();
+            },
+            [&](const ProcMember* n) {
+              if (std::optional<DocRef> maybe_doc =
+                      EmitCommentsBetween(last_stmt_limit, n->span().start(),
+                                          comments, arena, nullptr)) {
+                stmt_pieces.push_back(
+                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+              }
+              stmt_pieces.push_back(Fmt(*n, comments, arena));
+              stmt_pieces.push_back(arena.semi());
+              stmt_pieces.push_back(arena.hard_line());
+              last_stmt_limit = n->span().limit();
+            },
+            [&](const TypeAlias* n) {
+              if (std::optional<DocRef> maybe_doc =
+                      EmitCommentsBetween(last_stmt_limit, n->span().start(),
+                                          comments, arena, nullptr)) {
+                stmt_pieces.push_back(
+                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+              }
+              stmt_pieces.push_back(Fmt(*n, comments, arena));
+              stmt_pieces.push_back(arena.semi());
+              stmt_pieces.push_back(arena.hard_line());
+              last_stmt_limit = n->span().limit();
+            },
+            [&](const ConstAssert* n) {
+              if (std::optional<DocRef> maybe_doc =
+                      EmitCommentsBetween(last_stmt_limit, n->span().start(),
+                                          comments, arena, nullptr)) {
+                stmt_pieces.push_back(
+                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+              }
+              stmt_pieces.push_back(Fmt(*n, comments, arena));
+              stmt_pieces.push_back(arena.semi());
+              stmt_pieces.push_back(arena.hard_line());
+              last_stmt_limit = n->span().limit();
+            },
+        },
+        stmt);
   }
 
   CHECK(config_comment_start_pos.has_value());
-  std::optional<DocRef> config_comment = EmitCommentsBetween(config_comment_start_pos, n.config().span().start(), comments, arena, nullptr);
+  std::optional<DocRef> config_comment =
+      EmitCommentsBetween(config_comment_start_pos, n.config().span().start(),
+                          comments, arena, nullptr);
   CHECK(init_comment_start_pos.has_value());
-  std::optional<DocRef> init_comment = EmitCommentsBetween(init_comment_start_pos, n.init().span().start(), comments, arena, nullptr);
+  std::optional<DocRef> init_comment =
+      EmitCommentsBetween(init_comment_start_pos, n.init().span().start(),
+                          comments, arena, nullptr);
   CHECK(next_comment_start_pos.has_value());
-  std::optional<DocRef> next_comment = EmitCommentsBetween(next_comment_start_pos, n.next().span().start(), comments, arena, nullptr);
+  std::optional<DocRef> next_comment =
+      EmitCommentsBetween(next_comment_start_pos, n.next().span().start(),
+                          comments, arena, nullptr);
 
   std::vector<DocRef> config_pieces = {
       arena.MakeText("config"),
@@ -1854,15 +1873,15 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
     return arena.MakeNest(arena.MakeConcat(doc_ref.value(), arena.hard_line()));
   };
 
-  DocRef config_comment_doc_ref = config_comment.has_value()
-    ? nest_and_hardline(config_comment.value())
-    : arena.empty();
+  DocRef config_comment_doc_ref =
+      config_comment.has_value() ? nest_and_hardline(config_comment.value())
+                                 : arena.empty();
   DocRef init_comment_doc_ref = init_comment.has_value()
-    ? nest_and_hardline(init_comment.value())
-    : arena.empty();
+                                    ? nest_and_hardline(init_comment.value())
+                                    : arena.empty();
   DocRef next_comment_doc_ref = next_comment.has_value()
-    ? nest_and_hardline(next_comment.value())
-    : arena.empty();
+                                    ? nest_and_hardline(next_comment.value())
+                                    : arena.empty();
 
   std::vector<DocRef> proc_pieces = {
       ConcatNGroup(arena, signature_pieces),
