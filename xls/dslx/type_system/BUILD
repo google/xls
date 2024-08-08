@@ -823,6 +823,7 @@ cc_library(
         ":deduce",
         ":deduce_ctx",
         ":parametric_env",
+        ":scoped_fn_stack_entry",
         ":type",
         ":type_info",
         ":typecheck_invocation",

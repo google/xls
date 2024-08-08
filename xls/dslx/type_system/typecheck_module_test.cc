@@ -2922,6 +2922,18 @@ proc t {
                     "function in module fake with name \"result_in\"")));
 }
 
+TEST(TypecheckErrorTest, ReferenceToBuiltinFunctionInNext) {
+  XLS_EXPECT_OK(Typecheck(R"(
+proc t {
+    config() { () }
+
+    init { token() }
+
+    next(state: token) { state }
+}
+)"));
+}
+
 TEST(TypecheckErrorTest, SignedValueToBuiltinExpectingUNViaParametric) {
   EXPECT_THAT(Typecheck(R"(
 fn p<S: bool, N: u32>() -> u32 {

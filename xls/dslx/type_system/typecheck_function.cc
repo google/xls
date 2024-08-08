@@ -42,6 +42,7 @@
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/scoped_fn_stack_entry.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_invocation.h"
@@ -250,8 +251,10 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
     // Need to capture the initial value for top-level procs. For spawned procs,
     // DeduceSpawn() handles this.
     Proc* p = f.proc().value();
-    const Function& init = p->init();
+    Function& init = p->init();
+    ScopedFnStackEntry init_entry(init, ctx, WithinProc::kYes);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, ctx->Deduce(init.body()));
+    init_entry.Finish();
     // No need for ParametricEnv; top-level procs can't be parameterized.
     XLS_ASSIGN_OR_RETURN(InterpValue init_value,
                          ConstexprEvaluator::EvaluateToValue(
