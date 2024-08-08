@@ -95,7 +95,7 @@ bool HasMemberNamed(const ProcLikeBody& proc_body, std::string_view name);
 
 class ProcLike : public AstNode {
  public:
-  ProcLike(Module* owner, Span span, NameDef* name_def,
+  ProcLike(Module* owner, Span span, Span body_span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            ProcLikeBody body, bool is_public);
 
@@ -106,6 +106,13 @@ class ProcLike : public AstNode {
 
   NameDef* name_def() const { return name_def_; }
   const Span& span() const { return span_; }
+
+  // Returns the span of the body block, i.e. from the opening '{' as the start
+  // to the closing '}' as the limit.
+  const Span& body_span() const {
+    return body_span_;
+  }
+
   std::optional<Span> GetSpan() const override { return span_; }
 
   const std::string& identifier() const { return name_def_->identifier(); }
@@ -150,6 +157,7 @@ class ProcLike : public AstNode {
 
  private:
   Span span_;
+  Span body_span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
 

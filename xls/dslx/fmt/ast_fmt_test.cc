@@ -1492,6 +1492,29 @@ TEST_F(ModuleFmtTest, SimpleProc) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcWithComments) {
+  Run(
+      R"(// Proc-level comment.
+pub proc p {
+    // Member-level comment on cin.
+    cin: chan<u32> in;
+    // Member-level comment on cout.
+    cout: chan<u32> out;
+    // Type alias comment.
+    type MyType = u32;
+
+    // Config-level comment.
+    config() { () }
+
+    // Init-level comment.
+    init { () }
+
+    // Next-level comment.
+    next(state: ()) { () }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleProcEmptyConfigBlock) {
   Run(
       R"(pub proc p {

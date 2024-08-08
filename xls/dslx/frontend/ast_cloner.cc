@@ -553,7 +553,7 @@ class AstCloner : public AstNodeVisitor {
         .members = new_members,
     };
     Proc* p =
-        module_->Make<Proc>(n->span(), new_name_def, new_parametric_bindings,
+        module_->Make<Proc>(n->span(), n->body_span(), new_name_def, new_parametric_bindings,
                             new_body, n->is_public());
     new_name_def->set_definer(p);
     old_to_new_[n] = p;
