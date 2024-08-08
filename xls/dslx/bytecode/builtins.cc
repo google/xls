@@ -438,8 +438,9 @@ GetAssertFormattedStrings(const InterpreterStack::FormattedInterpValue& lhs,
   if (options.format_preference() == FormatPreference::kDefault &&
       (lhs.format_descriptor.has_value() ||
        rhs.format_descriptor.has_value())) {
-    return formatted_pair(
-        lhs.format_descriptor.value_or(rhs.format_descriptor.value()));
+    return formatted_pair(lhs.format_descriptor.has_value()
+                              ? *lhs.format_descriptor
+                              : *rhs.format_descriptor);
   }
   const TypeInfo* type_info = frame.type_info();
   XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
