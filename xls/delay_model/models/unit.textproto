@@ -38,7 +38,6 @@ op_models { op: "kIdentity" estimator { fixed: 1 } }
 op_models { op: "kInstantiationInput" estimator { fixed: 1 } }
 op_models { op: "kInstantiationOutput" estimator { fixed: 1 } }
 op_models { op: "kInvoke" estimator { fixed: 1 } }
-op_models { op: "kLiteral" estimator { fixed: 1 } }
 op_models { op: "kMap" estimator { fixed: 1 } }
 op_models { op: "kNand" estimator { fixed: 1 } }
 op_models { op: "kNe" estimator { fixed: 1 } }
@@ -93,3 +92,4 @@ op_models { op: "kInputPort" estimator { fixed: 0 } }
 op_models { op: "kOutputPort" estimator { fixed: 0 } }
 op_models { op: "kRegisterRead" estimator { fixed: 0 } }
 op_models { op: "kRegisterWrite" estimator { fixed: 0 } }
+op_models { op: "kLiteral" estimator { fixed: 0 } }
