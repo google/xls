@@ -102,7 +102,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       .members = {},
   };
   Proc* original_proc = module.Make<Proc>(
-      Span::Fake(), name_def, /*parametric_bindings=*/bindings, proc_body,
+      Span::Fake(), /*body_span=*/Span::Fake(), name_def, /*parametric_bindings=*/bindings, proc_body,
       /*is_public=*/true);
   XLS_ASSERT_OK(module.AddTop(original_proc, /*make_collision_error=*/nullptr));
   name_def->set_definer(original_proc);
@@ -168,7 +168,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       .members = members,
   };
   Proc* original_proc = import_module->Make<Proc>(
-      Span::Fake(), name_def, bindings, proc_body, /*is_public=*/true);
+      Span::Fake(), /*body_span=*/Span::Fake(), name_def, bindings, proc_body, /*is_public=*/true);
   XLS_ASSERT_OK(
       import_module->AddTop(original_proc, /*make_collision_error=*/nullptr));
   name_def->set_definer(original_proc);
