@@ -1765,8 +1765,10 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
             [&](const Function* f) {
               // Note: we will emit these below.
               //
-              // Though we defer emission, we still want to grab relevant
-              // comments.
+              // Though we defer emission, we still want to grab data to tell
+              // us the relevant comment span. The relevant comment span is
+              // from the "last statement's limit position" to this function's
+              // start position.
               if (f == &n.config()) {
                 config_comment_start_pos = last_stmt_limit;
               } else if (f == &n.init()) {
