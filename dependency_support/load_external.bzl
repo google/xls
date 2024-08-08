@@ -327,7 +327,7 @@ def load_external_repositories():
     # https://github.com/facebook/zstd/releases/tag/v1.4.7
     # Updated 2024-06-27
     http_archive(
-        name = "com_github_facebook_zstd",
+        name = "zstd",
         sha256 = "192cbb1274a9672cbcceaf47b5c4e9e59691ca60a357f1d4a8b2dfa2c365d757",
         strip_prefix = "zstd-1.4.7",
         urls = ["https://github.com/facebook/zstd/releases/download/v1.4.7/zstd-1.4.7.tar.gz"],
