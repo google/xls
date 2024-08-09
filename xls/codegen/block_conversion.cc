@@ -2220,7 +2220,9 @@ class CloneNodesIntoBlockHandler {
             channel->kind() == ChannelKind::kStreaming) {
           StreamingChannel* streaming_channel =
               down_cast<StreamingChannel*>(channel);
-          XLS_RET_CHECK(streaming_channel->fifo_config().has_value());
+          XLS_RET_CHECK(streaming_channel->fifo_config().has_value())
+              << absl::StreamFormat("Channel %s has no fifo config.",
+                                    channel->name());
 
           xls::Instantiation* instantiation;
           auto [itr, inserted] =
