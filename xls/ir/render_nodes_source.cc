@@ -1,4 +1,94 @@
-#include "xls/ir/nodes.h"
+#include "xls/ir/render_nodes_source.h"
+
+#include "absl/strings/str_replace.h"
+#include "xls/ir/op_specification.h"
+
+namespace xls {
+namespace {
+
+std::string RenderDefinitelyEqualTo(const OpClass& op_class) {
+  const std::string_view kTemplate =
+      R"(bool {OP_CLASS_NAME}::IsDefinitelyEqualTo(const Node* other) const {
+  if (this == other) {
+    return true;
+  }
+  if (!Node::IsDefinitelyEqualTo(other)) {
+    return false;
+  }
+
+  return {EQUAL_TO_EXPR};
+}
+)";
+  return absl::StrReplaceAll(kTemplate,
+                             {
+                                 {"{OP_CLASS_NAME}", op_class.name()},
+                                 {"{EQUAL_TO_EXPR}", op_class.GetEqualToExpr()},
+                             });
+}
+
+}  // namespace
+
+std::string RenderConstructor(const OpClass& op_class) {
+  const std::string_view kTemplate =
+      R"({OP_CLASS_NAME}::{OP_CLASS_NAME}({ARGS_STR})
+    : {BASE_CONSTRUCTOR_INVOCATION}
+      {INITIALIZER_LIST}
+{
+  CHECK(IsOpClass<{OP_CLASS_NAME}>(op_))
+      << "Op `" << op_
+      << "` is not a valid op for Node class `{OP_CLASS_NAME}`.";
+  {ADD_METHODS}
+})";
+
+  // Note: if the initializer list is non-empty it should start with a comma
+  // since base constructor initialization precedes it.
+  std::string base_constructor_invocation =
+      op_class.GetBaseConstructorInvocation();
+
+  std::vector<std::string> initializer_list_parts;
+  for (const DataMember& member : op_class.GetDataMembers()) {
+    initializer_list_parts.push_back(
+        absl::StrFormat("%s(%s)", member.name, member.init));
+  }
+
+  const std::string initializer_list =
+      absl::StrJoin(initializer_list_parts, ", ");
+  if (!initializer_list.empty()) {
+    base_constructor_invocation += ",";
+  }
+
+  std::vector<std::string> add_methods_parts;
+  for (const auto& op : op_class.operands()) {
+    add_methods_parts.push_back(
+        absl::StrFormat("%s(%s);", op->GetAddMethod(), op->name()));
+  }
+  std::string add_methods = absl::StrJoin(add_methods_parts, "\n  ");
+
+  return absl::StrReplaceAll(
+      kTemplate,
+      {
+          {"{OP_CLASS_NAME}", op_class.name()},
+          {"{ARGS_STR}", op_class.GetConstructorArgsStr()},
+          {"{BASE_CONSTRUCTOR_INVOCATION}", base_constructor_invocation},
+          {"{INITIALIZER_LIST}", initializer_list},
+          {"{ADD_METHODS}", add_methods},
+      });
+}
+
+std::string RenderStandardCloneMethod(const OpClass& op_class) {
+  return absl::StrFormat(R"(absl::StatusOr<Node*>
+%s::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
+  XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
+  return new_function->MakeNodeWithName<%s>(%s);
+})",
+                         op_class.name(), op_class.name(),
+                         op_class.GetCloneArgsStr("new_operands"));
+}
+
+std::string RenderNodesSource() {
+  const std::string_view kTemplate = R"(#include "xls/ir/nodes.h"
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -74,46 +164,11 @@ Type* GetReceiveType(FunctionBase* function_base, std::string_view channel_name,
 
 }  // namespace
 
-{% for op_class in spec.OpClass.kinds.values() -%}
-{{ op_class.name }}::{{ op_class.name }} ({{ op_class.constructor_args_str() }}) :
-  {{ op_class.base_constructor_invocation() }}
-{%- for member in op_class.data_members() -%}
-   , {{ member.name }}({{ member.init }})
-{%- endfor -%}
-{
-  CHECK(IsOpClass<{{op_class.name}}>(op_))
-    << "Op `" << op_
-    << "` is not a valid op for Node class `{{op_class.name}}`.";
-{%- for op in op_class.operands %}
-   {{ op.add_method }}({{ op.name }});
-{%- endfor %}
-}
+{OP_CLASS_CONSTRUCTORS}
 
-{% if not op_class.custom_clone_method %}
-absl::StatusOr<Node*> {{ op_class.name }}::CloneInNewFunction(
-    absl::Span<Node* const> new_operands,
-    FunctionBase* new_function) const {
-  XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<{{ op_class.name }}>(
-      {{ op_class.clone_args_str("new_operands") }});
-}
-{% endif %}
+{OP_CLASS_STANDARD_CLONE_METHODS}
 
-{% if op_class.has_data_members() %}
-bool {{ op_class.name }}::IsDefinitelyEqualTo(const Node* other) const {
-  if (this == other) {
-    return true;
-  }
-  if (!Node::IsDefinitelyEqualTo(other)) {
-    return false;
-  }
-
-  return {{ op_class.equal_to_expr() }};
-}
-{% endif %}
-
-
-{% endfor %}
+{OP_CLASS_DEFINITELY_EQUAL_TO_METHODS}
 
 SliceData Concat::GetOperandSliceData(int64_t operandno) const {
   CHECK_GE(operandno, 0);
@@ -298,6 +353,36 @@ bool Select::AllCases(std::function<bool(Node*)> p) const {
     }
   }
   return true;
+}
+
+}  // namespace xls
+)";
+
+  std::vector<std::string> definitely_equal_to_seq;
+  std::vector<std::string> constructors_seq;
+  std::vector<std::string> standard_clone_seq;
+  for (const auto& [name, op_class] : GetOpClassKindsSingleton()) {
+    constructors_seq.push_back(RenderConstructor(op_class));
+    if (op_class.HasDataMembers()) {
+      definitely_equal_to_seq.push_back(RenderDefinitelyEqualTo(op_class));
+    }
+    if (!op_class.custom_clone_method()) {
+      standard_clone_seq.push_back(RenderStandardCloneMethod(op_class));
+    }
+  }
+
+  std::string definitely_equal_to =
+      absl::StrJoin(definitely_equal_to_seq, "\n");
+  std::string constructors = absl::StrJoin(constructors_seq, "\n");
+  std::string standard_clone = absl::StrJoin(standard_clone_seq, "\n");
+
+  return absl::StrReplaceAll(
+      kTemplate,
+      {
+          {"{OP_CLASS_CONSTRUCTORS}", constructors},
+          {"{OP_CLASS_STANDARD_CLONE_METHODS}", standard_clone},
+          {"{OP_CLASS_DEFINITELY_EQUAL_TO_METHODS}", definitely_equal_to},
+      });
 }
 
 }  // namespace xls

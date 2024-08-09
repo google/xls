@@ -1125,65 +1125,37 @@ cc_library(
     ],
 )
 
-filegroup(
-    name = "templates",
-    srcs = glob(["*.tmpl"]),
-)
-
-# op_specification is very slow to type check so don't use a type checking
-# target. Types are checked separately in the build test
-# op_specification_build_test.
-py_binary(
-    name = "render_specification_against_template",
-    srcs = [
-        "op_specification.py",
-        "render_specification_against_template.py",
-    ],
-    data = [
-        ":templates",
-    ],
-    python_version = "PY3",
-    deps = [
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
-        "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
+genrule(
+    name = "enum_op_pairs",
+    outs = ["enum_op_pairs.txt"],
+    cmd = "$(location :render_main) enum_op_pairs" +
+          " > $(OUTS)",
+    tools = [
+        ":render_main",
     ],
 )
 
-py_library(
-    name = "op_specification_typechecked",
-    srcs = [
-        "op_specification.py",
-    ],
-    srcs_version = "PY2AND3",
-)
-
-build_test(
-    name = "op_specification_build_test",
-    targets = ["op_specification_typechecked"],
-)
 
 genrule(
     name = "op_header",
-    srcs = ["op_header.tmpl"],
     outs = ["op.h"],
-    cmd = "$(location :render_specification_against_template) $(location :op_header.tmpl)" +
+    cmd = "$(location :render_main) op_header" +
           " | $(location @llvm_toolchain//:clang-format)" +
           " > $(OUTS)",
     tools = [
-        ":render_specification_against_template",
+        ":render_main",
         "@llvm_toolchain//:clang-format",
     ],
 )
 
 genrule(
     name = "gen_op_proto",
-    srcs = ["op_proto.tmpl"],
     outs = ["op.generated.proto"],
-    cmd = "$(location :render_specification_against_template) $(location :op_proto.tmpl) > $(OUTS)",
+    cmd = "$(location :render_main) op_proto" +
+          " > $(OUTS)",
     tools = [
-        ":render_specification_against_template",
+        ":render_main",
+        "@llvm_toolchain//:clang-format",
     ],
 )
 
@@ -1204,39 +1176,36 @@ sh_test(
 
 genrule(
     name = "op_source",
-    srcs = ["op_source.tmpl"],
     outs = ["op.cc"],
-    cmd = "$(location :render_specification_against_template) $(location :op_source.tmpl)" +
+    cmd = "$(location :render_main) op_source" +
           " | $(location @llvm_toolchain//:clang-format)" +
           " > $(OUTS)",
     tools = [
-        ":render_specification_against_template",
+        ":render_main",
         "@llvm_toolchain//:clang-format",
     ],
 )
 
 genrule(
     name = "nodes_header",
-    srcs = ["nodes_header.tmpl"],
     outs = ["nodes.h"],
-    cmd = "$(location :render_specification_against_template) $(location :nodes_header.tmpl)" +
+    cmd = "$(location :render_main) nodes_header" +
           " | $(location @llvm_toolchain//:clang-format)" +
           " > $(OUTS)",
     tools = [
-        ":render_specification_against_template",
+        ":render_main",
         "@llvm_toolchain//:clang-format",
     ],
 )
 
 genrule(
     name = "nodes_source",
-    srcs = ["nodes_source.tmpl"],
     outs = ["nodes.cc"],
-    cmd = "$(location :render_specification_against_template) $(location :nodes_source.tmpl)" +
+    cmd = "$(location :render_main) nodes_source" +
           " | $(location @llvm_toolchain//:clang-format)" +
           " > $(OUTS)",
     tools = [
-        ":render_specification_against_template",
+        ":render_main",
         "@llvm_toolchain//:clang-format",
     ],
 )
@@ -2159,5 +2128,117 @@ cc_test(
         "//xls/solvers:z3_ir_equivalence",
         "//xls/solvers:z3_ir_translator_matchers",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+# -- C++ based op specification and file rendering
+
+cc_library(
+    name = "op_specification",
+    srcs = ["op_specification.cc"],
+    hdrs = ["op_specification.h"],
+    deps = [
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+    ]
+)
+
+cc_test(
+    name = "op_specification_test",
+    srcs = ["op_specification_test.cc"],
+    deps = [
+        ":op_specification",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "render_op_header",
+    srcs = ["render_op_header.cc"],
+    hdrs = ["render_op_header.h"],
+    deps = [
+        ":op_specification",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "render_op_source",
+    srcs = ["render_op_source.cc"],
+    hdrs = ["render_op_source.h"],
+    deps = [
+        ":op_specification",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "render_nodes_header",
+    srcs = ["render_nodes_header.cc"],
+    hdrs = ["render_nodes_header.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/log",
+        ":op_specification",
+    ],
+)
+
+cc_library(
+    name = "render_nodes_source",
+    srcs = ["render_nodes_source.cc"],
+    hdrs = ["render_nodes_source.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/log",
+        ":op_specification",
+    ],
+)
+
+cc_test(
+    name = "render_nodes_header_test",
+    srcs = ["render_nodes_header_test.cc"],
+    deps = [
+        "//xls/common:remove_empty_lines",
+        "@com_google_absl//absl/strings",
+        ":op_specification",
+        ":render_nodes_header",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "render_nodes_source_test",
+    srcs = ["render_nodes_source_test.cc"],
+    deps = [
+        "//xls/common:remove_empty_lines",
+        "@com_google_absl//absl/strings",
+        ":op_specification",
+        ":render_nodes_source",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "render_main",
+    srcs = ["render_main.cc"],
+    deps = [
+        ":op_specification",
+        ":render_op_header",
+        ":render_op_source",
+        ":render_nodes_header",
+        ":render_nodes_source",
+        "//xls/common:init_xls",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:exit_status",
+        "@com_google_absl//absl/status",
     ],
 )
