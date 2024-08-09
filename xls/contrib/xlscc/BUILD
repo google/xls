@@ -52,6 +52,7 @@ cc_proto_library(
 
 py_proto_library(
     name = "hls_block_py_pb2",
+    visibility = ["//xls:xls_users"],
     deps = [":hls_block_proto"],
 )
 
