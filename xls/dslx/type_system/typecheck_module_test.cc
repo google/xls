@@ -2378,6 +2378,50 @@ const mol = u32:42;)";
   ASSERT_TRUE(tm.warnings.warnings().empty());
 }
 
+TEST(TypecheckTest, BadTraceFmtWithUseOfChannel) {
+  constexpr std::string_view program =
+      R"(
+proc Counter {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init {
+  }
+
+  config(in_ch: chan<u32> in, out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+
+  next(state: ()) {
+    let (tok, in_data) = recv(join(), in_ch);
+    trace_fmt!("{}", in_ch);
+    send(tok, out_ch, in_data);
+  }
+}
+)";
+
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot format an expression with channel type")));
+}
+
+TEST(TypecheckTest, BadTraceFmtWithUseOfFunction) {
+  constexpr std::string_view program =
+      R"(
+pub fn some_function() -> u32 { u32:0 }
+
+pub fn other_function() -> u32 {
+    trace_fmt!("{}", some_function);
+}
+)";
+
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot format an expression with function type")));
+}
+
 TEST(TypecheckTest, CatchesBadInvocationCallee) {
   constexpr std::string_view kImported = R"(
 pub fn some_function() -> u32 { u32:0 }
