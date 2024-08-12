@@ -54,11 +54,12 @@ absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n) {
 
 // -- class ProcLike
 
-ProcLike::ProcLike(Module* owner, Span span, NameDef* name_def,
+ProcLike::ProcLike(Module* owner, Span span, Span body_span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    ProcLikeBody body, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
+      body_span_(std::move(body_span)),
       name_def_(name_def),
       parametric_bindings_(std::move(parametric_bindings)),
       body_(std::move(body)),

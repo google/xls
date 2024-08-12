@@ -2370,7 +2370,9 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
                          ParseParametricBindings(proc_bindings));
   }
 
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+  Pos obrace_pos;
+  XLS_RETURN_IF_ERROR(DropTokenOrError(
+      TokenKind::kOBrace, nullptr, "'{' at start of proc-like", &obrace_pos));
 
   // Helper, if "f" is already non-null we give back an appropriate error
   // message given the "peek" token that names the function.
@@ -2539,9 +2541,10 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
 
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
   const Span span(leading_token.span().start(), cbrace.span().limit());
-  auto* proc_like =
-      module_->Make<T>(span, name_def, std::move(parametric_bindings),
-                       proc_like_body, is_public);
+  const Span body_span(obrace_pos, cbrace.span().limit());
+  auto* proc_like = module_->Make<T>(span, body_span, name_def,
+                                     std::move(parametric_bindings),
+                                     proc_like_body, is_public);
 
   // Now that the proc is defined we can set a bunch of links to point at it.
   proc_like_body.config->set_proc(proc_like);

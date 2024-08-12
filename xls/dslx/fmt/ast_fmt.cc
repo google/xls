@@ -51,6 +51,67 @@
 namespace xls::dslx {
 namespace {
 
+// Note: if a comment doc is emitted (i.e. return value has_value()) it does not
+// have a trailing hard-line. This is for consistency with other emission
+// routines which generally don't emit any whitespace afterwards, just their
+// doc.
+std::optional<DocRef> EmitCommentsBetween(
+    std::optional<Pos> start_pos, const Pos& limit_pos,
+    const Comments& comments, DocArena& arena,
+    std::optional<Span>* last_comment_span) {
+  if (!start_pos.has_value()) {
+    start_pos = Pos(limit_pos.filename(), 0, 0);
+  }
+  // Due to the hack in AdjustCommentLimit, we can end up looking for a comment
+  // between the fictitious end of a comment and the end of a block. Just don't
+  // return anything in that case.
+  if (start_pos >= limit_pos) {
+    return std::nullopt;
+  }
+  const Span span(start_pos.value(), limit_pos);
+
+  VLOG(3) << "Looking for comments in span: " << span;
+
+  std::vector<DocRef> pieces;
+
+  std::vector<const CommentData*> items = comments.GetComments(span);
+  VLOG(3) << "Found " << items.size() << " comment data items";
+  std::optional<Span> previous_comment_span;
+  for (size_t i = 0; i < items.size(); ++i) {
+    const CommentData* comment_data = items[i];
+
+    // If the previous comment line and this comment line are abutted (i.e.
+    // contiguous lines with comments), we don't put a newline between them.
+    if (previous_comment_span.has_value() &&
+        previous_comment_span->start().lineno() + 1 !=
+            comment_data->span.start().lineno()) {
+      VLOG(3) << "previous comment span: " << previous_comment_span.value()
+              << " this comment span: " << comment_data->span
+              << " -- inserting hard line";
+      pieces.push_back(arena.hard_line());
+    }
+
+    pieces.push_back(arena.MakePrefixedReflow(
+        "//",
+        std::string{absl::StripTrailingAsciiWhitespace(comment_data->text)}));
+
+    if (i + 1 != items.size()) {
+      pieces.push_back(arena.hard_line());
+    }
+
+    previous_comment_span = comment_data->span;
+    if (last_comment_span != nullptr) {
+      *last_comment_span = comment_data->span;
+    }
+  }
+
+  if (pieces.empty()) {
+    return std::nullopt;
+  }
+
+  return ConcatN(arena, pieces);
+}
+
 // If there is a '.' modifier in the attribute given by s (e.g. if it's of the
 // form "ProcName.config") strips off the trailing modifier and returns the
 // stem.
@@ -522,65 +583,6 @@ DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
                             lhs_ref,
                             rhs_ref,
                         });
-}
-
-// Note: if a comment doc is emitted (i.e. return value has_value()) it does not
-// have a trailing hard-line. This is for consistency with other emission
-// routines which generally don't emit any whitespace afterwards, just their
-// doc.
-static std::optional<DocRef> EmitCommentsBetween(
-    std::optional<Pos> start_pos, const Pos& limit_pos,
-    const Comments& comments, DocArena& arena,
-    std::optional<Span>* last_comment_span) {
-  if (!start_pos.has_value()) {
-    start_pos = Pos(limit_pos.filename(), 0, 0);
-  }
-  // Due to the hack in AdjustCommentLimit, we can end up looking for a comment
-  // between the fictitious end of a comment and the end of a block. Just don't
-  // return anything in that case.
-  if (start_pos >= limit_pos) {
-    return std::nullopt;
-  }
-  const Span span(start_pos.value(), limit_pos);
-
-  VLOG(3) << "Looking for comments in span: " << span;
-
-  std::vector<DocRef> pieces;
-
-  std::vector<const CommentData*> items = comments.GetComments(span);
-  VLOG(3) << "Found " << items.size() << " comment data items";
-  std::optional<Span> previous_comment_span;
-  for (size_t i = 0; i < items.size(); ++i) {
-    const CommentData* comment_data = items[i];
-
-    // If the previous comment line and this comment line are abutted (i.e.
-    // contiguous lines with comments), we don't put a newline between them.
-    if (previous_comment_span.has_value() &&
-        previous_comment_span->start().lineno() + 1 !=
-            comment_data->span.start().lineno()) {
-      VLOG(3) << "previous comment span: " << previous_comment_span.value()
-              << " this comment span: " << comment_data->span
-              << " -- inserting hard line";
-      pieces.push_back(arena.hard_line());
-    }
-
-    pieces.push_back(arena.MakePrefixedReflow(
-        "//",
-        std::string{absl::StripTrailingAsciiWhitespace(comment_data->text)}));
-
-    if (i + 1 != items.size()) {
-      pieces.push_back(arena.hard_line());
-    }
-
-    previous_comment_span = comment_data->span;
-    *last_comment_span = comment_data->span;
-  }
-
-  if (pieces.empty()) {
-    return std::nullopt;
-  }
-
-  return ConcatN(arena, pieces);
 }
 
 // EOL-terminated comments we say, in the AST, that the entity's limit was at
@@ -1743,30 +1745,94 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
   signature_pieces.push_back(arena.break1());
   signature_pieces.push_back(arena.ocurl());
 
+  // Mapping from function to comment data -- we emit these last so if we're
+  // reordering them we want to make sure they stay associated with the
+  // appropriate comments.
+  absl::flat_hash_map<const Function*, std::vector<const CommentData*>>
+      fn_to_comments;
+
+  Pos last_stmt_limit = n.body_span().start();
+
+  // We update this with the position that's relevant for config start comments.
+  std::optional<Pos> config_comment_start_pos;
+  std::optional<Pos> init_comment_start_pos;
+  std::optional<Pos> next_comment_start_pos;
+
   std::vector<DocRef> stmt_pieces;
   for (const ProcStmt& stmt : n.stmts()) {
-    absl::visit(Visitor{
-                    [](const Function*) {
-                      // We will emit these below.
-                    },
-                    [&](const ProcMember* n) {
-                      stmt_pieces.push_back(Fmt(*n, comments, arena));
-                      stmt_pieces.push_back(arena.semi());
-                      stmt_pieces.push_back(arena.hard_line());
-                    },
-                    [&](const TypeAlias* n) {
-                      stmt_pieces.push_back(Fmt(*n, comments, arena));
-                      stmt_pieces.push_back(arena.semi());
-                      stmt_pieces.push_back(arena.hard_line());
-                    },
-                    [&](const ConstAssert* n) {
-                      stmt_pieces.push_back(Fmt(*n, comments, arena));
-                      stmt_pieces.push_back(arena.semi());
-                      stmt_pieces.push_back(arena.hard_line());
-                    },
-                },
-                stmt);
+    absl::visit(
+        Visitor{
+            [&](const Function* f) {
+              // Note: we will emit these below.
+              //
+              // Though we defer emission, we still want to grab data to tell
+              // us the relevant comment span. The relevant comment span is
+              // from the "last statement's limit position" to this function's
+              // start position.
+              if (f == &n.config()) {
+                config_comment_start_pos = last_stmt_limit;
+              } else if (f == &n.init()) {
+                init_comment_start_pos = last_stmt_limit;
+              } else if (f == &n.next()) {
+                next_comment_start_pos = last_stmt_limit;
+              } else {
+                LOG(FATAL) << "Unexpected proc member function: "
+                           << f->identifier() << " @ " << f->span();
+              }
+              last_stmt_limit = f->span().limit();
+            },
+            [&](const ProcMember* n) {
+              if (std::optional<DocRef> maybe_doc =
+                      EmitCommentsBetween(last_stmt_limit, n->span().start(),
+                                          comments, arena, nullptr)) {
+                stmt_pieces.push_back(
+                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+              }
+              stmt_pieces.push_back(Fmt(*n, comments, arena));
+              stmt_pieces.push_back(arena.semi());
+              stmt_pieces.push_back(arena.hard_line());
+              last_stmt_limit = n->span().limit();
+            },
+            [&](const TypeAlias* n) {
+              if (std::optional<DocRef> maybe_doc =
+                      EmitCommentsBetween(last_stmt_limit, n->span().start(),
+                                          comments, arena, nullptr)) {
+                stmt_pieces.push_back(
+                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+              }
+              stmt_pieces.push_back(Fmt(*n, comments, arena));
+              stmt_pieces.push_back(arena.semi());
+              stmt_pieces.push_back(arena.hard_line());
+              last_stmt_limit = n->span().limit();
+            },
+            [&](const ConstAssert* n) {
+              if (std::optional<DocRef> maybe_doc =
+                      EmitCommentsBetween(last_stmt_limit, n->span().start(),
+                                          comments, arena, nullptr)) {
+                stmt_pieces.push_back(
+                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+              }
+              stmt_pieces.push_back(Fmt(*n, comments, arena));
+              stmt_pieces.push_back(arena.semi());
+              stmt_pieces.push_back(arena.hard_line());
+              last_stmt_limit = n->span().limit();
+            },
+        },
+        stmt);
   }
+
+  CHECK(config_comment_start_pos.has_value());
+  std::optional<DocRef> config_comment =
+      EmitCommentsBetween(config_comment_start_pos, n.config().span().start(),
+                          comments, arena, nullptr);
+  CHECK(init_comment_start_pos.has_value());
+  std::optional<DocRef> init_comment =
+      EmitCommentsBetween(init_comment_start_pos, n.init().span().start(),
+                          comments, arena, nullptr);
+  CHECK(next_comment_start_pos.has_value());
+  std::optional<DocRef> next_comment =
+      EmitCommentsBetween(next_comment_start_pos, n.next().span().start(),
+                          comments, arena, nullptr);
 
   std::vector<DocRef> config_pieces = {
       arena.MakeText("config"),
@@ -1802,6 +1868,23 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
       arena.ccurl(),
   };
 
+  auto nest_and_hardline = [&](std::optional<DocRef> doc_ref) {
+    if (!doc_ref.has_value()) {
+      return arena.empty();
+    }
+    return arena.MakeNest(arena.MakeConcat(doc_ref.value(), arena.hard_line()));
+  };
+
+  DocRef config_comment_doc_ref =
+      config_comment.has_value() ? nest_and_hardline(config_comment.value())
+                                 : arena.empty();
+  DocRef init_comment_doc_ref = init_comment.has_value()
+                                    ? nest_and_hardline(init_comment.value())
+                                    : arena.empty();
+  DocRef next_comment_doc_ref = next_comment.has_value()
+                                    ? nest_and_hardline(next_comment.value())
+                                    : arena.empty();
+
   std::vector<DocRef> proc_pieces = {
       ConcatNGroup(arena, signature_pieces),
       arena.hard_line(),
@@ -1812,12 +1895,15 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
                              arena.MakeNest(ConcatNGroup(arena, stmt_pieces)),
                              arena.hard_line(),
                          }),
+      config_comment_doc_ref,
       arena.MakeNest(ConcatNGroup(arena, config_pieces)),
       arena.hard_line(),
       arena.hard_line(),
+      init_comment_doc_ref,
       arena.MakeNest(ConcatNGroup(arena, init_pieces)),
       arena.hard_line(),
       arena.hard_line(),
+      next_comment_doc_ref,
       arena.MakeNest(ConcatNGroup(arena, next_pieces)),
       arena.hard_line(),
       arena.ccurl(),
