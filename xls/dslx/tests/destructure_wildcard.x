@@ -20,11 +20,28 @@ fn destructure_test() {
 }
 
 #[test]
-fn destructure_rest_of_tuple_test() {
-    let t = (u32:2, u8:3);
-
-    // Since this has the "correct" number of matches, this acts like a
-    // wildcard, for now.
+fn destructure_rest_of_tuple_matches_zero_test() {
+    let t = (u32:2,);
     let (a, ..) = t;
+    assert_eq(u32:2, a);
+    let (.., a) = t;
     assert_eq(u32:2, a)
+}
+
+#[test]
+fn destructure_rest_of_tuple_matches_one_test() {
+    let t = (u32:2, u8:3);
+    let (a, ..) = t;
+    assert_eq(u32:2, a);
+    let (.., a) = t;
+    assert_eq(u8:3, a)
+}
+
+#[test]
+fn destructure_rest_of_tuple_matches_many_test() {
+    let t = (u32:2, u8:3, u4:1);
+    let (a, ..) = t;
+    assert_eq(u32:2, a);
+    let (.., a) = t;
+    assert_eq(u4:1, a)
 }

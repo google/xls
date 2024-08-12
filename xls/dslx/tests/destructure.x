@@ -19,3 +19,27 @@ fn destructure_test() {
     assert_eq(u32:2, a);
     assert_eq(u8:3, b)
 }
+
+#[test]
+fn destructure_rest_of_tuple_matches_zero_test() {
+    let t = (u32:2, u8:3);
+    let (a, .., b) = t;
+    assert_eq(u32:2, a);
+    assert_eq(u8:3, b)
+}
+
+#[test]
+fn destructure_rest_of_tuple_matches_one_test() {
+    let t = (u32:2, u16:4, u8:3);
+    let (a, .., b) = t;
+    assert_eq(u32:2, a);
+    assert_eq(u8:3, b)
+}
+
+#[test]
+fn destructure_rest_of_tuple_matches_many_test() {
+    let t = (u32:2, u16:4, u15:5, u8:3);
+    let (a, .., b) = t;
+    assert_eq(u32:2, a);
+    assert_eq(u8:3, b)
+}

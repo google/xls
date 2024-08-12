@@ -1372,6 +1372,7 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
       return module_->Make<NameDefTree>(
           tok.span(), module_->Make<WildcardPattern>(tok.span()));
     }
+    // TODO: https://github.com/google/xls/issues/1459 - Handle rest-of-tuple.
     XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                          PeekTokenIs(TokenKind::kDoubleColon));
     if (peek_is_double_colon) {  // Mod or enum ref.

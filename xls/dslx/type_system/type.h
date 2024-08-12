@@ -161,6 +161,42 @@ class TypeVisitor {
   virtual absl::Status HandleMeta(const MetaType& t) = 0;
 };
 
+class TypeVisitorWithDefault : public TypeVisitor {
+ public:
+  ~TypeVisitorWithDefault() override = default;
+
+  absl::Status HandleEnum(const EnumType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleBits(const BitsType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleFunction(const FunctionType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleChannel(const ChannelType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleToken(const TokenType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleStruct(const StructType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleTuple(const TupleType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleArray(const ArrayType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleMeta(const MetaType& t) override {
+    return absl::OkStatus();
+  }
+};
+
 // Indicates whether we should fully qualify types when converting them to
 // string -- this is useful when types are nominally the same but come from
 // different modules (e.g. MyStruct defined in both `a.x` and `b.x`).

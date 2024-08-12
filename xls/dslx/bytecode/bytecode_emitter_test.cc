@@ -135,7 +135,6 @@ fn expect_fail() -> u32{
 007 load 0)");
 }
 
-// Validates emission of Let nodes with structured bindings.
 TEST(BytecodeEmitterTest, DestructuringLet) {
   constexpr std::string_view kProgram = R"(#[test]
 fn has_name_def_tree() -> (u32, u64, uN[128]) {
@@ -192,6 +191,60 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 036 call assert_eq(d, (u32:3, u64:4, uN[128]:5))
 037 pop
 038 load 3)");
+}
+
+TEST(BytecodeEmitterTest, DestructuringLetWithRestOfTuple) {
+  constexpr std::string_view kProgram = R"(#[test]
+fn destructuring_let_with_rest_of_tuple() -> (u32, u64, uN[128]) {
+  let (a, b, .., (c, d)) = (u4:0, u8:1, u9:2, (u16:3, (u32:4, u64:5, uN[128]:6)));
+  assert_eq(a, u4:0);
+  assert_eq(b, u8:1);
+  assert_eq(c, u16:3);
+  assert_eq(d, (u32:4, u64:5, uN[128]:6));
+  d
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  // Asserts that we can generate bytecode for this situation. We shouldn't
+  // assert on the contents of the bytecode generated, since that is fragile
+  // and is essentially a "Change Detector" test.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram,
+                    "destructuring_let_with_rest_of_tuple"));
+}
+
+TEST(BytecodeEmitterTest, DestructuringLetWithRestOfTupleNested) {
+  constexpr std::string_view kProgram = R"(#[test]
+fn destructuring_let_with_rest_of_tuple_nested() -> (u32, u64, uN[128]) {
+  let (a, b, .., (c, .., d)) = (u4:0, u8:1, u9:2, (u16:2, u10:4, (u32:5, u64:6, uN[128]:7)));
+  assert_eq(a, u4:0);
+  assert_eq(b, u8:1);
+  assert_eq(c, u16:2);
+  assert_eq(d, (u32:5, u64:6, uN[128]:7));
+  d
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK(EmitBytecodes(&import_data, kProgram,
+                              "destructuring_let_with_rest_of_tuple_nested"));
+}
+
+TEST(BytecodeEmitterTest, DestructuringNonConstantTuple) {
+  constexpr std::string_view kProgram = R"(#[test]
+fn destructuring_non_constant_tuple() -> (u32, u64, uN[128]) {
+  let t = (u4:0, u8:1, u9:2, (u16:2, u10:4, (u32:5, u64:6, uN[128]:7)));
+  let (a, b, .., (c, .., d)) = t;
+  assert_eq(a, u4:0);
+  assert_eq(b, u8:1);
+  assert_eq(c, u16:2);
+  assert_eq(d, (u32:5, u64:6, uN[128]:7));
+  d
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK(EmitBytecodes(&import_data, kProgram,
+                              "destructuring_non_constant_tuple"));
 }
 
 TEST(BytecodeEmitterTest, Ternary) {

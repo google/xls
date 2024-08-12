@@ -526,11 +526,244 @@ fn main() -> u32{
                                        HasSubstr("not less than")));
 }
 
-// This test won't work unless BytecodeEmitterTest.DestructuringLet works!
+TEST(BytecodeInterpreterTest, DestructuringNonConstantTupleWithRestOfTuple) {
+  constexpr std::string_view kProgram = R"(
+fn tuple_not_constant() -> u32 {
+  let t = (u32:2, u8:3, u4:1);
+
+  let (a, ..) = t;
+  assert_eq(u32:2, a);
+  a
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "tuple_not_constant"));
+  EXPECT_EQ(value, InterpValue::MakeU32(2));
+}
+
+TEST(BytecodeInterpreterTest, TupleAssignsValues) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y): (u32, s8) = (u32:7, s8:3);
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleSkipsMiddle) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., y) = (u32:7, u12:4, s8:3);
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleSkipsNone) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., y) = (u32:7, s8:3);
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTuplekSkipsNoneWithThree) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, .., z) = (u32:7, u12:4, s8:3);
+  assert_eq(x, u32:7);
+  assert_eq(y, u12:4);
+  assert_eq(z, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleSkipsEnd) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, ..) = (u32:7, s8:3, u12:4);
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleSkipsManyAtEnd) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, ..) = (u32:7, s8:3, u12:4, u32:0);
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleSkipsManyInMiddle) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., y) = (u32:7, u8:3, u12:4, s8:3);
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleSkipsBeginning) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (.., x, y) = (u12:7, u8:3, u32:4, s8:3);
+  assert_eq(x, u32:4);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleSkipsManyAtBeginning) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (.., x) = (u8:3, u12:4, u32:7);
+  assert_eq(x, u32:7);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleNested) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., (.., y)) = (u32:7, u8:3, u18:5, (u12:4, u11:5, s8:3));
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleNestedSingleton) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., (y,)) = (u32:7, u8:3, (s8:3,));
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleIsLikeWildcard) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, .., (.., y)) = (u32:7, u18:5, (u12:4, s8:3));
+  assert_eq(x, u32:7);
+  assert_eq(y, s8:3);
+}
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleDeeplyNested) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  let (x, y, .., ((.., z), .., d)) = (u32:7, u8:1,
+                            ((u32:3, u64:4, uN[128]:5), u12:4, s8:3));
+  assert_eq(x, u32:7);
+  assert_eq(y, u8:1);
+  assert_eq(z, uN[128]:5);
+  }
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
+
+TEST(BytecodeInterpreterTest, RestOfTupleDeeplyNestedNonConstants) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  // Initial values
+  let (xi, yi, zi): (u32, u8, uN[128]) = (u32:7, u8:1, uN[128]:5);
+  let (x, y, .., ((.., z), .., d)) = (xi, yi,
+                            ((u32:3, u64:4, zi), u12:4, s8:3));
+  let (xx, yy, zz): (u32, u8, uN[128]) = (x, y, z);
+  }
+)";
+  XLS_EXPECT_OK(Interpret(kProgram, "main"));
+}
 TEST(BytecodeInterpreterTest, DestructuringLet) {
   constexpr std::string_view kProgram = R"(
 fn has_name_def_tree() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
+  assert_eq(a, u4:0);
+  assert_eq(b, u8:1);
+  assert_eq(c, u16:2);
+  assert_eq(d, (u32:3, u64:4, uN[128]:5));
+  d
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "has_name_def_tree"));
+
+  ASSERT_TRUE(value.IsTuple());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
+  ASSERT_EQ(num_elements, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue element,
+                           value.Index(InterpValue::MakeU32(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 5);
+}
+
+TEST(BytecodeInterpreterTest, DestructuringLetWithRestOfTuple) {
+  constexpr std::string_view kProgram = R"(
+fn has_name_def_tree() -> (u32, u64, uN[128]) {
+  let (a, b, .., (c, .., d)) = (u4:0, u8:1, u9:2, u10:3, (u16:2, u17:2, (u32:3, u64:4, uN[128]:5)));
+  assert_eq(a, u4:0);
+  assert_eq(b, u8:1);
+  assert_eq(c, u16:2);
+  assert_eq(d, (u32:3, u64:4, uN[128]:5));
+  d
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "has_name_def_tree"));
+
+  ASSERT_TRUE(value.IsTuple());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
+  ASSERT_EQ(num_elements, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue element,
+                           value.Index(InterpValue::MakeU32(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 5);
+}
+
+TEST(BytecodeInterpreterTest, DestructuringLetWithRestOfTupleSkipsZero) {
+  constexpr std::string_view kProgram = R"(
+fn has_name_def_tree() -> (u32, u64, uN[128]) {
+  let (a, b, .., (c, .., d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
   assert_eq(a, u4:0);
   assert_eq(b, u8:1);
   assert_eq(c, u16:2);

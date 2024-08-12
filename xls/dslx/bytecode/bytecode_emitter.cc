@@ -921,7 +921,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSwap));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(2)));
-  DestructureLet(node->names());
+  XLS_RETURN_IF_ERROR(DestructureLet(node->names(), /*type_or_size=*/2));
 
   // Emit the loop body.
   XLS_RETURN_IF_ERROR(node->body()->AcceptExpr(this));
@@ -1215,6 +1215,8 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
 
   std::vector<Bytecode::MatchArmItem> elements;
   for (NameDefTree* node : tree->nodes()) {
+    // TODO: https://github.com/google/xls/issues/1459 - Handle
+    // rest-of-tuple.
     XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem element,
                          HandleNameDefTreeExpr(node));
     elements.push_back(element);
@@ -1222,19 +1224,27 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
   return Bytecode::MatchArmItem::MakeTuple(std::move(elements));
 }
 
-void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
+static int64_t CountElements(std::variant<Type*, int64_t> element) {
+  return std::visit(Visitor{[&](Type* type) -> int64_t {
+                              const TupleType* tuple_type =
+                                  dynamic_cast<const TupleType*>(type);
+                              if (tuple_type != nullptr) {
+                                return tuple_type->members().size();
+                              }
+                              return 0;
+                            },
+                            [&](int64_t size) -> int64_t { return size; }},
+                    element);
+}
+
+absl::Status BytecodeEmitter::DestructureLet(
+    NameDefTree* tree, std::variant<Type*, int64_t> type_or_size) {
   if (tree->is_leaf()) {
-    if (std::holds_alternative<WildcardPattern*>(tree->leaf())) {
-      Add(Bytecode::MakePop(tree->span()));
+    if (std::holds_alternative<WildcardPattern*>(tree->leaf()) ||
+        std::holds_alternative<RestOfTuple*>(tree->leaf())) {
       // We can just drop this one.
-      return;
-    }
-    if (std::holds_alternative<RestOfTuple*>(tree->leaf())) {
-      // TODO(davidplass): Implement this; for now, drop it as if it were a
-      // wildcard.
-      VLOG(1) << "Dropping rest-of-tuple for now";
       Add(Bytecode::MakePop(tree->span()));
-      return;
+      return absl::OkStatus();
     }
 
     NameDef* name_def = std::get<NameDef*>(tree->leaf());
@@ -1244,17 +1254,69 @@ void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
     int64_t slot = namedef_to_slot_.at(name_def);
     Add(Bytecode::MakeStore(tree->span(), Bytecode::SlotIndex(slot)));
   } else {
+    // Pushes each element of the current level of the tuple
+    // onto the stack in reverse order, e.g., (a, (b, c)) pushes (b, c) then a
     Add(Bytecode(tree->span(), Bytecode::Op::kExpandTuple));
-    for (const auto& node : tree->nodes()) {
-      DestructureLet(node);
+
+    // Note: we intentionally don't check validity of the tuple here; that's
+    // done by Deduce().
+
+    if (std::holds_alternative<Type*>(type_or_size)) {
+      TupleType* tuple_type =
+          dynamic_cast<TupleType*>(std::get<Type*>(type_or_size));
+      if (tuple_type == nullptr) {
+        return absl::InternalError(absl::StrFormat(
+            "Type %s is not of type TupleType", tuple_type->ToString()));
+      }
+    }
+
+    int64_t tuple_index = 0;
+    for (int64_t name_index = 0; name_index < tree->nodes().size();
+         ++name_index) {
+      NameDefTree* node = tree->nodes()[name_index];
+      if (node->IsRestOfTupleLeaf()) {
+        int64_t number_of_tuple_elements = CountElements(type_or_size);
+        // Decrement for the rest-of-tuple
+        int64_t number_of_bindings = tree->nodes().size() - 1;
+
+        // Skip ahead to account for the needed remaining elements.
+        int64_t difference = number_of_tuple_elements - number_of_bindings;
+        tuple_index += difference;
+
+        // Pop unused tuple elements
+        for (int64_t pop_count = 0; pop_count < difference; ++pop_count) {
+          Add(Bytecode::MakePop(node->span()));
+        }
+        continue;
+      }
+      XLS_RETURN_IF_ERROR(std::visit(
+          Visitor{[&](Type* type) -> absl::Status {
+                    TupleType* tuple_type = down_cast<TupleType*>(type);
+                    return DestructureLet(
+                        node, &tuple_type->GetMemberType(tuple_index));
+                  },
+                  [&](int64_t size) -> absl::Status {
+                    // If a simple count is given, the tuple can only
+                    // contain single elements, so the child count
+                    // must be 1.
+                    return DestructureLet(node, 1);
+                  }},
+          type_or_size));
+      ++tuple_index;
     }
   }
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleLet(const Let* node) {
   XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
-  DestructureLet(node->name_def_tree());
-  return absl::OkStatus();
+  std::optional<Type*> type = type_info_->GetItem(node->rhs());
+  if (type.has_value()) {
+    return DestructureLet(node->name_def_tree(), type.value());
+  }
+  return absl::InternalError(absl::StrFormat(
+      "@ %s: Could not retrieve type of right-hand side of `let`.",
+      node->span().ToString()));
 }
 
 absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {

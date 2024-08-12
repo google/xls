@@ -962,6 +962,8 @@ absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
       }
 
       for (int i = 0; i < item_elements.size(); i++) {
+        // TODO: https://github.com/google/xls/issues/1459 - Handle
+        // rest-of-tuple.
         XLS_ASSIGN_OR_RETURN(bool equal, MatchArmEqualsInterpValue(
                                              &frames_.back(), item_elements[i],
                                              value_elements->at(i)));

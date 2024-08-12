@@ -143,7 +143,8 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<Bytecode::MatchArmItem> HandleNameDefTreeExpr(
       NameDefTree* tree);
 
-  void DestructureLet(NameDefTree* tree);
+  absl::Status DestructureLet(NameDefTree* tree,
+                              std::variant<Type*, int64_t> type_or_size);
 
   ImportData* import_data_;
   const TypeInfo* type_info_;
