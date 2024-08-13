@@ -1351,6 +1351,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
     }
 
     for (NameDefTree* pattern : arm->patterns()) {
+      // TODO: https://github.com/google/xls/issues/1459 - Handle
+      // rest-of-tuple.
+
       // Deduce types for all patterns with types that can be checked.
       //
       // Note that NameDef is handled in the Unify() call below, and

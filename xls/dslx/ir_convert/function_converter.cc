@@ -760,6 +760,10 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     XLS_RETURN_IF_ERROR(
         DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf())));
   } else {
+    // TODO: https://github.com/google/xls/issues/1459 - Rewrite this to be
+    // actually recursive (instead of "effectively recursive" via the `levels`
+    // and `delta_at_level` vectors).
+
     // Walk the tree of names we're trying to bind, performing tuple_index
     // operations on the RHS to get to the values we want to bind to those
     // names.
@@ -768,35 +772,73 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     // NameDefTree to the corresponding value (being pattern matched).
     //
     // Args:
-    //  x: Current subtree of the NameDefTree.
+    //  name_def_tree: Current subtree of the NameDefTree.
     //  level: Level (depth) in the NameDefTree, root is 0.
     //  index: Index of node in the current tree level (e.g. leftmost is 0).
-    auto walk = [&](NameDefTree* x, int64_t level,
+
+    // We need to add the delta to every tuple index *at this level*. E.g.,:
+    // if have a NameDefTree like: (a,..,b,(c,..,d),e), then b, (c,..,d) and
+    // e's indexes need to be adjusted at level 1; d's needs to be adjusted at
+    // level 2, etc.
+    std::vector<int64_t> delta_at_level;
+
+    auto walk = [&](NameDefTree* name_def_tree, int64_t level,
                     int64_t index) -> absl::Status {
       VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
-                                    index, x->ToString());
-      XLS_RET_CHECK(x != nullptr);
+                                    index, name_def_tree->ToString());
+
+      XLS_RET_CHECK(name_def_tree != nullptr);
+      while (level > delta_at_level.size()) {
+        // Make sure we have enough entries at this level
+        delta_at_level.push_back(0);
+      }
+      // Levels start at 1, so we subtract one.
+      index += delta_at_level[level - 1];
+
       levels.resize(level);
-      levels.push_back(Def(x, [this, &levels, x, index](SourceInfo loc) {
+      BValue tuple = levels.back();
+      CHECK(tuple.valid());
+
+      xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
+
+      if (name_def_tree->IsRestOfTupleLeaf()) {
+        // If we're at a "rest of tuple" operator, we may need to "skip"
+        // tuple elements at this level. We can tell how many tuple *entries*
+        // there are via tuple_type, and how many *bindings* there are at this
+        // level (i.e., siblings to the "rest of tuple") via the parent
+        // NameDefTree.
+        const NameDefTree* parent =
+            down_cast<const NameDefTree*>(name_def_tree->parent());
+        int64_t number_of_bindings = parent->nodes().size();
+        int64_t number_of_tuple_elements = tuple_type->size();
+
+        int64_t delta = number_of_tuple_elements - number_of_bindings;
+        delta_at_level[level - 1] = delta;
+
+        // Don't need to bind anything to the ..
+        return absl::OkStatus();
+      }
+
+      CHECK_LT(index, tuple_type->size())
+          << "index: " << index << " type: " << tuple_type->ToString();
+
+      levels.push_back(Def(name_def_tree, [this, name_def_tree, index,
+                                           tuple](SourceInfo loc) {
         if (!loc.Empty()) {
-          loc = ToSourceInfo(x->is_leaf() ? ToAstNode(x->leaf())->GetSpan()
-                                          : x->GetSpan());
+          loc = ToSourceInfo(name_def_tree->is_leaf()
+                                 ? ToAstNode(name_def_tree->leaf())->GetSpan()
+                                 : name_def_tree->GetSpan());
         }
-
-        BValue tuple = levels.back();
-        CHECK(tuple.valid());
-
-        xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
-        CHECK_LT(index, tuple_type->size())
-            << "index: " << index << " type: " << tuple_type->ToString();
 
         BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
         CHECK_OK(function_builder_->GetError());
 
         return tuple_index;
       }));
-      if (x->is_leaf()) {
-        XLS_RETURN_IF_ERROR(DefAlias(x, ToAstNode(x->leaf())));
+
+      if (name_def_tree->is_leaf()) {
+        XLS_RETURN_IF_ERROR(
+            DefAlias(name_def_tree, ToAstNode(name_def_tree->leaf())));
       }
       return absl::OkStatus();
     };
@@ -1432,7 +1474,8 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
               });
             },
             [&](RestOfTuple* n) -> absl::StatusOr<BValue> {
-              // TODO(davidplass): Implement this.
+              // TODO: https://github.com/google/xls/issues/1459 - Handle
+              // rest-of-tuple.
               return absl::UnimplementedError(
                   "The \"rest of tuple\" operator (..) is not implemented "
                   "yet.");

@@ -36,6 +36,8 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/run_routines/run_comparator.h"
+#include "xls/dslx/run_routines/run_routines.h"
 
 namespace xls::dslx {
 namespace {
@@ -176,6 +178,121 @@ TEST(IrConverterTest, LetTupleBindingNested) {
   let t = (u32:2, (u32:3, (u32:4,), u32:5));
   let (x, (y, (z,), a)) = t;
   x+y+z+a
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, LetTupleBindingRestOfTupleNestedNone) {
+  const char* program =
+      R"(
+#[test]
+fn f() {
+  let t = (u32:1, (u32:2, (u32:3,), u32:4));
+  let (x, .., (y, .., (z, ..), a)) = t;
+  assert_eq(x+y+z+a, u32:10)
+})";
+  RunComparator run_comparator(CompareMode::kInterpreter);
+  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
+                             ParseAndTestOptions{
+                                 .run_comparator = &run_comparator,
+                             }));
+}
+
+TEST(IrConverterTest, LetTupleBindingRestOfTupleNested) {
+  const char* program =
+      R"(
+#[test]
+fn f() {
+  let t = (u32:1, u32:2, u32:3, (u32:4, u32:5, (u32:6, u32:7), u32:5));
+  let (x, .., (.., y, (z, ..), a)) = t;
+  assert_eq(x+y+z+a, u32:17)
+})";
+  RunComparator run_comparator(CompareMode::kInterpreter);
+  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
+                             ParseAndTestOptions{
+                                 .run_comparator = &run_comparator,
+                             }));
+}
+
+TEST(IrConverterTest, LetTupleBindingWildcardNested) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:2, u32:3, (u32:4, u32:5, (u32:6,u32:7), u32:8));
+  let (x, _, (y, _, (z, _), a)) = t;
+  x+y+z+a
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, LetTupleBindingWildcard) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:2, u32:3);
+  let (x, _) = t;
+  x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, LetTupleBindingRestOfTuple) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:2, u32:3, u32:4);
+  let (x, ..) = t;
+  x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, LetTupleBindingRestOfTupleNone) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:2,);
+  let (x, ..) = t;
+  x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, LetTupleBindingRestOfTupleBeginning) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:2, u32:3, u32:4);
+  let (.., x) = t;
+  x
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+TEST(IrConverterTest, LetTupleBindingRestOfTupleSkipsMiddle) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:1, u32:2, u32:3, u32:4);
+  let (x, .., y) = t;
+  x+y
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

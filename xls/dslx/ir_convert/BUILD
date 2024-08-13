@@ -125,6 +125,8 @@ cc_test(
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/run_routines",
+        "//xls/dslx/run_routines:run_comparator",
         "//xls/dslx/type_system:parametric_env",
         "//xls/ir",
         "//xls/ir:bits",
@@ -154,6 +156,8 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/run_routines",
+        "//xls/dslx/run_routines:run_comparator",
         "@com_google_googletest//:gtest",
     ],
 )
