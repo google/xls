@@ -373,6 +373,20 @@ class AstGenerator {
   // being generated, and `ctx.env` contains the parameters as NameRefs.
   absl::StatusOr<TypedExpr> GenerateBody(int64_t call_depth, Context* ctx);
 
+  // When the first element of the rhs type is a `token`, generates
+  //   let x1: token = x1.0;
+  //   let x2: type1 = x1.1;
+  // Otherwise, it will sometimes generate
+  //    let (x1, x2, x3): (type1, type2, type3) = tuple_value;
+  // and sometimes
+  //    let (x1, x2, x3) = tuple_value;
+  // and sometimes do nothing (because the tuple was already assigned
+  // to a variable int he previous Statement).
+  // TODO: https://github.com/google/xls/issues/1459 - Randomly destructure
+  // or use tuple indexing.
+  void GenerateTupleAssignment(NameRef* name_ref, TypedExpr& rhs, Context* ctx,
+                               std::vector<Statement*>& statements);
+
   absl::StatusOr<TypedExpr> GenerateUnop(Context* ctx);
 
   absl::StatusOr<Expr*> GenerateUmin(TypedExpr arg, int64_t other);

@@ -2657,44 +2657,20 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
     // picking up the expression ASTs directly (which would cause duplication).
     auto* name_def = module_->Make<NameDef>(fake_span_, identifier, rhs.expr);
     auto* name_ref = MakeNameRef(name_def);
+    // For tuples, this generates  `let x0: (tuple_type) = tuple_value;`
     statements.push_back(module_->Make<Statement>(module_->Make<Let>(
         fake_span_,
         /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_def),
-        /*type=*/rhs.type, /*rhs=*/rhs.expr,
+        /*type=*/rhs.type,
+        /*rhs=*/rhs.expr,
         /*is_const=*/false)));
     ctx->env[identifier] = TypedExpr{.expr = name_ref,
                                      .type = rhs.type,
                                      .last_delaying_op = rhs.last_delaying_op,
                                      .min_stage = rhs.min_stage};
 
-    // Unpack result tuples from channel operations and place them in the
-    // environment to be easily accessible, creating more interesting behavior.
-    // Currently, results from operations that are tuples and start with a token
-    // are assumed to be channel operations.
     if (IsTuple(rhs.type)) {
-      auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(rhs.type);
-      if (!tuple_type->empty() && IsToken(tuple_type->members()[0])) {
-        for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
-          std::string member_identifier = GenSym();
-          auto* member_name_def = module_->Make<NameDef>(
-              fake_span_, member_identifier, /*definer=*/nullptr);
-          auto* member_name_ref = MakeNameRef(member_name_def);
-          statements.push_back(module_->Make<Statement>(module_->Make<Let>(
-              fake_span_,
-              /*name_def_tree=*/
-              module_->Make<NameDefTree>(fake_span_, member_name_def),
-              /*type=*/tuple_type->members()[index],
-              /*rhs=*/
-              module_->Make<TupleIndex>(fake_span_, name_ref,
-                                        MakeNumber(index)),
-              /*is_const=*/false)));
-          ctx->env[member_identifier] =
-              TypedExpr{.expr = member_name_ref,
-                        .type = tuple_type->members()[index],
-                        .last_delaying_op = rhs.last_delaying_op,
-                        .min_stage = rhs.min_stage};
-        }
-      }
+      GenerateTupleAssignment(name_ref, rhs, ctx, statements);
     }
   }
 
@@ -2711,6 +2687,77 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
                    .type = retval.type,
                    .last_delaying_op = retval.last_delaying_op,
                    .min_stage = retval.min_stage};
+}
+
+void AstGenerator::GenerateTupleAssignment(
+    NameRef* name_ref, TypedExpr& rhs, Context* ctx,
+    std::vector<Statement*>& statements) {
+  auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(rhs.type);
+  if (tuple_type->empty()) {
+    return;
+  }
+  if (IsToken(tuple_type->members()[0])) {
+    // Unpack result tuples from channel operations and place them in the
+    // environment to be easily accessible, creating more interesting
+    // behavior. Currently, results from operations that are tuples and start
+    // with a token are assumed to be channel operations.
+    for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
+      std::string member_identifier = GenSym();
+      auto* member_name_def = module_->Make<NameDef>(
+          fake_span_, member_identifier, /*definer=*/nullptr);
+      auto* member_name_ref = MakeNameRef(member_name_def);
+      statements.push_back(module_->Make<Statement>(module_->Make<Let>(
+          fake_span_,
+          /*name_def_tree=*/
+          module_->Make<NameDefTree>(fake_span_, member_name_def),
+          /*type=*/tuple_type->members()[index],
+          /*rhs=*/
+          module_->Make<TupleIndex>(fake_span_, name_ref, MakeNumber(index)),
+          /*is_const=*/false)));
+      ctx->env[member_identifier] =
+          TypedExpr{.expr = member_name_ref,
+                    .type = tuple_type->members()[index],
+                    .last_delaying_op = rhs.last_delaying_op,
+                    .min_stage = rhs.min_stage};
+    }
+    return;
+  }
+
+  // Regular tuple; 50% of the time, destructure it:
+  // let (a, b, c): (tuple_type) = tuple_value;
+  if (RandomBool(0.5)) {
+    TypeAnnotation* rhs_type = rhs.type;
+    if (RandomBool(0.5)) {
+      // Half the time, let it deduce the type instead of specifying it.
+      rhs_type = nullptr;
+    }
+
+    // TODO: https://github.com/google/xls/issues/1459 - handle tuples of
+    // tuples.
+    std::vector<NameDefTree*> name_defs;
+    for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
+      // TODO: https://github.com/google/xls/issues/1459 - when rhs_type is
+      // null, sometimes insert a `_` or a `..`
+      std::string member_identifier = GenSym();
+      auto* member_name_def = module_->Make<NameDef>(
+          fake_span_, member_identifier, /*definer=*/nullptr);
+      auto* member_name_ref = MakeNameRef(member_name_def);
+      ctx->env[member_identifier] =
+          TypedExpr{.expr = member_name_ref,
+                    .type = tuple_type->members()[index],
+                    .last_delaying_op = rhs.last_delaying_op,
+                    .min_stage = rhs.min_stage};
+      name_defs.push_back(
+          module_->Make<NameDefTree>(fake_span_, member_name_def));
+    }
+
+    statements.push_back(module_->Make<Statement>(module_->Make<Let>(
+        fake_span_,
+        /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_defs),
+        /*type=*/rhs_type,
+        /*rhs=*/rhs.expr,
+        /*is_const=*/false)));
+  }
 }
 
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
