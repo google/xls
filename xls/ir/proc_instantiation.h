@@ -37,7 +37,7 @@ class ProcInstantiation {
         channel_args_(channel_args.begin(), channel_args.end()),
         proc_(proc) {}
 
-  std::string name() const { return name_; }
+  std::string_view name() const { return name_; }
 
   // The channel arguments to the instantiated proc. These channel references
   // match the type and direction of the interface of the instantiated proc.

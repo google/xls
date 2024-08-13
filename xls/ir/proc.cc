@@ -593,7 +593,8 @@ absl::StatusOr<ChannelReferences> Proc::AddChannel(
   auto receive_channel_ref = std::make_unique<ReceiveChannelReference>(
       channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
 
-  ChannelReferences channel_refs{.send_ref = send_channel_ref.get(),
+  ChannelReferences channel_refs{.channel = channel_ptr,
+                                 .send_ref = send_channel_ref.get(),
                                  .receive_ref = receive_channel_ref.get()};
   channel_references_.push_back(std::move(send_channel_ref));
   channel_references_.push_back(std::move(receive_channel_ref));

@@ -56,6 +56,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
@@ -372,6 +373,93 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
   return absl::OkStatus();
 }
 
+// Verify various global properties about the proc elaboration (for new-style
+// procs).
+absl::Status VerifyElaboration(Package* package) {
+  std::optional<FunctionBase*> top = package->GetTop();
+  if (!top.has_value() || !(*top)->IsProc()) {
+    return absl::OkStatus();
+  }
+  Proc* top_proc = (*top)->AsProcOrDie();
+  if (!top_proc->is_new_style_proc()) {
+    return absl::OkStatus();
+  }
+  XLS_ASSIGN_OR_RETURN(ProcElaboration elab,
+                       ProcElaboration::Elaborate(top_proc));
+
+  for (Proc* proc : elab.procs()) {
+    for (const std::unique_ptr<ChannelReference>& channel_reference :
+         proc->channel_references()) {
+      std::optional<Channel*> channel;
+      for (ProcInstance* proc_instance : elab.GetInstances(proc)) {
+        ChannelBinding binding =
+            proc_instance->GetChannelBinding(channel_reference.get());
+        Channel* bound_channel = binding.instance->channel;
+
+        // Verify ChannelReference properties match respective Channel
+        // properties.
+        XLS_RET_CHECK_EQ(channel_reference->type(), bound_channel->type())
+            << absl::StreamFormat(
+                   "Type of ChannelReference `%s` in proc `%s` does not match "
+                   "the type of channel `%s` to which it is bound: %s vs %s",
+                   channel_reference->name(), proc->name(),
+                   bound_channel->name(), channel_reference->type()->ToString(),
+                   bound_channel->type()->ToString());
+        XLS_RET_CHECK_EQ(channel_reference->kind(), bound_channel->kind())
+            << absl::StreamFormat(
+                   "Kind of ChannelReference `%s` in proc `%s` does not match "
+                   "the kind of channel `%s` to which it is bound: %s vs %s",
+                   channel_reference->name(), proc->name(),
+                   bound_channel->name(),
+                   ChannelKindToString(channel_reference->kind()),
+                   ChannelKindToString(bound_channel->kind()));
+        if (!channel.has_value()) {
+          channel = bound_channel;
+          continue;
+        }
+        // Verify that all Channels this reference is bound to have matching
+        // properties.
+        XLS_RET_CHECK_EQ(bound_channel->type(), (*channel)->type())
+            << absl::StreamFormat(
+                   "ChannelReference `%s` in proc `%s` is bound to a channel "
+                   "with a different type: %s vs %s",
+                   channel_reference->name(), proc->name(),
+                   channel_reference->type()->ToString(),
+                   bound_channel->type()->ToString());
+        XLS_RET_CHECK_EQ(bound_channel->kind(), (*channel)->kind())
+            << absl::StreamFormat(
+                   "ChannelReference `%s` in proc `%s` is bound to a channel "
+                   "with a different kind: %s vs %s",
+                   channel_reference->name(), proc->name(),
+                   ChannelKindToString(channel_reference->kind()),
+                   ChannelKindToString(bound_channel->kind()));
+
+        if ((*channel)->kind() == ChannelKind::kStreaming) {
+          StreamingChannel* streaming_channel =
+              dynamic_cast<StreamingChannel*>(*channel);
+          StreamingChannel* streaming_bound_channel =
+              dynamic_cast<StreamingChannel*>(bound_channel);
+          XLS_RET_CHECK_EQ(streaming_channel->GetFlowControl(),
+                           streaming_bound_channel->GetFlowControl())
+              << absl::StreamFormat(
+                     "ChannelReference `%s` in proc `%s` bound to channels "
+                     "with different flow control",
+                     channel_reference->name(), proc->name());
+
+          XLS_RET_CHECK_EQ(streaming_channel->GetStrictness(),
+                           streaming_bound_channel->GetStrictness())
+              << absl::StreamFormat(
+                     "ChannelReference `%s` in proc `%s` bound to channels "
+                     "with different strictness",
+                     channel_reference->name(), proc->name());
+        }
+      }
+    }
+  }
+
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status VerifyPackage(Package* package, bool codegen) {
@@ -437,6 +525,7 @@ absl::Status VerifyPackage(Package* package, bool codegen) {
   }
 
   XLS_RETURN_IF_ERROR(VerifyChannels(package, codegen));
+  XLS_RETURN_IF_ERROR(VerifyElaboration(package));
 
   // TODO(meheff): Verify main entry point is one of the functions.
   // TODO(meheff): Verify functions called by any node are in the set of
@@ -559,8 +648,16 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
 }
 
 static absl::Status VerifyProcInstantiations(Proc* proc) {
+  absl::flat_hash_set<std::string_view> instantiation_names;
   for (const std::unique_ptr<ProcInstantiation>& instantiation :
        proc->proc_instantiations()) {
+    auto [_, inserted] = instantiation_names.insert(instantiation->name());
+    if (!inserted) {
+      return absl::InternalError(
+          absl::StrFormat("Multiple instantiations named `%s` in proc `%s`",
+                          instantiation->name(), proc->name()));
+    }
+
     bool found_proc = false;
     for (const std::unique_ptr<Proc>& package_proc : proc->package()->procs()) {
       if (instantiation->proc() == package_proc.get()) {

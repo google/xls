@@ -1068,21 +1068,19 @@ absl::StatusOr<ChannelReferences> ProcBuilder::AddChannel(
     std::string_view name, Type* type, ChannelKind kind,
     absl::Span<const Value> initial_values) {
   XLS_RET_CHECK(proc()->is_new_style_proc());
+  Channel* channel;
   if (kind == ChannelKind::kStreaming) {
-    XLS_RETURN_IF_ERROR(proc()
-                            ->package()
-                            ->CreateStreamingChannelInProc(
-                                name, ChannelOps::kSendReceive, type, proc())
-                            .status());
+    XLS_ASSIGN_OR_RETURN(channel,
+                         proc()->package()->CreateStreamingChannelInProc(
+                             name, ChannelOps::kSendReceive, type, proc()));
   } else {
     XLS_RET_CHECK_EQ(kind, ChannelKind::kSingleValue);
-    XLS_RETURN_IF_ERROR(proc()
-                            ->package()
-                            ->CreateSingleValueChannelInProc(
-                                name, ChannelOps::kSendReceive, type, proc())
-                            .status());
+    XLS_ASSIGN_OR_RETURN(channel,
+                         proc()->package()->CreateSingleValueChannelInProc(
+                             name, ChannelOps::kSendReceive, type, proc()));
   }
   ChannelReferences channel_refs;
+  channel_refs.channel = channel;
   XLS_ASSIGN_OR_RETURN(channel_refs.send_ref,
                        proc()->GetSendChannelReference(name));
   XLS_ASSIGN_OR_RETURN(channel_refs.receive_ref,

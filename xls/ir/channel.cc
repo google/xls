@@ -176,6 +176,7 @@ absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid strictness %s.", text));
 }
+
 std::string ChannelStrictnessToString(ChannelStrictness in) {
   if (in == ChannelStrictness::kProvenMutuallyExclusive) {
     return "proven_mutually_exclusive";
@@ -193,6 +194,11 @@ std::string ChannelStrictnessToString(ChannelStrictness in) {
     return "arbitrary_static_order";
   }
   return "unknown";
+}
+
+std::ostream& operator<<(std::ostream& os, ChannelStrictness in) {
+  os << ChannelStrictnessToString(in);
+  return os;
 }
 
 std::string DirectionToString(Direction direction) {

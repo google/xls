@@ -24,6 +24,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
@@ -542,6 +543,79 @@ block my_block(push_valid: bits[1], push_data: bits[1], push_ready: bits[1], out
   EXPECT_THAT(VerifyPackage(p.get()),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected fifo depth >= 0, got -3")));
+}
+
+TEST_F(VerifierTest, MismatchedChannelFlowControl) {
+  Package package("p");
+  Type* u32 = package.GetBitsType(32);
+
+  Proc* subproc;
+  {
+    TokenlessProcBuilder pb(NewStyleProc(), "subproc", "tkn", &package);
+    XLS_ASSERT_OK(pb.AddInputChannel("ch", u32));
+    XLS_ASSERT_OK_AND_ASSIGN(subproc, pb.Build({}));
+  }
+
+  {
+    TokenlessProcBuilder pb(NewStyleProc(), "the_proc", "tkn", &package);
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences channel1_refs,
+                             pb.AddChannel("ch1", u32));
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences channel2_refs,
+                             pb.AddChannel("ch2", u32));
+    XLS_ASSERT_OK(
+        pb.InstantiateProc("inst1", subproc, {channel1_refs.receive_ref}));
+    XLS_ASSERT_OK(
+        pb.InstantiateProc("inst2", subproc, {channel2_refs.receive_ref}));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+    XLS_ASSERT_OK(package.SetTop(proc));
+
+    dynamic_cast<StreamingChannel*>(channel1_refs.channel)
+        ->SetFlowControl(FlowControl::kReadyValid);
+    dynamic_cast<StreamingChannel*>(channel2_refs.channel)
+        ->SetFlowControl(FlowControl::kNone);
+  }
+  EXPECT_THAT(
+      VerifyPackage(&package),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("ChannelReference `ch` in proc `subproc` bound to "
+                         "channels with different flow control")));
+}
+
+TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
+  Package package("p");
+  Type* u32 = package.GetBitsType(32);
+
+  Proc* subproc;
+  {
+    TokenlessProcBuilder pb(NewStyleProc(), "subproc", "tkn", &package);
+    XLS_ASSERT_OK(pb.AddInputChannel("ch", u32));
+    XLS_ASSERT_OK_AND_ASSIGN(subproc, pb.Build({}));
+  }
+
+  {
+    TokenlessProcBuilder pb(NewStyleProc(), "the_proc", "tkn", &package);
+    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * ch1_ref,
+                             pb.AddInputChannel("ch1", u32));
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences channel2_refs,
+                             pb.AddChannel("ch2", u32));
+    XLS_ASSERT_OK(pb.InstantiateProc("inst1", subproc, {ch1_ref}));
+    XLS_ASSERT_OK(
+        pb.InstantiateProc("inst2", subproc, {channel2_refs.receive_ref}));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+    XLS_ASSERT_OK(package.SetTop(proc));
+
+    // The input `ch1` of `proc` has no associated channel, just a channel
+    // reference, because `proc` is the top proc.
+    // TODO(https://github.com/google/xls/issues/869): When a channel object is
+    // provided for top proc interfaces, set the flow control.
+    dynamic_cast<StreamingChannel*>(channel2_refs.channel)
+        ->SetFlowControl(FlowControl::kNone);
+  }
+  EXPECT_THAT(
+      VerifyPackage(&package),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("ChannelReference `ch` in proc `subproc` bound to "
+                         "channels with different flow control")));
 }
 
 }  // namespace

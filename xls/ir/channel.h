@@ -257,6 +257,7 @@ enum class ChannelStrictness : uint8_t {
 absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
     std::string_view text);
 std::string ChannelStrictnessToString(ChannelStrictness in);
+std::ostream& operator<<(std::ostream& os, ChannelStrictness in);
 
 inline bool AbslParseFlag(std::string_view text, ChannelStrictness* result,
                           std::string* error) {
@@ -394,6 +395,7 @@ class ReceiveChannelReference : public ChannelReference {
 
 // Abstraction holding pointers hold both ends of a particular channel.
 struct ChannelReferences {
+  Channel* channel;
   SendChannelReference* send_ref;
   ReceiveChannelReference* receive_ref;
 };

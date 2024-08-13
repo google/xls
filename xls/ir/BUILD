@@ -594,6 +594,7 @@ cc_library(
         ":ir",
         ":ir_scanner",
         ":op",
+        ":proc_elaboration",
         ":register",
         ":source_location",
         ":type",
@@ -905,6 +906,7 @@ cc_test(
     name = "verifier_test",
     srcs = ["verifier_test.cc"],
     deps = [
+        ":channel",
         ":function_builder",
         ":ir",
         ":ir_test_base",
