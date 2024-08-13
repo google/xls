@@ -151,6 +151,7 @@ TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
     BlockBuilder b(absl::StrCat(TestName(), "_rot", n, "_", r), package.get());
     XLS_RETURN_IF_ERROR(b.AddClockPort("clk"));
     std::vector<BValue> inputs;
+    inputs.reserve(n);
     for (int64_t i = 0; i < n; ++i) {
       inputs.push_back(
           b.InputPort(absl::StrCat("in", i), package->GetBitsType(8)));
@@ -166,6 +167,7 @@ TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
     BlockBuilder b(absl::StrCat(TestName(), "multirot", n), package.get());
     XLS_RETURN_IF_ERROR(b.AddClockPort("clk"));
     std::vector<BValue> inputs;
+    inputs.reserve(n);
     for (int64_t i = 0; i < n; ++i) {
       inputs.push_back(
           b.InputPort(absl::StrCat("in", i), package->GetBitsType(8)));

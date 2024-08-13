@@ -905,6 +905,7 @@ absl::StatusOr<Value> IrInterpreter::DeepOr(
 
   auto input_elements = [&](int64_t i) {
     std::vector<const Value*> values;
+    values.reserve(inputs.size());
     for (int64_t j = 0; j < inputs.size(); ++j) {
       values.push_back(&inputs[j]->elements()[i]);
     }
