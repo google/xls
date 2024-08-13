@@ -119,24 +119,11 @@ struct is_variant : std::false_type {};
 template <typename... Args>
 struct is_variant<std::variant<Args...>> : std::true_type {};
 
-template <typename... ToTypes, typename... FromTypes,
-          typename = std::enable_if_t<sizeof...(ToTypes) != 1, int>>
-inline std::variant<ToTypes...> TryWidenVariant(
-    const std::variant<FromTypes...>& v) {
-  return TryWidenVariant<sizeof...(FromTypes) - 1, std::variant<ToTypes...>>(v);
-}
-
 // "Widens" a variant from a smaller set of types to a larger set of types; e.g.
 //
 // `variant<int, double>` can be widened to `variant<int, double, std::string>`
 // where `int, double` would be FromTypes and `int, double, std::string` would
 // be ToTypes.
-template <typename... ToTypes, typename... FromTypes>
-inline std::variant<ToTypes...> WidenVariant(
-    const std::variant<FromTypes...>& v) {
-  return TryWidenVariant<sizeof...(FromTypes) - 1, std::variant<ToTypes...>>(v);
-}
-
 template <typename T, typename... FromTypes,
           typename = std::enable_if_t<is_variant<T>::value>>
 inline T WidenVariantTo(const std::variant<FromTypes...>& v) {

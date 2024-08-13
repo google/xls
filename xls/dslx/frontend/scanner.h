@@ -169,10 +169,6 @@ class Scanner {
   absl::StatusOr<Token> ScanIdentifierOrKeyword(char startc,
                                                 const Pos& start_pos);
 
-  // Drops comments/whitespace from the current scan position in the character
-  // stream.
-  void DropCommentsAndLeadingWhitespace();
-
   // Drops leading whitespace from the current scan position in the character
   // stream.
   void DropLeadingWhitespace();

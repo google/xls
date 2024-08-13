@@ -123,9 +123,6 @@ class Bindings {
   Bindings(Bindings&& other) = default;
   Bindings& operator=(Bindings&& other) = default;
 
-  // Returns a copy of this bindings object.
-  Bindings Clone() const;
-
   void ConsumeLocalBindingsFrom(const Bindings& other) {
     for (const auto& [k, v] : other.local_bindings_) {
       local_bindings_[k] = v;

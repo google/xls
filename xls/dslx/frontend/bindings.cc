@@ -142,13 +142,6 @@ Bindings::Bindings(Bindings* parent) : parent_(parent) {
   }
 }
 
-Bindings Bindings::Clone() const {
-  Bindings bindings(parent_);
-  bindings.local_bindings_ = local_bindings_;
-  bindings.fail_labels_ = fail_labels_;
-  return bindings;
-}
-
 absl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
     std::string_view name, const Span& span) const {
   XLS_ASSIGN_OR_RETURN(BoundNode bn, ResolveNodeOrError(name, span));

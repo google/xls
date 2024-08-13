@@ -87,18 +87,6 @@ class TokenParser {
     return std::nullopt;
   }
 
-  absl::StatusOr<std::optional<Token>> TryPopKeyword(Keyword target,
-                                                     Pos* pos = nullptr) {
-    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-    if (peek->IsKeyword(target)) {
-      if (pos != nullptr) {
-        *pos = peek->span().limit();
-      }
-      return PopTokenOrDie();
-    }
-    return std::nullopt;
-  }
-
   absl::StatusOr<bool> TryDropToken(TokenKind target, Pos* pos = nullptr) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == target) {
@@ -109,12 +97,6 @@ class TokenParser {
       return true;
     }
     return false;
-  }
-
-  absl::StatusOr<bool> TryDropIdentifierToken(std::string_view target) {
-    XLS_ASSIGN_OR_RETURN(std::optional<Token> maybe_tok,
-                         TryPopIdentifierToken(target));
-    return maybe_tok != std::nullopt;
   }
 
   absl::StatusOr<bool> TryDropKeyword(Keyword target, Pos* pos = nullptr) {

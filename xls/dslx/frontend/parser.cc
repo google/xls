@@ -117,15 +117,6 @@ ColonRef::Subject CloneSubject(Module* module,
                                 colon_ref->attr());
 }
 
-bool TypeIsToken(TypeAnnotation* type) {
-  auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type);
-  if (builtin_type == nullptr) {
-    return false;
-  }
-
-  return builtin_type->builtin_type() == BuiltinType::kToken;
-}
-
 bool HasChannelElement(const TypeAnnotation* type) {
   if (const auto* array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
       array_type != nullptr) {

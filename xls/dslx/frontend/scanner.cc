@@ -407,23 +407,6 @@ void Scanner::DropLeadingWhitespace() {
   }
 }
 
-void Scanner::DropCommentsAndLeadingWhitespace() {
-  while (!AtCharEof()) {
-    if (AtWhitespace()) {
-      DropChar();
-    } else if (PeekChar() == '/' && PeekChar2OrNull() == '/') {
-      DropChar(2);  // Get rid of leading "//"
-      while (!AtCharEof()) {
-        if (PopChar() == '\n') {
-          break;
-        }
-      }
-    } else {
-      break;
-    }
-  }
-}
-
 absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
   const char open_quote = PopChar();
   CHECK_EQ(open_quote, '\'');

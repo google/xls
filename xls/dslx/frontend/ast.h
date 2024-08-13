@@ -3085,13 +3085,6 @@ class ConstRef : public NameRef {
     return std::get<const NameDef*>(NameRef::name_def());
   }
 
-  // Returns the constant definition that this ConstRef is referring to.
-  ConstantDef* GetConstantDef() const {
-    AstNode* definer = name_def()->definer();
-    CHECK(definer != nullptr);
-    return down_cast<ConstantDef*>(definer);
-  }
-
   Expr* GetValue() const {
     AstNode* definer = name_def()->definer();
     CHECK(definer != nullptr);

@@ -132,10 +132,6 @@ class Span {
     absl::Format(&sink, "%s", self.ToString());
   }
 
-  Span CloneWithLimit(Pos limit) const {
-    return Span(start_, std::move(limit));
-  }
-
   bool empty() const { return start_ == limit_; }
 
   // Returns true iff the given "pos" is contained within this span.
