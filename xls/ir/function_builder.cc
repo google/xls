@@ -1716,6 +1716,19 @@ BValue BlockBuilder::Param(std::string_view name, Type* type,
   return SetError("Cannot add parameters to blocks", loc);
 }
 
+BValue BlockBuilder::ResetPort(std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  absl::StatusOr<xls::InputPort*> port_status = block()->AddResetPort(name);
+  if (!port_status.ok()) {
+    return SetError(absl::StrFormat("Unable to add reset port to block: %s",
+                                    port_status.status().message()),
+                    SourceInfo());
+  }
+  return CreateBValue(port_status.value(), SourceInfo());
+}
+
 BValue BlockBuilder::InputPort(std::string_view name, Type* type,
                                const SourceInfo& loc) {
   if (ErrorPending()) {

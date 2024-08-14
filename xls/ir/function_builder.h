@@ -982,6 +982,8 @@ class BlockBuilder : public BuilderBase {
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;
 
+  // Add a reset port.
+  BValue ResetPort(std::string_view name);
   // Add an input/output port.
   BValue InputPort(std::string_view name, Type* type,
                    const SourceInfo& loc = SourceInfo());

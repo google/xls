@@ -1128,7 +1128,7 @@ TEST(FunctionBuilderTest, Registers) {
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
 
   BValue x = b.InputPort("x", p.GetBitsType(32));
-  BValue rst = b.InputPort("rst", p.GetBitsType(1));
+  BValue rst = b.ResetPort("rst");
   BValue le = b.InputPort("le", p.GetBitsType(1));
 
   BValue x_1 = b.InsertRegister("x_1", x);
