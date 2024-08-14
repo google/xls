@@ -27,9 +27,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-// #include "xls/codegen/codegen_options.h"
-// #include "xls/codegen/combinational_generator.h"
-// #include "xls/codegen/module_signature.h"
+#include "xls/codegen/codegen_options.h"
+#include "xls/codegen/combinational_generator.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -43,9 +43,9 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_test_util.h"
 #include "xls/ir/verifier.h"
-// #include "xls/passes/optimization_pass_pipeline.h"
-// #include "xls/simulation/verilog_simulators.h"
-// #include "xls/simulation/module_simulator.h"
+#include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/simulation/default_verilog_simulator.h"
+#include "xls/simulation/module_simulator.h"
 
 namespace xls {
 
@@ -270,46 +270,45 @@ void IrTestBase::RunAndExpectEq(
         << "(interpreted unoptimized IR)";
   }
 
-  // if (run_optimized) {
-  //   // Run main pipeline.
-  //   XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()));
+  if (run_optimized) {
+    // Run main pipeline.
+    XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()));
 
-  //   // Run interpreter on optimized IR.
-  //   {
-  //     XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->GetTopAsFunction());
-  //     XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
-  //                              InterpretFunctionKwargs(main, args));
-  //     XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
-  //     ASSERT_EQ(unopt_events, result.events);
-  //     ASSERT_TRUE(ValuesEqual(expected, result.value))
-  //         << "(interpreted optimized IR)";
-  //   }
-  // }
+    // Run interpreter on optimized IR.
+    {
+      XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->GetTopAsFunction());
+      XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+                               InterpretFunctionKwargs(main, args));
+      XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
+      ASSERT_EQ(unopt_events, result.events);
+      ASSERT_TRUE(ValuesEqual(expected, result.value))
+          << "(interpreted optimized IR)";
+    }
+  }
 
-  // // Emit Verilog with combinational generator and run with ModuleSimulator.
-  // if (simulate) {
-  //   ASSERT_EQ(package->functions().size(), 1);
-  //   std::optional<FunctionBase*> top = package->GetTop();
-  //   EXPECT_TRUE(top.has_value());
-  //   EXPECT_TRUE(top.value()->IsFunction());
+  // Emit Verilog with combinational generator and run with ModuleSimulator.
+  if (simulate) {
+    ASSERT_EQ(package->functions().size(), 1);
+    std::optional<FunctionBase*> top = package->GetTop();
+    EXPECT_TRUE(top.has_value());
+    EXPECT_TRUE(top.value()->IsFunction());
 
-  //   XLS_ASSERT_OK_AND_ASSIGN(
-  //       verilog::ModuleGeneratorResult result,
-  //       verilog::GenerateCombinationalModule(
-  //           top.value(),
-  //           verilog::CodegenOptions().use_system_verilog(false)));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::ModuleGeneratorResult result,
+        verilog::GenerateCombinationalModule(
+            top.value(), verilog::CodegenOptions().use_system_verilog(false)));
 
-  //   absl::flat_hash_map<std::string, Value> arg_set;
-  //   for (const auto& pair : args) {
-  //     arg_set.insert(pair);
-  //   }
-  //   VLOG(3) << "Verilog text:\n" << result.verilog_text;
-  //   verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
-  //                                      verilog::FileType::kVerilog,
-  //                                      &verilog::GetDefaultVerilogSimulator());
-  //   XLS_ASSERT_OK_AND_ASSIGN(Value actual, simulator.RunFunction(arg_set));
-  //   ASSERT_TRUE(ValuesEqual(expected, actual)) << "(Verilog simulation)";
-  // }
+    absl::flat_hash_map<std::string, Value> arg_set;
+    for (const auto& pair : args) {
+      arg_set.insert(pair);
+    }
+    VLOG(3) << "Verilog text:\n" << result.verilog_text;
+    verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
+                                       verilog::FileType::kVerilog,
+                                       &verilog::GetDefaultVerilogSimulator());
+    XLS_ASSERT_OK_AND_ASSIGN(Value actual, simulator.RunFunction(arg_set));
+    ASSERT_TRUE(ValuesEqual(expected, actual)) << "(Verilog simulation)";
+  }
 }
 
 }  // namespace xls
