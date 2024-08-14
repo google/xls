@@ -129,6 +129,9 @@ xls_ir_verilog_attrs = {
         providers = [StandardCellInfo],
         default = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
     ),
+    "synthesizer_linear_interpolation_factor": attr.string(
+        default = "0.5",
+    ),
 }
 
 def _is_combinational_generator(arguments):
@@ -347,6 +350,9 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
     if ctx.file.scheduling_options_proto:
         final_args += " --scheduling_options_proto={}".format(ctx.file.scheduling_options_proto.path)
         runfiles_list.append(ctx.file.scheduling_options_proto)
+
+    if ctx.attr.synthesizer_linear_interpolation_factor:
+        final_args += " --synthesizer_linear_interpolation_factor={}".format(ctx.attr.synthesizer_linear_interpolation_factor)
 
     if uses_fdo:
         dont_use_args = ""
