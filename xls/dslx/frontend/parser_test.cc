@@ -1353,6 +1353,44 @@ TEST_F(ParserTest, MatchWithNumberRangePattern) {
 })");
 }
 
+TEST_F(ParserTest, MatchWithRestOfTuple) {
+  RoundTrip(R"(const FOO = u32:64;
+fn f(x: u32) {
+    match x {
+        (FOO, ..) => u32:61,
+        (.., FOO) => u32:62,
+        (FOO, .., FOO) => u32:63,
+        _ => u32:42,
+    }
+})");
+}
+
+TEST_F(ParserTest, MatchWithDuplicateRestOfTuple) {
+  const char* kProgram = R"(const FOO = u32:64;
+fn f(x: u32) {
+    match x {
+        (FOO, .., ..) => u32:61,
+        _ => u32:42,
+    }
+})";
+  EXPECT_NONFATAL_FAILURE(
+      RoundTrip(kProgram),
+      "Rest-of-tuple (`..`) can only be used once per tuple pattern");
+}
+
+TEST_F(ParserTest, MatchWithRestOfTupleOnly) {
+  const char* kProgram = R"(const FOO = u32:64;
+fn f(x: u32) {
+    match x {
+        .. => u32:41,
+        _ => u32:42,
+    }
+})";
+  EXPECT_NONFATAL_FAILURE(RoundTrip(kProgram),
+                          "Cannot use both wildcard (`_`) and rest-of-tuple "
+                          "(`..`) as match arms");
+}
+
 TEST_F(ParserTest, ArrayTypeAnnotation) {
   std::string s = "u8[2]";
   scanner_.emplace(kFilename, s);

@@ -1394,6 +1394,12 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
     return result;
   }
 
+  if (peek->kind() == TokenKind::kDoubleDot) {
+    XLS_ASSIGN_OR_RETURN(Token rest, PopTokenOrError(TokenKind::kDoubleDot));
+    return module_->Make<NameDefTree>(rest.span(),
+                                      module_->Make<RestOfTuple>(rest.span()));
+  }
+
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter, Keyword::kTrue,
                       Keyword::kFalse}) ||
       peek->IsTypeKeyword()) {
@@ -1422,6 +1428,8 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
 
   std::vector<MatchArm*> arms;
   bool must_end = false;
+  bool wildcard_seen = false;
+  bool rest_of_tuple_seen = false;
   while (true) {
     XLS_ASSIGN_OR_RETURN(bool dropped_cbrace, TryDropToken(TokenKind::kCBrace));
     if (dropped_cbrace) {
@@ -1437,6 +1445,8 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
     Bindings arm_bindings(&bindings);
     XLS_ASSIGN_OR_RETURN(NameDefTree * first_pattern,
                          ParsePattern(arm_bindings));
+    wildcard_seen |= first_pattern->IsWildcardLeaf();
+    rest_of_tuple_seen |= first_pattern->IsRestOfTupleLeaf();
     std::vector<NameDefTree*> patterns = {first_pattern};
     while (true) {
       XLS_ASSIGN_OR_RETURN(bool dropped_bar, TryDropToken(TokenKind::kBar));
@@ -1467,6 +1477,13 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
     arms.push_back(module_->Make<MatchArm>(span, std::move(patterns), rhs));
     XLS_ASSIGN_OR_RETURN(bool dropped_comma, TryDropToken(TokenKind::kComma));
     must_end = !dropped_comma;
+  }
+  if (wildcard_seen && rest_of_tuple_seen) {
+    // Normally we'd catch this in the type checker, but since _ and .. resolve
+    // to different strings, it might not pick it up there as a duplicate.
+    return ParseErrorStatus(match.span(),
+                            "Cannot use both wildcard (`_`) and rest-of-tuple "
+                            "(`..`) as match arms");
   }
   Span span(match.span().start(), GetPos());
   return module_->Make<Match>(span, matched, std::move(arms));
@@ -2949,6 +2966,7 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
                                                        Bindings& bindings) {
   std::vector<NameDefTree*> members;
   bool must_end = false;
+  bool rest_of_tuple_seen = false;
   while (true) {
     XLS_ASSIGN_OR_RETURN(bool dropped_cparen, TryDropToken(TokenKind::kCParen));
     if (dropped_cparen) {
@@ -2959,6 +2977,14 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
       break;
     }
     XLS_ASSIGN_OR_RETURN(NameDefTree * pattern, ParsePattern(bindings));
+    if (pattern->IsRestOfTupleLeaf()) {
+      if (rest_of_tuple_seen) {
+        return ParseErrorStatus(
+            pattern->span(),
+            "Rest-of-tuple (`..`) can only be used once per tuple pattern.");
+      }
+      rest_of_tuple_seen = true;
+    }
     members.push_back(pattern);
     XLS_ASSIGN_OR_RETURN(bool dropped_comma, TryDropToken(TokenKind::kComma));
     must_end = !dropped_comma;
