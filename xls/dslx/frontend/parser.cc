@@ -1732,9 +1732,9 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       }
     }
     lhs = ToExprNode(nocr);
-  } else if (peek->kind() == TokenKind::kOParen) {  // Parenthesized expression.
-    XLS_ASSIGN_OR_RETURN(lhs,
-                         ParseTermLhsParenthesized(outer_bindings, start_pos));
+  } else if (peek->kind() == TokenKind::kOParen) {
+    XLS_ASSIGN_OR_RETURN(
+        lhs, ParseParentheticalOrCastLhs(outer_bindings, start_pos));
   } else if (peek->IsKeyword(Keyword::kMatch)) {  // Match expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
@@ -1750,6 +1750,31 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
   }
   CHECK(lhs != nullptr);
   return lhs;
+}
+
+absl::StatusOr<Expr*> Parser::ParseParentheticalOrCastLhs(
+    Bindings& outer_bindings, const Pos& start_pos) {
+  // This is potentially a cast to tuple type, e.g. `(u8, u16):(u8:5, u16:1)`.
+  // Try to parse as a parenthesized expression first and fall back to tuple
+  // cast.  In the case that both fail, return the status for the parenthetical
+  // since it's likely the more common usage.
+  //
+  // While it isn't explicitly enforced, we don't expect a case where both would
+  // succeed.
+  Transaction parse_txn(this, &outer_bindings);
+  absl::StatusOr<Expr*> parenth =
+      ParseTermLhsParenthesized(*parse_txn.bindings(), start_pos);
+  if (parenth.ok()) {
+    parse_txn.Commit();
+    return parenth;
+  }
+  parse_txn.Rollback();
+  absl::StatusOr<Expr*> cast =
+      ParseCastOrEnumRefOrStructInstanceOrToken(outer_bindings);
+  if (cast.ok()) {
+    return cast;
+  }
+  return parenth;
 }
 
 absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,

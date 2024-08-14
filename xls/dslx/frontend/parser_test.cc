@@ -1848,6 +1848,65 @@ TEST_F(ParserTest, Strings) {
 })");
 }
 
+TEST_F(ParserTest, TupleCast) {
+  const char* text = R"(
+fn f() -> u8 {
+    let a = (u8, u16):(u8:8, u16:64);
+    a.0
+}
+)";
+  Scanner s("test.x", std::string(text));
+  Parser p("test", &s);
+  Bindings bindings;
+  XLS_ASSERT_OK(p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
+}
+
+TEST_F(ParserTest, TupleArrayCast) {
+  const char* text = R"(
+fn f() -> u8 {
+    let a = (u8, u16)[1]:[(u8:8, u16:64)];
+    a[0].0
+}
+)";
+  Scanner s("test.x", std::string(text));
+  Parser p("test", &s);
+  Bindings bindings;
+  XLS_ASSERT_OK(p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
+}
+
+TEST_F(ParserTest, InvalidParenthetical) {
+  const char* text = R"(
+fn f() -> u8 {
+    let a = (u8, u16);
+    a.0
+}
+)";
+  Scanner s("test.x", std::string(text));
+  Parser p("test", &s);
+  Bindings bindings;
+  auto function_or =
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings);
+  EXPECT_THAT(function_or.status(),
+              IsPosError("ParseError",
+                         HasSubstr("Expected ':', got ',': Expect colon after "
+                                   "type annotation in cast")));
+}
+
+TEST_F(ParserTest, NestedTupleCast) {
+  const char* text = R"(
+fn f() -> u8 {
+    type MyTuple = (u8, u16);
+
+    let a = 2*(MyTuple:(u8:5, u16: 42) + (u8, u16):(u8:8, u16:64)) + MyTuple:(u8:7, u16:42);
+    a.0
+}
+)";
+  Scanner s("test.x", std::string(text));
+  Parser p("test", &s);
+  Bindings bindings;
+  XLS_ASSERT_OK(p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
+}
+
 TEST_F(ParserTest, TupleIndex) {
   const char* text = R"(
 fn f(x: u32) -> u8 {

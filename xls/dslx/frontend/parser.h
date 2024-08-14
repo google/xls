@@ -331,6 +331,11 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseTermLhs(Bindings& bindings,
                                      ExprRestrictions restrictions);
 
+  // Attempts to parse a parenthetical and falls back to parsing as cast on
+  // failure.
+  absl::StatusOr<Expr*> ParseParentheticalOrCastLhs(Bindings& outer_bindings,
+                                                    const Pos& start_pos);
+
   absl::StatusOr<Expr*> ParseTermLhsParenthesized(Bindings& bindings,
                                                   const Pos& start_pos);
 
