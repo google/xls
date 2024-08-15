@@ -1375,6 +1375,28 @@ fn cast_enum_to_bits() -> u3 {
   EXPECT_EQ(int_val, 3);
 }
 
+TEST(BytecodeInterpreterTest, CastEnumSignExtendToBits) {
+  constexpr std::string_view kProgram = R"(enum MyEnum : s3 {
+  VAL_0 = 0,
+}
+
+struct EnumInStruct {
+  e: MyEnum,
+}
+
+fn cast_enum_to_bits() -> s32 {
+  let foo = zero!<EnumInStruct>();
+  let a = (foo.e as s32) - s32:1;
+  a
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "cast_enum_to_bits"));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_val, bits.ToInt64());
+  EXPECT_EQ(int_val, -1);
+}
+
 TEST(BytecodeInterpreterTest, CastBitsToEnum) {
   constexpr std::string_view kProgram = R"(enum MyEnum : u3 {
   VAL_0 = 0,

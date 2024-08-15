@@ -79,6 +79,55 @@ absl::StatusOr<std::string> ToStringMaybeFormatted(
          value.ToString(/*humanize=*/false, FormatPreference::kDefault);
 }
 
+// Casts an InterpValue representable as Bits to a new InterpValue
+// with the given BitsType.
+absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
+                                            BitsType* to_bits, bool is_checked,
+                                            const Span& source_span) {
+  XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
+                       to_bits->GetTotalBitCount().value().GetAsInt64());
+
+  // Check if it fits.
+  // Case A: to unsigned of N-bits
+  //   Be within [0, 2^N)
+  // Case B: to signed of N-bits
+  //   Be within [-2^(N-1), 2^(N-1))
+  if (is_checked) {
+    bool does_fit = false;
+
+    if (!to_bits->is_signed()) {
+      does_fit = !from.IsNegative() && from.FitsInNBitsUnsigned(to_bit_count);
+    } else if (to_bits->is_signed() && !from.IsNegative()) {
+      does_fit = from.FitsInNBitsUnsigned(to_bit_count - 1);
+    } else {  // to_bits->is_signed() && from.IsNegative()
+      does_fit = from.FitsInNBitsSigned(to_bit_count);
+    }
+
+    if (!does_fit) {
+      return CheckedCastErrorStatus(source_span, from, to_bits);
+    }
+  }
+
+  Bits result_bits;
+
+  int64_t from_bit_count = from.GetBits().value().bit_count();
+  if (from_bit_count == to_bit_count) {
+    result_bits = from.GetBitsOrDie();
+  } else {
+    if (from.IsSigned()) {
+      // Despite the name, InterpValue::SignExt also shrinks.
+      XLS_ASSIGN_OR_RETURN(InterpValue tmp, from.SignExt(to_bit_count));
+      result_bits = tmp.GetBitsOrDie();
+    } else {
+      // Same for ZeroExt.
+      XLS_ASSIGN_OR_RETURN(InterpValue tmp, from.ZeroExt(to_bit_count));
+      result_bits = tmp.GetBitsOrDie();
+    }
+  }
+
+  return InterpValue::MakeBits(to_bits->is_signed(), result_bits);
+}
+
 }  // namespace
 
 // How much to indent the data value in the trace emitted when sending/receiving
@@ -573,7 +622,10 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
       return absl::InvalidArgumentError("Enum types can only be cast to bits.");
     }
 
-    stack_.Push(InterpValue::MakeBits(from.IsSigned(), from.GetBitsOrDie()));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        ResizeBitsValue(from, to_bits, is_checked, bytecode.source_span()));
+    stack_.Push(result);
     return absl::OkStatus();
   }
 
@@ -612,48 +664,10 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
         "Bits can only be cast to arrays, enums, or other bits types.");
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
-                       to_bits->GetTotalBitCount().value().GetAsInt64());
-
-  // Check if it fits.
-  // Case A: to unsigned of N-bits
-  //   Be within [0, 2^N)
-  // Case B: to signed of N-bits
-  //   Be within [-2^(N-1), 2^(N-1))
-  if (is_checked) {
-    bool does_fit = false;
-
-    if (!to_bits->is_signed()) {
-      does_fit = !from.IsNegative() && from.FitsInNBitsUnsigned(to_bit_count);
-    } else if (to_bits->is_signed() && !from.IsNegative()) {
-      does_fit = from.FitsInNBitsUnsigned(to_bit_count - 1);
-    } else {  // to_bits->is_signed() && from.IsNegative()
-      does_fit = from.FitsInNBitsSigned(to_bit_count);
-    }
-
-    if (!does_fit) {
-      return CheckedCastErrorStatus(bytecode.source_span(), from, to_bits);
-    }
-  }
-
-  Bits result_bits;
-  if (from_bit_count == to_bit_count) {
-    result_bits = from.GetBitsOrDie();
-  } else {
-    if (from.IsSigned()) {
-      // Despite the name, InterpValue::SignExt also shrinks.
-      XLS_ASSIGN_OR_RETURN(InterpValue tmp, from.SignExt(to_bit_count));
-      result_bits = tmp.GetBitsOrDie();
-    } else {
-      // Same for ZeroExt.
-      XLS_ASSIGN_OR_RETURN(InterpValue tmp, from.ZeroExt(to_bit_count));
-      result_bits = tmp.GetBitsOrDie();
-    }
-  }
-  InterpValue result = InterpValue::MakeBits(to_bits->is_signed(), result_bits);
-
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue result,
+      ResizeBitsValue(from, to_bits, is_checked, bytecode.source_span()));
   stack_.Push(result);
-
   return absl::OkStatus();
 }
 
