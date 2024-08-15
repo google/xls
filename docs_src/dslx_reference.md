@@ -82,6 +82,10 @@ However, we suggest the following **DSLX style rules**, which mirror the
     identifier" convention. It should never be referred to in an expression
     except as a "sink".
 
+*   `..` is the "rest of tuple" operator -- a name that you can bind to but
+    should never read from, akin to Rust's wildcard pattern match. It should
+    never be referred to in an expression except as a "sink".
+
 NOTE Since mutable locals are not supported, there is also
 [support for "tick identifiers"](https://github.com/google/xls/issues/212),
 where a ' character may appear anywhere after the first character of an
@@ -481,11 +485,29 @@ Just as values can be discarded in a `let` by using the "black hole identifier"
 ```dslx-snippet
 #[test]
 fn test_black_hole() {
-  let t = (u32:2, u8:3, true);
-  let (_, _, v) = t;
+  let t = (u32:2, true);
+  let (_, v) = t;
   assert_eq(v, true)
 }
 ```
+
+The "black hole identifier" `_`, always matches *exactly one element*.
+
+The "rest of tuple" operator `..` can be used to discard consecutive values when
+destructuring a tuple:
+
+```dslx-snippet
+#[test]
+fn test_rest_of_tuple() {
+  let t = (u32:2, u8:3, true);
+  let (.., v) = t;
+  assert_eq(v, true)
+}
+```
+
+This operator can be used at the beginning, end, or middle of a tuple
+destructuring, though only *once* for a given list of elements in a tuple. It
+matches *zero or more* elements.
 
 ### Struct Types
 
