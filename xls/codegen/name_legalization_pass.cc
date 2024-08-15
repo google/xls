@@ -316,31 +316,20 @@ absl::Status RenameRegister(Block* block, Register* old_reg) {
       block->AddRegister(old_reg->name(), old_reg->type(), old_reg->reset()));
   XLS_RET_CHECK_NE(old_name, new_reg->name());
 
-  std::vector<Node*> to_remove;
+  XLS_ASSIGN_OR_RETURN(RegisterRead * old_read,
+                       block->GetRegisterRead(old_reg));
+  XLS_ASSIGN_OR_RETURN(RegisterWrite * old_write,
+                       block->GetRegisterWrite(old_reg));
 
-  for (Node* node : block->nodes()) {
-    if (node->Is<RegisterRead>() &&
-        node->As<RegisterRead>()->GetRegister() == old_reg) {
-      RegisterRead* old_read = node->As<RegisterRead>();
-      XLS_RETURN_IF_ERROR(
-          old_read->ReplaceUsesWithNew<RegisterRead>(new_reg).status());
-      to_remove.push_back(old_read);
-    }
-    if (node->Is<RegisterWrite>() &&
-        node->As<RegisterWrite>()->GetRegister() == old_reg) {
-      RegisterWrite* old_write = node->As<RegisterWrite>();
-      XLS_RETURN_IF_ERROR(old_write
-                              ->ReplaceUsesWithNew<RegisterWrite>(
-                                  old_write->data(), old_write->load_enable(),
-                                  old_write->reset(), new_reg)
-                              .status());
-      to_remove.push_back(old_write);
-    }
-  }
-
-  for (Node* node : to_remove) {
-    XLS_RETURN_IF_ERROR(block->RemoveNode(node));
-  }
+  XLS_RETURN_IF_ERROR(
+      old_read->ReplaceUsesWithNew<RegisterRead>(new_reg).status());
+  XLS_RETURN_IF_ERROR(block->RemoveNode(old_read));
+  XLS_RETURN_IF_ERROR(old_write
+                          ->ReplaceUsesWithNew<RegisterWrite>(
+                              old_write->data(), old_write->load_enable(),
+                              old_write->reset(), new_reg)
+                          .status());
+  XLS_RETURN_IF_ERROR(block->RemoveNode(old_write));
 
   return block->RemoveRegister(old_reg);
 }
