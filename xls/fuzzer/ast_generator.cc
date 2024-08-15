@@ -2657,7 +2657,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
     // picking up the expression ASTs directly (which would cause duplication).
     auto* name_def = module_->Make<NameDef>(fake_span_, identifier, rhs.expr);
     auto* name_ref = MakeNameRef(name_def);
-    // For tuples, this generates  `let x0: (tuple_type) = tuple_value;`
+
+    // For tuples, this generates `let x0: (tuple_type) = tuple_value;`
+    // TODO: https://github.com/google/xls/issues/1459 - skip always generating
+    // the full tuple assignment (note, it is currently needed for the
+    // (token, type) case).
     statements.push_back(module_->Make<Statement>(module_->Make<Let>(
         fake_span_,
         /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_def),
@@ -2735,9 +2739,32 @@ void AstGenerator::GenerateTupleAssignment(
     // TODO: https://github.com/google/xls/issues/1459 - handle tuples of
     // tuples.
     std::vector<NameDefTree*> name_defs;
+    bool has_rest_of_tuple = false;
     for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
-      // TODO: https://github.com/google/xls/issues/1459 - when rhs_type is
-      // null, sometimes insert a `_` or a `..`
+      if (RandomBool(0.1)) {
+        // Replace this name with a wildcard.
+        WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
+        name_defs.push_back(module_->Make<NameDefTree>(fake_span_, wc));
+        continue;
+      }
+
+      if (rhs_type == nullptr && !has_rest_of_tuple && RandomBool(0.1)) {
+        has_rest_of_tuple = true;
+        // Insert a "rest of tuple", but we might keep this name.
+        RestOfTuple* rest = module_->Make<RestOfTuple>(fake_span_);
+        name_defs.push_back(module_->Make<NameDefTree>(fake_span_, rest));
+        // Also, jump forward a random # of elements
+        auto jump_forward = RandomIntWithExpectedValue(
+            /*expected_value=*/(tuple_type->members().size() - index) / 2.0,
+            /*lower_limit=*/0);
+        if (jump_forward > 0) {
+          index += jump_forward;
+          // We could keep this name, or skip it, but for now, skip it.
+          continue;
+        }
+        // The jump forward is 0; we'll keep this name.
+      }
+
       std::string member_identifier = GenSym();
       auto* member_name_def = module_->Make<NameDef>(
           fake_span_, member_identifier, /*definer=*/nullptr);
