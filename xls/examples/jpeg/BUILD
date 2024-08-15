@@ -15,6 +15,7 @@
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -23,7 +24,6 @@ load(
     "xls_dslx_test",
     "xls_eval_ir_test",
     "xls_ir_verilog",
-    "xls_ir_verilog_fdo",
     "xls_synthesis_metrics",
 )
 
@@ -140,27 +140,28 @@ xls_synthesis_metrics(
     tags = ["manual"],
 )
 
-xls_ir_verilog_fdo(
-    name = "idct_chen_6400ps_model_sky130_fdo",
-    src = ":idct_chen",
-    codegen_args = {
-        "delay_model": "sky130",
-        "clock_period_ps": "6400",
-        "module_name": "idct_chen",
-        "use_system_verilog": "false",
-        # Activate FDO
-        "use_fdo": "true",
-        # The following parameters can optionally be specified
-        "fdo_iteration_number": "5",
-        "fdo_delay_driven_path_number": "1",
-        "fdo_fanout_driven_path_number": "0",
-        "fdo_refinement_stochastic_ratio": "1.0",
-        "fdo_path_evaluate_strategy": "window",
-    },
-    # Must specify standard_cells if using FDO, if not using the default sky130
-    standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
-    verilog_file = "idct_chen_6400ps_model_sky130_fdo.v",
-)
+# TODO(b/360175627): Renable when able.
+#xls_ir_verilog_fdo(
+#    name = "idct_chen_6400ps_model_sky130_fdo",
+#    src = ":idct_chen",
+#    codegen_args = {
+#        "delay_model": "sky130",
+#        "clock_period_ps": "6400",
+#        "module_name": "idct_chen",
+#        "use_system_verilog": "false",
+#        # Activate FDO
+#        "use_fdo": "true",
+#        # The following parameters can optionally be specified
+#        "fdo_iteration_number": "5",
+#        "fdo_delay_driven_path_number": "1",
+#        "fdo_fanout_driven_path_number": "0",
+#        "fdo_refinement_stochastic_ratio": "1.0",
+#        "fdo_path_evaluate_strategy": "window",
+#    },
+#    # Must specify standard_cells if using FDO, if not using the default sky130
+#    standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
+#    verilog_file = "idct_chen_6400ps_model_sky130_fdo.v",
+#)
 
 xls_dslx_test(
     name = "idct_chen_dslx_test",
@@ -268,6 +269,15 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+    ],
+)
+
+build_test(
+    name = "jpeg_build_test",
+    targets = [
+        "idct_chen_13000ps_model_sky130",
+        # TODO(b/360175627): Add to build test when target is fixed.
+        #"idct_chen_6400ps_model_sky130_fdo",
     ],
 )
 
