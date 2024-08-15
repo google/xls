@@ -561,4 +561,35 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                        type_info);
 }
 
+absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
+    const NameDefTree* name_def_tree, const TupleType* tuple_type) {
+  bool rest_of_tuple_found = false;
+  for (const NameDefTree* node : name_def_tree->nodes()) {
+    if (node->IsRestOfTupleLeaf()) {
+      if (rest_of_tuple_found) {
+        return TypeInferenceErrorStatus(
+            node->span(), tuple_type,
+            absl::StrFormat("`..` can only be used once per tuple pattern."));
+      }
+      rest_of_tuple_found = true;
+    }
+  }
+  int64_t number_of_tuple_elements = tuple_type->size();
+  int64_t number_of_names = name_def_tree->nodes().size();
+  bool number_mismatch = number_of_names != number_of_tuple_elements;
+  if (rest_of_tuple_found) {
+    // There's a "rest of tuple" in the name def tree; we only need to have
+    // enough tuple elements to bind to the required names.
+    // Subtract 1 for the  ".."
+    number_of_names--;
+    number_mismatch = number_of_names > number_of_tuple_elements;
+  }
+  if (number_mismatch) {
+    return TypeInferenceErrorStatus(
+        name_def_tree->span(), tuple_type,
+        absl::StrFormat("Cannot match a %d-element tuple to %d values.",
+                        number_of_tuple_elements, number_of_names));
+  }
+  return std::make_pair(number_of_tuple_elements, number_of_names);
+}
 }  // namespace xls::dslx

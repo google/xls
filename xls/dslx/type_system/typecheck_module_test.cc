@@ -1806,7 +1806,7 @@ fn main() {
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("a 5-element tuple to 2 names")));
+                       HasSubstr("a 5-element tuple to 2 values")));
 }
 
 TEST(TypecheckTest, RestOfTupleCountMismatch) {
@@ -1816,7 +1816,7 @@ fn main() {
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("a 2-element tuple to 3 names")));
+                       HasSubstr("a 2-element tuple to 3 values")));
 }
 
 TEST(TypecheckTest, RestOfTupleCountMismatchNested) {
@@ -1826,7 +1826,7 @@ fn main() {
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("a 1-element tuple to 2 names")));
+                       HasSubstr("a 1-element tuple to 2 values")));
 }
 
 TEST(TypecheckTest, TupleAssignsTypes) {
@@ -2673,14 +2673,74 @@ TEST(TypecheckErrorTest, MatchOnTupleWithWrongSizedTuplePattern) {
       R"(
 fn f(x: (u32)) -> u32 {
   match x {
-    (x, y) => x,
+    (y, z) => y,
   }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("(uN[32]) Pattern wanted 2 tuple elements, "
-                                 "matched-on value had 1 element")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot match a 1-element tuple to 2 values.")));
+}
+
+TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsEnd) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: (u32, u33, u34)) -> u32 {
+  match x {
+    (y, ..) => y,
+  }
+}
+)";
+  XLS_ASSERT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsBeginning) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: (u30, u31, u32)) -> u32 {
+  match x {
+    (.., y) => y,
+  }
+}
+)";
+  XLS_ASSERT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsBeginningThenMatches) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: (u29, u30, u31, u32)) -> u31 {
+  match x {
+    (.., y, z) => y,
+  }
+}
+)";
+  XLS_ASSERT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsMiddle) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: (u30, u31, u32, u33)) -> u30 {
+  match x {
+    (y, .., z) => y,
+  }
+}
+)";
+  XLS_ASSERT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsNone) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: (u32, u33)) -> u32 {
+  match x {
+    (y, .., z) => y,
+  }
+}
+)";
+  XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, UnusedBindingInBodyGivesWarning) {
@@ -2893,15 +2953,13 @@ priority_sel(u2:0b00, MyStruct[2]:[MyStruct{}, MyStruct{}], default_value) }
 }
 
 TEST(TypecheckErrorTest, PrioritySelectDefaultWrongSize) {
-  EXPECT_THAT(
-      Typecheck(R"(
+  EXPECT_THAT(Typecheck(R"(
 fn f() { priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4], u5:0); }
 )")
-          .status(),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Want argument 2 type uN[4] to match argument 1 element type")));
+                  .status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Want argument 2 type uN[4] to match "
+                                 "argument 1 element type")));
 }
 
 TEST(TypecheckErrorTest, OperatorOnParametricBuiltin) {
@@ -2996,17 +3054,15 @@ fn main() -> u32 {
 
 // Passes a signed value to a builtin function that expects a `uN[N]`.
 TEST(TypecheckErrorTest, SignedValueToBuiltinExpectingUN) {
-  EXPECT_THAT(
-      Typecheck(R"(
+  EXPECT_THAT(Typecheck(R"(
 fn main() {
   clz(s32:0xdeadbeef)
 }
 )")
-          .status(),
-      IsPosError(
-          "TypeInferenceError",
-          HasSubstr(
-              "Want argument 0 to be unsigned; got sN[32] (type is signed)")));
+                  .status(),
+              IsPosError("TypeInferenceError",
+                         HasSubstr("Want argument 0 to be unsigned; got "
+                                   "sN[32] (type is signed)")));
 }
 
 // Table-oriented test that lets us validate that *types on parameters* are
@@ -3035,7 +3091,8 @@ fn builtins() -> (u1, u1, u1, u32, u32, u32, $VALUE_TYPE) {
     std::string param_type;
     std::string value_tye;
     std::string value;
-    // Whether we want unsigned-taking (unary) builtins to be run on the value.
+    // Whether we want unsigned-taking (unary) builtins to be run on the
+    // value.
     bool want_unsigned_builtins;
   } kTestCases[] = {
       // xN[false][8] should be type compatible with u8

@@ -289,40 +289,13 @@ static absl::Status BindNames(const NameDefTree* name_def_tree,
                         type.ToString()));
   }
 
-  // Disallow multiple RestOfTuples in the same level of the tree
-  bool rest_of_tuple_found = false;
-  for (const NameDefTree* node : name_def_tree->nodes()) {
-    if (node->IsRestOfTupleLeaf()) {
-      if (rest_of_tuple_found) {
-        return TypeInferenceErrorStatus(
-            name_def_tree->span(), &type,
-            absl::StrFormat("\"..\" can only be used once per tuple pattern."));
-      }
-      rest_of_tuple_found = true;
-    }
-  }
-
-  int64_t number_of_tuple_elements = tuple_type->size();
-  int64_t number_of_names = name_def_tree->nodes().size();
-  bool number_mismatch = number_of_names != number_of_tuple_elements;
-  if (rest_of_tuple_found) {
-    // There's a "rest of tuple" in the name def tree; we only need to have
-    // enough tuple elements to bind to the required names.
-
-    // Subtract 1 for the  ".."
-    number_of_names--;
-    number_mismatch = number_of_names > number_of_tuple_elements;
-  }
-
-  if (number_mismatch) {
-    return TypeInferenceErrorStatus(
-        name_def_tree->span(), &type,
-        absl::StrFormat("Could not bind a %d-element tuple to %d names.",
-                        number_of_tuple_elements, number_of_names));
-  }
+  XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
+                       GetTupleSizes(name_def_tree, tuple_type));
 
   // Index into the current tuple type.
   int64_t tuple_index = 0;
+  // Must iterate through the actual nodes size, not number_of_names, because
+  // there may be a "rest of tuple" leaf which decreases the number of names.
   for (int64_t name_index = 0; name_index < name_def_tree->nodes().size();
        ++name_index) {
     NameDefTree* subtree = name_def_tree->nodes()[name_index];
@@ -1275,10 +1248,9 @@ static absl::Status Unify(NameDefTree* name_def_tree, const Type& other,
     if (std::holds_alternative<NameDef*>(leaf)) {
       // Defining a name in the pattern match, we accept all types.
       ctx->type_info()->SetItem(ToAstNode(leaf), *resolved_rhs_type);
-    } else if (std::holds_alternative<WildcardPattern*>(leaf)) {
-      // Nothing to do.
-    } else if (std::holds_alternative<RestOfTuple*>(leaf)) {
-      // This will be handled in BindNames.
+    } else if (std::holds_alternative<WildcardPattern*>(leaf) ||
+               std::holds_alternative<RestOfTuple*>(leaf)) {
+      // Nothing to do
     } else if (std::holds_alternative<Number*>(leaf) ||
                std::holds_alternative<ColonRef*>(leaf)) {
       // For a reference (or literal) the types must be consistent.
@@ -1301,19 +1273,26 @@ static absl::Status Unify(NameDefTree* name_def_tree, const Type& other,
           name_def_tree->span(), &other,
           "Pattern expected matched-on type to be a tuple.");
     }
-    if (type->size() != nodes.size()) {
-      return TypeInferenceErrorStatus(
-          name_def_tree->span(), &other,
-          absl::StrFormat("Pattern wanted %d tuple elements, matched-on "
-                          "value had %d element",
-                          nodes.size(), type->size()));
-    }
-    for (int64_t i = 0; i < nodes.size(); ++i) {
-      const Type& subtype = type->GetMemberType(i);
-      NameDefTree* subtree = nodes[i];
+
+    XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
+                         GetTupleSizes(name_def_tree, type));
+
+    int64_t tuple_index = 0;
+    // Must iterate through the actual nodes size, not number_of_names, because
+    // there may be a "rest of tuple" leaf which decreases the number of names.
+    for (int64_t name_index = 0; name_index < nodes.size(); ++name_index) {
+      NameDefTree* subtree = nodes[name_index];
+      if (subtree->IsRestOfTupleLeaf()) {
+        // Skip ahead.
+        tuple_index += number_of_tuple_elements - number_of_names;
+        continue;
+      }
+      const Type& subtype = type->GetMemberType(tuple_index);
       XLS_RETURN_IF_ERROR(Unify(subtree, subtype, ctx));
+      tuple_index++;
     }
   }
+
   return absl::OkStatus();
 }
 
@@ -1351,14 +1330,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
     }
 
     for (NameDefTree* pattern : arm->patterns()) {
-      // TODO: https://github.com/google/xls/issues/1459 - Handle
-      // rest-of-tuple.
-
       // Deduce types for all patterns with types that can be checked.
       //
-      // Note that NameDef is handled in the Unify() call below, and
-      // WildcardPattern has no type because it's a black hole,
-      // and similar for RestOfTuple.
+      // Note that NameDef and RestOfTuple is handled in the Unify() call
+      // below, and WildcardPattern has no type because it's a black hole.
       for (NameDefTree::Leaf leaf : pattern->Flatten()) {
         if (!std::holds_alternative<NameDef*>(leaf) &&
             !std::holds_alternative<WildcardPattern*>(leaf) &&

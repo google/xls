@@ -15,9 +15,11 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_
 #define XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -159,6 +161,17 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          std::string_view original_ref_text,
                                          const TypeAnnotation& type_annotation,
                                          TypeInfo* type_info);
+
+// Checks that the number of tuple elements in the name def tree matches the
+// number of tuple elements in the type; if a "rest of tuple" leaf is
+// present, only one is allowed, and it is not counted in the number of names.
+//
+// Returns the number of tuple elements (first) and the number of names that
+// will be bound in the given NameDefTree (second).
+//
+// The latter may be less than the former if there is a "rest of tuple" leaf.
+absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
+    const NameDefTree* name_def_tree, const TupleType* tuple_type);
 
 }  // namespace xls::dslx
 
