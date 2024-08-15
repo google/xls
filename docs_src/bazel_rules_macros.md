@@ -592,7 +592,7 @@ Example:
 | <a id="xls_ir_verilog_fdo-scheduling_options_proto"></a>scheduling_options_proto |  Filename of a protobuf with scheduling options arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_ir_verilog_fdo-sta_tool"></a>sta_tool |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"@org_theopenroadproject//:opensta"`  |
 | <a id="xls_ir_verilog_fdo-standard_cells"></a>standard_cells |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd"`  |
-| <a id="xls_ir_verilog_fdo-synthesizer_linear_interpolation_factor"></a>synthesizer_linear_interpolation_factor |  -   | String | optional |  `"0.5"`  |
+| <a id="xls_ir_verilog_fdo-synthesizer_linear_interpolation_factor"></a>synthesizer_linear_interpolation_factor |  -   | String | optional |  `""`  |
 | <a id="xls_ir_verilog_fdo-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a v extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="xls_ir_verilog_fdo-verilog_line_map_file"></a>verilog_line_map_file |  The filename of line map for the generated Verilog file.If not specified, the basename of the Verilog file followed by a .verilog_line_map.textproto extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_ir_verilog_fdo-yosys_tool"></a>yosys_tool |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"//third_party/yosys"`  |
