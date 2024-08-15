@@ -112,6 +112,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
   auto node_hash = [&](Node* n) {
     CHECK(n->GetType()->IsBits());
     std::vector<int64_t> values_to_hash;
+    values_to_hash.reserve(n->BitCountOrDie());
     for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
       values_to_hash.push_back(bdd_function->GetBddNode(n, i).value());
     }

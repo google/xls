@@ -1423,6 +1423,7 @@ TEST_F(TernaryQueryEngineTest, ArrayUpdate) {
   BValue update = MakeValueWithKnownBits("update", "0b01X", &fb);
   BValue result = fb.ArrayUpdate(array, update, {idx});
   std::vector<BValue> reads;
+  reads.reserve(array_val.size());
   for (int64_t i = 0; i < array_val.size(); ++i) {
     reads.push_back(fb.ArrayIndex(result, {fb.Literal(UBits(i, 8))}));
   }
@@ -1461,6 +1462,7 @@ TEST_F(TernaryQueryEngineTest, ArrayUpdateZeroLengthIndex) {
   BValue update = MakeValueWithKnownBits("update", "0b01X", &fb);
   BValue result = fb.ArrayUpdate(array, update, {idx});
   std::vector<BValue> reads;
+  reads.reserve(array_val.size());
   for (int64_t i = 0; i < array_val.size(); ++i) {
     reads.push_back(fb.ArrayIndex(result, {fb.Literal(UBits(i, 8))}));
   }
@@ -1498,6 +1500,7 @@ TEST_F(TernaryQueryEngineTest, ArrayUpdateExact) {
   BValue update = fb.Literal(UBits(0, 2));
   BValue result = fb.ArrayUpdate(array, update, {idx});
   std::vector<BValue> reads;
+  reads.reserve(array.GetType()->AsArrayOrDie()->size());
   for (int64_t i = 0; i < array.GetType()->AsArrayOrDie()->size(); ++i) {
     reads.push_back(fb.ArrayIndex(result, {fb.Literal(UBits(i, 8))}));
   }
@@ -1529,6 +1532,7 @@ TEST_F(TernaryQueryEngineTest, ArrayUpdateExactOOB) {
   BValue update = fb.Literal(UBits(0, 2));
   BValue result = fb.ArrayUpdate(array, update, {idx});
   std::vector<BValue> reads;
+  reads.reserve(array.GetType()->AsArrayOrDie()->size());
   for (int64_t i = 0; i < array.GetType()->AsArrayOrDie()->size(); ++i) {
     reads.push_back(fb.ArrayIndex(result, {fb.Literal(UBits(i, 8))}));
   }
@@ -1561,6 +1565,7 @@ TEST_F(TernaryQueryEngineTest, ArrayUpdateSometimesOOB) {
   BValue update = MakeValueWithKnownBits("update", "0b01X", &fb);
   BValue result = fb.ArrayUpdate(array, update, {idx});
   std::vector<BValue> reads;
+  reads.reserve(array_val.size());
   for (int64_t i = 0; i < array_val.size(); ++i) {
     reads.push_back(fb.ArrayIndex(result, {fb.Literal(UBits(i, 8))}));
   }
@@ -1599,6 +1604,7 @@ TEST_F(TernaryQueryEngineTest, ArrayUpdateOOB) {
   BValue update = MakeValueWithKnownBits("update", "0b01X", &fb);
   BValue result = fb.ArrayUpdate(array, update, {idx});
   std::vector<BValue> reads;
+  reads.reserve(array_val.size());
   for (int64_t i = 0; i < array_val.size(); ++i) {
     reads.push_back(fb.ArrayIndex(result, {fb.Literal(UBits(i, 8))}));
   }

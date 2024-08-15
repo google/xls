@@ -49,6 +49,7 @@ namespace {
 std::vector<TreeBitLocation> ToTreeBitLocations(Node* node) {
   CHECK(node->GetType()->IsBits());
   std::vector<TreeBitLocation> locations;
+  locations.reserve(node->BitCountOrDie());
   for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
     locations.emplace_back(TreeBitLocation(node, i));
   }

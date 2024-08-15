@@ -1756,6 +1756,7 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   }
 
   std::vector<Node*> next_state;
+  next_state.reserve(proc_to_inline->GetStateElementCount());
   for (int64_t i = 0; i < proc_to_inline->GetStateElementCount(); ++i) {
     next_state.push_back(node_map.at(proc_to_inline->GetNextStateElement(i)));
   }
