@@ -1003,7 +1003,7 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
     std::vector<BValue> this_arm_selectors;
     for (NameDefTree* pattern : arm->patterns()) {
       XLS_ASSIGN_OR_RETURN(BValue selector,
-                           HandleMatcher(pattern, {i}, matched, *matched_type));
+                           HandleMatcher(pattern, matched, *matched_type));
       XLS_RET_CHECK(selector.valid());
       this_arm_selectors.push_back(selector);
     }
@@ -1075,9 +1075,7 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
         "is not currently supported for IR conversion.");
   }
   XLS_RETURN_IF_ERROR(
-      HandleMatcher(default_arm->patterns()[0],
-                    {static_cast<int64_t>(node->arms().size()) - 1}, matched,
-                    *matched_type)
+      HandleMatcher(default_arm->patterns()[0], matched, *matched_type)
           .status());
   XLS_RETURN_IF_ERROR(Visit(default_arm->expr()));
 
@@ -1315,7 +1313,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     // function.
     if (auto* ndt = dynamic_cast<NameDefTree*>(accum)) {
       XLS_RETURN_IF_ERROR(body_converter
-                              .HandleMatcher(/*matcher=*/ndt, /*index=*/{},
+                              .HandleMatcher(/*matcher=*/ndt,
                                              /*matched_value=*/carry,
                                              /*matched_type=*/*carry_type)
                               .status());
@@ -1452,8 +1450,8 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 }
 
 absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
-    NameDefTree* matcher, absl::Span<const int64_t> index,
-    const BValue& matched_value, const Type& matched_type) {
+    NameDefTree* matcher, const BValue& matched_value,
+    const Type& matched_type) {
   if (matcher->is_leaf()) {
     NameDefTree::Leaf leaf = matcher->leaf();
     VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
@@ -1474,11 +1472,9 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
               });
             },
             [&](RestOfTuple* n) -> absl::StatusOr<BValue> {
-              // TODO: https://github.com/google/xls/issues/1459 - Handle
-              // rest-of-tuple.
-              return absl::UnimplementedError(
-                  "The \"rest of tuple\" operator (..) is not implemented "
-                  "yet.");
+              return Def(matcher, [&](const SourceInfo& loc) {
+                return function_builder_->Literal(UBits(1, 1), loc);
+              });
             },
             [&](Number* n) -> absl::StatusOr<BValue> { return equality(); },
             [&](ColonRef* n) -> absl::StatusOr<BValue> { return equality(); },
@@ -1530,16 +1526,26 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
   }
 
   auto* matched_tuple_type = dynamic_cast<const TupleType*>(&matched_type);
+  XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
+                       GetTupleSizes(matcher, matched_tuple_type));
+
+  int64_t tuple_index = 0;
   BValue ok = function_builder_->Literal(UBits(/*value=*/1, /*bit_count=*/1));
-  for (int64_t i = 0; i < matched_tuple_type->size(); ++i) {
-    const Type& element_type = matched_tuple_type->GetMemberType(i);
-    NameDefTree* element = matcher->nodes()[i];
-    BValue member = function_builder_->TupleIndex(matched_value, i);
-    std::vector<int64_t> sub_index(index.begin(), index.end());
-    sub_index.push_back(i);
-    XLS_ASSIGN_OR_RETURN(
-        BValue cond, HandleMatcher(element, sub_index, member, element_type));
+  const NameDefTree::Nodes& nodes = matcher->nodes();
+  for (int64_t name_index = 0; name_index < nodes.size(); ++name_index) {
+    NameDefTree* element = nodes[name_index];
+    if (element->IsRestOfTupleLeaf()) {
+      // Skip ahead.
+      int64_t wildcards_to_insert = number_of_tuple_elements - number_of_names;
+      tuple_index += wildcards_to_insert;
+      continue;
+    }
+    const Type& element_type = matched_tuple_type->GetMemberType(tuple_index);
+    BValue member = function_builder_->TupleIndex(matched_value, tuple_index);
+    XLS_ASSIGN_OR_RETURN(BValue cond,
+                         HandleMatcher(element, member, element_type));
     ok = function_builder_->And(ok, cond);
+    tuple_index++;
   }
   return ok;
 }

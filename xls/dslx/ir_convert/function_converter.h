@@ -357,7 +357,6 @@ class FunctionConverter {
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
-                                       absl::Span<const int64_t> index,
                                        const BValue& matched_value,
                                        const Type& matched_type);
 

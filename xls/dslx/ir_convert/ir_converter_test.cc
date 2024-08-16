@@ -287,6 +287,7 @@ TEST(IrConverterTest, LetTupleBindingRestOfTupleBeginning) {
                                 ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
+
 TEST(IrConverterTest, LetTupleBindingRestOfTupleSkipsMiddle) {
   const char* program =
       R"(fn f() -> u32 {
@@ -299,6 +300,91 @@ TEST(IrConverterTest, LetTupleBindingRestOfTupleSkipsMiddle) {
       ConvertOneFunctionForTest(program, "f",
                                 ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MatchRestOfTupleBeginning) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:1, u32:2, u32:3, u32:4);
+  match t {
+    (.., u32:3, y) => y,
+    _ => u32:0
+  }
+})";
+  RunComparator run_comparator(CompareMode::kInterpreter);
+  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
+                             ParseAndTestOptions{
+                                 .run_comparator = &run_comparator,
+                             }));
+}
+
+TEST(IrConverterTest, MatchRestOfTupleMiddle) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:1, u32:2, u32:3, u32:4);
+  match t {
+    (u32:1, .., y) => y,
+    _ => u32:0
+  }
+})";
+  RunComparator run_comparator(CompareMode::kInterpreter);
+  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
+                             ParseAndTestOptions{
+                                 .run_comparator = &run_comparator,
+                             }));
+}
+
+TEST(IrConverterTest, MatchRestOfTupleEnd) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:1, u32:2, u32:3, u32:4);
+  match t {
+    (u32:1, y, ..) => y,
+    _ => u32:0
+  }
+})";
+  RunComparator run_comparator(CompareMode::kInterpreter);
+  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
+                             ParseAndTestOptions{
+                                 .run_comparator = &run_comparator,
+                             }));
+}
+
+TEST(IrConverterTest, MatchTupleOfTuplesRestOfTuple) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:1, (u32:2, u32:3, u32:4), u32:5, u32:6);
+  match t {
+    (u32:1, .., a) => a,
+    (u32:1, (b, ..), ..) => b,
+    (u32:0, (.., d), ..) => d,
+    (u32:0, (e, .., g), ..) => g,
+    (.., h, u32:5) => h,
+    _ => u32:0
+  }
+})";
+  RunComparator run_comparator(CompareMode::kInterpreter);
+  XLS_ASSERT_OK(ParseAndTest(program, "", "test_module.x",
+                             ParseAndTestOptions{
+                                 .run_comparator = &run_comparator,
+                             }));
+}
+
+TEST(IrConverterTest, MatchRestOfTupleAsArmFails) {
+  const char* program =
+      R"(fn f() -> u32 {
+  let t = (u32:1, u32:2);
+  match t {
+    (u32:1, .., a) => a,
+    .. => u32:1
+  }
+})";
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(program, "f", import_data,
+                                ConvertOptions{.emit_positions = false}),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("with trailing irrefutable patterns")));
 }
 
 TEST(IrConverterTest, Struct) {
