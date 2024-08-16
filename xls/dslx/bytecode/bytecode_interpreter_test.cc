@@ -923,6 +923,102 @@ fn main(x: u32, y: u32, z: u32) -> u32 {
   EXPECT_EQ(value, InterpValue::MakeU32(0xdeadbeef)) << value.ToString();
 }
 
+TEST(BytecodeInterpreterTest, RunMatchWithRestOfTuple) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: (u32, u32, u32, u32)) -> u32 {
+  match x {
+    (.., u32:1, y) => y,
+    (u32:2, y, ..) => y,
+    (u32:3, .., y) => y,
+    (u32:4, .., y, _) => y,
+    _ => u32:0xdeadbeef,
+  }
+}
+)";
+
+  InterpValue one(InterpValue::MakeU32(1));
+  InterpValue two(InterpValue::MakeU32(2));
+  InterpValue three(InterpValue::MakeU32(3));
+  InterpValue four(InterpValue::MakeU32(4));
+
+  // 1, 1, 1, 3 should return 3 (.., 1, y)
+  auto tuple = InterpValue::MakeTuple({one, one, one, three});
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, three);
+
+  // 2, 3, 4, 1 should return 3 (2, y, ..)
+  tuple = InterpValue::MakeTuple({two, three, four, one});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, three);
+
+  //  3, 4, 1, 2 should return 2 (3, .., y)
+  tuple = InterpValue::MakeTuple({three, four, one, two});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, two);
+
+  //  4, 1, 2, 3 should return 2 (4, .., y, _)
+  tuple = InterpValue::MakeTuple({four, one, two, three});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, two);
+
+  // 1, 1, 2, 3 should match none.
+  tuple = InterpValue::MakeTuple({one, one, two, three});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, InterpValue::MakeU32(0xdeadbeef));
+}
+
+TEST(BytecodeInterpreterTest, RunMatchWithTupleOfTuples) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: (u32, (u32, u32, u32), u32, u32)) -> u32 {
+  match x {
+    (.., u32:1, a) => a,
+    (u32:2, (u32:0, _, b), ..) => b,
+    (u32:3, (.., c), ..) => c,
+    (u32:4, d, ..) => d.0,
+    _ => u32:0xdeadbeef,
+  }
+}
+)";
+
+  InterpValue zero(InterpValue::MakeU32(0));
+  InterpValue one(InterpValue::MakeU32(1));
+  InterpValue two(InterpValue::MakeU32(2));
+  InterpValue three(InterpValue::MakeU32(3));
+  InterpValue four(InterpValue::MakeU32(4));
+
+  // 1, 1, 1, 3 should return 3: matches on (.., u32:1, y) => y
+  auto tuple = InterpValue::MakeTuple({one, one, one, three});
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, three);
+
+  // 2, (0, 3, 4), 0, 0 should return 4:
+  // matches on (u32:2, (u32:0, _, b), ..) => b
+  tuple = InterpValue::MakeTuple(
+      {two, InterpValue::MakeTuple({zero, three, four}), zero, zero});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, four);
+
+  // 3, (0, 3, 4), 2, 2 should return 4: matches on (u32:3, (.., b), ..) => b
+  tuple = InterpValue::MakeTuple(
+      {two, InterpValue::MakeTuple({zero, three, four}), two, two});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, four);
+
+  // 4, (2, 3, 4), 4, 4 should return 2: matches on (u32:4, z, ..) => z.0
+  tuple = InterpValue::MakeTuple(
+      {four, InterpValue::MakeTuple({two, three, four}), four, four});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, two);
+
+  // 0, (2, 3, 4), 4, 4 should return 0xdeadbeef, no match.
+  tuple = InterpValue::MakeTuple(
+      {zero, InterpValue::MakeTuple({two, three, four}), four, four});
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple}));
+  EXPECT_EQ(value, InterpValue::MakeU32(0xdeadbeef));
+}
+
 TEST(BytecodeInterpreterTest, RunTernaryConsequent) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {

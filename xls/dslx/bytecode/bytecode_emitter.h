@@ -30,6 +30,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/format_preference.h"
@@ -141,7 +142,7 @@ class BytecodeEmitter : public ExprVisitor {
                                                     const ColonRef* colon_ref);
 
   absl::StatusOr<Bytecode::MatchArmItem> HandleNameDefTreeExpr(
-      NameDefTree* tree);
+      NameDefTree* tree, Type* type = nullptr);
 
   absl::Status DestructureLet(NameDefTree* tree,
                               std::variant<Type*, int64_t> type_or_size);

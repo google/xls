@@ -42,6 +42,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -1163,7 +1164,7 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
 }
 
 absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
-    NameDefTree* tree) {
+    NameDefTree* tree, Type* type) {
   if (tree->is_leaf()) {
     return absl::visit(
         Visitor{
@@ -1213,13 +1214,40 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
         tree->leaf());
   }
 
+  // Not a leaf; must be a tuple
+  auto* tuple_type = down_cast<TupleType*>(type);
+  if (tuple_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        tree->span(), type, "Pattern expected matched-on type to be a tuple.");
+  }
+
+  XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
+                       GetTupleSizes(tree, tuple_type));
+
+  // TODO: https://github.com/google/xls/issues/1459 - This is at least the
+  // 3rd if not 4th time a loop like this has been written. It should be
+  // refactored into a common utility function.
   std::vector<Bytecode::MatchArmItem> elements;
-  for (NameDefTree* node : tree->nodes()) {
-    // TODO: https://github.com/google/xls/issues/1459 - Handle
-    // rest-of-tuple.
+  int64_t tuple_index = 0;
+  const NameDefTree::Nodes& nodes = tree->nodes();
+  for (int64_t name_index = 0; name_index < nodes.size(); ++name_index) {
+    NameDefTree* subnode = nodes[name_index];
+    if (subnode->IsRestOfTupleLeaf()) {
+      // Skip ahead.
+      int64_t wildcards_to_insert = number_of_tuple_elements - number_of_names;
+      tuple_index += wildcards_to_insert;
+
+      for (int64_t i = 0; i < wildcards_to_insert; ++i) {
+        elements.push_back(Bytecode::MatchArmItem::MakeWildcard());
+      }
+      continue;
+    }
+
+    Type& subtype = tuple_type->GetMemberType(tuple_index);
     XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem element,
-                         HandleNameDefTreeExpr(node));
+                         HandleNameDefTreeExpr(subnode, &subtype));
     elements.push_back(element);
+    tuple_index++;
   }
   return Bytecode::MatchArmItem::MakeTuple(std::move(elements));
 }
@@ -1622,6 +1650,12 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
   std::vector<size_t> jumps_to_next;
   std::vector<size_t> jumps_to_done;
 
+  std::optional<Type*> type = type_info_->GetItem(node->matched());
+  if (!type.has_value()) {
+    return absl::InternalError(
+        absl::StrCat("Could not find type for matched value: ",
+                     node->matched()->ToString()));
+  }
   for (size_t arm_idx = 0; arm_idx < node->arms().size(); ++arm_idx) {
     auto outer_scope_slots = namedef_to_slot_;
     absl::Cleanup cleanup = [this, &outer_scope_slots]() {
@@ -1648,7 +1682,7 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
       // pattern.
       NameDefTree* ndt = arm->patterns()[pattern_idx];
       XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem arm_item,
-                           HandleNameDefTreeExpr(ndt));
+                           HandleNameDefTreeExpr(ndt, type.value()));
       Add(Bytecode::MakeMatchArm(ndt->span(), arm_item));
 
       if (pattern_idx != 0) {

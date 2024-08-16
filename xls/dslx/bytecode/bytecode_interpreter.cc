@@ -975,9 +975,9 @@ absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
                          item.ToString(), " vs. ", value.ToString()));
       }
 
+      // We don't have to deal with rest-of-tuple processing because
+      // the matcher will have already handled that.
       for (int i = 0; i < item_elements.size(); i++) {
-        // TODO: https://github.com/google/xls/issues/1459 - Handle
-        // rest-of-tuple.
         XLS_ASSIGN_OR_RETURN(bool equal, MatchArmEqualsInterpValue(
                                              &frames_.back(), item_elements[i],
                                              value_elements->at(i)));

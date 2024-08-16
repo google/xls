@@ -287,6 +287,28 @@ fn f() -> u32 {
 004 load 1)");
 }
 
+TEST(BytecodeEmitterTest, MatchTuplesWithRestOfTuple) {
+  constexpr std::string_view kProgram = R"(#[test]
+fn match_tuple() -> u32 {
+  let x = (u32:42, u32:64, u32:128);
+  let y = match x {
+    (u32:42, u32:64, u32:128) => u32:42,
+    (u32:41, u32:63, ..) => u32:63,
+    (u32:40, ..) => u32:40,
+    _ => u32:0
+  };
+  y
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  // Asserts that we can generate bytecode for this situation. We shouldn't
+  // assert on the contents of the bytecode generated, since that is fragile
+  // and is essentially a "Change Detector" test.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "match_tuple"));
+}
+
 TEST(BytecodeEmitterTest, MatchSimpleArms) {
   constexpr std::string_view kProgram = R"(#[test]
 fn do_match() -> u32 {
