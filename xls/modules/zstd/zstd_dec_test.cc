@@ -33,11 +33,12 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "external/zstd/lib/zstd.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -53,7 +54,6 @@
 #include "xls/ir/value.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/modules/zstd/data_generator.h"
-#include "external/zstd/lib/zstd.h"
 
 namespace xls {
 namespace {

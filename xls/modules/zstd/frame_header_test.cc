@@ -24,12 +24,14 @@
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
+#include "external/zstd/lib/zstd.h"
+#include "external/zstd/lib/zstd_errors.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/create_import_data.h"
@@ -42,8 +44,6 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 #include "xls/modules/zstd/data_generator.h"
-#include "external/zstd/lib/zstd.h"
-#include "external/zstd/lib/zstd_errors.h"
 
 namespace xls {
 namespace {
