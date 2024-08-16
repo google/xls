@@ -45,7 +45,21 @@ namespace {
 
 ProcConfigValue ChannelOrArrayToProcConfigValue(
     ChannelOrArray channel_or_array) {
-  return std::get<Channel*>(channel_or_array);
+  if (std::holds_alternative<Channel*>(channel_or_array)) {
+    return std::get<Channel*>(channel_or_array);
+  }
+  return std::get<ChannelArray*>(channel_or_array);
+}
+
+std::optional<ChannelOrArray> ProcConfigValueToChannelOrArray(
+    ProcConfigValue value) {
+  if (std::holds_alternative<Channel*>(value)) {
+    return std::get<Channel*>(value);
+  }
+  if (std::holds_alternative<ChannelArray*>(value)) {
+    return std::get<ChannelArray*>(value);
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -205,11 +219,11 @@ absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
 
   ProcConfigValue value =
       proc_data_->id_to_config_args.at(proc_id_)[param_index];
-  // TODO: https://github.com/google/xls/issues/704 - Associate array aliases,
-  // similar to what we do for channels below.
-  if (std::holds_alternative<Channel*>(value)) {
-    XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannel(
-        node->name_def(), std::get<Channel*>(value)));
+  std::optional<ChannelOrArray> channel_or_array =
+      ProcConfigValueToChannelOrArray(value);
+  if (channel_or_array.has_value()) {
+    XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
+        node->name_def(), *channel_or_array));
   }
   node_to_ir_[node->name_def()] = value;
   return absl::OkStatus();

@@ -14,7 +14,12 @@
 #ifndef XLS_DSLX_IR_CONVERT_CHANNEL_SCOPE_H_
 #define XLS_DSLX_IR_CONVERT_CHANNEL_SCOPE_H_
 
+#include <list>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -27,11 +32,46 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls::dslx {
 
-// TODO: https://github.com/google/xls/issues/704 - Add an array representation.
-using ChannelOrArray = std::variant<Channel*>;
+// Represents an array of channels that has been flattened by a `ChannelScope`
+// so that each element has a synthetic, flattened name. The data in a
+// `ChannelArray` is opaque to all but the internals of the `ChannelScope`.
+class ChannelArray {
+  friend class ChannelScope;
+
+ private:
+  explicit ChannelArray(std::string_view base_channel_name)
+      : base_channel_name_(base_channel_name) {}
+
+  std::string_view base_channel_name() const { return base_channel_name_; }
+
+  void AddChannel(std::string_view flattened_name, Channel* channel) {
+    flattened_name_to_channel_.emplace(flattened_name, channel);
+  }
+
+  std::optional<Channel*> FindChannel(std::string_view flattened_name) {
+    const auto it = flattened_name_to_channel_.find(flattened_name);
+    if (it == flattened_name_to_channel_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  // The base channel name is the DSLX package name plus the channel name string
+  // in the DSLX source code.
+  const std::string base_channel_name_;
+
+  // Each element in this map represents one element of the array. The flattened
+  // channel name for an element is `base_channel_name_` plus a suffix produced
+  // by `ChannelScope::CreateAllArrayElementSuffixes()`, with the base name and
+  // suffix separated by a double underscore.
+  absl::flat_hash_map<std::string, Channel*> flattened_name_to_channel_;
+};
+
+using ChannelOrArray = std::variant<Channel*, ChannelArray*>;
 
 // An object that manages definition and access to channels used in a proc.
 class ChannelScope {
@@ -51,20 +91,62 @@ class ChannelScope {
       const NameDef* name_def, const ChannelDecl* decl);
 
   // Variant of `AssociateWithExistingChannelOrArray`, to be used when the
-  // caller has the `channel` returned by `DefineChannelOrArray` on hand, rather
-  // than the `decl` it was made from.
-  absl::Status AssociateWithExistingChannel(const NameDef* name_def,
-                                            Channel* channel);
+  // caller has the channel or array returned by `DefineChannelOrArray` on hand,
+  // rather than the `decl` it was made from.
+  absl::Status AssociateWithExistingChannelOrArray(
+      const NameDef* name_def, ChannelOrArray channel_or_array);
+
+  // Retrieves the individual `Channel` that is referred to by the given `index`
+  // operation. In order for this to succeed, `index` must meet the following
+  // requirements:
+  //   1. The array being indexed must have been previously defined via
+  //      `DefineChannelOrArray`. Otherwise, a not-found error is returned.
+  //   2. If the array being indexed is an alias, then that alias must have been
+  //      associated with an existing array. Otherwise, a not-found error is
+  //      returned.
+  //   3. The expression(s) in `index` indicating the element in the array must
+  //      be constexpr evaluatable.
+  // A not-found error is the guaranteed result in cases where `index` is not
+  // a channel array index operation at all.
+  absl::StatusOr<Channel*> GetChannelForArrayIndex(const Index* index);
 
  private:
+  absl::StatusOr<std::string_view> GetBaseNameForNameDef(
+      const NameDef* name_def);
+
+  std::string_view GetBaseNameForChannelOrArray(
+      ChannelOrArray channel_or_array);
+
+  absl::StatusOr<std::vector<std::string>> CreateAllArrayElementSuffixes(
+      const std::vector<Expr*>& dims);
+
+  absl::StatusOr<std::string> CreateBaseChannelName(const ChannelDecl* decl);
+
+  absl::StatusOr<xls::Type*> GetChannelType(const ChannelDecl* decl) const;
+
+  absl::StatusOr<std::optional<FifoConfig>> CreateFifoConfig(
+      const ChannelDecl* decl) const;
+
+  absl::StatusOr<Channel*> CreateChannel(std::string_view name, xls::Type* type,
+                                         std::optional<FifoConfig> fifo_config);
+
+  absl::StatusOr<Channel*> GetChannelArrayElement(
+      const NameRef* name_ref, std::string_view flattened_name_suffix);
+
   PackageConversionData* const conversion_info_;
   TypeInfo* const type_info_;
   ImportData* const import_data_;
   NameUniquer channel_name_uniquer_;
   const ParametricEnv& bindings_;
 
-  absl::flat_hash_map<const ChannelDecl*, Channel*> decl_to_channel_;
-  absl::flat_hash_map<const NameDef*, Channel*> name_def_to_channel_;
+  // Owns all arrays that are pointed to by ChannelOrArray objects dealt out by
+  // this scope. A `list` is used for pointer stability.
+  std::list<ChannelArray> arrays_;
+
+  absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>
+      decl_to_channel_or_array_;
+  absl::flat_hash_map<const NameDef*, ChannelOrArray>
+      name_def_to_channel_or_array_;
 };
 
 }  // namespace xls::dslx
