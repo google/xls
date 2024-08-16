@@ -89,8 +89,6 @@ enum class TokenKind : uint8_t { XLS_DSLX_TOKEN_KINDS(XLS_FIRST_COMMA) };
 
 std::string TokenKindToString(TokenKind kind);
 
-absl::StatusOr<TokenKind> TokenKindFromString(std::string_view s);
-
 inline std::ostream& operator<<(std::ostream& os, TokenKind kind) {
   os << TokenKindToString(kind);
   return os;

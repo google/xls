@@ -146,22 +146,22 @@ TEST(ScannerTest, FunctionDefinition) {
   EXPECT_TRUE(tokens[1].IsIdentifier("ident"));
   EXPECT_EQ(tokens[1].ToString(), "ident");
 
-  EXPECT_EQ(tokens[2].kind(), TokenKindFromString("(").value());
+  EXPECT_EQ(tokens[2].kind(), TokenKind::kOParen);
   EXPECT_EQ(tokens[2].ToString(), "(");
 
   EXPECT_TRUE(tokens[3].IsIdentifier("x"));
   EXPECT_EQ(tokens[3].ToString(), "x");
 
-  EXPECT_EQ(tokens[4].kind(), TokenKindFromString(")").value());
+  EXPECT_EQ(tokens[4].kind(), TokenKind::kCParen);
   EXPECT_EQ(tokens[4].ToString(), ")");
 
-  EXPECT_EQ(tokens[5].kind(), TokenKindFromString("{").value());
+  EXPECT_EQ(tokens[5].kind(), TokenKind::kOBrace);
   EXPECT_EQ(tokens[5].ToString(), "{");
 
   EXPECT_TRUE(tokens[6].IsIdentifier("x"));
   EXPECT_EQ(tokens[6].ToString(), "x");
 
-  EXPECT_EQ(tokens[7].kind(), TokenKindFromString("}").value());
+  EXPECT_EQ(tokens[7].kind(), TokenKind::kCBrace);
   EXPECT_EQ(tokens[7].ToString(), "}");
 }
 

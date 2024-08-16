@@ -73,17 +73,6 @@ std::string TokenKindToString(TokenKind kind) {
   return absl::StrFormat("<invalid TokenKind(%d)>", static_cast<int>(kind));
 }
 
-absl::StatusOr<TokenKind> TokenKindFromString(std::string_view s) {
-#define MAKE_CASE(__enum, unused, __str, ...) \
-  if (s == __str) {                           \
-    return TokenKind::__enum;                 \
-  }
-  XLS_DSLX_TOKEN_KINDS(MAKE_CASE)
-#undef MAKE_CASE
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Not a token kind: \"%s\"", s));
-}
-
 absl::StatusOr<int64_t> Token::GetValueAsInt64() const {
   std::optional<std::string> value = GetValue();
   if (!value) {
