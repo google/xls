@@ -1432,12 +1432,6 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
 
   std::vector<Node*> arg_nodes;
   for (const BValue& arg : args) {
-    if (!arg.GetType()->IsBits()) {
-      return SetError(
-          absl::StrFormat("Trace arguments must be of bits type; is: %s",
-                          arg.GetType()->ToString()),
-          loc);
-    }
     arg_nodes.push_back(arg.node());
   }
 

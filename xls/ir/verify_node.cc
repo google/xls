@@ -80,12 +80,6 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(trace_op, /*operand_no=*/1,
                                                  /*expected_bit_count=*/1));
 
-    // Trace does not currently support arrays, tuples or strings, so the
-    // remaining operands must have bits type.
-    for (int64_t i = 2; i < trace_op->operands().size(); i++) {
-      XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(trace_op, /*operand_no=*/i));
-    }
-
     // The extra two arguments are the token and the condition
     XLS_RETURN_IF_ERROR(ExpectOperandCount(
         trace_op, OperandsExpectedByFormat(trace_op->format()) + 2));

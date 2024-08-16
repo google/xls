@@ -49,6 +49,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_builder.h"
 #include "xls/ir/value_utils.h"
 #include "xls/ir/verifier.h"
 
@@ -62,6 +63,8 @@ using ::xls::status_testing::IsOkAndHolds;
 using ::xls::status_testing::StatusIs;
 
 using ArgMap = absl::flat_hash_map<std::string, Value>;
+
+using VB = ValueBuilder;
 
 TEST_P(IrEvaluatorTestBase, InterpretLiteral) {
   Package package("my_package");
@@ -4129,6 +4132,76 @@ TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
   EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
   EXPECT_THAT(print_trace_result.events.trace_msgs,
               ElementsAre(FieldsAre("hello world!", 0)));
+}
+
+TEST_P(IrEvaluatorTestBase, TupleTraceTest) {
+  Package p("empty_trace_test");
+
+  FunctionBuilder b("fun", &p);
+
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  std::vector<BValue> args = {};
+  b.Trace(
+      p0, /*condition=*/b.Literal(UBits(1, 1)),
+      {b.Literal(Value::Tuple({Value(UBits(1, 8)), Value(UBits(123, 32))}))},
+      "my tuple = {}");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
+                           RunWithEvents(f, {Value::Token()}));
+  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
+  EXPECT_THAT(print_trace_result.events.trace_msgs,
+              ElementsAre(FieldsAre("my tuple = (1, 123)", 0)));
+}
+
+TEST_P(IrEvaluatorTestBase, TupleTraceTestHex) {
+  Package p("empty_trace_test");
+
+  FunctionBuilder b("fun", &p);
+
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  std::vector<BValue> args = {};
+  b.Trace(
+      p0, /*condition=*/b.Literal(UBits(1, 1)),
+      {b.Literal(Value::Tuple({Value(UBits(1, 8)), Value(UBits(123, 32))}))},
+      "my tuple = {:#x}");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
+                           RunWithEvents(f, {Value::Token()}));
+  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
+  EXPECT_THAT(print_trace_result.events.trace_msgs,
+              ElementsAre(FieldsAre("my tuple = (0x1, 0x7b)", 0)));
+}
+
+TEST_P(IrEvaluatorTestBase, ComplexTypeTraceTest) {
+  Package p("empty_trace_test");
+
+  FunctionBuilder b("fun", &p);
+
+  auto p0 = b.Param("tkn", p.GetTokenType());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value complex_value,
+      VB::Tuple(
+          {VB::Array(
+               {VB::Tuple({VB::Bits(UBits(1, 4)), VB::Bits(UBits(2, 24))}),
+                VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(123, 24))})}),
+           VB::Bits(UBits(42, 8)), VB::Token(), VB::Tuple({})})
+          .Build());
+  b.Trace(p0, /*condition=*/b.Literal(UBits(1, 1)), {b.Literal(complex_value)},
+          "my complex value = {}");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> print_trace_result,
+                           RunWithEvents(f, {Value::Token()}));
+  EXPECT_THAT(print_trace_result.events.assert_msgs, ElementsAre());
+  EXPECT_THAT(
+      print_trace_result.events.trace_msgs,
+      ElementsAre(FieldsAre(
+          "my complex value = ([(1, 2), (3, 123)], 42, token, ())", 0)));
 }
 
 TEST_P(IrEvaluatorTestBase, TraceVerbosityTest) {

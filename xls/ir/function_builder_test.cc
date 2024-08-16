@@ -1040,19 +1040,6 @@ TEST(FunctionBuilderTest, TraceWrongTypeConditionOperand) {
               "Condition operand of trace must be of bits type of width 1")));
 }
 
-TEST(FunctionBuilderTest, TraceWrongTypeTraceArg) {
-  Package p("p");
-  FunctionBuilder b("f", &p);
-
-  auto tkn = b.Param("tkn", p.GetTokenType());
-
-  b.Trace(tkn, b.Param("cond", p.GetBitsType(1)), {tkn}, "x is {}");
-
-  EXPECT_THAT(b.Build().status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Trace arguments must be of bits type")));
-}
-
 TEST(FunctionBuilderTest, TraceWrongNumberOfArgs) {
   Package p("p");
   FunctionBuilder b("f", &p);
