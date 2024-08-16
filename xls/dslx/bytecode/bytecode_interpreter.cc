@@ -1584,20 +1584,19 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     const BytecodeInterpreterOptions& options) {
   const TypeInfo* parent_ti = type_info;
 
+  const ParametricEnv& actual_caller_bindings =
+      caller_bindings.has_value() ? caller_bindings.value() : ParametricEnv();
+
   auto get_parametric_type_info =
-      [type_info](const Spawn* spawn, const Invocation* invoc,
-                  const std::optional<ParametricEnv>& maybe_caller_bindings)
-      -> absl::StatusOr<TypeInfo*> {
-    const ParametricEnv& caller_bindings = maybe_caller_bindings.has_value()
-                                               ? maybe_caller_bindings.value()
-                                               : ParametricEnv();
+      [type_info, actual_caller_bindings](
+          const Invocation* invoc) -> absl::StatusOr<TypeInfo*> {
     std::optional<TypeInfo*> maybe_type_info =
-        type_info->GetInvocationTypeInfo(invoc, caller_bindings);
+        type_info->GetInvocationTypeInfo(invoc, actual_caller_bindings);
     if (!maybe_type_info.has_value()) {
       return absl::InternalError(absl::StrFormat(
           "ProcConfigBytecodeInterpreter::EvalSpawn; could not find type info "
           "for invocation `%s` caller_bindings: %s",
-          invoc->ToString(), caller_bindings.ToString()));
+          invoc->ToString(), actual_caller_bindings.ToString()));
     }
     return maybe_type_info.value();
   };
@@ -1608,10 +1607,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   if (maybe_spawn.has_value()) {
     // We're guaranteed that these have values if the proc is parametric (the
     // root proc can't be parametric).
-    XLS_ASSIGN_OR_RETURN(type_info,
-                         get_parametric_type_info(maybe_spawn.value(),
-                                                  maybe_spawn.value()->config(),
-                                                  caller_bindings));
+    XLS_ASSIGN_OR_RETURN(
+        type_info, get_parametric_type_info(maybe_spawn.value()->config()));
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -1655,10 +1652,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   }
 
   if (maybe_spawn.has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        type_info,
-        get_parametric_type_info(maybe_spawn.value(),
-                                 maybe_spawn.value()->next(), caller_bindings));
+    XLS_ASSIGN_OR_RETURN(type_info,
+                         get_parametric_type_info(maybe_spawn.value()->next()));
   }
 
   XLS_ASSIGN_OR_RETURN(
