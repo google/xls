@@ -63,7 +63,7 @@ proc BlockDecoder {
         spawn demux::DecoderDemux(input_r, demux_raw_s, demux_rle_s, demux_cmp_s);
         spawn raw::RawBlockDecoder(demux_raw_r, mux_raw_s);
         spawn rle::RleBlockDecoder(demux_rle_r, mux_rle_s);
-        // TODO(lpawelcz): 2023-11-28 change to compressed block decoder proc
+        // TODO(antmicro): 2023-11-28 change to compressed block decoder proc
         spawn raw::RawBlockDecoder(demux_cmp_r, mux_cmp_s);
         spawn mux::DecoderMux(mux_raw_r, mux_rle_r, mux_cmp_r, output_s);
 
