@@ -40,7 +40,6 @@
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
-#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -50,13 +49,10 @@
 namespace xls::dslx {
 
 ChannelScope::ChannelScope(PackageConversionData* conversion_info,
-                           TypeInfo* type_info, ImportData* import_data,
-                           const ParametricEnv& bindings)
+                           ImportData* import_data)
     : conversion_info_(conversion_info),
-      type_info_(type_info),
       import_data_(import_data),
-      channel_name_uniquer_(/*separator=*/"__"),
-      bindings_(bindings) {
+      channel_name_uniquer_(/*separator=*/"__") {
   // Populate channel name uniquer with pre-existing channel names.
   for (Channel* channel : conversion_info_->package->channels()) {
     channel_name_uniquer_.GetSanitizedUniqueName(channel->name());
@@ -67,6 +63,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
     const ChannelDecl* decl) {
   VLOG(4) << "ChannelScope::HandleChannelDecl: " << decl->ToString() << " : "
           << decl->span().ToString();
+  CHECK(function_context_.has_value());
   XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
                        CreateBaseChannelName(decl));
   XLS_ASSIGN_OR_RETURN(xls::Type * type, GetChannelType(decl));
@@ -119,17 +116,19 @@ absl::Status ChannelScope::AssociateWithExistingChannelOrArray(
 absl::StatusOr<Channel*> ChannelScope::GetChannelForArrayIndex(
     const Index* index) {
   VLOG(4) << "ChannelScope::GetChannelForArrayIndex : " << index->ToString();
+  CHECK(function_context_.has_value());
   std::string suffix;
   for (;;) {
     if (!std::holds_alternative<Expr*>(index->rhs())) {
       return absl::UnimplementedError(
           "Channel array elements must be accessed with a constexpr index.");
     }
-    XLS_ASSIGN_OR_RETURN(InterpValue dim_interp_value,
-                         ConstexprEvaluator::EvaluateToValue(
-                             import_data_, type_info_,
-                             /*warning_collector=*/nullptr, bindings_,
-                             std::get<Expr*>(index->rhs())));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue dim_interp_value,
+        ConstexprEvaluator::EvaluateToValue(
+            import_data_, function_context_->type_info,
+            /*warning_collector=*/nullptr, function_context_->bindings,
+            std::get<Expr*>(index->rhs())));
     XLS_ASSIGN_OR_RETURN(int64_t dim_value,
                          dim_interp_value.GetBitValueUnsigned());
     suffix = suffix.empty() ? absl::StrCat(dim_value)
@@ -174,10 +173,11 @@ ChannelScope::CreateAllArrayElementSuffixes(const std::vector<Expr*>& dims) {
   // them to produce index strings in indexing order, hence the backwards loop.
   for (int64_t i = dims.size() - 1; i >= 0; --i) {
     Expr* dim = dims[i];
-    XLS_ASSIGN_OR_RETURN(InterpValue dim_interp_value,
-                         ConstexprEvaluator::EvaluateToValue(
-                             import_data_, type_info_,
-                             /*warning_collector=*/nullptr, bindings_, dim));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue dim_interp_value,
+        ConstexprEvaluator::EvaluateToValue(
+            import_data_, function_context_->type_info,
+            /*warning_collector=*/nullptr, function_context_->bindings, dim));
     XLS_ASSIGN_OR_RETURN(int64_t dim_value,
                          dim_interp_value.GetBitValueUnsigned());
     std::vector<std::string> new_strings;
@@ -202,7 +202,8 @@ absl::StatusOr<std::string> ChannelScope::CreateBaseChannelName(
   XLS_ASSIGN_OR_RETURN(
       InterpValue name_interp_value,
       ConstexprEvaluator::EvaluateToValue(
-          import_data_, type_info_, /*warning_collector=*/nullptr, bindings_,
+          import_data_, function_context_->type_info,
+          /*warning_collector=*/nullptr, function_context_->bindings,
           &decl->channel_name_expr()));
   XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
                        InterpValueAsString(name_interp_value));
@@ -212,10 +213,10 @@ absl::StatusOr<std::string> ChannelScope::CreateBaseChannelName(
 
 absl::StatusOr<xls::Type*> ChannelScope::GetChannelType(
     const ChannelDecl* decl) const {
-  auto maybe_type = type_info_->GetItem(decl->type());
+  auto maybe_type = function_context_->type_info->GetItem(decl->type());
   XLS_RET_CHECK(maybe_type.has_value());
   return TypeToIr(conversion_info_->package.get(), *maybe_type.value(),
-                  bindings_);
+                  function_context_->bindings);
 }
 
 absl::StatusOr<std::optional<FifoConfig>> ChannelScope::CreateFifoConfig(
@@ -227,7 +228,8 @@ absl::StatusOr<std::optional<FifoConfig>> ChannelScope::CreateFifoConfig(
     XLS_ASSIGN_OR_RETURN(
         InterpValue iv,
         ConstexprEvaluator::EvaluateToValue(
-            import_data_, type_info_, /*warning_collector=*/nullptr, bindings_,
+            import_data_, function_context_->type_info,
+            /*warning_collector=*/nullptr, function_context_->bindings,
             decl->fifo_depth().value()));
     XLS_ASSIGN_OR_RETURN(Value fifo_depth_value, iv.ConvertToIr());
     if (!fifo_depth_value.IsBits()) {
@@ -283,6 +285,7 @@ absl::StatusOr<Channel*> ChannelScope::GetChannelArrayElement(
       absl::StrCat(array->base_channel_name(), "__", flattened_name_suffix);
   std::optional<Channel*> channel = array->FindChannel(flattened_channel_name);
   if (channel.has_value()) {
+    VLOG(4) << "Found channel array element: " << (*channel)->name();
     return *channel;
   }
   return absl::NotFoundError(absl::StrCat(

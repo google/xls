@@ -71,7 +71,8 @@ absl::Status ParseAndAcceptWithConverter(std::string_view module_text,
   XLS_ASSIGN_OR_RETURN(
       Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
 
-  ChannelScope channel_scope(&conv, tm.type_info, &import_data, bindings);
+  ChannelScope channel_scope(&conv, &import_data);
+  channel_scope.EnterFunctionContext(tm.type_info, bindings);
   ProcConfigIrConverter converter(&conv, f, tm.type_info, &import_data,
                                   &proc_data, &channel_scope, bindings,
                                   proc_id);
@@ -263,6 +264,75 @@ proc main {
   EXPECT_THAT(conv.package->channels(),
               AllOf(Contains(m::Channel("test_module__my_chan")),
                     Contains(m::Channel("test_module__my_chan__1"))));
+}
+
+TEST(ProcConfigIrConverterTest, DealOutChannelArrayElementsToSpawnee) {
+  // TODO: https://github.com/google/xls/issues/704 - make unroll_for! work for
+  // the spawn() and send()/recv() pairs below.
+  constexpr std::string_view kModule = R"(
+  proc B {
+    input: chan<u32> in;
+    output: chan<u32> out;
+
+    init { () }
+
+    config(input: chan<u32> in, output: chan<u32> out) {
+      (input, output)
+    }
+
+    next(state: ()) {
+      let (tok, data) = recv(join(), input);
+      let tok = send(tok, output, data);
+    }
+  }
+
+  proc A {
+    inputs: chan<u32>[2][2] in;
+    outputs: chan<u32>[2][2] out;
+
+    init { () }
+
+    config() {
+      let (output_to_b, input_from_b) = chan<u32>[2][2]("toward_b");
+      let (output_to_a, input_from_a) = chan<u32>[2][2]("toward_a");
+      spawn B(input_from_a[0][0], output_to_a[0][0]);
+      spawn B(input_from_a[0][1], output_to_a[0][1]);
+      spawn B(input_from_a[1][0], output_to_a[1][0]);
+      spawn B(input_from_a[1][1], output_to_a[1][1]);
+      (input_from_b, output_to_b)
+    }
+
+    next(state: ()) {
+      let tok = send(join(), outputs[0][0], u32:3);
+      let (tok, data) = recv(tok, inputs[0][0]);
+
+      let tok = send(tok, outputs[0][1], data);
+      let (tok, data) = recv(tok, inputs[0][1]);
+
+      let tok = send(tok, outputs[1][0], data);
+      let (tok, data) = recv(tok, inputs[1][0]);
+
+      let tok = send(tok, outputs[1][1], data);
+      let (tok, data) = recv(tok, inputs[1][1]);
+    }
+  }
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageConversionData conv,
+      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+  EXPECT_THAT(conv.package->channels(),
+              UnorderedElementsAre(m::Channel("test_module__toward_a__0_0"),
+                                   m::Channel("test_module__toward_a__0_1"),
+                                   m::Channel("test_module__toward_a__1_0"),
+                                   m::Channel("test_module__toward_a__1_1"),
+                                   m::Channel("test_module__toward_b__0_0"),
+                                   m::Channel("test_module__toward_b__0_1"),
+                                   m::Channel("test_module__toward_b__1_0"),
+                                   m::Channel("test_module__toward_b__1_1")));
 }
 
 TEST(ProcConfigIrConverterTest, MultipleNonLeafSpawnsOfSameProc) {

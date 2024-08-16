@@ -52,8 +52,8 @@ class ChannelScopeTest : public ::testing::Test {
     module_ = std::make_unique<Module>("test", /*fs_path=*/std::nullopt);
     import_data_ = std::make_unique<ImportData>(CreateImportDataForTest());
     XLS_ASSERT_OK_AND_ASSIGN(type_info_, type_info_owner_.New(module_.get()));
-    scope_ = std::make_unique<ChannelScope>(&conv_, type_info_,
-                                            import_data_.get(), bindings_);
+    scope_ = std::make_unique<ChannelScope>(&conv_, import_data_.get());
+    scope_->EnterFunctionContext(type_info_, bindings_);
   }
 
  protected:

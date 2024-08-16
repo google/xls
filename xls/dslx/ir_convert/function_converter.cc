@@ -713,6 +713,12 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
           cvalue.ir_value = std::get<Value>(v);
           cvalue.value = function_builder_->Literal(cvalue.ir_value);
           SetNodeToIr(from, cvalue);
+        } else if (std::holds_alternative<ChannelArray*>(v)) {
+          VLOG(4) << "Reference to Proc member: " << k << " : Chan array : "
+                  << std::get<ChannelArray*>(v)->ToString();
+          // There is no IR equivalent for a channel array. The Index nodes
+          // that refer to it have to be lowered to refer to specific channels.
+          return absl::OkStatus();
         } else {
           VLOG(4) << "Reference to Proc member: " << k
                   << " : Chan  : " << std::get<Channel*>(v)->ToString();
@@ -1646,6 +1652,12 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleIndex(const Index* node) {
+  absl::StatusOr<Channel*> channel =
+      channel_scope_->GetChannelForArrayIndex(node);
+  if (channel.ok()) {
+    node_to_ir_[node] = *channel;
+    return absl::OkStatus();
+  }
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
 

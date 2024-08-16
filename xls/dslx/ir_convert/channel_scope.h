@@ -42,6 +42,10 @@ namespace xls::dslx {
 class ChannelArray {
   friend class ChannelScope;
 
+ public:
+  // For logging purposes.
+  std::string ToString() const { return base_channel_name_; }
+
  private:
   explicit ChannelArray(std::string_view base_channel_name)
       : base_channel_name_(base_channel_name) {}
@@ -76,8 +80,15 @@ using ChannelOrArray = std::variant<Channel*, ChannelArray*>;
 // An object that manages definition and access to channels used in a proc.
 class ChannelScope {
  public:
-  ChannelScope(PackageConversionData* conversion_info, TypeInfo* type_info,
-               ImportData* import_data, const ParametricEnv& bindings);
+  ChannelScope(PackageConversionData* conversion_info, ImportData* import_data);
+
+  // The owner (IR converter driving the overall procedure) should invoke this
+  // with the `type_info` and `bindings` for the function, before converting
+  // each function to IR. All other functions assume this has been done.
+  void EnterFunctionContext(TypeInfo* type_info,
+                            const ParametricEnv& bindings) {
+    function_context_.emplace(type_info, bindings);
+  }
 
   // Creates the channel object, or array of channel objects, indicated by the
   // given `decl`, and returns it.
@@ -134,10 +145,20 @@ class ChannelScope {
       const NameRef* name_ref, std::string_view flattened_name_suffix);
 
   PackageConversionData* const conversion_info_;
-  TypeInfo* const type_info_;
   ImportData* const import_data_;
   NameUniquer channel_name_uniquer_;
-  const ParametricEnv& bindings_;
+
+  // Set by the caller via `EnterContext()` before the conversion of each
+  // function.
+  struct FunctionContext {
+    FunctionContext(TypeInfo* type_info_value,
+                    const ParametricEnv& bindings_value)
+        : type_info(type_info_value), bindings(bindings_value) {}
+
+    TypeInfo* const type_info;
+    const ParametricEnv& bindings;
+  };
+  std::optional<FunctionContext> function_context_;
 
   // Owns all arrays that are pointed to by ChannelOrArray objects dealt out by
   // this scope. A `list` is used for pointer stability.

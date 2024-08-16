@@ -92,8 +92,14 @@ absl::Status ProcConfigIrConverter::Finalize() {
   XLS_RET_CHECK_EQ(p->members().size(), final_tuple_->members().size());
   for (int i = 0; i < p->members().size(); i++) {
     ProcMember* member = p->members()[i];
-    proc_data_->id_to_members.at(proc_id_)[member->identifier()] =
-        node_to_ir_.at(final_tuple_->members()[i]);
+    ProcConfigValue value = node_to_ir_.at(final_tuple_->members()[i]);
+    proc_data_->id_to_members.at(proc_id_)[member->identifier()] = value;
+    std::optional<ChannelOrArray> channel_or_array =
+        ProcConfigValueToChannelOrArray(value);
+    if (channel_or_array.has_value()) {
+      XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
+          member->name_def(), *channel_or_array));
+    }
   }
 
   return absl::OkStatus();
@@ -138,6 +144,13 @@ absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
   return node->body()->Accept(this);
 }
 
+absl::Status ProcConfigIrConverter::HandleIndex(const Index* node) {
+  XLS_ASSIGN_OR_RETURN(Channel * channel,
+                       channel_scope_->GetChannelForArrayIndex(node));
+  node_to_ir_[node] = channel;
+  return absl::OkStatus();
+}
+
 absl::Status ProcConfigIrConverter::HandleInvocation(const Invocation* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleInvocation: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
@@ -174,7 +187,13 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
           absl::StrCat("Let RHS not evaluated as constexpr: ", def->ToString(),
                        " : ", node->rhs()->ToString()));
     }
-    auto value = node_to_ir_.at(node->rhs());
+    ProcConfigValue value = node_to_ir_.at(node->rhs());
+    std::optional<ChannelOrArray> channel_or_array =
+        ProcConfigValueToChannelOrArray(value);
+    if (channel_or_array.has_value()) {
+      XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
+          def, *channel_or_array));
+    }
     node_to_ir_[def] = value;
   }
 

@@ -162,16 +162,15 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
                                         const ConversionRecord& record,
                                         ImportData* import_data,
                                         ProcConversionData* proc_data,
+                                        ChannelScope* channel_scope,
                                         const ConvertOptions& options) {
   // Validate the requested conversion looks sound in terms of provided
   // parametrics.
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(
       record.f(), record.parametric_env()));
 
-  ChannelScope channel_scope(package_data.conversion_info, record.type_info(),
-                             import_data, record.parametric_env());
   FunctionConverter converter(package_data, record.module(), import_data,
-                              options, proc_data, &channel_scope,
+                              options, proc_data, channel_scope,
                               record.IsTop());
   XLS_ASSIGN_OR_RETURN(auto constant_deps,
                        GetConstantDepFreevars(record.f()->body()));
@@ -184,7 +183,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter config_converter(
         package_data.conversion_info, f, record.type_info(), import_data,
-        proc_data, &channel_scope, record.parametric_env(),
+        proc_data, channel_scope, record.parametric_env(),
         record.proc_id().value());
     XLS_RETURN_IF_ERROR(f->Accept(&config_converter));
     XLS_RETURN_IF_ERROR(config_converter.Finalize());
@@ -291,6 +290,12 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   // ConvertOneFunctionInternal().
   ProcConversionData proc_data;
 
+  // The `ChannelScope` owns all `ChannelArray` objects in the call graph, so
+  // we need one instance to span all functions. However, most uses of it need
+  // to be in the context of a function, and it needs to be aware of the current
+  // function context, for e.g. index expression interpretation.
+  ChannelScope channel_scope(package_data.conversion_info, import_data);
+
   // The top-level proc's input/output channels need to come from _somewhere_.
   // At conversion time, though, we won't have that info. To enable forward
   // progress, we collect any channel args to the top-level proc and declare
@@ -340,8 +345,11 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
 
   for (const ConversionRecord& record : order) {
     VLOG(3) << "Converting to IR: " << record.ToString();
-    XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(
-        package_data, record, import_data, &proc_data, options));
+    channel_scope.EnterFunctionContext(record.type_info(),
+                                       record.parametric_env());
+    XLS_RETURN_IF_ERROR(ConvertOneFunctionInternal(package_data, record,
+                                                   import_data, &proc_data,
+                                                   &channel_scope, options));
   }
 
   VLOG(3) << "Verifying converted package";
