@@ -845,19 +845,45 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     Context* ctx, const TypeAnnotation* type) {
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
-    // Twenty percent of the time, generate a wildcard pattern.
-    if (RandomBool(0.20)) {
+    // Ten percent of the time, generate a wildcard pattern.
+    if (RandomBool(0.1)) {
       WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
       return module_->Make<NameDefTree>(fake_span_, wc);
     }
-    std::vector<NameDefTree*> tuple_values(tuple_type->size(), nullptr);
+
+    // Ten percent of tuples should have a "rest of tuple", and skip
+    // a random # of the rest of the tuple.
+    auto insert_rest_of_tuple = RandomBool(0.1);
+    auto rest_of_tuple_index =
+        RandomIntWithExpectedValue(tuple_type->size() / 2.0, 0);
+    auto number_to_skip =
+        RandomIntWithExpectedValue(tuple_type->size() / 2.0, 0);
+    std::vector<NameDefTree*> tuple_values;
+    tuple_values.reserve(tuple_type->size() + 1);
     for (int64_t index = 0; index < tuple_type->size(); ++index) {
+      if (rest_of_tuple_index == index && insert_rest_of_tuple) {
+        insert_rest_of_tuple = false;
+
+        RestOfTuple* rest = module_->Make<RestOfTuple>(fake_span_);
+        tuple_values.push_back(module_->Make<NameDefTree>(fake_span_, rest));
+
+        // Jump forward a random # of elements
+        if (number_to_skip > 0) {
+          index += number_to_skip;
+          // We could keep this entry, or skip it, but for now, skip it.
+          continue;
+        }
+        // The jump forward is 0; we'll keep this entry.
+      }
+
       XLS_ASSIGN_OR_RETURN(
-          tuple_values[index],
+          NameDefTree * pattern,
           GenerateMatchArmPattern(ctx, tuple_type->members()[index]));
+      tuple_values.push_back(pattern);
     }
     return module_->Make<NameDefTree>(fake_span_, tuple_values);
   }
+
   if (IsArray(type)) {
     // For the array type, only name references are supported in the match arm.
     // Reference: https://github.com/google/xls/issues/810.
