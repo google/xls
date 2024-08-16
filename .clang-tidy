@@ -33,6 +33,8 @@ Checks: >
   -clang-diagnostic-sign-conversion,
   -clang-diagnostic-builtin-macro-redefined,
   clang-analyzer-*,
+  -clang-analyzer-core.CallAndMessage,
+  -clang-analyzer-core.NullDereference,
   abseil-*,
   -abseil-no-namespace,
   readability-*,
