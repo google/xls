@@ -54,6 +54,7 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithoutError) {
   PackageData package_data{&package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -95,6 +96,7 @@ TEST(FunctionConverterTest, TracksMultipleTypeAliasSvType) {
   PackageData package_data{&package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -142,6 +144,7 @@ TEST(FunctionConverterTest, TracksTypeAliasSvType) {
   PackageData package_data{&package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -192,6 +195,7 @@ fn f(b: Baz) -> FooBar { b + u32:42 })",
   PackageData package_data{&package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -240,6 +244,7 @@ fn f() -> u32 { u32:42 }
   PackageData package_data{&package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -287,6 +292,7 @@ fn f() {
   PackageData package_data{&package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -344,6 +350,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithZipBuiltin) {
   PackageData package_data{&package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -414,6 +421,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltin) {
   PackageData package_data{.conversion_info = &package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
@@ -475,6 +483,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltinEmptyTuple) {
   PackageData package_data{.conversion_info = &package};
   FunctionConverter converter(package_data, tm.module, &import_data,
                               convert_options, /*proc_data=*/nullptr,
+                              /*channel_scope=*/nullptr,
                               /*is_top=*/true);
   XLS_ASSERT_OK(
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));

@@ -22,12 +22,12 @@
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/name_uniquer.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 
@@ -60,6 +60,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   ProcConfigIrConverter(PackageConversionData* conversion_info, Function* f,
                         TypeInfo* type_info, ImportData* import_data,
                         ProcConversionData* proc_data,
+                        ChannelScope* channel_scope,
                         const ParametricEnv& bindings, const ProcId& proc_id);
 
   absl::Status HandleStatementBlock(const StatementBlock* node) override;
@@ -85,9 +86,9 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   Function* f_;
   TypeInfo* type_info_;
   ImportData* import_data_;
-  NameUniquer channel_name_uniquer_;
 
   ProcConversionData* proc_data_;
+  ChannelScope* channel_scope_;
   ProcIdFactory proc_id_factory_;
 
   const ParametricEnv& bindings_;

@@ -24,9 +24,11 @@
 #include "absl/status/status.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
@@ -52,6 +54,28 @@ namespace m = ::xls::op_matchers;
 
 PackageConversionData MakeConversionData(std::string_view n) {
   return {.package = std::make_unique<Package>(n)};
+}
+
+absl::Status ParseAndAcceptWithConverter(std::string_view module_text,
+                                         PackageConversionData& conv,
+                                         const ProcId& proc_id,
+                                         ProcConversionData& proc_data) {
+  auto import_data = CreateImportDataForTest();
+
+  ParametricEnv bindings;
+
+  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
+                       ParseAndTypecheck(module_text, "test_module.x",
+                                         "test_module", &import_data));
+
+  XLS_ASSIGN_OR_RETURN(
+      Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
+
+  ChannelScope channel_scope(&conv, tm.type_info, &import_data, bindings);
+  ProcConfigIrConverter converter(&conv, f, tm.type_info, &import_data,
+                                  &proc_data, &channel_scope, bindings,
+                                  proc_id);
+  return f->Accept(&converter);
 }
 
 TEST(ProcConfigIrConverterTest, BasicConversion) {
@@ -83,33 +107,18 @@ proc main {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-
-  ParametricEnv bindings;
-  ProcId proc_id;
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
-
-  PackageConversionData conv = MakeConversionData("the_package");
   ChannelMetadataProto metadata;
+  PackageConversionData conv = MakeConversionData("the_package");
   StreamingChannel channel("the_channel", /*id=*/0, ChannelOps::kSendReceive,
                            conv.package->GetBitsType(32), {},
                            /*fifo_config=*/std::nullopt, FlowControl::kNone,
                            ChannelStrictness::kProvenMutuallyExclusive,
                            metadata);
-
   ProcConversionData proc_data;
+  ProcId proc_id;
   proc_data.id_to_config_args[proc_id].push_back(&channel);
   proc_data.id_to_config_args[proc_id].push_back(Value(UBits(8, 32)));
-
-  ProcConfigIrConverter converter(&conv, f, tm.type_info, &import_data,
-                                  &proc_data, bindings, proc_id);
-  XLS_EXPECT_OK(f->Accept(&converter));
+  XLS_EXPECT_OK(ParseAndAcceptWithConverter(kModule, conv, proc_id, proc_data));
 }
 
 TEST(ProcConfigIrConverterTest, CatchesMissingArgMap) {
@@ -139,23 +148,10 @@ proc main {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-
-  ParametricEnv bindings;
   ProcId proc_id;
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
-
-  PackageConversionData conv = MakeConversionData("the_package");
   ProcConversionData proc_data;
-  ProcConfigIrConverter converter(&conv, f, tm.type_info, &import_data,
-                                  &proc_data, bindings, proc_id);
-  EXPECT_THAT(f->Accept(&converter),
+  PackageConversionData conv = MakeConversionData("the_package");
+  EXPECT_THAT(ParseAndAcceptWithConverter(kModule, conv, proc_id, proc_data),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("not found in arg mapping")));
 }

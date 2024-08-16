@@ -36,6 +36,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
@@ -132,7 +133,8 @@ class FunctionConverter {
  public:
   FunctionConverter(PackageData& package_data, Module* module,
                     ImportData* import_data, ConvertOptions options,
-                    ProcConversionData* proc_data, bool is_top);
+                    ProcConversionData* proc_data, ChannelScope* channel_scope,
+                    bool is_top);
 
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
@@ -524,6 +526,9 @@ class FunctionConverter {
 
   // Uses id_to_members to resolve a proc's [constant] member values.
   ProcConversionData* proc_data_;
+
+  // Used to handle channel array accesses.
+  ChannelScope* channel_scope_;
 
   std::vector<BValue> tokens_;
 

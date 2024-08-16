@@ -55,6 +55,7 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
@@ -167,8 +168,11 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(
       record.f(), record.parametric_env()));
 
+  ChannelScope channel_scope(package_data.conversion_info, record.type_info(),
+                             import_data, record.parametric_env());
   FunctionConverter converter(package_data, record.module(), import_data,
-                              options, proc_data, record.IsTop());
+                              options, proc_data, &channel_scope,
+                              record.IsTop());
   XLS_ASSIGN_OR_RETURN(auto constant_deps,
                        GetConstantDepFreevars(record.f()->body()));
   for (const auto& dep : constant_deps) {
@@ -180,7 +184,8 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter config_converter(
         package_data.conversion_info, f, record.type_info(), import_data,
-        proc_data, record.parametric_env(), record.proc_id().value());
+        proc_data, &channel_scope, record.parametric_env(),
+        record.proc_id().value());
     XLS_RETURN_IF_ERROR(f->Accept(&config_converter));
     XLS_RETURN_IF_ERROR(config_converter.Finalize());
     return absl::OkStatus();

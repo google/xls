@@ -50,6 +50,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
+#include "xls/dslx/ir_convert/channel_scope.h"
 #include "xls/dslx/ir_convert/convert_format_macro.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
@@ -394,7 +395,8 @@ absl::Status FunctionConverter::Visit(const AstNode* node) {
 FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
                                      ImportData* import_data,
                                      ConvertOptions options,
-                                     ProcConversionData* proc_data, bool is_top)
+                                     ProcConversionData* proc_data,
+                                     ChannelScope* channel_scope, bool is_top)
     : package_data_(package_data),
       module_(module),
       import_data_(import_data),
@@ -404,6 +406,7 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
                         std::string{module->fs_path().value()})
                   : Fileno(0)),
       proc_data_(proc_data),
+      channel_scope_(channel_scope),
       is_top_(is_top) {
   VLOG(5) << "Constructed IR converter: " << this;
 }
@@ -1196,7 +1199,8 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_data_, module_, import_data_,
-                                   options_, proc_data_, /*is_top=*/false);
+                                   options_, proc_data_, channel_scope_,
+                                   /*is_top=*/false);
   body_converter.set_parametric_env_map(parametric_env_map_);
 
   // The body conversion uses the same types that we use in the caller.
