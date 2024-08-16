@@ -192,15 +192,6 @@ def load_external_repositories():
         url = "https://github.com/google/riegeli/archive/cb68d579f108c96831b6a7815da43ff24b4e5242.tar.gz",
     )
 
-    # Needed by fuzztest. Release 2024-03-30, current as of 2024-06-26
-    http_archive(
-        name = "net_zstd",
-        build_file = "@com_google_riegeli//third_party:net_zstd.BUILD",
-        sha256 = "30f35f71c1203369dc979ecde0400ffea93c27391bfd2ac5a9715d2173d92ff7",
-        strip_prefix = "zstd-1.5.6/lib",
-        urls = ["https://github.com/facebook/zstd/archive/v1.5.6.tar.gz"],
-    )
-
     # Needed by fuzztest. Release 2024-05-21, current as of 2024-06-26
     http_archive(
         name = "snappy",
@@ -330,4 +321,17 @@ def load_external_repositories():
         name = "rules_pkg",
         urls = ["https://github.com/bazelbuild/rules_pkg/releases/download/1.0.0/rules_pkg-1.0.0.tar.gz"],
         sha256 = "cad05f864a32799f6f9022891de91ac78f30e0fa07dc68abac92a628121b5b11",
+    )
+
+    # Used in C++ tests of the ZSTD Module
+    # Transitive dependency of fuzztest (required by riegeli in fuzztest workspace)
+    # Version fdfb2aff released on 2024-07-31
+    # https://github.com/facebook/zstd/commit/fdfb2aff39dc498372d8c9e5f2330b692fea9794
+    # Updated 2024-08-08
+    http_archive(
+        name = "zstd",
+        sha256 = "9ace5a1b3c477048c6e034fe88d2abb5d1402ced199cae8e9eef32fdc32204df",
+        strip_prefix = "zstd-fdfb2aff39dc498372d8c9e5f2330b692fea9794",
+        urls = ["https://github.com/facebook/zstd/archive/fdfb2aff39dc498372d8c9e5f2330b692fea9794.zip"],
+        build_file = "//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
     )
