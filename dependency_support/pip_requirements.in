@@ -8,6 +8,10 @@ termcolor==1.1.0
 psutil==5.7.0
 portpicker==1.3.1
 pyyaml==6.0.1
+pytest==8.2.2
+cocotb==1.9.0
+cocotbext-axi==0.1.24
+cocotb_bus==0.2.1
 
 # Note: numpy and scipy version availability seems to differ between Ubuntu
 # versions that we want to support (e.g. 18.04 vs 20.04), so we accept a
