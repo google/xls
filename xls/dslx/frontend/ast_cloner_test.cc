@@ -14,6 +14,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -26,10 +27,24 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
 namespace {
+
+std::optional<TypeRef*> FindFirstTypeRef(AstNode* node) {
+  if (auto type_ref = dynamic_cast<TypeRef*>(node); type_ref) {
+    return type_ref;
+  }
+  for (AstNode* child : node->GetChildren(true)) {
+    std::optional type_ref = FindFirstTypeRef(child);
+    if (type_ref.has_value()) {
+      return type_ref;
+    }
+  }
+  return std::nullopt;
+}
 
 TEST(AstClonerTest, BasicOperation) {
   constexpr std::string_view kProgram = R"(
@@ -73,6 +88,43 @@ fn main() -> u32 {
                            module->GetMemberOrError<Function>("main"));
   StatementBlock* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
+  EXPECT_EQ(kExpected, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
+}
+
+TEST(AstClonerTest, ReplaceOneOfTwoNameRefs) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+    let a = u32:0;
+    let b = a + 2;
+    b
+})";
+
+  constexpr std::string_view kExpected = R"({
+    let a = u32:0;
+    let b = 3 + 2;
+    b
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
+  Number* a_replacement =
+      module->Make<Number>(Span::Fake(), "3", NumberKind::kOther,
+                           /*type=*/nullptr);
+  StatementBlock* body_expr = f->body();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      AstNode * clone,
+      CloneAst(body_expr,
+               [&](const AstNode* original_node) -> std::optional<AstNode*> {
+                 if (const auto* name_ref =
+                         dynamic_cast<const NameRef*>(original_node);
+                     name_ref && name_ref->identifier() == "a") {
+                   return a_replacement;
+                 }
+                 return std::nullopt;
+               }));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(body_expr, clone));
 }
@@ -334,6 +386,29 @@ TEST(AstClonerTest, TypeAlias) {
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(type_alias));
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(type_alias, clone));
+}
+
+TEST(AstClonerTest, PreserveTypeDefinitionsReplacer) {
+  constexpr std::string_view kProgram =
+      R"(
+type my_type = u32;
+fn foo() -> u32 {
+  zero!<my_type>()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone,
+                           CloneAst(foo, &PreserveTypeDefinitionsReplacer));
+  std::optional<TypeRef*> type_ref = FindFirstTypeRef(foo);
+  ASSERT_TRUE(type_ref.has_value());
+  std::optional<TypeRef*> cloned_type_ref = FindFirstTypeRef(clone);
+  ASSERT_TRUE(cloned_type_ref.has_value());
+  EXPECT_EQ((*cloned_type_ref)->type_definition(),
+            (*type_ref)->type_definition());
 }
 
 TEST(AstClonerTest, QuickCheck) {

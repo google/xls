@@ -173,7 +173,7 @@ std::string_view PrecedenceToString(Precedence p) {
 constexpr int64_t kTargetLineChars = 80;
 
 ExprOrType ToExprOrType(AstNode* n) {
-  if (Expr* e = down_cast<Expr*>(n)) {
+  if (Expr* e = dynamic_cast<Expr*>(n)) {
     return e;
   }
   auto* type = down_cast<TypeAnnotation*>(n);

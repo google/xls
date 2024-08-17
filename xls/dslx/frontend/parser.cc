@@ -2275,7 +2275,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   for (const ProcMember* member : proc_members) {
     XLS_ASSIGN_OR_RETURN(
         TypeAnnotation * member_type_clone,
-        CloneNodeSansTypeDefinitions(member->type_annotation()));
+        CloneNode(member->type_annotation(), &PreserveTypeDefinitionsReplacer));
     return_elements.push_back(member_type_clone);
   }
   TypeAnnotation* return_type =
@@ -2330,9 +2330,9 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
                             "Channels cannot be Proc next params.");
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      TypeAnnotation * return_type,
-      CloneNodeSansTypeDefinitions(state_param->type_annotation()));
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * return_type,
+                       CloneNode(state_param->type_annotation(),
+                                 &PreserveTypeDefinitionsReplacer));
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(inner_bindings));
   Span span(oparen.span().start(), GetPos());
@@ -2564,9 +2564,9 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
 
   // Just as with proc member decls, we need the init fn to have its own return
   // type, to avoid parent/child relationship violations.
-  XLS_ASSIGN_OR_RETURN(
-      auto* init_return_type,
-      CloneNodeSansTypeDefinitions(proc_like_body.next->return_type()));
+  XLS_ASSIGN_OR_RETURN(auto* init_return_type,
+                       CloneNode(proc_like_body.next->return_type(),
+                                 &PreserveTypeDefinitionsReplacer));
   init_return_type->SetParentage();
   proc_like_body.init->set_return_type(
       down_cast<TypeAnnotation*>(init_return_type));
