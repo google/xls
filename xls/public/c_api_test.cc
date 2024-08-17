@@ -43,8 +43,8 @@ TEST(XlsCApiTest, ConvertDslxToIrSimple) {
                              additional_search_paths, 0, &error_out, &ir_out);
 
   absl::Cleanup free_cstrs([&] {
-    free(error_out);
-    free(ir_out);
+    xls_c_str_free(error_out);
+    xls_c_str_free(ir_out);
   });
 
   // We should get IR and no error.
@@ -62,8 +62,8 @@ TEST(XlsCApiTest, ConvertDslxToIrError) {
   char* ir_out = nullptr;
 
   absl::Cleanup free_cstrs([&] {
-    free(error_out);
-    free(ir_out);
+    xls_c_str_free(error_out);
+    xls_c_str_free(ir_out);
   });
 
   bool ok = xls_convert_dslx_to_ir(
@@ -96,8 +96,8 @@ TEST(XlsCApiTest, ConvertDslxPathToIr) {
       additional_search_paths, 0, &error_out, &ir_out);
 
   absl::Cleanup free_cstrs([&] {
-    free(error_out);
-    free(ir_out);
+    xls_c_str_free(error_out);
+    xls_c_str_free(ir_out);
   });
 
   // We should get IR and no error.
@@ -116,7 +116,7 @@ TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
   char* string_out = nullptr;
   ASSERT_TRUE(xls_value_to_string(value, &string_out));
   EXPECT_EQ(std::string{string_out}, "bits[32]:66");
-  free(string_out);
+  xls_c_str_free(string_out);
   string_out = nullptr;
 
   // Also to-string it via a format preference.
@@ -125,7 +125,7 @@ TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
   ASSERT_TRUE(xls_value_to_string_format_preference(value, fmt_pref, &error,
                                                     &string_out));
   EXPECT_EQ(std::string{string_out}, "bits[32]:0x42");
-  free(string_out);
+  xls_c_str_free(string_out);
 
   xls_value_free(value);
 }
@@ -146,7 +146,7 @@ fn f(x: bits[32]) -> bits[32] {
 
   char* dumped = nullptr;
   ASSERT_TRUE(xls_package_to_string(package, &dumped));
-  absl::Cleanup free_dumped([dumped] { free(dumped); });
+  absl::Cleanup free_dumped([dumped] { xls_c_str_free(dumped); });
   EXPECT_EQ(std::string_view(dumped), kPackage);
 
   struct xls_function* function = nullptr;
@@ -155,7 +155,7 @@ fn f(x: bits[32]) -> bits[32] {
   // Test out the get_name functionality on the function.
   char* name = nullptr;
   ASSERT_TRUE(xls_function_get_name(function, &error, &name));
-  absl::Cleanup free_name([name] { free(name); });
+  absl::Cleanup free_name([name] { xls_c_str_free(name); });
   EXPECT_EQ(std::string_view(name), "f");
 
   // Test out the get_type functionality on the function.
@@ -164,7 +164,7 @@ fn f(x: bits[32]) -> bits[32] {
 
   char* type_str = nullptr;
   ASSERT_TRUE(xls_function_type_to_string(f_type, &error, &type_str));
-  absl::Cleanup free_type_str([type_str] { free(type_str); });
+  absl::Cleanup free_type_str([type_str] { xls_c_str_free(type_str); });
   EXPECT_EQ(std::string_view(type_str), "(bits[32]) -> bits[32]");
 
   struct xls_value* ft = nullptr;
@@ -178,7 +178,8 @@ fn f(x: bits[32]) -> bits[32] {
   // Now convert that type to a string so we can observe it.
   char* ft_type_str = nullptr;
   ASSERT_TRUE(xls_type_to_string(ft_type, &error, &ft_type_str));
-  absl::Cleanup free_ft_type_str([ft_type_str] { free(ft_type_str); });
+  absl::Cleanup free_ft_type_str(
+      [ft_type_str] { xls_c_str_free(ft_type_str); });
   EXPECT_EQ(std::string_view(ft_type_str), "bits[32]");
 
   const struct xls_value* args[] = {ft};
@@ -204,7 +205,7 @@ fn f() -> bits[32] {
   char* error = nullptr;
   char* opt_ir = nullptr;
   ASSERT_TRUE(xls_optimize_ir(kPackage.c_str(), "f", &error, &opt_ir));
-  absl::Cleanup free_opt_ir([opt_ir] { free(opt_ir); });
+  absl::Cleanup free_opt_ir([opt_ir] { xls_c_str_free(opt_ir); });
 
   ASSERT_NE(opt_ir, nullptr);
 
@@ -226,7 +227,7 @@ TEST(XlsCApiTest, MangleDslxName) {
   char* mangled = nullptr;
   ASSERT_TRUE(xls_mangle_dslx_name(module_name.c_str(), function_name.c_str(),
                                    &error, &mangled));
-  absl::Cleanup free_mangled([mangled] { free(mangled); });
+  absl::Cleanup free_mangled([mangled] { xls_c_str_free(mangled); });
 
   EXPECT_EQ(std::string_view(mangled), "__foo_bar__baz_bat");
 }
@@ -258,7 +259,7 @@ TEST(XlsCApiTest, ValueToStringFormatPreferences) {
     char* string_out = nullptr;
     ASSERT_TRUE(xls_value_to_string_format_preference(value, fmt_pref, &error,
                                                       &string_out));
-    absl::Cleanup free_string_out([string_out] { free(string_out); });
+    absl::Cleanup free_string_out([string_out] { xls_c_str_free(string_out); });
     EXPECT_EQ(std::string{string_out}, want);
   }
 }
@@ -279,8 +280,8 @@ TEST(XlsCApiTest, InterpretDslxFailFunction) {
       << error;
 
   absl::Cleanup free_cstrs([&] {
-    free(error);
-    free(ir);
+    xls_c_str_free(error);
+    xls_c_str_free(ir);
   });
 
   struct xls_package* package = nullptr;

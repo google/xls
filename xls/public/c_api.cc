@@ -212,6 +212,13 @@ void xls_package_free(struct xls_package* p) {
   delete reinterpret_cast<xls::Package*>(p);
 }
 
+void xls_c_str_free(char* c_str) {
+  if (c_str == nullptr) {
+    return;
+  }
+  free(c_str);
+}
+
 bool xls_value_to_string(const struct xls_value* v, char** string_out) {
   CHECK(v != nullptr);
   CHECK(string_out != nullptr);
