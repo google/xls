@@ -58,8 +58,8 @@ using ColonRefSubjectT =
 
 }  // namespace
 
-// Resolves a `TypeAlias` AST node to a `ColonRef` subject -- this requires us to
-// traverse through aliases transitively to find a subject.
+// Resolves a `TypeAlias` AST node to a `ColonRef` subject -- this requires us
+// to traverse through aliases transitively to find a subject.
 //
 // Has to be an enum or builtin-type name, given the context we're in: looking
 // for _values_ hanging off, e.g. in service of a `::` ref.
@@ -101,19 +101,23 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
     current_type_definition = type_ref_type->type_ref()->type_definition();
   }
 
-  VLOG(5) << absl::StreamFormat("ResolveTypeDefToDirectColonRefSubject; arrived at type definition: `%s`", ToAstNode(current_type_definition)->ToString());
+  VLOG(5) << absl::StreamFormat(
+      "ResolveTypeDefToDirectColonRefSubject; arrived at type definition: `%s`",
+      ToAstNode(current_type_definition)->ToString());
 
   if (std::holds_alternative<ColonRef*>(current_type_definition)) {
     ColonRef* colon_ref = std::get<ColonRef*>(current_type_definition);
     type_info = import_data->GetRootTypeInfo(colon_ref->owner()).value();
-    XLS_ASSIGN_OR_RETURN(ColonRefSubjectT subject, ResolveColonRefSubjectForTypeChecking(
-                                           import_data, type_info, colon_ref));
+    XLS_ASSIGN_OR_RETURN(ColonRefSubjectT subject,
+                         ResolveColonRefSubjectForTypeChecking(
+                             import_data, type_info, colon_ref));
     XLS_RET_CHECK(std::holds_alternative<Module*>(subject));
     Module* module = std::get<Module*>(subject);
 
     // Grab the type definition being referred to by the `ColonRef` -- this is
     // what we now have to traverse to (or we may have arrived).
-    XLS_ASSIGN_OR_RETURN(current_type_definition, module->GetTypeDefinition(colon_ref->attr()));
+    XLS_ASSIGN_OR_RETURN(current_type_definition,
+                         module->GetTypeDefinition(colon_ref->attr()));
 
     if (std::holds_alternative<TypeAlias*>(current_type_definition)) {
       TypeAlias* new_alias = std::get<TypeAlias*>(current_type_definition);
@@ -338,7 +342,8 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
     const ColonRef* colon_ref) {
   XLS_RET_CHECK_EQ(colon_ref->owner(), type_info->module());
 
-  VLOG(5) << absl::StreamFormat("ResolveColonRefSubject for `%s`", colon_ref->ToString());
+  VLOG(5) << absl::StreamFormat("ResolveColonRefSubject for `%s`",
+                                colon_ref->ToString());
 
   // If the subject is a name reference we use a helper routine.
   if (std::holds_alternative<NameRef*>(colon_ref->subject())) {
