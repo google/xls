@@ -766,7 +766,9 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
   std::string_view attr = colon_ref->attr();
   XLS_ASSIGN_OR_RETURN(Expr * value_expr, enum_def->GetValue(attr));
   XLS_ASSIGN_OR_RETURN(InterpValue result, type_info->GetConstExpr(value_expr));
-  XLS_RET_CHECK(result.IsEnum()) << "expect constexpr for enum value expr `" << value_expr->ToString() << "` to evaluate to enum type; got: `" << result.ToString() << "`";
+  XLS_RET_CHECK(result.IsEnum())
+      << "expect constexpr for enum value expr `" << value_expr->ToString()
+      << "` to evaluate to enum type; got: `" << result.ToString() << "`";
   return result;
 }
 
