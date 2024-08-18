@@ -897,7 +897,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
                                                      DeduceCtx* ctx) {
-  VLOG(1) << "Deducing type for ColonRef @ " << node->span().ToString();
+  VLOG(5) << "Deducing type for ColonRef @ " << node->span().ToString();
 
   ImportData* import_data = ctx->import_data();
   XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
