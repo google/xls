@@ -140,7 +140,7 @@ class InterpValue {
     return InterpValue(InterpValueTag::kFunction, b);
   }
   static InterpValue MakeFunction(FnData fn_data) {
-    return InterpValue(InterpValueTag::kFunction, std::move(fn_data));
+    return InterpValue(InterpValueTag::kFunction, fn_data);
   }
 
   static InterpValue MakeToken() {
