@@ -223,7 +223,7 @@ pub fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
 
 // Returns unsigned division of `n` (N bits) and `d` (M bits) as quotient (N bits).
 // If dividing by `0`, returns all `1`s for quotient.
-fn iterative_div<N: u32, M: u32>(n: uN[N], d: uN[M]) -> uN[N] {
+pub fn iterative_div<N: u32, M: u32>(n: uN[N], d: uN[M]) -> uN[N] {
     let (q, r) = iterative_div_mod(n, d);
     q
 }
