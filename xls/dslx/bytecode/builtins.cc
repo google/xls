@@ -32,7 +32,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -54,78 +53,6 @@
 
 namespace xls::dslx {
 namespace {
-
-absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
-                                             const Type* type,
-                                             FormatPreference format_preference,
-                                             int64_t indent = 0) {
-  std::string indent_str(static_cast<size_t>(indent * 4), ' ');
-  if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
-      array_type != nullptr) {
-    const Type* element_type = &array_type->element_type();
-    std::vector<std::string> elements;
-    for (const auto& element_value : value.GetValuesOrDie()) {
-      XLS_ASSIGN_OR_RETURN(std::string element,
-                           PrettyPrintValue(element_value, element_type,
-                                            format_preference, indent + 1));
-      elements.push_back(element);
-    }
-
-    std::string element_type_name = element_type->ToString();
-    std::string value_prefix;
-    std::string separator = ", ";
-    std::string value_suffix;
-    if (const auto* struct_type = dynamic_cast<const StructType*>(element_type);
-        struct_type != nullptr) {
-      element_type_name = struct_type->nominal_type().identifier();
-      std::string next_indent(static_cast<size_t>(indent + 1) * 4, ' ');
-      value_prefix = absl::StrCat("\n", next_indent);
-      separator = absl::StrCat(",", value_prefix);
-      value_suffix = absl::StrCat("\n", indent_str);
-    }
-
-    return absl::StrFormat("%s[%d]:[%s%s%s]", element_type_name,
-                           value.GetValuesOrDie().size(), value_prefix,
-                           absl::StrJoin(elements, separator), value_suffix);
-  }
-
-  if (const auto* struct_type = dynamic_cast<const StructType*>(type);
-      struct_type != nullptr) {
-    std::vector<std::string> members;
-    members.reserve(struct_type->size());
-    for (int64_t i = 0; i < struct_type->size(); i++) {
-      std::string sub_indent_str(static_cast<size_t>(indent + 1) * 4, ' ');
-      const Type& member_type = struct_type->GetMemberType(i);
-      XLS_ASSIGN_OR_RETURN(
-          std::string member_value,
-          PrettyPrintValue(value.GetValuesOrDie()[i], &member_type,
-                           format_preference, indent + 1));
-      members.push_back(absl::StrFormat("%s%s: %s", sub_indent_str,
-                                        struct_type->GetMemberName(i),
-                                        member_value));
-    }
-
-    return absl::StrFormat("%s {\n%s\n%s}",
-                           struct_type->nominal_type().identifier(),
-                           absl::StrJoin(members, "\n"), indent_str);
-  }
-  if (const auto* enum_type = dynamic_cast<const EnumType*>(type);
-      enum_type != nullptr) {
-    const EnumDef& enum_def = enum_type->nominal_type();
-    int64_t member_index = 0;
-    for (const InterpValue& member : enum_type->members()) {
-      if (member == value) {
-        return absl::StrFormat("%s::%s (%s)", enum_def.identifier(),
-                               enum_def.GetMemberName(member_index),
-                               member.ToString());
-      }
-      ++member_index;
-    }
-    XLS_RET_CHECK_FAIL() << "Unexpected value " << value.ToString()
-                         << " as enum " << enum_def.identifier();
-  }
-  return value.ToString(/*humanize=*/false, format_preference);
-}
 
 absl::Status RunBinaryBuiltin(
     const std::function<absl::StatusOr<InterpValue>(const InterpValue& a,

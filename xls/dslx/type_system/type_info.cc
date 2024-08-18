@@ -155,7 +155,8 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(const Module* module) {
 // -- class TypeInfo
 
 void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
-  const_exprs_.insert({const_expr, value});
+  VLOG(1) << absl::StreamFormat("noting node: `%s` (%p) has constexpr value: `%s`", const_expr->ToString(), const_expr, value.ToString());
+  const_exprs_.insert_or_assign(const_expr, std::move(value));
 }
 
 absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(

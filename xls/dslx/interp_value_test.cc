@@ -361,9 +361,9 @@ TEST(InterpValueTest, FormatEnum) {
       "MyEnum", absl::flat_hash_map<Bits, std::string>(
                     {{UBits(0, 32), "FOO"}, {UBits(1, 32), "BAR"}}));
   EXPECT_EQ(foo.ToFormattedString(fmt_desc).value(),
-            "MyEnum::FOO  // MyEnum:0");
+            "MyEnum::FOO  // u32:0");
   EXPECT_EQ(bar.ToFormattedString(fmt_desc).value(),
-            "MyEnum::BAR  // MyEnum:1");
+            "MyEnum::BAR  // u32:1");
 }
 
 }  // namespace

@@ -14,7 +14,6 @@
 
 #include "xls/dslx/interp_value.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -309,8 +308,10 @@ absl::StatusOr<std::string> InterpValue::ToEnumString(
         absl::StrFormat("Enum value %s was not found in enum descriptor for %s",
                         ToString(), fmt_desc.enum_name()));
   }
+  // We show the underlying value after displaying the enum member.
+  auto underlying = InterpValue::MakeBits(IsSigned(), GetBitsOrDie());
   return absl::StrFormat("%s::%s  // %s", fmt_desc.enum_name(), it->second,
-                         ToString());
+                         underlying.ToString());
 }
 
 absl::StatusOr<std::string> InterpValue::ToFormattedString(
