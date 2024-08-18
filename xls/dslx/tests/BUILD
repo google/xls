@@ -358,6 +358,11 @@ dslx_lang_test(
     dslx_deps = [":constexpr_dslx"],
 )
 
+dslx_lang_test(
+    name = "import_enum_alias",
+    dslx_deps = [":mod_enum_importer_dslx"],
+)
+
 dslx_lang_test(name = "map")
 
 dslx_lang_test(name = "multiplies")

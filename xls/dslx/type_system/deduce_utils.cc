@@ -58,22 +58,29 @@ using ColonRefSubjectT =
 
 }  // namespace
 
+// Resolves a `TypeAlias` AST node to a `ColonRef` subject -- this requires us to
+// traverse through aliases transitively to find a subject.
+//
 // Has to be an enum or builtin-type name, given the context we're in: looking
 // for _values_ hanging off, e.g. in service of a `::` ref.
+//
+// Note: the returned AST node may not be from the same module that the
+// original `type_alias` was from.
 static absl::StatusOr<
     std::variant<EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
 ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
                                         const TypeInfo* type_info,
-                                        TypeAlias* type_def) {
-  VLOG(5) << "ResolveTypeDefToDirectColonRefSubject; type_def: `"
-          << type_def->ToString() << "`";
+                                        TypeAlias* type_alias) {
+  VLOG(5) << "ResolveTypeDefToDirectColonRefSubject; type_alias: `"
+          << type_alias->ToString() << "`";
 
-  TypeDefinition td = type_def;
-  while (std::holds_alternative<TypeAlias*>(td)) {
-    TypeAlias* next_type_alias = std::get<TypeAlias*>(td);
-    VLOG(5) << "TypeAlias: `" << next_type_alias->ToString() << "`";
+  // Resolve through all the transitive aliases.
+  TypeDefinition current_type_definition = type_alias;
+  while (std::holds_alternative<TypeAlias*>(current_type_definition)) {
+    TypeAlias* next_type_alias = std::get<TypeAlias*>(current_type_definition);
+    VLOG(5) << " TypeAlias: `" << next_type_alias->ToString() << "`";
     TypeAnnotation& type = next_type_alias->type_annotation();
-    VLOG(5) << "TypeAnnotation: `" << type.ToString() << "`";
+    VLOG(5) << " TypeAnnotation: `" << type.ToString() << "`";
 
     if (auto* bti = dynamic_cast<BuiltinTypeAnnotation*>(&type);
         bti != nullptr) {
@@ -89,37 +96,45 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
     // support parametric TypeDefs.
     XLS_RET_CHECK(type_ref_type != nullptr)
         << type.ToString() << " :: " << type.GetNodeTypeName();
-    VLOG(5) << "TypeRefTypeAnnotation: `" << type_ref_type->ToString() << "`";
+    VLOG(5) << " TypeRefTypeAnnotation: `" << type_ref_type->ToString() << "`";
 
-    td = type_ref_type->type_ref()->type_definition();
+    current_type_definition = type_ref_type->type_ref()->type_definition();
   }
 
-  if (std::holds_alternative<ColonRef*>(td)) {
-    ColonRef* colon_ref = std::get<ColonRef*>(td);
-    XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
+  VLOG(5) << absl::StreamFormat("ResolveTypeDefToDirectColonRefSubject; arrived at type definition: `%s`", ToAstNode(current_type_definition)->ToString());
+
+  if (std::holds_alternative<ColonRef*>(current_type_definition)) {
+    ColonRef* colon_ref = std::get<ColonRef*>(current_type_definition);
+    type_info = import_data->GetRootTypeInfo(colon_ref->owner()).value();
+    XLS_ASSIGN_OR_RETURN(ColonRefSubjectT subject, ResolveColonRefSubjectForTypeChecking(
                                            import_data, type_info, colon_ref));
     XLS_RET_CHECK(std::holds_alternative<Module*>(subject));
     Module* module = std::get<Module*>(subject);
-    XLS_ASSIGN_OR_RETURN(td, module->GetTypeDefinition(colon_ref->attr()));
 
-    if (std::holds_alternative<TypeAlias*>(td)) {
+    // Grab the type definition being referred to by the `ColonRef` -- this is
+    // what we now have to traverse to (or we may have arrived).
+    XLS_ASSIGN_OR_RETURN(current_type_definition, module->GetTypeDefinition(colon_ref->attr()));
+
+    if (std::holds_alternative<TypeAlias*>(current_type_definition)) {
+      TypeAlias* new_alias = std::get<TypeAlias*>(current_type_definition);
+      XLS_RET_CHECK_EQ(new_alias->owner(), module);
       // We need to get the right type info for the enum's containing module. We
       // can get the top-level module since [currently?] enums can't be
       // parameterized.
       type_info = import_data->GetRootTypeInfo(module).value();
       return ResolveTypeAliasToDirectColonRefSubject(import_data, type_info,
-                                                     std::get<TypeAlias*>(td));
+                                                     new_alias);
     }
   }
 
-  if (!std::holds_alternative<EnumDef*>(td)) {
+  if (!std::holds_alternative<EnumDef*>(current_type_definition)) {
     return absl::InternalError(
         "ResolveTypeDefToDirectColonRefSubject() can only be called when the "
         "TypeAlias "
         "directory or indirectly refers to an EnumDef.");
   }
 
-  return std::get<EnumDef*>(td);
+  return std::get<EnumDef*>(current_type_definition);
 }
 
 absl::Status TryEnsureFitsInType(const Number& number,
@@ -321,7 +336,9 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
 absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
     ImportData* import_data, const TypeInfo* type_info,
     const ColonRef* colon_ref) {
-  VLOG(5) << "ResolveColonRefSubject for " << colon_ref->ToString();
+  XLS_RET_CHECK_EQ(colon_ref->owner(), type_info->module());
+
+  VLOG(5) << absl::StreamFormat("ResolveColonRefSubject for `%s`", colon_ref->ToString());
 
   // If the subject is a name reference we use a helper routine.
   if (std::holds_alternative<NameRef*>(colon_ref->subject())) {

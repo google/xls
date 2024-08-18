@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import xls.dslx.tests.mod_imported;
+import xls.dslx.tests.mod_enum_importer;
 
-pub type MyEnumAlias = mod_imported::MyEnum;
-
-fn main(x: u8) -> MyEnumAlias { x as MyEnumAlias }
+// A module that imports an enum alias and uses it.
+fn main() -> mod_enum_importer::MyEnumAlias { mod_enum_importer::MyEnumAlias::FOO }
 
 #[test]
-fn main_test() {
-    assert_eq(main(u8:42), MyEnumAlias::FOO);
-    assert_eq(main(u8:64), MyEnumAlias::BAR);
-}
+fn test_main() { assert_eq(main(), mod_enum_importer::MyEnumAlias::FOO) }

@@ -532,8 +532,7 @@ void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
 
 std::optional<const ImportedInfo*> TypeInfo::GetImported(Import* import) const {
   CHECK_EQ(import->owner(), module_)
-      << "Import node from: " << import->owner()->name() << " vs TypeInfo for "
-      << module_->name();
+      << absl::StreamFormat("Import node is owned by: `%s` vs this TypeInfo is for `%s`", import->owner()->name(), module_->name());
   auto* self = GetRoot();
   auto it = self->imports_.find(import);
   if (it == self->imports_.end()) {
