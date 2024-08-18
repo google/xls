@@ -1203,6 +1203,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'vs .*/dslx/tests/errors/mod_simple_struct_duplicate.x:MyStruct {}\n',
     )
 
+  def test_imports_and_calls_private_parametric(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/imports_and_calls_private_parametric.x'
+    )
+    self.assertIn(
+        'Attempted to resolve a module member that was not public', stderr
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

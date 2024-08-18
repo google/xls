@@ -593,7 +593,7 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Function*> ParseProcInit(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-      std::string_view proc_name);
+      std::string_view proc_name, bool is_public);
 
   // Parses a proc-like entity (i.e. either a Proc or a Block).
   template <typename T>

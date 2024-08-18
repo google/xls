@@ -204,7 +204,7 @@ fn smul_test() {
 // If dividing by `0`, returns all `1`s for quotient and `n` for remainder.
 // Implements binary long division; should be expected to use a large number of gates and have a slow
 // critical path when using combinational codegen.
-fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
+pub fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
     // Zero extend divisor by 1 bit.
     let divisor = d as uN[M + u32:1];
 

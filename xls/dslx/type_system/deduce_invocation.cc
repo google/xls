@@ -169,8 +169,15 @@ static absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(
       ctx->type_info()->GetImported(*import);
   XLS_RET_CHECK(imported_info.has_value());
   Module* module = imported_info.value()->module;
-  return GetMemberOrTypeInferenceError<Function>(module, ref->attr(),
-                                                 ref->span());
+  XLS_ASSIGN_OR_RETURN(Function* resolved, GetMemberOrTypeInferenceError<Function>(module, ref->attr(),
+                                                 ref->span()));
+  if (!resolved->is_public()) {
+    return TypeInferenceErrorStatus(
+        ref->span(), nullptr, absl::StrFormat(
+          "Attempted to resolve a module member that was not public; `%s` defined in module `%s` @ %s",
+          resolved->identifier(), module->name(), resolved->span().ToString()));
+  }
+  return resolved;
 }
 
 absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(

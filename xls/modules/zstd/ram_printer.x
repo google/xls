@@ -22,7 +22,7 @@ enum RamPrinterStatus : u2 {
 
 struct RamPrinterState<ADDR_WIDTH: u32> { status: RamPrinterStatus, addr: bits[ADDR_WIDTH] }
 
-proc RamPrinter<DATA_WIDTH: u32, SIZE: u32, NUM_PARTITIONS: u32, ADDR_WIDTH: u32, NUM_MEMORIES: u32>
+pub proc RamPrinter<DATA_WIDTH: u32, SIZE: u32, NUM_PARTITIONS: u32, ADDR_WIDTH: u32, NUM_MEMORIES: u32>
 {
     print_r: chan<()> in;
     finish_s: chan<()> out;

@@ -25,7 +25,6 @@ proc fp32_fmac {
     config(input_a: chan<F32> in, input_b: chan<F32> in,
           reset: chan<bool> in, output: chan<F32> out) {
         spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output);
-        ()
     }
 
     // Nothing to do here - the spawned fmac does all the lifting.

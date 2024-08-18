@@ -48,7 +48,7 @@ type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 //   │         └───────────────────┘         │
 //   └───────────────────────────────────────┘
 
-proc BlockDecoder {
+pub proc BlockDecoder {
     input_r: chan<BlockDataPacket> in;
     output_s: chan<SequenceExecutorPacket> out;
 
