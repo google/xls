@@ -758,9 +758,6 @@ absl::Status BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
     const ColonRef* colon_ref, EnumDef* enum_def, const TypeInfo* type_info) {
-  VLOG(1) << absl::StreamFormat(
-      "BytecodeEmitter::HandleColonRefToEnum; colon_ref: %s enum_def: %s",
-      colon_ref->ToString(), enum_def->ToString());
   // TODO(rspringer): 2022-01-26 We'll need to pull the right type info during
   // ResolveTypeDefToEnum.
   std::string_view attr = colon_ref->attr();
