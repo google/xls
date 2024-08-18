@@ -21,6 +21,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
@@ -33,7 +34,6 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
-#include "xls/common/status/ret_check.h"
 
 namespace xls::dslx {
 
@@ -140,9 +140,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
     // Right now we may have the underlying type as the noted constexpr value
     // (e.g. if we evaluated a number that was given as an enum value
     // expression), but we want to wrap that up in the enum type appropriately.
-    XLS_RET_CHECK((value.IsEnum() && value.GetEnumData().value().def == node) || value.IsBits());
+    XLS_RET_CHECK((value.IsEnum() && value.GetEnumData().value().def == node) ||
+                  value.IsBits());
     if (value.IsBits()) {
-      value = InterpValue::MakeEnum(value.GetBitsOrDie(), bits_type->is_signed(), node);
+      value = InterpValue::MakeEnum(value.GetBitsOrDie(),
+                                    bits_type->is_signed(), node);
       ctx->type_info()->NoteConstExpr(member.name_def, value);
       ctx->type_info()->NoteConstExpr(member.value, value);
     }

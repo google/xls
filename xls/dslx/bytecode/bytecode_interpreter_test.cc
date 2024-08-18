@@ -3018,16 +3018,10 @@ struct MyStruct { e: MyEnum }
 fn f() -> MyStruct { MyStruct{ e: MyEnum::ZERO_VALUE } }
 fn g() -> MyStruct { zero!<MyStruct>() }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue f_result,
-      Interpret(kProgram, "f",
-                {}));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue f_result, Interpret(kProgram, "f", {}));
   VLOG(1) << "f_result: " << f_result;
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue g_result,
-      Interpret(kProgram, "g",
-                {}));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue g_result, Interpret(kProgram, "g", {}));
   VLOG(1) << "g_result: " << g_result;
 
   EXPECT_EQ(f_result, g_result);
