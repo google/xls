@@ -144,7 +144,6 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
     double parsed_area = -1.0f;
     double parsed_sequential_area = -1.0f;
     std::string parsed_cell_type_area_unknown;
-    // TODO(hnpl): We should use LazyRE2 for this and the rest of the file.
     if (RE2::FullMatch(*parse_line_itr, *unknown_cell_area_regex,
                        &parsed_cell_type_area_unknown)) {
       stats.cell_type_with_unknown_area.push_back(
