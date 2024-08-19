@@ -23,11 +23,14 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/integrator/integration_options.h"
 #include "xls/contrib/integrator/ir_integrator.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
+#include "xls/ir/verifier.h"
 
 namespace xls {
 
@@ -94,8 +97,39 @@ class IntegrationAlgorithm {
   const IntegrationOptions integration_options_;
 };
 
-}  // namespace xls
+// -- Implementation
 
-#include "xls/contrib/integrator/integration_algorithms/integration_algorithm_implementation.h"  // IWYU pragma: keep
+template <class AlgorithmType>
+absl::StatusOr<std::unique_ptr<IntegrationFunction>>
+IntegrationAlgorithm<AlgorithmType>::IntegrateFunctions(
+    Package* package, absl::Span<const Function* const> source_functions,
+    const IntegrationOptions& options) {
+  // Setup.
+  XLS_RET_CHECK_GT(source_functions.size(), 1);
+  AlgorithmType algorithm(package, source_functions, options);
+  XLS_RETURN_IF_ERROR(algorithm.Initialize());
+  XLS_RET_CHECK_EQ(algorithm.get_corresponding_algorithm_option(),
+                   options.algorithm());
+
+  // Integrate.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IntegrationFunction> integration_func,
+                       algorithm.Run());
+  XLS_RETURN_IF_ERROR(VerifyFunction(integration_func->function()));
+  return integration_func;
+}
+
+template <class AlgorithmType>
+absl::StatusOr<std::vector<Node*>>
+IntegrationAlgorithm<AlgorithmType>::ExecuteMove(
+    IntegrationFunction* integration_function, const IntegrationMove& move) {
+  if (move.move_type == IntegrationMoveType::kInsert) {
+    XLS_ASSIGN_OR_RETURN(Node * node,
+                         integration_function->InsertNode(move.node));
+    return std::vector<Node*>({node});
+  }
+  return integration_function->MergeNodes(move.node, move.merge_node);
+}
+
+}  // namespace xls
 
 #endif  // XLS_CONTRIB_INTEGRATOR_INTEGRATION_ALGORITHMS_INTEGRATION_ALGORITHM_H_

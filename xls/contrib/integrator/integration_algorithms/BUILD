@@ -28,7 +28,6 @@ cc_library(
     hdrs = [
         "basic_integration_algorithm.h",
         "integration_algorithm.h",
-        "integration_algorithm_implementation.h",
     ],
     deps = [
         "@com_google_absl//absl/container:flat_hash_set",
