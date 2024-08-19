@@ -2596,18 +2596,28 @@ fn fail_case_aa() {
 
 // Returns whether or not the given APFloat has a fractional part.
 pub fn has_fractional_part<EXP_SZ: u32, FRACTION_SZ: u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
-    f.bexp < bias<EXP_SZ, FRACTION_SZ>(sN[EXP_SZ]:23)
+    f.bexp < bias<EXP_SZ, FRACTION_SZ>(FRACTION_SZ as sN[EXP_SZ])
 }
 
 #[test]
 fn has_fractional_part_test() {
-    const EXP_SZ = u32:8;
-    const FRACTION_SZ = u32:23;
-    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
-    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
-    let big_f32 = F32 { sign: u1:0, bexp: bias(sN[EXP_SZ]:32), fraction: uN[FRACTION_SZ]:0x123 };
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+    type F32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ>;
+    let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let big_f32 =
+        F32 { sign: u1:0, bexp: bias(sN[F32_EXP_SZ]:32), fraction: uN[F32_FRACTION_SZ]:0x123 };
     assert_eq(has_fractional_part(one_f32), true);
     assert_eq(has_fractional_part(big_f32), false);
+
+    const BF16_EXP_SZ = u32:5;
+    const BF16_FRACTION_SZ = u32:10;
+    type BF16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ>;
+    let one_bf16 = one<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
+    let big_bf16 =
+        BF16 { sign: u1:0, bexp: bias(sN[BF16_EXP_SZ]:10), fraction: uN[BF16_FRACTION_SZ]:0x12 };
+    assert_eq(has_fractional_part(one_bf16), true);
+    assert_eq(has_fractional_part(big_bf16), false);
 }
 
 // Returns whether or not the given APFloat has an negative exponent.
@@ -2669,7 +2679,6 @@ fn round_down_no_sign_positive_exp<EXP_SZ: u32, FRACTION_SZ: u32>
     let exp = unbiased_exponent(f);
     // compute fractional mask according to unbiased exponent.
     let fractional_mask = std::mask_bits<FRACTION_SZ>() >> (exp as u32);
-    trace_fmt!("round_down_no_sign_positive_exp mask: {} {:b}", exp, fractional_mask);
     // mask out fractional part to get a round number.
     let fraction_integral = f.fraction & !fractional_mask;
     APFloat { sign: f.sign, bexp: f.bexp, fraction: fraction_integral }
@@ -2805,11 +2814,9 @@ pub fn floor<EXP_SZ: u32, FRACTION_SZ: u32>
                 }
             } else if f.sign == u1:1 {
                 // if negative: round up.
-                trace_fmt!("floor up {}", f);
                 round_up_no_sign_positive_exp(f)
             } else {
                 // if positive: round down.
-                trace_fmt!("floor down {}", f);
                 round_down_no_sign_positive_exp(f)
             }
         },
