@@ -182,8 +182,6 @@ cc_test(
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/run_routines",
-        "//xls/dslx/run_routines:run_comparator",
         "//xls/dslx/type_system:parametric_env",
         "//xls/ir",
         "//xls/ir:bits",
