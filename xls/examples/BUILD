@@ -678,6 +678,56 @@ xls_benchmark_ir(
 )
 
 xls_dslx_library(
+    name = "prefix_sum_dslx",
+    srcs = ["prefix_sum.x"],
+)
+
+xls_dslx_test(
+    name = "prefix_sum_dslx_test",
+    srcs = ["prefix_sum.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "prefix_sum",
+    srcs = ["prefix_sum.x"],
+    dslx_top = "prefix_sum",
+    ir_file = "prefix_sum.ir",
+    opt_ir_file = "prefix_sum.opt.ir",
+)
+
+xls_benchmark_ir(
+    name = "prefix_sum_benchmark_ir",
+    src = ":prefix_sum.ir",
+    # TODO: Takes >15m for synthesis; too long for routine benchmarks.
+    synthesize = False,
+)
+
+xls_dslx_library(
+    name = "sparse_prefix_sum_dslx",
+    srcs = ["sparse_prefix_sum.x"],
+)
+
+xls_dslx_test(
+    name = "sparse_prefix_sum_dslx_test",
+    srcs = ["sparse_prefix_sum.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "sparse_prefix_sum",
+    srcs = ["sparse_prefix_sum.x"],
+    dslx_top = "sparse_prefix_sum",
+    ir_file = "sparse_prefix_sum.ir",
+    opt_ir_file = "sparse_prefix_sum.opt.ir",
+)
+
+xls_benchmark_ir(
+    name = "sparse_prefix_sum_benchmark_ir",
+    src = ":sparse_prefix_sum.ir",
+    # TODO: Takes >15m for synthesis; too long for routine benchmarks.
+    synthesize = False,
+)
+
+xls_dslx_library(
     name = "ram_dslx",
     srcs = ["ram.x"],
 )
