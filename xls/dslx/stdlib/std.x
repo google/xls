@@ -204,7 +204,7 @@ fn smul_test() {
 // If dividing by `0`, returns all `1`s for quotient and `n` for remainder.
 // Implements binary long division; should be expected to use a large number of gates and have a slow
 // critical path when using combinational codegen.
-fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
+pub fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
     // Zero extend divisor by 1 bit.
     let divisor = d as uN[M + u32:1];
 
@@ -223,7 +223,7 @@ fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
 
 // Returns unsigned division of `n` (N bits) and `d` (M bits) as quotient (N bits).
 // If dividing by `0`, returns all `1`s for quotient.
-fn iterative_div<N: u32, M: u32>(n: uN[N], d: uN[M]) -> uN[N] {
+pub fn iterative_div<N: u32, M: u32>(n: uN[N], d: uN[M]) -> uN[N] {
     let (q, r) = iterative_div_mod(n, d);
     q
 }
@@ -440,7 +440,9 @@ fn round_up_to_nearest_test() {
 
 // Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known positive power of 2.
 // This functionality is the same as `round_up_to_nearest` but optimized when `y` is a power of 2.
-fn round_up_to_nearest_pow2_unsigned<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { (x + y - uN[N]:1) & -y }
+pub fn round_up_to_nearest_pow2_unsigned<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
+    (x + y - uN[N]:1) & -y
+}
 
 #[test]
 fn test_round_up_to_nearest_pow2_unsigned() {
@@ -455,7 +457,7 @@ fn test_round_up_to_nearest_pow2_unsigned() {
 
 // Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known positive power of 2.
 // This functionality is the same as `round_up_to_nearest` but optimized when `y` is a power of 2.
-fn round_up_to_nearest_pow2_signed<N: u32>(x: sN[N], y: uN[N]) -> sN[N] {
+pub fn round_up_to_nearest_pow2_signed<N: u32>(x: sN[N], y: uN[N]) -> sN[N] {
     (x + y as sN[N] - sN[N]:1) & -(y as sN[N])
 }
 
@@ -999,7 +1001,8 @@ fn is_unsigned_msb_set_test() {
 //
 // This is given for help in porting code from Verilog to DSLX, e.g. if a user
 // wants a more direct transcription.
-fn vslice<MSB: u32, LSB: u32, IN: u32, OUT: u32 = {MSB - LSB + u32:1}>(x: bits[IN]) -> bits[OUT] {
+pub fn vslice<MSB: u32, LSB: u32, IN: u32, OUT: u32 = {MSB - LSB + u32:1}>
+    (x: bits[IN]) -> bits[OUT] {
     // This will help flag if the MSB and LSB are given out of order
     const_assert!(MSB >= LSB);
     x[LSB+:bits[OUT]]
@@ -1166,7 +1169,7 @@ fn clzt_pow2_512(value: bits[512]) -> uN[10] {
 
 // Count leading zeroes for power of 2 numbers.
 // Since we can't have recursion, manually expand this here up to 64 bits
-fn clzt_pow2<N: u32, RESULT_BITS: u32 = {clog2(N + u32:1)}>(value: bits[N]) -> uN[RESULT_BITS] {
+pub fn clzt_pow2<N: u32, RESULT_BITS: u32 = {clog2(N + u32:1)}>(value: bits[N]) -> uN[RESULT_BITS] {
     const_assert!(is_pow2(N));
     match N {
         // These casts for the arguments and return types should not be needed.
@@ -1216,7 +1219,7 @@ fn clzt_pow2_test() {
 }
 
 // Given a number, what is the next power of two. E.g. 5 -> 8; 8 -> 8; 20 -> 32
-fn next_pow2(n: u32) -> u32 { upow(2, clog2(n)) }
+pub fn next_pow2(n: u32) -> u32 { upow(2, clog2(n)) }
 
 #[test]
 fn test_next_pow2() {
