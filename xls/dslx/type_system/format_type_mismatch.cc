@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -94,6 +95,22 @@ class Callbacks : public ZipTypesCallbacks {
         aggregates);
   }
 
+  absl::Status NoteAggregateNext(const AggregatePair& aggregates) override {
+    return absl::visit(
+        Visitor{
+            [&](auto p) { return absl::OkStatus(); },
+            [&](std::pair<const TupleType*, const TupleType*>) {
+              AddMatchedBoth(", ");
+              return absl::OkStatus();
+            },
+            [&](std::pair<const StructType*, const StructType*> p) {
+              AddMatchedBoth(", ");
+              return absl::OkStatus();
+            },
+        },
+        aggregates);
+  }
+
   absl::Status NoteAggregateEnd(const AggregatePair& aggregates) override {
     return absl::visit(
         Visitor{
@@ -135,7 +152,6 @@ class Callbacks : public ZipTypesCallbacks {
     BeforeType(lhs, lhs_parent, rhs, rhs_parent);
     AddMatched(lhs.ToString(), &colorized_lhs_);
     AddMatched(rhs.ToString(), &colorized_rhs_);
-    AfterType(lhs, lhs_parent, rhs, rhs_parent);
     return absl::OkStatus();
   }
 
@@ -166,7 +182,6 @@ class Callbacks : public ZipTypesCallbacks {
     mismatches_.mismatches.push_back({&lhs, &rhs});
     BeforeType(lhs, lhs_parent, rhs, rhs_parent);
     AddMismatched(lhs.ToString(), rhs.ToString());
-    AfterType(lhs, lhs_parent, rhs, rhs_parent);
     return absl::OkStatus();
   }
 
@@ -186,23 +201,6 @@ class Callbacks : public ZipTypesCallbacks {
         parent_struct != nullptr) {
       int64_t index = parent_struct->IndexOf(lhs).value();
       AddMatchedBoth(absl::StrCat(parent_struct->GetMemberName(index), ": "));
-    }
-  }
-
-  void AfterType(const Type& lhs, const Type* lhs_parent, const Type& rhs,
-                 const Type* rhs_parent) {
-    if (lhs_parent == nullptr) {
-      return;
-    }
-    if (auto* parent_struct = dynamic_cast<const StructType*>(lhs_parent);
-        parent_struct != nullptr &&
-        parent_struct->IndexOf(lhs).value() + 1 != parent_struct->size()) {
-      AddMatchedBoth(", ");
-    }
-    if (auto* parent_tuple = dynamic_cast<const TupleType*>(lhs_parent);
-        parent_tuple != nullptr &&
-        parent_tuple->IndexOf(lhs).value() + 1 != parent_tuple->size()) {
-      AddMatchedBoth(", ");
     }
   }
 
@@ -237,6 +235,10 @@ absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs,
   Callbacks callbacks(data);
 
   XLS_RETURN_IF_ERROR(ZipTypes(lhs, rhs, callbacks));
+
+  CHECK(!data.mismatches.empty())
+      << "type mismatch info not constructed correctly for types "
+      << lhs.GetDebugTypeName() << " vs. " << rhs.GetDebugTypeName();
 
   std::vector<std::string> lines;
 

@@ -77,6 +77,9 @@ class ZipTypeVisitor : public TypeVisitor {
   }
   absl::Status HandleArray(const ArrayType& lhs) override {
     if (auto* rhs = dynamic_cast<const ArrayType*>(&rhs_)) {
+      if (lhs.size() != rhs->size()) {
+        return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
+      }
       AggregatePair aggregates = std::make_pair(&lhs, rhs);
       XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateStart(aggregates));
       const Type& lhs_elem = lhs.element_type();
@@ -88,6 +91,11 @@ class ZipTypeVisitor : public TypeVisitor {
   }
   absl::Status HandleChannel(const ChannelType& lhs) override {
     if (auto* rhs = dynamic_cast<const ChannelType*>(&rhs_)) {
+      // If channel directions don't match, capture the full channel strings.
+      if (lhs.direction() != rhs->direction()) {
+        return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
+      }
+
       AggregatePair aggregates = std::make_pair(&lhs, rhs);
       XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateStart(aggregates));
       XLS_RETURN_IF_ERROR(
@@ -136,6 +144,9 @@ class ZipTypeVisitor : public TypeVisitor {
       const Type& rhs_elem = rhs.GetMemberType(i);
       XLS_RETURN_IF_ERROR(
           ZipTypesWithParents(lhs_elem, rhs_elem, &lhs, &rhs, callbacks_));
+      if (i + 1 != lhs.size()) {
+        XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateNext(aggregates));
+      }
     }
     XLS_RETURN_IF_ERROR(callbacks_.NoteAggregateEnd(aggregates));
     return absl::OkStatus();

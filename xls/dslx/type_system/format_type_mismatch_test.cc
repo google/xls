@@ -19,6 +19,7 @@
 
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
@@ -54,6 +55,27 @@ TEST(FormatTypeMismatchTest, ElementInTuple) {
   );
 }
 
+TEST(FormatTypeMismatchTest, NestedTuple) {
+  std::unique_ptr<TupleType> t0 = TupleType::Create2(
+      TupleType::Create2(BitsType::MakeU8(), BitsType::MakeU1()),
+      TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU1()));
+  std::unique_ptr<TupleType> t1 = TupleType::Create2(
+      TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU1()),
+      TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU1()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+
+  EXPECT_EQ(got,
+            ANSI_RESET
+            "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
+            " type:\n"                                                        //
+            "   uN[8]\n"                                                      //
+            "vs uN[1]\n" ANSI_BOLD "Overall" ANSI_UNBOLD " type mismatch:\n"  //
+            ANSI_RESET "   ((" ANSI_RED "uN[8]" ANSI_RESET
+            ", uN[1]), (uN[1], uN[1]))\n"
+            "vs ((" ANSI_RED "uN[1]" ANSI_RESET ", uN[1]), (uN[1], uN[1]))");
+}
+
 TEST(FormatTypeMismatchTest, ElementTypeInArrayInTuple) {
   auto t0 = TupleType::Create2(
       BitsType::MakeU1(),
@@ -73,6 +95,28 @@ TEST(FormatTypeMismatchTest, ElementTypeInArrayInTuple) {
             ANSI_RESET "   (uN[1], " ANSI_RED "uN[32]" ANSI_RESET
                        "[4])\n"                                           //
                        "vs (uN[1], " ANSI_RED "sN[32]" ANSI_RESET "[4])"  //
+  );
+}
+
+TEST(FormatTypeMismatchTest, MismatchedArraySizeInTuple) {
+  auto t0 = TupleType::Create2(
+      BitsType::MakeU1(),
+      std::make_unique<ArrayType>(BitsType::MakeU32(), TypeDim::CreateU32(4)));
+  auto t1 = TupleType::Create2(
+      BitsType::MakeU1(),
+      std::make_unique<ArrayType>(BitsType::MakeU32(), TypeDim::CreateU32(2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+
+  EXPECT_EQ(got,
+            ANSI_RESET "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
+                       " type:\n"                                 //
+                       "   uN[32][4]\n"                           //
+                       "vs uN[32][2]\n" ANSI_BOLD                 //
+                       "Overall" ANSI_UNBOLD " type mismatch:\n"  //
+            ANSI_RESET "   (uN[1], " ANSI_RED "uN[32][4]" ANSI_RESET
+                       ")\n"                                              //
+                       "vs (uN[1], " ANSI_RED "uN[32][2]" ANSI_RESET ")"  //
   );
 }
 
@@ -109,6 +153,61 @@ TEST(FormatTypeMismatchTest, TuplesWithSharedPrefixDifferentLength) {
             "Type mismatch:\n"
             "   (uN[1], uN[8])\n"
             "vs (uN[1], uN[8], uN[32])");
+}
+
+TEST(FormatTypeMismatchTest, ChannelTypeMismatch) {
+  std::unique_ptr<ChannelType> ch0 =
+      std::make_unique<ChannelType>(BitsType::MakeU8(), ChannelDirection::kIn);
+  std::unique_ptr<ChannelType> ch1 =
+      std::make_unique<ChannelType>(BitsType::MakeU32(), ChannelDirection::kIn);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*ch0, *ch1));
+
+  EXPECT_EQ(got,
+            "Type mismatch:\n"
+            "   chan(uN[8], dir=in)\n"
+            "vs chan(uN[32], dir=in)");
+}
+
+TEST(FormatTypeMismatchTest, ChannelTypeDirectionMismatch) {
+  std::unique_ptr<ChannelType> ch0 =
+      std::make_unique<ChannelType>(BitsType::MakeU8(), ChannelDirection::kIn);
+  std::unique_ptr<ChannelType> ch1 =
+      std::make_unique<ChannelType>(BitsType::MakeU8(), ChannelDirection::kOut);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*ch0, *ch1));
+
+  EXPECT_EQ(got,
+            "Type mismatch:\n"
+            "   chan(uN[8], dir=in)\n"
+            "vs chan(uN[8], dir=out)");
+}
+
+TEST(FormatTypeMismatchTest, TupleOfChannelTypesElementMismatch) {
+  std::unique_ptr<ChannelType> ch0 =
+      std::make_unique<ChannelType>(BitsType::MakeU8(), ChannelDirection::kIn);
+  std::unique_ptr<ChannelType> ch1 = std::make_unique<ChannelType>(
+      BitsType::MakeU32(), ChannelDirection::kOut);
+
+  std::unique_ptr<TupleType> t0 = TupleType::Create3(
+      ch0->CloneToUnique(), ch0->CloneToUnique(), ch1->CloneToUnique());
+  std::unique_ptr<TupleType> t1 = TupleType::Create3(
+      ch0->CloneToUnique(), ch1->CloneToUnique(), ch1->CloneToUnique());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+
+  EXPECT_EQ(
+      got,
+      ANSI_RESET "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
+                 " type:\n"                  //
+                 "   chan(uN[8], dir=in)\n"  //
+                 "vs chan(uN[32], dir=out)\n" ANSI_BOLD "Overall" ANSI_UNBOLD
+                 " type mismatch:\n"  //
+      ANSI_RESET "   (chan(uN[8]), " ANSI_RED "chan(uN[8], dir=in)" ANSI_RESET
+                 ", chan(uN[32]))\n"  //
+                 "vs (chan(uN[8]), " ANSI_RED "chan(uN[32], dir=out)" ANSI_RESET
+                 ", chan(uN[32]))"  //
+  );
 }
 
 }  // namespace

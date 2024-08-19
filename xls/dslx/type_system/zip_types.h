@@ -41,8 +41,11 @@ class ZipTypesCallbacks {
   virtual ~ZipTypesCallbacks() = default;
 
   // These are called if the same aggregate type is present on the lhs and rhs,
-  // to note we're entering/leaving it.
+  // to note we're traversing it.
   virtual absl::Status NoteAggregateStart(const AggregatePair& aggregates) = 0;
+  virtual absl::Status NoteAggregateNext(const AggregatePair& aggregates) {
+    return absl::OkStatus();
+  };
   virtual absl::Status NoteAggregateEnd(const AggregatePair& aggregates) = 0;
 
   // Called when there is a leaf type (non aggregate) where the types are

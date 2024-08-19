@@ -882,6 +882,7 @@ cc_library(
     deps = [
         ":type",
         ":zip_types",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -901,6 +902,7 @@ cc_test(
         ":type",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:channel_direction",
         "@com_google_googletest//:gtest",
     ],
 )
