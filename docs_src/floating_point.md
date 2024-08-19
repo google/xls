@@ -685,7 +685,13 @@ pub fn increment_fraction(input: BF16) -> BF16
 Increments the fraction of the input BF16 by one and returns the normalized
 result. Input must be a normal *non-zero* number.
 
+### `bfloat16::from_int8`
+```dslx-snippet
+pub fn from_int8(x: s8) -> BF16
+```
 
+Converts the given signed integer to bfloat16. For s8, all values can be
+captured exactly, so no need to round or handle overflow.
 
 ## Testing
 
