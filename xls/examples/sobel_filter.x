@@ -40,7 +40,7 @@ const Y_STENCIL_F32 = map(Y_STENCIL, convert_triplet);
 
 // Apply a stencil 'stencil' on the image 'in_img' to calculate the pixel
 // at row 'row_idx', column 'col_idx' in the output image.
-fn apply_stencil_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = {NUM_ROWS*NUM_COLS}>(
+pub fn apply_stencil_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = {NUM_ROWS*NUM_COLS}>(
   in_img: F32[NUM_ELMS],
   row_idx:u32, col_idx:u32, stencil: F32[3][3]) -> F32 {
 

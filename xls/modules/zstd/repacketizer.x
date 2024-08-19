@@ -37,7 +37,7 @@ const ZERO_ZSTD_DECODED_PACKET = zero!<ZstdDecodedPacket>();
 const ZERO_REPACKETIZER_STATE = zero!<RepacketizerState>();
 const INIT_REPACKETIZER_STATE = RepacketizerState {to_fill: DATA_WIDTH, ..ZERO_REPACKETIZER_STATE};
 
-proc Repacketizer {
+pub proc Repacketizer {
     input_r: chan<ZstdDecodedPacket> in;
     output_s: chan<ZstdDecodedPacket> out;
 

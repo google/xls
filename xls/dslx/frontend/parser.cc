@@ -2351,7 +2351,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
 // type.
 absl::StatusOr<Function*> Parser::ParseProcInit(
     Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-    std::string_view proc_name) {
+    std::string_view proc_name, bool is_public) {
   Bindings inner_bindings(&bindings);
   XLS_ASSIGN_OR_RETURN(Token init_identifier, PopToken());
   if (!init_identifier.IsIdentifier("init")) {
@@ -2369,7 +2369,7 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   Function* init = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings), std::vector<Param*>(),
       /*return_type=*/nullptr, body, FunctionTag::kProcInit,
-      /*is_public=*/false);
+      /*is_public=*/is_public);
   name_def->set_definer(init);
   return init;
 }
@@ -2494,7 +2494,7 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
 
       XLS_ASSIGN_OR_RETURN(Function * init,
                            ParseProcInit(member_bindings, parametric_bindings,
-                                         name_def->identifier()));
+                                         name_def->identifier(), is_public));
       proc_like_body.init = init;
       XLS_RETURN_IF_ERROR(module_->AddTop(init, MakeModuleTopCollisionError));
 
