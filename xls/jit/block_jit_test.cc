@@ -300,7 +300,7 @@ INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
                          });
 
 INSTANTIATE_TEST_SUITE_P(
-    BlockInterpreterFifoTest, FifoTest,
+    BlockJitFifoTest, FifoTest,
     testing::ValuesIn(GenerateFifoTestParams(kJitTestParam)), FifoTestName);
 
 }  // namespace
