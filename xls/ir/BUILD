@@ -874,6 +874,7 @@ cc_library(
         "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
+        "//xls/codegen/vast",
         "//xls/common:source_location",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
