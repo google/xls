@@ -14,7 +14,6 @@
 
 #include "xls/public/c_api.h"
 
-#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>

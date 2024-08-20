@@ -17,6 +17,7 @@
 #include <string.h>  // NOLINT(modernize-deprecated-headers)
 
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
@@ -199,23 +200,14 @@ struct xls_value* xls_value_make_false() {
 }
 
 void xls_value_free(xls_value* v) {
-  if (v == nullptr) {
-    return;
-  }
   delete reinterpret_cast<xls::Value*>(v);
 }
 
 void xls_package_free(struct xls_package* p) {
-  if (p == nullptr) {
-    return;
-  }
   delete reinterpret_cast<xls::Package*>(p);
 }
 
 void xls_c_str_free(char* c_str) {
-  if (c_str == nullptr) {
-    return;
-  }
   free(c_str);
 }
 
