@@ -115,6 +115,19 @@ void xls_value_free(struct xls_value* v);
 
 void xls_package_free(struct xls_package* p);
 
+// Frees the given `c_str` -- the C string should have been allocated by the
+// XLS library where ownership was passed back to the caller.
+//
+// `c_str` may be null, in which case this function does nothing.
+//
+// e.g. `xls_convert_dslx_to_ir` gives back `ir_out` which can be deallocated
+// by this function.
+//
+// This function is primarily useful when the underlying allocator may be
+// different between the caller and the XLS library (otherwise the caller could
+// just call `free` directly).
+void xls_c_str_free(char* c_str);
+
 // Returns a string representation of the given IR package `p`.
 bool xls_package_to_string(const struct xls_package* p, char** string_out);
 
