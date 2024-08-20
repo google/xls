@@ -34,7 +34,6 @@ from xls.common import gfile
 from xls.delay_model import delay_model_pb2
 from xls.delay_model import delay_model_utils
 from xls.delay_model import op_module_generator
-from xls.ir.op_specification import OPS
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
 
@@ -67,8 +66,6 @@ _MAX_THREADS = flags.DEFINE_integer(
     max(os.cpu_count() // 2, 1),
     'Max number of threads for parallelizing the generation of data points.',
 )
-
-ENUM2NAME_MAP = dict((op.enum_name, op.name) for op in OPS)
 
 
 def check_delay_offset(results: delay_model_pb2.DataPoints):
@@ -229,6 +226,19 @@ def _synthesize_ir(
   return result_dp
 
 
+def op_cpp_enum_to_name(cpp_enum_name: str) -> str:
+  """Converts an op C++ enum (e.g., kZeroExt) to the op name (zero_ext)."""
+  if not cpp_enum_name.startswith('k'):
+    raise ValueError(f'Invalid op enum name {cpp_enum_name}')
+  snake_case = ''
+  for c in cpp_enum_name[1:]:
+    if c.isupper():
+      snake_case += '_' + c.lower()
+    else:
+      snake_case += c
+  return snake_case
+
+
 def _run_point(
     spec: delay_model_utils.SampleSpec,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
@@ -240,7 +250,7 @@ def _run_point(
   specialization = spec.op_samples.specialization
   attributes = spec.op_samples.attributes
 
-  op_name = ENUM2NAME_MAP[op]
+  op_name = op_cpp_enum_to_name(op)
 
   # Result type - bitwidth and optionally element count(s)
   res_bit_count = spec.point.result_width

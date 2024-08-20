@@ -15,12 +15,9 @@
 # Compiler data structures for converting high level algorithms into Hardware
 # Description Language.
 
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
-# pytype library only
-load("@rules_python//python:defs.bzl", "py_binary")
-load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
@@ -461,10 +458,12 @@ cc_library(
     hdrs = ["op.h"],
     deps = [
         ":op_cc_proto",
+        "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -1137,117 +1136,6 @@ cc_library(
 filegroup(
     name = "templates",
     srcs = glob(["*.tmpl"]),
-)
-
-# op_specification is very slow to type check so don't use a type checking
-# target. Types are checked separately in the build test
-# op_specification_build_test.
-py_binary(
-    name = "render_specification_against_template",
-    srcs = [
-        "op_specification.py",
-        "render_specification_against_template.py",
-    ],
-    data = [
-        ":templates",
-    ],
-    python_version = "PY3",
-    deps = [
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
-        "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-    ],
-)
-
-py_library(
-    name = "op_specification_typechecked",
-    srcs = [
-        "op_specification.py",
-    ],
-    srcs_version = "PY2AND3",
-)
-
-build_test(
-    name = "op_specification_build_test",
-    targets = ["op_specification_typechecked"],
-)
-
-genrule(
-    name = "op_header",
-    srcs = ["op_header.tmpl"],
-    outs = ["op.h"],
-    cmd = "$(location :render_specification_against_template) $(location :op_header.tmpl)" +
-          " | $(location @llvm_toolchain//:clang-format)" +
-          " > $(OUTS)",
-    tools = [
-        ":render_specification_against_template",
-        "@llvm_toolchain//:clang-format",
-    ],
-)
-
-genrule(
-    name = "gen_op_proto",
-    srcs = ["op_proto.tmpl"],
-    outs = ["op.generated.proto"],
-    cmd = "$(location :render_specification_against_template) $(location :op_proto.tmpl) > $(OUTS)",
-    tools = [
-        ":render_specification_against_template",
-    ],
-)
-
-# TODO(taktoa): remove this once py_proto_library supports genrule deps
-sh_test(
-    name = "check_generated_op_proto",
-    size = "small",
-    srcs = ["check_generated_op_proto.sh"],
-    args = [
-        "$(location :op.generated.proto)",
-        "$(location :op.proto)",
-    ],
-    data = [
-        ":op.generated.proto",
-        ":op.proto",
-    ],
-)
-
-genrule(
-    name = "op_source",
-    srcs = ["op_source.tmpl"],
-    outs = ["op.cc"],
-    cmd = "$(location :render_specification_against_template) $(location :op_source.tmpl)" +
-          " | $(location @llvm_toolchain//:clang-format)" +
-          " > $(OUTS)",
-    tools = [
-        ":render_specification_against_template",
-        "@llvm_toolchain//:clang-format",
-    ],
-)
-
-genrule(
-    name = "nodes_header",
-    srcs = ["nodes_header.tmpl"],
-    outs = ["nodes.h"],
-    cmd = "$(location :render_specification_against_template) $(location :nodes_header.tmpl)" +
-          " | $(location @llvm_toolchain//:clang-format)" +
-          " > $(OUTS)",
-    tools = [
-        ":render_specification_against_template",
-        "@llvm_toolchain//:clang-format",
-    ],
-)
-
-genrule(
-    name = "nodes_source",
-    srcs = ["nodes_source.tmpl"],
-    outs = ["nodes.cc"],
-    cmd = "$(location :render_specification_against_template) $(location :nodes_source.tmpl)" +
-          " | $(location @llvm_toolchain//:clang-format)" +
-          " > $(OUTS)",
-    tools = [
-        ":render_specification_against_template",
-        "@llvm_toolchain//:clang-format",
-    ],
 )
 
 cc_library(

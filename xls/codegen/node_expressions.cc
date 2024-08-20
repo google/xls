@@ -118,8 +118,7 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no) {
       // For operands wider than one bit, sign extend slices out the sign bit of
       // the operand so its operand needs to be a reference.
       // TODO(meheff): It might be better to have a unified place to hold both
-      // the Verilog expression and constraints for the Ops, a la
-      // op_specification.py
+      // the Verilog expression and constraints for the Ops.
       CHECK_EQ(operand_no, 0);
       return node->operand(operand_no)->BitCountOrDie() > 1 &&
              !operand_is_indexable();

@@ -198,7 +198,6 @@ py_library(
         "//xls/delay_model:delay_model_py_pb2",
         "//xls/delay_model:delay_model_utils",
         "//xls/delay_model:op_module_generator",
-        "//xls/ir:op_specification_typechecked",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
         "@com_google_protobuf//:protobuf_python",

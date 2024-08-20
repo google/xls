@@ -305,7 +305,7 @@ class BddStatistics {
 
   std::string ToString() const {
     std::string s = "BDD compute time per op:\n";
-    std::vector<Op> ops_by_duration = AllOps();
+    std::vector<Op> ops_by_duration(kAllOps.begin(), kAllOps.end());
     std::sort(ops_by_duration.begin(), ops_by_duration.end(), [&](Op a, Op b) {
       return GetTotalDuration(a) > GetTotalDuration(b);
     });

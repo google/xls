@@ -284,7 +284,7 @@ absl::Status PrintCriticalPath(
   int64_t total_delay = critical_path.front().path_delay_ps;
   std::cout << absl::StrFormat("Contribution by op (total %dps):\n",
                                total_delay);
-  std::vector<Op> ops = AllOps();
+  std::vector<Op> ops(kAllOps.begin(), kAllOps.end());
   std::sort(ops.begin(), ops.end(), [&](Op lhs, Op rhs) {
     return op_to_sum[lhs].first > op_to_sum[rhs].first;
   });

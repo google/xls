@@ -226,7 +226,7 @@ void DumpSampleInfo(const SampleInfo& info) {
     std::cout << fmt(fields[i], /*first_col=*/i == 0);
   }
   std::cout << "\n" << std::string(20 + 13 * (fields.size() - 1), '-') << "\n";
-  for (Op op : AllOps()) {
+  for (Op op : kAllOps) {
     std::string op_str = OpToString(op);
     OpInfo op_info = info.per_op_info.contains(op_str)
                          ? info.per_op_info.at(op_str)
