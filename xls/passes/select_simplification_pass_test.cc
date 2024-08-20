@@ -1452,5 +1452,40 @@ TEST_F(SelectSimplificationPassTest, OneHotWithSingleUnknownBit) {
           {m::Literal("bits[3]:0b010"), m::Literal("bits[3]:0b001")}));
 }
 
+TEST_F(SelectSimplificationPassTest, ReorderableAffineSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue selector = fb.Subtract(fb.Literal(UBits(2, 2)), fb.Param("p1", u2));
+  fb.Select(selector, {fb.Param("a", u32), fb.Param("b", u32),
+                       fb.Param("c", u32), fb.Param("d", u32)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("p1"), {m::Param("c"), m::Param("b"),
+                                         m::Param("a"), m::Param("d")}));
+}
+
+TEST_F(SelectSimplificationPassTest, ReorderableSelectWithOperandReuse) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  Type* u2 = p->GetBitsType(2);
+  BValue p1 = fb.Param("p1", u2);
+  BValue selector = fb.UMul(p1, p1);
+  fb.Select(selector, {fb.Param("a", u32), fb.Param("b", u32),
+                       fb.Param("c", u32), fb.Param("d", u32)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("p1"), {m::Param("a"), m::Param("b"),
+                                         m::Param("a"), m::Param("b")}));
+}
+
 }  // namespace
 }  // namespace xls

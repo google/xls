@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -41,6 +42,7 @@
 #include "xls/common/visitor.h"
 #include "xls/data_structures/algorithm.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/lsb_or_msb.h"
@@ -584,6 +586,93 @@ absl::StatusOr<bool> MaybeConvertSelectToMask(Node* node,
   return true;
 }
 
+// If a select's selector is just a unary function of some other value, we can
+// encode the function for free by reordering the cases. For example:
+//
+//   sel(x + 1, cases=[a, b, c, d]) => sel(x, cases=[b, c, d, a])
+//   sel(x * 2, cases=[a, b, c, d]) => sel(x, cases=[b, d, b, d])
+//   sel(-x, cases=[a, b, c, d]) => sel(x, cases=[a, d, c, b])
+absl::StatusOr<bool> MaybeReorderSelect(Node* node,
+                                        const QueryEngine& query_engine) {
+  if (!node->Is<Select>()) {
+    return false;
+  }
+  Select* sel = node->As<Select>();
+  Node* selector = sel->selector();
+
+  // TODO(epastor): It would be nice to handle default values, but doing this
+  // without adding more cases requires proving that all cases that end up
+  // defaulted are equivalent... or else deciding how many cases we can add
+  // without the cost being too high.
+  if (sel->default_value().has_value()) {
+    return false;
+  }
+
+  // Run through all of the selector's operands, recording the Values of any
+  // that are known constant; this simplification applies if all but one are
+  // known.
+  absl::flat_hash_set<Node*> unknown_operands;
+  std::vector<std::variant<Node*, Value>> selector_operands;
+  selector_operands.reserve(selector->operands().size());
+  for (Node* operand : selector->operands()) {
+    if (std::optional<Value> known_value = query_engine.KnownValue(operand);
+        known_value.has_value()) {
+      selector_operands.push_back(*known_value);
+    } else {
+      selector_operands.push_back(operand);
+      unknown_operands.insert(operand);
+    }
+  }
+  if (unknown_operands.size() != 1) {
+    return false;
+  }
+  Node* base_selector = *unknown_operands.begin();
+  if (!base_selector->GetType()->IsBits()) {
+    return false;
+  }
+  if (base_selector->BitCountOrDie() > selector->BitCountOrDie()) {
+    // This would produce a wider selector than the original; avoid this.
+    return false;
+  }
+
+  // Loop through all values of `base_selector`, recording which case ends up
+  // selected. We know that this will run through at most 2^N values, where N is
+  // the bit count of `base_selector` - and since `base_selector` is no wider
+  // than the original `selector`, this is bounded by the number of cases in the
+  // original select.
+  std::vector<Node*> new_cases;
+  new_cases.reserve(sel->cases().size());
+  absl::FixedArray<Value> operand_values(selector_operands.size());
+  Bits base_selector_bits(base_selector->BitCountOrDie());
+  do {
+    Value base_selector_value(base_selector_bits);
+
+    for (int64_t i = 0; i < selector_operands.size(); ++i) {
+      if (std::holds_alternative<Node*>(selector_operands[i])) {
+        CHECK_EQ(std::get<Node*>(selector_operands[i]), base_selector);
+        operand_values[i] = base_selector_value;
+      } else {
+        CHECK(std::holds_alternative<Value>(selector_operands[i]));
+        operand_values[i] = std::get<Value>(selector_operands[i]);
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(Value selector_value,
+                         InterpretNode(selector, operand_values));
+    int64_t selected_case =
+        static_cast<int64_t>(selector_value.bits().ToUint64().value());
+    new_cases.push_back(sel->get_case(selected_case));
+
+    base_selector_bits = bits_ops::Increment(base_selector_bits);
+  } while (!base_selector_bits.IsZero());
+
+  XLS_RETURN_IF_ERROR(
+      sel->ReplaceUsesWithNew<Select>(base_selector, new_cases,
+                                      /*default_value=*/std::nullopt)
+          .status());
+  return true;
+}
+
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                   int64_t opt_level) {
   // Select with a constant selector can be replaced with the respective
@@ -708,6 +797,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                               .status());
       return true;
     }
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool reordered_select,
+                       MaybeReorderSelect(node, query_engine));
+  if (reordered_select) {
+    return true;
   }
 
   // Replace a select among tuples to a tuple of selects. Handles all of select,
