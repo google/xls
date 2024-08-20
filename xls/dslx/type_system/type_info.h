@@ -247,6 +247,9 @@ class TypeInfo {
   // Note that added type information and such will generally be owned by the
   // import cache.
   void AddImport(Import* import, Module* module, TypeInfo* type_info);
+
+  // Returns information on the imported module (its module AST node and
+  // top-level type information).
   std::optional<const ImportedInfo*> GetImported(Import* import) const;
   absl::StatusOr<const ImportedInfo*> GetImportedOrError(Import* import) const;
   const absl::flat_hash_map<Import*, ImportedInfo>& imports() const {
