@@ -25,7 +25,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -1617,6 +1616,12 @@ TEST_P(FifoTest, FifosReset) {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
                            evaluator().NewContinuation(block));
+  // Reset first.
+  XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(1, 1))},
+                                   {"push_data", ZeroOfType(u32)},
+                                   {"push_valid", ZeroOfType(u1)},
+                                   {"pop_ready", ZeroOfType(u1)}}));
+  // Fill the FIFO completely.
   for (int i = 0; i < fifo_config().depth() + 1; ++i) {
     XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
                                      {"push_data", ZeroOfType(u32)},
@@ -1679,25 +1684,25 @@ TEST_P(FifoTest, CutThroughLatencyCorrect) {
   XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
                                    {"push_data", ZeroOfType(u32)},
                                    {"push_valid", Value(UBits(1, 1))},
-                                   {"pop_ready", Value(UBits(0, 1))}}));
-  int64_t pop_valid = 0;
-  if (GetParam().fifo_config.bypass() &&
-      !GetParam().fifo_config.register_pop_outputs()) {
-    pop_valid = 1;
-  }
-  EXPECT_THAT(eval->output_ports(),
-              AllOf(Contains(Pair("pop_valid", Value(UBits(pop_valid, 1)))),
-                    Contains(Pair("pop_data", Value(UBits(0, 32))))));
-  if (!pop_valid) {
-    pop_valid = 1;
+                                   {"pop_ready", Value(UBits(1, 1))}}));
+  int64_t cycles = -1;
+  constexpr int64_t kMaxCycles = 5;
+  for (int64_t i = 0; i < kMaxCycles; ++i) {
+    if (eval->output_ports().at("pop_valid").IsAllOnes()) {
+      EXPECT_EQ(cycles, -1) << "Saw unexpected multiple pops.";
+      EXPECT_THAT(eval->output_ports(),
+                  Contains(Pair("pop_data", Value(UBits(0, 32)))));
+      cycles = i;
+    }
     XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
                                      {"push_data", ZeroOfType(u32)},
                                      {"push_valid", Value(UBits(0, 1))},
                                      {"pop_ready", Value(UBits(1, 1))}}));
   }
-  EXPECT_THAT(eval->output_ports(),
-              AllOf(Contains(Pair("pop_valid", Value(UBits(pop_valid, 1)))),
-                    Contains(Pair("pop_data", Value(UBits(0, 32))))));
+  EXPECT_NE(cycles, -1) << "Did not see a pop.";
+  EXPECT_EQ(cycles,
+            1 - (GetParam().fifo_config.bypass() ? 1 : 0) +
+                (GetParam().fifo_config.register_pop_outputs() ? 1 : 0));
 }
 
 TEST_P(FifoTest, BackpressureLatencyCorrect) {
@@ -1730,18 +1735,29 @@ TEST_P(FifoTest, BackpressureLatencyCorrect) {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
                            evaluator().NewContinuation(block));
+  // Reset first.
+  XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(1, 1))},
+                                   {"push_data", ZeroOfType(u32)},
+                                   {"push_valid", Value(UBits(0, 1))},
+                                   {"pop_ready", Value(UBits(0, 1))}}));
   // Push until the fifo is full.
-  for (int i = 0; i < fifo_config().depth() + 1; ++i) {
+  int64_t pushed = 0;
+  while (pushed < fifo_config().depth()) {
     XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
                                      {"push_data", ZeroOfType(u32)},
                                      {"push_valid", Value(UBits(1, 1))},
                                      {"pop_ready", Value(UBits(0, 1))}}));
+    if (eval->output_ports().at("push_ready").IsAllOnes()) {
+      ++pushed;
+    }
   }
+  XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
+                                   {"push_data", ZeroOfType(u32)},
+                                   {"push_valid", Value(UBits(0, 1))},
+                                   {"pop_ready", Value(UBits(0, 1))}}));
   EXPECT_THAT(eval->output_ports(),
-              UnorderedElementsAre(Pair("pop_valid", Value(UBits(1, 1))),
-                                   Pair("pop_data", Value(UBits(0, 32))),
-                                   // Cannot push more.
-                                   Pair("push_ready", Value(UBits(0, 1)))));
+              // Cannot push more.
+              Contains(Pair("push_ready", Value(UBits(0, 1)))));
   // Pop an output.
   XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
                                    {"push_data", ZeroOfType(u32)},

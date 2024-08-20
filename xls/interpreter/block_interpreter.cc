@@ -129,12 +129,38 @@ class BlockInterpreter final : public IrInterpreter {
 
 class FifoModel {
  public:
+  // FifoModels have some state that is stored in the register state map (like
+  // how a block stores register values). These are the names of the registers
+  // and their initial values.
+  //
+  // The elements register stores the elements of the FIFO.
+  // We use tuples b/c empty arrays are not allowed.
+  static constexpr std::string_view kElementsRegisterName = "elements";
+  static Value ElementsRegisterInitialValue() { return Value::Tuple({}); }
+  // The output_valid register stores state that is used to determine if the
+  // output of the FIFO is valid.
+  // This is only used when register_pop_outputs is true, but we add it to the
+  // register state map unconditionally.
+  static constexpr std::string_view kOutputValidRegisterName = "output_valid";
+  static Value OutputValidRegisterInitialValue() { return Value(UBits(0, 1)); }
+  static constexpr std::vector<std::string_view> kRegisterNames() {
+    return {kElementsRegisterName, kOutputValidRegisterName};
+  }
+  static std::vector<std::pair<std::string_view, Value>>
+  RegisterNamesAndInitialValues() {
+    return {{kElementsRegisterName, ElementsRegisterInitialValue()},
+            {kOutputValidRegisterName, OutputValidRegisterInitialValue()}};
+  }
+
   FifoModel(Type* type, FifoConfig config, std::string_view instance_prefix_,
             const absl::flat_hash_map<std::string, Value>& reg_state,
             absl::flat_hash_map<std::string, Value>& next_reg_state)
       : type_(type),
         config_(config),
-        register_name_(absl::StrCat(instance_prefix_, "elements")),
+        elements_register_name_(
+            absl::StrCat(instance_prefix_, kElementsRegisterName)),
+        output_valid_register_name_(
+            absl::StrCat(instance_prefix_, kOutputValidRegisterName)),
         reg_state_(reg_state),
         next_reg_state_(next_reg_state) {}
 
@@ -161,6 +187,9 @@ class FifoModel {
 
     if (reset_->IsAllOnes()) {
       NextElements() = Value::Tuple({});
+      if (config_.register_pop_outputs()) {
+        NextOutputValid() = OutputValidRegisterInitialValue();
+      }
       return absl::OkStatus();
     }
 
@@ -174,14 +203,14 @@ class FifoModel {
 
     Value const* start = elements.begin();
     if (do_pop && !elements.empty()) {
-      VLOG(2) << "FIFO " << register_name_ << " popping "
+      VLOG(2) << "FIFO " << elements_register_name_ << " popping "
               << elements.front().ToString();
       ++start;
     }
     std::vector<Value> next_elements(start, elements.end());
 
     if (do_push) {
-      VLOG(2) << "FIFO " << register_name_ << " pushing "
+      VLOG(2) << "FIFO " << elements_register_name_ << " pushing "
               << push_data_->ToString();
     }
     if (do_push && !immediately_pop_pushed_value) {
@@ -189,6 +218,13 @@ class FifoModel {
     }
     XLS_RET_CHECK_LE(next_elements.size(), config_.depth());
     NextElements() = Value::Tuple(next_elements);
+    if (config_.register_pop_outputs()) {
+      bool next_output_valid = elements.size() > 1 ||
+                               (elements.size() == 1 && !do_pop) ||
+                               (config_.bypass() && do_push);
+      NextOutputValid() =
+          Value(UBits(static_cast<int64_t>(next_output_valid), 1));
+    }
     return absl::OkStatus();
   }
   absl::StatusOr<Value> HandleOutput(InstantiationOutput* output) {
@@ -196,8 +232,8 @@ class FifoModel {
     absl::Span<Value const> elements = Elements().elements();
     XLS_RET_CHECK_LE(elements.size(), config_.depth());
     if (output->port_name() == FifoInstantiation::kPopValidPortName) {
-      VLOG(1) << "Fifo " << register_name_ << " state is " << elements.size()
-              << " elements with "
+      VLOG(1) << "Fifo " << elements_register_name_ << " state is "
+              << elements.size() << " elements with "
               << (elements.empty() ? "<empty>" : elements.front().ToString())
               << " at head.";
       XLS_ASSIGN_OR_RETURN(bool pop_valid, PopValid());
@@ -222,8 +258,6 @@ class FifoModel {
         absl::StrFormat("Unexpected port '%s'", output->port_name()));
   }
 
-  std::string_view register_name() const { return register_name_; }
-
  private:
   absl::StatusOr<bool> PushReady() const {
     const Value& elements = Elements();
@@ -239,13 +273,13 @@ class FifoModel {
   }
 
   absl::StatusOr<bool> PopValid() const {
+    if (config_.register_pop_outputs()) {
+      return OutputValid().IsAllOnes() && !Elements().empty();
+    }
     const Value& elements = Elements();
     bool empty = elements.empty();
     if (!empty) {
       return true;
-    }
-    if (config_.register_pop_outputs()) {
-      return false;
     }
     if (!config_.bypass() && empty) {
       return false;
@@ -254,12 +288,23 @@ class FifoModel {
     return push_valid_->IsAllOnes();
   }
 
-  const Value& Elements() const { return reg_state_.at(register_name_); }
-  Value& NextElements() { return next_reg_state_[register_name_]; }
+  const Value& Elements() const {
+    return reg_state_.at(elements_register_name_);
+  }
+  Value& NextElements() { return next_reg_state_[elements_register_name_]; }
+
+  const Value& OutputValid() const {
+    return reg_state_.at(output_valid_register_name_);
+  }
+  Value& NextOutputValid() {
+    return next_reg_state_[output_valid_register_name_];
+  }
 
   Type* type_;
   FifoConfig config_;
-  std::string register_name_;
+  std::string elements_register_name_;
+  // Only used when register_pop_outputs is true.
+  std::string output_valid_register_name_;
   const absl::flat_hash_map<std::string, Value>& reg_state_;
   absl::flat_hash_map<std::string, Value>& next_reg_state_;
   std::optional<Value> push_data_;
@@ -779,7 +824,9 @@ absl::StatusOr<BlockRunResult> BlockRun(
   for (BlockInstance* inst : elaboration.instances()) {
     if (inst->instantiation().has_value() &&
         inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
-      reg_names.insert(absl::StrCat(inst->RegisterPrefix(), "elements"));
+      for (std::string_view register_name : FifoModel::kRegisterNames()) {
+        reg_names.insert(absl::StrCat(inst->RegisterPrefix(), register_name));
+      }
     }
     if (!inst->block().has_value()) {
       continue;
@@ -885,10 +932,12 @@ InterpreterBlockEvaluator::MakeNewContinuation(
   for (BlockInstance* inst : elaboration.instances()) {
     if (inst->instantiation().has_value() &&
         inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
-      // We use tuples b/c empty arrays are not allowed.
       // TODO: google/xls#1389 - Factor FIFO state out.
-      ext_regs[absl::StrCat(inst->RegisterPrefix(), "elements")] =
-          Value::Tuple({});
+      for (const auto& [name, initial_value] :
+           FifoModel::RegisterNamesAndInitialValues()) {
+        ext_regs.insert(
+            {absl::StrCat(inst->RegisterPrefix(), name), initial_value});
+      }
     }
   }
 

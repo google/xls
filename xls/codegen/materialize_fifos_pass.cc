@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
@@ -46,12 +47,17 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                                        FifoInstantiation* inst,
                                        const xls::Reset& reset_behavior) {
   const FifoConfig& config = inst->fifo_config();
-  int64_t depth = config.depth();
+  const int64_t depth = config.depth();
+  const bool bypass = config.bypass();
+  const bool register_push = config.register_push_outputs();
+  const bool register_pop = config.register_pop_outputs();
   Type* u1 = p->GetBitsType(1);
   Type* ty = inst->data_type();
-  bool bypass = config.bypass();
-  bool register_push = config.register_push_outputs();
-  bool register_pop = config.register_pop_outputs();
+
+  // Make sure there is one extra slot at least. Bad for QOR but makes impl
+  // easier since full is always tail + size == head
+  Type* buf_type = p->GetArrayType(depth + 1, ty);
+  Type* ptr_type = p->GetBitsType(Bits::MinBitCountUnsigned(depth + 1));
 
   BlockBuilder bb(uniquer.GetSanitizedUniqueName(absl::StrFormat(
                       "fifo_for_depth_%d_ty_%s_%s%s%s", depth, ty->ToString(),
@@ -60,15 +66,19 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                       register_push ? "_register_push" : "")),
                   p);
   XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
-  XLS_ASSIGN_OR_RETURN(
-      InputPort * reset_port,
-      bb.block()->AddResetPort(FifoInstantiation::kResetPortName));
-  BValue reset_port_bvalue(reset_port, &bb);
+  BValue reset_port = bb.ResetPort(FifoInstantiation::kResetPortName);
 
-  // Make sure there is one extra slot at least. Bad for QOR but makes impl
-  // easier since full is always tail + size == head
-  Type* buf_type = p->GetArrayType(depth + 1, ty);
-  Type* ptr_type = p->GetBitsType(Bits::MinBitCountUnsigned(depth + 1));
+  BValue one_lit = bb.Literal(UBits(1, ptr_type->GetFlatBitCount()));
+  BValue depth_lit = bb.Literal(UBits(depth, ptr_type->GetFlatBitCount()));
+  BValue long_buf_size_lit =
+      bb.Literal(UBits(depth + 1, ptr_type->GetFlatBitCount() + 1),
+                 SourceInfo(), "long_buf_size_lit");
+
+  BValue push_valid = bb.InputPort(FifoInstantiation::kPushValidPortName, u1);
+  BValue pop_ready_port =
+      bb.InputPort(FifoInstantiation::kPopReadyPortName, u1);
+  BValue push_data = bb.InputPort(FifoInstantiation::kPushDataPortName, ty);
+
   XLS_ASSIGN_OR_RETURN(
       Register * buf_reg,
       bb.block()->AddRegister(
@@ -90,19 +100,47 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
           xls::Reset{.reset_value = ZeroOfType(ptr_type),
                      .asynchronous = reset_behavior.asynchronous,
                      .active_low = reset_behavior.active_low}));
-  BValue one_lit = bb.Literal(UBits(1, ptr_type->GetFlatBitCount()));
-  BValue depth_lit = bb.Literal(UBits(depth, ptr_type->GetFlatBitCount()));
-  BValue long_buf_size_lit =
-      bb.Literal(UBits(depth + 1, ptr_type->GetFlatBitCount() + 1),
-                 SourceInfo(), "long_buf_size_lit");
-
-  BValue push_valid = bb.InputPort(FifoInstantiation::kPushValidPortName, u1);
-  BValue pop_ready = bb.InputPort(FifoInstantiation::kPopReadyPortName, u1);
-  BValue push_data = bb.InputPort(FifoInstantiation::kPushDataPortName, ty);
+  XLS_ASSIGN_OR_RETURN(
+      Register * slots_reg,
+      bb.block()->AddRegister(
+          "slots", ptr_type,
+          xls::Reset{.reset_value = ZeroOfType(ptr_type),
+                     .asynchronous = reset_behavior.asynchronous,
+                     .active_low = reset_behavior.active_low}));
 
   BValue buf = bb.RegisterRead(buf_reg);
   BValue head = bb.RegisterRead(head_reg, SourceInfo(), "head_ptr");
   BValue tail = bb.RegisterRead(tail_reg, SourceInfo(), "tail_ptr");
+  BValue slots = bb.RegisterRead(slots_reg, SourceInfo(), "slots_ptr");
+
+  // Only used if register_pop is true.
+  std::optional<Register*> pop_valid_reg;
+  std::optional<Register*> pop_data_reg;
+  std::optional<BValue> pop_valid_reg_read;
+  std::optional<BValue> pop_data_reg_read;
+  std::optional<BValue> pop_valid_load_en;
+
+  if (register_pop) {
+    XLS_ASSIGN_OR_RETURN(
+        pop_valid_reg,
+        bb.block()->AddRegister(
+            "pop_valid_reg", u1, /*reset=*/
+            xls::Reset{.reset_value = Value::Bool(false),
+                       .asynchronous = reset_behavior.asynchronous,
+                       .active_low = reset_behavior.active_low}));
+    XLS_ASSIGN_OR_RETURN(
+        pop_data_reg,
+        bb.block()->AddRegister(
+            "pop_data_reg", ty, /*reset=*/
+            xls::Reset{.reset_value = ZeroOfType(ty),
+                       .asynchronous = reset_behavior.asynchronous,
+                       .active_low = reset_behavior.active_low}));
+    pop_valid_reg_read = bb.RegisterRead(*pop_valid_reg);
+    depth_lit = bb.Add(depth_lit, bb.ZeroExtend(*pop_valid_reg_read,
+                                                ptr_type->GetFlatBitCount()));
+    pop_data_reg_read = bb.RegisterRead(*pop_data_reg);
+    pop_valid_load_en = bb.Or(pop_ready_port, bb.Not(*pop_valid_reg_read));
+  }
 
   BValue current_queue_tail = bb.ArrayIndex(buf, {tail});
 
@@ -121,14 +159,27 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
         0, ptr_type->GetFlatBitCount(), SourceInfo(), name.value_or(""));
   };
 
+  // If we aren't registering pop outputs, there's nothing special on the pop
+  // side and we directly forward the pop ready port. If we do register pop
+  // outputs, there's a 1-element FIFO-like state machine between the pop
+  // outputs and the buffer. This signal should include pop_valid, but it hasn't
+  // been computed yet and we don't want a circular reference. Later, we'll
+  // update buf_pop_ready to be AND(pop_valid, *pop_valid_load_en)
+  BValue buf_pop_ready = pop_ready_port;
+  if (register_pop) {
+    buf_pop_ready = bb.Or(*pop_valid_load_en, pop_ready_port, SourceInfo(),
+                          "buf_pop_ready");
+  }
+
   // Output the current state.
   BValue is_full_bool =
-      bb.Eq(head, add_mod_buf_size(tail, depth_lit, "tail_plus_depth"));
+      bb.Eq(slots, bb.Literal(UBits(depth, ptr_type->GetFlatBitCount())),
+            SourceInfo(), "is_full_bool");
   BValue not_full_bool = bb.Not(is_full_bool);
   BValue can_do_push =
-      bb.Or(not_full_bool, pop_ready, SourceInfo(), "can_do_push");
+      bb.Or(not_full_bool, buf_pop_ready, SourceInfo(), "can_do_push");
   // Ready to take things if we are not full.
-  BValue not_empty_bool = bb.Ne(head, tail);
+  BValue buf_not_empty_bool = bb.Ne(head, tail);
 
   // NB we don't bother clearing data after a pop.
   BValue next_tail_value_if_pop_occurs =
@@ -145,32 +196,45 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   if (bypass) {
     // NB No need to handle the 'full and bypass and both read & write case
     // specially since we have an extra slot to store those values in.
-    BValue bypass_possible = register_pop ? bb.Literal(Value::Bool(false))
-                                          : bb.And(pop_ready, push_valid);
+    BValue bypass_possible = bb.And(buf_pop_ready, push_valid);
     BValue is_pushable = bb.Or(can_do_push, bypass_possible);
-    BValue is_popable = bb.Or(not_empty_bool, bypass_possible);
-    pop_valid =
-        register_pop ? not_empty_bool : bb.Or(not_empty_bool, push_valid);
-    push_ready = bb.Or(can_do_push, pop_ready);
+    BValue is_popable = bb.Or(buf_not_empty_bool, bypass_possible);
+    pop_valid = bb.Or(buf_not_empty_bool, push_valid);
+    push_ready = bb.Or(can_do_push, buf_pop_ready);
     BValue is_empty_bool = bb.Eq(head, tail);
     BValue did_no_write_bypass_occur = bb.And(is_empty_bool, bypass_possible);
     BValue did_visible_push_occur_bool = bb.And(is_pushable, push_valid);
-    BValue did_visible_pop_occur_bool = bb.And(is_popable, pop_ready);
+    if (register_pop) {
+      buf_pop_ready = bb.And(buf_pop_ready, pop_valid);
+    }
+    BValue did_visible_pop_occur_bool = bb.And(is_popable, buf_pop_ready);
     pop_data_value = bb.Select(is_empty_bool, {current_queue_tail, push_data});
     did_pop_occur_bool =
-        bb.And(did_visible_pop_occur_bool, bb.Not(did_no_write_bypass_occur));
+        bb.And(did_visible_pop_occur_bool, bb.Not(did_no_write_bypass_occur),
+               SourceInfo(), "did_pop_occur");
     did_push_occur_bool =
         bb.And(did_visible_push_occur_bool, bb.Not(did_no_write_bypass_occur));
   } else {
     push_ready = can_do_push;
-    pop_valid = not_empty_bool;
+    pop_valid = buf_not_empty_bool;
     pop_data_value = current_queue_tail;
-    did_pop_occur_bool = bb.And(pop_valid, pop_ready);
+    did_pop_occur_bool =
+        bb.And(pop_valid, buf_pop_ready, SourceInfo(), "did_pop_occur");
     did_push_occur_bool = bb.And(push_ready, push_valid);
   }
   if (register_push) {
     push_ready = not_full_bool;
-    did_push_occur_bool = bb.And(did_push_occur_bool, not_full_bool);
+    did_push_occur_bool = bb.And(did_push_occur_bool, not_full_bool,
+                                 SourceInfo(), "did_push_occur");
+  }
+  if (register_pop) {
+    bb.RegisterWrite(*pop_valid_reg, pop_valid,
+                     /*load_enable=*/pop_valid_load_en, reset_port);
+    bb.RegisterWrite(*pop_data_reg, pop_data_value,
+                     /*load_enable=*/pop_valid_load_en, reset_port);
+
+    pop_valid = *pop_valid_reg_read;
+    pop_data_value = *pop_data_reg_read;
   }
   bb.OutputPort(FifoInstantiation::kPushReadyPortName, push_ready);
 
@@ -182,12 +246,20 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   // aren't ready.
   bb.OutputPort(FifoInstantiation::kPopDataPortName, pop_data_value);
 
+  BValue pushed = bb.And(push_ready, push_valid, SourceInfo(), "pushed");
+  BValue popped = bb.And(pop_ready_port, pop_valid, SourceInfo(), "popped");
+  BValue slots_next = bb.Select(
+      pushed, {bb.Select(popped, {slots, bb.Subtract(slots, one_lit)}),
+               bb.Select(popped, {bb.Add(slots, one_lit), slots})});
+
   bb.RegisterWrite(buf_reg, next_buf_value_if_push_occurs,
-                   /*load_enable=*/did_push_occur_bool, reset_port_bvalue);
+                   /*load_enable=*/did_push_occur_bool, reset_port);
   bb.RegisterWrite(head_reg, next_head_value_if_push_occurs,
-                   /*load_enable=*/did_push_occur_bool, reset_port_bvalue);
+                   /*load_enable=*/did_push_occur_bool, reset_port);
   bb.RegisterWrite(tail_reg, next_tail_value_if_pop_occurs,
-                   /*load_enable=*/did_pop_occur_bool, reset_port_bvalue);
+                   /*load_enable=*/did_pop_occur_bool, reset_port);
+  bb.RegisterWrite(slots_reg, slots_next, /*load_enable=*/std::nullopt,
+                   reset_port);
 
   return bb.Build();
 }
@@ -204,6 +276,11 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
       if (i->kind() == InstantiationKind::kFifo) {
         XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo,
                              i->AsFifoInstantiation());
+        if (fifo->fifo_config().depth() == 1 &&
+            fifo->fifo_config().register_pop_outputs()) {
+          return absl::InvalidArgumentError(
+              "Cannot materialize fifo with register_pop_outputs and depth 1.");
+        }
         insts.push_back(fifo);
       }
     }

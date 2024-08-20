@@ -32,7 +32,7 @@ MATCHER_P2(
     UsableOutputsMatch, input_set, output_set,
     absl::StrFormat(
         "All ready/valid signals to match and the data signal to match if "
-        "ready & valid is asserted for output: %s, input %s",
+        "ready & valid is asserted for\noutput:\n %s\ninput:\n %s",
         testing::PrintToString(output_set),
         testing::PrintToString(input_set))) {
   const absl::flat_hash_map<std::string, Value>& inputs = input_set;
