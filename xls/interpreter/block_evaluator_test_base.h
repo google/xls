@@ -72,6 +72,11 @@ inline std::vector<FifoTestParam> GenerateFifoTestParams(
             // Unsupported configurations of depth=0 fifos.
             continue;
           }
+          if (depth == 1 && register_pop_outputs) {
+            // Unsupported configuration of depth=1 fifo with
+            // register_pop_outputs.
+            continue;
+          }
           params.push_back(FifoTestParam{
               .block_evaluator_test_param = block_evaluator_test_param,
               .fifo_config = FifoConfig(depth, bypass, register_push_outputs,

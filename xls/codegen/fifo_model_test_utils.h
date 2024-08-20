@@ -168,11 +168,15 @@ class Operation : public BaseOperation,
 };
 
 inline auto FifoConfigDomain() {
-  return fuzztest::ConstructorOf<FifoConfig>(
-      /*depth=*/fuzztest::InRange(1, 10),
-      /*bypass=*/fuzztest::Arbitrary<bool>(),
-      /*register_push_outputs=*/fuzztest::Arbitrary<bool>(),
-      /*register_pop_outputs=*/fuzztest::Arbitrary<bool>());
+  return fuzztest::Filter(
+      [](const FifoConfig& config) {
+        return !(config.depth() == 1 && config.register_pop_outputs());
+      },
+      fuzztest::ConstructorOf<FifoConfig>(
+          /*depth=*/fuzztest::InRange(1, 10),
+          /*bypass=*/fuzztest::Arbitrary<bool>(),
+          /*register_push_outputs=*/fuzztest::Arbitrary<bool>(),
+          /*register_pop_outputs=*/fuzztest::Arbitrary<bool>()));
 }
 
 inline auto OperationDomain() {
