@@ -1606,9 +1606,14 @@ absl::Status BytecodeEmitter::HandleConditional(const Conditional* node) {
 }
 
 absl::Status BytecodeEmitter::HandleUnrollFor(const UnrollFor* node) {
+  std::optional<const Expr*> unrolled = type_info_->GetUnrolledLoop(
+      node, caller_bindings_.has_value() ? *caller_bindings_ : ParametricEnv());
+  if (unrolled.has_value()) {
+    return (*unrolled)->AcceptExpr(this);
+  }
   return absl::UnimplementedError(
-      "UnrollFor nodes aren't interpretable/emittable. "
-      "Such nodes should have been unrolled into flat statements.");
+      "UnrollFor nodes aren't interpretable/emittable until after they have "
+      "been unrolled.");
 }
 
 absl::Status BytecodeEmitter::HandleMatch(const Match* node) {

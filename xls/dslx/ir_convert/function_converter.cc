@@ -253,6 +253,13 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // Causes all children of "node" to accept this visitor.
   absl::Status VisitChildren(const AstNode* node) {
+    if (const UnrollFor* loop = dynamic_cast<const UnrollFor*>(node); loop) {
+      std::optional<const Expr*> unrolled_for =
+          converter_->GetUnrolledForLoop(loop);
+      if (unrolled_for.has_value()) {
+        return (*unrolled_for)->Accept(this);
+      }
+    }
     for (AstNode* child : node->GetChildren(/*want_types=*/false)) {
       XLS_RETURN_IF_ERROR(Visit(child));
     }
@@ -277,6 +284,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   TRAVERSE_DISPATCH(XlsTuple)
   TRAVERSE_DISPATCH(ZeroMacro)
   TRAVERSE_DISPATCH(AllOnesMacro)
+  TRAVERSE_DISPATCH(UnrollFor)
 
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
@@ -357,10 +365,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Spawn)
   INVALID(StructDef)
   INVALID(ProcMember)
-
-  // This should have been unrolled into a sequence of statements and is
-  // unconvertible.
-  INVALID(UnrollFor)
 
  private:
   // Called when we visit a node we don't expect to observe in the traversal.
@@ -2831,6 +2835,23 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   XLS_RET_CHECK(!(*resolved_parametric_env)->empty());
   return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
                         resolved_parametric_env.value());
+}
+
+std::optional<const Expr*> FunctionConverter::GetUnrolledForLoop(
+    const UnrollFor* loop) {
+  return current_type_info_->GetUnrolledLoop(
+      loop, ParametricEnv(parametric_env_map_));
+}
+
+absl::Status FunctionConverter::HandleUnrollFor(const UnrollFor* node) {
+  std::optional<const Expr*> unrolled_expr = GetUnrolledForLoop(node);
+  if (!unrolled_expr.has_value()) {
+    return absl::FailedPreconditionError(
+        absl::StrCat("unroll_for! should have been unrolled by now at: ",
+                     node->span().ToString()));
+  }
+  SetNodeToIr(node, node_to_ir_.at(*unrolled_expr));
+  return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleBinop(const Binop* node) {

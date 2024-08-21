@@ -267,8 +267,6 @@ proc main {
 }
 
 TEST(ProcConfigIrConverterTest, DealOutChannelArrayElementsToSpawnee) {
-  // TODO: https://github.com/google/xls/issues/704 - make unroll_for! work for
-  // the spawn() and send()/recv() pairs below.
   constexpr std::string_view kModule = R"(
   proc B {
     input: chan<u32> in;
@@ -295,25 +293,22 @@ TEST(ProcConfigIrConverterTest, DealOutChannelArrayElementsToSpawnee) {
     config() {
       let (output_to_b, input_from_b) = chan<u32>[2][2]("toward_b");
       let (output_to_a, input_from_a) = chan<u32>[2][2]("toward_a");
-      spawn B(input_from_a[0][0], output_to_a[0][0]);
-      spawn B(input_from_a[0][1], output_to_a[0][1]);
-      spawn B(input_from_a[1][0], output_to_a[1][0]);
-      spawn B(input_from_a[1][1], output_to_a[1][1]);
+      unroll_for!(i, _) : (u32, ()) in u32:0..u32:2 {
+        unroll_for!(j, _) : (u32, ()) in u32:0..u32:2 {
+          spawn B(input_from_a[i][j], output_to_a[i][j]);
+        }(())
+      }(());
       (input_from_b, output_to_b)
     }
 
     next(state: ()) {
-      let tok = send(join(), outputs[0][0], u32:3);
-      let (tok, data) = recv(tok, inputs[0][0]);
-
-      let tok = send(tok, outputs[0][1], data);
-      let (tok, data) = recv(tok, inputs[0][1]);
-
-      let tok = send(tok, outputs[1][0], data);
-      let (tok, data) = recv(tok, inputs[1][0]);
-
-      let tok = send(tok, outputs[1][1], data);
-      let (tok, data) = recv(tok, inputs[1][1]);
+      unroll_for!(i, (tok, data)): (u32, (token, u32)) in u32:0..u32:2 {
+        unroll_for!(j, (tok, data)): (u32, (token, u32)) in u32:0..u32:2 {
+          let tok = send(tok, outputs[i][j], data);
+          let (tok, data) = recv(tok, inputs[i][j]);
+          (tok, data)
+        }((tok, data))
+      }((join(), u32:0));
     }
   }
 )";

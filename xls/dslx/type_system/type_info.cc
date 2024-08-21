@@ -225,6 +225,31 @@ bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) const {
   return false;
 }
 
+void TypeInfo::NoteUnrolledLoop(const UnrollFor* loop, const ParametricEnv& env,
+                                Expr* unrolled_expr) {
+  VLOG(4) << "Converted unroll_for! at " << loop->span().ToString()
+          << " with bindings: " << env.ToString()
+          << " to: " << unrolled_expr->ToString();
+  unrolled_loops_[loop][env] = unrolled_expr;
+}
+
+std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
+                                               const ParametricEnv& env) const {
+  const auto exprs_it = unrolled_loops_.find(loop);
+  if (exprs_it != unrolled_loops_.end()) {
+    const auto it = exprs_it->second.find(env);
+    if (it != exprs_it->second.end()) {
+      return it->second;
+    }
+  }
+  if (parent_ != nullptr) {
+    return parent_->GetUnrolledLoop(loop, env);
+  }
+  VLOG(4) << "Loop at " << loop->span().ToString()
+          << " has not been unrolled for " << env.ToString();
+  return std::nullopt;
+}
+
 absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
     TypeDefinition source) {
   return absl::visit(

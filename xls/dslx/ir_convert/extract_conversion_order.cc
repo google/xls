@@ -253,6 +253,15 @@ class InvocationVisitor : public ExprVisitor {
     return expr->body()->AcceptExpr(this);
   }
 
+  absl::Status HandleUnrollFor(const UnrollFor* expr) override {
+    std::optional<const Expr*> unrolled =
+        type_info_->GetUnrolledLoop(expr, bindings_);
+    if (unrolled.has_value()) {
+      XLS_RETURN_IF_ERROR((*unrolled)->AcceptExpr(this));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFormatMacro(const FormatMacro* expr) override {
     for (const Expr* arg : expr->args()) {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
@@ -434,7 +443,6 @@ class InvocationVisitor : public ExprVisitor {
   DEFAULT_HANDLE(NameRef)
   DEFAULT_HANDLE(Number)
   DEFAULT_HANDLE(String)
-  DEFAULT_HANDLE(UnrollFor)
 #undef DEFAULT_HANDLE
 
   std::vector<Callee>& callees() { return callees_; }

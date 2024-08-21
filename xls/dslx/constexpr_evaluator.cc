@@ -666,6 +666,11 @@ absl::Status ConstexprEvaluator::HandleTupleIndex(const TupleIndex* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleUnrollFor(const UnrollFor* expr) {
+  std::optional<const Expr*> unrolled =
+      type_info_->GetUnrolledLoop(expr, bindings_);
+  if (unrolled.has_value()) {
+    return (*unrolled)->AcceptExpr(this);
+  }
   return absl::OkStatus();
 }
 

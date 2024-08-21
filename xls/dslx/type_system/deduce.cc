@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system/deduce.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -28,6 +29,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -48,6 +50,7 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
@@ -74,6 +77,14 @@
 
 namespace xls::dslx {
 namespace {
+
+absl::StatusOr<InterpValue> EvaluateConstexprValue(DeduceCtx* ctx,
+                                                   const Expr* node,
+                                                   const Type* type) {
+  return ConstexprEvaluator::EvaluateToValue(
+      ctx->import_data(), ctx->type_info(), ctx->warnings(),
+      ctx->GetCurrentParametricEnv(), node, type);
+}
 
 // Attempts to convert an expression from the full DSL AST into the
 // ParametricExpression sub-AST (a limited form that we can embed into a
@@ -104,11 +115,8 @@ absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
   }
   if (auto* n = dynamic_cast<const Number*>(e)) {
     auto default_type = BitsType::MakeU32();
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue constexpr_value,
-        ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(), ctx->warnings(),
-            ctx->GetCurrentParametricEnv(), n, default_type.get()));
+    XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                         EvaluateConstexprValue(ctx, n, default_type.get()));
     return std::make_unique<ParametricConstant>(std::move(constexpr_value));
   }
   return absl::InvalidArgumentError(
@@ -224,9 +232,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantDef(const ConstantDef* node,
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
-      ConstexprEvaluator::EvaluateToValue(
-          ctx->import_data(), ctx->type_info(), ctx->warnings(),
-          ctx->GetCurrentParametricEnv(), node->value(), result.get()));
+      EvaluateConstexprValue(ctx, node->value(), result.get()));
   ctx->type_info()->NoteConstExpr(node, constexpr_value);
   ctx->type_info()->NoteConstExpr(node->value(), constexpr_value);
   ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value);
@@ -449,9 +455,91 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFor(const For* node,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
                                                       DeduceCtx* ctx) {
-  XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable()).status());
-  XLS_RETURN_IF_ERROR(ctx->Deduce(node->types()).status());
-  return ctx->Deduce(node->body());
+  XLS_RETURN_IF_ERROR(DeduceAndResolve(node->types(), ctx).status());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> iterable_type,
+                       DeduceAndResolve(node->iterable(), ctx));
+  absl::StatusOr<InterpValue> iterable =
+      EvaluateConstexprValue(ctx, node->iterable(), iterable_type.get());
+  if (!iterable.ok() || !iterable->HasValues()) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "unroll_for! must use a constexpr iterable expression at: ",
+        node->iterable()->span().ToString()));
+  }
+  const auto* types = dynamic_cast<const TupleTypeAnnotation*>(node->types());
+  CHECK(types);
+  CHECK_EQ(types->members().size(), 2);
+  TypeAnnotation* index_type_annot = types->members()[0];
+  TypeAnnotation* acc_type_annot = types->members()[1];
+  CHECK_EQ(node->names()->nodes().size(), 2);
+  const NameDefTree& index_name = *node->names()->nodes()[0];
+  std::optional<NameDef*> index_def;
+  if (index_name.is_leaf() &&
+      std::holds_alternative<NameDef*>(index_name.leaf())) {
+    index_def = std::get<NameDef*>(index_name.leaf());
+  }
+  const NameDefTree& acc_name = *node->names()->nodes()[1];
+  std::optional<NameDefTree*> acc_def;
+  std::vector<Statement*> unrolled_statements;
+  // Generate an initializer like `let acc = init;` unless the accumulator is
+  // an unnamed leaf. Note that it may be a destructured tuple within the
+  // index-acc tuple.
+  if (!acc_name.is_leaf() ||
+      std::holds_alternative<NameDef*>(acc_name.leaf())) {
+    acc_def = const_cast<NameDefTree*>(&acc_name);
+    XLS_ASSIGN_OR_RETURN(
+        Statement::Wrapped wrapped_init,
+        Statement::NodeToWrapped(node->owner()->Make<Let>(
+            node->span(), *acc_def, acc_type_annot, node->init(),
+            /*is_const=*/false)));
+    unrolled_statements.push_back(node->owner()->Make<Statement>(wrapped_init));
+  }
+  // Unroll the loop to a series of clones of `node->body()`. If there is a
+  // declared accumulator, then all but the last iteration are unrolled as
+  // `let acc = clone_of_body;`. Each clone has any references to the index
+  // replaced with a literal index value.
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* values,
+                       iterable->GetValues());
+  for (size_t i = 0; i < values->size(); i++) {
+    const InterpValue& element = values->at(i);
+    if (!element.IsBits()) {
+      // Currently, the iterable elements have to be of bits type, to simplify
+      // their conversion into literals.
+      // TODO: https://github.com/google/xls/issues/704 - this restriction could
+      // be relaxed.
+      return absl::InvalidArgumentError(
+          absl::StrCat("unroll_for! must iterate through a range or aggregate "
+                       "type whose elements are all bits at: ",
+                       node->iterable()->span()));
+    }
+    CloneReplacer index_replacer = &NoopCloneReplacer;
+    if (index_def.has_value()) {
+      Number* index = node->owner()->Make<Number>(
+          node->iterable()->span(), element.ToString(/*humanize=*/true),
+          NumberKind::kOther, index_type_annot);
+      ctx->type_info()->NoteConstExpr(index, element);
+      index_replacer = NameRefReplacer(*index_def, index);
+    }
+    XLS_ASSIGN_OR_RETURN(AstNode * clone,
+                         CloneAst(node->body(), std::move(index_replacer)));
+    AstNode* iteration = clone;
+    if (acc_def.has_value() && i < values->size() - 1) {
+      iteration =
+          node->owner()->Make<Let>(node->span(), *acc_def, acc_type_annot,
+                                   down_cast<StatementBlock*>(clone),
+                                   /*is_const=*/false);
+    }
+    XLS_ASSIGN_OR_RETURN(Statement::Wrapped wrapped,
+                         Statement::NodeToWrapped(iteration));
+    unrolled_statements.push_back(node->owner()->Make<Statement>(wrapped));
+  }
+  // Store the unrolled loop, deduce its type, and use that as the type of the
+  // `unroll_for!`.
+  StatementBlock* unrolled = node->owner()->Make<StatementBlock>(
+      node->span(), std::move(unrolled_statements), /*trailing_semi=*/false);
+  unrolled->SetParentNonLexical(node->parent());
+  ctx->type_info()->NoteUnrolledLoop(node, ctx->GetCurrentParametricEnv(),
+                                     unrolled);
+  return DeduceAndResolve(unrolled, ctx);
 }
 
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
@@ -1688,12 +1776,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceChannelDecl(const ChannelDecl* node,
         node->channel_name_expr().span(), channel_name_type.get(),
         "Channel name must be an array of u8s; i.e. u8[N]");
   }
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue channel_name_value,
-      ConstexprEvaluator::EvaluateToValue(
-          ctx->import_data(), ctx->type_info(), ctx->warnings(),
-          ctx->GetCurrentParametricEnv(), &node->channel_name_expr(),
-          channel_name_type.get()));
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_name_value,
+                       EvaluateConstexprValue(ctx, &node->channel_name_expr(),
+                                              channel_name_type.get()));
   XLS_ASSIGN_OR_RETURN(int64_t name_length, channel_name_value.GetLength());
   if (name_length == 0) {
     return TypeInferenceErrorStatus(node->channel_name_expr().span(),
@@ -1729,14 +1814,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceRange(const Range* node,
   // evaluatable.
   XLS_ASSIGN_OR_RETURN(
       InterpValue start_value,
-      ConstexprEvaluator::EvaluateToValue(
-          ctx->import_data(), ctx->type_info(), ctx->warnings(),
-          ctx->GetCurrentParametricEnv(), node->start(), start_type.get()));
+      EvaluateConstexprValue(ctx, node->start(), start_type.get()));
   XLS_ASSIGN_OR_RETURN(
       InterpValue end_value,
-      ConstexprEvaluator::EvaluateToValue(
-          ctx->import_data(), ctx->type_info(), ctx->warnings(),
-          ctx->GetCurrentParametricEnv(), node->end(), end_type.get()));
+      EvaluateConstexprValue(ctx, node->end(), end_type.get()));
 
   XLS_ASSIGN_OR_RETURN(InterpValue le, end_value.Le(start_value));
   if (le.IsTrue()) {

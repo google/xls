@@ -472,8 +472,17 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleNameRef(const NameRef* n) override {
-    old_to_new_[n] =
-        module_->Make<NameRef>(n->span(), n->identifier(), n->name_def());
+    // If it's a ref to a cloned def, then point it to the cloned def.
+    // Otherwise, it may be a ref to a def that is outside the scope being
+    // cloned.
+    auto it = old_to_new_.end();
+    if (std::holds_alternative<const NameDef*>(n->name_def())) {
+      it = old_to_new_.find(std::get<const NameDef*>(n->name_def()));
+    }
+    old_to_new_[n] = module_->Make<NameRef>(
+        n->span(), n->identifier(),
+        it == old_to_new_.end() ? n->name_def()
+                                : down_cast<NameDef*>(it->second));
     return absl::OkStatus();
   }
 
@@ -825,7 +834,15 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleUnrollFor(const UnrollFor* n) override {
-    // TODO(rspringer): 2022-06-09: Implement.
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    UnrollFor* new_unroll_for = module_->Make<UnrollFor>(
+        n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->types())),
+        down_cast<Expr*>(old_to_new_.at(n->iterable())),
+        down_cast<StatementBlock*>(old_to_new_.at(n->body())),
+        down_cast<Expr*>(old_to_new_.at(n->init())));
+    old_to_new_[n] = new_unroll_for;
     return absl::OkStatus();
   }
 
@@ -899,6 +916,18 @@ std::optional<AstNode*> PreserveTypeDefinitionsReplacer(const AstNode* node) {
                                         type_ref->type_definition());
   }
   return std::nullopt;
+}
+
+CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
+  return [=](const AstNode* node) -> std::optional<AstNode*> {
+    if (const auto* name_ref = dynamic_cast<const NameRef*>(node);
+        name_ref &&
+        std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
+        std::get<const NameDef*>(name_ref->name_def()) == def) {
+      return replacement;
+    }
+    return std::nullopt;
+  };
 }
 
 absl::StatusOr<AstNode*> CloneAst(AstNode* root, CloneReplacer replacer) {

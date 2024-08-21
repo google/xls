@@ -269,6 +269,9 @@ class FunctionConverter {
   // XLS counted_for "bodies".
   int64_t GetAndBumpCountedForCount() { return counted_for_count_++; }
 
+  // Gets the unrolled version of the given for loop for the current context.
+  std::optional<const Expr*> GetUnrolledForLoop(const UnrollFor* loop);
+
   std::optional<InterpValue> GetParametricBinding(
       std::string_view identifier) const {
     auto it = parametric_env_map_.find(identifier);
@@ -320,6 +323,7 @@ class FunctionConverter {
   absl::Status HandleXlsTuple(const XlsTuple* node);
   absl::Status HandleZeroMacro(const ZeroMacro* node);
   absl::Status HandleAllOnesMacro(const AllOnesMacro* node);
+  absl::Status HandleUnrollFor(const UnrollFor* node);
 
   // AstNode handlers that recur "manually" internal to the handler.
   absl::Status HandleArray(const Array* node);

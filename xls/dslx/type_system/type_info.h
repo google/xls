@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -299,6 +300,12 @@ class TypeInfo {
   std::optional<InterpValue> GetConstExprOption(
       const AstNode* const_expr) const;
 
+  // Storage of unrolled loops by parametric env.
+  void NoteUnrolledLoop(const UnrollFor* loop, const ParametricEnv& env,
+                        Expr* unrolled_expr);
+  std::optional<Expr*> GetUnrolledLoop(const UnrollFor* loop,
+                                       const ParametricEnv& env) const;
+
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
@@ -372,6 +379,11 @@ class TypeInfo {
   // info as constexprs take on different values in different parametric
   // instantiation contexts.
   absl::flat_hash_map<const AstNode*, std::optional<InterpValue>> const_exprs_;
+
+  // Unrolled versions of `unroll_for!` loops.
+  absl::flat_hash_map<const UnrollFor*,
+                      absl::flat_hash_map<ParametricEnv, Expr*>>
+      unrolled_loops_;
 
   // The following are only present on the root type info.
   absl::flat_hash_map<Import*, ImportedInfo> imports_;

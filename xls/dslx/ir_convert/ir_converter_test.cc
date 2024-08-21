@@ -877,6 +877,227 @@ fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, UnrollForSimple) {
+  const char* kProgram = R"(
+fn test() -> u32 {
+  unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
+    i + acc
+  }(u32:0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForNonU32) {
+  const char* kProgram = R"(
+fn test() -> u8 {
+  unroll_for!(i, acc): (u8, u8) in u8:0..u8:4 {
+    i + acc
+  }(u8:0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForWithSignedIterable) {
+  const char* kProgram = R"(
+fn test() -> s32 {
+  unroll_for!(i, acc): (s32, s32) in [-s32:2, s32:0, s32:5] {
+    i + acc
+  }(s32:0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForWithoutIndexName) {
+  const char* kProgram = R"(
+fn test() -> u32 {
+  unroll_for!(_, acc): (u32, u32) in u32:0..u32:4 {
+    acc + u32:2
+  }(u32:0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForWithoutAccName) {
+  const char* kProgram = R"(
+fn test() -> u32 {
+  unroll_for!(i, _): (u32, u32) in u32:0..u32:4 {
+    trace_fmt!("{}", i);
+    i
+  }(u32:0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForNested) {
+  const char* kProgram = R"(
+fn test() -> u32 {
+  unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
+    let x = unroll_for!(j, acc2): (u32, u32) in u32:3..u32:6 {
+      j + acc2
+    }(u32:11);
+    x + i + acc
+  }((u32:0))
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForWithRangeBuiltin) {
+  const char* kProgram = R"(
+fn test() -> u32 {
+  unroll_for!(i, acc): (u32, u32) in range(u32:3, u32:6) {
+    i + acc
+  }(u32:0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForWithArrayAsIterable) {
+  const char* kProgram = R"(
+fn test() -> u32 {
+  unroll_for!(i, acc): (u32, u32) in [u32:3, u32:4, u32:1] {
+    i + acc
+  }(u32:0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForWithNonConstexprIterable) {
+  const char* kProgram = R"(
+fn test(x:u32, y:u32) -> u32 {
+  unroll_for!(i, acc): (u32, u32) in [x, y] {
+    i + acc
+  }(u32:0)
+}
+)";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("unroll_for! must use a constexpr iterable expression")));
+}
+
+TEST(IrConverterTest, UnrollForWithNonBitsIterable) {
+  const char* kProgram = R"(
+fn test() -> u32 {
+  unroll_for!(i, acc): (u32, u32) in [(u32:0, u32:5)] {
+    i + acc
+  }(u32:0)
+}
+)";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("unroll_for! must iterate through a range or "
+                         "aggregate type whose elements are all bits")));
+}
+
+TEST(IrConverterTest, UnrollForWithIndexTypeTooSmallForRange) {
+  const char* kProgram = R"(
+fn test() -> u4 {
+  unroll_for!(i, acc): (u4, u4) in u32:0..u32:120 {
+    i + acc
+  }(u4:0)
+}
+)";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Value '16' does not fit in the bitwidth of a uN[4]")));
+}
+
+TEST(IrConverterTest, UnrollForWithParametric) {
+  const char* kProgram = R"(
+fn test<SIZE:u32>() -> bits[SIZE] {
+  unroll_for!(i, acc): (bits[SIZE], bits[SIZE]) in bits[SIZE]:0..bits[SIZE]:4 {
+    i + acc
+  }(zero!<bits[SIZE]>())
+}
+
+fn foo() -> u8 {
+  (test<u32:7>() as u8) + test<u32:8>()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UnrollForWithTupleAccumulator) {
+  const char* kProgram = R"(
+fn test() -> (u32, u32) {
+  unroll_for!(i, (acc1, acc2)): (u32, (u32, u32)) in u32:0..u32:4 {
+    (i + acc1, i + acc2)
+  }((u32:2, u32:3))
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, CountedForWithTupleAccumulator) {
   const char* program =
       R"(

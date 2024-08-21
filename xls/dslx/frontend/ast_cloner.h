@@ -48,6 +48,10 @@ inline std::optional<AstNode*> NoopCloneReplacer(const AstNode* original_node) {
 std::optional<AstNode*> PreserveTypeDefinitionsReplacer(
     const AstNode* original_node);
 
+// Creates a `CloneReplacer` that replaces references to the given `def` with
+// the given `replacement`.
+CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement);
+
 // Creates a deep copy of the given AST node (inside the same module), generally
 // duplicating all nodes. The given `replacer` may override whether and how a
 // given node gets duplicated. The `replacer` is invoked for each original node

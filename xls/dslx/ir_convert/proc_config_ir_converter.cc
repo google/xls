@@ -145,6 +145,7 @@ absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleIndex(const Index* node) {
+  VLOG(4) << "ProcConfigIrConverter::HandleIndex: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(Channel * channel,
                        channel_scope_->GetChannelForArrayIndex(node));
   node_to_ir_[node] = channel;
@@ -282,6 +283,19 @@ absl::Status ProcConfigIrConverter::HandleStructInstance(
   XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;
   return absl::OkStatus();
+}
+
+absl::Status ProcConfigIrConverter::HandleUnrollFor(const UnrollFor* node) {
+  VLOG(4) << "ProcConfigIrConverter::HandleUnrollFor : " << node->ToString();
+  std::optional<const Expr*> unrolled =
+      type_info_->GetUnrolledLoop(node, bindings_);
+  if (unrolled.has_value()) {
+    XLS_RETURN_IF_ERROR((*unrolled)->Accept(this));
+    return absl::OkStatus();
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("unroll_for! should have been unrolled by now at: ",
+                   node->span().ToString()));
 }
 
 absl::Status ProcConfigIrConverter::HandleXlsTuple(const XlsTuple* node) {

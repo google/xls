@@ -1,0 +1,36 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__test__7() -> bits[7] {
+  literal.3: bits[7] = literal(value=0, id=3)
+  acc: bits[7] = literal(value=0, id=2)
+  literal.5: bits[7] = literal(value=1, id=5)
+  acc__1: bits[7] = add(literal.3, acc, id=4)
+  literal.7: bits[7] = literal(value=2, id=7)
+  acc__2: bits[7] = add(literal.5, acc__1, id=6)
+  literal.9: bits[7] = literal(value=3, id=9)
+  acc__3: bits[7] = add(literal.7, acc__2, id=8)
+  SIZE: bits[32] = literal(value=7, id=1)
+  ret add.10: bits[7] = add(literal.9, acc__3, id=10)
+}
+
+fn __test_module__test__8() -> bits[8] {
+  literal.13: bits[8] = literal(value=0, id=13)
+  acc: bits[8] = literal(value=0, id=12)
+  literal.15: bits[8] = literal(value=1, id=15)
+  acc__1: bits[8] = add(literal.13, acc, id=14)
+  literal.17: bits[8] = literal(value=2, id=17)
+  acc__2: bits[8] = add(literal.15, acc__1, id=16)
+  literal.19: bits[8] = literal(value=3, id=19)
+  acc__3: bits[8] = add(literal.17, acc__2, id=18)
+  SIZE: bits[32] = literal(value=8, id=11)
+  ret add.20: bits[8] = add(literal.19, acc__3, id=20)
+}
+
+fn __test_module__foo() -> bits[8] {
+  invoke.21: bits[7] = invoke(to_apply=__test_module__test__7, id=21)
+  zero_ext.22: bits[8] = zero_ext(invoke.21, new_bit_count=8, id=22)
+  invoke.23: bits[8] = invoke(to_apply=__test_module__test__8, id=23)
+  ret add.24: bits[8] = add(zero_ext.22, invoke.23, id=24)
+}
