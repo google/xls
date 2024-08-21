@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "xls/ir/op.pb.h"
 #include "xls/ir/op_list.h"
 
 namespace xls {
