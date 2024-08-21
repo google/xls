@@ -210,7 +210,6 @@ cc_test(
         ":frame_header_test_dslx",
     ],
     shard_count = 50,
-    tags = ["manual"],
     deps = [
         ":data_generator",
         "//xls/common:xls_gunit_main",
@@ -999,7 +998,6 @@ cc_test(
         ":zstd_dec_test.ir",
     ],
     shard_count = 50,
-    tags = ["manual"],
     deps = [
         ":data_generator",
         "//xls/common:xls_gunit_main",
