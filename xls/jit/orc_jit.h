@@ -41,7 +41,7 @@ class OrcJit : public LlvmCompiler {
  public:
   static constexpr int64_t kDefaultOptLevel = 3;
 
-  ~OrcJit();
+  ~OrcJit() override;
 
   absl::StatusOr<OrcJit*> AsOrcJit() override { return this; }
 
