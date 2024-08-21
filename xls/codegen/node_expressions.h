@@ -24,6 +24,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 
 namespace xls {

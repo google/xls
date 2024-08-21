@@ -15,6 +15,7 @@
 #ifndef XLS_IR_NODES_H_
 #define XLS_IR_NODES_H_
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -47,6 +48,7 @@ struct SliceData {
 
 class AfterAll final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kAfterAll};
   AfterAll(const SourceInfo& loc, absl::Span<Node* const> dependencies,
            std::string_view name, FunctionBase* function);
 
@@ -57,6 +59,7 @@ class AfterAll final : public Node {
 
 class ArithOp final : public Node {
  public:
+  static constexpr std::array<Op, 2> kOps = {Op::kUMul, Op::kSMul};
   static constexpr int64_t kLhsOperand = 0;
   static constexpr int64_t kRhsOperand = 1;
 
@@ -76,6 +79,7 @@ class ArithOp final : public Node {
 
 class Array final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kArray};
   Array(const SourceInfo& loc, absl::Span<Node* const> elements,
         Type* element_type, std::string_view name, FunctionBase* function);
 
@@ -94,6 +98,7 @@ class Array final : public Node {
 
 class ArrayConcat final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kArrayConcat};
   ArrayConcat(const SourceInfo& loc, absl::Span<Node* const> args,
               std::string_view name, FunctionBase* function);
 
@@ -104,6 +109,7 @@ class ArrayConcat final : public Node {
 
 class ArrayIndex final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kArrayIndex};
   static constexpr int64_t kArgOperand = 0;
 
   ArrayIndex(const SourceInfo& loc, Node* arg, absl::Span<Node* const> indices,
@@ -119,6 +125,7 @@ class ArrayIndex final : public Node {
 
 class ArraySlice final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kArraySlice};
   static constexpr int64_t kArrayOperand = 0;
   static constexpr int64_t kStartOperand = 1;
 
@@ -142,6 +149,7 @@ class ArraySlice final : public Node {
 
 class ArrayUpdate final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kArrayUpdate};
   static constexpr int64_t kArgOperand = 0;
   static constexpr int64_t kUpdateValueOperand = 1;
 
@@ -161,6 +169,7 @@ class ArrayUpdate final : public Node {
 
 class Assert final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kAssert};
   static constexpr int64_t kTokenOperand = 0;
   static constexpr int64_t kConditionOperand = 1;
 
@@ -194,6 +203,9 @@ class Assert final : public Node {
 
 class BinOp final : public Node {
  public:
+  static constexpr std::array<Op, 9> kOps = {Op::kAdd,  Op::kSDiv, Op::kSMod,
+                                             Op::kShll, Op::kShrl, Op::kShra,
+                                             Op::kSub,  Op::kUDiv, Op::kUMod};
   static constexpr int64_t kLhsOperand = 0;
   static constexpr int64_t kRhsOperand = 1;
 
@@ -207,6 +219,7 @@ class BinOp final : public Node {
 
 class BitSlice final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kBitSlice};
   static constexpr int64_t kArgOperand = 0;
 
   BitSlice(const SourceInfo& loc, Node* arg, int64_t start, int64_t width,
@@ -228,6 +241,7 @@ class BitSlice final : public Node {
 
 class BitSliceUpdate final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kBitSliceUpdate};
   static constexpr int64_t kArgOperand = 0;
   static constexpr int64_t kStartOperand = 1;
   static constexpr int64_t kValueOperand = 2;
@@ -247,6 +261,8 @@ class BitSliceUpdate final : public Node {
 
 class BitwiseReductionOp final : public Node {
  public:
+  static constexpr std::array<Op, 3> kOps = {Op::kAndReduce, Op::kOrReduce,
+                                             Op::kXorReduce};
   static constexpr int64_t kOperandOperand = 0;
 
   BitwiseReductionOp(const SourceInfo& loc, Node* operand, Op op,
@@ -259,6 +275,9 @@ class BitwiseReductionOp final : public Node {
 
 class CompareOp final : public Node {
  public:
+  static constexpr std::array<Op, 10> kOps = {
+      Op::kEq,  Op::kNe,  Op::kSLe, Op::kSGe, Op::kSLt,
+      Op::kSGt, Op::kULe, Op::kUGe, Op::kULt, Op::kUGt};
   static constexpr int64_t kLhsOperand = 0;
   static constexpr int64_t kRhsOperand = 1;
 
@@ -272,6 +291,7 @@ class CompareOp final : public Node {
 
 class Concat final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kConcat};
   Concat(const SourceInfo& loc, absl::Span<Node* const> args,
          std::string_view name, FunctionBase* function);
 
@@ -283,6 +303,7 @@ class Concat final : public Node {
 
 class CountedFor final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kCountedFor};
   static constexpr int64_t kInitialValueOperand = 0;
 
   CountedFor(const SourceInfo& loc, Node* initial_value,
@@ -315,6 +336,7 @@ class CountedFor final : public Node {
 
 class Cover final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kCover};
   static constexpr int64_t kConditionOperand = 0;
 
   Cover(const SourceInfo& loc, Node* condition, std::string_view label,
@@ -341,6 +363,7 @@ class Cover final : public Node {
 
 class Decode final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kDecode};
   static constexpr int64_t kArgOperand = 0;
 
   Decode(const SourceInfo& loc, Node* arg, int64_t width, std::string_view name,
@@ -359,6 +382,7 @@ class Decode final : public Node {
 
 class DynamicBitSlice final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kDynamicBitSlice};
   static constexpr int64_t kArgOperand = 0;
   static constexpr int64_t kStartOperand = 1;
 
@@ -382,6 +406,7 @@ class DynamicBitSlice final : public Node {
 
 class DynamicCountedFor final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kDynamicCountedFor};
   static constexpr int64_t kInitialValueOperand = 0;
   static constexpr int64_t kTripCountOperand = 1;
   static constexpr int64_t kStrideOperand = 2;
@@ -414,6 +439,7 @@ class DynamicCountedFor final : public Node {
 
 class Encode final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kEncode};
   static constexpr int64_t kArgOperand = 0;
 
   Encode(const SourceInfo& loc, Node* arg, std::string_view name,
@@ -426,6 +452,7 @@ class Encode final : public Node {
 
 class ExtendOp final : public Node {
  public:
+  static constexpr std::array<Op, 2> kOps = {Op::kZeroExt, Op::kSignExt};
   static constexpr int64_t kArgOperand = 0;
 
   ExtendOp(const SourceInfo& loc, Node* arg, int64_t new_bit_count, Op op,
@@ -444,6 +471,7 @@ class ExtendOp final : public Node {
 
 class Gate final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kGate};
   static constexpr int64_t kConditionOperand = 0;
   static constexpr int64_t kDataOperand = 1;
 
@@ -459,6 +487,7 @@ class Gate final : public Node {
 };
 class InputPort final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kInputPort};
   InputPort(const SourceInfo& loc, std::string_view name, Type* type,
             FunctionBase* function);
 
@@ -470,6 +499,7 @@ class InputPort final : public Node {
 
 class InstantiationInput final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kInstantiationInput};
   static constexpr int64_t kDataOperand = 0;
 
   InstantiationInput(const SourceInfo& loc, Node* data,
@@ -494,6 +524,7 @@ class InstantiationInput final : public Node {
 
 class InstantiationOutput final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kInstantiationOutput};
   InstantiationOutput(const SourceInfo& loc, Instantiation* instantiation,
                       std::string_view port_name, std::string_view name,
                       FunctionBase* function);
@@ -514,6 +545,7 @@ class InstantiationOutput final : public Node {
 
 class Invoke final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kInvoke};
   Invoke(const SourceInfo& loc, absl::Span<Node* const> args,
          Function* to_apply, std::string_view name, FunctionBase* function);
 
@@ -530,6 +562,7 @@ class Invoke final : public Node {
 
 class Literal final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kLiteral};
   Literal(const SourceInfo& loc, Value value, std::string_view name,
           FunctionBase* function);
 
@@ -548,6 +581,7 @@ class Literal final : public Node {
 
 class Map final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kMap};
   static constexpr int64_t kArgOperand = 0;
 
   Map(const SourceInfo& loc, Node* arg, Function* to_apply,
@@ -566,6 +600,7 @@ class Map final : public Node {
 
 class MinDelay final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kMinDelay};
   static constexpr int64_t kTokenOperand = 0;
 
   MinDelay(const SourceInfo& loc, Node* token, int64_t delay,
@@ -584,6 +619,8 @@ class MinDelay final : public Node {
 
 class NaryOp final : public Node {
  public:
+  static constexpr std::array<Op, 5> kOps = {Op::kAnd, Op::kNand, Op::kNor,
+                                             Op::kOr, Op::kXor};
   NaryOp(const SourceInfo& loc, absl::Span<Node* const> args, Op op,
          std::string_view name, FunctionBase* function);
 
@@ -594,6 +631,7 @@ class NaryOp final : public Node {
 
 class Next final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kNext};
   static constexpr int64_t kParamOperand = 0;
   static constexpr int64_t kValueOperand = 1;
 
@@ -631,6 +669,7 @@ class Next final : public Node {
 
 class OneHot final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kOneHot};
   static constexpr int64_t kInputOperand = 0;
 
   OneHot(const SourceInfo& loc, Node* input, LsbOrMsb priority,
@@ -649,6 +688,7 @@ class OneHot final : public Node {
 
 class OneHotSelect final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kOneHotSel};
   static constexpr int64_t kSelectorOperand = 0;
 
   OneHotSelect(const SourceInfo& loc, Node* selector,
@@ -667,6 +707,7 @@ class OneHotSelect final : public Node {
 
 class OutputPort final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kOutputPort};
   static constexpr int64_t kOperandOperand = 0;
 
   OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
@@ -680,6 +721,7 @@ class OutputPort final : public Node {
 
 class Param final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kParam};
   Param(const SourceInfo& loc, Type* type, std::string_view name,
         FunctionBase* function);
 
@@ -691,6 +733,7 @@ class Param final : public Node {
 
 class PartialProductOp final : public Node {
  public:
+  static constexpr std::array<Op, 2> kOps = {Op::kSMulp, Op::kUMulp};
   static constexpr int64_t kLhsOperand = 0;
   static constexpr int64_t kRhsOperand = 1;
 
@@ -710,6 +753,7 @@ class PartialProductOp final : public Node {
 
 class PrioritySelect final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kPrioritySel};
   static constexpr int64_t kSelectorOperand = 0;
 
   PrioritySelect(const SourceInfo& loc, Node* selector,
@@ -737,6 +781,7 @@ class PrioritySelect final : public Node {
 
 class Receive final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kReceive};
   static constexpr int64_t kTokenOperand = 0;
 
   Receive(const SourceInfo& loc, Node* token, std::optional<Node*> predicate,
@@ -780,6 +825,7 @@ class Receive final : public Node {
 
 class RegisterRead final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kRegisterRead};
   RegisterRead(const SourceInfo& loc, Register* reg, std::string_view name,
                FunctionBase* function);
 
@@ -796,6 +842,7 @@ class RegisterRead final : public Node {
 
 class RegisterWrite final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kRegisterWrite};
   static constexpr int64_t kDataOperand = 0;
 
   RegisterWrite(const SourceInfo& loc, Node* data,
@@ -872,6 +919,7 @@ class RegisterWrite final : public Node {
 
 class Select final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kSel};
   static constexpr int64_t kSelectorOperand = 0;
 
   Select(const SourceInfo& loc, Node* selector, absl::Span<Node* const> cases,
@@ -910,6 +958,7 @@ class Select final : public Node {
 
 class Send final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kSend};
   static constexpr int64_t kTokenOperand = 0;
   static constexpr int64_t kDataOperand = 1;
 
@@ -952,6 +1001,7 @@ class Send final : public Node {
 
 class Trace final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kTrace};
   static constexpr int64_t kTokenOperand = 0;
   static constexpr int64_t kConditionOperand = 1;
 
@@ -981,6 +1031,7 @@ class Trace final : public Node {
 
 class Tuple final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kTuple};
   Tuple(const SourceInfo& loc, absl::Span<Node* const> elements,
         std::string_view name, FunctionBase* function);
 
@@ -992,6 +1043,7 @@ class Tuple final : public Node {
 
 class TupleIndex final : public Node {
  public:
+  static constexpr std::array<Op, 1> kOps = {Op::kTupleIndex};
   static constexpr int64_t kArgOperand = 0;
 
   TupleIndex(const SourceInfo& loc, Node* arg, int64_t index,
@@ -1010,6 +1062,8 @@ class TupleIndex final : public Node {
 
 class UnOp final : public Node {
  public:
+  static constexpr std::array<Op, 4> kOps = {Op::kIdentity, Op::kNeg, Op::kNot,
+                                             Op::kReverse};
   static constexpr int64_t kArgOperand = 0;
 
   UnOp(const SourceInfo& loc, Node* arg, Op op, std::string_view name,

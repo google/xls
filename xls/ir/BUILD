@@ -458,6 +458,8 @@ cc_library(
     hdrs = ["op.h"],
     deps = [
         ":op_cc_proto",
+        ":op_list",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -578,6 +580,29 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "@com_google_protobuf//:protobuf",
         "@com_googlesource_code_re2//:re2",
+    ],
+)
+
+cc_test(
+    name = "nodes_test",
+    srcs = ["nodes_test.cc"],
+    deps = [
+        ":ir",
+        ":op",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "op_test",
+    srcs = ["op_test.cc"],
+    deps = [
+        ":op",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -2057,4 +2082,10 @@ cc_test(
         "//xls/solvers:z3_ir_translator_matchers",
         "@com_google_googletest//:gtest",
     ],
+)
+
+cc_library(
+    name = "op_list",
+    hdrs = ["op_list.h"],
+    visibility = ["//visibility:private"],
 )
