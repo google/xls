@@ -34,8 +34,6 @@
 
 namespace xls {
 
-class Type;
-
 enum class ValueKind {
   kInvalid,
 
