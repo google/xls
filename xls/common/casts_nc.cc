@@ -41,7 +41,7 @@ class Derived2 : public Base {};
 class Derived3 : public Base {
  public:
   Derived3() = default;
-  Derived3(const Base&) {}
+  Derived3(const Base&) {}  // NOLINT(google-explicit-constructor)
 };
 
 // A class unrelated to the Base class hierarchy.
