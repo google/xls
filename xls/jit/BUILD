@@ -1232,3 +1232,34 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = ["//xls/build_rules:xls_providers_bzl"],
 )
+
+py_binary(
+    name = "dump_llvm_artifacts",
+    srcs = ["dump_llvm_artifacts_main.py"],
+    data = [
+        ":aot_compiler_main",
+        ":aot_main_wrapper_main",
+        "@llvm-project//clang",
+        "@llvm-project//llvm:llvm-link",
+    ],
+    main = "dump_llvm_artifacts_main.py",
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+    ],
+)
+
+py_test(
+    name = "dump_llvm_artifacts_main_test",
+    srcs = ["dump_llvm_artifacts_main_test.py"],
+    data = [
+        ":dump_llvm_artifacts",
+        "@llvm-project//llvm:lli",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
