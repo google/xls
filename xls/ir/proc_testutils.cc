@@ -241,7 +241,7 @@ absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
                                                const Value& token_value) {
   XLS_RET_CHECK_GT(activation_count, 0)
       << "At least one activation is required.";
-  XLS_RET_CHECK(!p->next_values().empty() || p->NextState().size() == 1)
+  XLS_RET_CHECK(!p->next_values().empty() || p->NextState().size() == 0)
       << "Only procs using 'next-node' style are supported.";
   if (include_state) {
     XLS_RET_CHECK(

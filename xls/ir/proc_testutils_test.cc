@@ -245,6 +245,42 @@ TEST_F(UnrollProcTest, MultiProcs) {
   // Check the modification was good.
 }
 
+TEST_F(UnrollProcTest, StatelessProc) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ch1, p->CreateStreamingChannel("in_chan1", ChannelOps::kReceiveOnly,
+                                          p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ch2, p->CreateStreamingChannel("in_chan2", ChannelOps::kReceiveOnly,
+                                          p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto out1, p->CreateStreamingChannel("out_chan1", ChannelOps::kSendOnly,
+                                           p->GetBitsType(4)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue recv1 = pb.Receive(ch1, pb.Literal(Value::Token()));
+  BValue recv2 = pb.Receive(ch2, pb.TupleIndex(recv1, 0));
+  pb.Send(out1, pb.TupleIndex(recv2, 0),
+          pb.Add(pb.TupleIndex(recv1, 1), pb.TupleIndex(recv2, 1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * orig_proc, pb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * unrolled,
+      UnrollProcToFunction(orig_proc, /*activation_count=*/2,
+                           /*include_state=*/false));
+  RecordProperty("unrolled", unrolled->DumpIr());
+  FunctionBuilder fb(absl::StrCat(TestName(), "_manual"), p.get());
+  fb.Tuple({fb.Tuple({fb.Tuple({fb.Literal(UBits(1, 1)),
+                                fb.Add(fb.Param("a", p->GetBitsType(4)),
+                                       fb.Param("b", p->GetBitsType(4)))})}),
+            fb.Tuple({fb.Tuple({fb.Literal(UBits(1, 1)),
+                                fb.Add(fb.Param("c", p->GetBitsType(4)),
+                                       fb.Param("d", p->GetBitsType(4)))})})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * manual, fb.Build());
+  RecordProperty("manual", manual->DumpIr());
+  EXPECT_THAT(TryProveEquivalence(unrolled, manual),
+              IsOkAndHolds(IsProvenTrue()));
+}
+
 TEST_F(UnrollProcTest, MultiProcsDifferentSizedState) {
   // A proc that does stuff and does bit-slice-zero-extend in a dumb way.
   auto p = CreatePackage();
