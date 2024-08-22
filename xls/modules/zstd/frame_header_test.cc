@@ -57,10 +57,22 @@ enum FrameHeaderStatus : uint8_t {
   UNSUPPORTED_WINDOW_SIZE
 };
 
-struct ZstdFrameHeader {
-  absl::Span<const uint8_t> kBuffer;
-  ZSTD_frameHeader kHeader;
-  size_t kResult;
+class ZstdFrameHeader {
+ public:
+  absl::Span<const uint8_t> buffer() const {
+    return absl::MakeConstSpan(buffer_);
+  }
+
+  ZSTD_frameHeader header() const { return header_; }
+
+  size_t result() const { return result_; }
+
+  ZstdFrameHeader(absl::Span<const uint8_t> buffer, ZSTD_frameHeader h,
+                  size_t r)
+      : header_(std::move(h)), result_(r) {
+    std::vector<uint8_t> v(buffer.begin(), buffer.end());
+    buffer_ = v;
+  }
   // Parse a frame header from an arbitrary buffer with the ZSTD library.
   static absl::StatusOr<ZstdFrameHeader> Parse(
       absl::Span<const uint8_t> buffer) {
@@ -69,8 +81,13 @@ struct ZstdFrameHeader {
     ZSTD_frameHeader zstd_fh;
     size_t result = ZSTD_getFrameHeader_advanced(
         &zstd_fh, buffer.data(), buffer.size(), ZSTD_f_zstd1_magicless);
-    return ZstdFrameHeader(buffer, zstd_fh, result);
+    return ZstdFrameHeader(buffer, std::move(zstd_fh), result);
   }
+
+ private:
+  std::vector<uint8_t> buffer_;
+  ZSTD_frameHeader header_;
+  size_t result_;
 };
 
 class FrameHeaderTest : public xls::IrTestBase {
@@ -113,7 +130,7 @@ class FrameHeaderTest : public xls::IrTestBase {
   // expected values.
   void RunAndExpectFrameHeader(const ZstdFrameHeader& zstd_frame_header) {
     // Extend buffer contents to 128 bits if necessary.
-    const absl::Span<const uint8_t>& buffer = zstd_frame_header.kBuffer;
+    const absl::Span<const uint8_t> buffer = zstd_frame_header.buffer();
     std::vector<uint8_t> buffer_extended(kDslxBufferSizeBytes, 0);
     absl::Span<const uint8_t> input_buffer;
     if (buffer.size() < kDslxBufferSizeBytes) {
@@ -124,8 +141,8 @@ class FrameHeaderTest : public xls::IrTestBase {
     }
 
     // Decide on the expected status
-    ZSTD_frameHeader zstd_fh = zstd_frame_header.kHeader;
-    size_t result = zstd_frame_header.kResult;
+    ZSTD_frameHeader zstd_fh = zstd_frame_header.header();
+    size_t result = zstd_frame_header.result();
     FrameHeaderStatus expected_status = FrameHeaderStatus::OK;
     if (result != 0) {
       if (ZSTD_isError(result)) {
