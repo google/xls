@@ -275,40 +275,67 @@ higher, and the assembly is dumped at level 3 or higher. For example:
   eval_ir_main -v=3 --logtostderr --random_inputs=1 sample.opt.ir
 ```
 
-You can also send the optimized or unoptimized IR or asm to a file with the
-`--llvm_jit_ir_output=<file>`, `--llvm_jit_opt_ir_output=<file>` and
-`--llvm_jit_asm_output=<file>` flags.
+##### Generating LLVM Artifacts
 
-For example:
+You can generate LLVM IR artifacts for a piece of ir code using
+`dump_llvm_artifacts`
 
-```
-  eval_ir_main --random_inputs=1 sample.opt.ir --llvm_jit_ir_output=sample.ll
-```
+This tool invokes the aot compiler to generate LLVM bytecode for a given ir file
+and (if possible) some additional files to enable one to run it with `lli` or
+similar tools.
 
-A `main` function which invokes the jitted code on a particular input can be
-created with the `--llvm_jit_main_wrapper_output=<file>` flag. If the
-`--llvm_jit_main_wrapper_write_is_linked` flag is also given, the result of
-invoking the xls function will be written to the stdout. This flag calls and
-writes the results for the inputs in the order they are given. This main wrapper
-can be [`llvm-link`](https://llvm.org/docs/CommandGuide/llvm-link.html)'d with
-the ir of the function itself to generate an executable bytecode.
+!!! NOTE
+    Currently this tool does not support block IRs since it is built on the
+    AOT-compiler which only supports proc and functions.
 
 Note: LLVM can change significantly and bytecode is not always compatible
 between versions. If possible, LLVM tools built at the same commit as the JIT
 should be used to interact with the generated llvm bytecode. This can be done by
 building the LLVM tools using `bazel` from the XLS repo.
 
-For example:
+###### If you have an example input-output pair:
 
 ```sh
-$ eval_ir_main --input 'bits[9]:0x0FA;bits[12]:0xEAB'        \
-               --llvm_jit_ir_output=sample.ll                \
-               --llvm_jit_main_wrapper_output=sample_main.ll \
-               --llvm_jit_main_wrapper_write_is_linked       \
-               sample.opt.ir
-$ llvm-link -S -o sample_exe.ll sample.ll sample_main.ll
-$ lli sample_exe.ll
+$ bazel run jit:dump_llvm_artifacts -- --out_dir=/tmp/muladd --ir=/tmp/muladd.ir '--input=bits[8]:0x1' '--input=bits[8]:0x2' '--input=bits[8]:0x3' '--result=bits[8]:0x5'
+Generating XLS artifacts
+Generating main.cc
+Compiling main.cc
+Linking unopt main.cc
+Linking opt main.cc
+$ ls /tmp/muladd
+linked.ll      main.ll                result.entrypoints.txtpb  result.opt.ll
+linked.opt.ll  result.asm             result.ll
+main.cc        result.entrypoints.pb  result.o
+$ lli /tmp/muladd/linked.ll
+$ echo $?
+0
 ```
+
+This generates a number of files.
+
+-   `result.ll`: The unoptimized llvm ir that our JIT/aot produces
+-   `result.opt.ll`: The optimized llvm ir that our JIT/aot actually compiles.
+-   `result.asm`: Result of compiling the `result.opt.ll` as assembly
+-   `result.o`: Result of compiling the `result.opt.ll` as object code
+-   `result.entrypoints.{txt,}pb`: The AotPackageEntrypointsProto describing the
+    compiled code in both text and binary format.
+-   `main.cc`: A cc file which contains a main function that invokes the
+    compiled code and compares it against the 'result'. It does not link against
+    any xls code. It requires that the code not use trace or asserts.
+-   `main.ll`: The llvm-ir version of `main.cc`.
+-   `linked.ll`: A fully linked llvm ir version of `main.ll` linked with
+    `result.ll`.
+-   `linked.opt.ll`: A fully linked llvm ir version of `main.ll` linked with
+    `result.opt.ll`.
+
+###### If you have a proc or do not have an reproducer value.
+
+```sh
+$ bazel run //xls/jit:dump_llvm_artifacts -- \
+        --out_dir=/some/path --ir=/path/to/test.ir
+```
+
+This generates the same files but lacks the `main.` and `linked.` files.
 
 ##### Building LLVM tools
 

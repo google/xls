@@ -24,6 +24,7 @@ from absl import app
 from absl import flags
 
 from xls.common import runfiles
+from xls.jit import aot_entrypoint_pb2
 
 _OUT_DIR = flags.DEFINE_string(
     "out_dir",
@@ -57,7 +58,7 @@ _INPUT = flags.DEFINE_multi_string(
 _RESULT = flags.DEFINE_string(
     "result",
     default=None,
-    required=True,
+    required=False,
     help=(
         "Value to expect the result to be. Formatted the same as 'input' though"
         " only a single value."
@@ -111,7 +112,8 @@ def main(argv: Sequence[str]) -> None:
   asm = str(out_base / "result.asm")
   obj = str(out_base / "result.o")
   text_proto = str(out_base / "result.entrypoints.txtpb")
-  proto = str(out_base / "result.entrypoints.pb")
+  proto_file = out_base / "result.entrypoints.pb"
+  proto = str(proto_file)
   main_file = str(out_base / "main.cc")
   main_ll = str(out_base / "main.ll")
   linked_ll = str(out_base / "linked.ll")
@@ -140,6 +142,34 @@ def main(argv: Sequence[str]) -> None:
       + top_arg,
       check=True,
   )
+  with proto_file.open("rb") as entrypoints_file:
+    entrypoints = aot_entrypoint_pb2.AotPackageEntrypointsProto.FromString(
+        entrypoints_file.read()
+    )
+    if len(entrypoints.entrypoint) == 1:
+      top_entrypoint = entrypoints.entrypoint[0]
+    elif _TOP.value:
+
+      def is_target(a: aot_entrypoint_pb2.AotEntrypointProto) -> bool:
+        return (
+            _TOP.value == a.xls_function_identifier
+            or f"__{a.xls_package_name}__{_TOP.value}"
+            == a.xls_function_identifier
+        )
+
+      poss = [a for a in entrypoints.entrypoint if is_target(a)]
+      if len(poss) != 1:
+        raise app.UsageError(f"Multiple possible entrypoints: {poss}")
+      else:
+        top_entrypoint = poss[0]
+    else:
+      raise app.UsageError("no tops found.")
+  if top_entrypoint.type != aot_entrypoint_pb2.AotEntrypointProto.FUNCTION:
+    print("Unable to generate main for non-function.")
+    return
+  if not _RESULT.value and not _INPUT.value:
+    print("Can't generate a test-main without an input & result")
+    return
   print("Generating main.cc")
   subprocess.run(
       [

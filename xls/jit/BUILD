@@ -1245,6 +1245,7 @@ py_binary(
     main = "dump_llvm_artifacts_main.py",
     visibility = ["//xls:xls_internal"],
     deps = [
+        ":aot_entrypoint_py_pb2",
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",

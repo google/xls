@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <iostream>
@@ -52,7 +51,6 @@
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/GlobalValue.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
-#include "llvm/include/llvm/IR/InlineAsm.h"
 #include "llvm/include/llvm/IR/InstrTypes.h"
 #include "llvm/include/llvm/IR/Instructions.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
@@ -60,10 +58,7 @@
 #include "llvm/include/llvm/IR/Type.h"
 #include "llvm/include/llvm/IR/Value.h"
 #include "llvm/include/llvm/IRReader/IRReader.h"
-#include "llvm/include/llvm/Support/Alignment.h"
-#include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/CodeGen.h"
-#include "llvm/include/llvm/Support/ModRef.h"
 #include "llvm/include/llvm/Support/SourceMgr.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
@@ -94,9 +89,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_buffer.h"
-#include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/observer.h"
-#include "xls/jit/orc_jit.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
@@ -204,19 +197,6 @@ ABSL_FLAG(
     "force mismatches between JIT and interpreter for testing purposed.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
-ABSL_FLAG(std::optional<std::string>, llvm_jit_ir_output, std::nullopt,
-          "Path to write the (unoptimized) LLVM IR which the JIT generates.");
-ABSL_FLAG(std::optional<std::string>, llvm_jit_opt_ir_output, std::nullopt,
-          "Path to write the (optimized) LLVM IR which the JIT generates.");
-ABSL_FLAG(std::optional<std::string>, llvm_jit_asm_output, std::nullopt,
-          "Path to write the assembly code which the JIT generates.");
-ABSL_FLAG(
-    std::optional<std::string>, llvm_jit_main_wrapper_output, std::nullopt,
-    "Path to write a simple LLVM IR program to which invokes the jit "
-    "code. (The program writes output to fd-1). --use_llvm_jit must be true.");
-ABSL_FLAG(bool, llvm_jit_main_wrapper_write_is_linked, false,
-          "Make the main wrapper call the write libc function instead of just "
-          "doing a volatile memmove, incompatible with interpreter.");
 // TODO(allight): It would be nice to enable doing this automatically if the
 // llvm jit code crashes or something.
 ABSL_FLAG(
@@ -245,52 +225,24 @@ std::string ArgsToString(absl::Span<const Value> args) {
 
 class EvalIrJitObserver final : public JitObserver {
  public:
-  EvalIrJitObserver(std::optional<std::string> ir,
-                    std::optional<std::string> opt_ir, bool interpreter,
-                    std::optional<std::string> assembly)
-      : ir_(std::move(ir)),
-        opt_ir_(std::move(opt_ir)),
-        interpreter_(interpreter),
-        assembly_(std::move(assembly)) {}
+  explicit EvalIrJitObserver(bool interpreter) : interpreter_(interpreter) {}
   std::string_view saved_opt_ir() const { return saved_opt_ir_; }
   JitObserverRequests GetNotificationOptions() const final {
-    return JitObserverRequests{
-        .unoptimized_module = ir_.has_value(),
-        .optimized_module = opt_ir_.has_value() || interpreter_,
-        .assembly_code_str = assembly_.has_value()};
+    return JitObserverRequests{.unoptimized_module = false,
+                               .optimized_module = interpreter_,
+                               .assembly_code_str = false};
   }
 
-  void UnoptimizedModule(const llvm::Module* module) final {
-    if (ir_) {
-      std::string buffer;
-      llvm::raw_string_ostream ostream(buffer);
-      module->print(ostream, nullptr);
-      ostream.flush();
-      CHECK_OK(SetFileContents(*ir_, buffer));
-    }
-  }
   void OptimizedModule(const llvm::Module* module) final {
-    if (absl::GetFlag(FLAGS_use_llvm_jit_interpreter) || opt_ir_) {
+    if (interpreter_) {
       llvm::raw_string_ostream ostream(saved_opt_ir_);
       module->print(ostream, nullptr);
       ostream.flush();
-      if (opt_ir_) {
-        CHECK_OK(SetFileContents(*opt_ir_, saved_opt_ir_));
-      }
-    }
-  }
-  void AssemblyCodeString(const llvm::Module* module,
-                          std::string_view asm_code) final {
-    if (assembly_) {
-      CHECK_OK(SetFileContents(*assembly_, asm_code));
     }
   }
 
  private:
-  std::optional<std::filesystem::path> ir_;
-  std::optional<std::filesystem::path> opt_ir_;
   bool interpreter_;
-  std::optional<std::filesystem::path> assembly_;
   std::string saved_opt_ir_;
 };
 
@@ -388,191 +340,6 @@ absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
   return InterpreterResult<Value>{std::move(result_value), std::move(events)};
 }
 
-absl::Status WriteMainWrapper(Function* f, FunctionJit* jit,
-                              absl::Span<const ArgSet> arg_sets_in,
-                              const std::filesystem::path& output_path) {
-  llvm::LLVMContext context;
-  llvm::Module mod(absl::StrCat("wrapped_main_", jit->GetJittedFunctionName()),
-                   context);
-  // Technically we are not jitting but we do require that the ir be used on
-  // exactly this machine.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> machine,
-                       orc_jit->CreateTargetMachine());
-  XLS_ASSIGN_OR_RETURN(llvm::DataLayout layout, orc_jit->CreateDataLayout());
-  LlvmTypeConverter type_convert(&context, layout);
-  mod.setDataLayout(layout);
-  mod.setTargetTriple(machine->getTargetTriple().str());
-
-  llvm::Type* int8_type = llvm::IntegerType::get(context, 8);
-  llvm::Type* argv_ptr_type =
-      llvm::PointerType::get(
-          llvm::PointerType::get(int8_type, /*AddressSpace=*/0),
-          /*AddressSpace=*/0)
-          ->getPointerTo();
-  llvm::Type* raw_ptr_type =
-      llvm::PointerType::get(context, /*AddressSpace=*/0);
-  llvm::Type* int32_type = llvm::IntegerType::get(context, 32);
-  llvm::Type* int64_type = llvm::IntegerType::get(context, 64);
-  std::vector<llvm::Type*> main_param_types({int32_type, argv_ptr_type});
-  llvm::FunctionType* main_type =
-      llvm::FunctionType::get(int32_type, main_param_types, /*isVarArg=*/false);
-
-  // Declare extern jit function.
-  llvm::Function* entrypoint = llvm::Function::Create(
-      llvm::FunctionType::get(int64_type,
-                              {
-                                  raw_ptr_type,  // input_ptrs
-                                  raw_ptr_type,  // output_ptrs
-                                  raw_ptr_type,  // tmp_buffer
-                                  raw_ptr_type,  // events
-                                  raw_ptr_type,  // user_data
-                                  raw_ptr_type,  // runtime
-                                  int64_type,    // continuation
-                              },
-                              /*isVarArg=*/false),
-      llvm::Function::LinkageTypes::ExternalLinkage,
-      jit->GetJittedFunctionName(), &mod);
-  // A little function to call 'write' if it's linked or do a volatile
-  // read/write if it's not to prevent optimization shennanigans.
-  llvm::Function* write_output_func = llvm::Function::Create(
-      llvm::FunctionType::get(int64_type, {raw_ptr_type}, /*isVarArg=*/false),
-      llvm::Function::LinkageTypes::InternalLinkage, "write_output", &mod);
-  llvm::BasicBlock* write_output_start = llvm::BasicBlock::Create(
-      context, "write_output_func_start", write_output_func);
-  llvm::IRBuilder<> write_start(write_output_start);
-  if (absl::GetFlag(FLAGS_llvm_jit_main_wrapper_write_is_linked)) {
-    // libc write. Under some llvm interpreter configs this won't be linked so
-    // we need to be careful.
-    llvm::Function* write_function = llvm::Function::Create(
-        llvm::FunctionType::get(int64_type,
-                                {
-                                    int32_type,
-                                    llvm::PointerType::get(int8_type, 0),
-                                    int64_type,
-                                },
-                                /*isVarArg=*/false),
-        llvm::Function::LinkageTypes::ExternalWeakLinkage, "write", &mod);
-    write_start.CreateRet(write_start.CreateCall(
-        write_function,
-        {
-            llvm::Constant::getIntegerValue(int32_type, llvm::APInt(32, 1)),
-            write_output_func->getArg(0),
-            llvm::Constant::getIntegerValue(
-                int64_type, llvm::APInt(64, jit->GetReturnTypeSize())),
-        }));
-  } else {
-    // We might as well do nothing here. The main's optnone will prevent llvm
-    // from removing the calls to the test code.
-    write_output_func->addFnAttrs(
-        llvm::AttrBuilder(context)
-            .addMemoryAttr(llvm::MemoryEffects::unknown())
-            .addAttribute(llvm::Attribute::OptimizeNone)
-            .addAttribute(llvm::Attribute::NoInline)
-            .addAttribute(llvm::Attribute::MustProgress));
-    write_start.CreateRet(
-        llvm::Constant::getIntegerValue(int64_type, llvm::APInt(64, 0)));
-  }
-
-  auto alignment_of = [&](Type* type) -> llvm::Align {
-    return layout.getPrefTypeAlign(type_convert.ConvertToLlvmType(type));
-  };
-  // Create the main function.
-  llvm::Function* main_function = llvm::cast<llvm::Function>(
-      mod.getOrInsertFunction("main", main_type).getCallee());
-  // Make sure the optimizer won't just remove the calls to the test code.
-  main_function->addFnAttrs(llvm::AttrBuilder(context)
-                                .addAttribute(llvm::Attribute::OptimizeNone)
-                                .addAttribute(llvm::Attribute::NoInline)
-                                .addAttribute(llvm::Attribute::MustProgress));
-  llvm::BasicBlock* block =
-      llvm::BasicBlock::Create(context, "block_main", main_function);
-  llvm::IRBuilder<> builder(block);
-  // Setup input buffer.
-  llvm::AllocaInst* input_ptrs = builder.CreateAlloca(
-      llvm::ArrayType::get(llvm::PointerType::get(int8_type, 0),
-                           f->params().size()),
-      /*ArraySize=*/nullptr, /*Name=*/"input_ptrs");
-  std::vector<std::vector<uint8_t>> input_buffers;
-  std::vector<uint8_t*> input_buffers_ptrs;
-  input_buffers.reserve(f->params().size());
-  input_buffers_ptrs.reserve(f->params().size());
-  for (int i = 0; i < f->params().size(); ++i) {
-    input_buffers.emplace_back(jit->GetArgTypeSize(i), 0);
-    input_buffers_ptrs.emplace_back(input_buffers.back().data());
-  }
-
-  // Setup output buffer.
-  llvm::AllocaInst* output_buf = builder.CreateAlloca(
-      llvm::ArrayType::get(int8_type, jit->GetReturnTypeSize()),
-      /*ArraySize=*/nullptr, /*Name=*/"output_buffer");
-  output_buf->setAlignment(alignment_of(f->GetType()->return_type()));
-  llvm::AllocaInst* output_ptrs = builder.CreateAlloca(
-      llvm::ArrayType::get(llvm::PointerType::get(int8_type, 0), 1),
-      /*ArraySize=*/nullptr, /*Name=*/"output_ptrs");
-  builder.CreateStore(output_buf, output_ptrs);
-  // Setup tmp buffer
-  llvm::AllocaInst* tmp_buffer = builder.CreateAlloca(
-      llvm::ArrayType::get(int8_type,
-                           std::max(int64_t{1}, jit->GetTempBufferSize())),
-      /*ArraySize=*/nullptr, /*Name=*/"tmp_buffer");
-  // events, user_data, runtime
-  // All of these can be null (for functions) and we don't want to have to link
-  // in the rest of the system.
-  llvm::Constant* llvm_null =
-      llvm::Constant::getNullValue(llvm::PointerType::get(context, 0));
-  // continuation
-  // Functions don't use this.
-  llvm::Constant* continuation =
-      llvm::Constant::getIntegerValue(int64_type, llvm::APInt(64, 0));
-  std::vector<Type*> arg_types;
-  arg_types.reserve(f->params().size());
-  absl::c_transform(f->params(), std::back_inserter(arg_types),
-                    [](Param* p) { return p->GetType(); });
-
-  int32_t input_set = 0;
-  for (const auto& set : arg_sets_in) {
-    XLS_RETURN_IF_ERROR(
-        jit->runtime()->PackArgs(set.args, arg_types, input_buffers_ptrs));
-    for (int i = 0; i < f->params().size(); ++i) {
-      std::string arg_name =
-          absl::StrFormat("_input_set_%d_arg_%d_", input_set++, i);
-      llvm::Constant* value = builder.CreateGlobalStringPtr(
-          llvm::StringRef(reinterpret_cast<const char*>(input_buffers_ptrs[i]),
-                          jit->GetArgTypeSize(i)),
-          arg_name);
-      mod.getNamedGlobal(arg_name)->setAlignment(
-          alignment_of(f->GetType()->parameter_type(i)));
-
-      builder.CreateStore(
-          value, builder.CreateGEP(input_ptrs->getAllocatedType(), input_ptrs,
-                                   {llvm::Constant::getIntegerValue(
-                                        int32_type, llvm::APInt(32, 0)),
-                                    llvm::Constant::getIntegerValue(
-                                        int32_type, llvm::APInt(32, i))}));
-    }
-
-    // Call the function.
-    builder.CreateCall(entrypoint->getFunctionType(), entrypoint,
-                       {input_ptrs, output_ptrs, tmp_buffer, llvm_null,
-                        llvm_null, llvm_null, continuation});
-    // Write the output.
-    builder.CreateCall(write_output_func->getFunctionType(), write_output_func,
-                       {
-                           output_buf,
-                       });
-  }
-  builder.CreateRet(
-      llvm::Constant::getIntegerValue(int32_type, llvm::APInt(32, 0)));
-
-  // Write the built module.
-  std::string buffer;
-  llvm::raw_string_ostream ostream(buffer);
-  mod.print(ostream, nullptr);
-  ostream.flush();
-  return SetFileContents(output_path, buffer);
-}
-
 // Evaluates the function with the given ArgSets. Returns an error if the result
 // does not match expectations (if any). 'actual_src' and 'expected_src' are
 // string descriptions of the sources of the actual results and expected
@@ -581,24 +348,13 @@ absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
     std::string_view actual_src = "actual",
     std::string_view expected_src = "expected") {
-  EvalIrJitObserver observer(absl::GetFlag(FLAGS_llvm_jit_ir_output),
-                             absl::GetFlag(FLAGS_llvm_jit_opt_ir_output),
-                             absl::GetFlag(FLAGS_use_llvm_jit_interpreter),
-                             absl::GetFlag(FLAGS_llvm_jit_asm_output));
+  EvalIrJitObserver observer(absl::GetFlag(FLAGS_use_llvm_jit_interpreter));
   std::unique_ptr<FunctionJit> jit;
   if (use_jit) {
     // No support for procs yet.
     XLS_ASSIGN_OR_RETURN(
         jit,
         FunctionJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level), &observer));
-  }
-
-  if (absl::GetFlag(FLAGS_llvm_jit_main_wrapper_output)) {
-    // TODO(allight): Move this into aot_compiler...
-    XLS_RETURN_IF_ERROR(WriteMainWrapper(
-        f, jit.get(), arg_sets,
-        std::filesystem::path(
-            *absl::GetFlag(FLAGS_llvm_jit_main_wrapper_output))));
   }
 
   std::vector<Value> results;
