@@ -1317,8 +1317,116 @@ op_samples {
 }
 # "kArraySlice" alias "kArrayIndex"
 
-# TODO kArrayUpdate
-# "kArrayUpdate" alias "kSel"
+# "kArrayUpdate"
+op_samples {
+  op: "kArrayUpdate"
+  samples {
+    result_width: 8
+    result_element_counts: 256
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 32
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 32
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 16
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 16
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+}
+
+
+#
+# top fn main(op0: bits[8][4][256], op1: bits[8][4], op2: bits[8]) -> bits[8][4][256] {
+#   ret result: bits[8][4][256] = array_update(op0, op1, indices=[op2])
+# }
+#
+op_samples {
+  op: "kArrayUpdate"
+  samples {
+    result_width: 8
+    result_element_counts: 4
+    result_element_counts: 256
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+      element_counts: 256
+    }
+    operand_element_counts {
+      operand_number: 1
+      element_counts: 4
+    }
+  }
+}
+
+
+#
+# top fn main(op0: bits[8][4][256], op1: bits[8], op2: bits[8], op3: bits[2]) -> bits[8][4][256] {
+#   ret result: bits[8][4][256] = array_update(op0, op1, indices=[op2, op3])
+# }
+#
+op_samples {
+  op: "kArrayUpdate"
+  samples {
+    result_width: 8
+    result_element_counts: 4
+    result_element_counts: 256
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+      element_counts: 256
+    }
+  }
+}
 
 op_samples {
   op: "kSel"

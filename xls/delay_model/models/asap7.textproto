@@ -212,15 +212,14 @@ op_models {
     }
   }
   specializations {
-    # If the selector is literal, this will compile down to pure wires.
     kind: HAS_LITERAL_OPERAND
+    estimator {
+      fixed: 0
+    }
     details {
       literal_operand_details {
         required_literal_operand: 0
       }
-    }
-    estimator {
-      fixed: 0
     }
   }
 }
@@ -569,22 +568,54 @@ op_models {
     }
   }
   specializations {
-    # If the index is fully literal, this will compile down to pure wires.
     kind: HAS_LITERAL_OPERAND
+    estimator {
+      fixed: 0
+    }
     details {
       literal_operand_details {
         allowed_nonliteral_operand: 0
       }
-    }
-    estimator {
-      fixed: 0
     }
   }
 }
 op_models {
   op: "kArrayUpdate"
   estimator {
-    alias_op: "kSel"
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+          operand_number: 1
+        }
+      }
+      expressions {
+        bin_op: DIVIDE
+        lhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+            operand_number: 1
+          }
+        }
+      }
+    }
+  }
+  specializations {
+    kind: HAS_LITERAL_OPERAND
+    estimator {
+      fixed: 0
+    }
+    details {
+      literal_operand_details {
+        allowed_nonliteral_operand: 0
+        allowed_nonliteral_operand: 1
+      }
+    }
   }
 }
 op_models {
@@ -768,7 +799,7 @@ data_points {
     }
   }
   delay: 111
-  delay_offset: 94
+  delay_offset: 111
 }
 data_points {
   operation {
@@ -20385,4 +20416,135 @@ data_points {
   }
   delay: 12319
   delay_offset: 94
+}
+data_points {
+  operation {
+    op: "kArrayUpdate"
+    bit_count: 8
+    operands {
+      bit_count: 8
+      element_count: 1024
+    }
+    operands {
+      bit_count: 8
+      element_count: 4
+    }
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 458
+  delay_offset: 111
+}
+data_points {
+  operation {
+    op: "kArrayUpdate"
+    bit_count: 32
+    operands {
+      bit_count: 32
+      element_count: 32
+    }
+    operands {
+      bit_count: 32
+    }
+    operands {
+      bit_count: 5
+    }
+  }
+  delay: 397
+  delay_offset: 111
+}
+data_points {
+  operation {
+    op: "kArrayUpdate"
+    bit_count: 16
+    operands {
+      bit_count: 16
+      element_count: 32
+    }
+    operands {
+      bit_count: 16
+    }
+    operands {
+      bit_count: 5
+    }
+  }
+  delay: 421
+  delay_offset: 111
+}
+data_points {
+  operation {
+    op: "kArrayUpdate"
+    bit_count: 16
+    operands {
+      bit_count: 16
+      element_count: 16
+    }
+    operands {
+      bit_count: 16
+    }
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 320
+  delay_offset: 111
+}
+data_points {
+  operation {
+    op: "kArrayUpdate"
+    bit_count: 128
+    operands {
+      bit_count: 128
+      element_count: 16
+    }
+    operands {
+      bit_count: 128
+    }
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 386
+  delay_offset: 111
+}
+data_points {
+  operation {
+    op: "kArrayUpdate"
+    bit_count: 8
+    operands {
+      bit_count: 8
+      element_count: 1024
+    }
+    operands {
+      bit_count: 8
+      element_count: 4
+    }
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 458
+  delay_offset: 111
+}
+data_points {
+  operation {
+    op: "kArrayUpdate"
+    bit_count: 8
+    operands {
+      bit_count: 8
+      element_count: 1024
+    }
+    operands {
+      bit_count: 8
+    }
+    operands {
+      bit_count: 8
+    }
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 497
+  delay_offset: 111
 }

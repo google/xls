@@ -15,13 +15,11 @@
 # proto-file: xls/delay_model/delay_model.proto
 # proto-message: xls.delay_model.OpModels
 
-
 # This is a generic op_models file for use with any process node.
 # Since it is not process-node-specific, it doesn't contain
 # "logical_effort" estimators, since the must specify "tau_in_ps".
 # Also, any "fixed" estimators can only be used with value "0"
 # i.e. free operations.
-
 
 op_models {
   op: "kIdentity"
@@ -141,7 +139,6 @@ op_models {
     }
   }
 }
-
 
 op_models {
   op: "kAdd"
@@ -501,8 +498,6 @@ op_models {
 }
 op_models { op: "kNe" estimator { alias_op: "kEq" } }
 
-
-
 # TODO(tcal) is it better to use operand or result bit count?
 op_models {
   op: "kDecode"
@@ -556,7 +551,59 @@ op_models {
   }
 }
 
-op_models { op: "kArrayUpdate" estimator { alias_op: "kSel" } }
+# Array update is basically a parallel set of 2-way MUX's, controlled by "is
+# this the index being updated?" checks. Its delay should be roughly equivalent
+# to an equality check with
+#   width = lg(# elements in the array)
+#         = lg(flattened array width / value width),
+# plus (# elements in the array)-way fanout of the last index element, followed
+# by a 2-way select with:
+#   width = the element type's width = value width.
+op_models {
+  op: "kArrayUpdate"
+  estimator {
+    regression {
+      expressions {
+        # Width of the value being updated
+        factor {
+          source: OPERAND_BIT_COUNT
+          operand_number: 1
+        }
+      }
+      expressions {
+        bin_op: DIVIDE
+        lhs_expression {
+          factor {
+            # Width of the flattened array
+            source: OPERAND_BIT_COUNT
+            operand_number: 0
+          }
+        }
+        rhs_expression {
+          factor {
+            # Width of the value being updated
+            source: OPERAND_BIT_COUNT
+            operand_number: 1
+          }
+        }
+      }
+    }
+  }
+  specializations {
+    # If the index is fully literal, this will compile down to pure wires.
+    kind: HAS_LITERAL_OPERAND
+    details {
+      literal_operand_details {
+        allowed_nonliteral_operand: 0
+        allowed_nonliteral_operand: 1
+      }
+    }
+    estimator {
+      fixed: 0
+    }
+  }
+}
+
 op_models { op: "kArraySlice" estimator { alias_op: "kArrayIndex" } }
 
 op_models {
@@ -586,8 +633,6 @@ op_models {
     }
   }
 }
-
-
 
 # "Free" ops.
 op_models { op: "kBitSlice" estimator { fixed: 0 } }
