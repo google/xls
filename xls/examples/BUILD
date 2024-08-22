@@ -551,6 +551,16 @@ xls_ir_opt_ir(
     ]
 ]
 
+xls_dslx_library(
+    name = "memory_proc_dslx",
+    srcs = ["memory_proc.x"],
+)
+
+xls_dslx_test(
+    name = "memory_proc_test",
+    library = ":memory_proc_dslx",
+)
+
 # -- tiny_adder sample
 
 xls_dslx_library(
