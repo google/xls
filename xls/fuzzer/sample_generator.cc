@@ -245,8 +245,8 @@ static std::vector<const dslx::Type*> TranslateTypeList(
 static absl::StatusOr<std::vector<std::unique_ptr<dslx::Type>>>
 GetParamTypesOfFunction(dslx::Function* function, const TypecheckedModule& tm) {
   std::vector<std::unique_ptr<dslx::Type>> params;
-  XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                       tm.type_info->GetItemAs<FunctionType>(function));
+  XLS_ASSIGN_OR_RETURN(dslx::FunctionType * fn_type,
+                       tm.type_info->GetItemAs<dslx::FunctionType>(function));
   for (const auto& param : fn_type->params()) {
     params.push_back(param->CloneToUnique());
   }

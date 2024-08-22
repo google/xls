@@ -30,6 +30,7 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"

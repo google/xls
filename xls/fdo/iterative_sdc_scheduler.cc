@@ -41,6 +41,7 @@
 #include "xls/fdo/node_cut.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/scheduling/scheduling_options.h"

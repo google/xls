@@ -601,7 +601,6 @@ cc_test(
     deps = [
         ":op",
         "//xls/common:xls_gunit_main",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_googletest//:gtest",
     ],
 )

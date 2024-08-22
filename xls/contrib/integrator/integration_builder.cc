@@ -31,6 +31,7 @@
 #include "xls/contrib/integrator/ir_integrator.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 
 namespace xls {

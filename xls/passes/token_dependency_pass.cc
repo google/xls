@@ -29,6 +29,7 @@
 #include "xls/data_structures/transitive_closure.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"

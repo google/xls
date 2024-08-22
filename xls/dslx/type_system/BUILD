@@ -359,7 +359,6 @@ cc_library(
         ":deduce",
         ":deduce_ctx",
         ":maybe_explain_error",
-        ":parametric_env",
         ":scoped_fn_stack_entry",
         ":type",
         ":type_info",
