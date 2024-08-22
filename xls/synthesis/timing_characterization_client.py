@@ -233,7 +233,9 @@ def op_cpp_enum_to_name(cpp_enum_name: str) -> str:
   snake_case = ''
   for c in cpp_enum_name[1:]:
     if c.isupper():
-      snake_case += '_' + c.lower()
+      if snake_case:
+        snake_case += '_'
+      snake_case += c.lower()
     else:
       snake_case += c
   return snake_case
