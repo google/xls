@@ -163,7 +163,10 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
   if (it != const_exprs_.end() && it->second.has_value()) {
     // If the tags are the same, assert they're the same value.
     if (value.tag() == it->second->tag()) {
-      CHECK(value.Eq(it->second.value())) << "previous value: " << it->second->ToString() << " inserting value: " << value.ToString();;
+      CHECK(value.Eq(it->second.value()))
+          << "previous value: " << it->second->ToString()
+          << " inserting value: " << value.ToString();
+      ;
     }
   }
 
