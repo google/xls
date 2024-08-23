@@ -1127,15 +1127,27 @@ fn f() -> u32[2][3] {
 }
 
 TEST(TypecheckTest, UpdateBuiltinNotAnIndex) {
-  EXPECT_THAT(
-      Typecheck(R"(
+  EXPECT_THAT(Typecheck(R"(
 fn f() -> u32[2][3] {
   let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
   update(x, [u32:0, u32:1], u32:3)
 }
 )"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Need index to be either a uN or a tuple of uN's")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Want index value at argno 1 to either be a "
+                                 "`uN` or a tuple of `uN`s")));
+}
+
+TEST(TypecheckTest, UpdateBuiltinIndexTupleHasSigned) {
+  EXPECT_THAT(Typecheck(R"(
+fn f() -> u32[2][3] {
+  let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
+  update(x, (u32:0, s32:1), u32:3)
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Want index value within tuple to be `uN`; "
+                                 "member 1 was `sN[32]`")));
 }
 
 TEST(TypecheckTest, UpdateBuiltinOutOfDimensions) {
