@@ -235,8 +235,11 @@ class Checker {
     const TupleType* tuple;
     IsTuple(argno, &tuple);
     if (!status_.ok()) {
-      status_ = TypeInferenceErrorStatus(span_, &GetArgType(argno), absl::StrFormat(
-            "Want index value at argno %d to either be a `uN` or a tuple", argno));
+      status_ = TypeInferenceErrorStatus(
+          span_, &GetArgType(argno),
+          absl::StrFormat(
+              "Want index value at argno %d to either be a `uN` or a tuple",
+              argno));
       return *this;
     }
 
@@ -248,9 +251,11 @@ class Checker {
           continue;
         }
       }
-      status_ = TypeInferenceErrorStatus(span_, &member, absl::StrFormat(
-          "Want index value within tuple to be `uN`; member %d was `%s`",
-          i, member.ToString()));
+      status_ = TypeInferenceErrorStatus(
+          span_, &member,
+          absl::StrFormat(
+              "Want index value within tuple to be `uN`; member %d was `%s`", i,
+              member.ToString()));
       return *this;
     }
     *size = tuple->size();
