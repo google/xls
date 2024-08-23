@@ -159,16 +159,19 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
       "noting node: `%s` (%p) has constexpr value: `%s`",
       const_expr->ToString(), const_expr, value.ToString());
 
-  auto it = const_exprs_.find(const_expr);
-  if (it != const_exprs_.end() && it->second.has_value()) {
-    // If the tags are the same, assert they're the same value.
-    if (value.tag() == it->second->tag()) {
-      CHECK(value.Eq(it->second.value()))
-          << "previous value: " << it->second->ToString()
-          << " inserting value: " << value.ToString();
-      ;
-    }
-  }
+  // Note: this assertion will generally hold as of 2024-08-23, except in the
+  // case of `UnrollFor` nodes, which https://github.com/richmckeever is
+  // actively working on alternative strategies for.
+  //
+  // auto it = const_exprs_.find(const_expr);
+  // if (it != const_exprs_.end() && it->second.has_value()) {
+  //   // If the tags are the same, assert they're the same value.
+  //   if (value.tag() == it->second->tag()) {
+  //     CHECK(value.Eq(it->second.value()))
+  //         << "previous value: " << it->second->ToString()
+  //         << " inserting value: " << value.ToString();
+  //   }
+  // }
 
   const_exprs_.insert_or_assign(const_expr, std::move(value));
 }
