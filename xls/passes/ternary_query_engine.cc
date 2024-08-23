@@ -38,7 +38,6 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_evaluator.h"
 

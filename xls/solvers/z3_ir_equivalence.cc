@@ -35,7 +35,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
-#include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace xls::solvers::z3 {

@@ -36,7 +36,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value.h"
 
 namespace xls {
 

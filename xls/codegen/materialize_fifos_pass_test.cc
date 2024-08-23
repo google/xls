@@ -44,7 +44,6 @@
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value.h"
 
 namespace xls::verilog {
 namespace {

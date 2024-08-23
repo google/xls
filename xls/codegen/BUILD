@@ -1591,7 +1591,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:name_uniquer",
         "//xls/ir:type",
-        "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

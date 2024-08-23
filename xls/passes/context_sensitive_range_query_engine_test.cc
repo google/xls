@@ -38,7 +38,6 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/range_query_engine.h"
 

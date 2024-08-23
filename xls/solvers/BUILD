@@ -66,7 +66,6 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:op",
         "//xls/ir:source_location",
-        "//xls/ir:value",
     ],
 )
 
