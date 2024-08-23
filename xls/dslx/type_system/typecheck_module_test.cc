@@ -1146,7 +1146,8 @@ fn f() -> u32[2][3] {
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Want index value within tuple to be `uN`; member 1 was `sN[32]`")));
+                       HasSubstr("Want index value within tuple to be `uN`; "
+                                 "member 1 was `sN[32]`")));
 }
 
 TEST(TypecheckTest, UpdateBuiltinOutOfDimensions) {
