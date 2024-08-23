@@ -1135,7 +1135,7 @@ fn f() -> u32[2][3] {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Need index to be either a uN or a tuple of uN's")));
+               HasSubstr("Want index value at argno 1 to either be a `uN` or a tuple of `uN`s")));
 }
 
 TEST(TypecheckTest, UpdateBuiltinOutOfDimensions) {

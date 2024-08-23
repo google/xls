@@ -238,7 +238,7 @@ class Checker {
       status_ = TypeInferenceErrorStatus(
           span_, &GetArgType(argno),
           absl::StrFormat(
-              "Want index value at argno %d to either be a `uN` or a tuple",
+              "Want index value at argno %d to either be a `uN` or a tuple of `uN`s",
               argno));
       return *this;
     }
