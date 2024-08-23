@@ -30,6 +30,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/query_engine.h"

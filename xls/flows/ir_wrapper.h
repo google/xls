@@ -35,6 +35,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_channel_queue.h"

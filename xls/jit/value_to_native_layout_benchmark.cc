@@ -21,6 +21,7 @@
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"

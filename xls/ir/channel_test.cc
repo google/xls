@@ -30,6 +30,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 namespace m = ::xls::op_matchers;

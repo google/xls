@@ -495,6 +495,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:channel_ops",
         "//xls/ir:ir_test_base",
+        "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],

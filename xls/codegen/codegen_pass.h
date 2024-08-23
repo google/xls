@@ -38,6 +38,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -319,7 +320,7 @@ struct CodegenPassResults : public PassResults {
   // Map from register name (including instantiation path) to type of the
   // register of registers some pass inserted which was not initially a part of
   // the design (eg FIFO implementation registers).
-  absl::flat_hash_map<std::string, Type*> inserted_registers;
+  absl::flat_hash_map<std::string, xls::Type*> inserted_registers;
 };
 
 using CodegenPass =

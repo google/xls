@@ -44,6 +44,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 namespace xls::dslx {

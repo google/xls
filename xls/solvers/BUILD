@@ -331,6 +331,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:type",
         "//xls/ir:value",
         "@z3//:api",
         "@com_google_googletest//:gtest",

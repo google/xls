@@ -67,6 +67,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_jit.h"

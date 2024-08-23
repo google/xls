@@ -41,6 +41,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_test_util.h"
 #include "xls/ir/verifier.h"

@@ -381,6 +381,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:register",
+        "//xls/ir:type",
         "//xls/ir:value",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",

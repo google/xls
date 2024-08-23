@@ -47,6 +47,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 

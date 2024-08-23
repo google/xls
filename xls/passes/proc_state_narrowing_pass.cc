@@ -49,6 +49,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/back_propagate_range_analysis.h"

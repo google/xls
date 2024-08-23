@@ -30,6 +30,7 @@
 #include "xls/ir/events.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 namespace xls {

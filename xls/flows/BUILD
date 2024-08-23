@@ -51,6 +51,7 @@ cc_library(
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:type",
         "//xls/ir:value",
         "//xls/jit:function_jit",
         "//xls/jit:jit_channel_queue",
