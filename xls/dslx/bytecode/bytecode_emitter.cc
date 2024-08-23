@@ -230,6 +230,9 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
   if (type_info_->IsKnownConstExpr(node)) {
     auto const_expr_or = type_info_->GetConstExpr(node);
     XLS_RET_CHECK_OK(const_expr_or.status());
+    VLOG(5) << absl::StreamFormat(
+        "BytecodeEmitter::HandleArray; node %s is known constexpr: %s",
+        node->ToString(), const_expr_or.value().ToString());
     Add(Bytecode::MakeLiteral(node->span(), const_expr_or.value()));
     return absl::OkStatus();
   }
@@ -245,6 +248,7 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
     XLS_RET_CHECK(!node->members().empty());
     XLS_ASSIGN_OR_RETURN(ArrayType * array_type,
                          type_info_->GetItemAs<ArrayType>(node));
+    VLOG(5) << "Bytecode::HandleArray; emitting ellipsis for array type: " << *array_type;
     const TypeDim& dim = array_type->size();
     XLS_ASSIGN_OR_RETURN(num_members, dim.GetAsInt64());
     int64_t remaining_members = num_members - node->members().size();

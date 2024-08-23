@@ -114,6 +114,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
   XLS_ASSIGN_OR_RETURN(annotated,
                        UnwrapMetaType(std::move(annotated), node->span(),
                                       "array type-prefix position"));
+  VLOG(5) << absl::StreamFormat(
+      "DeduceArray; inferred type annotation `%s` to be `%s`",
+      node->type_annotation()->ToString(), annotated->ToString());
+
   auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
@@ -160,16 +164,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
         "element type.");
   }
 
-  if (node->has_ellipsis()) {
-    // Need to constexpr evaluate here - while we have the concrete type - or
-    // else we'd infer the wrong array size.
-    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), ctx->warnings(),
-        ctx->GetCurrentParametricEnv(), node, array_type));
-    return annotated;
-  }
-
-  return inferred;
+  return annotated;
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
