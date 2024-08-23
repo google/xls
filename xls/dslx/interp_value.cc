@@ -594,7 +594,8 @@ absl::StatusOr<InterpValue> InterpValue::Index(int64_t index) const {
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());
   if (lhs->size() <= index) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Index out of bounds; index: %d >= %d elements; lhs: %s", index, lhs->size(), ToString()));
+        "Index out of bounds; index: %d >= %d elements; lhs: %s", index,
+        lhs->size(), ToString()));
   }
   return (*lhs)[index];
 }
@@ -606,7 +607,8 @@ absl::StatusOr<InterpValue> InterpValue::Index(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
   if (lhs->size() <= index) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Index out of bounds; index: %d >= %d elements; lhs: %s", index, lhs->size(), ToString()));
+        "Index out of bounds; index: %d >= %d elements; lhs: %s", index,
+        lhs->size(), ToString()));
   }
   return (*lhs)[index];
 }
