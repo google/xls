@@ -352,35 +352,62 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
   return absl::OkStatus();
 }
 
+// A stack frame for the DFS visitor.
+struct DfsStackFrame {
+  // The node to visit after `operand_it` has reached node->operands().end().
+  Node* node;
+  // Iterator pointing to the next operand of `node` to visit.
+  decltype(std::declval<Node>().operands())::const_iterator operand_it;
+};
+
 absl::Status Node::Accept(DfsVisitor* visitor) {
   if (visitor->IsVisited(this)) {
     return absl::OkStatus();
   }
-  if (visitor->IsTraversing(this)) {
-    std::vector<std::string> cycle_names = {GetName()};
-    Node* node = this;
-    do {
-      bool broke = false;
-      for (Node* operand : node->operands()) {
-        if (visitor->IsTraversing(operand)) {
-          node = operand;
-          broke = true;
-          break;
-        }
+  std::vector<DfsStackFrame> stack{
+      DfsStackFrame{.node = this, .operand_it = operands().begin()}};
+  while (!stack.empty()) {
+    auto& [current, current_operand_it] = stack.back();
+    visitor->SetTraversing(current);
+    bool saw_unvisited_operand = false;
+    while (current_operand_it != current->operands().end()) {
+      Node* operand = *current_operand_it;
+      ++current_operand_it;
+      if (visitor->IsVisited(operand)) {
+        continue;
       }
-      CHECK(broke);
-      cycle_names.push_back(node->GetName());
-    } while (node != this);
-    return absl::InternalError(absl::StrFormat(
-        "Cycle detected: [%s]", absl::StrJoin(cycle_names, " -> ")));
+      if (visitor->IsTraversing(operand)) {
+        // Found a cycle, make a useful error message.
+        std::vector<std::string> cycle_names = {operand->GetName()};
+        Node* node = operand;
+        do {
+          bool broke = false;
+          for (Node* node_operand : node->operands()) {
+            if (visitor->IsTraversing(node_operand)) {
+              node = node_operand;
+              broke = true;
+              break;
+            }
+          }
+          CHECK(broke);
+          cycle_names.push_back(node->GetName());
+        } while (node != operand);
+        return absl::InternalError(absl::StrFormat(
+            "Cycle detected: [%s]", absl::StrJoin(cycle_names, " -> ")));
+      }
+      saw_unvisited_operand = true;
+      stack.push_back(DfsStackFrame{.node = operand,
+                                    .operand_it = operand->operands().begin()});
+      break;
+    }
+    if (!saw_unvisited_operand) {
+      visitor->UnsetTraversing(current);
+      visitor->MarkVisited(current);
+      XLS_RETURN_IF_ERROR(current->VisitSingleNode(visitor));
+      stack.pop_back();
+    }
   }
-  visitor->SetTraversing(this);
-  for (Node* operand : operands()) {
-    XLS_RETURN_IF_ERROR(operand->Accept(visitor));
-  }
-  visitor->UnsetTraversing(this);
-  visitor->MarkVisited(this);
-  return VisitSingleNode(visitor);
+  return absl::OkStatus();
 }
 
 bool Node::IsDefinitelyEqualTo(const Node* other) const {
