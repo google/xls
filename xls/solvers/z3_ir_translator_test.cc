@@ -2374,5 +2374,41 @@ TEST_F(Z3IrTranslatorTest, HandlesComplexAggregateEqAndNe) {
   EXPECT_THAT(proven, IsProvenTrue());
 }
 
+TEST_F(Z3IrTranslatorTest, HandlesUMulp) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  Type* u32 = package->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue mul = fb.UMul(a, b);
+  BValue mulp = fb.UMulp(a, b);
+  mulp = fb.Add(fb.TupleIndex(mulp, 0), fb.TupleIndex(mulp, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(mul, mulp)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
+TEST_F(Z3IrTranslatorTest, HandlesSMulp) {
+  std::unique_ptr<Package> package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+  Type* u32 = package->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue mul = fb.SMul(a, b);
+  BValue mulp = fb.SMulp(a, b);
+  mulp = fb.Add(fb.TupleIndex(mulp, 0), fb.TupleIndex(mulp, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Eq(mul, mulp)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven, IsProvenTrue());
+}
+
 }  // namespace
 }  // namespace xls

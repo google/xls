@@ -1383,9 +1383,8 @@ absl::Status IrTranslator::HandleUMul(ArithOp* mul) {
 // Partial product ops are unusual in that the output of the operation isn't
 // fully specified. The output is a 2-tuple with the property that the elements
 // of the tuple sum to the product of the inputs. The outputs can take any
-// values that satisfy this property. We model this in Z3 by creating two bound
-// variables for each element in the output tuple and adding a constraint that
-// the sum of these variables equals the desired product.
+// values that satisfy this property. We model this in Z3 by creating a variable
+// `offset` and returning `(prod - offset, offset)`.
 void IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
   // they can't, so we need to zext (for a umul) the operands to the size of the
@@ -1400,19 +1399,11 @@ void IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
 
   Z3_ast result = DoMul(ctx_, lhs, rhs, /*is_signed=*/is_signed, result_size);
 
-  Z3_symbol product0_symbol = GetNewSymbol();
-  Z3_ast product0 = Z3_mk_const(ctx_, product0_symbol, op_sort);
-  Z3_symbol product1_symbol = GetNewSymbol();
-  Z3_ast product1 = Z3_mk_const(ctx_, product1_symbol, op_sort);
+  Z3_symbol offset_symbol = GetNewSymbol();
+  Z3_ast offset = Z3_mk_const(ctx_, offset_symbol, op_sort);
 
-  Z3_ast sum = Z3_mk_bvadd(ctx_, product0, product1);
-  Z3_ast eq = Z3_mk_eq(ctx_, sum, result);
-  Z3_app vars[] = {reinterpret_cast<Z3_app>(product0),
-                   reinterpret_cast<Z3_app>(product1)};
-  Z3_mk_forall_const(ctx_, /*weight=*/0, /*num_bound=*/2, /*bound=*/vars,
-                     /*num_patterns=*/0, /*patterns=*/nullptr,
-                     /*body=*/eq);
-  NoteTranslation(mul, CreateTuple(mul->GetType(), {product0, product1}));
+  Z3_ast diff = Z3_mk_bvsub(ctx_, result, offset);
+  NoteTranslation(mul, CreateTuple(mul->GetType(), {diff, offset}));
 }
 
 absl::Status IrTranslator::HandleSMulp(PartialProductOp* mul) {
