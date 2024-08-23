@@ -79,14 +79,8 @@ fn expand_mask<DATA_WIDTH:u32, NUM_PARTITIONS:u32,
  EXPANSION_FACTOR:u32={std::ceil_div(DATA_WIDTH, NUM_PARTITIONS)}>(
   partition_mask:uN[NUM_PARTITIONS]) -> uN[DATA_WIDTH] {
   for (idx, data_mask): (u32, uN[DATA_WIDTH]) in range(u32:0, NUM_PARTITIONS) {
-    let mask_bit: u1 = partition_mask[idx +: u1];
-    let data_mask_segment: uN[EXPANSION_FACTOR] =
-      flatten(u1[EXPANSION_FACTOR]:[mask_bit, ...]);
-
-    let to_flatten: u1[EXPANSION_FACTOR] = u1[EXPANSION_FACTOR]:[partition_mask[idx +: u1], ...];
-    let data_mask_segment': uN[EXPANSION_FACTOR] = flatten(to_flatten);
-
-    assert!(data_mask_segment == data_mask_segment', "inconsistency");
+    let data_mask_segment =
+      flatten(u1[EXPANSION_FACTOR]: [partition_mask[idx +: u1], ...]);
     ((data_mask_segment as uN[DATA_WIDTH]) << (idx * EXPANSION_FACTOR)) |
       data_mask
   } (uN[DATA_WIDTH]:0)
