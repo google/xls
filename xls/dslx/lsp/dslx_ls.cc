@@ -204,6 +204,19 @@ absl::Status RealMain() {
             params.textDocument.uri);
       });
 
+  dispatcher.AddRequestHandler(
+      "textDocument/inlayHint",
+      [&](const verible::lsp::InlayHintParams& params) {
+        auto inlay_hints_or = language_server_adapter.InlayHint(
+            params.textDocument.uri, params.range);
+        if (inlay_hints_or.ok()) {
+          return std::move(inlay_hints_or).value();
+        }
+        LspLog() << "could not determine inlay hints; status: "
+                 << inlay_hints_or.status() << "\n";
+        return std::vector<verible::lsp::InlayHint>{};
+      });
+
   // Main loop. Feeding the stream-splitter that then calls the dispatcher.
   absl::Status status = absl::OkStatus();
   while (status.ok() && !shutdown_requested) {

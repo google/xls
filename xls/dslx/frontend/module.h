@@ -228,6 +228,9 @@ class Module : public AstNode {
   // "target" position.
   std::vector<const AstNode*> FindIntercepting(const Pos& target) const;
 
+  // Finds all the AST nodes that fall within the given span.
+  std::vector<const AstNode*> FindContained(const Span& target) const;
+
   // Tags this module as having the given module-level annotation "annotation".
   void AddAnnotation(ModuleAnnotation annotation) {
     annotations_.insert(annotation);

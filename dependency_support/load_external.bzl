@@ -15,6 +15,8 @@
 """Provides helper that loads external repositories with third-party code."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
@@ -183,11 +185,13 @@ def load_external_repositories():
     )
 
     # Tagged 2024-06-19, current as of 2024-06-26
+    # NOTE FOR REVIEWER: this should be reverted before submission, once the
+    # Verible PR has landed.
     http_archive(
         name = "verible",
-        sha256 = "8c5d13bdc4f4bc756b0f6d31b61cc8aba75dfcfcf22822244ac9c0ccb43db814",
-        strip_prefix = "verible-0.0-3704-g1d393d43",
-        urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/v0.0-3704-g1d393d43.tar.gz"],
+	integrity = "sha256-xW00EjPjGkmxsdGZ5Q5/pzEndhKdPj1VfpkX6dB8H7w=",
+        strip_prefix = "verible-461d2da9ef195625a6e0ca367d43a02ff658d962",
+        urls = ["https://github.com/cdleary/verible/archive/461d2da9ef195625a6e0ca367d43a02ff658d962.tar.gz"],
         patch_args = ["-p1"],
         patches = ["//dependency_support/verible:visibility.patch"],
     )

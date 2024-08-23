@@ -381,6 +381,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
                                     *node->owner(), ctx);
   }
 
+  ctx->type_info()->SetItem(node->name_def_tree(), *rhs);
+
   return Type::MakeUnit();
 }
 

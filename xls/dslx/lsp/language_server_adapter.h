@@ -80,6 +80,10 @@ class LanguageServerAdapter {
   std::vector<verible::lsp::DocumentLink> ProvideImportLinks(
       std::string_view uri) const;
 
+  absl::StatusOr<std::vector<verible::lsp::InlayHint>>
+  InlayHint(
+      std::string_view uri, const verible::lsp::Range& range) const;
+
  private:
   struct ParseData;
 
@@ -104,6 +108,10 @@ class LanguageServerAdapter {
     const Module& module() const {
       CHECK_OK(tmc.status());
       return *tmc->tm.module;
+    }
+    const TypeInfo& type_info() const {
+      CHECK_OK(tmc.status());
+      return *tmc->tm.type_info;
     }
     const Comments& comments() const {
       CHECK_OK(tmc.status());
