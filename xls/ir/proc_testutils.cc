@@ -219,6 +219,11 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
       if (selectors.empty()) {
         XLS_RET_CHECK_EQ(cases.size(), 1) << "no cases for " << param;
         values[{param, activation}] = cases.front();
+      } else if (cases.front().GetType()->IsBits() &&
+                 cases.front().GetType()->GetFlatBitCount() == 0) {
+        // Special case to avoid creating non-trivial uses of zero-len bit
+        // vectors.
+        values[{param, activation}] = fb.Literal(UBits(0, 0));
       } else {
         XLS_RET_CHECK_EQ(cases.size(), selectors.size());
         // materialize the next values into a select.

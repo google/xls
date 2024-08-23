@@ -2000,7 +2000,6 @@ cc_test(
 
 cc_library(
     name = "proc_testutils",
-    testonly = True,
     srcs = ["proc_testutils.cc"],
     hdrs = ["proc_testutils.h"],
     deps = [
