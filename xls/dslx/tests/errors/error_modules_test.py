@@ -1211,6 +1211,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'Attempted to resolve a module member that was not public', stderr
     )
 
+  def test_update_builtin_non_array(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/update_builtin_non_array.x'
+    )
+    self.assertIn(
+        "Want argument 0 to 'update' to be an array; got uN[32]", stderr
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

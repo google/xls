@@ -218,18 +218,42 @@ class Checker {
     });
   }
 
+  // An index can either be a single `uN` or a tuple of `uNs`.
   Checker& IsIndex(int64_t argno, int64_t* size) {
+    // We have to early return immediately if we're in an error status.
+    if (!status_.ok()) {
+      return *this;
+    }
+
     IsUN(argno);
     if (status_.ok()) {  // early exit if uN check succeed.
       *size = 1;
       return *this;
     }
+
     status_ = absl::OkStatus();  // reset status
-    const TupleType* t;
-    IsTuple(argno, &t);
-    if (status_.ok()) {
-      *size = t->size();
+    const TupleType* tuple;
+    IsTuple(argno, &tuple);
+    if (!status_.ok()) {
+      status_ = TypeInferenceErrorStatus(span_, &GetArgType(argno), absl::StrFormat(
+            "Want index value at argno %d to either be a `uN` or a tuple", argno));
+      return *this;
     }
+
+    for (size_t i = 0; i < tuple->members().size(); ++i) {
+      const Type& member = *tuple->members()[i];
+      if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(member)) {
+        bool is_signed = IsSigned(member).value();
+        if (!is_signed) {
+          continue;
+        }
+      }
+      status_ = TypeInferenceErrorStatus(span_, &member, absl::StrFormat(
+          "Want index value within tuple to be `uN`; member %d was `%s`",
+          i, member.ToString()));
+      return *this;
+    }
+    *size = tuple->size();
     return *this;
   }
 
@@ -903,19 +927,14 @@ PopulateSignatureToLambdaMap() {
   map["(T[...], uN[M]|(uN[M], ...), T) -> T[...]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    const ArrayType* container_type;
     int64_t index_size;
+    const ArrayType* container_type;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(3)
                        .IsArray(0, &container_type)
                        .IsIndex(1, &index_size);
-    if (!checker.status().ok()) {
-      return TypeInferenceErrorStatus(
-          data.span, nullptr,
-          absl::StrFormat(
-              "Need index to be either a uN or a tuple of uN's, got: %s",
-              data.arg_types[1]->ToString()));
-    }
+    XLS_RETURN_IF_ERROR(checker.status());
+
     const Type* element_type = container_type;
     for (int64_t i = 0; i < index_size; ++i) {
       if (auto* f = dynamic_cast<const ArrayType*>(element_type)) {
