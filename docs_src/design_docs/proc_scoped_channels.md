@@ -4,6 +4,8 @@
 
 Written on 2023/5/27
 
+Relevant issues: [#869](https://github.com/google/xls/issues/869).
+
 Channels in the IR should be changed from package-scoped to proc-scoped.
 Proc-scoped channels have many advantages which outweigh the significant
 refactoring effort required to make the change.
