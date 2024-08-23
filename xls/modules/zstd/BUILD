@@ -212,6 +212,7 @@ cc_test(
     deps = [
         ":data_generator",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",

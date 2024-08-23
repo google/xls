@@ -14,7 +14,6 @@
 
 #include "xls/dslx/interp_value.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
