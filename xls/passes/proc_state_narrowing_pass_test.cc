@@ -560,5 +560,34 @@ proc __sample__main_0_next(__state: bits[58], init={144115188075855871}) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
 }
 
+TEST_F(ProcStateNarrowingPassTest, AllLiteralNextNodes) {
+  auto p = CreatePackage();
+  // Regression test for fuzzer error. This test is incredibly fragile since
+  // triggering the bug relies on the 'next_value' with a 0 predicate being
+  // handled first.
+  XLS_ASSERT_OK(p->CreateStreamingChannel("sample__x13", ChannelOps::kSendOnly,
+                                          p->GetBitsType(21))
+                    .status());
+  constexpr static std::string_view kProc = R"(
+proc __sample__main_0_next(__state: bits[54], init={12009599006321322}) {
+  x35: token = after_all(id=83)
+  x2: bits[21] = bit_slice(__state, start=33, width=21, id=38)
+  literal.48: bits[54] = literal(value=0, id=48)
+  literal.308: bits[1] = literal(value=0, id=308)
+  literal.313: bits[1] = literal(value=1, id=313)
+  x14: token = send(x35, x2, channel=sample__x13, id=180)
+  next_value.184: () = next_value(param=__state, value=literal.48, predicate=literal.308, id=184)
+  next_value.198: () = next_value(param=__state, value=literal.48, predicate=literal.313, id=198)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(kProc, p.get()));
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls

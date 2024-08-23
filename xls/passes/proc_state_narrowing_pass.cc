@@ -590,23 +590,26 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     absl::flat_hash_set<Node*> visited_next_values;
     visited_next_values.reserve(proc->next_values(param).size());
     for (Next* n : proc->next_values(param)) {
+      // Nexts which don't update anything (either due to just being passthrough
+      // or having a known-false predicate) don't need to be taken into account.
+      if (n->value() == n->param() ||
+          (n->predicate() && rqe.IsAllZeros(*n->predicate()))) {
+        continue;
+      }
+      // Skip analyzing this value if we've already seen it.
       if (auto [it, inserted] = visited_next_values.insert(n->value());
           !inserted) {
         continue;
       }
-      // Nexts which don't update anything don't need to be taken into account.
-      if (n->value() != n->param() &&
-          (!n->predicate() || !rqe.IsAllZeros(*n->predicate()))) {
-        if (!rqe.HasExplicitIntervals(n->value())) {
-          // Unconstrained result. All segments active.
-          return std::nullopt;
-        }
-        // This next node might participate in the selection of the next value
-        // and is not a no-op.
-        run_intervals = IntervalSet::Combine(
-            run_intervals,
-            rqe.GetIntervalSetTreeView(n->value()).value().Get({}));
+      if (!rqe.HasExplicitIntervals(n->value())) {
+        // Unconstrained result. All segments active.
+        return std::nullopt;
       }
+      // This next node might participate in the selection of the next value
+      // and is not a no-op.
+      run_intervals = IntervalSet::Combine(
+          run_intervals,
+          rqe.GetIntervalSetTreeView(n->value()).value().Get({}));
     }
 
     // Does this reveal new states?
