@@ -15,8 +15,6 @@
 """Provides helper that loads external repositories with third-party code."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
-
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
@@ -184,14 +182,12 @@ def load_external_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
-    # Tagged 2024-06-19, current as of 2024-06-26
-    # NOTE FOR REVIEWER: this should be reverted before submission, once the
-    # Verible PR has landed.
+    # Current as of 2024-08-23
     http_archive(
         name = "verible",
-	integrity = "sha256-xW00EjPjGkmxsdGZ5Q5/pzEndhKdPj1VfpkX6dB8H7w=",
-        strip_prefix = "verible-461d2da9ef195625a6e0ca367d43a02ff658d962",
-        urls = ["https://github.com/cdleary/verible/archive/461d2da9ef195625a6e0ca367d43a02ff658d962.tar.gz"],
+        sha256 = "0f6e2f0cad335c9aca903aaa014f2a55d40c5c4dbfe4666474771f5c08e4a42c",
+        strip_prefix = "verible-17e909b09b279e5c1f5cd6a07404691babe3d3c3",
+        urls = ["https://github.com/chipsalliance/verible/archive/17e909b09b279e5c1f5cd6a07404691babe3d3c3.tar.gz"],
         patch_args = ["-p1"],
         patches = ["//dependency_support/verible:visibility.patch"],
     )
