@@ -153,6 +153,7 @@ StructType CreateStructWithParametricExpr(Module& module) {
 TEST(TypeTest, TestU32) {
   BitsType t(false, 32);
   EXPECT_EQ("uN[32]", t.ToString());
+  EXPECT_EQ("uN[32]", t.ToInlayHintString());
   EXPECT_EQ("ubits", t.GetDebugTypeName());
   EXPECT_EQ(false, t.is_signed());
   EXPECT_EQ(false, t.HasEnum());
@@ -164,6 +165,7 @@ TEST(TypeTest, TestU32) {
 TEST(TypeTest, TestUnit) {
   TupleType t({});
   EXPECT_EQ("()", t.ToString());
+  EXPECT_EQ("()", t.ToInlayHintString());
   EXPECT_EQ("tuple", t.GetDebugTypeName());
   EXPECT_EQ(false, t.HasEnum());
   EXPECT_TRUE(t.GetAllDims().empty());
@@ -173,6 +175,7 @@ TEST(TypeTest, TestUnit) {
 TEST(TypeTest, TestArrayOfU32) {
   ArrayType t(std::make_unique<BitsType>(false, 32), TypeDim::CreateU32(1));
   EXPECT_EQ("uN[32][1]", t.ToString());
+  EXPECT_EQ("uN[32][1]", t.ToInlayHintString());
   EXPECT_EQ("array", t.GetDebugTypeName());
   EXPECT_EQ(false, t.HasEnum());
   std::vector<TypeDim> want_dims = {TypeDim::CreateU32(1),
@@ -195,6 +198,7 @@ TEST(TypeTest, TestEnum) {
   EXPECT_TRUE(t.HasEnum());
   EXPECT_EQ(std::vector<TypeDim>{TypeDim::CreateU32(2)}, t.GetAllDims());
   EXPECT_EQ("MyEnum", t.ToString());
+  EXPECT_EQ("MyEnum", t.ToInlayHintString());
   EXPECT_EQ("fake.x:MyEnum", t.ToStringFullyQualified());
 }
 
@@ -212,6 +216,7 @@ TEST(TypeTest, FromInterpValueSbits) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Type> ct,
                            Type::FromInterpValue(s8_m1));
   EXPECT_EQ(ct->ToString(), "sN[8]");
+  EXPECT_EQ(ct->ToInlayHintString(), "sN[8]");
 }
 
 TEST(TypeTest, FromInterpValueArrayU2) {
@@ -241,6 +246,7 @@ TEST(TypeTest, FromInterpValueTupleOfTwoNumbers) {
   });
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Type> ct, Type::FromInterpValue(v));
   EXPECT_EQ(ct->ToString(), "(uN[2], sN[3])");
+  EXPECT_EQ(ct->ToInlayHintString(), "(uN[2], sN[3])");
   EXPECT_FALSE(ct->IsUnit());
   EXPECT_THAT(ct->GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(5)));
 }
@@ -324,6 +330,7 @@ TEST(TypeTest, EmptyStructTypeIsNotUnit) {
   EXPECT_FALSE(s.HasEnum());
   EXPECT_FALSE(s.IsUnit());
   EXPECT_EQ(s.ToString(), "S {}");
+  EXPECT_EQ(s.ToInlayHintString(), "S");
   EXPECT_EQ(s.ToStringFullyQualified(), "relpath/to/test.x:S {}");
 }
 
