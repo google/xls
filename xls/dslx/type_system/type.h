@@ -264,9 +264,7 @@ class Type {
   //
   // For example, for structs, this does not show the internal structure, just
   // the nominal part (the struct name).
-  virtual std::string ToInlayHintString() const {
-    return ToString();
-  }
+  virtual std::string ToInlayHintString() const { return ToString(); }
 
   // Returns whether this type contains an enum type (transitively).
   virtual bool HasEnum() const = 0;
