@@ -199,8 +199,10 @@ TEST(TypeTest, TestUnit) {
 TEST(TypeTest, TestTwoTupleOfStruct) {
   Module module("test", /*fs_path=*/std::nullopt);
   StructType s = CreateSimpleStruct(module);
-  std::unique_ptr<TupleType> t2 = TupleType::Create2(s.CloneToUnique(), s.CloneToUnique());
-  EXPECT_EQ("(S { x: uN[8], y: uN[1] }, S { x: uN[8], y: uN[1] })", t2->ToString());
+  std::unique_ptr<TupleType> t2 =
+      TupleType::Create2(s.CloneToUnique(), s.CloneToUnique());
+  EXPECT_EQ("(S { x: uN[8], y: uN[1] }, S { x: uN[8], y: uN[1] })",
+            t2->ToString());
   EXPECT_EQ("(S, S)", t2->ToInlayHintString());
   EXPECT_EQ("tuple", t2->GetDebugTypeName());
   EXPECT_EQ(false, t2->HasEnum());

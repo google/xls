@@ -740,8 +740,7 @@ std::string ArrayType::ToStringInternal(FullyQualify fully_qualify) const {
 }
 
 std::string ArrayType::ToInlayHintString() const {
-  return absl::StrFormat("%s[%s]",
-                         element_type_->ToInlayHintString(),
+  return absl::StrFormat("%s[%s]", element_type_->ToInlayHintString(),
                          size_.ToString());
 }
 
