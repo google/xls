@@ -212,7 +212,9 @@ TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
 
   const verible::lsp::InlayHint& hint = hints.at(0);
   verible::lsp::Position want_position{1, 7};
-  EXPECT_TRUE(hint.position == want_position) << "got: " << DebugString(hint.position) << " want: " << DebugString(want_position);
+  EXPECT_TRUE(hint.position == want_position)
+      << "got: " << DebugString(hint.position)
+      << " want: " << DebugString(want_position);
   EXPECT_EQ(hint.label, ": uN[32]");
 }
 

@@ -109,7 +109,8 @@ std::vector<const AstNode*> Module::FindIntercepting(const Pos& target) const {
 std::vector<const AstNode*> Module::FindContained(const Span& target) const {
   std::vector<const AstNode*> found;
   for (const auto& node : nodes_) {
-    if (std::optional<Span> node_span = node->GetSpan(); node_span.has_value() && target.Contains(node_span.value())) {
+    if (std::optional<Span> node_span = node->GetSpan();
+        node_span.has_value() && target.Contains(node_span.value())) {
       found.push_back(node.get());
     }
   }
