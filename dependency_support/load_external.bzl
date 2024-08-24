@@ -182,12 +182,13 @@ def load_external_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
-    # Current as of 2024-08-23
+    # Tagged 2024-08-23, current as of 2024-08-24
+    VERIBLE_TAG = 'v0.0-3756-gda9a0f8c'
     http_archive(
         name = "verible",
-        sha256 = "0f6e2f0cad335c9aca903aaa014f2a55d40c5c4dbfe4666474771f5c08e4a42c",
-        strip_prefix = "verible-17e909b09b279e5c1f5cd6a07404691babe3d3c3",
-        urls = ["https://github.com/chipsalliance/verible/archive/17e909b09b279e5c1f5cd6a07404691babe3d3c3.tar.gz"],
+        sha256 = "0d45e646ce8cf618c55e614f827aead0377c34035be04b843aee225ea5be4527",
+        strip_prefix = "verible-" + VERIBLE_TAG.lstrip('v'),
+        urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/" + VERIBLE_TAG + ".tar.gz"],
         patch_args = ["-p1"],
         patches = ["//dependency_support/verible:visibility.patch"],
     )
