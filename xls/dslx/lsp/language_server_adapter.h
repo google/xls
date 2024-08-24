@@ -80,8 +80,7 @@ class LanguageServerAdapter {
   std::vector<verible::lsp::DocumentLink> ProvideImportLinks(
       std::string_view uri) const;
 
-  absl::StatusOr<std::vector<verible::lsp::InlayHint>>
-  InlayHint(
+  absl::StatusOr<std::vector<verible::lsp::InlayHint>> InlayHint(
       std::string_view uri, const verible::lsp::Range& range) const;
 
  private:

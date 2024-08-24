@@ -214,15 +214,16 @@ LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
 }
 
 absl::StatusOr<std::vector<verible::lsp::InlayHint>>
-LanguageServerAdapter::InlayHint(
-    std::string_view uri, const verible::lsp::Range& range) const {
+LanguageServerAdapter::InlayHint(std::string_view uri,
+                                 const verible::lsp::Range& range) const {
   std::vector<verible::lsp::InlayHint> results;
   if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     const Span want_span = ConvertLspRangeToSpan(uri, range);
     const Module& module = parsed->module();
     const TypeInfo& type_info = parsed->type_info();
     // Get let bindings in the AST that fall in the given range.
-    const std::vector<const AstNode*> contained = module.FindContained(want_span);
+    const std::vector<const AstNode*> contained =
+        module.FindContained(want_span);
     for (const AstNode* node : contained) {
       if (node->kind() == AstNodeKind::kLet) {
         const auto* let = down_cast<const Let*>(node);
@@ -235,15 +236,17 @@ LanguageServerAdapter::InlayHint(
         if (!maybe_type.has_value()) {
           // Should not happen, but if it does somehow we don't want to crash
           // the language server.
-          LspLog() << "No type information available for: " << name_def_tree->ToString() << " @ " << name_def_tree->span();
+          LspLog() << "No type information available for: "
+                   << name_def_tree->ToString() << " @ "
+                   << name_def_tree->span();
           continue;
         }
         const Type& type = *maybe_type.value();
         results.push_back(verible::lsp::InlayHint{
-          .position = ConvertPosToLspPosition(name_def_tree->span().limit()),
-          .label = absl::StrCat(": ", type.ToString()),
-          .kind = verible::lsp::InlayHintKind::kType,
-          .paddingRight = true,
+            .position = ConvertPosToLspPosition(name_def_tree->span().limit()),
+            .label = absl::StrCat(": ", type.ToString()),
+            .kind = verible::lsp::InlayHintKind::kType,
+            .paddingRight = true,
         });
       }
     }
