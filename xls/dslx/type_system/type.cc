@@ -557,7 +557,8 @@ std::vector<TypeDim> StructType::GetAllDims() const {
 }
 
 std::unique_ptr<Type> StructType::AddNominalTypeDims(
-    const absl::flat_hash_map<std::string, TypeDim>& added_dims_by_identifier) const {
+    const absl::flat_hash_map<std::string, TypeDim>& added_dims_by_identifier)
+    const {
   absl::flat_hash_map<std::string, TypeDim> combined_dims =
       nominal_type_dims_by_identifier_;
   for (const ParametricBinding* binding : struct_def_.parametric_bindings()) {
@@ -576,8 +577,7 @@ std::unique_ptr<Type> StructType::AddNominalTypeDims(
     }
     const auto it = added_dims_by_identifier.find(binding->identifier());
     if (it != added_dims_by_identifier.end()) {
-      combined_dims.insert_or_assign(binding->identifier(),
-                                     it->second.Clone());
+      combined_dims.insert_or_assign(binding->identifier(), it->second.Clone());
     }
   }
   std::vector<std::unique_ptr<Type>> cloned_members;
