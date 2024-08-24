@@ -50,6 +50,18 @@ using testing::UnorderedElementsAre;
 const Pos kFakePos("<fake>", 0, 0);
 const Span kFakeSpan(kFakePos, kFakePos);
 
+// Creates a struct type of the following form in the module, and returns the
+// `StructType` for it:
+//
+// ```dslx
+// struct S {
+//   x: u8,
+//   y: u1,
+// }
+// ```
+//
+// Note that the `StructType` has to refer to a `StructDef` AST node which is
+// why this helper is needed.
 StructType CreateSimpleStruct(Module& module) {
   std::vector<StructMember> ast_members;
   ast_members.emplace_back(StructMember{
@@ -74,6 +86,18 @@ StructType CreateSimpleStruct(Module& module) {
   return StructType(std::move(members), *struct_def);
 }
 
+// Creates a struct type of the following form in the module, and returns the
+// `StructType` for it:
+//
+// ```dslx
+// struct S<M: u32, N: u32> {
+//   x: u8,
+//   y: u1,
+// }
+// ```
+//
+// Note that the `StructType` has to refer to a `StructDef` AST node which is
+// why this helper is needed.
 StructType CreateSimpleParametricStruct(Module& module) {
   std::vector<StructMember> ast_members;
   ast_members.emplace_back(StructMember{
@@ -170,6 +194,26 @@ TEST(TypeTest, TestUnit) {
   EXPECT_EQ(false, t.HasEnum());
   EXPECT_TRUE(t.GetAllDims().empty());
   EXPECT_FALSE(IsUBits(t));
+}
+
+TEST(TypeTest, TestTwoTupleOfStruct) {
+  Module module("test", /*fs_path=*/std::nullopt);
+  StructType s = CreateSimpleStruct(module);
+  std::unique_ptr<TupleType> t2 = TupleType::Create2(s.CloneToUnique(), s.CloneToUnique());
+  EXPECT_EQ("(S { x: uN[8], y: uN[1] }, S { x: uN[8], y: uN[1] })", t2->ToString());
+  EXPECT_EQ("(S, S)", t2->ToInlayHintString());
+  EXPECT_EQ("tuple", t2->GetDebugTypeName());
+  EXPECT_EQ(false, t2->HasEnum());
+}
+
+TEST(TypeTest, TestArrayOfStruct) {
+  Module module("test", /*fs_path=*/std::nullopt);
+  StructType s = CreateSimpleStruct(module);
+  ArrayType a(s.CloneToUnique(), TypeDim::CreateU32(2));
+  EXPECT_EQ("S { x: uN[8], y: uN[1] }[2]", a.ToString());
+  EXPECT_EQ("S[2]", a.ToInlayHintString());
+  EXPECT_EQ("array", a.GetDebugTypeName());
+  EXPECT_EQ(false, a.HasEnum());
 }
 
 TEST(TypeTest, TestArrayOfU32) {

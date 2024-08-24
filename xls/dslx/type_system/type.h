@@ -264,6 +264,16 @@ class Type {
   //
   // For example, for structs, this does not show the internal structure, just
   // the nominal part (the struct name).
+  //
+  // e.g. consider:
+  //
+  // ```dslx-snippet
+  // fn f(s: MyStruct) -> MyStruct {
+  //   let s = MyStruct{foo: u32:42, ..s};
+  //        ^~~~~ inlay hint goes here as ": MyStruct"
+  //   s
+  // }
+  // ```
   virtual std::string ToInlayHintString() const { return ToString(); }
 
   // Returns whether this type contains an enum type (transitively).
@@ -563,6 +573,8 @@ class TupleType : public Type {
 
   explicit TupleType(std::vector<std::unique_ptr<Type>> members);
 
+  std::string ToInlayHintString() const override;
+
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleTuple(*this);
   }
@@ -627,6 +639,8 @@ class ArrayType : public Type {
   bool HasEnum() const override { return element_type_->HasEnum(); }
   bool HasToken() const override { return element_type_->HasToken(); }
   bool IsAggregate() const override { return true; }
+
+  std::string ToInlayHintString() const override;
 
   bool operator==(const Type& other) const override;
 
