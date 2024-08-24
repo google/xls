@@ -56,8 +56,9 @@ Example invocation:
   check_ir_equivalence_main <IR file> <IR file>
 
 If there are multiple functions in the specified files, then it's _strongly_
-recommended that you specify --function to ensure that the right functions are
+recommended that you specify --top to ensure that the right functions are
 compared. If the tool picks the wrong one, a crash may result.
+Exits with code --mismatch_exit_code if equivalence is not found.
 )";
 
 // LINT.IfChange
@@ -65,6 +66,10 @@ ABSL_FLAG(std::string, top, "",
           "The top entity to check. If unspecified, an attempt will be made"
           "to find and check a top entity for the package. Currently, only"
           "Functions are supported.");
+ABSL_FLAG(int, mismatch_exit_code, 255,
+          "Value to exit with if equivalence is not proven.");
+ABSL_FLAG(int, match_exit_code, 0,
+          "Value to exit with if equivalence is not proven.");
 ABSL_FLAG(absl::Duration, timeout, absl::InfiniteDuration(),
           "How long to wait for any proof to complete.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
@@ -95,8 +100,9 @@ absl::StatusOr<std::vector<std::string>> CounterexampleParams(
   return counterexample;
 }
 
-absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
-                      const std::string& entry, absl::Duration timeout) {
+absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
+                              const std::string& entry,
+                              absl::Duration timeout) {
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
     XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
@@ -149,9 +155,10 @@ absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
                              std::get<solvers::z3::ProvenFalse>(result)));
     std::cout << "Verified NOT equivalent; results differ for input: "
               << absl::StrJoin(params, ", ") << "\n";
+    return false;
   }
 
-  return absl::OkStatus();
+  return true;
 }
 
 }  // namespace
@@ -161,6 +168,11 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
   QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
-  return xls::ExitStatus(xls::RealMain(
-      positional_args, absl::GetFlag(FLAGS_top), absl::GetFlag(FLAGS_timeout)));
+  auto result = xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),
+                              absl::GetFlag(FLAGS_timeout));
+  if (!result.ok()) {
+    return xls::ExitStatus(result.status());
+  }
+  return *result ? absl::GetFlag(FLAGS_match_exit_code)
+                 : absl::GetFlag(FLAGS_mismatch_exit_code);
 }

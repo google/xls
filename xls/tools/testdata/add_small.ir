@@ -1,0 +1,8 @@
+package add_pkg
+
+top fn add(a: bits[8], b: bits[8]) -> bits[8] {
+  bit_slice.3: bits[4] = bit_slice(a, start=0, width=4, id=3)
+  bit_slice.4: bits[4] = bit_slice(b, start=0, width=4, id=4)
+  add.5: bits[4] = add(bit_slice.3, bit_slice.4, id=5)
+  ret zero_ext.6: bits[8] = zero_ext(add.5, new_bit_count=8, id=6)
+}

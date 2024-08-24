@@ -1,0 +1,6 @@
+
+package add_pkg
+
+top fn add(a: bits[8], b: bits[8]) -> bits[8] {
+  ret add.3: bits[8] = add(a, b, id=3)
+}

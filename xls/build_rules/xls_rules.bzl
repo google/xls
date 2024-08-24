@@ -179,6 +179,7 @@ def _xls_dslx_opt_ir_test_impl(ctx):
         ctx,
         conv_ir_file,
         opt_ir_file,
+        True,
     )
     runfiles = runfiles.merge(my_runfiles)
 

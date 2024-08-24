@@ -14,9 +14,9 @@
 
 # pytype binary and test
 load("@rules_python//python:proto.bzl", "py_proto_library")
-# cc_proto_library is used in this file
-
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_equivalence_test")
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -429,6 +429,19 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
     ],
+)
+
+xls_ir_equivalence_test(
+    name = "equiv_test",
+    src_0 = "testdata/add_big.ir",
+    src_1 = "testdata/add_big.ir",
+)
+
+xls_ir_equivalence_test(
+    name = "not_equiv_test",
+    expect_equivalent = False,
+    src_0 = "testdata/add_big.ir",
+    src_1 = "testdata/add_small.ir",
 )
 
 filegroup(
