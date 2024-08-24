@@ -71,6 +71,7 @@ InitializeResult InitializeServer(const nlohmann::json& params) {
       {"change", 2},        // Incremental updates
   };
   capabilities["documentSymbolProvider"] = true;
+  capabilities["inlayHintProvider"] = true;
   capabilities["definitionProvider"] = {
       {"dynamicRegistration", false},
       {"linkSupport", true},
