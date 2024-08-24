@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -27,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
@@ -85,7 +88,35 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
       to_test_func));
   XLS_RETURN_IF_ERROR(to_test_func->set_return_value(new_ret));
   // Run prover
-  return TryProve(to_test_func, new_ret, Predicate::NotEqualToZero(), timeout);
+  XLS_ASSIGN_OR_RETURN(
+      ProverResult base_result,
+      TryProve(to_test_func, new_ret, Predicate::NotEqualToZero(), timeout));
+  // remap parameters back tot he originals.
+  return std::visit(
+      Visitor{
+          [](ProvenTrue t) -> absl::StatusOr<ProverResult> { return t; },
+          [&](ProvenFalse f) -> absl::StatusOr<ProverResult> {
+            if (f.counterexample.ok()) {
+              absl::flat_hash_map<const Param*, Value> mapped_counterexample;
+              for (const auto& [param, value] : *f.counterexample) {
+                if (node_map.contains(param)) {
+                  // from 'b'
+                  mapped_counterexample[node_map[const_cast<Param*>(param)]
+                                            ->As<Param>()] = value;
+                } else {
+                  // from 'a'
+                  XLS_ASSIGN_OR_RETURN(
+                      int64_t idx,
+                      to_test_func->GetParamIndex(const_cast<Param*>(param)));
+                  mapped_counterexample[a->param(idx)] = value;
+                }
+              }
+              f.counterexample = mapped_counterexample;
+            }
+            return f;
+          },
+      },
+      std::move(base_result));
 }
 
 absl::StatusOr<ProverResult> TryProveEquivalence(

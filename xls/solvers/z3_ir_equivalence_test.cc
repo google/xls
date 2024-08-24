@@ -29,20 +29,28 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 
+namespace m = xls::op_matchers;
 namespace xls::solvers::z3 {
 namespace {
 
 using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 
+using testing::AnyOf;
 using ::testing::Not;
+using testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 class EquivalenceTest : public IrTestBase {};
 
@@ -279,6 +287,37 @@ TEST_F(EquivalenceTest, ScopedDetectsReturnTypeChange) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_NONFATAL_FAILURE(ScopedReturnTypeChange(f), "return_value");
+}
+
+TEST_F(EquivalenceTest, CounterexampleIsValidPointers) {
+  std::unique_ptr<Package> p = CreatePackage();
+  Function* f1;
+  Function* f2;
+  BValue f1_x1;
+  BValue f2_x1;
+  {
+    FunctionBuilder fb(absl::StrCat(TestName(), "_1"), p.get());
+    f1_x1 = fb.Param("x1", p->GetBitsType(1));
+    BValue x2 = fb.Param("x2", p->GetBitsType(1));
+    fb.Concat({f1_x1, x2});
+    XLS_ASSERT_OK_AND_ASSIGN(f1, fb.Build());
+  }
+  {
+    FunctionBuilder fb(absl::StrCat(TestName(), "_2"), p.get());
+    f2_x1 = fb.Param("x1", p->GetBitsType(1));
+    BValue x2 = fb.Param("x2", p->GetBitsType(1));
+    fb.Concat({fb.Literal(UBits(0, 1)), x2});
+
+    XLS_ASSERT_OK_AND_ASSIGN(f2, fb.Build());
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(ProverResult r, TryProveEquivalence(f1, f2));
+  ASSERT_THAT(r, IsProvenFalse());
+  ProvenFalse f = std::get<ProvenFalse>(r);
+  EXPECT_THAT(
+      f.counterexample,
+      IsOkAndHolds(UnorderedElementsAre(
+          Pair(m::Param("x1"), Value(UBits(1, 1))),
+          Pair(testing::_, AnyOf(Value(UBits(1, 1)), Value(UBits(0, 1)))))));
 }
 
 TEST_F(EquivalenceTest, DetectsParamShift) {
