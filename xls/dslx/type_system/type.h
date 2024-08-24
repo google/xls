@@ -382,10 +382,10 @@ class MetaType : public Type {
   }
 
   std::unique_ptr<Type> AddNominalTypeDims(
-      absl::flat_hash_map<std::string, TypeDim> dims_by_identifier)
+      const absl::flat_hash_map<std::string, TypeDim>& dims_by_identifier)
       const override {
     return std::make_unique<MetaType>(
-        wrapped_->AddNominalTypeDims(std::move(dims_by_identifier)));
+        wrapped_->AddNominalTypeDims(dims_by_identifier));
   }
 
   std::unique_ptr<Type> CloneToUnique() const override {
