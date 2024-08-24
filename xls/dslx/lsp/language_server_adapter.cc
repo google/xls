@@ -244,7 +244,7 @@ LanguageServerAdapter::InlayHint(std::string_view uri,
         const Type& type = *maybe_type.value();
         results.push_back(verible::lsp::InlayHint{
             .position = ConvertPosToLspPosition(name_def_tree->span().limit()),
-            .label = absl::StrCat(": ", type.ToString()),
+            .label = absl::StrCat(": ", type.ToInlayHintString()),
             .kind = verible::lsp::InlayHintKind::kType,
             .paddingRight = true,
         });
