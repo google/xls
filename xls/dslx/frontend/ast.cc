@@ -1090,6 +1090,15 @@ EnumDef::EnumDef(Module* owner, Span span, NameDef* name_def,
 
 EnumDef::~EnumDef() = default;
 
+NameDef* EnumDef::GetNameDef(std::string_view target) {
+  for (const EnumMember& member : values_) {
+    if (member.name_def->identifier() == target) {
+      return member.name_def;
+    }
+  }
+  LOG(FATAL) << "EnumDef::GetNameDef; no member: " << target;
+}
+
 bool EnumDef::HasValue(std::string_view name) const {
   for (const auto& item : values_) {
     if (item.name_def->identifier() == name) {

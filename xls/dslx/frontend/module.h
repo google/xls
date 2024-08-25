@@ -44,6 +44,10 @@ using ModuleMember =
                  TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*,
                  ConstAssert*>;
 
+// Note: this returns nullptr for constructs that do not define a name, e.g.
+// `ConstAssert`.
+NameDef* ModuleMemberGetNameDef(const ModuleMember& mm);
+
 // Returns the starting position of the given module member.
 //
 // This is sometimes used in reporting; e.g. for test metadata, instead of a
