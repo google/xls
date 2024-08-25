@@ -252,7 +252,8 @@ class Parser : public TokenParser {
 
   // Precondition: token cursor should be over a double colon '::' token.
   absl::StatusOr<ColonRef*> ParseColonRef(Bindings& bindings,
-                                          ColonRef::Subject subject);
+                                          ColonRef::Subject subject,
+                                          const Span& subject_span);
 
   absl::StatusOr<Expr*> ParseCastOrEnumRefOrStructInstanceOrToken(
       Bindings& bindings);

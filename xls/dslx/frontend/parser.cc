@@ -919,8 +919,9 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
 }
 
 absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings& bindings,
-                                                ColonRef::Subject subject) {
-  Pos start = GetPos();
+                                                ColonRef::Subject subject,
+                                                const Span& subject_span) {
+  Pos start = subject_span.start();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleColon));
   while (true) {
     XLS_ASSIGN_OR_RETURN(
@@ -949,7 +950,8 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
     XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
-    XLS_ASSIGN_OR_RETURN(ColonRef * ref, ParseColonRef(bindings, subject));
+    XLS_ASSIGN_OR_RETURN(ColonRef * ref,
+                         ParseColonRef(bindings, subject, subject->span()));
     return ref;
   }
 
@@ -1044,7 +1046,7 @@ absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
     XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
-    return ParseColonRef(bindings, subject);
+    return ParseColonRef(bindings, subject, subject->span());
   }
   return ParseNameRef(bindings, &tok);
 }
@@ -1369,7 +1371,7 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
     if (peek_is_double_colon) {  // Mod or enum ref.
       XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
       XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
-                           ParseColonRef(bindings, subject));
+                           ParseColonRef(bindings, subject, subject->span()));
       return module_->Make<NameDefTree>(tok.span(), colon_ref);
     }
 

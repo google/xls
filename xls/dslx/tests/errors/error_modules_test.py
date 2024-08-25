@@ -104,7 +104,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('TypeInferenceError', stderr)
     self.assertIn(
-        'xls/dslx/tests/errors/imports_and_causes_ref_error.x:17:33-17:43',
+        'xls/dslx/tests/errors/imports_and_causes_ref_error.x:17:17-17:43',
         stderr,
     )
 
@@ -134,7 +134,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_colon_ref_builtin(self):
     stderr = self._run('xls/dslx/tests/errors/colon_ref_builtin.x')
     self.assertIn(
-        'xls/dslx/tests/errors/colon_ref_builtin.x:16:9-16:25',
+        'xls/dslx/tests/errors/colon_ref_builtin.x:16:3-16:25',
         stderr,
     )
     self.assertIn("Builtin 'update' has no attributes", stderr)
@@ -843,14 +843,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/imports_and_calls_nonexistent_fn.x'
     )
-    self.assertIn('imports_and_calls_nonexistent_fn.x:18:19-18:22', stderr)
+    self.assertIn('imports_and_calls_nonexistent_fn.x:18:3-18:22', stderr)
     self.assertIn("Name 'f' does not exist in module", stderr)
 
   def test_imports_and_calls_proc_as_fn(self):
     stderr = self._run(
         'xls/dslx/tests/errors/imports_and_calls_proc_as_fn.x'
     )
-    self.assertIn('imports_and_calls_proc_as_fn.x:18:18-18:21', stderr)
+    self.assertIn('imports_and_calls_proc_as_fn.x:18:3-18:21', stderr)
     self.assertIn('refers to a proc but a function is required', stderr)
 
   def test_channel_direction_mismatch(self):

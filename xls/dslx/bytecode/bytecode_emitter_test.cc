@@ -1538,7 +1538,7 @@ fn main() -> u32 {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 3);
   const std::vector<std::string> kNextExpected = {
-      "literal u32:4 @ test.x:6:6-6:16",   //
+      "literal u32:4 @ test.x:6:3-6:16",   //
       "literal u32:1 @ test.x:6:19-6:24",  //
       "uadd @ test.x:6:17-6:18"            //
   };
