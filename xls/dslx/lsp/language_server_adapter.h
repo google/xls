@@ -65,7 +65,7 @@ class LanguageServerAdapter {
 
   // Note: the return type is slightly unintuitive, but the latest LSP protocol
   // supports multiple defining locations for a single reference.
-  std::vector<verible::lsp::Location> FindDefinitions(
+  absl::StatusOr<std::vector<verible::lsp::Location>> FindDefinitions(
       std::string_view uri, const verible::lsp::Position& position) const;
 
   // Implements the functionality for full document formatting:
@@ -87,7 +87,7 @@ class LanguageServerAdapter {
   struct ParseData;
 
   // Find parse result of opened file with given URI or nullptr, if not opened.
-  const ParseData* FindParsedForUri(std::string_view uri) const;
+  ParseData* FindParsedForUri(std::string_view uri) const;
 
   struct TypecheckedModuleWithComments {
     TypecheckedModule tm;

@@ -181,20 +181,26 @@ absl::Status RealMain() {
   dispatcher.AddRequestHandler(
       "textDocument/definition",
       [&](const verible::lsp::DefinitionParams& params) {
-        return language_server_adapter.FindDefinitions(params.textDocument.uri,
-                                                       params.position);
+        auto values_or = language_server_adapter.FindDefinitions(
+            params.textDocument.uri, params.position);
+        if (values_or.ok()) {
+          return values_or.value();
+        }
+        LspLog() << "could not find definition(s); status: "
+                 << values_or.status() << "\n";
+        return std::vector<verible::lsp::Location>{};
       });
 
   dispatcher.AddRequestHandler(
       "textDocument/formatting",
       [&](const verible::lsp::DocumentFormattingParams& params) {
-        auto text_edits_or =
+        auto values_or =
             language_server_adapter.FormatDocument(params.textDocument.uri);
-        if (text_edits_or.ok()) {
-          return text_edits_or.value();
+        if (values_or.ok()) {
+          return values_or.value();
         }
-        LspLog() << "could not format document; status: "
-                 << text_edits_or.status() << "\n";
+        LspLog() << "could not format document; status: " << values_or.status()
+                 << "\n";
         return std::vector<verible::lsp::TextEdit>{};
       });
 

@@ -36,10 +36,14 @@ cc_library(
     srcs = ["find_definition.cc"],
     hdrs = ["find_definition.h"],
     deps = [
+        "//xls/common:visitor",
+        "//xls/dslx:import_data",
         "@com_google_absl//absl/log",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:deduce_utils",
+        "//xls/dslx/type_system:type_info",
     ],
 )
 
@@ -79,6 +83,9 @@ cc_test(
     name = "language_server_adapter_test",
     srcs = ["language_server_adapter_test.cc"],
     deps = [
+        "@com_google_absl//absl/log",
+        "//xls/common/file:temp_directory",
+        "//xls/common/file:filesystem",
         ":language_server_adapter",
         "@com_google_googletest//:gtest",
         "@com_google_absl//absl/status",
