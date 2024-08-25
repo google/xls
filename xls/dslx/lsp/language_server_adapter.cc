@@ -94,7 +94,8 @@ void AppendDiagnosticFromTypecheck(
 absl::StatusOr<std::string> MaybeRelpathToUri(
     std::string_view path_or_uri,
     absl::Span<const std::filesystem::path> dslx_paths) {
-  if (absl::StartsWith(path_or_uri, "file://")) {
+  if (absl::StartsWith(path_or_uri, "file://") ||
+      absl::StartsWith(path_or_uri, "memfile://")) {
     return std::string{path_or_uri};
   }
 

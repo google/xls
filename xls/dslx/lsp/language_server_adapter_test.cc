@@ -102,8 +102,8 @@ TEST(LanguageServerAdapterTest, TestFindDefinitionsFunctionRef) {
 fn main() { f() })"));
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
   verible::lsp::Position position{1, 12};
-  std::vector<verible::lsp::Location> definition_locations =
-      adapter.FindDefinitions(kUri, position);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, position));
   ASSERT_EQ(definition_locations.size(), 1);
 
   verible::lsp::Location definition_location = definition_locations.at(0);
@@ -122,8 +122,8 @@ fn f() -> T { () }
 )"));
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
   verible::lsp::Position position{2, 10};
-  std::vector<verible::lsp::Location> definition_locations =
-      adapter.FindDefinitions(kUri, position);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, position));
   ASSERT_EQ(definition_locations.size(), 1);
 
   verible::lsp::Location definition_location = definition_locations.at(0);
@@ -141,8 +141,8 @@ TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
   ASSERT_FALSE(adapter.Update(kUri, "blahblahblah").ok());
 
   verible::lsp::Position position{1, 12};
-  std::vector<verible::lsp::Location> definition_locations =
-      adapter.FindDefinitions(kUri, position);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, position));
   EXPECT_TRUE(definition_locations.empty());
 
   std::vector<verible::lsp::Diagnostic> diagnostics =
@@ -221,8 +221,8 @@ fn main() { imported::f() }
   XLS_ASSERT_OK(adapter.Update(importer_uri, kImporterContents));
 
   verible::lsp::Position position{2, 13};
-  std::vector<verible::lsp::Location> definition_locations =
-      adapter.FindDefinitions(importer_uri, position);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(importer_uri, position));
   ASSERT_EQ(definition_locations.size(), 1);
 
   verible::lsp::Location definition_location = definition_locations.at(0);
