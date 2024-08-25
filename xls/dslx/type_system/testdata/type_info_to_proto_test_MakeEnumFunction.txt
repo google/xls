@@ -14,5 +14,5 @@
 2:12-2:20: STATEMENT_BLOCK :: `{
     E::A
 }` :: E
-2:15-2:18: COLON_REF :: `E::A` :: E
-2:15-2:18: STATEMENT :: `E::A` :: E
+2:14-2:18: COLON_REF :: `E::A` :: E
+2:14-2:18: STATEMENT :: `E::A` :: E
