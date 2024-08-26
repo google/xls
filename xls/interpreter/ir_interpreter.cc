@@ -249,6 +249,7 @@ absl::Status IrInterpreter::HandleDynamicBitSlice(
 
 absl::Status IrInterpreter::HandleConcat(Concat* concat) {
   std::vector<Bits> operand_values;
+  operand_values.reserve(concat->operand_count());
   for (Node* operand : concat->operands()) {
     operand_values.push_back(ResolveAsBits(operand));
   }
