@@ -296,7 +296,7 @@ def load_external_repositories():
     )
 
     # Tagged 2024-08-23, current as of 2024-08-24
-    VERIBLE_TAG = 'v0.0-3756-gda9a0f8c'
+    VERIBLE_TAG = "v0.0-3756-gda9a0f8c"
     http_archive(
         name = "verible",
         sha256 = "0d45e646ce8cf618c55e614f827aead0377c34035be04b843aee225ea5be4527",
