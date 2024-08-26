@@ -45,6 +45,8 @@
 namespace xls::dslx {
 namespace {
 
+using status_testing::IsOkAndHolds;
+
 Expr* GetSingleBodyExpr(Function* f) {
   StatementBlock* body = f->body();
   CHECK_EQ(body->statements().size(), 1);
@@ -526,7 +528,7 @@ fn main() -> MyStruct {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(f->body()));
   ASSERT_TRUE(value.IsTuple());
-  ASSERT_THAT(value.GetLength(), status_testing::IsOkAndHolds(1));
+  ASSERT_THAT(value.GetLength(), IsOkAndHolds(1));
   EXPECT_EQ(value.GetValuesOrDie().at(0).GetBitValueViaSign().value(), 0);
 }
 
@@ -555,7 +557,7 @@ fn main() -> MyStruct {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(f->body()));
   ASSERT_TRUE(value.IsTuple());
-  ASSERT_THAT(value.GetLength(), status_testing::IsOkAndHolds(1));
+  ASSERT_THAT(value.GetLength(), IsOkAndHolds(1));
   EXPECT_EQ(value.GetValuesOrDie().at(0).GetBitValueViaSign().value(),
             0xFFFFFFFFll);
 }
@@ -585,6 +587,34 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(f->body()));
   EXPECT_EQ(value.GetBitValueViaSign().value(), 5);
+}
+
+TEST(ConstexprEvaluatorTest, ArrayFillOperatorThroughAlias) {
+  constexpr std::string_view kProgram = R"(
+const SIZE = u32:4;
+type MyArray = u32[SIZE];
+const DEFAULT_VALUE = u32:0;
+
+fn main() -> MyArray {
+  MyArray:[DEFAULT_VALUE, ...]
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+  WarningCollector warnings(kAllWarningsSet);
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             &warnings, ParametricEnv(),
+                                             f->body(), nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(f->body()));
+  EXPECT_TRUE(value.IsArray());
+  EXPECT_THAT(value.GetLength(), IsOkAndHolds(4));
 }
 
 }  // namespace

@@ -80,7 +80,7 @@ absl::StatusOr<ValueFormatDescriptor> MakeEnumFormatDescriptor(
   for (size_t i = 0; i < enum_def.values().size(); ++i) {
     const std::string& s = enum_def.GetMemberName(i);
     const InterpValue& v = type.members().at(i);
-    XLS_RET_CHECK(v.IsBits());
+    XLS_RET_CHECK(v.IsEnum());
     value_to_name[v.GetBitsOrDie()] = s;
   }
   return ValueFormatDescriptor::MakeEnum(enum_def.identifier(),

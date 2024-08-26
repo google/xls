@@ -308,8 +308,10 @@ absl::StatusOr<std::string> InterpValue::ToEnumString(
         absl::StrFormat("Enum value %s was not found in enum descriptor for %s",
                         ToString(), fmt_desc.enum_name()));
   }
+  // We show the underlying value after displaying the enum member.
+  auto underlying = InterpValue::MakeBits(IsSigned(), GetBitsOrDie());
   return absl::StrFormat("%s::%s  // %s", fmt_desc.enum_name(), it->second,
-                         ToString());
+                         underlying.ToString());
 }
 
 absl::StatusOr<std::string> InterpValue::ToFormattedString(
@@ -592,7 +594,8 @@ absl::StatusOr<InterpValue> InterpValue::Index(int64_t index) const {
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* lhs, GetValues());
   if (lhs->size() <= index) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Index out of bounds: %d >= %d elements", index, lhs->size()));
+        "Index out of bounds; index: %d >= %d elements; lhs: %s", index,
+        lhs->size(), ToString()));
   }
   return (*lhs)[index];
 }
@@ -604,7 +607,8 @@ absl::StatusOr<InterpValue> InterpValue::Index(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
   if (lhs->size() <= index) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Index out of bounds: %d >= %d elements", index, lhs->size()));
+        "Index out of bounds; index: %d >= %d elements; lhs: %s", index,
+        lhs->size(), ToString()));
   }
   return (*lhs)[index];
 }

@@ -2301,6 +2301,7 @@ fn doomed() {
     assert_eq(a, b)
 })";
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
+  VLOG(1) << "Got status: " << value.status().ToString();
   EXPECT_THAT(value.status(),
               StatusIs(absl::StatusCode::kInternal,
                        AllOf(HasSubstr("Flowers::ROSES  // u24:16711807"),
@@ -3008,6 +3009,24 @@ fn main(x: s2, y: s2) -> s2 {
       }
     }
   }
+}
+
+TEST(BytecodeInterpreterTest, EnumInStructGithubIssue1541) {
+  constexpr std::string_view kProgram = R"(enum MyEnum: u2 { ZERO_VALUE = 0 }
+struct MyStruct { e: MyEnum }
+
+fn f() -> MyStruct { MyStruct{ e: MyEnum::ZERO_VALUE } }
+fn g() -> MyStruct { zero!<MyStruct>() }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue f_result, Interpret(kProgram, "f", {}));
+  VLOG(1) << "f_result: " << f_result;
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue g_result, Interpret(kProgram, "g", {}));
+  VLOG(1) << "g_result: " << g_result;
+
+  EXPECT_EQ(f_result, g_result);
+  EXPECT_TRUE(f_result.GetValuesOrDie()[0].IsEnum());
+  EXPECT_TRUE(g_result.GetValuesOrDie()[0].IsEnum());
 }
 
 }  // namespace

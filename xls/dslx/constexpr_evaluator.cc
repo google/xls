@@ -201,39 +201,10 @@ absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
   VLOG(3) << "ConstexprEvaluator::HandleArray : " << expr->ToString();
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
-    GET_CONSTEXPR_OR_RETURN(InterpValue value, member);
-    values.push_back(value);
+    EVAL_AS_CONSTEXPR_OR_RETURN(member);
   }
 
-  if (type_ != nullptr) {
-    auto* array_type = dynamic_cast<const ArrayType*>(type_);
-    if (array_type == nullptr) {
-      return absl::InternalError(absl::StrCat(
-          expr->span().ToString(), " : ", "Array Type was not an ArrayType!"));
-    }
-
-    TypeDim size = array_type->size();
-    absl::StatusOr<int64_t> int_size_or = size.GetAsInt64();
-    if (!int_size_or.ok()) {
-      return absl::InternalError(absl::StrCat(expr->span().ToString(), " : ",
-                                              int_size_or.status().message()));
-    }
-
-    int64_t int_size = int_size_or.value();
-    int64_t remaining = int_size - values.size();
-    if (expr->has_ellipsis()) {
-      while (remaining-- > 0) {
-        values.push_back(values.back());
-      }
-    } else {
-      XLS_RET_CHECK_EQ(remaining, 0);
-    }
-  }
-
-  // No need to fire up the interpreter. We can handle this one.
-  XLS_ASSIGN_OR_RETURN(InterpValue array, InterpValue::MakeArray(values));
-  type_info_->NoteConstExpr(expr, array);
-  return absl::OkStatus();
+  return InterpretExpr(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {

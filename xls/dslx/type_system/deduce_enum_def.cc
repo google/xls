@@ -21,6 +21,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
@@ -120,6 +121,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
           ctx->import_data(), ctx->type_info(), ctx->warnings(),
           ctx->GetCurrentParametricEnv(), number, type.get()));
     } else {
+      // Some other constexpr expression that should have the same type as the
+      // underlying bits type for this enum.
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> t, ctx->Deduce(member.value));
       if (*t != *bits_type) {
         return ctx->TypeMismatchError(
@@ -133,6 +136,19 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
         ConstexprEvaluator::EvaluateToValue(
             ctx->import_data(), ctx->type_info(), ctx->warnings(),
             ctx->GetCurrentParametricEnv(), member.value, nullptr));
+
+    // Right now we may have the underlying type as the noted constexpr value
+    // (e.g. if we evaluated a number that was given as an enum value
+    // expression), but we want to wrap that up in the enum type appropriately.
+    XLS_RET_CHECK((value.IsEnum() && value.GetEnumData().value().def == node) ||
+                  value.IsBits());
+    if (value.IsBits()) {
+      value = InterpValue::MakeEnum(value.GetBitsOrDie(),
+                                    bits_type->is_signed(), node);
+      ctx->type_info()->NoteConstExpr(member.name_def, value);
+      ctx->type_info()->NoteConstExpr(member.value, value);
+    }
+
     members.push_back(value);
   }
 
