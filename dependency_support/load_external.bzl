@@ -38,60 +38,6 @@ def load_external_repositories():
     repo_llvm()
     repo_rules_hdl()
 
-    # Release 2024-01-22, current as of 2024-06-26
-    # zlib is added automatically by gRPC, but the zlib BUILD file used by gRPC
-    # does not include all the source code (e.g., gzread is missing) which
-    # breaks other users of zlib like iverilog. So add zlib explicitly here with
-    # a working BUILD file.
-    # Needs to be early in this file to make sure this is the version
-    # picked -- Version 1.3.x fixes function prototype warnings in c++20.
-    http_archive(
-        name = "zlib",
-        sha256 = "50b24b47bf19e1f35d2a21ff36d2a366638cdf958219a66f30ce0861201760e6",
-        strip_prefix = "zlib-1.3.1",
-        urls = [
-            "https://github.com/madler/zlib/archive/v1.3.1.zip",
-        ],
-        build_file = "//dependency_support/zlib:bundled.BUILD.bazel",
-    )
-
-    # V 1.14.0 (released 2023-08-02, current as of 2024-06-26)
-    http_archive(
-        name = "com_google_googletest",
-        urls = ["https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip"],
-        strip_prefix = "googletest-1.14.0",
-        sha256 = "1f357c27ca988c3f7c6b4bf68a9395005ac6761f034046e9dde0896e3aba00e4",
-    )
-
-    # LTS 20240116.2 (released 2024-04-08, current as of 2024-06-26)
-    http_archive(
-        name = "com_google_absl",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.2.tar.gz"],
-        strip_prefix = "abseil-cpp-20240116.2",
-        sha256 = "733726b8c3a6d39a4120d7e45ea8b41a434cdacde401cba500f14236c49b39dc",
-    )
-
-    # Released 2024-06-03, current as of 2024-06-26
-    # Protobuf depends on Skylib
-    # Load bazel skylib as per
-    # https://github.com/bazelbuild/bazel-skylib/releases
-    http_archive(
-        name = "bazel_skylib",
-        urls = [
-            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.7.1/bazel-skylib-1.7.1.tar.gz",
-        ],
-        sha256 = "bc283cdfcd526a52c3201279cda4bc298652efa898b10b4db0837dc51652756f",
-    )
-
-    http_archive(
-        name = "boringssl",
-        # Commit date: 2024-06-24
-        # Note for updating: we need to use a commit from the main-with-bazel branch.
-        strip_prefix = "boringssl-e6b03733628149a89a1d18b3ef8f39aa1055aba8",
-        sha256 = "006596f84d9cc142d9d6c48600cf6208f9d24426943b05e8bcda06e523f69dc8",
-        urls = ["https://github.com/google/boringssl/archive/e6b03733628149a89a1d18b3ef8f39aa1055aba8.tar.gz"],
-    )
-
     # Commit on 2023-02-09
     http_archive(
         name = "pybind11_bazel",
@@ -113,27 +59,6 @@ def load_external_repositories():
             "https://mirror.bazel.build/pypi.python.org/packages/source/s/six/six-1.10.0.tar.gz",
             "https://pypi.python.org/packages/source/s/six/six-1.10.0.tar.gz",
         ],
-    )
-
-    # Version release tag 2023-01-11
-    http_archive(
-        name = "com_google_absl_py",
-        strip_prefix = "abseil-py-1.4.0",
-        urls = ["https://github.com/abseil/abseil-py/archive/refs/tags/v1.4.0.tar.gz"],
-        sha256 = "0fb3a4916a157eb48124ef309231cecdfdd96ff54adf1660b39c0d4a9790a2c0",
-    )
-
-    # Released on 2024-06-01, current as of 2024-06-26
-    http_archive(
-        name = "com_googlesource_code_re2",
-        strip_prefix = "re2-2024-06-01",
-        sha256 = "7326c74cddaa90b12090fcfc915fe7b4655723893c960ee3c2c66e85c5504b6c",
-        urls = [
-            "https://github.com/google/re2/archive/refs/tags/2024-06-01.tar.gz",
-        ],
-        repo_mapping = {
-            "@abseil-cpp": "@com_google_absl",
-        },
     )
 
     # Released on 2022-12-27.
@@ -184,14 +109,6 @@ def load_external_repositories():
         build_file = "//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
-    # Commit from 2024-06-26
-    http_archive(
-        name = "com_google_riegeli",
-        sha256 = "38fd4b6bc24958ae51e1a5a0eb57ce9c3dbbaf5034a78453a4d133597fbf31e4",
-        strip_prefix = "riegeli-cb68d579f108c96831b6a7815da43ff24b4e5242",
-        url = "https://github.com/google/riegeli/archive/cb68d579f108c96831b6a7815da43ff24b4e5242.tar.gz",
-    )
-
     # Needed by fuzztest. Release 2024-05-21, current as of 2024-06-26
     http_archive(
         name = "snappy",
@@ -216,19 +133,6 @@ def load_external_repositories():
         sha256 = "d564c621618ef734e0ae68545f59526e97dfe4912612f80b2b8b9b31b9bb02b5",
         strip_prefix = "highwayhash-f8381f3331d9c56a9792f9b4a35f61c41108c39e",
         urls = ["https://github.com/google/highwayhash/archive/f8381f3331d9c56a9792f9b4a35f61c41108c39e.tar.gz"],
-    )
-
-    # Released 2024-06-07, current as of 2024-06-26.
-    http_archive(
-        name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.64.2.tar.gz"],
-        patches = ["//dependency_support/com_github_grpc_grpc:0001-Add-absl-status-to-deps.patch"],
-        sha256 = "c682fc39baefc6e804d735e6b48141157b7213602cc66dbe0bf375b904d8b5f9",
-        strip_prefix = "grpc-1.64.2",
-        repo_mapping = {
-            "@local_config_python": "@project_python",
-            "@system_python": "@project_python",
-        },
     )
 
     # Used by xlscc. Tagged 2024-02-16 (note: release is lagging tag), current as of 2024-06-26
@@ -259,14 +163,6 @@ def load_external_repositories():
         strip_prefix = "or-tools-" + ORTOOLS_VERSION,
     )
 
-    # Released 2024-05-23, current as of 2024-06-26.
-    http_archive(
-        name = "com_google_benchmark",
-        urls = ["https://github.com/google/benchmark/archive/refs/tags/v1.8.4.tar.gz"],
-        sha256 = "3e7059b6b11fb1bbe28e33e02519398ca94c1818874ebed18e504dc6f709be45",
-        strip_prefix = "benchmark-1.8.4",
-    )
-
     # Updated to head on 2024-03-14
     FUZZTEST_COMMIT = "393ae75c0fca5f9892e73969da5d6bce453ad318"
     http_archive(
@@ -276,15 +172,6 @@ def load_external_repositories():
         sha256 = "a0558ceb617d78ee93d7e6b62930b4aeebc02f1e5817d4d0dae53699f6f6c352",
         patch_args = ["-p1", "-R"],  # reverse patch until we upgrade bazel to 7.1; see: bazelbuild/bazel#19233.
         patches = ["//dependency_support/com_google_fuzztest:e317d5277e34948ae7048cb5e48309e0288e8df3.patch"],
-    )
-
-    # Released 2024-01-24, current as of 2024-06-26
-    http_archive(
-        name = "rules_license",
-        urls = [
-            "https://github.com/bazelbuild/rules_license/releases/download/0.0.8/rules_license-0.0.8.tar.gz",
-        ],
-        sha256 = "241b06f3097fd186ff468832150d6cc142247dc42a32aaefb56d0099895fd229",
     )
 
     # 2022-09-19
@@ -303,24 +190,6 @@ def load_external_repositories():
         urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/v0.0-3704-g1d393d43.tar.gz"],
         patch_args = ["-p1"],
         patches = ["//dependency_support/verible:visibility.patch"],
-    )
-
-    # Used by Verible; current as of 2024-06-26
-    http_archive(
-        name = "jsonhpp",
-        build_file = "@verible//bazel:jsonhpp.BUILD",
-        sha256 = "0d8ef5af7f9794e3263480193c491549b2ba6cc74bb018906202ada498a79406",
-        strip_prefix = "json-3.11.3",
-        urls = [
-            "https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz",
-        ],
-    )
-
-    # Released 2024-06-03, current as of 2024-06-26
-    http_archive(
-        name = "rules_pkg",
-        urls = ["https://github.com/bazelbuild/rules_pkg/releases/download/1.0.0/rules_pkg-1.0.0.tar.gz"],
-        sha256 = "cad05f864a32799f6f9022891de91ac78f30e0fa07dc68abac92a628121b5b11",
     )
 
     # Used in C++ tests of the ZSTD Module

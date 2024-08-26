@@ -1,0 +1,46 @@
+module(
+    name = "xls",
+    repo_name = "com_google_xls",
+)
+
+# Compiler toolchain
+bazel_dep(name = "toolchains_llvm", version = "1.1.2")
+
+# Configure and register the toolchain.
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+llvm.toolchain(
+   llvm_version = "17.0.6",
+)
+
+use_repo(llvm, "llvm_toolchain")
+register_toolchains("@llvm_toolchain//:all")
+
+# Adding grpc first, it messes with python dependencies, so get this done first.
+bazel_dep(name = "grpc", version = "1.66.0", repo_name="com_github_grpc_grpc")
+
+#
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "rules_cc", version="0.0.9")
+bazel_dep(name = "rules_license", version="0.0.8")
+bazel_dep(name = "rules_pkg", version = "1.0.1")
+bazel_dep(name = "abseil-cpp", version = "20240116.2", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-py", version = "2.1.0", repo_name = "com_google_absl_py")
+bazel_dep(name = "google_benchmark", version = "1.8.5", repo_name = "com_google_benchmark")
+bazel_dep(name = "googleapis", version = "0.0.0-20240326-1c8d509c5", repo_name = "com_google_googleapis")
+bazel_dep(name = "protobuf", version = "28.0-rc2", repo_name = "com_google_protobuf")
+bazel_dep(name = "riegeli", version = "0.0.0-20240606-973b6f0", repo_name = "com_google_riegeli")
+bazel_dep(name = "re2", version = "2024-07-02", repo_name = "com_googlesource_code_re2")
+bazel_dep(name = "googletest", version = "1.15.2", repo_name = "com_google_googletest")
+bazel_dep(name = "nlohmann_json", version = "3.11.3", repo_name = "jsonhpp")
+bazel_dep(name = "boringssl", version = "0.0.0-20240530-2db0eb3")
+
+# Roughly these are all the targets we need
+#  find . -name BUILD | xargs sed 's/.*"\(@[^/"]*\).*/\1/p;d' | sort | uniq
+
+## Not yet available as bzlmod or other problems to be solved.
+# llvm-project comes in an older version.
+# ortools
+# rules_hdl
+# fuzztest
+# verible
+# xls pip deps

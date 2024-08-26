@@ -1,9 +1,13 @@
-# We use bazel >= 6, but no bzlmod yet.
-common --noenable_bzlmod
+common --enable_bzlmod
 
 # Disable rules_python Starlark rules for Bazel 7+.
 # See https://github.com/bazelbuild/rules_python/issues/1069#issuecomment-1942053014.
 build --action_env=RULES_PYTHON_ENABLE_PYSTAR=0
+
+# Disable automatic generation of __init__.py files. This allows
+# namespace packages (such as `google`) to work correctly.
+# https://github.com/bazelbuild/bazel/issues/10076
+build --incompatible_default_to_explicit_init_py=true
 
 # Minimium c++ standard used.
 build --cxxopt "-std=c++20"            --host_cxxopt "-std=c++20"
