@@ -62,6 +62,7 @@
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_narrowing_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
+#include "xls/passes/proc_state_provenance_narrowing_pass.h"
 #include "xls/passes/ram_rewrite_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/receive_default_value_simplification_pass.h"
@@ -218,7 +219,13 @@ PostInliningPassGroup::PostInliningPassGroup(int64_t opt_level)
   Add<IdentityRemovalPass>();
   Add<DataflowSimplificationPass>();
   Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
+
   Add<ProcStateNarrowingPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<ProcStateOptimizationPass>();
+  Add<DeadCodeEliminationPass>();
+
+  Add<ProcStateProvenanceNarrowingPass>();
   Add<DeadCodeEliminationPass>();
   Add<ProcStateOptimizationPass>();
   Add<DeadCodeEliminationPass>();
