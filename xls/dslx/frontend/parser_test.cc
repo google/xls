@@ -1519,6 +1519,11 @@ fn main(x: u32) -> u32 {
 })");
 }
 
+TEST_F(ParserTest, ColonRef) {
+  Expr* e = RoundTripExpr("BuiltinEnum::VALUE", /*predefine=*/{"BuiltinEnum"});
+  EXPECT_EQ(e->span(), Span(Pos(kFilename, 0, 0), Pos(kFilename, 0, 18)));
+}
+
 TEST_F(ParserTest, ParametricColonRefInvocation) {
   RoundTripExpr("f<BuiltinEnum::VALUE>()", {"f", "BuiltinEnum"});
 }
