@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
@@ -61,6 +62,16 @@ class TreeBitLocation {
   template <typename H>
   friend H AbslHashValue(H h, const TreeBitLocation& tbl) {
     return H::combine(std::move(h), tbl.node_, tbl.tree_index_, tbl.bit_index_);
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const TreeBitLocation& tbl) {
+    if (tbl.tree_index_.empty()) {
+      absl::Format(&sink, "%s[%d]", tbl.node_->GetName(), tbl.bit_index_);
+    } else {
+      absl::Format(&sink, "%s@{%s}[%d]", tbl.node_->GetName(),
+                   absl::StrJoin(tbl.tree_index_, ", "), tbl.bit_index_);
+    }
   }
 
  private:

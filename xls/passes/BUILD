@@ -1053,6 +1053,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
@@ -3048,6 +3049,47 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "bit_provenance_analysis",
+    srcs = ["bit_provenance_analysis.cc"],
+    hdrs = ["bit_provenance_analysis.h"],
+    deps = [
+        ":dataflow_visitor",
+        ":query_engine",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:type",
+    ],
+)
+
+cc_test(
+    name = "bit_provenance_analysis_test",
+    srcs = ["bit_provenance_analysis_test.cc"],
+    deps = [
+        ":bit_provenance_analysis",
+        ":query_engine",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
