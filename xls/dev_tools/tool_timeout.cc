@@ -12,19 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_TOOL_TIMEOUT_H_
-#define XLS_TOOLS_TOOL_TIMEOUT_H_
+#include "xls/dev_tools/tool_timeout.h"
 
 #include <memory>
+#include <optional>
 
+#include "absl/flags/flag.h"
+#include "absl/time/time.h"
 #include "xls/common/timeout_support.h"
+
+ABSL_FLAG(std::optional<absl::Duration>, timeout, std::nullopt,
+          "How long to allow the process to run. After this timeout the "
+          "process is forcefully terminated.");
+
 namespace xls {
 
-// Start the timeout watchdog based on an absl flag.
-//
-// The timeout will be canceled when the returned cleaner is destroyed.
-[[nodiscard]] std::unique_ptr<TimeoutCleaner> StartTimeoutTimer();
+std::unique_ptr<TimeoutCleaner> StartTimeoutTimer() {
+  if (absl::GetFlag(FLAGS_timeout)) {
+    return SetupTimeoutThread(*absl::GetFlag(FLAGS_timeout));
+  }
+  return nullptr;
+}
 
 }  // namespace xls
-
-#endif  // XLS_TOOLS_TOOL_TIMEOUT_H_

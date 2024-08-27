@@ -513,7 +513,7 @@ reference file comparisons), run:
 dev_utils/rebuild_golden_files.sh
 ```
 
-## [`extract_interface_main`](https://github.com/google/xls/tree/main/xls/tools/extract_interface_main.cc)
+## [`extract_interface_main`](https://github.com/google/xls/tree/main/xls/dev_tools/extract_interface_main.cc)
 
 Reads an `ir` file and prints a protobuf describing the interfaces of the
 contained code. The interfaces consist of the names of the `procs`, `blocks`,

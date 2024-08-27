@@ -12,26 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/tools/tool_timeout.h"
+#ifndef XLS_DEV_TOOLS_REMOVE_IDENTIFIERS_H_
+#define XLS_DEV_TOOLS_REMOVE_IDENTIFIERS_H_
 
 #include <memory>
-#include <optional>
+#include <string>
 
-#include "absl/flags/flag.h"
-#include "absl/time/time.h"
-#include "xls/common/timeout_support.h"
-
-ABSL_FLAG(std::optional<absl::Duration>, timeout, std::nullopt,
-          "How long to allow the process to run. After this timeout the "
-          "process is forcefully terminated.");
-
+#include "absl/status/statusor.h"
+#include "xls/ir/package.h"
 namespace xls {
 
-std::unique_ptr<TimeoutCleaner> StartTimeoutTimer() {
-  if (absl::GetFlag(FLAGS_timeout)) {
-    return SetupTimeoutThread(*absl::GetFlag(FLAGS_timeout));
-  }
-  return nullptr;
-}
+struct StripOptions {
+  std::string new_package_name;
+  bool strip_location_info = true;
+  bool strip_node_names = true;
+  bool strip_function_names = true;
+  bool strip_chan_names = true;
+  bool strip_reg_names = true;
+};
+// Strip the requested data from the package and return a new one.
+absl::StatusOr<std::unique_ptr<Package>> StripPackage(
+    Package* source, const StripOptions& options);
 
 }  // namespace xls
+
+#endif  // XLS_DEV_TOOLS_REMOVE_IDENTIFIERS_H_

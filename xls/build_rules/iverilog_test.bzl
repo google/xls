@@ -71,9 +71,9 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
         native.genrule(
             name = name + "-vvp-runner",
             srcs = [":" + name + "-iverilog-build"],
-            cmd = "$(location //xls/tools:generate_vvp_runner) $< > $@",
+            cmd = "$(location //xls/dev_tools:generate_vvp_runner) $< > $@",
             outs = [name + "-vvp-runner.sh"],
-            tools = ["//xls/tools:generate_vvp_runner"],
+            tools = ["//xls/dev_tools:generate_vvp_runner"],
         )
         native.sh_test(
             name = name + "-run_test",

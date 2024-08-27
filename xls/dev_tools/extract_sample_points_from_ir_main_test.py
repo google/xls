@@ -22,7 +22,9 @@ from xls.common import runfiles
 from xls.common import test_base
 from xls.delay_model import delay_model_pb2
 
-BINARY_PATH = runfiles.get_path('xls/tools/extract_sample_points_from_ir_main')
+BINARY_PATH = runfiles.get_path(
+    'xls/dev_tools/extract_sample_points_from_ir_main'
+)
 
 TEST_IR = """
 package foo

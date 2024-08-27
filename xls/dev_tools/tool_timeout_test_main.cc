@@ -24,7 +24,7 @@
 #include "absl/time/time.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/tools/tool_timeout.h"
+#include "xls/dev_tools/tool_timeout.h"
 
 const char kUsage[] = R"(
 Dummy tool that just waits a particular amount of time to test timeout functionality.

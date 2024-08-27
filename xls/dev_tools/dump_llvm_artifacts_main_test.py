@@ -21,7 +21,7 @@ import subprocess
 from absl.testing import absltest
 from xls.common import runfiles
 
-_DUMP_ARTIFACTS = runfiles.get_path('xls/jit/dump_llvm_artifacts')
+_DUMP_ARTIFACTS = runfiles.get_path('xls/dev_tools/dump_llvm_artifacts')
 
 ADD_IR = """package foo
 

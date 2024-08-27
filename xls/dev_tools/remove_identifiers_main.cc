@@ -26,9 +26,9 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/remove_identifiers.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
-#include "xls/tools/remove_identifiers.h"
 
 static constexpr std::string_view kUsage = R"(
 Removes all identifiers and renumbers an IR file.

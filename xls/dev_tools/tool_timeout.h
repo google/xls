@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_EXTRACT_INTERFACE_H_
-#define XLS_TOOLS_EXTRACT_INTERFACE_H_
+#ifndef XLS_DEV_TOOLS_TOOL_TIMEOUT_H_
+#define XLS_DEV_TOOLS_TOOL_TIMEOUT_H_
 
-#include "xls/ir/package.h"
-#include "xls/ir/xls_ir_interface.pb.h"
+#include <memory>
 
+#include "xls/common/timeout_support.h"
 namespace xls {
 
-// Create a PackageInterfaceProto based on the given Package.
-PackageInterfaceProto ExtractPackageInterface(Package* package);
+// Start the timeout watchdog based on an absl flag.
+//
+// The timeout will be canceled when the returned cleaner is destroyed.
+[[nodiscard]] std::unique_ptr<TimeoutCleaner> StartTimeoutTimer();
 
 }  // namespace xls
 
-#endif  // XLS_TOOLS_EXTRACT_INTERFACE_H_
+#endif  // XLS_DEV_TOOLS_TOOL_TIMEOUT_H_

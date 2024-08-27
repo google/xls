@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_EXTRACT_SEGMENT_H_
-#define XLS_TOOLS_EXTRACT_SEGMENT_H_
+#ifndef XLS_DEV_TOOLS_EXTRACT_SEGMENT_H_
+#define XLS_DEV_TOOLS_EXTRACT_SEGMENT_H_
 
 #include <memory>
 #include <string_view>
@@ -54,4 +54,4 @@ absl::StatusOr<Function*> ExtractSegment(
     bool next_nodes_are_tuples = true);
 }  // namespace xls
 
-#endif  // XLS_TOOLS_EXTRACT_SEGMENT_H_
+#endif  // XLS_DEV_TOOLS_EXTRACT_SEGMENT_H_
