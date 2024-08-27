@@ -31,6 +31,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/tool_timeout.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"
@@ -40,7 +41,6 @@
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
-#include "xls/tools/tool_timeout.h"
 
 static constexpr std::string_view kUsage = R"(
 Generates Verilog RTL from a given IR file. Writes a Verilog file and a module

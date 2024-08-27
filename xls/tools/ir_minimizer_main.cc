@@ -53,6 +53,7 @@
 #include "xls/common/subprocess.h"
 #include "xls/data_structures/binary_search.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/dev_tools/extract_segment.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/channel.h"
@@ -90,7 +91,6 @@
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/unroll_pass.h"
-#include "xls/tools/extract_segment.h"
 
 static constexpr std::string_view kUsage = R"(
 Tool for reducing IR to a minimal test case based on an external test.

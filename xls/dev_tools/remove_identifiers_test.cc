@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/tools/remove_identifiers.h"
+#include "xls/dev_tools/remove_identifiers.h"
 
 #include <array>
 #include <iterator>

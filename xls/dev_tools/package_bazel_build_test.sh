@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TOOLPATH=./xls/tools
+TOOLPATH=./xls/dev_tools
 
 echo "Test Tmp Dir: ${TEST_TMPDIR}"
 echo "Test Files:"
@@ -35,7 +35,7 @@ echo "Final Manifest:"
 cat $TESTDATA_DIR/bazel-bin/package_test.runfiles_manifest
 
 # Run package utility
-BINPATH=./xls/tools/package_bazel_build
+BINPATH=./xls/dev_tools/package_bazel_build
 $BINPATH \
 --bazel_bin $TESTDATA_DIR/bazel-bin \
 --bazel_execroot $TESTDATA_DIR/hash/execroot/com_google_xls \

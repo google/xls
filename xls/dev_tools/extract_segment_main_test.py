@@ -20,7 +20,7 @@ from typing import Iterable, Optional, Union
 from absl.testing import absltest
 from xls.common import runfiles
 
-_EXTRACT_SEGMENT_MAIN = runfiles.get_path("xls/tools/extract_segment_main")
+_EXTRACT_SEGMENT_MAIN = runfiles.get_path("xls/dev_tools/extract_segment_main")
 
 _PROC_IR = """package foobar
 

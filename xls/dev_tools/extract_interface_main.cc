@@ -27,9 +27,9 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/extract_interface.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/public/ir_parser.h"
-#include "xls/tools/extract_interface.h"
 
 const char kUsage[] = R"(
   Parse an IR file and write a PackageInterfaceProto to stdout.

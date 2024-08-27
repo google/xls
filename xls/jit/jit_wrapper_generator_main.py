@@ -536,7 +536,7 @@ def main(argv: Sequence[str]) -> None:
     )
   ir_interface = ir_interface_pb2.PackageInterfaceProto.FromString(
       subprocess.check_output([
-          runfiles.get_path("xls/tools/extract_interface_main"),
+          runfiles.get_path("xls/dev_tools/extract_interface_main"),
           "--binary_proto",
           _IR_PATH.value,
       ])

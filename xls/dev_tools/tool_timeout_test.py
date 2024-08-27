@@ -18,7 +18,7 @@ import subprocess
 from absl.testing import absltest
 from xls.common import runfiles
 
-_TEST_BINARY = runfiles.get_path("xls/tools/tool_timeout_test_main")
+_TEST_BINARY = runfiles.get_path("xls/dev_tools/tool_timeout_test_main")
 
 _LOGGING_FLAGS = []
 

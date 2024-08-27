@@ -29,10 +29,10 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/extract_segment.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/public/ir_parser.h"
-#include "xls/tools/extract_segment.h"
 
 const char kUsage[] = R"(
 Extract a segment of a graph either emerging from or draining to a set of nodes.

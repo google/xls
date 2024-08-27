@@ -26,9 +26,9 @@ package(
         srcs = ["//xls/contrib/xlscc/examples:%s" % target],
         outs = ["%s.interface.binpb" % target],
         cmd = """
-            $(location //xls/tools:extract_interface_main) --binary_proto $< > $@
+            $(location //xls/dev_tools:extract_interface_main) --binary_proto $< > $@
         """,
-        tools = ["//xls/tools:extract_interface_main"],
+        tools = ["//xls/dev_tools:extract_interface_main"],
     )
     for target in [
         "simple_unsigned_pipelined_loop_fsm.ir",

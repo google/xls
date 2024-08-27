@@ -260,7 +260,7 @@ py_binary(
         ":jit_function_wrapper_h.tmpl",
         ":jit_proc_wrapper_cc.tmpl",
         ":jit_proc_wrapper_h.tmpl",
-        "//xls/tools:extract_interface_main",
+        "//xls/dev_tools:extract_interface_main",
     ],
     visibility = ["//xls:xls_users"],
     deps = [
@@ -1131,9 +1131,9 @@ genrule(
     srcs = ["//xls/examples/dslx_module:manaul_chan_caps_streaming_configured_opt_ir.opt.ir"],
     outs = ["some_caps_no_idents.ir"],
     cmd = """
-        $(location //xls/tools:remove_identifiers_main) $< > $@
+        $(location //xls/dev_tools:remove_identifiers_main) $< > $@
         """,
-    tools = ["//xls/tools:remove_identifiers_main"],
+    tools = ["//xls/dev_tools:remove_identifiers_main"],
 )
 
 xls_aot_generate(
@@ -1234,36 +1234,4 @@ bzl_library(
     srcs = ["aot_test_helper.bzl"],
     visibility = ["//visibility:private"],
     deps = ["//xls/build_rules:xls_providers_bzl"],
-)
-
-py_binary(
-    name = "dump_llvm_artifacts",
-    srcs = ["dump_llvm_artifacts_main.py"],
-    data = [
-        ":aot_compiler_main",
-        ":aot_main_wrapper_main",
-        "@llvm-project//clang",
-        "@llvm-project//llvm:llvm-link",
-    ],
-    main = "dump_llvm_artifacts_main.py",
-    visibility = ["//xls:xls_internal"],
-    deps = [
-        ":aot_entrypoint_py_pb2",
-        "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-    ],
-)
-
-py_test(
-    name = "dump_llvm_artifacts_main_test",
-    srcs = ["dump_llvm_artifacts_main_test.py"],
-    data = [
-        ":dump_llvm_artifacts",
-        "@llvm-project//llvm:lli",
-    ],
-    deps = [
-        "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
 )

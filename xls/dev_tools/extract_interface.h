@@ -12,28 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_REMOVE_IDENTIFIERS_H_
-#define XLS_TOOLS_REMOVE_IDENTIFIERS_H_
+#ifndef XLS_DEV_TOOLS_EXTRACT_INTERFACE_H_
+#define XLS_DEV_TOOLS_EXTRACT_INTERFACE_H_
 
-#include <memory>
-#include <string>
-
-#include "absl/status/statusor.h"
 #include "xls/ir/package.h"
+#include "xls/ir/xls_ir_interface.pb.h"
+
 namespace xls {
 
-struct StripOptions {
-  std::string new_package_name;
-  bool strip_location_info = true;
-  bool strip_node_names = true;
-  bool strip_function_names = true;
-  bool strip_chan_names = true;
-  bool strip_reg_names = true;
-};
-// Strip the requested data from the package and return a new one.
-absl::StatusOr<std::unique_ptr<Package>> StripPackage(
-    Package* source, const StripOptions& options);
+// Create a PackageInterfaceProto based on the given Package.
+PackageInterfaceProto ExtractPackageInterface(Package* package);
 
 }  // namespace xls
 
-#endif  // XLS_TOOLS_REMOVE_IDENTIFIERS_H_
+#endif  // XLS_DEV_TOOLS_EXTRACT_INTERFACE_H_
