@@ -372,6 +372,20 @@ pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32>(
 Returns the signed integer part of the input float, truncating any fractional
 bits if necessary.
 
+Exceptional cases:
+
+X operand                          | `sN[RESULT_SZ]` value
+---------------------------------- | -----------------------
+`NaN`                              | `sN[RESULT_SZ]::ZERO`
+`+Inf`                             | `sN[RESULT_SZ]::MAX`
+`-Inf`                             | `sN[RESULT_SZ]::MIN`[^1]
++0.0, -0.0 or any subnormal number | `sN[RESULT_SZ]::ZERO`
+`> sN[RESULT_SZ]::MAX`             | `sN[RESULT_SZ]::MAX`
+`< sN[RESULT_SZ]::MIN`             | `sN[RESULT_SZ]::MIN`
+
+[^1]: Does not exist yet (https://github.com/google/xls/issues/1556) but used
+    here for clarity.
+
 ### `apfloat::add/sub`
 
 ```dslx-snippet
@@ -706,11 +720,11 @@ When comparing to a reference, a natural question is the stability of the
 reference, i.e., is the reference answer the same across all versions or
 environments? Will the answer given by glibc/libm on AArch64 be the same as one
 given by a hardware FMA unit on a GPU? Fortunately, all "correct"
-implementations will give the same results for the same inputs. [^1] In
+implementations will give the same results for the same inputs. [^2] In
 addition, POSIX has the same result-precision language. It's worth noting that
 -ffast-math doesn't currently affect FMA emission/fusion/fission/etc.
 
-[^1]: There are operations for which this is not true. Transcendental ops may
+[^2]: There are operations for which this is not true. Transcendental ops may
 
 differ between implementations due to the
 [*table maker's dilemma*](https://en.wikipedia.org/wiki/Rounding).
