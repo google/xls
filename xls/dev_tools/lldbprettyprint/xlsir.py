@@ -19,7 +19,7 @@ xls::BValue, xls::Value, and xls::Bits objects as the summary. This greatly
 improves usability of the debugger when examining tests.
 
 Usage:
-  (lldb) command script import xls/dev_utils/lldbprettyprint/lldbprettyprint.py
+  (lldb) command script import xls/dev_tools/lldbprettyprint/lldbprettyprint.py
 
 NB No real effort was made to optimize these printers. Attempting to summarize a
 large number of them might take noticeable time.

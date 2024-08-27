@@ -70,7 +70,7 @@ static constexpr std::string_view kWorkspaceFile = "WORKSPACE";
 static constexpr std::string_view kStartDirectory = "xls";
 static constexpr std::string_view kFileIncludeRe = ".*";
 static constexpr std::string_view kFileExcludeRe =
-    ".git/|.github/|dev_utils/|"
+    ".git/|.github/|dev_tools/run_clang_tidy_cached.cc/|"
     "xls/common/build_embed\\.cc|"
     "xlscc/(examples|synth_only|build_rules)";
 inline bool ConsiderExtension(const std::string& extension) {
