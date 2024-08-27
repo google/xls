@@ -842,6 +842,7 @@ cc_library(
     srcs = ["select_simplification_pass.cc"],
     hdrs = ["select_simplification_pass.h"],
     deps = [
+        ":bit_provenance_analysis",
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
@@ -872,6 +873,7 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:ternary",
+        "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
     ],
@@ -2222,6 +2224,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",

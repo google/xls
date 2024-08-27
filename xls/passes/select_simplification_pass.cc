@@ -22,6 +22,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -45,6 +47,7 @@
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
@@ -52,8 +55,10 @@
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/bit_provenance_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -65,83 +70,291 @@
 namespace xls {
 namespace {
 
+// Slice out changed bits and store them into a tuple.
+struct RemoveUnchangedBits {
+  const TreeBitSources& source;
+  // What source_node denotes bits that need to be kept.
+  Node* changed_bit_src;
+  absl::StatusOr<Node*> operator()(Node* src) const {
+    XLS_RET_CHECK(changed_bit_src->GetType()->IsBits()) << changed_bit_src;
+    XLS_RET_CHECK(src->GetType()->IsBits());
+    std::vector<Node*> pieces;
+    FunctionBase* fb = src->function_base();
+    pieces.reserve(source.ranges().size());
+    for (const auto& range : source.ranges()) {
+      if (range.source_node() == changed_bit_src) {
+        XLS_RET_CHECK_EQ(range.dest_bit_index_low(),
+                         range.source_bit_index_low())
+            << "Invalid range.";
+        XLS_ASSIGN_OR_RETURN(
+            Node * sliced,
+            fb->MakeNodeWithName<BitSlice>(
+                src->loc(), src, range.dest_bit_index_low(), range.bit_width(),
+                src->HasAssignedName()
+                    ? absl::StrFormat("%s_bits_%d_width_%d", src->GetName(),
+                                      range.dest_bit_index_low(),
+                                      range.bit_width())
+                    : ""));
+        pieces.push_back(sliced);
+      }
+    }
+    return fb->MakeNodeWithName<Tuple>(
+        src->loc(), pieces,
+        src->HasAssignedName() ? absl::StrFormat("%s_squeezed", src->GetName())
+                               : "");
+  }
+};
+
+// Reconstitute the tuple into the real values.
+struct RestoreUnchangedBits {
+  const TreeBitSources& source;
+  // What source_node denotes bits that have been kept.
+  Node* changed_bit_src;
+  absl::StatusOr<Node*> operator()(Node* src) const {
+    XLS_RET_CHECK(changed_bit_src->GetType()->IsBits()) << changed_bit_src;
+    FunctionBase* fb = src->function_base();
+    std::vector<Node*> concat_args;
+    concat_args.reserve(source.ranges().size());
+    int64_t piece_count = 0;
+    for (const auto& range : source.ranges()) {
+      if (range.source_node() == changed_bit_src) {
+        Node* sliced;
+        XLS_ASSIGN_OR_RETURN(
+            sliced, fb->MakeNodeWithName<TupleIndex>(
+                        src->loc(), src, piece_count,
+                        src->HasAssignedName()
+                            ? absl::StrFormat(
+                                  "%s_portion_%d_width_%d", src->GetName(),
+                                  range.dest_bit_index_low(), range.bit_width())
+                            : ""));
+        concat_args.push_back(sliced);
+        piece_count++;
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            Node * unsliced,
+            GetNodeAtIndex(range.source_node(), range.source_tree_index()));
+        if (unsliced->BitCountOrDie() == range.bit_width()) {
+          concat_args.push_back(unsliced);
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              Node * sliced,
+              fb->MakeNodeWithName<BitSlice>(
+                  unsliced->loc(), unsliced, range.source_bit_index_low(),
+                  range.bit_width(),
+                  unsliced->HasAssignedName()
+                      ? absl::StrFormat(
+                            "%s_portion_%d_width_%d", unsliced->GetName(),
+                            range.source_bit_index_low(), range.bit_width())
+                      : ""));
+          concat_args.push_back(sliced);
+        }
+      }
+    }
+    absl::c_reverse(concat_args);
+    return fb->MakeNodeWithName<Concat>(
+        src->loc(), concat_args,
+        src->HasAssignedName()
+            ? absl::StrFormat("%s_unsqueezed", src->GetName())
+            : "");
+  }
+};
+struct SqueezeConstantBits {
+  const Bits& const_msb;
+  const Bits& const_lsb;
+
+  absl::StatusOr<Node*> operator()(Node* src) const {
+    return src->function_base()->MakeNodeWithName<BitSlice>(
+        src->loc(), src, const_lsb.bit_count(),
+        src->BitCountOrDie() - (const_msb.bit_count() + const_lsb.bit_count()),
+        src->HasAssignedName() ? absl::StrFormat("%s_squeezed", src->GetName())
+                               : "");
+  }
+};
+struct UnsqueezeConstantBits {
+  const Bits& const_msb;
+  const Bits& const_lsb;
+  absl::StatusOr<Node*> operator()(Node* src) const {
+    auto fmt_name = [&](std::string_view postfix) -> std::string {
+      return src->HasAssignedName() ? absl::StrCat(src->GetName(), postfix)
+                                    : "";
+    };
+    FunctionBase* fb = src->function_base();
+    XLS_ASSIGN_OR_RETURN(Node * msbs, fb->MakeNodeWithName<Literal>(
+                                          src->loc(), Value(const_msb),
+                                          fmt_name("_const_msb_bits")));
+    XLS_ASSIGN_OR_RETURN(Node * lsbs, fb->MakeNodeWithName<Literal>(
+                                          src->loc(), Value(const_lsb),
+                                          fmt_name("_const_lsb_bits")));
+    return fb->MakeNodeWithName<Concat>(
+        src->loc(), absl::Span<Node* const>{msbs, src, lsbs},
+        fmt_name("_unsqueeze"));
+  }
+};
+
 // Given a SelectT node (either OneHotSelect or Select), squeezes the const_msb
 // and const_lsb values out of the output, and slices all the operands to
 // correspond to the non-const run of bits in the center.
-template <typename SelectT>
-absl::StatusOr<bool> SqueezeSelect(
-    const Bits& const_msb, const Bits& const_lsb,
-    const std::function<absl::StatusOr<SelectT*>(SelectT*, std::vector<Node*>)>&
-        make_select,
-    SelectT* select) {
-  FunctionBase* f = select->function_base();
-  int64_t bit_count = select->BitCountOrDie();
-  auto slice = [&](Node* n) -> absl::StatusOr<Node*> {
-    int64_t new_width =
-        bit_count - const_msb.bit_count() - const_lsb.bit_count();
-    return f->MakeNode<BitSlice>(select->loc(), n,
-                                 /*start=*/const_lsb.bit_count(),
-                                 /*width=*/new_width);
-  };
+template <typename SelectT, typename SqueezeF, typename UnsqueezeF,
+          typename MakeSelectF>
+  requires(std::is_invocable_r_v<absl::StatusOr<Node*>, SqueezeF, Node*> &&
+           std::is_invocable_r_v<absl::StatusOr<Node*>, UnsqueezeF, Node*> &&
+           std::is_invocable_r_v<absl::StatusOr<Node*>, MakeSelectF, SelectT*,
+                                 absl::Span<Node* const>>)
+absl::Status SqueezeSelect(SelectT* select, SqueezeF squeeze,
+                           UnsqueezeF unsqueeze, MakeSelectF make_select) {
+  Node* sel_node = select;
   std::vector<Node*> new_cases;
-  absl::Span<Node* const> cases = select->operands().subspan(1);
-  for (Node* old_case : cases) {
-    XLS_ASSIGN_OR_RETURN(Node * new_case, slice(old_case));
-    new_cases.push_back(new_case);
+  new_cases.reserve(select->operands().size() - 1);
+  for (Node* n : select->operands().subspan(SelectT::kSelectorOperand + 1)) {
+    XLS_ASSIGN_OR_RETURN(Node * squeezed, squeeze(n));
+    new_cases.push_back(squeezed);
   }
-  XLS_ASSIGN_OR_RETURN(Node * msb_literal,
-                       f->MakeNode<Literal>(select->loc(), Value(const_msb)));
-  XLS_ASSIGN_OR_RETURN(Node * lsb_literal,
-                       f->MakeNode<Literal>(select->loc(), Value(const_lsb)));
-  XLS_ASSIGN_OR_RETURN(Node * new_select, make_select(select, new_cases));
-  Node* select_node = select;
-  VLOG(2) << absl::StrFormat("Squeezing select: %s", select->ToString());
-  XLS_RETURN_IF_ERROR(select_node
-                          ->ReplaceUsesWithNew<Concat>(std::vector<Node*>{
-                              msb_literal, new_select, lsb_literal})
-                          .status());
+  XLS_ASSIGN_OR_RETURN(Node * squeezed_sel, make_select(select, new_cases));
+  if (!squeezed_sel->HasAssignedName() && sel_node->HasAssignedName()) {
+    squeezed_sel->SetName(absl::StrFormat("%s_squeezed", sel_node->GetName()));
+  }
+  VLOG(2) << absl::StreamFormat("Squeezed select %s into %d bits",
+                                select->ToString(),
+                                squeezed_sel->BitCountOrDie());
+  std::optional<std::string> orig_name =
+      sel_node->HasAssignedName() ? std::make_optional(sel_node->GetName())
+                                  : std::nullopt;
+  XLS_ASSIGN_OR_RETURN(Node * unsqueezed_sel, unsqueeze(squeezed_sel));
+  XLS_RETURN_IF_ERROR(sel_node->ReplaceUsesWith(unsqueezed_sel));
+  if (orig_name) {
+    // Take over name of original select.
+    sel_node->ClearName();
+    unsqueezed_sel->SetNameDirectly(*orig_name);
+  }
+  return absl::OkStatus();
+}
+
+template <typename SelectT>
+absl::StatusOr<SelectT*> MakeSelect(SelectT* original,
+                                    absl::Span<Node* const> new_cases) {
+  if constexpr (std::is_same_v<Select, SelectT>) {
+    std::optional<Node*> new_default;
+
+    if (original->default_value().has_value()) {
+      new_default = new_cases.back();
+      new_cases = new_cases.subspan(0, new_cases.size() - 1);
+    }
+    return original->function_base()->template MakeNode<Select>(
+        original->loc(), original->selector(), new_cases, new_default);
+  }
+  if constexpr (std::is_same_v<OneHotSelect, SelectT>) {
+    return original->function_base()->template MakeNode<OneHotSelect>(
+        original->loc(), original->selector(), new_cases);
+  }
+  if constexpr (std::is_same_v<PrioritySelect, SelectT>) {
+    Node* new_default = new_cases.back();
+    new_cases = new_cases.subspan(0, new_cases.size() - 1);
+    return original->function_base()->template MakeNode<PrioritySelect>(
+        original->loc(), original->selector(), new_cases, new_default);
+  }
+  return absl::UnimplementedError("Not a select");
+}
+
+template <typename SelectT>
+  requires(std::is_same_v<SelectT, Select> ||
+           std::is_same_v<SelectT, OneHotSelect> ||
+           std::is_same_v<SelectT, PrioritySelect>)
+absl::StatusOr<bool> TrySqueezeSelect(SelectT* sel,
+                                      const QueryEngine& query_engine,
+                                      const BitProvenanceAnalysis& provenance) {
+  Node* node = sel;
+  auto is_squeezable_mux = [&](Bits* msb, Bits* lsb) {
+    int64_t leading_known = bits_ops::CountLeadingOnes(
+        ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
+    int64_t trailing_known = bits_ops::CountTrailingOnes(
+        ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
+    if (leading_known == 0 && trailing_known == 0) {
+      return false;
+    }
+    int64_t bit_count = node->BitCountOrDie();
+    *msb = ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
+               .Slice(/*start=*/bit_count - leading_known,
+                      /*width=*/leading_known);
+    if (leading_known == trailing_known && leading_known == bit_count) {
+      // This is just a constant value, just say we only have high constant
+      // bits, the replacement will be the same.
+      return true;
+    }
+    *lsb = ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
+               .Slice(/*start=*/0, /*width=*/trailing_known);
+    return true;
+  };
+  Bits const_msb, const_lsb;
+  bool const_squeezable = is_squeezable_mux(&const_msb, &const_lsb);
+  int64_t const_mux_width =
+      node->BitCountOrDie() - (const_msb.bit_count() + const_lsb.bit_count());
+  if (const_mux_width == 0) {
+    // Just a constant. Other narrowing will handle this.
+    return false;
+  }
+  const TreeBitSources& prov_bits = provenance.GetBitSources(node).Get({});
+  int64_t prov_width = absl::c_accumulate(
+      prov_bits.ranges(), int64_t{0},
+      [&](int64_t v, const TreeBitSources::BitRange& r) -> int64_t {
+        if (r.source_node() == node) {
+          return v + r.bit_width();
+        }
+        return v;
+      });
+  if ((!const_squeezable || const_mux_width == node->BitCountOrDie()) &&
+      prov_width == node->BitCountOrDie()) {
+    // Can't narrow
+    return false;
+  }
+  // Technically we could do both (since these might narrow different bits) but
+  // (1) that makes whichever goes second more complicated and (2) this pass is
+  // run in fixed-point anyway so all it will do is save a pass-group run.
+  //
+  // const-mux is prioritized mostly to avoid having to rewrite all the tests
+  // for it.
+  if (const_mux_width <= prov_width) {
+    XLS_RETURN_IF_ERROR(SqueezeSelect(
+        sel,
+        SqueezeConstantBits{.const_msb = const_msb, .const_lsb = const_lsb},
+        UnsqueezeConstantBits{.const_msb = const_msb, .const_lsb = const_lsb},
+        MakeSelect<SelectT>));
+  } else {
+    XLS_RETURN_IF_ERROR(SqueezeSelect(
+        sel, RemoveUnchangedBits{.source = prov_bits, .changed_bit_src = sel},
+        RestoreUnchangedBits{.source = prov_bits, .changed_bit_src = sel},
+        MakeSelect<SelectT>));
+  }
   return true;
 }
 
 // The source of a bit. Can be either a literal 0/1 or a bit at a particular
 // index of a Node.
-using BitSource = std::variant<bool, std::pair<Node*, int64_t>>;
+using BitSource = std::variant<bool, TreeBitLocation>;
 
 // Traces the bit at the given node and bit index through bit slices and concats
 // and returns its source.
-// TODO(meheff): Combine this into TernaryQueryEngine.
 BitSource GetBitSource(Node* node, int64_t bit_index,
-                       const QueryEngine& query_engine) {
-  if (node->Is<BitSlice>()) {
-    return GetBitSource(node->operand(0),
-                        bit_index + node->As<BitSlice>()->start(),
-                        query_engine);
-  }
-  if (node->Is<Concat>()) {
-    int64_t offset = 0;
-    for (int64_t i = node->operand_count() - 1; i >= 0; --i) {
-      Node* operand = node->operand(i);
-      if (bit_index - offset < operand->BitCountOrDie()) {
-        return GetBitSource(operand, bit_index - offset, query_engine);
-      }
-      offset += operand->BitCountOrDie();
-    }
-    LOG(FATAL) << "Bit index " << bit_index << " too large for "
-               << node->ToString();
-  } else if (node->Is<Literal>()) {
-    return node->As<Literal>()->value().bits().Get(bit_index);
-  } else if (node->GetType()->IsBits() &&
-             query_engine.IsKnown(TreeBitLocation(node, bit_index))) {
+                       const QueryEngine& query_engine,
+                       const BitProvenanceAnalysis& provenance) {
+  if (node->GetType()->IsBits() &&
+      query_engine.IsKnown(TreeBitLocation(node, bit_index))) {
     return query_engine.IsOne(TreeBitLocation(node, bit_index));
   }
-  return std::make_pair(node, bit_index);
+  if (provenance.IsTracked(node)) {
+    return provenance.GetSource(TreeBitLocation(node, bit_index));
+  }
+  // Not able to find anything, maybe this is because other changes invalidated
+  // the provenance information but in that case we should have optimized
+  // already anyway.
+  return TreeBitLocation(node, bit_index);
 }
 
 std::string ToString(const BitSource& bit_source) {
   return absl::visit(Visitor{[](bool value) { return absl::StrCat(value); },
-                             [](const std::pair<Node*, int64_t>& p) {
-                               return absl::StrCat(p.first->GetName(), "[",
-                                                   p.second, "]");
+                             [](const TreeBitLocation& p) {
+                               return absl::StrFormat("%s[%d]",
+                                                      p.node()->GetName(),
+                                                      p.bit_index());
                              }},
                      bit_source);
 }
@@ -159,12 +372,13 @@ using MatchedPairs = std::vector<std::pair<int64_t, int64_t>>;
 //  GetBitSource(e, 42) = BitSource{false}
 //
 // PairsOfBitsWithSameSource({a, b, c, d, e}, 42) would return [(0, 3), (1, 2)]
-MatchedPairs PairsOfBitsWithSameSource(absl::Span<Node* const> nodes,
-                                       int64_t bit_index,
-                                       const QueryEngine& query_engine) {
+MatchedPairs PairsOfBitsWithSameSource(
+    absl::Span<Node* const> nodes, int64_t bit_index,
+    const QueryEngine& query_engine, const BitProvenanceAnalysis& provenance) {
   std::vector<BitSource> bit_sources;
   for (Node* node : nodes) {
-    bit_sources.push_back(GetBitSource(node, bit_index, query_engine));
+    bit_sources.push_back(
+        GetBitSource(node, bit_index, query_engine, provenance));
   }
   MatchedPairs matching_pairs;
   for (int64_t i = 0; i < bit_sources.size(); ++i) {
@@ -247,7 +461,8 @@ absl::StatusOr<Node*> SliceBitBasedSelect(Node* bbs, int64_t start,
 // RunOfNonDistinctCaseBits({a, b, c}, 1) returns 3 because bits 1, 2, and 3 of
 // 'a', and 'b' are the same (have the same BitSource).
 int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
-                                 const QueryEngine& query_engine) {
+                                 const QueryEngine& query_engine,
+                                 const BitProvenanceAnalysis& provenance) {
   VLOG(5) << "Finding runs of non-distinct bits starting at " << start;
   // Do a reduction via intersection of the set of matching pairs within
   // 'cases'. When the intersection is empty, the run is over.
@@ -255,12 +470,12 @@ int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
   int64_t i = start;
   while (i < cases.front()->BitCountOrDie()) {
     if (i == start) {
-      matches = PairsOfBitsWithSameSource(cases, i, query_engine);
+      matches = PairsOfBitsWithSameSource(cases, i, query_engine, provenance);
     } else {
       MatchedPairs new_matches;
       absl::c_set_intersection(
-          PairsOfBitsWithSameSource(cases, i, query_engine), matches,
-          std::back_inserter(new_matches));
+          PairsOfBitsWithSameSource(cases, i, query_engine, provenance),
+          matches, std::back_inserter(new_matches));
       matches = std::move(new_matches);
     }
 
@@ -278,11 +493,13 @@ int64_t RunOfNonDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
 // the indexed bits of the given cases are distinct at each
 // bit index. For example:
 int64_t RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
-                              const QueryEngine& query_engine) {
+                              const QueryEngine& query_engine,
+                              const BitProvenanceAnalysis& provenance) {
   VLOG(5) << "Finding runs of distinct case bit starting at " << start;
   int64_t i = start;
-  while (i < cases.front()->BitCountOrDie() &&
-         PairsOfBitsWithSameSource(cases, i, query_engine).empty()) {
+  while (
+      i < cases.front()->BitCountOrDie() &&
+      PairsOfBitsWithSameSource(cases, i, query_engine, provenance).empty()) {
     ++i;
   }
   VLOG(5) << " run of " << i - start << " bits";
@@ -299,7 +516,8 @@ int64_t RunOfDistinctCaseBits(absl::Span<Node* const> cases, int64_t start,
 // Returns the newly created bit-based select instructions if the transformation
 // succeeded.
 absl::StatusOr<std::vector<Node*>> MaybeSplitBitBasedSelect(
-    Node* bbs, const QueryEngine& query_engine) {
+    Node* bbs, const QueryEngine& query_engine,
+    const BitProvenanceAnalysis& provenance) {
   XLS_RET_CHECK(bbs->Is<OneHotSelect>() || bbs->Is<PrioritySelect>());
   // For *very* wide one-hot-selects this optimization can be very slow and make
   // a mess of the graph so limit it to 64 bits.
@@ -324,7 +542,7 @@ absl::StatusOr<std::vector<Node*>> MaybeSplitBitBasedSelect(
       VLOG(4) << "  case (" << i << "): " << cas->ToString();
       for (int64_t j = 0; j < cas->BitCountOrDie(); ++j) {
         VLOG(4) << "    bit " << j << ": "
-                << ToString(GetBitSource(cas, j, query_engine));
+                << ToString(GetBitSource(cas, j, query_engine, provenance));
       }
     }
   }
@@ -333,9 +551,11 @@ absl::StatusOr<std::vector<Node*>> MaybeSplitBitBasedSelect(
   std::vector<Node*> bbs_slices;
   std::vector<Node*> new_bbses;
   while (start < bbs->BitCountOrDie()) {
-    int64_t run = RunOfDistinctCaseBits(bbs_cases, start, query_engine);
+    int64_t run =
+        RunOfDistinctCaseBits(bbs_cases, start, query_engine, provenance);
     if (run == 0) {
-      run = RunOfNonDistinctCaseBits(bbs_cases, start, query_engine);
+      run =
+          RunOfNonDistinctCaseBits(bbs_cases, start, query_engine, provenance);
     }
     XLS_RET_CHECK_GT(run, 0);
     if (run == bbs->BitCountOrDie()) {
@@ -674,6 +894,7 @@ absl::StatusOr<bool> MaybeReorderSelect(Node* node,
 }
 
 absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
+                                  const BitProvenanceAnalysis& provenance,
                                   int64_t opt_level) {
   // Select with a constant selector can be replaced with the respective
   // case.
@@ -1513,48 +1734,24 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   //
   // Sel(...) => Concat(Known, Sel(...), Known)
   if (SplitsEnabled(opt_level)) {
-    auto is_squeezable_mux = [&](Bits* msb, Bits* lsb) {
-      if (!node->Is<Select>() || !node->GetType()->IsBits()) {
-        return false;
+    if (node->GetType()->IsBits()) {
+      bool squeezed = false;
+      if (node->Is<Select>()) {
+        XLS_ASSIGN_OR_RETURN(
+            squeezed,
+            TrySqueezeSelect(node->As<Select>(), query_engine, provenance));
+      } else if (node->Is<OneHotSelect>()) {
+        XLS_ASSIGN_OR_RETURN(
+            squeezed, TrySqueezeSelect(node->As<OneHotSelect>(), query_engine,
+                                       provenance));
+      } else if (node->Is<PrioritySelect>()) {
+        XLS_ASSIGN_OR_RETURN(
+            squeezed, TrySqueezeSelect(node->As<PrioritySelect>(), query_engine,
+                                       provenance));
       }
-      int64_t leading_known = bits_ops::CountLeadingOnes(
-          ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
-      int64_t trailing_known = bits_ops::CountTrailingOnes(
-          ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
-      if (leading_known == 0 && trailing_known == 0) {
-        return false;
-      }
-      int64_t bit_count = node->BitCountOrDie();
-      *msb =
-          ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
-              .Slice(/*start=*/bit_count - leading_known,
-                     /*width=*/leading_known);
-      if (leading_known == trailing_known && leading_known == bit_count) {
-        // This is just a constant value, just say we only have high constant
-        // bits, the replacement will be the same.
+      if (squeezed) {
         return true;
       }
-      *lsb =
-          ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
-              .Slice(/*start=*/0, /*width=*/trailing_known);
-      return true;
-    };
-    Bits const_msb, const_lsb;
-    if (is_squeezable_mux(&const_msb, &const_lsb)) {
-      std::function<absl::StatusOr<Select*>(Select*, std::vector<Node*>)>
-          make_select =
-              [](Select* original,
-                 std::vector<Node*> new_cases) -> absl::StatusOr<Select*> {
-        std::optional<Node*> new_default;
-        if (original->default_value().has_value()) {
-          new_default = new_cases.back();
-          new_cases.pop_back();
-        }
-        return original->function_base()->MakeNode<Select>(
-            original->loc(), original->selector(), new_cases, new_default);
-      };
-      return SqueezeSelect(const_msb, const_lsb, make_select,
-                           node->As<Select>());
     }
   }
 
@@ -1924,10 +2121,14 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
   UnionQueryEngine query_engine(std::move(query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
+  XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,
+                       BitProvenanceAnalysis::Create(func));
+
   bool changed = false;
   for (Node* node : TopoSort(func)) {
-    XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyNode(node, query_engine, opt_level_));
+    XLS_ASSIGN_OR_RETURN(
+        bool node_changed,
+        SimplifyNode(node, query_engine, provenance, opt_level_));
     changed = changed || node_changed;
   }
 
@@ -1936,6 +2137,15 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
   // OneHotSelects & PrioritySelects exposing further opportunities for
   // optimizations.
   if (SplitsEnabled(opt_level_)) {
+    // We need to recalculate provenance and qe if changes happened.
+    std::optional<BitProvenanceAnalysis> post_simplify_provenance;
+    if (changed) {
+      XLS_ASSIGN_OR_RETURN(post_simplify_provenance,
+                           BitProvenanceAnalysis::Create(func));
+      XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
+    } else {
+      post_simplify_provenance = std::move(provenance);
+    }
     std::deque<Node*> worklist;
     for (Node* node : func->nodes()) {
       if (node->Is<OneHotSelect>() || node->Is<PrioritySelect>()) {
@@ -1949,7 +2159,8 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
       // ok; we'll fall back on the stateless query engine.
       XLS_ASSIGN_OR_RETURN(
           std::vector<Node*> new_bit_based_selects,
-          MaybeSplitBitBasedSelect(bit_based_select, query_engine));
+          MaybeSplitBitBasedSelect(bit_based_select, query_engine,
+                                   *post_simplify_provenance));
       if (!new_bit_based_selects.empty()) {
         changed = true;
         worklist.insert(worklist.end(), new_bit_based_selects.begin(),
