@@ -385,8 +385,17 @@ class ConstantValueIrInterpreter
         }
       }
     };
-    for (; inputs.front().cur_value != inputs.front().values.cend();
-         next_input()) {
+    // Don't try more than ~4000 constants. This is pretty quick but avoids
+    // combinatorial explosions caused by things like a concat of a ton of
+    // (possibly correlated) selects.
+    // TODO(allight): This ends up checking mostly just the values of the last
+    // operand. This might or might not be desirable depending on the operation
+    // and it would be good to be more intelligent.
+    static constexpr int64_t kMaxConstantValues = 1 << 12;
+    for (int64_t cnt = 0;
+         cnt < kMaxConstantValues &&
+         inputs.front().cur_value != inputs.front().values.cend();
+         next_input(), ++cnt) {
       XLS_ASSIGN_OR_RETURN(Value r, InterpretNode(n, current_value()));
       insert_result(std::move(r).bits());
     }
