@@ -26,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -41,6 +42,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
 
@@ -140,7 +142,9 @@ TEST_F(NodeUtilTest, GatherNoBits) {
   FunctionBuilder fb(TestName(), p.get());
   fb.Param("x", p->GetBitsType(8));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(Node * gathered, GatherBits(f->return_value(), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * gathered,
+      GatherBits(f->return_value(), absl::Span<const int64_t>{}));
   XLS_ASSERT_OK(f->set_return_value(gathered));
   EXPECT_THAT(f->return_value(), m::Literal(0));
 }
@@ -156,16 +160,6 @@ TEST_F(NodeUtilTest, GatherAllTheBits) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(NodeUtilTest, GatherBitsIndicesNotSorted) {
-  auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
-  fb.Param("x", p->GetBitsType(8));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  EXPECT_THAT(GatherBits(f->return_value(), {0, 6, 3}),
-              StatusIs(absl::StatusCode::kInternal,
-                       testing::HasSubstr("Gather indices not sorted.")));
-}
-
 TEST_F(NodeUtilTest, GatherBitsIndicesNotUnique) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -174,6 +168,49 @@ TEST_F(NodeUtilTest, GatherBitsIndicesNotUnique) {
   EXPECT_THAT(GatherBits(f->return_value(), {0, 2, 2}),
               StatusIs(absl::StatusCode::kInternal,
                        testing::HasSubstr("Gather indices not unique.")));
+}
+
+TEST_F(NodeUtilTest, FillPattern) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("x", p->GetBitsType(6));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(TernaryVector pattern,
+                           StringToTernaryVector("0b01XX1X0XXX"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * filled,
+                           FillPattern(pattern, f->return_value()));
+  XLS_ASSERT_OK(f->set_return_value(filled));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Literal("bits[2]:0b01"),
+                        m::BitSlice(m::Param("x"), /*start=*/4, /*width=*/2),
+                        m::Literal("bits[1]:0b1"),
+                        m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/1),
+                        m::Literal("bits[1]:0b0"),
+                        m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/3)));
+}
+
+TEST_F(NodeUtilTest, FillPatternWithAllTheBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("x", p->GetBitsType(8));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  TernaryVector pattern(8, TernaryValue::kUnknown);
+  XLS_ASSERT_OK_AND_ASSIGN(Node * filled,
+                           FillPattern(pattern, f->return_value()));
+  XLS_ASSERT_OK(f->set_return_value(filled));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(NodeUtilTest, FillPatternWithNoBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("x", p->GetBitsType(0));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  TernaryVector pattern(8, TernaryValue::kKnownZero);
+  XLS_ASSERT_OK_AND_ASSIGN(Node * filled,
+                           FillPattern(pattern, f->return_value()));
+  XLS_ASSERT_OK(f->set_return_value(filled));
+  EXPECT_THAT(f->return_value(), m::Literal(0, 8));
 }
 
 TEST_F(NodeUtilTest, IsLiteralMask) {

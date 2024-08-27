@@ -35,6 +35,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
@@ -43,6 +44,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -67,46 +69,97 @@ bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
 absl::StatusOr<Node*> GatherBits(Node* node,
                                  absl::Span<int64_t const> indices) {
   XLS_RET_CHECK(node->GetType()->IsBits());
+
+  absl::flat_hash_set<int64_t> unique_indices;
+  unique_indices.insert(indices.begin(), indices.end());
+  XLS_RET_CHECK_EQ(unique_indices.size(), indices.size())
+      << "Gather indices not unique.";
+
+  InlineBitmap mask(node->BitCountOrDie());
+  for (int64_t index : indices) {
+    mask.Set(index);
+  }
+  return GatherBits(node, Bits::FromBitmap(std::move(mask)));
+}
+
+absl::StatusOr<Node*> GatherBits(Node* node, const Bits& mask) {
+  XLS_RET_CHECK(node->GetType()->IsBits());
+  XLS_RET_CHECK_EQ(node->BitCountOrDie(), mask.bit_count());
+
   FunctionBase* f = node->function_base();
-  if (indices.empty()) {
+  if (mask.IsZero()) {
     // Return a literal with a Bits value of zero width.
     return f->MakeNode<Literal>(node->loc(), Value(Bits()));
   }
-  XLS_RET_CHECK(absl::c_is_sorted(indices)) << "Gather indices not sorted.";
-  for (int64_t i = 1; i < indices.size(); ++i) {
-    XLS_RET_CHECK_NE(indices[i - 1], indices[i])
-        << "Gather indices not unique.";
-  }
-  if (indices.size() == node->BitCountOrDie()) {
-    // Gathering all the bits. Just return the value.
+  if (mask.IsAllOnes()) {
     return node;
   }
-  std::vector<Node*> segments;
+
   std::vector<Node*> slices;
-  auto add_bit_slice = [&](int64_t start, int64_t end) -> absl::Status {
-    XLS_ASSIGN_OR_RETURN(
-        Node * slice, f->MakeNode<BitSlice>(node->loc(), node, /*start=*/start,
-                                            /*width=*/end - start));
-    slices.push_back(slice);
-    return absl::OkStatus();
-  };
-  int64_t slice_start = indices.front();
-  int64_t slice_end = slice_start + 1;
-  for (int64_t i = 1; i < indices.size(); ++i) {
-    int64_t index = indices[i];
-    if (index == slice_end) {
-      slice_end++;
-    } else {
-      XLS_RETURN_IF_ERROR(add_bit_slice(slice_start, slice_end));
-      slice_start = index;
-      slice_end = index + 1;
+  int64_t pos = 0;
+  while (pos < mask.bit_count()) {
+    if (!mask.Get(pos)) {
+      pos++;
+      continue;
     }
+
+    int64_t width = 1;
+    while (pos + width < mask.bit_count() && mask.Get(pos + width)) {
+      width++;
+    }
+    XLS_ASSIGN_OR_RETURN(Node * slice,
+                         f->MakeNode<BitSlice>(node->loc(), node,
+                                               /*start=*/pos, width));
+    slices.push_back(slice);
+    pos += width;
   }
-  XLS_RETURN_IF_ERROR(add_bit_slice(slice_start, slice_end));
   if (slices.size() == 1) {
     return slices[0];
   }
-  std::reverse(slices.begin(), slices.end());
+  absl::c_reverse(slices);
+  return f->MakeNode<Concat>(node->loc(), slices);
+}
+
+absl::StatusOr<Node*> FillPattern(TernarySpan pattern, Node* node) {
+  XLS_RET_CHECK(node->GetType()->IsBits());
+  const int64_t unknown_bits = absl::c_count_if(
+      pattern, [](TernaryValue v) { return v == TernaryValue::kUnknown; });
+  XLS_RET_CHECK_EQ(node->BitCountOrDie(), unknown_bits);
+  if (unknown_bits == pattern.size()) {
+    return node;
+  }
+  FunctionBase* f = node->function_base();
+  Bits known_values = ternary_ops::ToKnownBitsValues(pattern);
+
+  std::vector<Node*> slices;
+  int64_t result_pos = 0;
+  int64_t node_pos = 0;
+  while (result_pos < pattern.size()) {
+    Node* slice;
+    int64_t width = 1;
+    while (result_pos + width < pattern.size() &&
+           (pattern[result_pos + width] == TernaryValue::kUnknown) ==
+               (pattern[result_pos] == TernaryValue::kUnknown)) {
+      width++;
+    }
+    if (pattern[result_pos] == TernaryValue::kUnknown) {
+      XLS_ASSIGN_OR_RETURN(slice,
+                           f->MakeNode<BitSlice>(node->loc(), node,
+                                                 /*start=*/node_pos, width));
+      node_pos += width;
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          slice, f->MakeNode<Literal>(node->loc(), Value(known_values.Slice(
+                                                       result_pos, width))));
+    }
+    slices.push_back(slice);
+    result_pos += width;
+  }
+  XLS_RET_CHECK_EQ(node_pos, node->BitCountOrDie());
+  if (slices.size() == 1) {
+    return slices[0];
+  }
+  absl::c_reverse(slices);
   return f->MakeNode<Concat>(node->loc(), slices);
 }
 
@@ -483,10 +536,10 @@ absl::StatusOr<Node*> ReplaceTupleElementsWith(
     }
   }
 
-  // First, make an empty tuple. We're going to replace everything here, we just
-  // need something to exist before calling ReplaceUsesWith() on node. After we
-  // call ReplaceUsesWith(), we'll replace each operand of the tuple with a
-  // TupleIndex from node.
+  // First, make an empty tuple. We're going to replace everything here, we
+  // just need something to exist before calling ReplaceUsesWith() on node.
+  // After we call ReplaceUsesWith(), we'll replace each operand of the tuple
+  // with a TupleIndex from node.
   for (int64_t index = 0; index < num_elements; ++index) {
     XLS_ASSIGN_OR_RETURN(
         Literal * element_lit,
