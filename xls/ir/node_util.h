@@ -235,6 +235,10 @@ absl::Status ReplaceChannelUsedByNode(Node* node, std::string_view new_channel);
 // send/sendif/receive/receiveif node then an error is returned.
 absl::StatusOr<std::optional<Node*>> GetPredicateUsedByNode(Node* node);
 
+// Get the value of a node at the given leaf-type-tree index.
+absl::StatusOr<Node*> GetNodeAtIndex(Node* base,
+                                     absl::Span<const int64_t> index);
+
 // For a tuple-typed `node`, replace the tuple elements with new values from the
 // `replacements` map. This will fail if a value in `replacements` depends on
 // `node`.

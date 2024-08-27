@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -366,6 +367,61 @@ absl::StatusOr<std::optional<Node*>> GetPredicateUsedByNode(Node* node) {
           absl::StrFormat("Expected %s to be a send, receive, or next value.",
                           node->GetName()));
   }
+}
+
+absl::StatusOr<Node*> GetNodeAtIndex(Node* base,
+                                     absl::Span<const int64_t> index) {
+  if (index.empty()) {
+    return base;
+  }
+  if (base->GetType()->IsTuple()) {
+    if (index.front() >= base->GetType()->AsTupleOrDie()->size()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("index %d out of range for type %s", index.front(),
+                          base->GetType()->ToString()));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * nxt,
+        base->function_base()->MakeNodeWithName<TupleIndex>(
+            base->loc(), base, index.front(),
+            base->HasAssignedName()
+                ? absl::StrFormat("%s_tup%d", base->GetName(), index.front())
+                : ""));
+    return GetNodeAtIndex(nxt, index.subspan(1));
+  }
+  if (base->GetType()->IsArray()) {
+    FunctionBase* fb = base->function_base();
+    int64_t dims = 0;
+    Type* t = base->GetType();
+    std::vector<Node*> idxs;
+    auto it = index.cbegin();
+    while (t->IsArray() && it != index.cend()) {
+      if (*it >= t->AsArrayOrDie()->size()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("index %d out of range for type %s", index.front(),
+                            base->GetType()->ToString()));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Node * idx,
+          fb->MakeNode<Literal>(SourceInfo(), Value(UBits(*it, 64))));
+      idxs.push_back(idx);
+
+      dims++;
+      t = t->AsArrayOrDie()->element_type();
+      ++it;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * nxt,
+        fb->MakeNodeWithName<ArrayIndex>(
+            base->loc(), base, idxs,
+            base->HasAssignedName()
+                ? absl::StrFormat("%s_arr%s", base->GetName(),
+                                  absl::StrJoin(index.subspan(0, dims), "_"))
+                : ""));
+    return GetNodeAtIndex(nxt, index.subspan(dims));
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("%s has an invalid index path", base->ToString()));
 }
 
 namespace {
