@@ -600,6 +600,29 @@ static Pos AdjustCommentLimit(const Span& comment_span, DocArena& arena,
              std::numeric_limits<int32_t>::max());
 }
 
+// Looks for inline comments after the `prev_limit` and adds relevant `DocRef`
+// to `pieces`. Returns `last_entity_pos`, updated if comments were found.
+static Pos CollectInlineComments(const Pos& prev_limit,
+                                 const Pos& last_entity_pos,
+                                 const Comments& comments, DocArena& arena,
+                                 std::vector<DocRef>& pieces,
+                                 std::optional<Span> last_comment_span) {
+  const Pos next_line(prev_limit.filename(), prev_limit.lineno() + 1, 0);
+  if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+          last_entity_pos, next_line, comments, arena, &last_comment_span)) {
+    VLOG(3) << "Saw inline comment: "
+            << arena.ToDebugString(comments_doc.value())
+            << " last_comment_span: " << last_comment_span.value();
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.MakeAlign(comments_doc.value()));
+
+    return AdjustCommentLimit(last_comment_span.value(), arena,
+                              comments_doc.value());
+  }
+  return last_entity_pos;
+}
+
 static DocRef FmtSingleStatementBlockInline(const StatementBlock& n,
                                             const Comments& comments,
                                             bool add_curls, DocArena& arena) {
@@ -712,20 +735,9 @@ static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
     stmt_pieces.push_back(ConcatNGroup(arena, stmt_semi));
     statements.push_back(ConcatN(arena, stmt_pieces));
 
-    // See if there are inline comments after the statement.
-    const Pos next_line(stmt_limit.filename(), stmt_limit.lineno() + 1, 0);
-    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
-            last_entity_pos, next_line, comments, arena, &last_comment_span)) {
-      VLOG(3) << "Saw after-statement comment: "
-              << arena.ToDebugString(comments_doc.value())
-              << " last_comment_span: " << last_comment_span.value();
-      statements.push_back(arena.space());
-      statements.push_back(arena.space());
-      statements.push_back(arena.MakeAlign(comments_doc.value()));
-
-      last_entity_pos = AdjustCommentLimit(last_comment_span.value(), arena,
-                                           comments_doc.value());
-    }
+    last_entity_pos =
+        CollectInlineComments(stmt_limit, last_entity_pos, comments, arena,
+                              statements, last_comment_span);
 
     if (!last_stmt) {
       statements.push_back(arena.hard_line());
@@ -1077,14 +1089,9 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
     last_member_pos = arm->span().limit();
 
     // See if there are inline comments after the arm.
-    const Pos next_line(member_limit.filename(), member_limit.lineno() + 1, 0);
-    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
-            last_member_pos, next_line, comments, arena, &last_comment_span)) {
-      nested.push_back(arena.space());
-      nested.push_back(arena.space());
-      nested.push_back(arena.MakeAlign(comments_doc.value()));
-      last_member_pos = last_comment_span->limit();
-    }
+    last_member_pos =
+        CollectInlineComments(member_limit, last_member_pos, comments, arena,
+                              nested, last_comment_span);
 
     if (i + 1 != n.arms().size()) {
       nested.push_back(arena.hard_line());
@@ -1989,25 +1996,15 @@ static void FmtStructMembers(const StructDef& n, const Comments& comments,
     }
 
     // See if there are inline comments after the member.
-    const Pos next_line(member_span.filename(),
-                        member_span.limit().lineno() + 1, 0);
-    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
-            last_member_pos, next_line, comments, arena, &last_comment_span)) {
-      VLOG(3) << "Saw after-member comment: "
-              << arena.ToDebugString(comments_doc.value())
-              << " last_comment_span: " << last_comment_span.value();
-      body_pieces.push_back(arena.space());
-      body_pieces.push_back(arena.space());
-      body_pieces.push_back(arena.MakeAlign(comments_doc.value()));
-      if (!last_member) {
-        body_pieces.push_back(arena.hard_line());
-      }
+    Pos new_last_member_pos =
+        CollectInlineComments(member_span.limit(), last_member_pos, comments,
+                              arena, body_pieces, last_comment_span);
 
-      last_member_pos = AdjustCommentLimit(last_comment_span.value(), arena,
-                                           comments_doc.value());
-    } else if (!last_member) {
-      body_pieces.push_back(arena.break1());
+    bool had_inline = new_last_member_pos != last_member_pos;
+    if (!last_member) {
+      body_pieces.push_back(had_inline ? arena.hard_line() : arena.break1());
     }
+    last_member_pos = new_last_member_pos;
   }
 
   // See if there are any comments to emit after the last statement to the end
@@ -2337,19 +2334,9 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
     last_entity_pos = member_span->limit();
 
     // See if there are inline comments after the statement.
-    const Pos next_line(member_limit.filename(), member_limit.lineno() + 1, 0);
-    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
-            last_entity_pos, next_line, comments, arena, &last_comment_span)) {
-      VLOG(3) << "Saw after-statement comment: "
-              << arena.ToDebugString(comments_doc.value())
-              << " last_comment_span: " << last_comment_span.value();
-      pieces.push_back(arena.space());
-      pieces.push_back(arena.space());
-      pieces.push_back(arena.MakeAlign(comments_doc.value()));
-
-      last_entity_pos = AdjustCommentLimit(last_comment_span.value(), arena,
-                                           comments_doc.value());
-    }
+    last_entity_pos =
+        CollectInlineComments(member_limit, last_entity_pos.value(), comments,
+                              arena, pieces, last_comment_span);
 
     if (i + 1 == n.top().size()) {
       // For the last module member we just put a trailing newline at EOF.
