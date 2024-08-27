@@ -117,8 +117,10 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
+        "//xls/ir:proc_testutils",
         "//xls/ir:value",
         "//xls/passes:dce_pass",
         "//xls/passes:inlining_pass",
@@ -126,15 +128,33 @@ cc_binary(
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/passes:unroll_pass",
+        "//xls/scheduling:proc_state_legalization_pass",
+        "//xls/scheduling:scheduling_pass",
         "//xls/solvers:z3_ir_equivalence",
         "//xls/solvers:z3_ir_translator",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+    ],
+)
+
+py_test(
+    name = "check_ir_equivalence_main_test",
+    srcs = ["check_ir_equivalence_main_test.py"],
+    data = [
+        ":check_ir_equivalence_main",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 

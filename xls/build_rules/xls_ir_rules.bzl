@@ -308,6 +308,7 @@ def get_ir_equivalence_test_cmd(
     ir_equivalence_tool = ctx.executable._xls_ir_equivalence_tool
     IR_EQUIVALENCE_FLAGS = (
         "timeout",
+        "activation_count",
     )
 
     ir_equivalence_args = dict(ctx.attr.ir_equivalence_args)
