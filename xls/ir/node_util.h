@@ -30,12 +30,14 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -135,9 +137,19 @@ inline bool IsNotOf(const Node* node, const Node* inverted) {
 }
 
 // Returns an IR expression whose value is equal to the bits of 'operand' at the
-// given indices concated together. 'indices' must be unique and sorted in an
-// ascending order.
+// given indices concated together. All 'indices' must be unique.
 absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64_t const> indices);
+
+// Returns an IR expression whose value is equal to the bits of 'node' at the
+// indices where 'mask' is true, discarding all bits where 'mask' is false.
+// 'node' must be bits-typed, and 'mask' must have the same bit count as 'node'.
+absl::StatusOr<Node*> GatherBits(Node* node, const Bits& mask);
+
+// Returns an IR expression whose bits is equal to the values in 'pattern' where
+// known, and otherwise fills in with the bits from 'node' (both going in
+// LSB-first order). 'node' must be bits-typed, and must have bit count equal to
+// the number of unknown bits in 'pattern'.
+absl::StatusOr<Node*> FillPattern(TernarySpan pattern, Node* node);
 
 // And-reduces the trailing (least significant) "bit_count" bits of node.
 // If `source_info` is provided, will set all generated nodes to have the given
