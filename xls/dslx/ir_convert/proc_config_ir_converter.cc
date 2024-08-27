@@ -234,7 +234,9 @@ absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
   XLS_RET_CHECK_NE(param_index, -1);
   if (!proc_data_->id_to_config_args.contains(proc_id_)) {
     return absl::InternalError(absl::StrCat(
-        "Proc ID \"", proc_id_.ToString(), "\" was not found in arg mapping."));
+        "Proc ID \"", proc_id_.ToString(),
+        "\" was not found in arg mapping; this can occur if multiple procs are "
+        "defined in a test file and IR evaluation is used."));
   }
 
   ProcConfigValue value =

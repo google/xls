@@ -84,6 +84,7 @@ cc_test(
         ":run_comparator",
         ":run_routines",
         "@com_google_googletest//:gtest",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
