@@ -22,7 +22,7 @@
 # must not call "bazel run" below ... otherwise bazel will remove some
 # of the symbolic links to external dependencies that we carefully
 # establish with the compilation-db build.
-bazel build dev_utils:run_clang_tidy_cached
+bazel build dev_tools:run_clang_tidy_cached
 
 $(dirname $0)/make-compilation-db.sh
 
@@ -30,4 +30,4 @@ $(dirname $0)/make-compilation-db.sh
 # our own from the toolchain we configured in the WORKSPACE.
 export CLANG_TIDY="${CLANG_TIDY:-$(bazel info output_base)/external/llvm_toolchain_llvm/bin/clang-tidy}"
 
-exec bazel-bin/dev_utils/run_clang_tidy_cached "$@"
+exec bazel-bin/dev_tools/run_clang_tidy_cached "$@"
