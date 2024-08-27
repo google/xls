@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/run_routines/run_comparator.h"
@@ -64,6 +65,9 @@ MATCHER_P4(IsTestResult, result, ran_count, skipped_count, failed_count, "") {
 }
 
 }  // namespace
+
+using status_testing::StatusIs;
+using testing::HasSubstr;
 
 TEST(RunRoutinesTest, TestInvokedFunctionDoesJit) {
   constexpr const char* kProgram = R"(
@@ -165,6 +169,48 @@ fn trivial(x: u5) -> bool { false }
       ParseAndTest(kProgram, kModuleName, std::string(temp_file.path()),
                    options));
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
+}
+
+TEST(RunRoutinesTest, TwoNonParametricProcs) {
+  constexpr std::string_view kProgram = R"(
+proc FirstProc {
+    data_r: chan<u32> in;
+    data_s: chan<u32> out;
+
+    init { () }
+
+    config(data_r: chan<u32> in, data_s: chan<u32> out) { (data_r, data_s) }
+
+    next( state: ()) {
+        let (tok, data) = recv(join(), data_r);
+        let tok = send(tok, data_s, data);
+    }
+}
+
+proc MyOtherProc {
+    data_r: chan<u32> in;
+    data_s: chan<u32> out;
+
+    init {()}
+
+    config(data_r: chan<u32> in, data_s: chan<u32> out) {
+        (data_r, data_s)
+    }
+
+    next( state: ()) {
+        let (tok, data) = recv(join(), data_r);
+        let tok = send(tok, data_s, data);
+    }
+})";
+
+  constexpr const char* kModuleName = "test";
+  ParseAndTestOptions options;
+  RunComparator jit_comparator(CompareMode::kJit);
+  options.run_comparator = &jit_comparator;
+
+  EXPECT_THAT(ParseAndTest(kProgram, kModuleName, "test_module.x", options),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Consider turning off comparison")));
 }
 
 TEST(RunRoutinesTest, FailingProc) {

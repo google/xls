@@ -33,7 +33,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -669,7 +668,9 @@ absl::StatusOr<TestResultData> ParseAndTest(
         result.Finish(TestResult::kSomeFailed, absl::Now() - start);
         return result;
       }
-      return ir_package_or.status();
+      return xabsl::StatusBuilder(ir_package_or.status())
+             << "Failed to convert input to IR for comparison. Consider "
+                "turning off comparison with `--compare=none`: ";
     }
     ir_package = std::move(ir_package_or).value().package;
     post_fn_eval_hook = [&ir_package, &import_data, &options](
