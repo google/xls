@@ -14,6 +14,7 @@
 
 #include "xls/passes/select_simplification_pass.h"
 
+#include <optional>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -31,6 +32,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
@@ -1485,6 +1487,61 @@ TEST_F(SelectSimplificationPassTest, ReorderableSelectWithOperandReuse) {
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("p1"), {m::Param("a"), m::Param("b"),
                                          m::Param("a"), m::Param("b")}));
+}
+
+TEST_F(SelectSimplificationPassTest, UnchangedBitsSelSqueeze) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue high = fb.Param("high", p->GetBitsType(10));
+  BValue left_a = fb.Param("left_a", p->GetBitsType(10));
+  BValue right_a = fb.Param("right_a", p->GetBitsType(10));
+  BValue mid = fb.Param("mid", p->GetBitsType(10));
+  BValue left_b = fb.Param("left_b", p->GetBitsType(10));
+  BValue right_b = fb.Param("right_b", p->GetBitsType(10));
+  BValue low = fb.Param("low", p->GetBitsType(10));
+  BValue left_concat =
+      fb.Concat({high, left_a, mid, left_b, low}, SourceInfo(), "left_concat");
+  BValue right_concat = fb.Concat({high, right_a, mid, right_b, low},
+                                  SourceInfo(), "right_concat");
+  fb.Tuple({
+      fb.Select(fb.Param("sel_selector", p->GetBitsType(1)),
+                {left_concat, right_concat}, std::nullopt, SourceInfo(),
+                "choose_sel"),
+      fb.PrioritySelect(fb.Param("prio", p->GetBitsType(1)), {left_concat},
+                        right_concat, SourceInfo(), "choose_prio"),
+      fb.OneHotSelect(fb.OneHot(fb.Param("ohs_selector", p->GetBitsType(1)),
+                                LsbOrMsb::kLsb),
+                      {left_concat, right_concat}, SourceInfo(), "choose_ohs"),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedRecordIr sri(p.get());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+
+  ASSERT_THAT(
+      f->return_value(),
+      m::Tuple(m::Concat(high.node(), m::TupleIndex(m::Select(), 1), mid.node(),
+                         m::TupleIndex(m::Select(), 0), low.node()),
+               m::Concat(high.node(), m::TupleIndex(m::PrioritySelect(), 1),
+                         mid.node(), m::TupleIndex(m::PrioritySelect(), 0),
+                         low.node()),
+               m::Concat(high.node(), m::TupleIndex(m::OneHotSelect(), 1),
+                         mid.node(), m::TupleIndex(m::OneHotSelect(), 0),
+                         low.node())));
+  EXPECT_EQ(f->return_value()->operand(0)->operand(1)->operand(
+                0),  // first tuple-index
+            f->return_value()->operand(0)->operand(3)->operand(
+                0));  // second tuple-index
+  EXPECT_EQ(f->return_value()->operand(1)->operand(1)->operand(
+                0),  // first tuple-index
+            f->return_value()->operand(1)->operand(3)->operand(
+                0));  // second tuple-index
+  EXPECT_EQ(f->return_value()->operand(2)->operand(1)->operand(
+                0),  // first tuple-index
+            f->return_value()->operand(2)->operand(3)->operand(
+                0));  // second tuple-index
 }
 
 }  // namespace
