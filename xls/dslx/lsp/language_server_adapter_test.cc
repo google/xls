@@ -193,5 +193,30 @@ fn messy() {
 )");
 }
 
+TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f(x: u32) -> u32 {
+  let y = x;
+  let z = y;
+  z
+})"));
+
+  const auto kInputRange =
+      verible::lsp::Range{.start = verible::lsp::Position{1, 0},
+                          .end = verible::lsp::Position{2, 0}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::InlayHint> hints,
+                           adapter.InlayHint(kUri, kInputRange));
+
+  ASSERT_EQ(hints.size(), 1);
+
+  const verible::lsp::InlayHint& hint = hints.at(0);
+  verible::lsp::Position want_position{1, 7};
+  EXPECT_TRUE(hint.position == want_position)
+      << "got: " << DebugString(hint.position)
+      << " want: " << DebugString(want_position);
+  EXPECT_EQ(hint.label, ": uN[32]");
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -50,6 +50,18 @@ using testing::UnorderedElementsAre;
 const Pos kFakePos("<fake>", 0, 0);
 const Span kFakeSpan(kFakePos, kFakePos);
 
+// Creates a struct type of the following form in the module, and returns the
+// `StructType` for it:
+//
+// ```dslx
+// struct S {
+//   x: u8,
+//   y: u1,
+// }
+// ```
+//
+// Note that the `StructType` has to refer to a `StructDef` AST node which is
+// why this helper is needed.
 StructType CreateSimpleStruct(Module& module) {
   std::vector<StructMember> ast_members;
   ast_members.emplace_back(StructMember{
@@ -74,6 +86,18 @@ StructType CreateSimpleStruct(Module& module) {
   return StructType(std::move(members), *struct_def);
 }
 
+// Creates a struct type of the following form in the module, and returns the
+// `StructType` for it:
+//
+// ```dslx
+// struct S<M: u32, N: u32> {
+//   x: u8,
+//   y: u1,
+// }
+// ```
+//
+// Note that the `StructType` has to refer to a `StructDef` AST node which is
+// why this helper is needed.
 StructType CreateSimpleParametricStruct(Module& module) {
   std::vector<StructMember> ast_members;
   ast_members.emplace_back(StructMember{
@@ -153,6 +177,7 @@ StructType CreateStructWithParametricExpr(Module& module) {
 TEST(TypeTest, TestU32) {
   BitsType t(false, 32);
   EXPECT_EQ("uN[32]", t.ToString());
+  EXPECT_EQ("uN[32]", t.ToInlayHintString());
   EXPECT_EQ("ubits", t.GetDebugTypeName());
   EXPECT_EQ(false, t.is_signed());
   EXPECT_EQ(false, t.HasEnum());
@@ -164,15 +189,39 @@ TEST(TypeTest, TestU32) {
 TEST(TypeTest, TestUnit) {
   TupleType t({});
   EXPECT_EQ("()", t.ToString());
+  EXPECT_EQ("()", t.ToInlayHintString());
   EXPECT_EQ("tuple", t.GetDebugTypeName());
   EXPECT_EQ(false, t.HasEnum());
   EXPECT_TRUE(t.GetAllDims().empty());
   EXPECT_FALSE(IsUBits(t));
 }
 
+TEST(TypeTest, TestTwoTupleOfStruct) {
+  Module module("test", /*fs_path=*/std::nullopt);
+  StructType s = CreateSimpleStruct(module);
+  std::unique_ptr<TupleType> t2 =
+      TupleType::Create2(s.CloneToUnique(), s.CloneToUnique());
+  EXPECT_EQ("(S { x: uN[8], y: uN[1] }, S { x: uN[8], y: uN[1] })",
+            t2->ToString());
+  EXPECT_EQ("(S, S)", t2->ToInlayHintString());
+  EXPECT_EQ("tuple", t2->GetDebugTypeName());
+  EXPECT_EQ(false, t2->HasEnum());
+}
+
+TEST(TypeTest, TestArrayOfStruct) {
+  Module module("test", /*fs_path=*/std::nullopt);
+  StructType s = CreateSimpleStruct(module);
+  ArrayType a(s.CloneToUnique(), TypeDim::CreateU32(2));
+  EXPECT_EQ("S { x: uN[8], y: uN[1] }[2]", a.ToString());
+  EXPECT_EQ("S[2]", a.ToInlayHintString());
+  EXPECT_EQ("array", a.GetDebugTypeName());
+  EXPECT_EQ(false, a.HasEnum());
+}
+
 TEST(TypeTest, TestArrayOfU32) {
   ArrayType t(std::make_unique<BitsType>(false, 32), TypeDim::CreateU32(1));
   EXPECT_EQ("uN[32][1]", t.ToString());
+  EXPECT_EQ("uN[32][1]", t.ToInlayHintString());
   EXPECT_EQ("array", t.GetDebugTypeName());
   EXPECT_EQ(false, t.HasEnum());
   std::vector<TypeDim> want_dims = {TypeDim::CreateU32(1),
@@ -195,6 +244,7 @@ TEST(TypeTest, TestEnum) {
   EXPECT_TRUE(t.HasEnum());
   EXPECT_EQ(std::vector<TypeDim>{TypeDim::CreateU32(2)}, t.GetAllDims());
   EXPECT_EQ("MyEnum", t.ToString());
+  EXPECT_EQ("MyEnum", t.ToInlayHintString());
   EXPECT_EQ("fake.x:MyEnum", t.ToStringFullyQualified());
 }
 
@@ -212,6 +262,7 @@ TEST(TypeTest, FromInterpValueSbits) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Type> ct,
                            Type::FromInterpValue(s8_m1));
   EXPECT_EQ(ct->ToString(), "sN[8]");
+  EXPECT_EQ(ct->ToInlayHintString(), "sN[8]");
 }
 
 TEST(TypeTest, FromInterpValueArrayU2) {
@@ -241,6 +292,7 @@ TEST(TypeTest, FromInterpValueTupleOfTwoNumbers) {
   });
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Type> ct, Type::FromInterpValue(v));
   EXPECT_EQ(ct->ToString(), "(uN[2], sN[3])");
+  EXPECT_EQ(ct->ToInlayHintString(), "(uN[2], sN[3])");
   EXPECT_FALSE(ct->IsUnit());
   EXPECT_THAT(ct->GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(5)));
 }
@@ -324,6 +376,7 @@ TEST(TypeTest, EmptyStructTypeIsNotUnit) {
   EXPECT_FALSE(s.HasEnum());
   EXPECT_FALSE(s.IsUnit());
   EXPECT_EQ(s.ToString(), "S {}");
+  EXPECT_EQ(s.ToInlayHintString(), "S");
   EXPECT_EQ(s.ToStringFullyQualified(), "relpath/to/test.x:S {}");
 }
 

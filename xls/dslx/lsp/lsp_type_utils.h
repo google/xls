@@ -24,7 +24,9 @@
 
 namespace xls::dslx {
 
+verible::lsp::Position ConvertPosToLspPosition(const Pos& pos);
 verible::lsp::Range ConvertSpanToLspRange(const Span& span);
+
 verible::lsp::Location ConvertSpanToLspLocation(const Span& span);
 
 // Note: DSLX positions have filenames included in them, whereas LSP positions

@@ -259,6 +259,23 @@ class Type {
   // Variation on `ToString()` to be used in user-facing error reporting.
   virtual std::string ToErrorString() const { return ToString(); }
 
+  // Returns an "inlay hint" representation of this type that will be shown
+  // e.g. in a code editor when a type is inferred.
+  //
+  // For example, for structs, this does not show the internal structure, just
+  // the nominal part (the struct name).
+  //
+  // e.g. consider:
+  //
+  // ```dslx-snippet
+  // fn f(s: MyStruct) -> MyStruct {
+  //   let s = MyStruct{foo: u32:42, ..s};
+  //        ^~~~~ inlay hint goes here as ": MyStruct"
+  //   s
+  // }
+  // ```
+  virtual std::string ToInlayHintString() const { return ToString(); }
+
   // Returns whether this type contains an enum type (transitively).
   virtual bool HasEnum() const = 0;
 
@@ -307,7 +324,7 @@ class Type {
   // during the creation of that instance of the type, the deduction system
   // would call this function with the `dims` being `5` and `6`, in that order.
   virtual std::unique_ptr<Type> AddNominalTypeDims(
-      absl::flat_hash_map<std::string, TypeDim>) const {
+      const absl::flat_hash_map<std::string, TypeDim>&) const {
     return CloneToUnique();
   }
 
@@ -375,10 +392,10 @@ class MetaType : public Type {
   }
 
   std::unique_ptr<Type> AddNominalTypeDims(
-      absl::flat_hash_map<std::string, TypeDim> dims_by_identifier)
+      const absl::flat_hash_map<std::string, TypeDim>& dims_by_identifier)
       const override {
     return std::make_unique<MetaType>(
-        wrapped_->AddNominalTypeDims(std::move(dims_by_identifier)));
+        wrapped_->AddNominalTypeDims(dims_by_identifier));
   }
 
   std::unique_ptr<Type> CloneToUnique() const override {
@@ -480,6 +497,10 @@ class StructType : public Type {
   // definition if one is available.
   std::string ToErrorString() const override;
 
+  std::string ToInlayHintString() const override {
+    return nominal_type().identifier();
+  }
+
   // Returns an InvalidArgument error status if this TupleType does not have
   // named members.
   absl::StatusOr<std::vector<std::string>> GetMemberNames() const;
@@ -520,7 +541,7 @@ class StructType : public Type {
   const std::vector<std::unique_ptr<Type>>& members() const { return members_; }
 
   std::unique_ptr<Type> AddNominalTypeDims(
-      absl::flat_hash_map<std::string, TypeDim> dims_by_identifier)
+      const absl::flat_hash_map<std::string, TypeDim>& dims_by_identifier)
       const override;
 
  private:
@@ -551,6 +572,8 @@ class TupleType : public Type {
   }
 
   explicit TupleType(std::vector<std::unique_ptr<Type>> members);
+
+  std::string ToInlayHintString() const override;
 
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleTuple(*this);
@@ -616,6 +639,8 @@ class ArrayType : public Type {
   bool HasEnum() const override { return element_type_->HasEnum(); }
   bool HasToken() const override { return element_type_->HasToken(); }
   bool IsAggregate() const override { return true; }
+
+  std::string ToInlayHintString() const override;
 
   bool operator==(const Type& other) const override;
 

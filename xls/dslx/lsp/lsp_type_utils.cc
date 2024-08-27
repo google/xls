@@ -22,13 +22,14 @@
 
 namespace xls::dslx {
 
+verible::lsp::Position ConvertPosToLspPosition(const Pos& pos) {
+  return verible::lsp::Position{.line = static_cast<int>(pos.lineno()),
+                                .character = static_cast<int>(pos.colno())};
+}
+
 verible::lsp::Range ConvertSpanToLspRange(const Span& span) {
-  verible::lsp::Range result = {
-      .start = {.line = static_cast<int>(span.start().lineno()),
-                .character = static_cast<int>(span.start().colno())},
-      .end = {.line = static_cast<int>(span.limit().lineno()),
-              .character = static_cast<int>(span.limit().colno())}};
-  return result;
+  return verible::lsp::Range{.start = ConvertPosToLspPosition(span.start()),
+                             .end = ConvertPosToLspPosition(span.limit())};
 }
 
 verible::lsp::Location ConvertSpanToLspLocation(const Span& span) {
