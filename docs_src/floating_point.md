@@ -352,16 +352,6 @@ pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
 Returns `true` if `x < y`. Denormals are Zero (DAZ). Always returns `false` if
 `x` or `y` is `NaN`.
 
-### `apfloat::round_towards_zero`
-
-```dslx-snippet
-pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
-                          x: APFloat<EXP_SZ, FRACTION_SZ>)
-    -> APFloat<EXP_SZ, FRACTION_SZ>
-```
-
-Returns an `APFloat` with all its bits past the decimal point set to `0`.
-
 ### `apfloat::to_int`
 
 ```dslx-snippet
@@ -432,7 +422,8 @@ pub fn ceil<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
-Finds the nearest integral `APFloat` greater than or equal to `f`.
+Returns the nearest integral `APFloat` of the same precision as `f` whose value
+is greater than or equal to `f`.
 
 ### `apfloat::floor`
 
@@ -441,7 +432,19 @@ pub fn floor<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
-Finds the nearest integral `APFloat` lesser than or equal to `f`.
+Returns the nearest integral `APFloat` of the same precision as `f` whose value
+is lesser than or equal to `f`.
+
+### `apfloat::trunc`
+
+```dslx-snippet
+pub fn trunc<EXP_SZ:u32, FRACTION_SZ:u32>(
+                          x: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Returns an `APFloat` of the same precision as `f` with all the fractional bits
+set to `0`.
 
 #### Implementation details
 

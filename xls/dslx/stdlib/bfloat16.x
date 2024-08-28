@@ -166,6 +166,8 @@ pub fn ceil(f: BF16) -> BF16 { apfloat::ceil(f) }
 
 pub fn floor(f: BF16) -> BF16 { apfloat::floor(f) }
 
+pub fn trunc(f: BF16) -> BF16 { apfloat::trunc(f) }
+
 // Converts the given signed integer to bfloat16. For s8, all values can be
 // captured exactly, so no need to round or handle overflow.
 pub fn from_int8(x: s8) -> BF16 {

@@ -32,16 +32,16 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 
-static double ComputeExpected(fp::F32Floor* jit_wrapper, float input) {
-  return floor(input);
+static float ComputeExpected(fp::F32Floor* jit_wrapper, float input) {
+  return floorf(input);
 }
 
-static double ComputeActual(fp::F32Floor* jit_wrapper, float input) {
+static float ComputeActual(fp::F32Floor* jit_wrapper, float input) {
   return jit_wrapper->Run(input).value();
 }
 
 static absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<float, double, fp::F32Floor> builder(
+  TestbenchBuilder<float, float, fp::F32Floor> builder(
       ComputeActual, ComputeExpected,
       []() { return fp::F32Floor::Create().value(); });
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);

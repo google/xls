@@ -397,3 +397,5 @@ pub fn has_negative_exponent(f: F32) -> bool { apfloat::has_negative_exponent(f)
 pub fn ceil(f: F32) -> F32 { apfloat::ceil(f) }
 
 pub fn floor(f: F32) -> F32 { apfloat::floor(f) }
+
+pub fn trunc(f: F32) -> F32 { apfloat::trunc(f) }
