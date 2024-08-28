@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# TODO: Everything here should go away and migrate to MODULE.bzlmod
+
 workspace(name = "com_google_xls")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")

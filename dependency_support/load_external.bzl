@@ -14,6 +14,9 @@
 
 """Provides helper that loads external repositories with third-party code."""
 
+# This file should go away over time: goal is to convert all these
+# dependencies and put into MODULE.bzlmod
+
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
@@ -172,14 +175,6 @@ def load_external_repositories():
         sha256 = "a0558ceb617d78ee93d7e6b62930b4aeebc02f1e5817d4d0dae53699f6f6c352",
         patch_args = ["-p1", "-R"],  # reverse patch until we upgrade bazel to 7.1; see: bazelbuild/bazel#19233.
         patches = ["//dependency_support/com_google_fuzztest:e317d5277e34948ae7048cb5e48309e0288e8df3.patch"],
-    )
-
-    # 2022-09-19
-    http_archive(
-        name = "com_grail_bazel_compdb",
-        sha256 = "a3ff6fe238eec8202270dff75580cba3d604edafb8c3408711e82633c153efa8",
-        strip_prefix = "bazel-compilation-database-940cedacdb8a1acbce42093bf67f3a5ca8b265f7",
-        urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
     # Tagged 2024-08-23, current as of 2024-08-24

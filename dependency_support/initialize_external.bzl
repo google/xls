@@ -14,10 +14,12 @@
 
 """Provides helper that initializes external repositories with third-party code."""
 
+# TODO: with MODULE.bzlmod, probably some of these can be removed now, with the
+# eventual goal that not of this is needed anymore.
+
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_google_benchmark//:bazel/benchmark_deps.bzl", "benchmark_deps")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
-load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
 load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
 load("@project_python//:defs.bzl", python_interpreter_target = "interpreter")
 load("@rules_7zip//:setup.bzl", "setup_7zip")  # needed by rules_hdl
@@ -48,6 +50,5 @@ def initialize_external_repositories():
     )
     initialize_boost()
     initialize_llvm()
-    bazel_compdb_deps()
     benchmark_deps()
     rules_pkg_dependencies()

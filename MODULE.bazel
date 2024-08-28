@@ -34,13 +34,7 @@ bazel_dep(name = "googletest", version = "1.15.2", repo_name = "com_google_googl
 bazel_dep(name = "nlohmann_json", version = "3.11.3", repo_name = "jsonhpp")
 bazel_dep(name = "boringssl", version = "0.0.0-20240530-2db0eb3")
 
-# Roughly these are all the targets we need
-#  find . -name BUILD | xargs sed 's/.*"\(@[^/"]*\).*/\1/p;d' | sort | uniq
-
-## Not yet available as bzlmod or other problems to be solved.
-# llvm-project comes in an older version.
-# ortools
-# rules_hdl
-# fuzztest
-# verible
-# xls pip deps
+# Not all targets we directly need are available yet. This how to find
+# them:
+# find . -name BUILD -o -name "*.bzl" | xargs sed 's/.*"\(@[_a-z0-9]*\).*/\1/p;d' | sort -u
+# Once added here, remove from the WORKSPACE http archives.
