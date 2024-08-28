@@ -1295,67 +1295,6 @@ fn test_fp_lt_2() {
     assert_eq(lt_2(nan, nan), u1:0);
 }
 
-// Returns an APFloat with all its bits past the decimal point set to 0.
-fn round_towards_zero<EXP_SZ: u32, FRACTION_SZ: u32>
-    (x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
-    const EXTENDED_FRACTION_SZ: u32 = FRACTION_SZ + u32:1;
-    let exp = unbiased_exponent(x) as s32;
-    let mask = !((u32:1 << ((FRACTION_SZ as u32) - (exp as u32))) - u32:1);
-    let trunc_fraction = x.fraction & (mask as uN[FRACTION_SZ]);
-    let result =
-        APFloat<EXP_SZ, FRACTION_SZ> { sign: x.sign, bexp: x.bexp, fraction: trunc_fraction };
-
-    let result = if exp >= (FRACTION_SZ as s32) { x } else { result };
-    let result = if exp < s32:0 { zero<EXP_SZ, FRACTION_SZ>(x.sign) } else { result };
-    let result = if is_nan<EXP_SZ, FRACTION_SZ>(x) {
-        qnan<EXP_SZ, FRACTION_SZ>()
-    } else {
-        if x.bexp == (bits[EXP_SZ]:255) { x } else { result }
-    };
-    result
-}
-
-#[test]
-fn round_towards_zero_test() {
-    // Special cases.
-    assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:0)), zero<u32:8, u32:23>(u1:0));
-    assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:1)), zero<u32:8, u32:23>(u1:1));
-    assert_eq(
-        round_towards_zero(APFloat<u32:8, u32:23> { sign: u1:1, bexp: u8:255, fraction: u23:0x123 }),
-        qnan<u32:8, u32:23>());
-    assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:0)), inf<u32:8, u32:23>(u1:0));
-    assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:1)), inf<u32:8, u32:23>(u1:1));
-
-    // Truncate all.
-    let fraction = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:50, fraction: u23:0x7fffff };
-    assert_eq(round_towards_zero(fraction), zero<u32:8, u32:23>(u1:0));
-
-    let fraction = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:126, fraction: u23:0x7fffff };
-    assert_eq(round_towards_zero(fraction), zero<u32:8, u32:23>(u1:0));
-
-    // Truncate all but hidden bit.
-    let fraction = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:127, fraction: u23:0x7fffff };
-    assert_eq(round_towards_zero(fraction), one<u32:8, u32:23>(u1:0));
-
-    // Truncate some.
-    let fraction = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0x7fffff };
-    let trunc_fraction =
-        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0x400000 };
-    assert_eq(round_towards_zero(fraction), trunc_fraction);
-
-    let fraction = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:149, fraction: u23:0x7fffff };
-    let trunc_fraction =
-        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:149, fraction: u23:0x7ffffe };
-    assert_eq(round_towards_zero(fraction), trunc_fraction);
-
-    // Truncate none.
-    let fraction = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:200, fraction: u23:0x7fffff };
-    assert_eq(round_towards_zero(fraction), fraction);
-
-    let fraction = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:200, fraction: u23:0x7fffff };
-    assert_eq(round_towards_zero(fraction), fraction);
-}
-
 // Returns the signed integer part of the input float, truncating any
 // fractional bits if necessary.
 // Exceptional cases (note: MIN does not yet exist but used for clarity):
@@ -3103,9 +3042,4 @@ fn trunc_zero_fractional_test() {
     let minus_zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:1);
     let minus_zero_dot_5_f32 = F32 { sign: u1:1, ..zero_dot_5_f32 };
     assert_eq(trunc(minus_zero_dot_5_f32), minus_zero_f32);
-}
-
-#[quickcheck]
-fn trunc_is_round_towards_zero(f: APFloat<u32:8, u32:23>) -> bool {
-    trunc(f) == round_towards_zero(f)
 }
