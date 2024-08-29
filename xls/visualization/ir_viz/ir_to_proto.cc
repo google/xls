@@ -225,6 +225,14 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     graph_node->set_id(GetNodeUniqueId(node, function_ids));
     graph_node->set_opcode(OpToString(node->op()));
     graph_node->set_ir(node->ToStringWithOperandTypes());
+    for (const auto& loc : node->loc().locations) {
+      viz::SourceLocation* graph_loc = graph_node->add_loc();
+      graph_loc->set_file(node->package()
+                              ->GetFilename(loc.fileno())
+                              .value_or(absl::StrCat(loc.fileno().value())));
+      graph_loc->set_line(loc.lineno().value());
+      graph_loc->set_column(loc.colno().value());
+    }
     XLS_ASSIGN_OR_RETURN(
         *graph_node->mutable_attributes(),
         NodeAttributes(node, node_to_critical_path_entry, query_engine,
