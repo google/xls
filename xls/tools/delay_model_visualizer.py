@@ -45,8 +45,10 @@ flags.mark_flag_as_required('output_dir')
 FLAGS = flags.FLAGS
 
 
-def maybe_plot_op_model(
-    op_model: delay_model.OpModel, specialization_kind: Optional[Text] = None
+def maybe_plot_estimator_and_data_points(
+    estimator: delay_model.Estimator,
+    specialization_kind: Optional[Text] = None,
+    specialization_details: Optional[delay_model.SpecializationDetails] = None,
 ):
   """Plots the given delay model and writes the figure to a file.
 
@@ -54,31 +56,34 @@ def maybe_plot_op_model(
   bounding box models.
 
   Args:
-    op_model: OpModel to plot.
+    estimator: Estimator to plot. Estimator class also contains data points.
     specialization_kind: Optional kind of specialization. Used in plot title and
       file name.
+    specialization_details: Optional specialization details. Used in plot title.
   """
   if not isinstance(
-      op_model, delay_model.RegressionEstimator
-  ) and not isinstance(op_model, delay_model.BoundingBoxEstimator):
+      estimator, delay_model.RegressionEstimator
+  ) and not isinstance(estimator, delay_model.BoundingBoxEstimator):
     return
 
   def delay_f(*args):
     try:
-      return op_model.raw_delay(args)
+      return estimator.raw_delay(args)
     except delay_model.Error:
       return 0
 
-  title = op_model.op
+  title = estimator.op
   if specialization_kind:
     title += ' ' + specialization_kind
+  if specialization_details:
+    title += ' ' + str(specialization_details)
 
-  if len(op_model.delay_expressions) == 1:
+  if len(estimator.delay_expressions) == 1:
     fig, ax = pyplot.subplots()
 
     # Plot the real data points as circles.
-    x_actual = [dp.delay_factors[0] for dp in op_model.raw_data_points]
-    y_actual = [dp.delay_ps for dp in op_model.raw_data_points]
+    x_actual = [dp.delay_factors[0] for dp in estimator.raw_data_points]
+    y_actual = [dp.delay_ps for dp in estimator.raw_data_points]
     ax.plot(x_actual, y_actual, 'o')
 
     # Plot a curve for the delay model.
@@ -88,16 +93,16 @@ def maybe_plot_op_model(
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_expression_description(op_model.delay_expressions[0])
+        delay_model.delay_expression_description(estimator.delay_expressions[0])
     )
     ax.set_ylabel('delay (ps)')
     pyplot.ylim(bottom=0)
     pyplot.xlim(left=1)
 
-  elif len(op_model.delay_expressions) == 2:
-    x_actual = [dp.delay_factors[0] for dp in op_model.raw_data_points]
-    y_actual = [dp.delay_factors[1] for dp in op_model.raw_data_points]
-    z_actual = [dp.delay_ps for dp in op_model.raw_data_points]
+  elif len(estimator.delay_expressions) == 2:
+    x_actual = [dp.delay_factors[0] for dp in estimator.raw_data_points]
+    y_actual = [dp.delay_factors[1] for dp in estimator.raw_data_points]
+    z_actual = [dp.delay_ps for dp in estimator.raw_data_points]
     fig = pyplot.figure()
     ax = fig.add_subplot(1, 1, 1, projection='3d')
 
@@ -122,7 +127,7 @@ def maybe_plot_op_model(
 
     # Plot the actual data points as circles with a line extending from the
     # model estimate.
-    for rdp in op_model.raw_data_points:
+    for rdp in estimator.raw_data_points:
       x_i, y_i = rdp.delay_factors[0:2]
       z_i = rdp.delay_ps
       z_est_i = delay_f(x_i, y_i)
@@ -131,10 +136,10 @@ def maybe_plot_op_model(
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_expression_description(op_model.delay_expressions[0])
+        delay_model.delay_expression_description(estimator.delay_expressions[0])
     )
     ax.set_ylabel(
-        delay_model.delay_expression_description(op_model.delay_expressions[1])
+        delay_model.delay_expression_description(estimator.delay_expressions[1])
     )
     ax.set_zlabel('delay (ps)')
 
@@ -143,9 +148,9 @@ def maybe_plot_op_model(
     return
 
   if specialization_kind:
-    filename = '%s_%s.png' % (op_model.op, specialization_kind)
+    filename = '%s_%s.png' % (estimator.op, specialization_kind)
   else:
-    filename = '%s.png' % op_model.op
+    filename = '%s.png' % estimator.op
 
   fig.savefig(os.path.join(FLAGS.output_dir, filename))
   pyplot.close(fig)
@@ -164,12 +169,16 @@ def main(argv):
 
   for op in dm.ops():
     op_model = dm.op_model(op)
-    maybe_plot_op_model(op_model.estimator)
+    maybe_plot_estimator_and_data_points(op_model.estimator)
 
-    for specialization_kind, estimator in op_model.specializations.items():
-      maybe_plot_op_model(
+    for (
+        specialization_kind,
+        specialization_details,
+    ), estimator in op_model.specializations.items():
+      maybe_plot_estimator_and_data_points(
           estimator,
           delay_model_pb2.SpecializationKind.Name(specialization_kind),
+          specialization_details,
       )
 
 
