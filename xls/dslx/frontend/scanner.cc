@@ -74,16 +74,29 @@ bool Scanner::TryDropChar(char target) {
   return false;
 }
 
-Token Scanner::PopComment(const Pos& start_pos) {
+Token Scanner::PopComment(const Pos& start_pos, bool allow_multiline) {
   std::string chars;
+  Pos end_pos = GetPos();
   while (!AtCharEof()) {
     char c = PopChar();
     chars.append(1, c);
+    end_pos = GetPos();
     if (c == '\n') {
+      // If we've collected a comment, conditionally look for a continuation of
+      // it on the next line at the same colno.
+      if (allow_multiline && !AtCharEof() && PeekChar() != '\n' &&
+          chars.size() > 1) {
+        DropLeadingWhitespace();
+        if (!AtCharEof() && PeekChar() == '/' && PeekChar2OrNull() == '/' &&
+            GetPos().colno() == start_pos.colno()) {
+          DropChar(2);
+          continue;
+        }
+      }
       break;
     }
   }
-  return Token(TokenKind::kComment, Span(start_pos, GetPos()), chars);
+  return Token(TokenKind::kComment, Span(start_pos, end_pos), chars);
 }
 
 absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
@@ -301,11 +314,11 @@ absl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
   return Token(TokenKind::kIdentifier, span, std::move(s));
 }
 
-std::optional<CommentData> Scanner::TryPopComment() {
+std::optional<CommentData> Scanner::TryPopComment(bool allow_multiline) {
   const Pos start_pos = GetPos();
   if (!AtEof() && PeekChar() == '/' && PeekChar2OrNull() == '/') {
     DropChar(2);
-    Token token = PopComment(start_pos);
+    Token token = PopComment(start_pos, allow_multiline);
     CHECK(token.GetValue().has_value());
     return CommentData{.span = token.span(), .text = token.GetValue().value()};
   }
@@ -323,7 +336,7 @@ absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
   }
   if (PeekChar() == '/' && PeekChar2OrNull() == '/') {
     DropChar(2);
-    Token token = PopComment(start_pos);
+    Token token = PopComment(start_pos, /* allow_multiline= */ false);
     return token;
   }
   return std::nullopt;
@@ -440,9 +453,12 @@ absl::StatusOr<Token> Scanner::Pop() {
     }
   } else {
     while (true) {
+      // Allow inline comments to be multi-line.
+      bool allow_multiline =
+          !AtCharEof() && !(GetPos().colno() == 0 || PeekChar() == '\n');
       DropLeadingWhitespace();
 
-      if (std::optional<CommentData> comment = TryPopComment()) {
+      if (std::optional<CommentData> comment = TryPopComment(allow_multiline)) {
         comments_.push_back(std::move(comment).value());
       } else {
         // Dropped whitespace and not seeing a comment, good to go scan a token.

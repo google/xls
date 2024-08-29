@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -41,6 +42,8 @@
 
 namespace xls::dslx {
 namespace {
+
+using ::testing::status::IsOkAndHolds;
 
 TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
   auto [module, lt] = MakeCastWithinLtComparison();
@@ -527,6 +530,26 @@ TEST_F(FunctionFmtTest, SingleStatementWithInlineComment) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, SingleStatementWithMultilineInlineComment) {
+  const std::string_view original = R"(fn f() {
+    ()  // inline comment here
+        // second half
+})";
+  EXPECT_THAT(DoFmt(original), IsOkAndHolds(original));
+}
+
+TEST_F(FunctionFmtTest, SingleStatementWithUnalignedMultilineInlineComment) {
+  const std::string_view original = R"(fn f() {
+    ()  // inline comment here
+          // second half unindents
+})";
+  const std::string_view want = R"(fn f() {
+    ()  // inline comment here
+    // second half unindents
+})";
+  EXPECT_THAT(DoFmt(original), IsOkAndHolds(want));
+}
+
 TEST_F(FunctionFmtTest, MatchWithCommentsOnArms) {
   const std::string_view original = R"(fn f(b:bool)->u32{match b{
   // comment on first arm
@@ -563,6 +586,26 @@ TEST_F(FunctionFmtTest, MatchWithInlineCommentsOnArms) {
     }
 })";
   EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, MatchWithMultilineInlineCommentsOnArms) {
+  const std::string_view original = R"(fn f(b:bool)->u32{match b{
+  true|false=>u32:42,// comment on first arm
+                     // continued comment on first arm.
+  _=>u32:64,// comment on second arm
+            // continued here.
+  }
+})";
+  const std::string_view want =
+      R"(fn f(b: bool) -> u32 {
+    match b {
+        true | false => u32:42,  // comment on first arm
+                                 // continued comment on first arm.
+        _ => u32:64,  // comment on second arm
+                      // continued here.
+    }
+})";
+  EXPECT_THAT(DoFmt(original), IsOkAndHolds(want));
 }
 
 TEST_F(FunctionFmtTest, MatchWithCommentOnNonBlockExpression) {
@@ -816,6 +859,19 @@ TEST_F(FunctionFmtTest, LetWithInlineCommentAndStatementOnSubsequentLine) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
   EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest,
+       LetWithMultilineInlineCommentAndStatementOnSubsequentLine) {
+  const std::string_view original =
+      R"(fn f() -> u32 {
+    let a = u32:42;  // May be the meaning of life.
+                     // but probably not.
+
+    let b = a + a;
+    b
+})";
+  EXPECT_THAT(DoFmt(original), IsOkAndHolds(original));
 }
 
 TEST_F(FunctionFmtTest, MultiLineTernary) {
@@ -1185,10 +1241,7 @@ TEST_F(ModuleFmtTest, StructDefWithMixedCommentAnnotations) {
 )");
 }
 
-// TODO(https://github.com/google/xls/issues/1273): 2024-01-23 We need to
-// coalesce these two fragments of comment into one comment entity to handle it
-// the way one would expect.
-TEST_F(ModuleFmtTest, DISABLED_StructDefWithMultilineInlineComment) {
+TEST_F(ModuleFmtTest, StructDefWithMultilineInlineComment) {
   Run(
       R"(pub struct Point {
     x: u32,  // this is a longer comment
@@ -1843,6 +1896,15 @@ TEST_F(ModuleFmtTest, ModuleConstantsWithInlineComments) {
       R"(pub const MOL = u32:42;  // may be important
 
 const TWO_TO_FIFTH = u32:32;  // 2^5
+)");
+}
+
+TEST_F(ModuleFmtTest, ModuleConstantsWithMultilineInlineComments) {
+  Run(
+      R"(pub const MOL = u32:42;  // may be important
+
+const TWO_TO_FIFTH = u32:32;  // 2^5
+                              // My favorite const.
 )");
 }
 

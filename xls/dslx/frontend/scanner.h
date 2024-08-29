@@ -224,8 +224,9 @@ class Scanner {
 
   // Pops all the characters from the current character cursor to the end of
   // line (or end of file) and returns that. (This is useful presuming a leading
-  // EOL-comment-delimiter was observed.)
-  Token PopComment(const Pos& start_pos);
+  // EOL-comment-delimiter was observed.) If `allow_multiline`, will look for a
+  // continuing comment on the next line.
+  Token PopComment(const Pos& start_pos, bool allow_multiline);
 
   // Pops all the whitespace characters and returns them as a token. This is
   // useful e.g. in syntax-highlighting mode where we want whitespace and
@@ -236,7 +237,7 @@ class Scanner {
   absl::StatusOr<Token> PopWhitespace(const Pos& start_pos);
 
   // Attempts to pop a comment and, if successful, returns the comment data.
-  std::optional<CommentData> TryPopComment();
+  std::optional<CommentData> TryPopComment(bool allow_multiline);
 
   // Attempts to pop either whitespace (as a token) or a comment (as a token) at
   // the current character stream position. If the character stream is

@@ -1543,6 +1543,16 @@ bool Comments::HasComments(const Span& in_span) const {
   return false;
 }
 
+static bool InRange(const Span& node_span, const CommentData& comment) {
+  // For multiline comments, consider in range if the comment start is within
+  // the node span. Since all comments end on the line below the comment,
+  // multiline comments have > 1 line between the start and end.
+  bool overlapping_multiline =
+      (comment.span.limit().lineno() - 1 > comment.span.start().lineno()) &&
+      node_span.Contains(comment.span.start());
+  return overlapping_multiline || node_span.Contains(comment.span);
+}
+
 std::vector<const CommentData*> Comments::GetComments(
     const Span& node_span) const {
   VLOG(3) << "GetComments; node_span: " << node_span;
@@ -1558,7 +1568,7 @@ std::vector<const CommentData*> Comments::GetComments(
       // subspan of a line, we don't want to give a comment that came
       // afterwards.
       const CommentData& cd = it->second;
-      if (node_span.Contains(cd.span)) {
+      if (InRange(node_span, cd)) {
         results.push_back(&cd);
       }
     }
