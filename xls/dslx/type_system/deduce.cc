@@ -2056,9 +2056,12 @@ absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
     }
     return TypeInferenceErrorStatus(
         span, u32.get(),
-        absl::StrFormat("Dimension value is too large, high bit is set: %#x; "
-                        "was a negative number accidentally cast to a size?",
-                        value));
+        absl::StrFormat(
+            "Dimension value is too large, high bit is set: %#x; "
+            "XLS only allows sizes up to 31 bits to guard against the more "
+            "common mistake of specifying a negative (constexpr) value as a "
+            "size.",
+            value));
   };
 
   // We allow numbers in dimension position to go without type annotations -- we
