@@ -103,6 +103,10 @@ pub fn to_int<RESULT_SZ: u32>(x: F32) -> sN[RESULT_SZ] {
 // Just a convenience for the most common case.
 pub fn to_int32(x: F32) -> s32 { apfloat::to_int<F32_EXP_SZ, F32_FRACTION_SZ, u32:32>(x) }
 
+pub fn to_uint<RESULT_SZ: u32>(x: F32) -> uN[RESULT_SZ] { apfloat::to_uint<RESULT_SZ>(x) }
+
+pub fn to_uint32(x: F32) -> u32 { apfloat::to_uint<u32:32>(x) }
+
 pub const F32_ONE_FLAT = u32:0x3f800000;
 
 pub fn tag(f: F32) -> FloatTag { apfloat::tag<F32_EXP_SZ, F32_FRACTION_SZ>(f) }
@@ -399,3 +403,19 @@ pub fn ceil(f: F32) -> F32 { apfloat::ceil(f) }
 pub fn floor(f: F32) -> F32 { apfloat::floor(f) }
 
 pub fn trunc(f: F32) -> F32 { apfloat::trunc(f) }
+
+#[quickcheck]
+fn int_roundtrip(x: s25) -> bool {
+    // every integer between 0 and 0x100_0000 can be exactly represented
+    to_int32(from_int32(x as s32)) == x as s32
+}
+
+#[quickcheck]
+fn uint_roundtrip(x: u24) -> bool {
+    // every integer between 0 and 0x100_0000 can be exactly represented, so only cover up to u24,
+    // i.e. values that fit in an s25.
+    to_uint<u32:24>(from_int32(x as s32)) == x
+}
+
+#[quickcheck]
+fn uint_roundtrip_as_u32(x: u24) -> bool { to_uint32(from_int32(x as s32)) == x as u32 }

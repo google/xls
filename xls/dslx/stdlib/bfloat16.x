@@ -98,7 +98,11 @@ pub fn to_int<RESULT_SZ: u32>(x: BF16) -> sN[RESULT_SZ] {
     apfloat::to_int<BF16_EXP_SZ, BF16_FRACTION_SZ, RESULT_SZ>(x)
 }
 
-pub fn to_int16(x: BF16) -> s16 { apfloat::to_int<BF16_EXP_SZ, BF16_FRACTION_SZ, BF16_TOTAL_SZ>(x) }
+pub fn to_int16(x: BF16) -> s16 { apfloat::to_int<BF16_EXP_SZ, BF16_FRACTION_SZ, u32:16>(x) }
+
+pub fn to_uint<RESULT_SZ: u32>(x: BF16) -> uN[RESULT_SZ] { apfloat::to_uint<RESULT_SZ>(x) }
+
+pub fn to_uint16(x: BF16) -> u16 { apfloat::to_uint<u32:16>(x) }
 
 pub fn tag(f: BF16) -> FloatTag { apfloat::tag(f) }
 
@@ -234,3 +238,9 @@ fn from_int8_test() {
 
 #[quickcheck]
 fn int_roundtrip(x: s8) -> bool { to_int16(from_int8(x)) == x as s16 }
+
+#[quickcheck]
+fn uint_roundtrip(x: u7) -> bool { to_uint<u32:7>(from_int8(x as s8)) == x }
+
+#[quickcheck]
+fn uint_roundtrip_as_u16(x: u7) -> bool { to_uint16(from_int8(x as s8)) == x as u16 }

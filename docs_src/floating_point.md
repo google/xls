@@ -376,6 +376,27 @@ X operand                          | `sN[RESULT_SZ]` value
 [^1]: Does not exist yet (https://github.com/google/xls/issues/1556) but used
     here for clarity.
 
+### `apfloat::to_uint`
+
+```dslx-snippet
+pub fn to_uint<RESULT_SZ:u32, EXP_SZ: u32, FRACTION_SZ: u32>(
+               x: APFloat<EXP_SZ, FRACTION_SZ>) -> uN[RESULT_SZ]
+```
+
+Casts the input float to the nearest unsigned integer. Any fractional bits are
+truncated and negative floats are clamped to 0.
+
+Exceptional cases:
+
+X operand                          | `uN[RESULT_SZ]` value
+---------------------------------- | ---------------------
+`NaN`                              | `uN[RESULT_SZ]::ZERO`
+`+Inf`                             | `uN[RESULT_SZ]::MAX`
+`-Inf`                             | `uN[RESULT_SZ]::ZERO`
++0.0, -0.0 or any subnormal number | `uN[RESULT_SZ]::ZERO`
+`> uN[RESULT_SZ]::MAX`             | `uN[RESULT_SZ]::MAX`
+`< uN[RESULT_SZ]::ZERO`            | `uN[RESULT_SZ]::ZERO`
+
 ### `apfloat::add/sub`
 
 ```dslx-snippet
@@ -635,12 +656,16 @@ pub const F32_ONE_FLAT = u32:0x3f800000;
 Besides `float32` specializations of the functions in `apfloat.x`, the following
 functions are defined just for `float32`.
 
-### `float32::to_int32`, `float32::from_int32`
+### `float32::to_int32`, `float32::to_uint32`, `float32::from_int32`
+
 ```dslx-snippet
 pub fn to_int32(x: F32) -> s32
+pub fn to_uint32(x: F32) -> u32
 pub fn from_int32(x: s32) -> F32
 ```
-Convert the `F32` struct to and from a 32bit integer.
+
+Convert the `F32` struct to a 32 bit signed/unsigned integer, or from a 32 bit
+signed integer to an `F32`.
 
 # `float32::fixed_fraction`
 ```dslx-snippet
@@ -688,11 +713,16 @@ pub type TaggedBF16 = (FloatTag, BF16);
 Besides `bfloat16` specializations of the functions in `apfloat.x`, the following
 functions are defined just for `bfloat16`.
 
-### `bfloat16:to_int16`
+### `bfloat16:to_int16`, `bfloat16:to_uint16`, `bfloat16::from_int8`
+
 ```dslx-snippet
 pub fn to_int16(x: BF16) -> s16
+pub fn to_uint16(x: BF16) -> u16
+pub fn from_int8(x: s8) -> BF16
 ```
-Convert the the `BF16` struct into a 16 bit integer.
+
+Convert the `BF16` struct to a 16 bit signed/unsigned integer, or from an 8 bit
+signed integer to a `BF16`.
 
 ### `bfloat16:increment_fraction`
 ```dslx-snippet
