@@ -530,7 +530,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(assert property (@(posedge my_clk) disable iff ($sampled(my_rst)) a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
+              R"(assert property (@(posedge my_clk) disable iff ($sampled(my_rst || $isunknown(a_d < 32'h0000_002a))) a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }

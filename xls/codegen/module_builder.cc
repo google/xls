@@ -1109,19 +1109,18 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     }
   }
 
-  Expression* disable_iff;
+  // Since XLS provides no guarantees RE: X-propagation, disable the assert if
+  // the signal is unknown. This avoids triggering the assert when the circuit
+  // is in an invalid state.
+  Expression* disable_iff = file_->Make<SystemFunctionCall>(
+      asrt->loc(), "isunknown", std::vector<Expression*>({condition}));
   if (reset().has_value()) {
     // Disable the assert when in reset.
-    disable_iff = reset()->active_low
-                      ? static_cast<Expression*>(
-                            file_->LogicalNot(reset()->signal, asrt->loc()))
-                      : static_cast<Expression*>(reset()->signal);
-  } else {
-    // As a backup if no reset is available, disable the assert if the signal is
-    // unknown. This is not great but avoids unconditionally triggering the
-    // assert at the start of simulation.
-    disable_iff = file_->Make<SystemFunctionCall>(
-        asrt->loc(), "isunknown", std::vector<Expression*>({condition}));
+    disable_iff = file_->LogicalOr(
+        reset()->active_low ? static_cast<Expression*>(file_->LogicalNot(
+                                  reset()->signal, asrt->loc()))
+                            : static_cast<Expression*>(reset()->signal),
+        disable_iff, asrt->loc());
   }
 
   if (clock() == nullptr) {
