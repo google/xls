@@ -1261,11 +1261,10 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   // optimizations.
   XLS_ASSIGN_OR_RETURN(bool clamp_changed,
                        ClampArrayIndexIndices(func, query_engine));
-  changed = changed || clamp_changed;
-
-  // Clamping the array indices results in new nodes that we *do* want to be
-  // able to fully optimize, so we re-populate the query engine.
-  XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
+  if (clamp_changed) {
+    changed = true;
+    XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
+  }
 
   // Before the worklist-driven optimization look and replace "macro" patterns
   // such as constructing an entire array with array update operations,
@@ -1273,7 +1272,10 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(
       bool flatten_changed,
       FlattenSequentialUpdates(func, query_engine, opt_level_));
-  changed = changed || flatten_changed;
+  if (flatten_changed) {
+    changed = true;
+    XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
+  }
 
   std::deque<Node*> worklist;
   absl::flat_hash_set<Node*> worklist_set;
@@ -1297,11 +1299,10 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   };
 
   // Seed the worklist with all Array, ArrayIndex, ArrayUpdate, Select, and
-  // PrioritySelect operations. Inserting them in a topo sort has a dramatic
-  // effect on compile time due to interactions between the optimization which
-  // replaces array-indexes of select with selects of array-indexes, and other
-  // optimizations.
-  for (Node* node : TopoSort(func)) {
+  // PrioritySelect operations. By favoring reverse-topo-sort order, we give
+  // ourselves the best chance of collapsing (e.g.) array updates written as
+  // separate updates for each dimension.
+  for (Node* node : ReverseTopoSort(func)) {
     if (!node->IsDead() &&
         node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate, Op::kSel,
                     Op::kPrioritySel})) {
