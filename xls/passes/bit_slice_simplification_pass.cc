@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -26,7 +27,9 @@
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
@@ -504,30 +507,40 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   return false;
 }
 
-// Replace bit_slice_update operations where the start index is constant with
-// bit slices and concats.
-absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update,
-                                                   QueryEngine* query_engine) {
-  const std::optional<Bits> start =
-      query_engine->KnownValueAsBits(update->start());
-  if (!start.has_value()) {
+// Replace bit slice updates with out-of-bounds start indices with a no-op.
+absl::StatusOr<bool> SimplifyOutOfBoundsBitSliceUpdate(
+    BitSliceUpdate* update, QueryEngine* query_engine) {
+  int64_t operand_width = update->to_update()->BitCountOrDie();
+
+  const Bits min_start = query_engine->MinUnsignedValue(update->start());
+  if (bits_ops::ULessThan(min_start, operand_width)) {
     return false;
   }
 
-  if (bits_ops::UGreaterThanOrEqual(*start, update->BitCountOrDie())) {
-    // Bit slice update is entirely out of bounds. This is a noop. Replace
-    // the update operation with the operand which is being updated.
-    XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(update->to_update()));
-    return true;
-  }
-  int64_t start_int64 = start->ToUint64().value();
-  int64_t orig_width = update->BitCountOrDie();
-  int64_t update_width = update->update_value()->BitCountOrDie();
+  VLOG(3) << absl::StreamFormat(
+      "Removing known-out-of-bounds bit-slice-update %s", update->GetName());
+  XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(update->to_update()));
+  return true;
+}
 
-  // Replace bitslice update with expression of slices of the update value
-  // and the original vector.
+// Creates a node equivalent to a bit slice update of `to_update` starting at
+// `start` with the given `update_value`. Per documentation, out-of-bounds bits
+// are ignored.
+absl::StatusOr<Node*> EquivalentStaticBitSliceUpdate(
+    Node* to_update, const Value& start, Node* update_value,
+    const SourceInfo& loc = SourceInfo()) {
+  int64_t orig_width = to_update->BitCountOrDie();
+  int64_t update_width = update_value->BitCountOrDie();
+
+  XLS_RET_CHECK(start.IsBits());
+  if (bits_ops::UGreaterThanOrEqual(start.bits(), orig_width)) {
+    // Bit slice update is entirely out of bounds. This is a no-op.
+    return to_update;
+  }
+  int64_t start_index = static_cast<int64_t>(*start.bits().ToUint64());
+
   std::vector<Node*> concat_operands;
-  if (start_int64 + update_width < orig_width) {
+  if (start_index + update_width < orig_width) {
     // Bit slice update is entirely in bounds and the most-significant
     // bit(s) of the original vector are not updated.
     //
@@ -538,13 +551,13 @@ absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update,
     //
     //  concat(bitslice(original, start=0), update, bitslice(original, ...)
     XLS_ASSIGN_OR_RETURN(
-        Node * slice, update->function_base()->MakeNode<BitSlice>(
-                          update->loc(), update->to_update(),
-                          /*start=*/start_int64 + update_width,
-                          /*width=*/orig_width - (start_int64 + update_width)));
+        Node * slice, to_update->function_base()->MakeNode<BitSlice>(
+                          loc, to_update,
+                          /*start=*/start_index + update_width,
+                          /*width=*/orig_width - (start_index + update_width)));
     concat_operands.push_back(slice);
-    concat_operands.push_back(update->update_value());
-  } else if (start_int64 + update_width == orig_width) {
+    concat_operands.push_back(update_value);
+  } else if (start_index + update_width == orig_width) {
     // Bit slice update extends right up to end of updated vector.
     //
     //            0                              N
@@ -553,7 +566,7 @@ absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update,
     //
     //
     //  concat(bitslice(original, start=0), update)
-    concat_operands.push_back(update->update_value());
+    concat_operands.push_back(update_value);
   } else {
     // The update value is partially out of bounds.
     //
@@ -563,63 +576,275 @@ absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update,
     //
     //
     //  concat(bitslice(original, start=0), bitslice(update))
-    XLS_RET_CHECK_GT(start_int64 + update_width, orig_width);
-    int64_t excess = start_int64 + update_width - orig_width;
+    XLS_RET_CHECK_GT(start_index + update_width, orig_width);
+    int64_t excess = start_index + update_width - orig_width;
     XLS_ASSIGN_OR_RETURN(Node * slice,
-                         update->function_base()->MakeNode<BitSlice>(
-                             update->loc(), update->update_value(),
+                         to_update->function_base()->MakeNode<BitSlice>(
+                             loc, update_value,
                              /*start=*/0,
                              /*width=*/update_width - excess));
     concat_operands.push_back(slice);
   }
-  if (start_int64 > 0) {
-    XLS_ASSIGN_OR_RETURN(Node * slice,
-                         update->function_base()->MakeNode<BitSlice>(
-                             update->loc(), update->to_update(),
-                             /*start=*/0,
-                             /*width=*/start_int64));
+  if (start_index > 0) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * slice,
+        to_update->function_base()->MakeNode<BitSlice>(loc, to_update,
+                                                       /*start=*/0,
+                                                       /*width=*/start_index));
     concat_operands.push_back(slice);
+  }
+
+  if (concat_operands.size() == 1) {
+    return concat_operands.front();
+  }
+  return to_update->function_base()->MakeNode<Concat>(loc, concat_operands);
+}
+
+// Replace bit_slice_update operations where the start index is constant with
+// bit slices and concats.
+absl::StatusOr<bool> SimplifyLiteralBitSliceUpdate(BitSliceUpdate* update,
+                                                   QueryEngine* query_engine) {
+  const std::optional<Value> start = query_engine->KnownValue(update->start());
+  if (!start.has_value()) {
+    return false;
   }
   VLOG(3) << absl::StreamFormat(
       "Replacing bitslice update %s with constant start index with concat "
       "and bitslice operations",
       update->GetName());
-  if (concat_operands.size() == 1) {
-    XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(concat_operands.front()));
-  } else {
-    XLS_RETURN_IF_ERROR(
-        update->ReplaceUsesWithNew<Concat>(concat_operands).status());
-  }
-
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_update,
+      EquivalentStaticBitSliceUpdate(update->to_update(), *start,
+                                     update->update_value(), update->loc()));
+  XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(new_update));
   return true;
 }
 
-// Replace dynamic bit slices with literal indices with a static bit slice.
-absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(DynamicBitSlice* bit_slice,
-                                                    QueryEngine* query_engine) {
-  const std::optional<Bits> start_bits =
-      query_engine->KnownValueAsBits(bit_slice->start());
-  if (!start_bits.has_value()) {
+bool IsSelectOfLiterals(Node* node, QueryEngine* query_engine) {
+  auto is_literal_or_select_of_literals = [&](Node* node) {
+    return query_engine->IsFullyKnown(node) ||
+           IsSelectOfLiterals(node, query_engine);
+  };
+
+  if (node->Is<Select>()) {
+    Select* sel = node->As<Select>();
+    return sel->AllCases([&](Node* case_value) {
+      return is_literal_or_select_of_literals(case_value);
+    });
+  }
+  if (node->Is<PrioritySelect>()) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    return absl::c_all_of(sel->cases(),
+                          [&](Node* case_value) {
+                            return is_literal_or_select_of_literals(case_value);
+                          }) &&
+           is_literal_or_select_of_literals(sel->default_value());
+  }
+  if (node->Is<OneHotSelect>()) {
+    OneHotSelect* sel = node->As<OneHotSelect>();
+    return absl::c_all_of(sel->cases(), [&](Node* case_value) {
+      return is_literal_or_select_of_literals(case_value);
+    });
+  }
+  return false;
+}
+
+absl::StatusOr<Node*> LiftThroughSelectsOfLiterals(
+    Node* node, QueryEngine* query_engine,
+    const std::function<absl::StatusOr<Node*>(const Value&)>& lift_to_literal) {
+  if (std::optional<Value> known_value = query_engine->KnownValue(node);
+      known_value.has_value()) {
+    return lift_to_literal(*known_value);
+  }
+
+  Node* selector;
+  absl::Span<Node* const> cases;
+  std::optional<Node*> default_value;
+  if (node->Is<Select>()) {
+    Select* sel = node->As<Select>();
+    selector = sel->selector();
+    cases = sel->cases();
+    default_value = sel->default_value();
+  } else if (node->Is<PrioritySelect>()) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    selector = sel->selector();
+    cases = sel->cases();
+    default_value = sel->default_value();
+  } else if (node->Is<OneHotSelect>()) {
+    OneHotSelect* sel = node->As<OneHotSelect>();
+    selector = sel->selector();
+    cases = sel->cases();
+    default_value = std::nullopt;
+  } else {
+    return absl::InternalError(
+        absl::StrCat("LiftThroughSelectsOfLiterals invoked on a node that was "
+                     "not a select of literals: ",
+                     node->ToString()));
+  }
+
+  std::vector<Node*> new_cases;
+  std::optional<Node*> new_default_value = std::nullopt;
+  new_cases.reserve(cases.size());
+  for (Node* case_value : cases) {
+    XLS_ASSIGN_OR_RETURN(Node * new_case_value,
+                         LiftThroughSelectsOfLiterals(case_value, query_engine,
+                                                      lift_to_literal));
+    new_cases.push_back(new_case_value);
+  }
+  if (default_value.has_value()) {
+    XLS_ASSIGN_OR_RETURN(new_default_value,
+                         LiftThroughSelectsOfLiterals(
+                             *default_value, query_engine, lift_to_literal));
+  }
+
+  if (node->Is<Select>()) {
+    return node->function_base()->MakeNode<Select>(
+        node->loc(), selector, new_cases, new_default_value);
+  }
+  if (node->Is<PrioritySelect>()) {
+    XLS_RET_CHECK(new_default_value.has_value());
+    return node->function_base()->MakeNode<PrioritySelect>(
+        node->loc(), selector, new_cases, *new_default_value);
+  }
+  XLS_RET_CHECK(node->Is<OneHotSelect>());
+  XLS_RET_CHECK(!new_default_value.has_value());
+  return node->function_base()->MakeNode<OneHotSelect>(node->loc(), selector,
+                                                       new_cases);
+}
+
+// Hoist bit slice updates above selects of literals, where they can be turned
+// into static operations.
+absl::StatusOr<bool> SimplifySelectOfLiteralsBitSliceUpdate(
+    BitSliceUpdate* update, QueryEngine* query_engine) {
+  Node* start = update->start();
+  if (!IsSelectOfLiterals(start, query_engine)) {
     return false;
   }
 
+  VLOG(3) << absl::StreamFormat(
+      "Hoisting bit-slice-update %s into its start (a select of literals)",
+      update->GetName());
+  XLS_ASSIGN_OR_RETURN(Node * rewritten_slice,
+                       LiftThroughSelectsOfLiterals(
+                           start, query_engine,
+                           [&](const Value& literal) -> absl::StatusOr<Node*> {
+                             return EquivalentStaticBitSliceUpdate(
+                                 update->to_update(),
+                                 /*start=*/literal, update->update_value(),
+                                 update->loc());
+                           }));
+  XLS_RETURN_IF_ERROR(update->ReplaceUsesWith(rewritten_slice));
+  return true;
+}
+
+// Replace dynamic bit slices with out-of-bounds start indices with a literal
+// zero.
+absl::StatusOr<bool> SimplifyOutOfBoundsDynamicBitSlice(
+    DynamicBitSlice* bit_slice, QueryEngine* query_engine) {
   int64_t result_width = bit_slice->width();
   int64_t operand_width = bit_slice->to_slice()->BitCountOrDie();
 
-  // TODO(meheff): Handle OOB case.
-  if (bits_ops::UGreaterThan(*start_bits, operand_width - result_width)) {
+  const Bits min_start = query_engine->MinUnsignedValue(bit_slice->start());
+  if (bits_ops::ULessThan(min_start, operand_width)) {
     return false;
   }
 
-  XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits->ToUint64());
   VLOG(3) << absl::StreamFormat(
-      "Replacing dynamic bitslice %s with static bitslice",
+      "Replacing known-out-of-bounds dynamic bitslice %s with literal zero",
       bit_slice->GetName());
-  XLS_RETURN_IF_ERROR(bit_slice
-                          ->ReplaceUsesWithNew<BitSlice>(bit_slice->to_slice(),
-                                                         /*start=*/start,
-                                                         /*width=*/result_width)
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      bit_slice->ReplaceUsesWithNew<Literal>(Value(UBits(0, result_width)))
+          .status());
+  return true;
+}
+
+// Creates a static-slice node equivalent to a dynamic bit slice of `to_slice`
+// starting at `start` with the given `width`. Per documentation, this means
+// that any bits sliced past the end of `to_slice` are treated as zeros.
+absl::StatusOr<Node*> EquivalentStaticBitSlice(
+    Node* to_slice, const Value& start, int64_t width,
+    const SourceInfo& loc = SourceInfo()) {
+  int64_t operand_width = to_slice->BitCountOrDie();
+
+  XLS_RET_CHECK(start.IsBits());
+  if (bits_ops::UGreaterThanOrEqual(start.bits(), operand_width)) {
+    return to_slice->function_base()->MakeNode<Literal>(SourceInfo(),
+                                                        Value(UBits(0, width)));
+  }
+  int64_t start_index = static_cast<int64_t>(*start.bits().ToUint64());
+
+  XLS_ASSIGN_OR_RETURN(Node * static_slice,
+                       to_slice->function_base()->MakeNode<BitSlice>(
+                           loc, to_slice,
+                           /*start=*/start_index,
+                           /*width=*/
+                           std::min(width, operand_width - start_index)));
+  if (static_slice->BitCountOrDie() < width) {
+    XLS_ASSIGN_OR_RETURN(static_slice,
+                         to_slice->function_base()->MakeNode<ExtendOp>(
+                             loc, static_slice, width, Op::kZeroExt));
+  }
+  return static_slice;
+}
+
+// Replace dynamic bit slices with literal starts with a static bit slice.
+absl::StatusOr<bool> SimplifyLiteralDynamicBitSlice(DynamicBitSlice* bit_slice,
+                                                    QueryEngine* query_engine) {
+  const std::optional<Value> start =
+      query_engine->KnownValue(bit_slice->start());
+  if (!start.has_value()) {
+    return false;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * static_slice,
+      EquivalentStaticBitSlice(bit_slice->to_slice(), *start,
+                               bit_slice->width(), bit_slice->loc()));
+  VLOG(3) << absl::StreamFormat(
+      "Replacing dynamic bitslice %s with static equivalent",
+      bit_slice->GetName());
+  XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(static_slice));
+  return true;
+}
+
+// Hoist dynamic bit slices above selects of literals, where they can be
+// turned into static bit slices. For example:
+//
+//   ...
+//   start1: bits[32] = literal(value=5)
+//   start2: bits[32] = literal(value=25)
+//   p: bits[32] = select(x, cases=[start1, start2])
+//   q: bits[45] = dynamic_bit_slice(to_slice, p, width=45)
+//   ...
+//
+// becomes:
+//
+//   ...
+//   slice1: bits[45] = bit_slice(to_slice, start=5, width=45)
+//   slice2: bits[45] = bit_slice(to_slice, start=25, width=45)
+//   q: bits[45] = select(x, cases=[slice1, slice2])
+//   ...
+//
+absl::StatusOr<bool> SimplifySelectOfLiteralsDynamicBitSlice(
+    DynamicBitSlice* bit_slice, QueryEngine* query_engine) {
+  Node* start = bit_slice->start();
+  if (!IsSelectOfLiterals(start, query_engine)) {
+    return false;
+  }
+
+  VLOG(3) << absl::StreamFormat(
+      "Hoisting dynamic bitslice %s into its start (a select of literals)",
+      bit_slice->GetName());
+  XLS_ASSIGN_OR_RETURN(Node * rewritten_slice,
+                       LiftThroughSelectsOfLiterals(
+                           start, query_engine,
+                           [&](const Value& literal) -> absl::StatusOr<Node*> {
+                             return EquivalentStaticBitSlice(
+                                 bit_slice->to_slice(),
+                                 /*start=*/literal, bit_slice->width(),
+                                 bit_slice->loc());
+                           }));
+  XLS_RETURN_IF_ERROR(bit_slice->ReplaceUsesWith(rewritten_slice));
   return true;
 }
 
@@ -692,9 +917,23 @@ absl::StatusOr<bool> SimplifyScaledDynamicBitSlice(DynamicBitSlice* bit_slice,
 
 absl::StatusOr<bool> SimplifyDynamicBitSlice(DynamicBitSlice* bit_slice,
                                              QueryEngine* query_engine) {
+  XLS_ASSIGN_OR_RETURN(
+      bool oob_bit_slice_changed,
+      SimplifyOutOfBoundsDynamicBitSlice(bit_slice, query_engine));
+  if (oob_bit_slice_changed) {
+    return true;
+  }
+
   XLS_ASSIGN_OR_RETURN(bool literal_bit_slice_changed,
                        SimplifyLiteralDynamicBitSlice(bit_slice, query_engine));
   if (literal_bit_slice_changed) {
+    return true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      bool sol_bit_slice_changed,
+      SimplifySelectOfLiteralsDynamicBitSlice(bit_slice, query_engine));
+  if (sol_bit_slice_changed) {
     return true;
   }
 
@@ -795,9 +1034,22 @@ absl::StatusOr<bool> SimplifyScaledBitSliceUpdate(BitSliceUpdate* update,
 
 absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update,
                                             QueryEngine* query_engine) {
+  XLS_ASSIGN_OR_RETURN(bool oob_update_changed,
+                       SimplifyOutOfBoundsBitSliceUpdate(update, query_engine));
+  if (oob_update_changed) {
+    return true;
+  }
+
   XLS_ASSIGN_OR_RETURN(bool literal_update_changed,
                        SimplifyLiteralBitSliceUpdate(update, query_engine));
   if (literal_update_changed) {
+    return true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      bool sol_update_changed,
+      SimplifySelectOfLiteralsBitSliceUpdate(update, query_engine));
+  if (sol_update_changed) {
     return true;
   }
 

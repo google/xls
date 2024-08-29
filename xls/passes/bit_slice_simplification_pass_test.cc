@@ -292,7 +292,7 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStart) {
               m::BitSlice(m::Param(), /*start=*/6, /*width=*/15));
 }
 
-TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStartOob) {
+TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStartPartialOob) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(x: bits[42]) -> bits[15] {
@@ -301,8 +301,80 @@ TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStartOob) {
  }
   )",
                                                        p.get()));
-  ASSERT_THAT(Run(f), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(), m::DynamicBitSlice(m::Param(), m::Literal()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ZeroExt(m::BitSlice(m::Param("x"), /*start=*/35, /*width=*/7)));
+}
+
+TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralStartFullyOob) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42]) -> bits[15] {
+    literal.1: bits[23] = literal(value=64)
+    ret result: bits[15] = dynamic_bit_slice(x, literal.1, width=15)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(0));
+}
+
+TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceSelectOfLiteralStart) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42], c: bits[2]) -> bits[15] {
+    literal.1: bits[23] = literal(value=5)
+    literal.2: bits[23] = literal(value=35)
+    literal.3: bits[23] = literal(value=64)
+    start: bits[23] = priority_sel(c, cases=[literal.1, literal.2], default=literal.3)
+    ret result: bits[15] = dynamic_bit_slice(x, start, width=15)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::Param("c"),
+                        /*cases=*/
+                        {
+                            m::BitSlice(m::Param("x"), 5, 15),
+                            m::ZeroExt(m::BitSlice(m::Param("x"), 35, 7)),
+                        },
+                        /*default_value=*/m::Literal(0)));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       DynamicBitSliceNestedSelectOfLiteralStart) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42], c1: bits[2], c2: bits[1]) -> bits[15] {
+    literal.1: bits[23] = literal(value=5)
+    literal.2: bits[23] = literal(value=10)
+    literal.3: bits[23] = literal(value=35)
+    literal.4: bits[23] = literal(value=64)
+    sel.5: bits[23] = sel(c2, cases=[literal.2, literal.3])
+    start: bits[23] = priority_sel(c1, cases=[literal.1, sel.5], default=literal.4)
+    ret result: bits[15] = dynamic_bit_slice(x, start, width=15)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Param("c1"),
+          /*cases=*/
+          {
+              m::BitSlice(m::Param("x"), 5, 15),
+              m::Select(m::Param("c2"),
+                        /*cases=*/
+                        {
+                            m::BitSlice(m::Param("x"), 10, 15),
+                            m::ZeroExt(m::BitSlice(m::Param("x"), 35, 7)),
+                        }),
+          },
+          /*default_value=*/m::Literal(0)));
 }
 
 TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralInput) {
@@ -724,6 +796,70 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateOutOfBounds) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(BitSliceSimplificationPassTest, BitSliceUpdateSelectOfLiteralStart) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42], c: bits[2], v: bits[15]) -> bits[42] {
+    literal.1: bits[23] = literal(value=5)
+    literal.2: bits[23] = literal(value=35)
+    literal.3: bits[23] = literal(value=64)
+    start: bits[23] = priority_sel(c, cases=[literal.1, literal.2], default=literal.3)
+    ret result: bits[42] = bit_slice_update(x, start, v)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Param("c"),
+          /*cases=*/
+          {
+              m::Concat(m::BitSlice(m::Param("x"), 20, 22), m::Param("v"),
+                        m::BitSlice(m::Param("x"), 0, 5)),
+              m::Concat(m::BitSlice(m::Param("v"), 0, 7),
+                        m::BitSlice(m::Param("x"), 0, 35)),
+          },
+          /*default_value=*/m::Param("x")));
+}
+
+TEST_F(BitSliceSimplificationPassTest,
+       BitSliceUpdateNestedSelectOfLiteralStart) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[42], c1: bits[2], c2: bits[1], v: bits[15]) -> bits[42] {
+    literal.1: bits[23] = literal(value=5)
+    literal.2: bits[23] = literal(value=10)
+    literal.3: bits[23] = literal(value=35)
+    literal.4: bits[23] = literal(value=64)
+    sel.5: bits[23] = sel(c2, cases=[literal.2, literal.3])
+    start: bits[23] = priority_sel(c1, cases=[literal.1, sel.5], default=literal.4)
+    ret result: bits[42] = bit_slice_update(x, start, v)
+ }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Param("c1"),
+          /*cases=*/
+          {
+              m::Concat(m::BitSlice(m::Param("x"), 20, 22), m::Param("v"),
+                        m::BitSlice(m::Param("x"), 0, 5)),
+              m::Select(m::Param("c2"),
+                        /*cases=*/
+                        {
+                            m::Concat(m::BitSlice(m::Param("x"), 25, 17),
+                                      m::Param("v"),
+                                      m::BitSlice(m::Param("x"), 0, 10)),
+                            m::Concat(m::BitSlice(m::Param("v"), 0, 7),
+                                      m::BitSlice(m::Param("x"), 0, 35)),
+                        }),
+          },
+          /*default_value=*/m::Param("x")));
 }
 
 TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceWithScaledIndex) {
