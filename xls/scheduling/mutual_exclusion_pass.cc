@@ -121,10 +121,7 @@ std::vector<std::pair<Node*, int64_t>> PredicateNodes(Predicates* p,
   return result;
 }
 
-bool IsHeavyOp(Op op) {
-  return op == Op::kUMul || op == Op::kSMul || op == Op::kSend ||
-         op == Op::kReceive;
-}
+bool IsHeavyOp(Op op) { return op == Op::kSend || op == Op::kReceive; }
 
 using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 
