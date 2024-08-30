@@ -25,7 +25,18 @@ pub enum AxiAxSize : u3 {
     MAX_128B_TRANSFER = 7,
 }
 
-pub enum AxiWriteResp : u3 {
+pub const AXI_AXSIZE_ENCODING_TO_SIZE = u11[8]:[
+    u11:8,
+    u11:16,
+    u11:32,
+    u11:64,
+    u11:128,
+    u11:256,
+    u11:512,
+    u11:1024,
+];
+
+pub enum AxiWriteResp: u3 {
     OKAY = 0,
     EXOKAY = 1,
     SLVERR = 2,
@@ -95,12 +106,12 @@ pub struct AxiAw<ADDR_W: u32, ID_W: u32> {
 pub struct AxiW<DATA_W: u32, STRB_W: u32> {
     data: uN[DATA_W],
     strb: uN[STRB_W],
-    last: u1
+    last: u1,
 }
 
 pub struct AxiB<ID_W: u32> {
     resp: AxiWriteResp,
-    id: uN[ID_W]
+    id: uN[ID_W],
 }
 
 pub struct AxiAr<ADDR_W: u32, ID_W: u32> {
