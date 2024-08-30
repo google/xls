@@ -70,7 +70,7 @@ class ZstdFrameHeader {
 
   ZstdFrameHeader(absl::Span<const uint8_t> buffer, ZSTD_frameHeader h,
                   size_t r)
-      : header_(std::move(h)), result_(r) {
+      : header_(h), result_(r) {
     std::vector<uint8_t> v(buffer.begin(), buffer.end());
     buffer_ = v;
   }
@@ -82,7 +82,7 @@ class ZstdFrameHeader {
     ZSTD_frameHeader zstd_fh;
     size_t result = ZSTD_getFrameHeader_advanced(
         &zstd_fh, buffer.data(), buffer.size(), ZSTD_f_zstd1_magicless);
-    return ZstdFrameHeader(buffer, std::move(zstd_fh), result);
+    return ZstdFrameHeader(buffer, zstd_fh, result);
   }
 
  private:
