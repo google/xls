@@ -38,6 +38,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "apfloat_add_parallel_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":apfloat_add_parallel_dslx",
 )
 

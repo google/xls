@@ -207,6 +207,7 @@ sh_test(
 xls_dslx_test(
     name = "generated_file_as_input_test",
     srcs = ["generated.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 # Encapsulate the generated file as a library.
@@ -226,6 +227,7 @@ xls_dslx_library(
 # Reference the library with the generated file inside of a xls_dslx_test rule.
 xls_dslx_test(
     name = "dependent_on_library_with_generated_file_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":importer_dslx",
 )
 
@@ -260,6 +262,7 @@ xls_dslx_library(
 # xls_dslx_test on a xls_dslx_library with a transitive dependency.
 xls_dslx_test(
     name = "d_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":d_dslx",
 )
 
@@ -276,6 +279,7 @@ xls_dslx_library(
 # xls_dslx_test on a xls_dslx_library with a transitive dependency.
 xls_dslx_test(
     name = "e_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":e_dslx",
 )
 
@@ -360,6 +364,7 @@ xls_dslx_verilog(
 xls_dslx_test(
     name = "chaining_example_test",
     srcs = ["chaining_example.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_ir(
@@ -564,6 +569,7 @@ xls_dslx_library(
 # Execute the DSLX interpreter.
 xls_dslx_test(
     name = "simple_example_4_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":simple_example_4_dslx",
 )
 

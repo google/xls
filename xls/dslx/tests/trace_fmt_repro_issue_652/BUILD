@@ -53,5 +53,6 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "trace_fmt_repro_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":trace_fmt_repro_dslx",
 )

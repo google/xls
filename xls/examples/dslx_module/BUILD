@@ -44,6 +44,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "capitalize_tests",
+    dslx_test_args = {"compare": "jit"},
     library = ":capitalize_module",
 )
 

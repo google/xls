@@ -30,6 +30,7 @@ package(
 xls_dslx_test(
     name = "matmul_4x4_dslx_test",
     srcs = ["matmul_4x4.x"],
+    dslx_test_args = {"compare": "jit"},
     # TODO(rspringer): 2022-05-24: Does not successfully lower to IR.
     # Needs support for arrays of channels.
 )

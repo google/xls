@@ -42,6 +42,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "buffer_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":buffer_dslx",
     tags = ["manual"],
 )
@@ -58,6 +59,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "window_buffer_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":window_buffer_dslx",
     tags = ["manual"],
 )
@@ -141,6 +143,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "magic_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":magic_dslx",
     tags = ["manual"],
 )
@@ -185,6 +188,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "frame_header_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":frame_header_dslx",
     tags = ["manual"],
 )
@@ -309,6 +313,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "raw_block_dec_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":raw_block_dec_dslx",
     tags = ["manual"],
 )
@@ -389,6 +394,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "rle_block_dec_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":rle_block_dec_dslx",
     tags = ["manual"],
 )
@@ -473,6 +479,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "block_header_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":block_header_dslx",
     tags = ["manual"],
 )
@@ -489,6 +496,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "dec_mux_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":dec_mux_dslx",
     tags = ["manual"],
 )
@@ -567,6 +575,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "dec_demux_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":dec_demux_dslx",
     tags = ["manual"],
 )
@@ -648,6 +657,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "block_dec_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":block_dec_dslx",
     tags = ["manual"],
 )
@@ -729,6 +739,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "ram_printer_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":ram_printer_dslx",
     tags = ["manual"],
 )
@@ -856,6 +867,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "repacketizer_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":repacketizer_dslx",
     tags = ["manual"],
 )

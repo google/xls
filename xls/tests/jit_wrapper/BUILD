@@ -34,6 +34,7 @@ package(
 xls_dslx_test(
     name = "simple_dslx_test",
     srcs = ["simple.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(

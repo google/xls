@@ -166,6 +166,7 @@ xls_ir_verilog_fdo(
 xls_dslx_test(
     name = "idct_chen_dslx_test",
     srcs = ["idct_chen.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test. Note: times out.

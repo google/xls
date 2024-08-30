@@ -41,6 +41,7 @@ xls_dslx_opt_ir(
 # udiv not supported in equivalence checking.
 xls_dslx_test(
     name = "fpdiv_2x32_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":fpdiv_2x32_dslx",
     tags = ["optonly"],
 )

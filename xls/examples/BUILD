@@ -74,6 +74,7 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "lfsr_dslx_test",
     srcs = ["lfsr.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_library(
@@ -85,6 +86,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "lfsr_proc_dslx_test",
     srcs = ["lfsr_proc.x"],
+    dslx_test_args = {"compare": "jit"},
     deps = [":lfsr_proc_dslx"],
 )
 
@@ -96,6 +98,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "capitalize_dslx_test",
     srcs = ["capitalize.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -155,6 +158,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "dot_product_dslx_test",
     srcs = ["dot_product.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_library(
@@ -165,6 +169,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "fir_filter_dslx_test",
     srcs = ["fir_filter.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_library(
@@ -311,6 +316,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "ffi_test",
     srcs = ["ffi.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_verilog(
@@ -356,6 +362,7 @@ xls_dslx_opt_ir(
 xls_dslx_test(
     name = "sha256_dslx_test",
     srcs = ["sha256.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 # TODO(rspringer): OOMs on some machines. Add xls_ir_equivalence_test.
@@ -394,12 +401,14 @@ xls_dslx_library(
 xls_dslx_test(
     name = "sobel_filter_dslx_test",
     srcs = ["sobel_filter.x"],
+    dslx_test_args = {"compare": "jit"},
     deps = [":sobel_filter_dslx"],
 )
 
 xls_dslx_test(
     name = "sobel_filter_test",
     srcs = ["sobel_filter.x"],
+    dslx_test_args = {"compare": "jit"},
     deps = [":sobel_filter_dslx"],
 )
 
@@ -559,6 +568,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "memory_proc_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":memory_proc_dslx",
 )
 
@@ -571,6 +581,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "tiny_adder_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":tiny_adder_dslx",
 )
 
@@ -605,6 +616,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "find_index_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":find_index_dslx",
 )
 
@@ -671,6 +683,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "large_array_dslx_test",
     srcs = ["large_array.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -696,6 +709,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "prefix_sum_dslx_test",
     srcs = ["prefix_sum.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -721,6 +735,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "sparse_prefix_sum_dslx_test",
     srcs = ["sparse_prefix_sum.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -745,6 +760,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "ram_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":ram_dslx",
 )
 
@@ -756,6 +772,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "delay_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":delay_dslx",
 )
 
@@ -839,6 +856,7 @@ xls_dslx_fmt_test(
 
 xls_dslx_test(
     name = "delay_loopback_channel_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":delay_loopback_channel_dslx",
 )
 
@@ -923,6 +941,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "constraint_dslx_test",
     srcs = ["constraint.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_ir(
@@ -1033,6 +1052,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "overflow_detect_dslx_test",
     srcs = ["overflow_detect.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -1051,6 +1071,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "nested_sel_dslx_test",
     srcs = ["nested_sel.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -1072,6 +1093,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "cubic_bezier_dslx_test",
     srcs = ["cubic_bezier.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_library(
@@ -1082,6 +1104,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "bitonic_sort_dslx_test",
     srcs = ["bitonic_sort.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_library(
@@ -1092,6 +1115,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "hack_cpu_dslx_test",
     srcs = ["hack_cpu.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_library(
@@ -1101,6 +1125,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "serialized_decomposer_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":serialized_decomposer_dslx",
 )
 
@@ -1178,6 +1203,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "passthrough_dslx_test",
     srcs = ["passthrough.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_verilog(
@@ -1202,4 +1228,5 @@ xls_dslx_test(
     name = "gcd_test",
     size = "small",
     srcs = ["gcd.x"],
+    dslx_test_args = {"compare": "jit"},
 )

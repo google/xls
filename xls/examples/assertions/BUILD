@@ -41,6 +41,7 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "assertions_dslx_test",
     srcs = ["assertions.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_ir(

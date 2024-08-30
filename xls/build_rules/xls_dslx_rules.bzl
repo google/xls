@@ -38,7 +38,7 @@ _H_FILE_EXTENSION = ".h"
 _CC_FILE_EXTENSION = ".cc"
 
 _DEFAULT_DSLX_TEST_ARGS = {
-    "compare": "jit",
+    "compare": "none",
 }
 
 def get_transitive_dslx_srcs_files_depset(srcs, deps):

@@ -43,6 +43,7 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "fpexp_32_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":fpexp_32_dslx",
 )
 
@@ -114,6 +115,7 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "fp_sincos_32_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":fp_sincos_32_dslx",
 )
 
@@ -179,6 +181,7 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "fp_trig_reduce_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":fp_trig_reduce_dslx_module",
 )
 
@@ -244,6 +247,7 @@ xls_dslx_opt_ir(
 
 xls_dslx_test(
     name = "fpsqrt_32_dslx_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":fpsqrt_32_dslx",
 )
 

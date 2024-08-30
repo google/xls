@@ -26,6 +26,7 @@ exports_files(["LICENSE"])
 xls_dslx_test(
     name = "hsv2rgb_dslx_test",
     srcs = ["hsv2rgb.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 cc_test(

@@ -46,6 +46,7 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "crc32_dslx_test",
     srcs = ["crc32.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(

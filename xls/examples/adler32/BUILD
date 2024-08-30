@@ -42,6 +42,7 @@ xls_dslx_opt_ir(
 xls_dslx_test(
     name = "adler32_dslx_test",
     srcs = ["adler32.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_fmt_test(

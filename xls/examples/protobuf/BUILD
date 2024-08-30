@@ -40,6 +40,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "varint_encode_test",
+    dslx_test_args = {"compare": "jit"},
     library = ":varint_encode_dslx",
 )
 

@@ -51,6 +51,7 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "std_dslx_test",
     srcs = ["std.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_prove_quickcheck_test(
@@ -61,6 +62,7 @@ xls_dslx_prove_quickcheck_test(
 xls_dslx_test(
     name = "acm_random_dslx_test",
     srcs = ["acm_random.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_fmt_test(
@@ -77,6 +79,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "apfloat_dslx_test",
     srcs = ["apfloat.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_prove_quickcheck_test(
@@ -110,6 +113,7 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "bfloat16_dslx_test",
     srcs = ["bfloat16.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -185,6 +189,7 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "float32_dslx_test",
     srcs = ["float32.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -336,6 +341,7 @@ cc_test(
 xls_dslx_test(
     name = "float32_upcast_test",
     srcs = ["float32_upcast_test.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
@@ -625,6 +631,7 @@ xls_dslx_fmt_test(
 xls_dslx_test(
     name = "float64_dslx_test",
     srcs = ["float64.x"],
+    dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_opt_ir(
