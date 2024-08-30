@@ -1123,47 +1123,47 @@ fn clzt_pow2_1(value: bits[1]) -> uN[1] {
 // All the following are identical, just with lifting the N parameter as part
 // of the symbol name to allow recursion.
 fn clzt_pow2_2(value: bits[2]) -> uN[2] {
-    const N_HALF = (2 >> 1) as s32;
+    const N_HALF = (u32:2 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_1(value[-N_HALF:]), clzt_pow2_1(value[:-N_HALF]))
 }
 
 fn clzt_pow2_4(value: bits[4]) -> uN[3] {
-    const N_HALF = (4 >> 1) as s32;
+    const N_HALF = (u32:4 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_2(value[-N_HALF:]), clzt_pow2_2(value[:-N_HALF]))
 }
 
 fn clzt_pow2_8(value: bits[8]) -> uN[4] {
-    const N_HALF = (8 >> 1) as s32;
+    const N_HALF = (u32:8 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_4(value[-N_HALF:]), clzt_pow2_4(value[:-N_HALF]))
 }
 
 fn clzt_pow2_16(value: bits[16]) -> uN[5] {
-    const N_HALF = (16 >> 1) as s32;
+    const N_HALF = (u32:16 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_8(value[-N_HALF:]), clzt_pow2_8(value[:-N_HALF]))
 }
 
 fn clzt_pow2_32(value: bits[32]) -> uN[6] {
-    const N_HALF = (32 >> 1) as s32;
+    const N_HALF = (u32:32 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_16(value[-N_HALF:]), clzt_pow2_16(value[:-N_HALF]))
 }
 
 fn clzt_pow2_64(value: bits[64]) -> uN[7] {
-    const N_HALF = (64 >> 1) as s32;
+    const N_HALF = (u32:64 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_32(value[-N_HALF:]), clzt_pow2_32(value[:-N_HALF]))
 }
 
 fn clzt_pow2_128(value: bits[128]) -> uN[8] {
-    const N_HALF = (128 >> 1) as s32;
+    const N_HALF = (u32:128 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_64(value[-N_HALF:]), clzt_pow2_64(value[:-N_HALF]))
 }
 
 fn clzt_pow2_256(value: bits[256]) -> uN[9] {
-    const N_HALF = (256 >> 1) as s32;
+    const N_HALF = (u32:256 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_128(value[-N_HALF:]), clzt_pow2_128(value[:-N_HALF]))
 }
 
 fn clzt_pow2_512(value: bits[512]) -> uN[10] {
-    const N_HALF = (512 >> 1) as s32;
+    const N_HALF = (u32:512 >> 1) as s32;
     combine_clzt_halfs(clzt_pow2_256(value[-N_HALF:]), clzt_pow2_256(value[:-N_HALF]))
 }
 
@@ -1219,7 +1219,7 @@ fn clzt_pow2_test() {
 }
 
 // Given a number, what is the next power of two. E.g. 5 -> 8; 8 -> 8; 20 -> 32
-pub fn next_pow2(n: u32) -> u32 { upow(2, clog2(n)) }
+pub fn next_pow2(n: u32) -> u32 { upow(u32:2, clog2(n)) }
 
 #[test]
 fn test_next_pow2() {
