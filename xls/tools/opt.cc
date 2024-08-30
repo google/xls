@@ -33,6 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
@@ -42,8 +43,7 @@
 
 namespace xls::tools {
 
-absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
-                                             const OptOptions& options) {
+absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   if (!options.top.empty()) {
     VLOG(3) << "OptimizeIrForEntry; top: '" << options.top
             << "'; opt_level: " << options.opt_level;
@@ -51,8 +51,6 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
     VLOG(3) << "OptimizeIrForEntry; opt_level: " << options.opt_level;
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                       Parser::ParsePackage(ir, options.ir_path));
   if (!options.top.empty()) {
     XLS_RETURN_IF_ERROR(package->SetTopByName(options.top));
   }
@@ -87,8 +85,15 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
       options.use_context_narrowing_analysis;
   pass_options.bisect_limit = options.bisect_limit;
   PassResults results;
-  XLS_RETURN_IF_ERROR(
-      pipeline->Run(package.get(), pass_options, &results).status());
+  XLS_RETURN_IF_ERROR(pipeline->Run(package, pass_options, &results).status());
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
+                                             const OptOptions& options) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       Parser::ParsePackage(ir, options.ir_path));
+  XLS_RETURN_IF_ERROR(OptimizeIrForTop(package.get(), options));
   return package->DumpIr();
 }
 

@@ -23,10 +23,12 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
 // TODO(meheff): 2021-10-04 Remove this header.
 #include "absl/types/span.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 
 namespace xls::tools {
@@ -47,6 +49,11 @@ struct OptOptions {
   std::optional<std::string> pass_list;
   std::optional<int64_t> bisect_limit;
 };
+
+// Helper used in the opt_main tool, optimizes the given IR for a particular
+// top-level entity (e.g., function, proc, etc) at the given opt level and
+// modifies the package in place.
+absl::Status OptimizeIrForTop(Package* package, const OptOptions& options);
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular
 // top-level entity (e.g., function, proc, etc) at the given opt level and
