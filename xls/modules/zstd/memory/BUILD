@@ -303,6 +303,94 @@ place_and_route(
 )
 
 xls_dslx_library(
+    name = "axi_ram_dslx",
+    srcs = ["axi_ram.x"],
+    deps = [
+        ":axi_dslx",
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd:math_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "axi_ram_dslx_test",
+    library = ":axi_ram_dslx",
+)
+
+xls_dslx_verilog(
+    name = "axi_ram_verilog",
+    codegen_args = {
+        "module_name": "AxiRam",
+        "delay_model": "asap7",
+        "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "ram",
+            rd_req = "axi_ram__rd_req_s",
+            rd_resp = "axi_ram__rd_resp_r",
+            wr_req = "axi_ram__wr_req_s",
+            wr_resp = "axi_ram__wr_resp_r",
+        ),
+        "pipeline_stages": "8",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "AxiRamReaderInstWithEmptyWrites",
+    library = ":axi_ram_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__axi_ram__AxiRamReaderInstWithEmptyWrites__AxiRamReader_0__AxiRamReaderResponder_0__32_32_4_8_8_32768_7_32_4_100_next",
+    },
+    tags = ["manual"],
+    verilog_file = "axi_ram.v",
+)
+
+verilog_library(
+    name = "axi_ram_verilog_lib",
+    srcs = [
+        ":axi_ram.v",
+    ],
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "axi_ram_opt_ir_benchmark",
+    src = ":axi_ram_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "4",
+        "delay_model": "asap7",
+    },
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "axi_ram_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "AxiRam",
+    deps = [
+        ":axi_ram_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "axi_ram_benchmark_synth",
+    synth_target = ":axi_ram_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "axi_ram_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":axi_ram_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
     name = "mem_reader_dslx",
     srcs = ["mem_reader.x"],
     deps = [
