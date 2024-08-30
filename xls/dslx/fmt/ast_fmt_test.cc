@@ -43,7 +43,7 @@
 namespace xls::dslx {
 namespace {
 
-using ::testing::status::IsOkAndHolds;
+using status_testing::IsOkAndHolds;
 
 TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
   auto [module, lt] = MakeCastWithinLtComparison();
