@@ -36,6 +36,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
       path_is_runfile: bool = True,
       alsologtostderr: bool = False,
       *,
+      compare: Optional[
+          str
+      ] = 'jit',  # default on comparing to catch IR onversion and JIT errors.
       enable_warnings: Optional[Set[str]] = None,
   ) -> str:
     cmd = [
@@ -43,6 +46,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         path,
         '--warnings_as_errors={}'.format(str(warnings_as_errors).lower()),
     ]
+
+    if compare:
+      cmd.append('--compare=' + compare)
 
     if enable_warnings:
       cmd.append('--enable_warnings=' + ','.join(sorted(enable_warnings)))

@@ -263,8 +263,8 @@ BOM_KIND_COMPARISON,ne,25,1,1
 
 Interpreter for DSLX code and test-runner.
 
-When tests are run this also cross-checks that the conversion to IR and JIT
-compilation of the IR produces the same values.
+The `--compare` flag allows to also cross-checks that the conversion to IR and
+JIT compilation of the IR produces the same values.
 
 ```
 $ bazel run -c opt //xls/dslx:interpreter_main -- $PWD/xls/dslx/stdlib/std.x

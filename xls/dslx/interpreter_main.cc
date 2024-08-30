@@ -54,7 +54,7 @@ ABSL_FLAG(
     "`trace!`, `{}` format strings in `trace_fmt!`, traced channel values, "
     "`assert_*` statements and elsewhere. Valid values: binary|hex|decimal");
 ABSL_FLAG(bool, execute, true, "Execute tests within the entry module.");
-ABSL_FLAG(std::string, compare, "jit",
+ABSL_FLAG(std::string, compare, "none",
           "Compare DSL-interpreted results with an IR execution for each"
           " function for consistency checking; options: none|jit|interpreter.");
 ABSL_FLAG(
