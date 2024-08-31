@@ -405,6 +405,24 @@ Pos GetPos(const ModuleMember& module_member) {
   return span->start();
 }
 
+NameDef* ModuleMemberGetNameDef(const ModuleMember& mm) {
+  return absl::visit(
+      Visitor{
+          [](Function* n) -> NameDef* { return n->name_def(); },
+          [](Proc* n) -> NameDef* { return n->name_def(); },
+          [](TestFunction* n) -> NameDef* { return n->name_def(); },
+          [](TestProc* n) -> NameDef* { return n->name_def(); },
+          [](QuickCheck* n) -> NameDef* { return n->name_def(); },
+          [](TypeAlias* n) -> NameDef* { return &n->name_def(); },
+          [](StructDef* n) -> NameDef* { return n->name_def(); },
+          [](ConstantDef* n) -> NameDef* { return n->name_def(); },
+          [](EnumDef* n) -> NameDef* { return n->name_def(); },
+          [](Import* n) -> NameDef* { return &n->name_def(); },
+          [](ConstAssert* n) -> NameDef* { return nullptr; },
+      },
+      mm);
+}
+
 Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
                          Expr* consequent, Expr* alternate) {
   return module->Make<Conditional>(

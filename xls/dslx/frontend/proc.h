@@ -195,6 +195,7 @@ class TestProc : public AstNode {
   ~TestProc() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTestProc; }
+  NameDef* name_def() const { return proc_->name_def(); }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTestProc(this);
   }

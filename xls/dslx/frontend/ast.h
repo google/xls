@@ -2172,6 +2172,8 @@ class EnumDef : public AstNode {
   // These must be constexprs, which will be computed at type checking time.
   absl::StatusOr<Expr*> GetValue(std::string_view name) const;
 
+  NameDef* GetNameDef(std::string_view target);
+
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2574,6 +2576,7 @@ class TestFunction : public AstNode {
   ~TestFunction() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTestFunction; }
+  NameDef* name_def() const { return fn_.name_def(); }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTestFunction(this);
@@ -2612,6 +2615,7 @@ class QuickCheck : public AstNode {
   ~QuickCheck() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kQuickCheck; }
+  NameDef* name_def() const { return f_->name_def(); }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleQuickCheck(this);

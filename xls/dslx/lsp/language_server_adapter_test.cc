@@ -20,10 +20,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 
@@ -40,6 +43,11 @@ std::string DebugString(const verible::lsp::Position& pos) {
 std::string DebugString(const verible::lsp::Range& range) {
   return absl::StrFormat("Range{.start=%s, .end=%s}", DebugString(range.start),
                          DebugString(range.end));
+}
+
+std::string DebugString(const verible::lsp::Location& location) {
+  return absl::StrFormat("Location{.uri=\"%s\", .range=%s}", location.uri,
+                         DebugString(location.range));
 }
 
 bool operator==(const verible::lsp::Position& lhs,
@@ -94,8 +102,9 @@ TEST(LanguageServerAdapterTest, TestFindDefinitionsFunctionRef) {
 fn main() { f() })"));
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
   verible::lsp::Position position{1, 12};
-  std::vector<verible::lsp::Location> definition_locations =
-      adapter.FindDefinitions(kUri, position);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, position));
   ASSERT_EQ(definition_locations.size(), 1);
 
   verible::lsp::Location definition_location = definition_locations.at(0);
@@ -114,8 +123,9 @@ fn f() -> T { () }
 )"));
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
   verible::lsp::Position position{2, 10};
-  std::vector<verible::lsp::Location> definition_locations =
-      adapter.FindDefinitions(kUri, position);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, position));
   ASSERT_EQ(definition_locations.size(), 1);
 
   verible::lsp::Location definition_location = definition_locations.at(0);
@@ -133,8 +143,9 @@ TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
   ASSERT_FALSE(adapter.Update(kUri, "blahblahblah").ok());
 
   verible::lsp::Position position{1, 12};
-  std::vector<verible::lsp::Location> definition_locations =
-      adapter.FindDefinitions(kUri, position);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, position));
   EXPECT_TRUE(definition_locations.empty());
 
   std::vector<verible::lsp::Diagnostic> diagnostics =
@@ -216,6 +227,41 @@ TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
       << "got: " << DebugString(hint.position)
       << " want: " << DebugString(want_position);
   EXPECT_EQ(hint.label, ": uN[32]");
+}
+
+TEST(LanguageServerAdapterTest, FindDefinitionAcrossFiles) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory tempdir, TempDirectory::Create());
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath,
+                                /*dslx_paths=*/{tempdir.path()});
+
+  std::string imported_uri =
+      absl::StrFormat("file://%s/imported.x", tempdir.path());
+  const std::string_view kImportedContents = "pub fn f() { () }";
+  XLS_ASSERT_OK(
+      SetFileContents(tempdir.path() / "imported.x", kImportedContents));
+
+  std::string importer_uri =
+      absl::StrFormat("file://%s/importer.x", tempdir.path());
+  const std::string_view kImporterContents = R"(import imported;
+
+fn main() { imported::f() }
+)";
+  XLS_ASSERT_OK(adapter.Update(importer_uri, kImporterContents));
+
+  verible::lsp::Position position{2, 13};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(importer_uri, position));
+  ASSERT_EQ(definition_locations.size(), 1);
+
+  verible::lsp::Location definition_location = definition_locations.at(0);
+  VLOG(1) << "definition location: " << DebugString(definition_location);
+  EXPECT_EQ(definition_location.uri, imported_uri);
+  const verible::lsp::Range kWantRange{
+      .start = verible::lsp::Position{0, 7},
+      .end = verible::lsp::Position{0, 8},
+  };
+  EXPECT_TRUE(definition_location.range == kWantRange);
 }
 
 }  // namespace
