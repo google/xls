@@ -69,6 +69,7 @@
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
+#include "xls/dslx/type_system/scoped_fn_stack_entry.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -806,6 +807,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStatementBlock(
 static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToModule(
     const ColonRef* node, Module* module, DeduceCtx* ctx) {
   VLOG(5) << "DeduceColonRefToModule; node: `" << node->ToString() << "`";
+  XLS_VLOG_LINES(5, ctx->GetFnStackDebugString());
+
   std::optional<ModuleMember*> elem = module->FindMemberWithName(node->attr());
   if (!elem.has_value()) {
     return TypeInferenceErrorStatus(
@@ -900,57 +903,69 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
 absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
                                                      DeduceCtx* ctx) {
   VLOG(5) << "Deducing type for ColonRef @ " << node->span().ToString();
+  XLS_VLOG_LINES(5, ctx->GetFnStackDebugString());
 
   ImportData* import_data = ctx->import_data();
   XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
                                          import_data, ctx->type_info(), node));
 
+  // We get the root type information for the referred-to entity's module (the
+  // subject of the colon-ref) and create a fresh deduce context for its top
+  // level.
   using ReturnT = absl::StatusOr<std::unique_ptr<Type>>;
   Module* subject_module = ToAstNode(subject)->owner();
   XLS_ASSIGN_OR_RETURN(TypeInfo * subject_type_info,
                        import_data->GetRootTypeInfo(subject_module));
   auto subject_ctx = ctx->MakeCtx(subject_type_info, subject_module);
-  const FnStackEntry& peek_entry = ctx->fn_stack().back();
-  subject_ctx->AddFnStackEntry(peek_entry);
-  return absl::visit(
-      Visitor{
-          [&](Module* module) -> ReturnT {
-            return DeduceColonRefToModule(node, module, subject_ctx.get());
+
+  ScopedFnStackEntry top =
+      ScopedFnStackEntry::MakeForTop(subject_ctx.get(), subject_module);
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Type> result,
+      absl::visit(
+          Visitor{
+              [&](Module* module) -> ReturnT {
+                return DeduceColonRefToModule(node, module, subject_ctx.get());
+              },
+              [&](EnumDef* enum_def) -> ReturnT {
+                if (!enum_def->HasValue(node->attr())) {
+                  return TypeInferenceErrorStatus(
+                      node->span(), nullptr,
+                      absl::StrFormat(
+                          "Name '%s' is not defined by the enum %s.",
+                          node->attr(), enum_def->identifier()));
+                }
+                XLS_ASSIGN_OR_RETURN(
+                    auto enum_type, DeduceEnumDef(enum_def, subject_ctx.get()));
+                return UnwrapMetaType(std::move(enum_type), node->span(),
+                                      "enum type");
+              },
+              [&](BuiltinNameDef* builtin_name_def) -> ReturnT {
+                return DeduceColonRefToBuiltinNameDef(builtin_name_def, node);
+              },
+              [&](ArrayTypeAnnotation* type) -> ReturnT {
+                return DeduceColonRefToArrayType(type, node, subject_ctx.get());
+              },
+              [&](StructDef* struct_def) -> ReturnT {
+                return TypeInferenceErrorStatus(
+                    node->span(), nullptr,
+                    absl::StrFormat(
+                        "Struct definitions (e.g. '%s') cannot have "
+                        "constant items.",
+                        struct_def->identifier()));
+              },
+              [&](ColonRef* colon_ref) -> ReturnT {
+                // Note: this should be unreachable, as it's a colon-reference
+                // that refers *directly* to another colon-ref. Generally you
+                // need an intervening construct, like a type alias.
+                return absl::InternalError(
+                    "Colon-reference subject was another colon-reference.");
+              },
           },
-          [&](EnumDef* enum_def) -> ReturnT {
-            if (!enum_def->HasValue(node->attr())) {
-              return TypeInferenceErrorStatus(
-                  node->span(), nullptr,
-                  absl::StrFormat("Name '%s' is not defined by the enum %s.",
-                                  node->attr(), enum_def->identifier()));
-            }
-            XLS_ASSIGN_OR_RETURN(auto enum_type,
-                                 DeduceEnumDef(enum_def, subject_ctx.get()));
-            return UnwrapMetaType(std::move(enum_type), node->span(),
-                                  "enum type");
-          },
-          [&](BuiltinNameDef* builtin_name_def) -> ReturnT {
-            return DeduceColonRefToBuiltinNameDef(builtin_name_def, node);
-          },
-          [&](ArrayTypeAnnotation* type) -> ReturnT {
-            return DeduceColonRefToArrayType(type, node, subject_ctx.get());
-          },
-          [&](StructDef* struct_def) -> ReturnT {
-            return TypeInferenceErrorStatus(
-                node->span(), nullptr,
-                absl::StrFormat("Struct definitions (e.g. '%s') cannot have "
-                                "constant items.",
-                                struct_def->identifier()));
-          },
-          [&](ColonRef* colon_ref) -> ReturnT {
-            // Note: this should be unreachable, as it's a colon-reference that
-            // refers *directly* to another colon-ref. Generally you need an
-            // intervening construct, like a type alias.
-            return absl::InternalError(
-                "Colon-reference subject was another colon-reference.");
-          },
-      },
-      subject);
+          subject));
+  top.Finish();
+  return result;
 }
 
 // Returns (start, width), resolving indices via DSLX bit slice semantics.

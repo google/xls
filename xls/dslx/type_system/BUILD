@@ -133,6 +133,7 @@ cc_library(
         ":type_info",
         ":type_zero_value",
         ":unwrap_meta_type",
+        ":scoped_fn_stack_entry",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/cleanup",
@@ -821,6 +822,7 @@ cc_library(
     srcs = ["typecheck_function.cc"],
     hdrs = ["typecheck_function.h"],
     deps = [
+        "//xls/common/logging:log_lines",
         ":deduce",
         ":deduce_ctx",
         ":parametric_env",

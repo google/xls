@@ -2455,6 +2455,39 @@ fn main() -> u32 {
                          "or a colon reference")));
 }
 
+// See https://github.com/google/xls/issues/1540#issuecomment-2297711953
+TEST(TypecheckTest, ProcWithImportedEnumParametricGithubIssue1540) {
+  constexpr std::string_view kImported = R"(
+pub enum MyEnum : bits[1] {
+  kA = 0,
+  kB = 1,
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc foo_proc<N: imported::MyEnum> {
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+
+proc bar_proc {
+    config() {
+      spawn foo_proc<imported::MyEnum::kA>();
+    }
+    init { () }
+    next(state: ()) { () }
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule imported,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule main,
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
 TEST(TypecheckTest, MissingWideningCastFromValueError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {

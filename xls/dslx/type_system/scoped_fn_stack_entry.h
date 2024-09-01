@@ -32,8 +32,15 @@ namespace xls::dslx {
 // the "happy paths".
 class ScopedFnStackEntry {
  public:
-  ScopedFnStackEntry(DeduceCtx* ctx, Module* module);
+  // Creates a scoped function-stack entry *for the top level* of the given
+  // `module`.
+  static ScopedFnStackEntry MakeForTop(DeduceCtx* ctx, Module* module) {
+    return ScopedFnStackEntry(ctx, module);
+  }
 
+  // Creates a scoped function-stack entry for `fn`, where we indicate whether
+  // `fn` is within a proc via the `within_proc` value.
+  //
   // Args:
   //  expect_popped: Indicates that we expect, on the call to Finish(),
   //    that the entry will have already been popped. Generally this is `false`
@@ -49,6 +56,8 @@ class ScopedFnStackEntry {
   void Finish();
 
  private:
+  ScopedFnStackEntry(DeduceCtx* ctx, Module* module);
+
   DeduceCtx* ctx_;
   int64_t depth_before_;
   bool expect_popped_;

@@ -28,11 +28,6 @@ ScopedFnStackEntry::ScopedFnStackEntry(DeduceCtx* ctx, Module* module)
   ctx->AddFnStackEntry(FnStackEntry::MakeTop(module));
 }
 
-// Args:
-//  expect_popped: Indicates that we expect, in the destructor for this scope,
-//    that the entry will have already been popped. Generally this is `false`
-//    since we expect the entry to be on the top of the fn stack in the
-//    destructor, in which case we automatically pop it.
 ScopedFnStackEntry::ScopedFnStackEntry(Function& fn, DeduceCtx* ctx,
                                        WithinProc within_proc,
                                        bool expect_popped)
@@ -42,10 +37,6 @@ ScopedFnStackEntry::ScopedFnStackEntry(Function& fn, DeduceCtx* ctx,
   ctx->AddFnStackEntry(FnStackEntry::Make(fn, ParametricEnv(), within_proc));
 }
 
-// Called when we close out a scope. We can't use this object as a scope
-// guard easily because we want to be able to detect if we return an
-// absl::Status early, so we have to manually put end-of-scope calls at usage
-// points.
 void ScopedFnStackEntry::Finish() {
   if (expect_popped_) {
     CHECK_EQ(ctx_->fn_stack().size(), depth_before_);
