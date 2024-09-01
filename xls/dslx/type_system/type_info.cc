@@ -363,9 +363,10 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
 }
 
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
-  CHECK_EQ(key->owner(), module_)
-      << key->owner()->name() << " vs " << module_->name()
-      << " key: " << key->ToString();
+  CHECK_EQ(key->owner(), module_) << absl::StreamFormat(
+      "attempted to get type information for AST node: `%s`; but it is from "
+      "module `%s` and type information is for module `%s`",
+      key->ToString(), key->owner()->name(), module_->name());
   auto it = dict_.find(key);
   if (it != dict_.end()) {
     return it->second.get();

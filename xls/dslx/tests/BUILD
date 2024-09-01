@@ -691,6 +691,17 @@ dslx_lang_test(
 
 # Library defined to be imported.
 xls_dslx_library(
+    name = "mod_u16_type_alias_dslx",
+    srcs = ["mod_u16_type_alias.x"],
+)
+
+dslx_lang_test(
+    name = "import_u16_type_alias",
+    dslx_deps = [":mod_u16_type_alias_dslx"],
+)
+
+# Library defined to be imported.
+xls_dslx_library(
     name = "mod_imported_struct_of_enum_dslx",
     srcs = [":mod_imported_struct_of_enum.x"],
 )

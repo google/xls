@@ -2488,6 +2488,28 @@ proc bar_proc {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
+// See https://github.com/google/xls/issues/1540#issuecomment-2291819096
+TEST(TypecheckTest, ImportedTypeAliasAttributeGithubIssue1540) {
+  constexpr std::string_view kImported = R"(
+pub const W = s32:16;
+pub type T = bits[W as u32];
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn f() -> imported::T {
+  imported::T::MAX
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule imported,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule main,
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
 TEST(TypecheckTest, MissingWideningCastFromValueError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
