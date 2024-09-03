@@ -29,9 +29,9 @@ from absl import flags
 from absl import logging
 import grpc
 
-from xls.delay_model import delay_model
-from xls.delay_model import delay_model_pb2
-from xls.delay_model import op_module_generator
+from xls.estimators.delay_model import delay_model
+from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators.delay_model import op_module_generator
 from xls.synthesis import client_credentials
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
@@ -1271,7 +1271,7 @@ def run_characterization(
   # Final validation
   delay_model.DelayModel(model)
 
-  print('# proto-file: xls/delay_model/delay_model.proto')
+  print('# proto-file: xls/estimators/delay_model/delay_model.proto')
   print('# proto-message: xls.delay_model.DelayModel')
   print(model)
 

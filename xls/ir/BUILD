@@ -906,7 +906,7 @@ cc_library(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimator",
         "//xls/interpreter:ir_interpreter",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/simulation:default_verilog_simulator",

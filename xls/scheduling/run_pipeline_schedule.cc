@@ -40,7 +40,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_search.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/delay_manager.h"
 #include "xls/fdo/iterative_sdc_scheduler.h"
 #include "xls/fdo/synthesizer.h"

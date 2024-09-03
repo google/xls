@@ -20,7 +20,7 @@ characterization driver:
 ```
 $ bazel run -c opt //xls/synthesis:timing_characterization_client_main
 $ ./bazel-bin/xls/synthesis/timing_characterization_client_main \
-    > ./xls/delay_model/models/ice40.textproto
+    > ./xls/estimators/delay_model/models/ice40.textproto
 ```
 
 This produces a textual representation of the delay model protobuf.

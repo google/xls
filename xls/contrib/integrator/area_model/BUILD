@@ -15,7 +15,7 @@
 # Delay models.
 
 # pytype binary only
-load("//xls/delay_model:build_defs.bzl", "delay_model")
+load("//xls/estimators/delay_model:build_defs.bzl", "delay_model")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -35,9 +35,9 @@ py_binary(
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
-        "//xls/delay_model",
-        "//xls/delay_model:delay_model_py_pb2",
-        "//xls/delay_model:op_module_generator",
+        "//xls/estimators/delay_model",
+        "//xls/estimators/delay_model:delay_model_py_pb2",
+        "//xls/estimators/delay_model:op_module_generator",
         "//xls/synthesis:client_credentials",
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",
@@ -52,7 +52,7 @@ cc_library(
         ":models",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
-        "//xls/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
     ],
 )

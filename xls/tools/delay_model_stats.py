@@ -25,7 +25,7 @@ and root mean squared error.
 Sample usage:
   delay_model_stats \
     [--output_csv stats.csv] \
-    xls/delay_model/models/sky130.textproto
+    xls/estimators/delay_model/models/sky130.textproto
 """
 
 from typing import Optional
@@ -36,8 +36,8 @@ from absl import logging
 import numpy as np
 
 from google.protobuf import text_format
-from xls.delay_model import delay_model
-from xls.delay_model import delay_model_pb2
+from xls.estimators.delay_model import delay_model
+from xls.estimators.delay_model import delay_model_pb2
 
 _CSV = flags.DEFINE_string(
     'output_csv', None, 'The file to write statistics into.'

@@ -19,7 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 
 namespace xls {
 

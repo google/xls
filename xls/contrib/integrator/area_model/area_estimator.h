@@ -20,7 +20,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 
 namespace xls {

@@ -20,7 +20,7 @@ from google.protobuf import text_format
 from xls.common import gfile
 from xls.common import runfiles
 from xls.common import test_base
-from xls.delay_model import delay_model_pb2
+from xls.estimators.delay_model import delay_model_pb2
 
 BINARY_PATH = runfiles.get_path(
     'xls/dev_tools/extract_sample_points_from_ir_main'

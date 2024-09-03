@@ -20,7 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"

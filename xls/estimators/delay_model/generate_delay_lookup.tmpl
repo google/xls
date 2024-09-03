@@ -1,0 +1,62 @@
+#include <cstdint>
+
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+
+#include "xls/common/module_initializer.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+
+namespace xls {
+
+namespace {
+
+{% for op in delay_model.ops() -%}
+{{ delay_model.op_model(op).cpp_delay_function_declaration() }}
+{%- endfor %}
+
+{% for op in delay_model.ops() %}
+{{ delay_model.op_model(op).cpp_delay_function() }}
+{% endfor %}
+
+}  // namespace
+
+class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
+ public:
+  DelayEstimatorModel{{camel_case_name}}() : DelayEstimator("{{name}}") {}
+
+ private:
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const final {
+    absl::StatusOr<int64_t> delay_status;
+    switch (node->op()) {
+  {% for op in delay_model.ops() -%}
+      case Op::{{op}}:
+        delay_status = {{delay_model.op_model(op).cpp_delay_function_name()}}(node);
+        break;
+  {%- endfor %}
+      default:
+        return absl::UnimplementedError(
+          "Unhandled node for delay estimation in delay model '{{name}}': "
+          + node->ToStringWithOperandTypes());
+    }
+    if (delay_status.ok()) {
+      return std::max<int64_t>(0, delay_status.value());
+    }
+    return delay_status.status();
+  }
+};
+
+XLS_REGISTER_MODULE_INITIALIZER(model_{{name}}, {
+  CHECK_OK(
+        GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
+          std::make_unique<DelayEstimatorModel{{camel_case_name}}>(),
+          DelayEstimatorPrecedence::{{precedence}})
+  );
+});
+
+}  // namespace xls
+

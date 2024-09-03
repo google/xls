@@ -23,8 +23,8 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "xls/delay_model/analyze_critical_path.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/analyze_critical_path.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"

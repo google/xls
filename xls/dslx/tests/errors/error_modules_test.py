@@ -905,7 +905,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn(
         'APFloat { sign: uN[1], bexp: uN[EXP_SZ], fraction: uN[FRACTION_SZ] }'
-        ' Instantiated return type did not have all parametrics resolved.',
+        ' Instantiated return type did not have the following parametrics'
+        ' resolved: EXP_SZ, FRACTION_SZ',
         stderr,
     )
 

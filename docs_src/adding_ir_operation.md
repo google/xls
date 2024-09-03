@@ -134,7 +134,7 @@ which are optional, are described below:
 
     [(Code example)](https://github.com/google/xls/commit/bda129fed73de323574d7955292753187af7bb20)
 
-1.  [Delay model](https://github.com/google/xls/tree/main/xls/delay_model)
+1.  [Delay model](https://github.com/google/xls/tree/main/xls/estimators/delay_model)
 
     In order to generate efficient circuits which meet timing requirement, XLS
     models the delay (in picoseconds) of each operation for different process

@@ -25,7 +25,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/delay_model/analyze_critical_path.h"
+#include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_test_base.h"

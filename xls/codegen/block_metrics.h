@@ -18,7 +18,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/xls_metrics.pb.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
 
 namespace xls::verilog {

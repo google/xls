@@ -34,7 +34,9 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -441,9 +443,17 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
           << resolved->ToString();
 
   if (resolved->HasParametricDims()) {
+    absl::btree_set<std::string> dim_exprs;
+    for (const TypeDim& dim : resolved->GetAllDims()) {
+      if (dim.IsParametric()) {
+        dim_exprs.insert(dim.ToString());
+      }
+    }
     return TypeInferenceErrorStatus(
         span(), resolved.get(),
-        "Instantiated return type did not have all parametrics resolved.");
+        absl::StrCat("Instantiated return type did not have the "
+                     "following parametrics resolved: ",
+                     absl::StrJoin(dim_exprs, ", ")));
   }
 
   parametric_env_expr_scope.Finish();

@@ -19,7 +19,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"

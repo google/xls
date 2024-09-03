@@ -36,10 +36,10 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
-#include "xls/delay_model/delay_model.pb.h"
-#include "xls/delay_model/sample_point_extraction_utils.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimators.h"
+#include "xls/estimators/delay_model/delay_model.pb.h"
+#include "xls/estimators/delay_model/sample_point_extraction_utils.h"
 #include "xls/ir/ir_parser.h"
 
 namespace {

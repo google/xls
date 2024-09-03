@@ -350,7 +350,7 @@ fn f() -> u32 { p(u7:0) }
   EXPECT_THAT(Typecheck(program),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("uN[X] Instantiated return type did not have "
-                                 "all parametrics resolved")));
+                                 "the following parametrics resolved: X")));
 }
 
 // In this example we do not bind X via the arguments, but we try to use it in

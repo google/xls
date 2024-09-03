@@ -1,4 +1,4 @@
-# proto-file: xls/delay_model/delay_model.proto
+# proto-file: xls/estimators/delay_model/delay_model.proto
 # proto-message: xls.delay_model.DelayModel
 op_models {
   op: "kIdentity"

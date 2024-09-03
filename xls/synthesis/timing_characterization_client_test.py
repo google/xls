@@ -18,8 +18,8 @@ import multiprocessing as mp
 import tempfile
 
 from absl.testing import absltest
-from xls.delay_model import delay_model_pb2
-from xls.delay_model import delay_model_utils
+from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators.delay_model import delay_model_utils
 from xls.synthesis import timing_characterization_client as client
 
 

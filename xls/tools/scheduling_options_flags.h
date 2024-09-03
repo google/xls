@@ -22,7 +22,7 @@
 
 #include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"

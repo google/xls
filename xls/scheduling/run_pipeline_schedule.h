@@ -16,7 +16,7 @@
 #define XLS_SCHEDULING_RUN_PIPELINE_SCHEDULE_H_
 
 #include "absl/status/statusor.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
 #include "xls/scheduling/pipeline_schedule.h"

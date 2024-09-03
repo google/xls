@@ -22,7 +22,7 @@
 #include "absl/status/statusor.h"
 #include "google/protobuf/util/json_util.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/visualization/ir_viz/ir_to_proto.h"

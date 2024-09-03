@@ -33,8 +33,8 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/delay_model/analyze_critical_path.h"
-#include "xls/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/analyze_critical_path.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"  // IWYU pragma: keep
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_preference.h"

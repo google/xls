@@ -31,9 +31,9 @@ from absl import logging
 
 from google.protobuf import text_format
 from xls.common import gfile
-from xls.delay_model import delay_model_pb2
-from xls.delay_model import delay_model_utils
-from xls.delay_model import op_module_generator
+from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators.delay_model import delay_model_utils
+from xls.estimators.delay_model import op_module_generator
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
 
@@ -370,6 +370,6 @@ def run_characterization(
     with gfile.open(_OUT_PATH.value, 'w') as f:
       f.write(text_format.MessageToString(data_points_proto))
 
-  print('# proto-file: xls/delay_model/delay_model.proto')
+  print('# proto-file: xls/estimators/delay_model/delay_model.proto')
   print('# proto-message: xls.delay_model.DataPoints')
   print(data_points_proto)

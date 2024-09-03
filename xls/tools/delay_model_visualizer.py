@@ -19,7 +19,7 @@ Dumps a graph (as an image) of each XLS op delay model in a specified directory.
 
 Usage:
   delay_model_visualizer --output_dir=/tmp/images \
-    xls/delay_model/models/unit.textproto
+    xls/estimators/delay_model/models/unit.textproto
 """
 
 import os.path
@@ -34,8 +34,8 @@ from mpl_toolkits import mplot3d  # pylint: disable=unused-import
 import numpy as np
 
 from google.protobuf import text_format
-from xls.delay_model import delay_model
-from xls.delay_model import delay_model_pb2
+from xls.estimators.delay_model import delay_model
+from xls.estimators.delay_model import delay_model_pb2
 
 flags.DEFINE_string(
     'output_dir', None, 'The directory to write image files into.'
