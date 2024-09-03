@@ -109,4 +109,17 @@ TEST(IrConversionUtilsTest, TypeToIr) {
   EXPECT_EQ(bits_type->GetFlatBitCount(), 8);
 }
 
+TEST(IrConversionUtilsTest, BitsConstructorTypeToIr) {
+  Package package("p");
+  const ParametricEnv bindings;
+
+  TypeDim is_signed = TypeDim::CreateBool(true);
+  TypeDim size = TypeDim::CreateU32(4);
+  auto element_type = std::make_unique<BitsConstructorType>(is_signed);
+  auto s4 = std::make_unique<ArrayType>(std::move(element_type), size);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Type * type, TypeToIr(&package, *s4, bindings));
+  EXPECT_EQ(type->ToString(), "bits[4]");
+}
+
 }  // namespace xls::dslx

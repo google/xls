@@ -783,6 +783,14 @@ std::vector<TypeDim> ArrayType::GetAllDims() const {
 }
 
 absl::StatusOr<TypeDim> ArrayType::GetTotalBitCount() const {
+  // For the bits constructor (xN) although the element type is "sizeless"
+  // (i.e. like `bits`, `xN[false]` doesn't have a size on its own, it needs to
+  // be placed in an array), when it is instantiated via an array type it has
+  // the given size; i.e. the size of `xN[false][N]` is `N`.
+  if (IsBitsConstructor(element_type())) {
+    return size_;
+  }
+
   XLS_ASSIGN_OR_RETURN(TypeDim elem_bits, element_type_->GetTotalBitCount());
   return elem_bits.Mul(size_);
 }

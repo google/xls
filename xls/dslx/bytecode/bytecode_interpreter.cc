@@ -83,11 +83,15 @@ absl::StatusOr<std::string> ToStringMaybeFormatted(
 // Casts an InterpValue representable as Bits to a new InterpValue
 // with the given BitsType.
 absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
-                                            BitsType* to_bits, bool is_checked,
+                                            const BitsLikeProperties& to_bits,
+                                            const Type& to_type,
+                                            bool is_checked,
                                             const Span& source_span,
                                             const FileTable& file_table) {
-  XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
-                       to_bits->GetTotalBitCount().value().GetAsInt64());
+  VLOG(3) << "ResizeBitsValue; from: " << from << " to: " << to_type << " @ "
+          << source_span.ToString(file_table);
+  XLS_ASSIGN_OR_RETURN(int64_t to_bit_count, to_bits.size.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(bool is_signed, to_bits.is_signed.GetAsBool());
 
   // Check if it fits.
   // Case A: to unsigned of N-bits
@@ -97,16 +101,16 @@ absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
   if (is_checked) {
     bool does_fit = false;
 
-    if (!to_bits->is_signed()) {
+    if (!is_signed) {
       does_fit = !from.IsNegative() && from.FitsInNBitsUnsigned(to_bit_count);
-    } else if (to_bits->is_signed() && !from.IsNegative()) {
+    } else if (is_signed && !from.IsNegative()) {
       does_fit = from.FitsInNBitsUnsigned(to_bit_count - 1);
     } else {  // to_bits->is_signed() && from.IsNegative()
       does_fit = from.FitsInNBitsSigned(to_bit_count);
     }
 
     if (!does_fit) {
-      return CheckedCastErrorStatus(source_span, from, to_bits, file_table);
+      return CheckedCastErrorStatus(source_span, from, &to_type, file_table);
     }
   }
 
@@ -127,7 +131,7 @@ absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
     }
   }
 
-  return InterpValue::MakeBits(to_bits->is_signed(), result_bits);
+  return InterpValue::MakeBits(is_signed, result_bits);
 }
 
 }  // namespace
@@ -602,49 +606,70 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
     return absl::InternalError("Cast op requires Type data.");
   }
 
-  XLS_ASSIGN_OR_RETURN(InterpValue from, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue from_value, Pop());
 
   if (!bytecode.data().has_value()) {
     return absl::InternalError("Cast op is missing its data element!");
   }
 
-  Type* to = std::get<std::unique_ptr<Type>>(bytecode.data().value()).get();
-  if (from.IsArray()) {
+  const Type& to = *std::get<std::unique_ptr<Type>>(bytecode.data().value());
+  if (from_value.IsArray()) {
     // From array to bits.
-    BitsType* to_bits = dynamic_cast<BitsType*>(to);
-    if (to_bits == nullptr) {
+    std::optional<BitsLikeProperties> to_bits_like = GetBitsLike(to);
+    if (!to_bits_like.has_value()) {
       return absl::InvalidArgumentError(
           "Array types can only be cast to bits.");
     }
-    XLS_ASSIGN_OR_RETURN(InterpValue converted, from.Flatten());
+    XLS_ASSIGN_OR_RETURN(InterpValue converted, from_value.Flatten());
+
+    // Soundness check that the "to" type has the same number of bits as our new
+    // flattened value.
+    XLS_RET_CHECK_EQ(converted.GetBitCount().value(),
+                     to_bits_like->size.GetAsInt64().value());
+
     stack_.Push(converted);
     return absl::OkStatus();
   }
 
-  if (from.IsEnum()) {
+  if (from_value.IsEnum()) {
     // From enum to bits.
-    BitsType* to_bits = dynamic_cast<BitsType*>(to);
-    if (to_bits == nullptr) {
+    std::optional<BitsLikeProperties> to_bits_like = GetBitsLike(to);
+    if (!to_bits_like.has_value()) {
       return absl::InvalidArgumentError("Enum types can only be cast to bits.");
     }
 
-    XLS_ASSIGN_OR_RETURN(InterpValue result,
-                         ResizeBitsValue(from, to_bits, is_checked,
-                                         bytecode.source_span(), file_table()));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        ResizeBitsValue(from_value, to_bits_like.value(), to, is_checked,
+                        bytecode.source_span(), file_table()));
     stack_.Push(result);
     return absl::OkStatus();
   }
 
-  if (!from.IsBits()) {
+  if (!from_value.IsBits()) {
     return absl::InvalidArgumentError(
         "Bytecode interpreter only supports casts from arrays, enums, and "
         "bits; got: " +
-        from.ToString());
+        from_value.ToString());
   }
 
-  int64_t from_bit_count = from.GetBits().value().bit_count();
+  int64_t from_bit_count = from_value.GetBits().value().bit_count();
+
+  // If the thing we're casing from is bits like, and the thing we're casting
+  // to is bits, like, we use the `ResizeBitsValue` helper.
+  if (std::optional<BitsLikeProperties> to_bits_like = GetBitsLike(to);
+      to_bits_like.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        ResizeBitsValue(from_value, to_bits_like.value(), to, is_checked,
+                        bytecode.source_span(), file_table()));
+    stack_.Push(result);
+    return absl::OkStatus();
+  }
+
   // From bits to array.
-  if (ArrayType* to_array = dynamic_cast<ArrayType*>(to); to_array != nullptr) {
+  if (const ArrayType* to_array = dynamic_cast<const ArrayType*>(&to);
+      to_array != nullptr) {
     XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
                          to_array->GetTotalBitCount().value().GetAsInt64());
     if (from_bit_count != to_bit_count) {
@@ -652,29 +677,24 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
           "Cast to array had mismatching bit counts: from %d to %d.",
           from_bit_count, to_bit_count));
     }
-    XLS_ASSIGN_OR_RETURN(InterpValue casted, CastBitsToArray(from, *to_array));
+    XLS_ASSIGN_OR_RETURN(InterpValue casted,
+                         CastBitsToArray(from_value, *to_array));
     stack_.Push(casted);
     return absl::OkStatus();
   }
 
   // From bits to enum.
-  if (EnumType* to_enum = dynamic_cast<EnumType*>(to); to_enum != nullptr) {
-    XLS_ASSIGN_OR_RETURN(InterpValue converted, CastBitsToEnum(from, *to_enum));
+  if (const EnumType* to_enum = dynamic_cast<const EnumType*>(&to);
+      to_enum != nullptr) {
+    XLS_ASSIGN_OR_RETURN(InterpValue converted,
+                         CastBitsToEnum(from_value, *to_enum));
     stack_.Push(converted);
     return absl::OkStatus();
   }
 
-  BitsType* to_bits = dynamic_cast<BitsType*>(to);
-  if (to_bits == nullptr) {
-    return absl::InvalidArgumentError(
-        "Bits can only be cast to arrays, enums, or other bits types.");
-  }
-
-  XLS_ASSIGN_OR_RETURN(InterpValue result,
-                       ResizeBitsValue(from, to_bits, is_checked,
-                                       bytecode.source_span(), file_table()));
-  stack_.Push(result);
-  return absl::OkStatus();
+  return absl::UnimplementedError(absl::StrFormat(
+      "BytecodeInterpreter; cast of value %s to type %s is not yet implemented",
+      from_value.ToString(), to.ToString()));
 }
 
 absl::Status BytecodeInterpreter::EvalConcat(const Bytecode& bytecode) {

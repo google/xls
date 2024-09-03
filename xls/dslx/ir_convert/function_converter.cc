@@ -870,8 +870,9 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
 absl::Status FunctionConverter::HandleCast(const Cast* node) {
   XLS_RETURN_IF_ERROR(Visit(node->expr()));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> output_type, ResolveType(node));
-  if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
-    return CastToArray(node, *array_type);
+  if (auto* to_array_type = dynamic_cast<ArrayType*>(output_type.get());
+      to_array_type != nullptr && !IsArrayOfBitsConstructor(*to_array_type)) {
+    return CastToArray(node, *to_array_type);
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> input_type,
                        ResolveType(node->expr()));
@@ -879,23 +880,27 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
       !IsArrayOfBitsConstructor(*input_type)) {
     return CastFromArray(node, *output_type);
   }
+
   XLS_ASSIGN_OR_RETURN(TypeDim new_bit_count_ctd,
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
       std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
+
   XLS_ASSIGN_OR_RETURN(TypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t old_bit_count,
       std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
+
   if (new_bit_count < old_bit_count) {
     auto bvalue_status = DefWithStatus(
         node,
         [this, node,
          new_bit_count](const SourceInfo& loc) -> absl::StatusOr<BValue> {
           XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
-          return function_builder_->BitSlice(input, 0, new_bit_count);
+          return function_builder_->BitSlice(input, /*start=*/0,
+                                             /*width=*/new_bit_count);
         });
     XLS_RETURN_IF_ERROR(bvalue_status.status());
   } else {
@@ -954,7 +959,8 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
   // lost any data.
   if (new_bit_count < old_bit_count) {
     Def(node, [this, arg, new_bit_count](const SourceInfo& loc) {
-      return function_builder_->BitSlice(arg, 0, new_bit_count);
+      return function_builder_->BitSlice(arg, /*start=*/0,
+                                         /*width=*/new_bit_count);
     });
   } else {
     Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
@@ -1705,7 +1711,8 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
           current_type_info_->GetSliceStartAndWidth(slice, GetParametricEnv());
       XLS_RET_CHECK(saw.has_value());
       Def(node, [&](const SourceInfo& loc) {
-        return function_builder_->BitSlice(lhs, saw->start, saw->width, loc);
+        return function_builder_->BitSlice(lhs, /*start=*/saw->start,
+                                           /*width=*/saw->width, loc);
       });
     }
   } else {
@@ -3434,7 +3441,8 @@ absl::Status FunctionConverter::HandleBuiltinSignex(const Invocation* node) {
 
   Def(node, [&](const SourceInfo& loc) {
     if (new_bit_count < old_bit_count) {
-      return function_builder_->BitSlice(arg, 0, new_bit_count, loc);
+      return function_builder_->BitSlice(arg, /*start=*/0,
+                                         /*width=*/new_bit_count, loc);
     }
     return function_builder_->SignExtend(arg, new_bit_count, loc);
   });
@@ -3494,19 +3502,24 @@ absl::Status FunctionConverter::HandleBuiltinXorReduce(const Invocation* node) {
 
 absl::Status FunctionConverter::CastToArray(const Cast* node,
                                             const ArrayType& output_type) {
+  XLS_RET_CHECK(!IsBitsConstructor(output_type.element_type()));
+
   XLS_ASSIGN_OR_RETURN(BValue bits, Use(node->expr()));
+
   std::vector<BValue> slices;
   XLS_ASSIGN_OR_RETURN(TypeDim element_bit_count_dim,
                        output_type.element_type().GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t element_bit_count,
                        TypeDim::GetAs64Bits(element_bit_count_dim.value()));
+
   XLS_ASSIGN_OR_RETURN(int64_t array_size,
                        TypeDim::GetAs64Bits(output_type.size().value()));
   // MSb becomes lowest-indexed array element.
   slices.reserve(array_size);
   for (int64_t i = 0; i < array_size; ++i) {
-    slices.push_back(function_builder_->BitSlice(bits, i * element_bit_count,
-                                                 element_bit_count));
+    slices.push_back(
+        function_builder_->BitSlice(bits, /*start=*/i * element_bit_count,
+                                    /*width=*/element_bit_count));
   }
   std::reverse(slices.begin(), slices.end());
   xls::Type* element_type = package()->GetBitsType(element_bit_count);

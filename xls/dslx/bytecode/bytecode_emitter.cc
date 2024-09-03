@@ -463,6 +463,8 @@ static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
     return absl::OkStatus();
   }
 
+  // Bits-constructor acts as a bits type, so we don't need to perform
+  // array-oriented cast checks.
   if (IsArrayOfBitsConstructor(*from_array)) {
     return absl::OkStatus();
   }
@@ -480,10 +482,10 @@ static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
   XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
 
   if (array_bit_count != bits_bit_count) {
-    return absl::InternalError(
-        absl::StrFormat("Array-to-bits cast bit counts must match. "
-                        "Saw %d vs %d.",
-                        array_bit_count, bits_bit_count));
+    return absl::InternalError(absl::StrFormat(
+        "Array-to-bits cast bit counts must match. "
+        "Saw %d for \"from\" type `%s` vs %d for \"to\" type `%s`.",
+        array_bit_count, from->ToString(), bits_bit_count, to->ToString()));
   }
 
   return absl::OkStatus();
@@ -517,11 +519,20 @@ static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
     return absl::OkStatus();
   }
 
+  // Bits-constructor acts as a bits type, so we don't need to perform
+  // array-oriented cast checks.
+  if (IsArrayOfBitsConstructor(*to_array)) {
+    return absl::OkStatus();
+  }
+
   // Casting from bits to an array.
   if (to_array->element_type().GetAllDims().size() != 1) {
     return absl::InternalError(
         "Only casts to/from one-dimensional arrays are supported.");
   }
+
+  VLOG(5) << "from_bits: " << from_bits->ToString()
+          << " to_array: " << to_array->ToString();
 
   XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from_bits->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
@@ -530,10 +541,10 @@ static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
   XLS_ASSIGN_OR_RETURN(int64_t array_bit_count, bit_count_dim.GetAsInt64());
 
   if (array_bit_count != bits_bit_count) {
-    return absl::InternalError(
-        absl::StrFormat("Bits-to-array cast bit counts must match. "
-                        "Saw %d vs %d.",
-                        bits_bit_count, array_bit_count));
+    return absl::InternalError(absl::StrFormat(
+        "Bits-to-array cast bit counts must match. "
+        "bits-type `%s` bit count: %d; array-type bit count for `%s`: %d.",
+        from->ToString(), bits_bit_count, to->ToString(), array_bit_count));
   }
 
   return absl::OkStatus();
