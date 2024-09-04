@@ -19,6 +19,14 @@
 
 yosys -import
 
+# Hack to support the new requirements in bazel_rules_hdl should be fixed by
+# a better solution upstream.
+if { [info exists ::env(STANDARD_CELL_BLACK_BOX)] } {
+  set outfile [open $::env(STANDARD_CELL_BLACK_BOX) w+]
+  puts $outfile "empty_file"
+  close $outfile
+}
+
 # read design
 set srcs_flist_path $::env(FLIST)
 set srcs_flist_file [open $srcs_flist_path "r"]
