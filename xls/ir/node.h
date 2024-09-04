@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/container/btree_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -317,7 +318,8 @@ class Node {
   SourceInfo loc_;
   std::string name_;
 
-  std::vector<Node*> operands_;
+  // Most nodes have <= 2 operands, so we keep those locally if we can.
+  absl::InlinedVector<Node*, 2> operands_;
 
   // Set of users sorted by node_id for stability.
   absl::btree_set<Node*, NodeIdLessThan> users_;
