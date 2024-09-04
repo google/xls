@@ -640,12 +640,6 @@ bool IsSelectOfLiterals(Node* node, QueryEngine* query_engine) {
                           }) &&
            is_literal_or_select_of_literals(sel->default_value());
   }
-  if (node->Is<OneHotSelect>()) {
-    OneHotSelect* sel = node->As<OneHotSelect>();
-    return absl::c_all_of(sel->cases(), [&](Node* case_value) {
-      return is_literal_or_select_of_literals(case_value);
-    });
-  }
   return false;
 }
 
@@ -670,11 +664,6 @@ absl::StatusOr<Node*> LiftThroughSelectsOfLiterals(
     selector = sel->selector();
     cases = sel->cases();
     default_value = sel->default_value();
-  } else if (node->Is<OneHotSelect>()) {
-    OneHotSelect* sel = node->As<OneHotSelect>();
-    selector = sel->selector();
-    cases = sel->cases();
-    default_value = std::nullopt;
   } else {
     return absl::InternalError(
         absl::StrCat("LiftThroughSelectsOfLiterals invoked on a node that was "

@@ -377,6 +377,27 @@ TEST_F(BitSliceSimplificationPassTest,
           /*default_value=*/m::Literal(0)));
 }
 
+TEST_F(BitSliceSimplificationPassTest,
+       DynamicBitSliceOneHotSelectOfLiteralStart) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn f(x: bits[12]) -> bits[21] {
+    bit_slice.1: bits[6] = bit_slice(x, start=0, width=6)
+    literal.2: bits[39] = literal(value=549755813887)
+    literal.3: bits[39] = literal(value=0)
+    literal.4: bits[21] = literal(value=0)
+    one_hot_sel.5: bits[39] = one_hot_sel(bit_slice.1, cases=[literal.3, literal.2, literal.2, literal.2, literal.2, literal.3])
+    ret bit_slice_update.6: bits[21] = bit_slice_update(literal.4, one_hot_sel.5, x)
+}
+  )",
+                                                       p.get()));
+  // We can't simplify this, since our update's start might actually be the OR
+  // of selected values, not just one of them.
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(),
+              m::BitSliceUpdate(m::Literal(), m::OneHotSelect(), m::Param()));
+}
+
 TEST_F(BitSliceSimplificationPassTest, DynamicBitSliceLiteralInput) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
