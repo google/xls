@@ -176,11 +176,15 @@ class Node {
   // Returns whether this node was assigned a name at construction. Nodes
   // without assigned names will have names generated from the opcode and unique
   // id.
-  bool HasAssignedName() const { return !name_.empty(); }
+  bool HasAssignedName() const { return name_ != nullptr; }
 
-  // Returns name of this node. If not assigned at construction time, the name
-  // is generated from the opcode and unique id (e.g. "add.2");
+  // Returns the name of this node. If not assigned at construction time, the
+  // name is generated from the opcode and unique id (e.g. "add.2");
   std::string GetName() const;
+
+  // Returns the name of this node, if assigned. Will be empty iff
+  // HasAssignedName returns false.
+  std::string_view GetNameView() const;
 
   // Sets the name of this node. After this method is called. HasAssignedName
   // will return true.
@@ -316,7 +320,7 @@ class Node {
   Op op_;
   Type* type_;
   SourceInfo loc_;
-  std::string name_;
+  std::unique_ptr<std::string> name_;  // Non-null if name has been assigned.
 
   // Most nodes have <= 2 operands, so we keep those locally if we can.
   absl::InlinedVector<Node*, 2> operands_;

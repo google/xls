@@ -121,7 +121,8 @@ AfterAll::AfterAll(const SourceInfo& loc, absl::Span<Node* const> dependencies,
 absl::StatusOr<Node*> AfterAll::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<AfterAll>(loc(), new_operands, name_);
+  return new_function->MakeNodeWithName<AfterAll>(loc(), new_operands,
+                                                  GetNameView());
 }
 
 MinDelay::MinDelay(const SourceInfo& loc, Node* token, int64_t delay,
@@ -138,7 +139,7 @@ absl::StatusOr<Node*> MinDelay::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<MinDelay>(loc(), new_operands[0],
-                                                  delay(), name_);
+                                                  delay(), GetNameView());
 }
 
 bool MinDelay::IsDefinitelyEqualTo(const Node* other) const {
@@ -204,7 +205,7 @@ absl::StatusOr<Node*> ArraySlice::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<ArraySlice>(
-      loc(), new_operands[0], new_operands[1], width(), name_);
+      loc(), new_operands[0], new_operands[1], width(), GetNameView());
 }
 
 bool ArraySlice::IsDefinitelyEqualTo(const Node* other) const {
@@ -242,7 +243,7 @@ absl::StatusOr<Node*> ArrayConcat::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<ArrayConcat>(loc(), new_operands,
-                                                     name_);
+                                                     GetNameView());
 }
 
 BinOp::BinOp(const SourceInfo& loc, Node* lhs, Node* rhs, Op op,
@@ -257,8 +258,8 @@ BinOp::BinOp(const SourceInfo& loc, Node* lhs, Node* rhs, Op op,
 absl::StatusOr<Node*> BinOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<BinOp>(loc(), new_operands[0],
-                                               new_operands[1], op(), name_);
+  return new_function->MakeNodeWithName<BinOp>(
+      loc(), new_operands[0], new_operands[1], op(), GetNameView());
 }
 
 ArithOp::ArithOp(const SourceInfo& loc, Node* lhs, Node* rhs, int64_t width,
@@ -275,7 +276,7 @@ absl::StatusOr<Node*> ArithOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<ArithOp>(
-      loc(), new_operands[0], new_operands[1], width(), op(), name_);
+      loc(), new_operands[0], new_operands[1], width(), op(), GetNameView());
 }
 
 bool ArithOp::IsDefinitelyEqualTo(const Node* other) const {
@@ -309,7 +310,7 @@ absl::StatusOr<Node*> PartialProductOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<PartialProductOp>(
-      loc(), new_operands[0], new_operands[1], width(), op(), name_);
+      loc(), new_operands[0], new_operands[1], width(), op(), GetNameView());
 }
 
 bool PartialProductOp::IsDefinitelyEqualTo(const Node* other) const {
@@ -343,7 +344,7 @@ absl::StatusOr<Node*> Assert::CloneInNewFunction(
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<Assert>(
       loc(), new_operands[0], new_operands[1], message(), label(),
-      original_label(), name_);
+      original_label(), GetNameView());
 }
 
 bool Assert::IsDefinitelyEqualTo(const Node* other) const {
@@ -401,7 +402,7 @@ absl::StatusOr<Node*> Cover::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<Cover>(loc(), new_operands[0], label(),
-                                               original_label(), name_);
+                                               original_label(), GetNameView());
 }
 
 bool Cover::IsDefinitelyEqualTo(const Node* other) const {
@@ -430,7 +431,7 @@ absl::StatusOr<Node*> BitwiseReductionOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<BitwiseReductionOp>(
-      loc(), new_operands[0], op(), name_);
+      loc(), new_operands[0], op(), GetNameView());
 }
 
 Receive::Receive(const SourceInfo& loc, Node* token,
@@ -498,7 +499,7 @@ absl::StatusOr<Node*> NaryOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<NaryOp>(loc(), new_operands, op(),
-                                                name_);
+                                                GetNameView());
 }
 
 BitSlice::BitSlice(const SourceInfo& loc, Node* arg, int64_t start,
@@ -515,8 +516,8 @@ BitSlice::BitSlice(const SourceInfo& loc, Node* arg, int64_t start,
 absl::StatusOr<Node*> BitSlice::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<BitSlice>(loc(), new_operands[0],
-                                                  start(), width(), name_);
+  return new_function->MakeNodeWithName<BitSlice>(
+      loc(), new_operands[0], start(), width(), GetNameView());
 }
 
 bool BitSlice::IsDefinitelyEqualTo(const Node* other) const {
@@ -548,7 +549,7 @@ absl::StatusOr<Node*> DynamicBitSlice::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<DynamicBitSlice>(
-      loc(), new_operands[0], new_operands[1], width(), name_);
+      loc(), new_operands[0], new_operands[1], width(), GetNameView());
 }
 
 bool DynamicBitSlice::IsDefinitelyEqualTo(const Node* other) const {
@@ -578,7 +579,7 @@ absl::StatusOr<Node*> BitSliceUpdate::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<BitSliceUpdate>(
-      loc(), new_operands[0], new_operands[1], new_operands[2], name_);
+      loc(), new_operands[0], new_operands[1], new_operands[2], GetNameView());
 }
 
 CompareOp::CompareOp(const SourceInfo& loc, Node* lhs, Node* rhs, Op op,
@@ -594,7 +595,7 @@ absl::StatusOr<Node*> CompareOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<CompareOp>(
-      loc(), new_operands[0], new_operands[1], op(), name_);
+      loc(), new_operands[0], new_operands[1], op(), GetNameView());
 }
 
 Concat::Concat(const SourceInfo& loc, absl::Span<Node* const> args,
@@ -609,7 +610,8 @@ Concat::Concat(const SourceInfo& loc, absl::Span<Node* const> args,
 absl::StatusOr<Node*> Concat::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<Concat>(loc(), new_operands, name_);
+  return new_function->MakeNodeWithName<Concat>(loc(), new_operands,
+                                                GetNameView());
 }
 
 CountedFor::CountedFor(const SourceInfo& loc, Node* initial_value,
@@ -680,8 +682,8 @@ ExtendOp::ExtendOp(const SourceInfo& loc, Node* arg, int64_t new_bit_count,
 absl::StatusOr<Node*> ExtendOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<ExtendOp>(loc(), new_operands[0],
-                                                  new_bit_count(), op(), name_);
+  return new_function->MakeNodeWithName<ExtendOp>(
+      loc(), new_operands[0], new_bit_count(), op(), GetNameView());
 }
 
 bool ExtendOp::IsDefinitelyEqualTo(const Node* other) const {
@@ -710,7 +712,7 @@ absl::StatusOr<Node*> Invoke::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<Invoke>(loc(), new_operands, to_apply(),
-                                                name_);
+                                                GetNameView());
 }
 
 bool Invoke::IsDefinitelyEqualTo(const Node* other) const {
@@ -736,7 +738,7 @@ Literal::Literal(const SourceInfo& loc, Value value, std::string_view name,
 absl::StatusOr<Node*> Literal::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<Literal>(loc(), value(), name_);
+  return new_function->MakeNodeWithName<Literal>(loc(), value(), GetNameView());
 }
 
 bool Literal::IsDefinitelyEqualTo(const Node* other) const {
@@ -763,7 +765,7 @@ absl::StatusOr<Node*> Map::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<Map>(loc(), new_operands[0], to_apply(),
-                                             name_);
+                                             GetNameView());
 }
 
 bool Map::IsDefinitelyEqualTo(const Node* other) const {
@@ -792,7 +794,7 @@ absl::StatusOr<Node*> OneHot::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<OneHot>(loc(), new_operands[0],
-                                                priority(), name_);
+                                                priority(), GetNameView());
 }
 
 bool OneHot::IsDefinitelyEqualTo(const Node* other) const {
@@ -910,7 +912,8 @@ Tuple::Tuple(const SourceInfo& loc, absl::Span<Node* const> elements,
 absl::StatusOr<Node*> Tuple::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<Tuple>(loc(), new_operands, name_);
+  return new_function->MakeNodeWithName<Tuple>(loc(), new_operands,
+                                               GetNameView());
 }
 
 TupleIndex::TupleIndex(const SourceInfo& loc, Node* arg, int64_t index,
@@ -927,7 +930,7 @@ absl::StatusOr<Node*> TupleIndex::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<TupleIndex>(loc(), new_operands[0],
-                                                    index(), name_);
+                                                    index(), GetNameView());
 }
 
 bool TupleIndex::IsDefinitelyEqualTo(const Node* other) const {
@@ -953,7 +956,7 @@ absl::StatusOr<Node*> UnOp::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<UnOp>(loc(), new_operands[0], op(),
-                                              name_);
+                                              GetNameView());
 }
 
 Decode::Decode(const SourceInfo& loc, Node* arg, int64_t width,
@@ -970,7 +973,7 @@ absl::StatusOr<Node*> Decode::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<Decode>(loc(), new_operands[0], width(),
-                                                name_);
+                                                GetNameView());
 }
 
 bool Decode::IsDefinitelyEqualTo(const Node* other) const {
@@ -997,7 +1000,8 @@ Encode::Encode(const SourceInfo& loc, Node* arg, std::string_view name,
 absl::StatusOr<Node*> Encode::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<Encode>(loc(), new_operands[0], name_);
+  return new_function->MakeNodeWithName<Encode>(loc(), new_operands[0],
+                                                GetNameView());
 }
 
 InputPort::InputPort(const SourceInfo& loc, std::string_view name, Type* type,
@@ -1040,7 +1044,7 @@ absl::StatusOr<Node*> RegisterRead::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<RegisterRead>(loc(), GetRegister(),
-                                                      name_);
+                                                      GetNameView());
 }
 
 bool RegisterRead::IsDefinitelyEqualTo(const Node* other) const {
@@ -1075,7 +1079,7 @@ absl::StatusOr<Node*> RegisterWrite::CloneInNewFunction(
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<RegisterWrite>(
       loc(), new_operands[0], new_operands[1], new_operands[2], GetRegister(),
-      name_);
+      GetNameView());
 }
 
 bool RegisterWrite::IsDefinitelyEqualTo(const Node* other) const {
@@ -1110,7 +1114,7 @@ absl::StatusOr<Node*> InstantiationOutput::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<InstantiationOutput>(
-      loc(), instantiation(), port_name(), name_);
+      loc(), instantiation(), port_name(), GetNameView());
 }
 
 bool InstantiationOutput::IsDefinitelyEqualTo(const Node* other) const {
@@ -1144,7 +1148,7 @@ absl::StatusOr<Node*> InstantiationInput::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<InstantiationInput>(
-      loc(), new_operands[0], instantiation(), port_name(), name_);
+      loc(), new_operands[0], instantiation(), port_name(), GetNameView());
 }
 
 bool InstantiationInput::IsDefinitelyEqualTo(const Node* other) const {
@@ -1172,7 +1176,7 @@ absl::StatusOr<Node*> Gate::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   return new_function->MakeNodeWithName<Gate>(loc(), new_operands[0],
-                                              new_operands[1], name_);
+                                              new_operands[1], GetNameView());
 }
 
 SliceData Concat::GetOperandSliceData(int64_t operandno) const {
@@ -1193,7 +1197,7 @@ absl::StatusOr<Node*> Param::CloneInNewFunction(
   XLS_ASSIGN_OR_RETURN(
       Type * new_type,
       new_function->package()->MapTypeFromOtherPackage(GetType()));
-  return new_function->MakeNodeWithName<Param>(loc(), new_type, name_);
+  return new_function->MakeNodeWithName<Param>(loc(), new_type, GetNameView());
 }
 
 absl::StatusOr<Node*> Array::CloneInNewFunction(
@@ -1204,7 +1208,7 @@ absl::StatusOr<Node*> Array::CloneInNewFunction(
       Type * new_element_type,
       new_function->package()->MapTypeFromOtherPackage(element_type()));
   return new_function->MakeNodeWithName<Array>(loc(), new_operands,
-                                               new_element_type, name_);
+                                               new_element_type, GetNameView());
 }
 
 absl::StatusOr<Node*> CountedFor::CloneInNewFunction(
@@ -1213,7 +1217,7 @@ absl::StatusOr<Node*> CountedFor::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<CountedFor>(
       loc(), new_operands[0], new_operands.subspan(1), trip_count(), stride(),
-      body(), name_);
+      body(), GetNameView());
 }
 
 absl::StatusOr<Node*> DynamicCountedFor::CloneInNewFunction(
@@ -1222,7 +1226,7 @@ absl::StatusOr<Node*> DynamicCountedFor::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<DynamicCountedFor>(
       loc(), new_operands[0], new_operands[1], new_operands[2],
-      new_operands.subspan(3), body(), name_);
+      new_operands.subspan(3), body(), GetNameView());
 }
 
 absl::StatusOr<Node*> Select::CloneInNewFunction(
@@ -1234,14 +1238,14 @@ absl::StatusOr<Node*> Select::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Select>(
       loc(), new_operands[0], new_operands.subspan(1, cases_size_),
-      new_default_value, name_);
+      new_default_value, GetNameView());
 }
 
 absl::StatusOr<Node*> OneHotSelect::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<OneHotSelect>(
-      loc(), new_operands[0], new_operands.subspan(1), name_);
+      loc(), new_operands[0], new_operands.subspan(1), GetNameView());
 }
 
 absl::StatusOr<Node*> PrioritySelect::CloneInNewFunction(
@@ -1250,21 +1254,22 @@ absl::StatusOr<Node*> PrioritySelect::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<PrioritySelect>(
       loc(), new_operands[0], new_operands.subspan(1, cases_size_),
-      new_operands.back(), name_);
+      new_operands.back(), GetNameView());
 }
 
 absl::StatusOr<Node*> ArrayIndex::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<ArrayIndex>(
-      loc(), new_operands[0], new_operands.subspan(1), name_);
+      loc(), new_operands[0], new_operands.subspan(1), GetNameView());
 }
 
 absl::StatusOr<Node*> ArrayUpdate::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<ArrayUpdate>(
-      loc(), new_operands[0], new_operands[1], new_operands.subspan(2), name_);
+      loc(), new_operands[0], new_operands[1], new_operands.subspan(2),
+      GetNameView());
 }
 
 absl::StatusOr<Node*> Trace::CloneInNewFunction(
@@ -1272,7 +1277,7 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
   // TODO(amfv): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Trace>(
       loc(), new_operands[0], new_operands[1], new_operands.subspan(2),
-      format(), verbosity(), name_);
+      format(), verbosity(), GetNameView());
 }
 
 Type* Receive::GetPayloadType() const {
@@ -1294,7 +1299,7 @@ absl::StatusOr<Node*> Receive::CloneInNewFunction(
       loc(), new_operands[0],
       new_operands.size() > 1 ? std::optional<Node*>(new_operands[1])
                               : std::nullopt,
-      channel_name(), is_blocking(), name_);
+      channel_name(), is_blocking(), GetNameView());
 }
 
 absl::StatusOr<Node*> Send::CloneInNewFunction(
@@ -1304,7 +1309,7 @@ absl::StatusOr<Node*> Send::CloneInNewFunction(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
                               : std::nullopt,
-      channel_name(), name_);
+      channel_name(), GetNameView());
 }
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(
@@ -1314,7 +1319,7 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
       loc(), new_operands[0], new_operands[1],
       new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
                               : std::nullopt,
-      name_);
+      GetNameView());
 }
 
 bool Select::AllCases(const std::function<bool(Node*)>& p) const {

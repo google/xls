@@ -59,7 +59,9 @@ Node::Node(Op op, Type* type, const SourceInfo& loc, std::string_view name,
       op_(op),
       type_(type),
       loc_(loc),
-      name_(name.empty() ? "" : function_base_->UniquifyNodeName(name)) {}
+      name_(name.empty() ? nullptr
+                         : std::make_unique<std::string>(
+                               function_base_->UniquifyNodeName(name))) {}
 
 void Node::AddOperand(Node* operand) {
   VLOG(3) << " Adding operand " << operand->GetName() << " as #"
@@ -438,22 +440,40 @@ bool Node::IsDefinitelyEqualTo(const Node* other) const {
 }
 
 std::string Node::GetName() const {
-  if (!name_.empty()) {
-    return name_;
+  if (name_ == nullptr) {
+    // Return a generated name based on the id.
+    return absl::StrFormat("%s.%d", OpToString(op()), id());
   }
-  // Return a generated name based on the id.
-  return absl::StrFormat("%s.%d", OpToString(op()), id());
+  return *name_;
+}
+
+std::string_view Node::GetNameView() const {
+  if (name_ == nullptr) {
+    return "";
+  }
+  return *name_;
 }
 
 void Node::SetName(std::string_view name) {
-  name_ = function_base()->UniquifyNodeName(name);
+  if (name.empty()) {
+    name_.reset();
+  } else {
+    name_ =
+        std::make_unique<std::string>(function_base()->UniquifyNodeName(name));
+  }
 }
 
-void Node::SetNameDirectly(std::string_view name) { name_ = std::string(name); }
+void Node::SetNameDirectly(std::string_view name) {
+  if (name.empty()) {
+    name_.reset();
+  } else {
+    name_ = std::make_unique<std::string>(name);
+  }
+}
 
 void Node::ClearName() {
   CHECK(!Is<Param>());
-  name_ = "";
+  name_.reset();
 }
 
 void Node::SetLoc(const SourceInfo& loc) { loc_ = loc; }
@@ -830,7 +850,7 @@ absl::Status Node::ReplaceUsesWith(Node* replacement,
       !replacement->HasAssignedName()) {
     // Do not use SetName because we do not want the name to be uniqued which
     // would add a suffix because (clearly) the name already exists.
-    replacement->name_ = name_;
+    replacement->SetNameDirectly(*name_);
     ClearName();
   }
   return absl::OkStatus();

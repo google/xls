@@ -272,15 +272,15 @@ absl::Status Block::SetPortNameExactly(std::string_view name, Node* node) {
                             name));
       }
       // Pick a new name for n.
-      n->name_ = UniquifyNodeName(name);
+      n->SetNameDirectly(UniquifyNodeName(name));
       XLS_RET_CHECK_NE(n->GetName(), name);
-      node->name_ = name;
+      node->SetNameDirectly(name);
       return absl::OkStatus();
     }
   }
   // Ensure the name is known by the uniquer.
   UniquifyNodeName(name);
-  node->name_ = name;
+  node->SetNameDirectly(name);
   return absl::OkStatus();
 }
 

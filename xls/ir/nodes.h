@@ -496,7 +496,7 @@ class InputPort final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  std::string_view name() const { return name_; }
+  std::string_view name() const { return GetNameView(); }
 };
 
 class InstantiationInput final : public Node {
@@ -718,7 +718,7 @@ class OutputPort final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  std::string_view name() const { return name_; }
+  std::string_view name() const { return GetNameView(); }
 };
 
 class Param final : public Node {
@@ -730,7 +730,7 @@ class Param final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  std::string_view name() const { return name_; }
+  std::string_view name() const { return GetNameView(); }
 };
 
 class PartialProductOp final : public Node {
