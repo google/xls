@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {
@@ -99,6 +100,16 @@ absl::Status ScheduleBounds::PropagateLowerBounds() {
             operand->GetName());
         XLS_RETURN_IF_ERROR(TightenNodeLb(node, operand_lb));
         node_in_cycle_delay = in_cycle_delay.at(operand) + operand_delay;
+        continue;
+      }
+      int64_t min_delay =
+          operand->Is<MinDelay>() ? operand->As<MinDelay>()->delay() : 0;
+      if (operand_lb + min_delay > lb(node)) {
+        VLOG(4) << absl::StreamFormat(
+            "    tightened lb to %d because of operand %s", operand_lb,
+            operand->GetName());
+        XLS_RETURN_IF_ERROR(TightenNodeLb(node, operand_lb + min_delay));
+        node_in_cycle_delay = 0;
         continue;
       }
       node_in_cycle_delay = std::max(

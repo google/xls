@@ -42,6 +42,7 @@ class TestDelayEstimator : public DelayEstimator {
       case Op::kLiteral:
       case Op::kBitSlice:
       case Op::kConcat:
+      case Op::kMinDelay:
         return 0;
       default:
         return 1;
