@@ -14,9 +14,9 @@
 
 # pytype binary and test
 load("@rules_python//python:proto.bzl", "py_proto_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
-load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_equivalence_test")
 # cc_proto_library is used in this file
+
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -26,155 +26,6 @@ package(
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
-)
-
-cc_library(
-    name = "booleanifier",
-    srcs = ["booleanifier.cc"],
-    hdrs = ["booleanifier.h"],
-    deps = [
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/data_structures:leaf_type_tree",
-        "//xls/ir",
-        "//xls/ir:abstract_evaluator",
-        "//xls/ir:abstract_node_evaluator",
-        "//xls/ir:bits",
-        "//xls/ir:function_builder",
-        "//xls/ir:op",
-        "//xls/ir:type",
-        "//xls/ir:value",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "booleanifier_test",
-    srcs = ["booleanifier_test.cc"],
-    data = ["//xls/examples/crc32:crc32.opt.ir"],
-    # 2021-01-29: //xls/tools/booleanifier_test --gtest_list_tests
-    # shows 4
-    shard_count = 4,
-    deps = [
-        ":booleanifier",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:events",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
-        "//xls/ir:value_builder",
-        "//xls/jit:function_jit",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_binary(
-    name = "booleanify_main",
-    srcs = ["booleanify_main.cc"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        ":booleanifier",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-    ],
-)
-
-cc_library(
-    name = "verilog_include",
-    hdrs = ["verilog_include.h"],
-)
-
-cc_binary(
-    name = "check_ir_equivalence_main",
-    srcs = ["check_ir_equivalence_main.cc"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:format_preference",
-        "//xls/ir:ir_parser",
-        "//xls/ir:proc_testutils",
-        "//xls/ir:value",
-        "//xls/passes:dce_pass",
-        "//xls/passes:inlining_pass",
-        "//xls/passes:map_inlining_pass",
-        "//xls/passes:optimization_pass",
-        "//xls/passes:pass_base",
-        "//xls/passes:unroll_pass",
-        "//xls/scheduling:proc_state_legalization_pass",
-        "//xls/scheduling:scheduling_pass",
-        "//xls/solvers:z3_ir_equivalence",
-        "//xls/solvers:z3_ir_translator",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-py_test(
-    name = "check_ir_equivalence_main_test",
-    srcs = ["check_ir_equivalence_main_test.py"],
-    data = [
-        ":check_ir_equivalence_main",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-xls_ir_equivalence_test(
-    name = "equiv_test",
-    src_0 = "testdata/add_big.ir",
-    src_1 = "testdata/add_big.ir",
-)
-
-xls_ir_equivalence_test(
-    name = "not_equiv_test",
-    expect_equivalent = False,
-    src_0 = "testdata/add_big.ir",
-    src_1 = "testdata/add_small.ir",
-)
-
-filegroup(
-    name = "check_ir_equivalence_sh",
-    srcs = ["check_ir_equivalence.sh"],
-    visibility = ["//xls:xls_users"],
 )
 
 cc_binary(

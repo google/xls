@@ -98,7 +98,7 @@ top proc neg_neg_proc(my_state: (), init={()}) {
 }
 """
 
-_CHECK_EQUIV = runfiles.get_path("xls/tools/check_ir_equivalence_main")
+_CHECK_EQUIV = runfiles.get_path("xls/dev_tools/check_ir_equivalence_main")
 
 
 class CheckIrEquivalenceMainTest(absltest.TestCase):

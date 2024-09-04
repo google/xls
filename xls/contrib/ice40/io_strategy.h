@@ -20,7 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast/vast.h"
-#include "xls/tools/verilog_include.h"
+#include "xls/simulation/verilog_include.h"
 
 namespace xls {
 namespace verilog {

@@ -70,11 +70,11 @@
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/module_testbench_thread.h"
 #include "xls/simulation/testbench_signal_capture.h"
+#include "xls/simulation/verilog_include.h"
 #include "xls/simulation/verilog_test_base.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
-#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {

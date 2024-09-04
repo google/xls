@@ -56,8 +56,8 @@
 #include "xls/simulation/testbench_metadata.h"
 #include "xls/simulation/testbench_signal_capture.h"
 #include "xls/simulation/testbench_stream.h"
+#include "xls/simulation/verilog_include.h"
 #include "xls/simulation/verilog_simulator.h"
-#include "xls/tools/verilog_include.h"
 #include "re2/re2.h"
 
 namespace xls {

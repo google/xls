@@ -109,7 +109,7 @@ Package "fp32_add_2"
     Nodes: 252
 ```
 
-## [`check_ir_equivalence`](https://github.com/google/xls/tree/main/xls/tools/check_ir_equivalence_main.cc)
+## [`check_ir_equivalence`](https://github.com/google/xls/tree/main/xls/dev_tools/check_ir_equivalence_main.cc)
 
 Verifies that two IR files (for example, optimized and unoptimized IR from the
 same source) are logically equivalent.

@@ -31,7 +31,7 @@
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/ir/bits.h"
-#include "xls/tools/verilog_include.h"
+#include "xls/simulation/verilog_include.h"
 
 namespace xls {
 namespace verilog {

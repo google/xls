@@ -15,7 +15,7 @@
 // Utility binary to convert input XLS IR to SMTLIB2.
 // Adds the handy option of converting the XLS IR into a "fundamental"
 // representation, i.e., consisting of only AND/OR/NOT ops.
-#include "xls/tools/booleanifier.h"
+#include "xls/dev_tools/booleanifier.h"
 
 #include <algorithm>
 #include <cstdint>

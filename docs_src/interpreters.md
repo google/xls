@@ -87,13 +87,13 @@ its [very thorough] `--help` documentation for full details.
 
 Finally, compiled netlists can also be interpreted against input samples via the
 aptly-named
-[`netlist_interpreter_main`](https://github.com/google/xls/tree/main/xls/tools/netlist_interpreter_main.cc)
+[`netlist_interpreter_main`](https://github.com/google/xls/tree/main/xls/netlist/netlist_interpreter_main.cc)
 tool. This tool currently only supports single sample evaluation (as illustrated
 in the IR section above):
 
 ```
 bazel build -c opt //xls/tools:netlist_interpreter_main
-./bazel-bin/xls/tools/netlist_interpreter_main \
+./bazel-bin/xls/netlist/netlist_interpreter_main \
   --netlist <path to netlist>
   --module  <module to evaluate>
   --cell_library[_proto] <path to the module's cell library [proto]>

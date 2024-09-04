@@ -30,8 +30,8 @@
 #include "xls/ir/source_location.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/module_testbench_thread.h"
+#include "xls/simulation/verilog_include.h"
 #include "xls/simulation/verilog_test_base.h"
-#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {

@@ -166,7 +166,7 @@ def test_collect_x_files_for_library():
         <rule-input name="//xls/jit:jit_wrapper_generator_main"/>
         <rule-input name="//xls/tools:benchmark_codegen_main"/>
         <rule-input name="//xls/tools:benchmark_main"/>
-        <rule-input name="//xls/tools:check_ir_equivalence_main"/>
+        <rule-input name="//xls/dev_tools:check_ir_equivalence_main"/>
         <rule-input name="//xls/tools:codegen_main"/>
         <rule-input name="//xls/tools:eval_ir_main"/>
         <rule-input name="//xls/tools:opt_main"/>

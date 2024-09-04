@@ -33,7 +33,7 @@ _DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx/ir_convert:ir_converter_main"
 
 _DEFAULT_OPT_IR_TARGET = "//xls/tools:opt_main"
 
-_DEFAULT_IR_EQUIVALENCE_TARGET = "//xls/tools:check_ir_equivalence_main"
+_DEFAULT_IR_EQUIVALENCE_TARGET = "//xls/dev_tools:check_ir_equivalence_main"
 
 _DEFAULT_EVAL_IR_TARGET = "//xls/tools:eval_ir_main"
 

@@ -22,6 +22,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+cc_library(
+    name = "verilog_include",
+    hdrs = ["verilog_include.h"],
+)
+
 cc_test(
     name = "verilog_simulator_test",
     srcs = ["verilog_simulator_test.cc"],
@@ -43,11 +48,11 @@ cc_library(
     srcs = ["verilog_simulator.cc"],
     hdrs = ["verilog_simulator.h"],
     deps = [
+        ":verilog_include",
         "//xls/codegen:name_to_bit_count",
         "//xls/codegen/vast",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
-        "//xls/tools:verilog_include",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -67,6 +72,7 @@ cc_library(
         ":module_testbench",
         ":module_testbench_thread",
         ":testbench_signal_capture",
+        ":verilog_include",
         ":verilog_simulator",
         "//xls/codegen:flattening",
         "//xls/codegen:module_signature",
@@ -78,7 +84,6 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:xls_type_cc_proto",
         "//xls/tools:eval_utils",
-        "//xls/tools:verilog_include",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -129,6 +134,7 @@ cc_library(
         ":testbench_metadata",
         ":testbench_signal_capture",
         ":testbench_stream",
+        ":verilog_include",
         ":verilog_simulator",
         "//xls/codegen:module_signature",
         "//xls/codegen:module_signature_cc_proto",
@@ -143,7 +149,6 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:number_parser",
         "//xls/ir:source_location",
-        "//xls/tools:verilog_include",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -198,6 +203,7 @@ cc_library(
     deps = [
         ":module_simulator",
         ":module_testbench",
+        ":verilog_include",
         ":verilog_simulator",
         ":verilog_simulators",
         "//xls/codegen:codegen_options",
@@ -207,7 +213,6 @@ cc_library(
         "//xls/common:source_location",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
-        "//xls/tools:verilog_include",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

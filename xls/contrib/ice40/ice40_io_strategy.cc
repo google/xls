@@ -25,7 +25,7 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/source_location.h"
-#include "xls/tools/verilog_include.h"
+#include "xls/simulation/verilog_include.h"
 
 namespace xls {
 namespace verilog {

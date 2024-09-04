@@ -44,8 +44,8 @@ cc_library(
         "//xls/common/file:temp_directory",
         "//xls/common/file:temp_file",
         "//xls/common/status:status_macros",
+        "//xls/simulation:verilog_include",
         "//xls/simulation:verilog_simulator",
-        "//xls/tools:verilog_include",
     ],
     alwayslink = 1,
 )

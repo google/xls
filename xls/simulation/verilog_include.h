@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_VERILOG_INCLUDE_H_
-#define XLS_TOOLS_VERILOG_INCLUDE_H_
+#ifndef XLS_SIMULATION_VERILOG_INCLUDE_H_
+#define XLS_SIMULATION_VERILOG_INCLUDE_H_
 
 #include <filesystem>  // NOLINT
 #include <string>
@@ -35,4 +35,4 @@ struct VerilogInclude {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_TOOLS_VERILOG_INCLUDE_H_
+#endif  // XLS_SIMULATION_VERILOG_INCLUDE_H_

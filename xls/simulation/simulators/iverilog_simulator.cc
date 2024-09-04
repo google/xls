@@ -33,8 +33,8 @@
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
+#include "xls/simulation/verilog_include.h"
 #include "xls/simulation/verilog_simulator.h"
-#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {

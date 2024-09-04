@@ -43,9 +43,9 @@
 #include "xls/common/status/matchers.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/simulation/verilog_include.h"
 #include "xls/simulation/verilog_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
-#include "xls/tools/verilog_include.h"
 
 namespace xls {
 namespace verilog {

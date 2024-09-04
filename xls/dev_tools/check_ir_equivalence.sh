@@ -14,4 +14,4 @@
 # limitations under the License.
 
 set -e -x
-./xls/tools/check_ir_equivalence_main "$@" || exit -1
+./xls/dev_tools/check_ir_equivalence_main "$@" || exit -1
