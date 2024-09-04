@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pytype tests are present in this file
 # cc_proto_library is used in this file
 
 package(
@@ -398,5 +399,59 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "netlist_interpreter_main",
+    srcs = ["netlist_interpreter_main.cc"],
+    deps = [
+        ":cell_library",
+        ":function_extractor",
+        ":interpreter",
+        ":lib_parser",
+        ":netlist_cc_proto",
+        ":netlist_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/codegen:flattening",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
+        "//xls/ir:ir_parser",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/netlist",
+    ],
+)
+
+netlist_interpreter_main_test_data = [
+    "testdata/isqrt.v",
+    "testdata/ifte.v",
+    "testdata/simple_cell.lib",
+]
+
+py_test(
+    name = "netlist_interpreter_main_test",
+    srcs = ["netlist_interpreter_main_test.py"],
+    data = glob(netlist_interpreter_main_test_data) + [
+        ":netlist_interpreter_main",
+    ],
+    main = "netlist_interpreter_main_test.py",
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
     ],
 )

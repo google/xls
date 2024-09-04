@@ -92,5 +92,5 @@ order; refer to
 and
 [function_jit_test.cc](https://github.com/google/xls/tree/main/xls/jit/function_jit_test.cc)
 for test examples, or the [generated] float32_add_jit_wrapper.h/cc and
-[float32_add_test.cc](https://github.com/google/xls/tree/main/xls/dslx/stdlib/float32_add_test.cc)
+[float32_add_test.cc](https://github.com/google/xls/tree/main/xls/dslx/stdlib/test/float32_add_test.cc)
 for practical usage.

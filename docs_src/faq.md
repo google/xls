@@ -42,7 +42,7 @@ that makes a shim that helpfully JIT compiles the IR to native code (e.g. x64
 code), and provides an object that can be used as a C++ callable.
 
 As an example, see the
-[float32 multiply test](https://github.com/google/xls/tree/main/xls/dslx/stdlib/float32_mul_test.cc),
+[float32 multiply test](https://github.com/google/xls/tree/main/xls/dslx/stdlib/test/float32_mul_test.cc),
 which calls `Run()` on the float32 multiplier which is written in XLS and
 wrapped in the
 [`float32_mul_jit_wrapper` build target](https://github.com/google/xls/tree/main/xls/dslx/stdlib/BUILD).

@@ -19,17 +19,17 @@ import subprocess
 from xls.common import runfiles
 from xls.common import test_base
 
-XLS_TOOLS = 'xls/tools/'
+XLS_NETLIST = 'xls/netlist/'
 NETLIST_INTERPRETER_MAIN = runfiles.get_path(
-    XLS_TOOLS + 'netlist_interpreter_main'
+    XLS_NETLIST + 'netlist_interpreter_main'
 )
-CELL_LIBRARY = runfiles.get_path(XLS_TOOLS + 'testdata/simple_cell.lib')
+CELL_LIBRARY = runfiles.get_path(XLS_NETLIST + 'testdata/simple_cell.lib')
 
 
 def run_netlist_interpreter(netlist, module, input_data, output_type):
   result = subprocess.check_output([
       NETLIST_INTERPRETER_MAIN,
-      '--netlist=' + runfiles.get_path(XLS_TOOLS + netlist),
+      '--netlist=' + runfiles.get_path(XLS_NETLIST + netlist),
       '--module_name=' + module,
       '--input=' + input_data,
       '--output_type=' + output_type,
@@ -42,7 +42,7 @@ class NetlistTranspilerMainTest(test_base.TestCase):
 
   def test_sqrt(self):
     res = run_netlist_interpreter(
-        'testdata/sqrt.v', 'isqrt', 'bits[16]:100', 'bits[8]'
+        'testdata/isqrt.v', 'isqrt', 'bits[16]:100', 'bits[8]'
     )
     self.assertEqual(res, 'bits[8]:0xa')
 
