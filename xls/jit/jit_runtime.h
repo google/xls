@@ -74,8 +74,8 @@ class JitRuntime {
   //       may be stack alignment constraints. This method tells us how much to
   //       overallocate.
   size_t ShouldAllocateForStack(size_t size) {
-    return ShouldAllocateForAlignment(size,
-                                      data_layout_.getStackAlignment().value());
+    return ShouldAllocateForAlignment(
+        size, data_layout_.getStackAlignment().valueOrOne().value());
   }
 
   // Converts the provided buffer into a native LLVM buffer by aligning to the
@@ -94,7 +94,8 @@ class JitRuntime {
   // least `ShouldAllocateForStack(size)` bytes, then the result is guaranteed
   // to hold at least `size` bytes.
   absl::Span<uint8_t> AsStack(absl::Span<uint8_t> buffer) {
-    return AsAligned(buffer, data_layout_.getStackAlignment().value());
+    return AsAligned(buffer,
+                     data_layout_.getStackAlignment().valueOrOne().value());
   }
 
   int64_t GetTypeByteSize(Type* xls_type) {
