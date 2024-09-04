@@ -38,7 +38,7 @@ BINARIES = (
     'tools/codegen_main',
     'visualization/ir_viz/app',
 )
-PACKAGE_UTIL = 'tools/package_bazel_build'
+PACKAGE_UTIL = 'dev_tools/package_bazel_build'
 
 # BUILD file to write into the release directory.
 BUILD_FILE = """package(
