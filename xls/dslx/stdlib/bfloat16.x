@@ -172,6 +172,10 @@ pub fn floor(f: BF16) -> BF16 { apfloat::floor(f) }
 
 pub fn trunc(f: BF16) -> BF16 { apfloat::trunc(f) }
 
+pub fn from_float32(f32: apfloat::APFloat<u32:8, u32:23>) -> BF16 {
+    apfloat::downcast_fractional_rne<BF16_FRACTION_SZ>(f32)
+}
+
 // Converts the given signed integer to bfloat16. For s8, all values can be
 // captured exactly, so no need to round or handle overflow.
 pub fn from_int8(x: s8) -> BF16 {
@@ -244,3 +248,17 @@ fn uint_roundtrip(x: u7) -> bool { to_uint<u32:7>(from_int8(x as s8)) == x }
 
 #[quickcheck]
 fn uint_roundtrip_as_u16(x: u7) -> bool { to_uint16(from_int8(x as s8)) == x as u16 }
+
+#[quickcheck]
+fn float32_to_bfloat16_no_precision_loss(sign: u1, exp: u8, frac_part: u7) -> bool {
+    type F32 = apfloat::APFloat<u32:8, u32:23>;
+    (exp == u8:0) || (exp == u8::MAX) ||
+    (from_float32(F32 { sign, bexp: exp, fraction: frac_part ++ u16:0 }) ==
+    BF16 { sign, bexp: exp, fraction: frac_part })
+}
+
+#[quickcheck]
+fn float32_to_bfloat16_subnormals_flushed_to_zero(sign: u1, fraction: u23) -> bool {
+    type F32 = apfloat::APFloat<u32:8, u32:23>;
+    from_float32(F32 { sign, bexp: u8:0, fraction }) == zero(sign)
+}

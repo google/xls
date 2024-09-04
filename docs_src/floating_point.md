@@ -254,12 +254,23 @@ as the [rounding mode](https://en.wikipedia.org/wiki/Rounding).
 ### `apfloat::upcast`
 
 ```dslx-snippet
-fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTION_SZ: u32>
+pub fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTION_SZ: u32>
     (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
 ```
 
 Upcast the given apfloat to another (larger) apfloat representation. Note:
 denormal inputs get flushed to zero.
+
+### `apfloat::downcast_fractional_rne`
+
+```dslx-snippet
+pub fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u32>
+    (f: APFloat<EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<EXP_SZ, TO_FRACTION_SZ> {
+```
+
+Round the apfloat to lower precision in fractional bits, while the exponent size
+remains fixed. Ties round to even (LSB = 0) and denormal inputs get flushed to
+zero.
 
 ### `apfloat::normalize`
 
@@ -713,24 +724,14 @@ pub type TaggedBF16 = (FloatTag, BF16);
 Besides `bfloat16` specializations of the functions in `apfloat.x`, the following
 functions are defined just for `bfloat16`.
 
-### `bfloat16:to_int16`, `bfloat16:to_uint16`, `bfloat16::from_int8`
+### `bfloat16:to_int16`, `bfloat16:to_uint16`
 
 ```dslx-snippet
 pub fn to_int16(x: BF16) -> s16
 pub fn to_uint16(x: BF16) -> u16
-pub fn from_int8(x: s8) -> BF16
 ```
 
-Convert the `BF16` struct to a 16 bit signed/unsigned integer, or from an 8 bit
-signed integer to a `BF16`.
-
-### `bfloat16:increment_fraction`
-```dslx-snippet
-pub fn increment_fraction(input: BF16) -> BF16
-```
-
-Increments the fraction of the input BF16 by one and returns the normalized
-result. Input must be a normal *non-zero* number.
+Convert the `BF16` struct to a 16 bit signed/unsigned integer.
 
 ### `bfloat16::from_int8`
 ```dslx-snippet
@@ -739,6 +740,22 @@ pub fn from_int8(x: s8) -> BF16
 
 Converts the given signed integer to bfloat16. For s8, all values can be
 captured exactly, so no need to round or handle overflow.
+
+### `bfloat16::from_float32`
+```dslx-snippet
+pub fn from_float32(x: F32) -> BF16
+```
+
+Converts the given float32 to bfloat16. Ties round to even (LSB = 0) and
+denormal inputs get flushed to zero.
+
+### `bfloat16:increment_fraction`
+```dslx-snippet
+pub fn increment_fraction(input: BF16) -> BF16
+```
+
+Increments the fraction of the input BF16 by one and returns the normalized
+result. Input must be a normal *non-zero* number.
 
 ## Testing
 
