@@ -384,7 +384,7 @@ class LeafTypeTree {
     CHECK_EQ(elements.size(), type->leaf_count());
     LeafTypeTree<T> ltt;
     ltt.type_ = type;
-    ltt.elements_ = elements;
+    ltt.elements_ = std::move(elements);
     ltt.leaf_types_ = leaf_type_tree_internal::GetLeafTypes(type);
     return ltt;
   }
