@@ -4,11 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://bit.ly/learn-xls) | [**Tutorials**](https://google.github.io/xls/tutorials/)
-
-[**Conda packages**](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/latest_release_date.svg)](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/platforms.svg)](https://anaconda.org/litex-hub/xls)
-
-[![Ubuntu 22.04 CI](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg)](https://github.com/google/xls/actions/workflows/continuous-integration.yml) [![Ubuntu 22.04 Nightly](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)](https://github.com/google/xls/actions/workflows/nightly-ubuntu-22.04.yml)
+<!-- GitHub banner -->
 
 ## What is XLS?
 
