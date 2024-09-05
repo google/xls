@@ -40,6 +40,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/public/runtime_build_actions.h"
+#include "xls/codegen/vast/vast.h"
 
 namespace {
 
@@ -432,6 +433,34 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
       new xls::Value(std::move(result_value.value())));
   *error_out = nullptr;
   return true;
+}
+
+// -- VAST
+
+struct xls_vast_verilog_file* xls_vast_make_verilog_file(xls_vast_file_type file_type) {
+  auto* value = new xls::verilog::VerilogFile(static_cast<xls::verilog::FileType>(file_type));
+  return reinterpret_cast<xls_vast_verilog_file*>(value);
+}
+
+void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f) {
+  delete reinterpret_cast<xls::verilog::VerilogFile*>(f);
+}
+
+struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(struct xls_vast_verilog_file* f, const char* name) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::Module* cpp_module = cpp_file->AddModule(name, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_verilog_module*>(cpp_module);
+}
+
+void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f, const char* path) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  cpp_file->AddInclude(path, xls::SourceInfo());
+}
+
+char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f) {
+  const auto* cpp_file = reinterpret_cast<const xls::verilog::VerilogFile*>(f);
+  std::string result = cpp_file->Emit();
+  return ToOwnedCString(result);
 }
 
 }  // extern "C"

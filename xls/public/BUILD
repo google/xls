@@ -171,6 +171,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/codegen/vast",
     ],
 )
 

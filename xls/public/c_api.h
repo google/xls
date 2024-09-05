@@ -181,6 +181,38 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
                             const struct xls_value** args, char** error_out,
                             struct xls_value** result_out);
 
+// -- VAST (Verilog AST) APIs
+//
+// Note that these are expected to be *less* stable than the above APIs, as
+// they are exposing a useful implementation library present within XLS.
+//
+// Per usual, in a general sense, no promises are made around API or ABI
+// stability overall. However, seems worth noting these are effectively
+// "protected" APIs, use with particular caution around stability. See
+// `xls/protected/BUILD` for how we tend to think about "protected" APIs in the
+// project.
+
+// Opaque structs.
+struct xls_vast_verilog_file;
+struct xls_vast_verilog_module;
+
+// Note: We define the enum with a fixed width integer type for clarity of the
+// exposed ABI.
+typedef int32_t xls_vast_file_type;
+enum {
+  xls_vast_file_type_verilog,
+  xls_vast_file_type_system_verilog,
+};
+
+struct xls_vast_verilog_file* xls_vast_make_verilog_file(xls_vast_file_type file_type);
+void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f);
+
+struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(struct xls_vast_verilog_file* f, const char* name);
+void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f, const char* path);
+
+char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f);
+
+
 }  // extern "C"
 
 #endif  // XLS_PUBLIC_C_API_H_
