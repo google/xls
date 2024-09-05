@@ -957,7 +957,7 @@ cc_library(
     data = [
         ":find_failing_input_main",
         ":sample_runner_main",
-        "//xls/tools:ir_minimizer_main",
+        "//xls/dev_tools:ir_minimizer_main",
     ],
     deps = [
         ":sample",

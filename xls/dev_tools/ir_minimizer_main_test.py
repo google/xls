@@ -20,7 +20,7 @@ import subprocess
 from absl.testing import absltest
 from xls.common import runfiles
 
-IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/tools/ir_minimizer_main')
+IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/dev_tools/ir_minimizer_main')
 
 ADD_IR = """package foo
 

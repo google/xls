@@ -36,7 +36,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<std::filesystem::path> GetIrMinimizerMainPath() {
-  return GetXlsRunfilePath("xls/tools/ir_minimizer_main");
+  return GetXlsRunfilePath("xls/dev_tools/ir_minimizer_main");
 }
 
 absl::StatusOr<std::filesystem::path> GetSampleRunnerMainPath() {
