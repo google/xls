@@ -283,7 +283,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_mul_jit_wrapper",
-        "//xls/dslx/stdlib:float32_upcast_jit_wrapper",
+        "//xls/dslx/stdlib/tests:float32_upcast_jit_wrapper",
         "//xls/examples/dslx_module:some_caps_jit_wrapper",
         "//xls/examples/dslx_module:some_caps_opt_jit_wrapper",
         "//xls/ir:bits",

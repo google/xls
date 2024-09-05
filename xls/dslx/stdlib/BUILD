@@ -234,35 +234,6 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_test(
-    name = "float32_add_jit_wrapper_test",
-    srcs = ["float32_add_jit_wrapper_test.cc"],
-    deps = [
-        ":float32_add_jit_wrapper",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir:value",
-        "//xls/ir:value_utils",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "float32_add_test_cc",
-    srcs = ["float32_add_test.cc"],
-    tags = ["optonly"],
-    deps = [
-        ":float32_add_jit_wrapper",
-        ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "float32",
     dslx_top = "sub",
@@ -318,69 +289,6 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_test(
-    name = "float32_mul_test_cc",
-    srcs = ["float32_mul_test.cc"],
-    data = [
-        ":float32_mul.ir",
-        ":float32_mul.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_mul_jit_wrapper",
-        ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
-xls_dslx_test(
-    name = "float32_upcast_test",
-    srcs = ["float32_upcast_test.x"],
-    dslx_test_args = {"compare": "jit"},
-)
-
-xls_dslx_opt_ir(
-    name = "float32_upcast",
-    srcs = ["float32_upcast_test.x"],
-    dslx_top = "f32_to_f64",
-    ir_file = "float32_upcast.ir",
-    opt_ir_file = "float32_upcast.opt.ir",
-)
-
-cc_xls_ir_jit_wrapper(
-    name = "float32_upcast_jit_wrapper",
-    src = ":float32_upcast",
-    jit_wrapper_args = {
-        "class_name": "F32ToF64",
-        "namespace": "xls::fp",
-    },
-)
-
-cc_test(
-    name = "float32_upcast_test_cc",
-    srcs = ["float32_upcast_test.cc"],
-    data = [
-        ":float32_upcast.ir",
-        ":float32_upcast.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_test_utils",
-        ":float32_upcast_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "float32_to_int32",
     srcs = ["float32.x"],
@@ -419,49 +327,6 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_test(
-    name = "float32_test",
-    srcs = ["float32_test.cc"],
-    tags = ["optonly"],
-    deps = [
-        ":float32_from_int32_wrapper",
-        ":float32_to_int32_wrapper",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-# TODO(rspringer): Takes too long to run in normal testing.
-cc_binary(
-    name = "float32_add_bounds",
-    srcs = ["float32_add_bounds.cc"],
-    data = [
-        ":float32_add.ir",
-        ":float32_add.opt.ir",
-    ],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/solvers:z3_ir_translator",
-        "//xls/solvers:z3_utils",
-        "@z3//:api",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "float32_fma",
     dslx_top = "fma",
@@ -496,29 +361,6 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_test(
-    name = "float32_fma_test",
-    srcs = ["float32_fma_test.cc"],
-    data = [
-        ":float32_fma.ir",
-        ":float32_fma.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_fma_jit_wrapper",
-        ":float32_test_utils",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "float32_ldexp",
     dslx_top = "ldexp",
@@ -534,30 +376,6 @@ cc_xls_ir_jit_wrapper(
         "class_name": "Float32Ldexp",
         "namespace": "xls::fp",
     },
-)
-
-cc_test(
-    name = "float32_ldexp_test_cc",
-    srcs = ["float32_ldexp_test.cc"],
-    data = [
-        ":float32_ldexp.ir",
-        ":float32_ldexp.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_ldexp_jit_wrapper",
-        ":float32_test_utils",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
 )
 
 xls_dslx_opt_ir(
@@ -586,35 +404,6 @@ cc_xls_ir_jit_wrapper(
         "class_name": "Float32FastRsqrt",
         "namespace": "xls::fp",
     },
-)
-
-cc_test(
-    name = "float32_fast_rsqrt_test_cc",
-    srcs = ["float32_fast_rsqrt_test.cc"],
-    data = [
-        ":float32_fast_rsqrt.ir",
-        ":float32_fast_rsqrt.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_fast_rsqrt_jit_wrapper",
-        ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
-cc_library(
-    name = "float32_test_utils",
-    testonly = True,
-    hdrs = ["float32_test_utils.h"],
-    deps = [
-        "@com_google_absl//absl/base",
-    ],
 )
 
 xls_dslx_library(
@@ -660,27 +449,6 @@ cc_xls_ir_jit_wrapper(
         "class_name": "Float64Add",
         "namespace": "xls::fp",
     },
-)
-
-cc_test(
-    name = "float64_add_test_cc",
-    srcs = ["float64_add_test.cc"],
-    data = [
-        ":float64_add.ir",
-        ":float64_add.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float64_add_jit_wrapper",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common:math_util",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
 )
 
 xls_dslx_opt_ir(
@@ -731,26 +499,6 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_test(
-    name = "float64_mul_test",
-    srcs = ["float64_mul_test.cc"],
-    data = [
-        ":float64_mul.ir",
-        ":float64_mul.opt.ir",
-    ],
-    # Flakes in fastbuild seen on 2021-06-04.
-    tags = ["optonly"],
-    deps = [
-        ":float64_mul_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "float64_fma",
     dslx_top = "fma",
@@ -780,29 +528,6 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_test(
-    name = "float64_fma_test",
-    srcs = ["float64_fma_test.cc"],
-    data = [
-        ":float64_fma.ir",
-        ":float64_fma.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float64_fma_jit_wrapper",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common:math_util",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "float32_ceil",
     dslx_top = "ceil",
@@ -818,26 +543,6 @@ cc_xls_ir_jit_wrapper(
         "class_name": "F32Ceil",
         "namespace": "xls::fp",
     },
-)
-
-cc_test(
-    name = "float32_ceil_test_cc",
-    srcs = ["float32_ceil_test.cc"],
-    data = [
-        ":float32_ceil.ir",
-        ":float32_ceil.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_ceil_jit_wrapper",
-        ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
 )
 
 xls_dslx_opt_ir(
@@ -857,26 +562,6 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
-cc_test(
-    name = "float32_floor_test_cc",
-    srcs = ["float32_floor_test.cc"],
-    data = [
-        ":float32_floor.ir",
-        ":float32_floor.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_floor_jit_wrapper",
-        ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
 xls_dslx_opt_ir(
     name = "float32_trunc",
     dslx_top = "trunc",
@@ -892,26 +577,6 @@ cc_xls_ir_jit_wrapper(
         "class_name": "F32Trunc",
         "namespace": "xls::fp",
     },
-)
-
-cc_test(
-    name = "float32_trunc_test_cc",
-    srcs = ["float32_trunc_test.cc"],
-    data = [
-        ":float32_trunc.ir",
-        ":float32_trunc.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":float32_test_utils",
-        ":float32_trunc_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
 )
 
 filegroup(

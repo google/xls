@@ -26,7 +26,7 @@
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/stdlib/float32_ldexp_jit_wrapper.h"
-#include "xls/dslx/stdlib/float32_test_utils.h"
+#include "xls/dslx/stdlib/tests/float32_test_utils.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 

@@ -18,9 +18,9 @@
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/stdlib/tests/umul_with_overflow_21_21_18_jit_wrapper.h"
+#include "xls/dslx/stdlib/tests/umul_with_overflow_35_32_18_jit_wrapper.h"
 #include "xls/ir/value_view.h"
-#include "xls/tests/umul_with_overflow/umul_with_overflow_21_21_18_jit_wrapper.h"
-#include "xls/tests/umul_with_overflow/umul_with_overflow_35_32_18_jit_wrapper.h"
 
 namespace xls {
 namespace {

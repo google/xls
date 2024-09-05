@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Random-sampling test for the DSLX 32 bit floating-point flooring.
+// Random-sampling test for the DSLX 32 bit floating-point ceiling.
 #include <cmath>
 #include <cstdint>
 
@@ -20,8 +20,8 @@
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/dslx/stdlib/float32_test_utils.h"
-#include "xls/dslx/stdlib/float32_trunc_jit_wrapper.h"
+#include "xls/dslx/stdlib/float32_ceil_jit_wrapper.h"
+#include "xls/dslx/stdlib/tests/float32_test_utils.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -32,18 +32,18 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 
-static float ComputeExpected(fp::F32Trunc* jit_wrapper, float input) {
-  return truncf(input);
+static float ComputeExpected(fp::F32Ceil* jit_wrapper, float input) {
+  return ceilf(input);
 }
 
-static float ComputeActual(fp::F32Trunc* jit_wrapper, float input) {
+static float ComputeActual(fp::F32Ceil* jit_wrapper, float input) {
   return jit_wrapper->Run(input).value();
 }
 
 static absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<float, float, fp::F32Trunc> builder(
+  TestbenchBuilder<float, float, fp::F32Ceil> builder(
       ComputeActual, ComputeExpected,
-      []() { return fp::F32Trunc::Create().value(); });
+      []() { return fp::F32Ceil::Create().value(); });
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);

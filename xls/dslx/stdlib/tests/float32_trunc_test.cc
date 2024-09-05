@@ -20,8 +20,8 @@
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/dslx/stdlib/float32_floor_jit_wrapper.h"
-#include "xls/dslx/stdlib/float32_test_utils.h"
+#include "xls/dslx/stdlib/float32_trunc_jit_wrapper.h"
+#include "xls/dslx/stdlib/tests/float32_test_utils.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -32,18 +32,18 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 
-static float ComputeExpected(fp::F32Floor* jit_wrapper, float input) {
-  return floorf(input);
+static float ComputeExpected(fp::F32Trunc* jit_wrapper, float input) {
+  return truncf(input);
 }
 
-static float ComputeActual(fp::F32Floor* jit_wrapper, float input) {
+static float ComputeActual(fp::F32Trunc* jit_wrapper, float input) {
   return jit_wrapper->Run(input).value();
 }
 
 static absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<float, float, fp::F32Floor> builder(
+  TestbenchBuilder<float, float, fp::F32Trunc> builder(
       ComputeActual, ComputeExpected,
-      []() { return fp::F32Floor::Create().value(); });
+      []() { return fp::F32Trunc::Create().value(); });
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);

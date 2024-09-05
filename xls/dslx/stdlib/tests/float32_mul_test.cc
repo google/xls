@@ -1,4 +1,4 @@
-// Copyright 2024 The XLS Authors
+// Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Random-sampling test for the DSLX 32 bit floating-point ceiling.
-#include <cmath>
+// Random-sampling test for the DSLX 2x32 floating-point multiplier.
 #include <cstdint>
+#include <tuple>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
-#include "xls/dslx/stdlib/float32_ceil_jit_wrapper.h"
-#include "xls/dslx/stdlib/float32_test_utils.h"
+#include "xls/dslx/stdlib/float32_mul_jit_wrapper.h"
+#include "xls/dslx/stdlib/tests/float32_test_utils.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -32,18 +32,28 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 
-static float ComputeExpected(fp::F32Ceil* jit_wrapper, float input) {
-  return ceilf(input);
+using Float2x32 = std::tuple<float, float>;
+
+// The DSLX implementation uses the "round to nearest (half to even)"
+// rounding mode, which is the default on most systems, hence we don't need
+// to call fesetround().
+// The DSLX implementation also flushes input subnormals to 0, so we do that
+// here as well.
+static float ComputeExpected(fp::Float32Mul* jit_wrapper, Float2x32 input) {
+  float x = FlushSubnormal(std::get<0>(input));
+  float y = FlushSubnormal(std::get<1>(input));
+  return x * y;
 }
 
-static float ComputeActual(fp::F32Ceil* jit_wrapper, float input) {
-  return jit_wrapper->Run(input).value();
+// Computes FP multiplication via DSLX & the JIT.
+static float ComputeActual(fp::Float32Mul* jit_wrapper, Float2x32 input) {
+  return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
 static absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<float, float, fp::F32Ceil> builder(
+  TestbenchBuilder<Float2x32, float, fp::Float32Mul> builder(
       ComputeActual, ComputeExpected,
-      []() { return fp::F32Ceil::Create().value(); });
+      []() { return fp::Float32Mul::Create().value(); });
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);

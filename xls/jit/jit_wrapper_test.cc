@@ -24,7 +24,7 @@
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/stdlib/float32_mul_jit_wrapper.h"
-#include "xls/dslx/stdlib/float32_upcast_jit_wrapper.h"
+#include "xls/dslx/stdlib/tests/float32_upcast_jit_wrapper.h"
 #include "xls/examples/dslx_module/some_caps_jit_wrapper.h"
 #include "xls/examples/dslx_module/some_caps_opt_jit_wrapper.h"
 #include "xls/ir/bits.h"
