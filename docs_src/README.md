@@ -168,6 +168,12 @@ that takes care of garbage collection for you. This can be hosted on a personal
 server or even on the local machine. We've personally had good results with
 localhost instances of [bazel-remote](https://github.com/buchgr/bazel-remote/).
 
+### Getting Clangd completions
+
+A `compile_commands.json` file compatible with clangd and similar tools can be
+created by running `xls/dev_tools/make-compilation-db.sh`. Follow directions for
+your editor to install clangd code completion.
+
 ## Stack Diagram and Project Layout
 
 Navigating a new code base can be daunting; the following description provides a
