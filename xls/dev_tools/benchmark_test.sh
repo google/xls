@@ -14,6 +14,6 @@
 # limitations under the License.
 
 
-./xls/tools/benchmark_main \
+./xls/dev_tools/benchmark_main \
   --vmodule=delay_estimator_main=1 --alsologtostderr "$@" || exit -1
 echo "PASS!"

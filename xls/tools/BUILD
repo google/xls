@@ -791,77 +791,6 @@ py_test(
     ],
 )
 
-filegroup(
-    name = "benchmark_test_sh",
-    srcs = ["benchmark_test.sh"],
-    visibility = ["//xls:xls_users"],
-)
-
-filegroup(
-    name = "benchmark_eval_test_sh",
-    srcs = ["benchmark_eval_test.sh"],
-    visibility = ["//xls:xls_users"],
-)
-
-cc_binary(
-    name = "benchmark_main",
-    srcs = ["benchmark_main.cc"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        ":codegen",
-        ":codegen_flags",
-        ":codegen_flags_cc_proto",
-        ":scheduling_options_flags",
-        ":scheduling_options_flags_cc_proto",
-        "//xls/codegen:module_signature",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/data_structures:binary_decision_diagram",
-        "//xls/estimators/delay_model:analyze_critical_path",
-        "//xls/estimators/delay_model:delay_estimator",
-        "//xls/estimators/delay_model:delay_estimators",
-        "//xls/fdo:grpc_synthesizer",
-        "//xls/fdo:synthesized_delay_diff_utils",
-        "//xls/fdo:synthesizer",
-        "//xls/interpreter:block_evaluator",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/interpreter:random_value",
-        "//xls/ir",
-        "//xls/ir:events",
-        "//xls/ir:ir_parser",
-        "//xls/ir:op",
-        "//xls/ir:type",
-        "//xls/ir:value",
-        "//xls/jit:block_jit",
-        "//xls/jit:function_jit",
-        "//xls/jit:jit_channel_queue",
-        "//xls/jit:jit_runtime",
-        "//xls/jit:orc_jit",
-        "//xls/jit:proc_jit",
-        "//xls/passes:bdd_function",
-        "//xls/passes:bdd_query_engine",
-        "//xls/passes:optimization_pass",
-        "//xls/passes:optimization_pass_pipeline",
-        "//xls/passes:pass_base",
-        "//xls/passes:query_engine",
-        "//xls/scheduling:pipeline_schedule",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
 # TODO(b/147004555): Add a JIT (or legacy) version of this test once
 # the JIT supports enough functionality to pass.
 py_test(
@@ -1114,57 +1043,6 @@ cc_binary(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_binary(
-    name = "benchmark_codegen_main",
-    srcs = ["benchmark_codegen_main.cc"],
-    deps = [
-        ":codegen",
-        ":codegen_flags",
-        ":codegen_flags_cc_proto",
-        ":scheduling_options_flags",
-        ":scheduling_options_flags_cc_proto",
-        "//xls/codegen:block_metrics",
-        "//xls/codegen:codegen_options",
-        "//xls/codegen:combinational_generator",
-        "//xls/codegen:module_signature",
-        "//xls/codegen:pipeline_generator",
-        "//xls/codegen:xls_metrics_cc_proto",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/estimators/delay_model:delay_estimator",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/scheduling:pipeline_schedule",
-        "//xls/scheduling:run_pipeline_schedule",
-        "//xls/scheduling:scheduling_options",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-py_test(
-    name = "benchmark_codegen_main_test",
-    srcs = ["benchmark_codegen_main_test.py"],
-    data = [
-        ":benchmark_codegen_main",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 

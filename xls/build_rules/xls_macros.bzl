@@ -537,7 +537,7 @@ Examples:
           refer to the codegen_main application at
           //xls/tools/codegen_main.cc.
         benchmark_ir_args: Arguments of the benchmark IR tool. For details on the arguments, refer
-          to the benchmark_main application at //xls/tools/benchmark_main.cc.
+          to the benchmark_main application at //xls/dev_tools/benchmark_main.cc.
         standard_cells: Label for the PDK (possibly specifying a
           non-default corner), with the assumption that $location will
           return the timing (Liberty) library for the PDK corner. Unused if synthesize == False.

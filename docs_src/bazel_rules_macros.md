@@ -327,7 +327,7 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_opt_ir_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/dev_tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="xls_dslx_opt_ir_test-expect_equivalent"></a>expect_equivalent |  If true this test fails if IRs are not equivalent. If false the test only passes if the IRs are not equivalent.   | Boolean | optional |  `True`  |
@@ -335,7 +335,7 @@ Examples:
 | <a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional |  `""`  |
 | <a id="xls_dslx_opt_ir_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/dev_tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="xls_dslx_opt_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{"random_inputs": "100", "optimize_ir": "true"}`  |
-| <a id="xls_dslx_opt_ir_test-scheduling_options_proto"></a>scheduling_options_proto |  Protobuf filename of scheduling arguments to the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_dslx_opt_ir_test-scheduling_options_proto"></a>scheduling_options_proto |  Protobuf filename of scheduling arguments to the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/dev_tools/benchmark_main.cc.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_dslx_opt_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional |  `""`  |
 
 
@@ -706,7 +706,7 @@ Examples:
           refer to the codegen_main application at
           //xls/tools/codegen_main.cc.
         benchmark_ir_args: Arguments of the benchmark IR tool. For details on the arguments, refer
-          to the benchmark_main application at //xls/tools/benchmark_main.cc.
+          to the benchmark_main application at //xls/dev_tools/benchmark_main.cc.
         standard_cells: Label for the PDK (possibly specifying a
           non-default corner), with the assumption that $location will
           return the timing (Liberty) library for the PDK corner. Unused if synthesize == False.

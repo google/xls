@@ -313,7 +313,7 @@ given IR should be in a form suitable for code generation; e.g. it has run
 through the `opt_main` binary).
 
 ```
-$ bazel run -c opt //xls/tools:benchmark_main -- $PWD/bazel-bin/xls/examples/crc32.opt.ir --clock_period_ps=500 --delay_model=sky130
+$ bazel run -c opt //xls/dev_tools:benchmark_main -- $PWD/bazel-bin/xls/examples/crc32.opt.ir --clock_period_ps=500 --delay_model=sky130
 <snip>
 Critical path delay: 8351ps
 Critical path entry count: 43

@@ -1075,14 +1075,14 @@ xls_benchmark_ir_attrs = {
     "benchmark_ir_args": attr.string_dict(
         doc = "Arguments of the benchmark IR tool. For details on the " +
               "arguments, refer to the benchmark_main application at " +
-              "//xls/tools/benchmark_main.cc.",
+              "//xls/dev_tools/benchmark_main.cc.",
     ),
     "scheduling_options_proto": attr.label(
         allow_single_file = True,
         default = None,
         doc = "Protobuf filename of scheduling arguments to the benchmark IR tool. " +
               "For details on the arguments, refer to the benchmark_main application at " +
-              "//xls/tools/benchmark_main.cc.",
+              "//xls/dev_tools/benchmark_main.cc.",
     ),
 }
 

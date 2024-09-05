@@ -21,7 +21,7 @@ from xls.common import runfiles
 from xls.common import test_base
 
 BENCHMARK_CODEGEN_MAIN_PATH = runfiles.get_path(
-    'xls/tools/benchmark_codegen_main'
+    'xls/dev_tools/benchmark_codegen_main'
 )
 
 OPT_IR = """package add

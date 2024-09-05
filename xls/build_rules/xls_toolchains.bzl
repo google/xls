@@ -37,9 +37,9 @@ _DEFAULT_IR_EQUIVALENCE_TARGET = "//xls/dev_tools:check_ir_equivalence_main"
 
 _DEFAULT_EVAL_IR_TARGET = "//xls/tools:eval_ir_main"
 
-_DEFAULT_BENCHMARK_TARGET = "//xls/tools:benchmark_main"
+_DEFAULT_BENCHMARK_TARGET = "//xls/dev_tools:benchmark_main"
 
-_DEFAULT_BENCHMARK_CODEGEN_TARGET = "//xls/tools:benchmark_codegen_main"
+_DEFAULT_BENCHMARK_CODEGEN_TARGET = "//xls/dev_tools:benchmark_codegen_main"
 
 _DEFAULT_CODEGEN_TARGET = "//xls/tools:codegen_main"
 
