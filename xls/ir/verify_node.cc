@@ -1358,8 +1358,9 @@ class NodeChecker : public DfsVisitor {
     if (expected_bit_count != -1 &&
         operand->BitCountOrDie() != expected_bit_count) {
       return absl::InternalError(absl::StrFormat(
-          "Expected operand %d of %s to have bit count %d: %s", operand_no,
-          node->GetName(), expected_bit_count, node->ToString()));
+          "Expected operand %d of %s to have bit count %d: %s (%s had %d bits)",
+          operand_no, node->GetName(), expected_bit_count, node->ToString(),
+          operand->GetName(), operand->BitCountOrDie()));
     }
     return absl::OkStatus();
   }
