@@ -91,7 +91,7 @@ absl::StatusOr<std::unique_ptr<Type>> ResolveInternal(
     for (const auto& [key, interp_value] : parametric_env_map) {
       nominal_dims.emplace(key, TypeDim(interp_value));
     }
-    resolved = resolved->AddNominalTypeDims(std::move(nominal_dims));
+    resolved = resolved->AddNominalTypeDims(nominal_dims);
   }
   VLOG(5) << "Resolved " << annotated.ToString() << " to "
           << resolved->ToString();
