@@ -368,8 +368,9 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
   XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
                        import_data->GetRootTypeInfo(module));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetOrder(module, root_type_info));
-  PackageData package_data{package};
+                       GetOrder(module, root_type_info,
+                                /*include_tests=*/options.convert_tests));
+  PackageData package_data{.conversion_info = package};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
 
@@ -435,6 +436,22 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
   if (proc_or.ok()) {
     return ConvertOneFunctionIntoPackageInternal(
         module, proc_or.value(), import_data, parametric_env, options, conv);
+  }
+
+  if (options.convert_tests) {
+    absl::StatusOr<TestFunction*> test_fn_or =
+        module->GetTest(entry_function_name);
+    if (test_fn_or.ok()) {
+      return ConvertOneFunctionIntoPackageInternal(
+          module, &test_fn_or.value()->fn(), import_data, parametric_env,
+          options, conv);
+    }
+    auto test_proc_or = module->GetTestProc(entry_function_name);
+    if (test_proc_or.ok()) {
+      return ConvertOneFunctionIntoPackageInternal(
+          module, test_proc_or.value()->proc(), import_data, parametric_env,
+          options, conv);
+    }
   }
 
   return absl::InvalidArgumentError(

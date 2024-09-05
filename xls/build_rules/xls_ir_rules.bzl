@@ -138,6 +138,7 @@ def _convert_to_ir(ctx, src):
         "emit_fail_as_assert",
         "warnings_as_errors",
         "disable_warnings",
+        "convert_tests",
     )
 
     # With runs outside a monorepo, the execution root for the workspace of

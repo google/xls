@@ -218,8 +218,9 @@ class ConversionRecord {
 // Args:
 //  module: Module to convert the (non-parametric) functions for.
 //  type_info: Mapping from node to type.
-absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
-                                                       TypeInfo* type_info);
+//  include_tests: should test-functions be included.
+absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
+    Module* module, TypeInfo* type_info, bool include_tests = false);
 
 // Returns a reverse topological order for functions to be converted to IR given
 // "f" as the entry function.

@@ -41,6 +41,9 @@ struct ConvertOptions {
   //
   // Note that this is only used in IR conversion routines that do typechecking.
   WarningKindSet enabled_warnings = kDefaultWarningsSet;
+
+  // Should #[test] and #[test_proc] entities be emitted to IR.
+  bool convert_tests = false;
 };
 
 }  // namespace xls::dslx

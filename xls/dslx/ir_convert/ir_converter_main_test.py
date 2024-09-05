@@ -49,6 +49,7 @@ class SrcFile:
 _SV_DECL_1 = SrcFile("sv_declarations_one.x")
 
 
+_TOKEN = xls_type_pb2.TypeProto(type_enum=xls_type_pb2.TypeProto.TOKEN)
 _32BITS = xls_type_pb2.TypeProto(
     type_enum=xls_type_pb2.TypeProto.BITS, bit_count=32
 )
@@ -58,6 +59,10 @@ _128BITS = xls_type_pb2.TypeProto(
 _8BITS = xls_type_pb2.TypeProto(
     type_enum=xls_type_pb2.TypeProto.BITS, bit_count=8
 )
+_1BITS = xls_type_pb2.TypeProto(
+    type_enum=xls_type_pb2.TypeProto.BITS, bit_count=1
+)
+_EMPTY_TUPLE = xls_type_pb2.TypeProto(type_enum=xls_type_pb2.TypeProto.TUPLE)
 _MY_STRUCT = xls_type_pb2.TypeProto(
     type_enum=xls_type_pb2.TypeProto.TUPLE, tuple_elements=[_128BITS, _8BITS]
 )
@@ -74,16 +79,18 @@ _Param = xls_ir_interface_pb2.PackageInterfaceProto.NamedValue
 _Channel = xls_ir_interface_pb2.PackageInterfaceProto.Channel
 
 
-def _proc(name: str, state: Iterable[_Param]):
+def _proc(name: str, state: Iterable[_Param], top: Optional[bool] = None):
   return xls_ir_interface_pb2.PackageInterfaceProto.Proc(
-      base=xls_ir_interface_pb2.PackageInterfaceProto.FunctionBase(name=name),
+      base=xls_ir_interface_pb2.PackageInterfaceProto.FunctionBase(
+          name=name, top=top
+      ),
       state=state,
   )
 
 
 def _function(
     name: str,
-    ret: xls_type_pb2.TypeProto,
+    ret: Optional[xls_type_pb2.TypeProto] = None,
     top: Optional[bool] = None,
     args: Optional[
         Iterable[xls_ir_interface_pb2.PackageInterfaceProto.NamedValue]
@@ -148,6 +155,8 @@ class IrConverterMainTest(test_base.TestCase):
       *,
       extra_flags: Iterable[str] = (),
       expect_zero_exit: bool = True,
+      convert_tests: bool = False,
+      top: Optional[str] = None,
   ) -> ConvertResult:
     interface = self.create_tempfile()
     tempdir = self.create_tempdir()
@@ -161,6 +170,10 @@ class IrConverterMainTest(test_base.TestCase):
         self.IR_CONVERTER_MAIN_PATH,
         f"--interface_proto_file={interface.full_path}",
     ] + tempfiles
+    if convert_tests:
+      cmd.append("--convert_tests")
+    if top is not None:
+      cmd.append(f"--top={top}")
     if package_name is not None:
       cmd.append("--package_name=" + package_name)
     cmd.extend(extra_flags)
@@ -173,7 +186,11 @@ class IrConverterMainTest(test_base.TestCase):
         check=False,
     )
     if expect_zero_exit:
-      out.check_returncode()
+      try:
+        out.check_returncode()
+      except Exception as e:
+        e.add_note(f"stdout: {out.stdout}\nstderr: {out.stderr}")
+        raise e
     return ConvertResult(
         ir=out.stdout,
         stderr=out.stderr,
@@ -592,6 +609,142 @@ class IrConverterMainTest(test_base.TestCase):
                         )
                     ],
                 )
+            ],
+        ),
+    )
+
+  PROC_TEST_DOT_X = """
+    proc DeepThought {
+        start: chan<()> in;
+        answer: chan<u32> out;
+        init { () }
+        config (start: chan<()> in, answer: chan<u32> out) {
+            (start, answer)
+        }
+        next(st: ()) {
+            let (tok, _) = recv(join(), start);
+            send(tok, answer, u32:42);
+        }
+    }
+    #[test_proc]
+    proc TestPass {
+        terminator: chan<bool> out;
+        start_s: chan<()> out;
+        result_r: chan<u32> in;
+        init { () }
+        config (terminator: chan<bool> out) {
+            let (start_s, start_r) = chan<()>("start_chan");
+            let (result_s, result_r) = chan<u32>("result_chan");
+            spawn DeepThought(start_r, result_s);
+            (terminator, start_s, result_r)
+        }
+        next(state: ()) {
+            let tok = send(join(), start_s, ());
+            let (tok, res) = recv(join(), result_r);
+            assert_eq(res, u32:42);
+            send(tok, terminator, true);
+        }
+    }
+    #[test_proc]
+    proc TestFail {
+        terminator: chan<bool> out;
+        start_s: chan<()> out;
+        result_r: chan<u32> in;
+        init { () }
+        config (terminator: chan<bool> out) {
+            let (start_s, start_r) = chan<()>("start_chan");
+            let (result_s, result_r) = chan<u32>("result_chan");
+            spawn DeepThought(start_r, result_s);
+            (terminator, start_s, result_r)
+        }
+        next(state: ()) {
+            let tok = send(join(), start_s, ());
+            let (tok, res) = recv(join(), result_r);
+            assert_eq(res, u32:64);
+            send(tok, terminator, true);
+        }
+    }
+    """
+
+  def test_convert_test_proc(self):
+    result = self._ir_convert(
+        {"d.x": self.PROC_TEST_DOT_X},
+        convert_tests=True,
+        package_name="foo",
+        top="TestPass",
+    )
+    # file names depend on where runfiles are put.
+    del result.interface.files[:]
+    self.assertEqual(
+        result.interface,
+        _Package(
+            name="foo",
+            channels=[
+                _Channel(
+                    name="foo__terminator",
+                    type=_1BITS,
+                    direction=xls_ir_interface_pb2.PackageInterfaceProto.Channel.OUT,
+                )
+            ],
+            procs=[
+                _proc(
+                    name="__d__TestPass_0_next",
+                    top=True,
+                    state=[_Param(name="__state", type=_EMPTY_TUPLE)],
+                ),
+                _proc(
+                    name="__d__TestPass__DeepThought_0_next",
+                    state=[_Param(name="__state", type=_EMPTY_TUPLE)],
+                ),
+            ],
+            functions=[
+                _function(
+                    name="__d__DeepThought.init",
+                    ret=_EMPTY_TUPLE,
+                ),
+            ],
+        ),
+    )
+
+  FN_TEST_DOT_X = """
+    fn answer() -> u32 { u32:42 }
+    #[test]fn test_pass() { assert_eq(answer(), u32:42); }
+    #[test]fn test_fail() { assert_eq(answer(), u32:64); }
+    """
+
+  def test_convert_test_fn(self):
+    result = self._ir_convert(
+        {"c.x": self.FN_TEST_DOT_X},
+        convert_tests=True,
+        package_name="foo",
+        top="test_pass",
+    )
+    # file names depend on where runfiles are put.
+    del result.interface.files[:]
+    self.assertEqual(
+        result.interface,
+        _Package(
+            name="foo",
+            functions=[
+                _function(
+                    name="__c__answer",
+                    ret=_32BITS,
+                ),
+                _function(
+                    top=True,
+                    name="__itok__c__test_pass",
+                    ret=xls_type_pb2.TypeProto(
+                        type_enum=xls_type_pb2.TypeProto.TUPLE,
+                        tuple_elements=[_TOKEN, _EMPTY_TUPLE],
+                    ),
+                    args=[
+                        _Param(name="__token", type=_TOKEN),
+                        _Param(name="__activated", type=_1BITS),
+                    ],
+                ),
+                _function(
+                    name="__c__test_pass",
+                ),
             ],
         ),
     )

@@ -171,8 +171,11 @@ bool GetRequiresImplicitToken(dslx::Function& f, ImportData* import_data,
   std::optional<bool> requires_opt =
       import_data->GetRootTypeInfo(f.owner()).value()->GetRequiresImplicitToken(
           f);
+
   CHECK(requires_opt.has_value());
-  return requires_opt.value();
+  bool requires_for_test = options.convert_tests && f.parent() != nullptr &&
+                           f.parent()->kind() == AstNodeKind::kTestFunction;
+  return requires_opt.value() || requires_for_test;
 }
 
 struct ScopedTypeInfoSwap {

@@ -60,6 +60,8 @@ ABSL_FLAG(
 
 ABSL_FLAG(bool, emit_fail_as_assert, true,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
+ABSL_FLAG(bool, convert_tests, false,
+          "Feature flag for emitting test procs/functions to IR.");
 ABSL_FLAG(bool, verify, true,
           "If true, verifies the generated IR for correctness.");
 
@@ -104,7 +106,8 @@ absl::Status RealMain(
     bool emit_fail_as_assert, bool verify_ir, bool warnings_as_errors,
     bool* printed_error,
     std::optional<std::filesystem::path> interface_proto_file,
-    std::optional<std::filesystem::path> interface_textproto_file) {
+    std::optional<std::filesystem::path> interface_textproto_file,
+    bool convert_tests) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet enabled_warnings,
       WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
@@ -114,6 +117,7 @@ absl::Status RealMain(
       .verify_ir = verify_ir,
       .warnings_as_errors = warnings_as_errors,
       .enabled_warnings = enabled_warnings,
+      .convert_tests = convert_tests,
   };
 
   // The following checks are performed inside ConvertFilesToPackage(), but we
@@ -211,7 +215,8 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_interface_textproto_file)
           ? std::make_optional<std::filesystem::path>(
                 *absl::GetFlag(FLAGS_interface_textproto_file))
-          : std::nullopt);
+          : std::nullopt,
+      absl::GetFlag(FLAGS_convert_tests));
   if (printed_error) {
     return EXIT_FAILURE;
   }
