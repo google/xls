@@ -4,7 +4,11 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-<!-- GitHub banner -->
+[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://bit.ly/learn-xls) | [**Tutorials**](https://google.github.io/xls/tutorials/)
+
+[**Conda packages**](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/latest_release_date.svg)](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/platforms.svg)](https://anaconda.org/litex-hub/xls)
+
+[![Ubuntu 22.04 CI](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg)](https://github.com/google/xls/actions/workflows/continuous-integration.yml) [![Ubuntu 22.04 Nightly](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)](https://github.com/google/xls/actions/workflows/nightly-ubuntu-22.04.yml)
 
 ## What is XLS?
 
@@ -167,6 +171,12 @@ Alternatively, you can add a [remote cache](https://bazel.build/remote/caching)
 that takes care of garbage collection for you. This can be hosted on a personal
 server or even on the local machine. We've personally had good results with
 localhost instances of [bazel-remote](https://github.com/buchgr/bazel-remote/).
+
+### Getting Clangd completions
+
+A `compile_commands.json` file compatible with clangd and similar tools can be
+created by running `xls/dev_tools/make-compilation-db.sh`. Follow directions for
+your editor to install clangd code completion.
 
 ## Stack Diagram and Project Layout
 
