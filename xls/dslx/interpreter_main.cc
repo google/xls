@@ -38,6 +38,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/run_routines/ir_test_runner.h"
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/run_routines/test_xml.h"
@@ -79,6 +80,10 @@ ABSL_FLAG(bool, trace_channels, false,
 ABSL_FLAG(int64_t, max_ticks, 100000,
           "If non-zero, the maximum number of ticks to execute on any proc. If "
           "exceeded an error is returned.");
+ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
+          "What evaluator should be used to actually execute the dslx test. "
+          "'dslx-interpreter' is the DSLX bytecode interpreter. 'ir-jit' is "
+          "the XLS-IR JIT. ir-interpreter' is the XLS-IR interpreter.");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -89,10 +94,40 @@ enum class CompareFlag : uint8_t {
   kJit,
   kInterpreter,
 };
+enum class EvaluatorType : uint8_t {
+  kDslxInterpreter,
+  kIrInterpreter,
+  kIrJit,
+};
 
+absl::StatusOr<EvaluatorType> GetEvaluatorType(std::string_view text) {
+  if (text == "interpreter" || text == "dslx-interpreter") {
+    return EvaluatorType::kDslxInterpreter;
+  }
+  if (text == "ir-jit") {
+    return EvaluatorType::kIrJit;
+  }
+  if (text == "ir-interpreter") {
+    return EvaluatorType::kIrInterpreter;
+  }
+  return absl::InvalidArgumentError(
+      "Unknown evaluator. Options are ['dslx-interpreter', 'ir-jit', "
+      "'ir-interpreter']");
+}
 static constexpr std::string_view kUsage = R"(
 Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
+
+std::unique_ptr<AbstractTestRunner> GetTestRunner(EvaluatorType evaluator) {
+  switch (evaluator) {
+    case EvaluatorType::kDslxInterpreter:
+      return std::make_unique<DslxInterpreterTestRunner>();
+    case EvaluatorType::kIrInterpreter:
+      return std::make_unique<IrInterpreterTestRunner>();
+    case EvaluatorType::kIrJit:
+      return std::make_unique<IrJitTestRunner>();
+  }
+}
 
 absl::StatusOr<TestResult> RealMain(
     std::string_view entry_module_path,
@@ -101,7 +136,7 @@ absl::StatusOr<TestResult> RealMain(
     FormatPreference format_preference, CompareFlag compare_flag, bool execute,
     bool warnings_as_errors, std::optional<int64_t> seed, bool trace_channels,
     std::optional<int64_t> max_ticks,
-    std::optional<std::string_view> xml_output_file) {
+    std::optional<std::string_view> xml_output_file, EvaluatorType evaluator) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
       WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
@@ -152,9 +187,10 @@ absl::StatusOr<TestResult> RealMain(
                                  .trace_channels = trace_channels,
                                  .max_ticks = max_ticks};
 
-  XLS_ASSIGN_OR_RETURN(
-      TestResultData test_result,
-      ParseAndTest(program, module_name, entry_module_path, options));
+  std::unique_ptr<AbstractTestRunner> test_runner = GetTestRunner(evaluator);
+  XLS_ASSIGN_OR_RETURN(TestResultData test_result,
+                       test_runner->ParseAndTest(program, module_name,
+                                                 entry_module_path, options));
 
   if (xml_output_file.has_value()) {
     test_xml::TestSuites suites = test_result.ToXmlSuites(module_name);
@@ -255,9 +291,20 @@ int main(int argc, char* argv[]) {
     preference = flag_preference.value();
   }
 
+  absl::StatusOr<xls::dslx::EvaluatorType> evaluator =
+      xls::dslx::GetEvaluatorType(absl::GetFlag(FLAGS_evaluator));
+  if (!evaluator.ok()) {
+    return xls::ExitStatus(evaluator.status());
+  }
+
+  QCHECK(evaluator.value() == xls::dslx::EvaluatorType::kDslxInterpreter ||
+         compare_flag == xls::dslx::CompareFlag::kNone)
+      << "--compare flag is only supported on --evaluator=dslx-interpreter";
+
   absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
       args[0], dslx_paths, test_filter, preference, compare_flag, execute,
-      warnings_as_errors, seed, trace_channels, max_ticks, xml_output_file);
+      warnings_as_errors, seed, trace_channels, max_ticks, xml_output_file,
+      evaluator.value());
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }

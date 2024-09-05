@@ -128,6 +128,7 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         dslx_srcs_wsroot_path + wsroot_dslx_path
     )
     is_args_valid(dslx_test_args, DSLX_TEST_FLAGS)
+    dslx_test_args["evaluator"] = ctx.attr.evaluator
     my_args = args_to_string(dslx_test_args)
 
     cmd = "{} {} {}".format(
@@ -299,6 +300,15 @@ xls_dslx_test_common_attrs = {
               "on the arguments, refer to the interpreter_main " +
               "application at " +
               "//xls/dslx/interpreter_main.cc.",
+    ),
+    "evaluator": attr.string(
+        default = "dslx-interpreter",
+        values = ["dslx-interpreter", "ir-jit", "ir-interpreter"],
+        doc = "What type of evaluator to use. 'ir-jit' will execute the tests faster " +
+              "but has higher startup time and less helpful failure messages. Options: " +
+              '["dslx-interpreter" (default), "ir-jit", "ir-interpreter"]. Note: The ' +
+              "'compare' dslx_test_arg is only available with the default 'dslx-interpreter' " +
+              "evaluator.",
     ),
 }
 

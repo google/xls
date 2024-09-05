@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -32,12 +33,16 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
@@ -191,21 +196,74 @@ class TestResultData {
   std::vector<test_xml::TestCase> test_cases_;
 };
 
-// Parses program and run all tests contained inside.
-//
-// Args:
-//   program: The program text to parse.
-//   module_name: Name for the module.
-//   filename: The filename from which "program" text originates.
-//   dslx_paths: Additional paths at which we search for imported module files.
-//   options: Bundles together optional arguments -- see ParseAndTestOptions.
-//
-// Returns:
-//  Status of passing tests and associated pass/fail/skip counts.
-absl::StatusOr<TestResultData> ParseAndTest(std::string_view program,
-                                            std::string_view module_name,
-                                            std::string_view filename,
-                                            const ParseAndTestOptions& options);
+class AbstractParsedTestRunner;
+
+class AbstractTestRunner {
+ public:
+  virtual ~AbstractTestRunner() = default;
+
+  // Parses program and run all tests contained inside.
+  //
+  // Args:
+  //   program: The program text to parse.
+  //   module_name: Name for the module.
+  //   filename: The filename from which "program" text originates.
+  //   dslx_paths: Additional paths at which we search for imported module
+  //   files.
+  //   options: Bundles together optional arguments -- see ParseAndTestOptions.
+  //
+  // Returns:
+  //   Status of passing tests and associated pass/fail/skip counts.
+  absl::StatusOr<TestResultData> ParseAndTest(
+      std::string_view program, std::string_view module_name,
+      std::string_view filename, const ParseAndTestOptions& options) const;
+
+ protected:
+  virtual absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
+  CreateTestRunner(ImportData* import_data, TypeInfo* type_info,
+                   Module* module) const = 0;
+};
+
+struct RunResult {
+  absl::Status result;
+};
+
+class AbstractParsedTestRunner {
+ public:
+  virtual ~AbstractParsedTestRunner() = default;
+  virtual absl::StatusOr<RunResult> RunTestProc(
+      std::string_view name, const BytecodeInterpreterOptions& options) = 0;
+  virtual absl::StatusOr<RunResult> RunTestFunction(
+      std::string_view name, const BytecodeInterpreterOptions& options) = 0;
+};
+
+class DslxInterpreterTestRunner final : public AbstractTestRunner {
+ protected:
+  absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> CreateTestRunner(
+      ImportData* import_data, TypeInfo* type_info,
+      Module* module) const override;
+};
+
+class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {
+ public:
+  DslxInterpreterParsedTestRunner(ImportData* import_data, TypeInfo* type_info,
+                                  Module* entry_module)
+      : import_data_(import_data),
+        type_info_(type_info),
+        entry_module_(entry_module) {}
+
+  absl::StatusOr<RunResult> RunTestProc(
+      std::string_view name,
+      const BytecodeInterpreterOptions& options) override;
+  absl::StatusOr<RunResult> RunTestFunction(
+      std::string_view name,
+      const BytecodeInterpreterOptions& options) override;
+
+ private:
+  ImportData* import_data_;
+  TypeInfo* type_info_;
+  Module* entry_module_;
+};
 
 struct ParseAndProveResult {
   TestResultData test_result_data;

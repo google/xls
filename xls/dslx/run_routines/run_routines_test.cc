@@ -23,8 +23,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/run_routines/ir_test_runner.h"
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
@@ -64,18 +67,68 @@ MATCHER_P4(IsTestResult, result, ran_count, skipped_count, failed_count, "") {
   return true;
 }
 
-}  // namespace
-
 using status_testing::StatusIs;
 using testing::HasSubstr;
 
-TEST(RunRoutinesTest, TestInvokedFunctionDoesJit) {
+enum class RunnerType : int8_t {
+  kDslxInterpreter,
+  kIrJit,
+  kIrInterpreter,
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const RunnerType& v) {
+  switch (v) {
+    case RunnerType::kDslxInterpreter:
+      absl::Format(&sink, "DslxInterpreterTestRunner");
+      break;
+    case RunnerType::kIrJit:
+      absl::Format(&sink, "IrJitTestRunner");
+      break;
+    case RunnerType::kIrInterpreter:
+      absl::Format(&sink, "IrInterpreterTestRunner");
+      break;
+  }
+}
+}  // namespace
+
+class RunRoutinesTest : public testing::TestWithParam<RunnerType> {
+ public:
+  absl::StatusOr<TestResultData> ParseAndTest(
+      std::string_view program, std::string_view module_name,
+      std::string_view filename, const ParseAndTestOptions& options) {
+    DslxInterpreterTestRunner dslx;
+    IrInterpreterTestRunner ir;
+    IrJitTestRunner jit;
+    AbstractTestRunner* runner;
+    switch (GetParam()) {
+      case RunnerType::kDslxInterpreter:
+        runner = &dslx;
+        break;
+      case RunnerType::kIrJit:
+        runner = &jit;
+        break;
+      case RunnerType::kIrInterpreter:
+        runner = &ir;
+        break;
+    }
+    return runner->ParseAndTest(program, module_name, filename, options);
+  }
+};
+
+using ParseAndTestTest = RunRoutinesTest;
+
+TEST_P(RunRoutinesTest, TestInvokedFunctionDoesJit) {
   constexpr const char* kProgram = R"(
 fn unit() -> () { () }
 
 #[test]
 fn test_simple() { unit() }
 )";
+  if (GetParam() != RunnerType::kDslxInterpreter) {
+    GTEST_SKIP()
+        << "comparator only supported on dslx interpreter for non-quickchecks";
+  }
   constexpr const char* kModuleName = "test";
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
@@ -86,11 +139,11 @@ fn test_simple() { unit() }
       ParseAndTest(kProgram, kModuleName, kFilename, options));
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
 
-  EXPECT_EQ(jit_comparator.jit_cache_.size(), 1);
+  ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__unit");
 }
 
-TEST(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit) {
+TEST_P(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit) {
   constexpr const char* kProgram = R"(
 fn id(x: bool) -> bool { x }
 
@@ -113,7 +166,7 @@ fn trivial(x: u5) -> bool { id(true) }
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
 }
 
-TEST(RunRoutinesTest, NoSeedStillQuickChecks) {
+TEST_P(RunRoutinesTest, NoSeedStillQuickChecks) {
   constexpr const char* kProgram = R"(
 fn id(x: bool) -> bool { x }
 
@@ -134,7 +187,7 @@ fn trivial(x: u5) -> bool { id(true) }
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
 }
 
-TEST(RunRoutinesTest, FallibleFunctionQuickChecks) {
+TEST_P(RunRoutinesTest, FallibleFunctionQuickChecks) {
   constexpr const char* kProgram = R"(
 fn do_fail(x: bool) -> bool { fail!("oh_no", x) }
 
@@ -152,7 +205,7 @@ fn qc(x: bool) -> bool { do_fail(x) }
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 
-TEST(RunRoutinesTest, FailingQuickCheck) {
+TEST_P(RunRoutinesTest, FailingQuickCheck) {
   constexpr const char* kProgram = R"(
 #[quickcheck(test_count=2)]
 fn trivial(x: u5) -> bool { false }
@@ -171,7 +224,7 @@ fn trivial(x: u5) -> bool { false }
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 
-TEST(RunRoutinesTest, TwoNonParametricProcs) {
+TEST_P(RunRoutinesTest, TwoNonParametricProcs) {
   constexpr std::string_view kProgram = R"(
 proc FirstProc {
     data_r: chan<u32> in;
@@ -213,7 +266,7 @@ proc MyOtherProc {
                        HasSubstr("Consider turning off comparison")));
 }
 
-TEST(RunRoutinesTest, FailingProc) {
+TEST_P(RunRoutinesTest, FailingProc) {
   constexpr std::string_view kProgram = R"(
 #[test_proc]
 proc doomed {
@@ -361,7 +414,7 @@ TEST(QuickcheckTest, Seeding) {
   EXPECT_EQ(results1, results2);
 }
 
-TEST(ParseAndTestTest, DeadlockedProc) {
+TEST_P(ParseAndTestTest, DeadlockedProc) {
   // Test proc never sends to the subproc, so network is deadlocked.
   constexpr std::string_view kProgram = R"(
 proc incrementer {
@@ -399,6 +452,7 @@ proc tester_proc {
   next(state: ()) {
     let tok = send_if(join(), data_out, false, u32:42);
     let (tok, _result) = recv(tok, data_in);
+    let tok = send(tok, terminator, u1:1);
  }
 })";
   ParseAndTestOptions options;
@@ -409,15 +463,19 @@ proc tester_proc {
 
   auto failures = result.failures();
   EXPECT_EQ(failures.size(), 1);
-  EXPECT_THAT(failures[0],
-              AllOf(HasSubstr("proc `incrementer` is blocked on receive on "
-                              "channel `incrementer::in_ch`"),
-                    HasSubstr("proc `tester_proc` is blocked on receive on "
-                              "channel `tester_proc::data_in`")));
+  if (GetParam() == RunnerType::kDslxInterpreter) {
+    EXPECT_THAT(failures[0],
+                AllOf(HasSubstr("proc `incrementer` is blocked on receive on "
+                                "channel `incrementer::in_ch`"),
+                      HasSubstr("proc `tester_proc` is blocked on receive on "
+                                "channel `tester_proc::data_in`")));
+  } else {
+    EXPECT_THAT(failures[0], HasSubstr("deadlocked"));
+  }
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 
-TEST(ParseAndTestTest, TooManyTicks) {
+TEST_P(ParseAndTestTest, TooManyTicks) {
   // Test proc never receives and spins forever.
   constexpr std::string_view kProgram = R"(
 proc incrementer {
@@ -470,14 +528,14 @@ inline constexpr std::string_view kTwoTests = R"(
 #[test] fn test_two() {}
 )";
 
-TEST(ParseAndTestTest, TestFilterEmpty) {
+TEST_P(ParseAndTestTest, TestFilterEmpty) {
   const ParseAndTestOptions options;
   XLS_ASSERT_OK_AND_ASSIGN(TestResultData result,
                            ParseAndTest(kTwoTests, "test", "test.x", options));
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 0, 0));
 }
 
-TEST(ParseAndTestTest, TestFilterSelectNone) {
+TEST_P(ParseAndTestTest, TestFilterSelectNone) {
   const RE2 test_filter("doesnotexist");
   ParseAndTestOptions options;
   options.test_filter = &test_filter;
@@ -486,7 +544,7 @@ TEST(ParseAndTestTest, TestFilterSelectNone) {
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 2, 0));
 }
 
-TEST(ParseAndTestTest, TestFilterSelectOne) {
+TEST_P(ParseAndTestTest, TestFilterSelectOne) {
   const RE2 test_filter(".*_one");
   ParseAndTestOptions options;
   options.test_filter = &test_filter;
@@ -495,7 +553,7 @@ TEST(ParseAndTestTest, TestFilterSelectOne) {
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 1, 0));
 }
 
-TEST(ParseAndTestTest, TestFilterSelectBoth) {
+TEST_P(ParseAndTestTest, TestFilterSelectBoth) {
   const RE2 test_filter("test_.*");
   ParseAndTestOptions options;
   options.test_filter = &test_filter;
@@ -503,5 +561,16 @@ TEST(ParseAndTestTest, TestFilterSelectBoth) {
                            ParseAndTest(kTwoTests, "test", "test.x", options));
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 0, 0));
 }
+
+INSTANTIATE_TEST_SUITE_P(RunRoutinesTest, RunRoutinesTest,
+                         testing::Values(RunnerType::kDslxInterpreter,
+                                         RunnerType::kIrInterpreter,
+                                         RunnerType::kIrJit),
+                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(ParseAndTestTest, ParseAndTestTest,
+                         testing::Values(RunnerType::kDslxInterpreter,
+                                         RunnerType::kIrInterpreter,
+                                         RunnerType::kIrJit),
+                         testing::PrintToStringParamName());
 
 }  // namespace xls::dslx

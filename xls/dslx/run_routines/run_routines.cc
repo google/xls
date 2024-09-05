@@ -126,9 +126,9 @@ void HandleError(TestResultData& result, const absl::Status& status,
             << "\n";
 };
 
-absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
-                             Module* module, TestFunction* tf,
-                             const BytecodeInterpreterOptions& options) {
+absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
+                                 Module* module, TestFunction* tf,
+                                 const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
@@ -142,9 +142,9 @@ absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
       .status();
 }
 
-absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
-                         Module* module, TestProc* tp,
-                         const BytecodeInterpreterOptions& options) {
+absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
+                             Module* module, TestProc* tp,
+                             const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
 
@@ -201,6 +201,27 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
 }
 
 }  // namespace
+
+absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
+DslxInterpreterTestRunner ::CreateTestRunner(ImportData* import_data,
+                                             TypeInfo* type_info,
+                                             Module* module) const {
+  return std::make_unique<DslxInterpreterParsedTestRunner>(import_data,
+                                                           type_info, module);
+}
+absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestFunction(
+    std::string_view name, const BytecodeInterpreterOptions& options) {
+  XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module_->GetTest(name));
+  return RunResult{.result = RunDslxTestFunction(import_data_, type_info_,
+                                                 entry_module_, tf, options)};
+}
+
+absl::StatusOr<RunResult> DslxInterpreterParsedTestRunner::RunTestProc(
+    std::string_view name, const BytecodeInterpreterOptions& options) {
+  XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module_->GetTestProc(name));
+  return RunResult{.result = RunDslxTestProc(import_data_, type_info_,
+                                             entry_module_, tp, options)};
+}
 
 TestResultData::TestResultData(absl::Time start_time,
                                std::vector<test_xml::TestCase> test_cases)
@@ -620,9 +641,9 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
                              .counterexamples = std::move(counterexamples)};
 }
 
-absl::StatusOr<TestResultData> ParseAndTest(
+absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     std::string_view program, std::string_view module_name,
-    std::string_view filename, const ParseAndTestOptions& options) {
+    std::string_view filename, const ParseAndTestOptions& options) const {
   const absl::Time start = absl::Now();
   TestResultData result(start, /*test_cases=*/{});
 
@@ -695,6 +716,9 @@ absl::StatusOr<TestResultData> ParseAndTest(
     };
   }
 
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<AbstractParsedTestRunner> runner,
+      CreateTestRunner(&import_data, tm_or.value().type_info, entry_module));
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {
     auto test_case_start = absl::Now();
@@ -715,7 +739,7 @@ absl::StatusOr<TestResultData> ParseAndTest(
     }
 
     std::cerr << "[ RUN UNITTEST  ] " << test_name << '\n';
-    absl::Status status;
+    RunResult out;
     BytecodeInterpreterOptions interpreter_options;
     interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
         .trace_hook(InfoLoggingTraceHook)
@@ -723,17 +747,15 @@ absl::StatusOr<TestResultData> ParseAndTest(
         .max_ticks(options.max_ticks)
         .format_preference(options.format_preference);
     if (std::holds_alternative<TestFunction*>(*member)) {
-      XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
-      status = RunTestFunction(&import_data, tm_or.value().type_info,
-                               entry_module, tf, interpreter_options);
+      XLS_ASSIGN_OR_RETURN(
+          out, runner->RunTestFunction(test_name, interpreter_options));
     } else {
-      XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module->GetTestProc(test_name));
-      status = RunTestProc(&import_data, tm_or.value().type_info, entry_module,
-                           tp, interpreter_options);
+      XLS_ASSIGN_OR_RETURN(out,
+                           runner->RunTestProc(test_name, interpreter_options));
     }
     auto test_case_end = absl::Now();
 
-    if (status.ok()) {
+    if (out.result.ok()) {
       // Add to the tracking data.
       result.AddTestCase(
           test_xml::TestCase{.name = test_name,
@@ -745,7 +767,7 @@ absl::StatusOr<TestResultData> ParseAndTest(
                              .timestamp = test_case_start});
       std::cerr << "[            OK ]" << '\n';
     } else {
-      HandleError(result, status, test_name, start_pos, test_case_start,
+      HandleError(result, out.result, test_name, start_pos, test_case_start,
                   test_case_end - test_case_start,
                   /*is_quickcheck=*/false);
     }

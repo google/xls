@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -25,6 +26,13 @@
 
 namespace xls::dslx {
 namespace {
+
+absl::StatusOr<TestResultData> ParseAndTest(
+    std::string_view program, std::string_view module_name,
+    std::string_view filename, const ParseAndTestOptions& options) {
+  return DslxInterpreterTestRunner().ParseAndTest(program, module_name,
+                                                  filename, options);
+}
 
 template <typename K, typename V>
 std::vector<K> MapKeysSorted(const absl::flat_hash_map<K, V>& m) {

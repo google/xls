@@ -53,6 +53,13 @@
 namespace xls::dslx {
 namespace {
 
+absl::StatusOr<TestResultData> ParseAndTest(
+    std::string_view program, std::string_view module_name,
+    std::string_view filename, const ParseAndTestOptions& options) {
+  return DslxInterpreterTestRunner().ParseAndTest(program, module_name,
+                                                  filename, options);
+}
+
 absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
     std::string_view program, ImportData* import_data) {
   // Parse/typecheck and print a helpful error.

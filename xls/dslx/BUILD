@@ -535,6 +535,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx/run_routines",
+        "//xls/dslx/run_routines:ir_test_runner",
         "//xls/dslx/run_routines:run_comparator",
         "//xls/dslx/run_routines:test_xml",
         "//xls/ir:format_preference",

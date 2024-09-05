@@ -290,7 +290,7 @@ Examples:
 ## xls_dslx_opt_ir_test
 
 <pre>
-xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-expect_equivalent">expect_equivalent</a>,
+xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-evaluator">evaluator</a>, <a href="#xls_dslx_opt_ir_test-expect_equivalent">expect_equivalent</a>,
                      <a href="#xls_dslx_opt_ir_test-input_validator">input_validator</a>, <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>,
                      <a href="#xls_dslx_opt_ir_test-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_dslx_opt_ir_test-top">top</a>)
 </pre>
@@ -330,6 +330,7 @@ Examples:
 | <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/dev_tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_opt_ir_test-evaluator"></a>evaluator |  What type of evaluator to use. 'ir-jit' will execute the tests faster but has higher startup time and less helpful failure messages. Options: ["dslx-interpreter" (default), "ir-jit", "ir-interpreter"]. Note: The 'compare' dslx_test_arg is only available with the default 'dslx-interpreter' evaluator.   | String | optional |  `"dslx-interpreter"`  |
 | <a id="xls_dslx_opt_ir_test-expect_equivalent"></a>expect_equivalent |  If true this test fails if IRs are not equivalent. If false the test only passes if the IRs are not equivalent.   | Boolean | optional |  `True`  |
 | <a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional |  `""`  |
@@ -397,7 +398,7 @@ Examples:
 ## xls_dslx_test
 
 <pre>
-xls_dslx_test(<a href="#xls_dslx_test-name">name</a>, <a href="#xls_dslx_test-deps">deps</a>, <a href="#xls_dslx_test-srcs">srcs</a>, <a href="#xls_dslx_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_test-library">library</a>)
+xls_dslx_test(<a href="#xls_dslx_test-name">name</a>, <a href="#xls_dslx_test-deps">deps</a>, <a href="#xls_dslx_test-srcs">srcs</a>, <a href="#xls_dslx_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_test-evaluator">evaluator</a>, <a href="#xls_dslx_test-library">library</a>)
 </pre>
 
 A dslx test executes the tests and quick checks of a DSLX source file.
@@ -442,6 +443,7 @@ Examples:
 | <a id="xls_dslx_test-deps"></a>deps |  Dependency targets for the files in the 'srcs' attribute. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
 | <a id="xls_dslx_test-srcs"></a>srcs |  Source files for the rule. The files must have a '.x' extension. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
 | <a id="xls_dslx_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_test-evaluator"></a>evaluator |  What type of evaluator to use. 'ir-jit' will execute the tests faster but has higher startup time and less helpful failure messages. Options: ["dslx-interpreter" (default), "ir-jit", "ir-interpreter"]. Note: The 'compare' dslx_test_arg is only available with the default 'dslx-interpreter' evaluator.   | String | optional |  `"dslx-interpreter"`  |
 | <a id="xls_dslx_test-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This attribute is mutually exclusive with the 'srcs' and 'deps' attribute.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 

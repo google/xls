@@ -45,6 +45,14 @@ namespace {
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
+absl::StatusOr<TestResultData> ParseAndTest(
+    std::string_view program, std::string_view module_name,
+    std::string_view filename, const ParseAndTestOptions& options) {
+  // Other interpreters rely on ir_convert so we can't test with them.
+  return DslxInterpreterTestRunner().ParseAndTest(program, module_name,
+                                                  filename, options);
+}
+
 constexpr ConvertOptions kFailNoPos = {
     .emit_positions = false,
 };
