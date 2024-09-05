@@ -877,6 +877,28 @@ fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ParametricDefaultInStruct) {
+  const char* kProgram = R"(
+struct Foo <X: u32, Y: u32 = {X + u32:1}> {
+    a: uN[X],
+    b: uN[Y],
+}
+
+fn make_zero_foo<X: u32>() -> Foo<X> {
+  zero!<Foo<X>>()
+}
+
+fn test() -> Foo<u32:5> {
+ make_zero_foo<u32:5>()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, UnrollForSimple) {
   const char* kProgram = R"(
 fn test() -> u32 {
