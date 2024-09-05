@@ -204,15 +204,22 @@ enum {
   xls_vast_file_type_system_verilog,
 };
 
+// Note: caller owns the returned verilog file object, to be freed by
+// `xls_vast_verilog_file_free`.
 struct xls_vast_verilog_file* xls_vast_make_verilog_file(
     xls_vast_file_type file_type);
+
 void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f);
 
 struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
     struct xls_vast_verilog_file* f, const char* name);
+
 void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
                                        const char* path);
 
+// Emits/formats the contents of the given verilog file to a string.
+//
+// Note: caller owns the returned string, to be freed by `xls_c_str_free`.
 char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f);
 
 }  // extern "C"
