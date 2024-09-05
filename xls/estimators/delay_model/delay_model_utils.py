@@ -15,6 +15,7 @@
 
 from collections.abc import Mapping
 import dataclasses
+import math
 from typing import Sequence
 
 from xls.estimators.delay_model import delay_model_pb2
@@ -42,10 +43,17 @@ def get_data_point_key(data_point: delay_model_pb2.DataPoint) -> str:
 
 def get_sample_spec_key(spec: SampleSpec) -> str:
   """Returns a key that can be used to represent a sample spec in a dict."""
+  # This dictionary stores the element counts for array operands. For non-array
+  # operands, the element count is 0.
+  array_operand_element_counts = {
+      e.operand_number: math.prod(e.element_counts)
+      for e in spec.point.operand_element_counts
+  }
   bit_count_strs = []
-  for bit_count in spec.point.operand_widths:
+  for operand_idx, operand_width in enumerate(spec.point.operand_widths):
     operand = delay_model_pb2.Operation.Operand(
-        bit_count=bit_count, element_count=0
+        bit_count=operand_width,
+        element_count=array_operand_element_counts.get(operand_idx, 0),
     )
     bit_count_strs.append(str(operand))
   key = (
@@ -71,4 +79,12 @@ def data_point_to_sample_spec(
   point.operand_widths.extend(
       [operand.bit_count for operand in data_point.operation.operands]
   )
+  for operand_idx, operand in enumerate(data_point.operation.operands):
+    if operand.element_count:
+      point.operand_element_counts.append(
+          delay_model_pb2.OperandElementCounts(
+              operand_number=operand_idx,
+              element_counts=[operand.element_count],
+          )
+      )
   return SampleSpec(op_samples, point)
