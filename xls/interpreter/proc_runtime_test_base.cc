@@ -44,6 +44,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Optional;
 
@@ -970,6 +971,55 @@ TEST_P(ProcRuntimeTestBase, MultipleNewStyleProcs) {
   EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(1, 32))));
   EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(4, 32))));
   EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(10, 32))));
+}
+
+TEST_P(ProcRuntimeTestBase, ProcSetState) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package->CreateStreamingChannel("iota_out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
+
+  // Create an output-only proc which counts up by 7 starting at 42.
+  ProcBuilder pb("iota", package.get());
+  BValue counter = pb.StateElement("cnt", Value(UBits(42, 32)));
+  pb.Send(channel, pb.Literal(Value::Token()), counter);
+  BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
+
+  std::unique_ptr<ProcRuntime> runtime =
+      GetParam().CreateRuntime(package.get());
+
+  ChannelQueue& ch0_queue = runtime->queue_manager().GetQueue(channel);
+  ASSERT_TRUE(ch0_queue.IsEmpty());
+
+  // Before running, the state should be the initial value.
+  EXPECT_THAT(runtime->ResolveState(proc), ElementsAre(Value(UBits(42, 32))));
+
+  // Override state and tick twice.
+  XLS_ASSERT_OK(
+      runtime->SetState(proc, std::vector<Value>{Value(UBits(20, 32))}));
+  EXPECT_THAT(runtime->ResolveState(proc), ElementsAre(Value(UBits(20, 32))));
+
+  XLS_ASSERT_OK(runtime->Tick());
+  EXPECT_THAT(runtime->ResolveState(proc), ElementsAre(Value(UBits(27, 32))));
+  XLS_ASSERT_OK(runtime->Tick());
+  EXPECT_THAT(runtime->ResolveState(proc), ElementsAre(Value(UBits(34, 32))));
+
+  // Set state and run again
+  XLS_ASSERT_OK(
+      runtime->SetState(proc, std::vector<Value>{Value(UBits(100, 32))}));
+  XLS_ASSERT_OK(runtime->Tick());
+  EXPECT_THAT(runtime->ResolveState(proc), ElementsAre(Value(UBits(107, 32))));
+
+  // Check that each tick sent the right value on the output port.
+  ASSERT_EQ(ch0_queue.GetSize(), 3);
+
+  EXPECT_THAT(ch0_queue.Read(), Optional(Value(UBits(20, 32))));
+  EXPECT_THAT(ch0_queue.Read(), Optional(Value(UBits(27, 32))));
+  EXPECT_THAT(ch0_queue.Read(), Optional(Value(UBits(100, 32))));
+
+  EXPECT_TRUE(ch0_queue.IsEmpty());
 }
 
 }  // namespace

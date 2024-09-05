@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
@@ -43,6 +44,11 @@ class ProcContinuation {
   // executed.
   virtual std::vector<Value> GetState() const = 0;
 
+  // Sets the internal state.
+  // Note: Calling when the proc is not AtStartOfTick() may result in
+  // incorrect proc behavior.
+  virtual absl::Status SetState(std::vector<Value> v) = 0;
+
   // Returns the events recorded during execution of this continuation.
   virtual const InterpreterEvents& GetEvents() const = 0;
   virtual InterpreterEvents& GetEvents() = 0;
@@ -55,6 +61,9 @@ class ProcContinuation {
 
   ProcInstance* proc_instance() const { return proc_instance_; }
   Proc* proc() const { return proc_instance_->proc(); }
+
+ protected:
+  absl::Status CheckConformsToStateType(const std::vector<Value>& v) const;
 
  private:
   ProcInstance* proc_instance_;

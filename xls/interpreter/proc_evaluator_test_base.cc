@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -1193,6 +1194,95 @@ TEST_P(ProcEvaluatorTestBase, NonBlockingReceivesZeroRecv) {
 
   // Reads on an empty channel should return default value of zero.
   EXPECT_THAT(out0_queue.Read(), Optional(Value(UBits(0, 32))));
+}
+
+TEST_P(ProcEvaluatorTestBase, ProcSetState) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package->CreateStreamingChannel("iota_out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
+
+  // Create an output-only proc which counts up by 7 starting at 42.
+  ProcBuilder pb("iota", package.get());
+  BValue counter = pb.StateElement("cnt", Value(UBits(42, 32)));
+  pb.Send(channel, pb.Literal(Value::Token()), counter);
+  BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({new_value}));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(package.get());
+  std::unique_ptr<ProcEvaluator> evaluator = GetParam().CreateEvaluator(
+      FindProc("iota", package.get()), queue_manager.get());
+  ChannelQueue& ch0_queue = queue_manager->GetQueue(channel);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelInstance * channel_instance,
+      queue_manager->elaboration().GetUniqueInstance(channel));
+
+  ASSERT_TRUE(ch0_queue.IsEmpty());
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+
+  // Before running, the state should be the initial value.
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(42, 32))));
+
+  // Override state.
+  XLS_ASSERT_OK(
+      continuation->SetState(std::vector<Value>{Value(UBits(20, 32))}));
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(20, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(27, 32))));
+
+  // Run again
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(34, 32))));
+
+  // Set state and run again
+  XLS_ASSERT_OK(
+      continuation->SetState(std::vector<Value>{Value(UBits(100, 32))}));
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(100, 32))));
+
+  EXPECT_THAT(evaluator->Tick(*continuation),
+              IsOkAndHolds(TickResult{
+                  .execution_state = TickExecutionState::kSentOnChannel,
+                  .channel_instance = channel_instance,
+                  .progress_made = true}));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel_instance = std::nullopt,
+                              .progress_made = true}));
+  EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(107, 32))));
+
+  // Check that each tick sent the right value on the output port.
+  ASSERT_EQ(ch0_queue.GetSize(), 3);
+
+  EXPECT_THAT(ch0_queue.Read(), Optional(Value(UBits(20, 32))));
+  EXPECT_THAT(ch0_queue.Read(), Optional(Value(UBits(27, 32))));
+  EXPECT_THAT(ch0_queue.Read(), Optional(Value(UBits(100, 32))));
+
+  EXPECT_TRUE(ch0_queue.IsEmpty());
 }
 
 }  // namespace

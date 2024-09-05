@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -89,6 +90,15 @@ class ProcRuntime {
   std::vector<Value> ResolveState(Proc* proc) const {
     return continuations_.at(elaboration().GetUniqueInstance(proc).value())
         ->GetState();
+  }
+
+  // Updates the state values for a proc in the network.
+  absl::Status SetState(ProcInstance* instance, std::vector<Value> v) {
+    return continuations_.at(instance)->SetState(std::move(v));
+  }
+  absl::Status SetState(Proc* proc, std::vector<Value> v) {
+    return continuations_.at(elaboration().GetUniqueInstance(proc).value())
+        ->SetState(std::move(v));
   }
 
   // Reset the state of all of the procs to their initial state.

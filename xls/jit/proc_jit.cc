@@ -73,6 +73,7 @@ class ProcJitContinuation : public ProcContinuation {
   ~ProcJitContinuation() override = default;
 
   std::vector<Value> GetState() const override;
+  absl::Status SetState(std::vector<Value> v) override;
   const InterpreterEvents& GetEvents() const override { return events_; }
   InterpreterEvents& GetEvents() override { return events_; }
   void ClearEvents() override { events_.Clear(); }
@@ -148,6 +149,23 @@ std::vector<Value> ProcJitContinuation::GetState() const {
                                                state_param->GetType()));
   }
   return state;
+}
+
+absl::Status ProcJitContinuation::SetState(std::vector<Value> v) {
+  XLS_RET_CHECK_OK(CheckConformsToStateType(v));
+
+  absl::Span<Param* const> state_params = proc()->StateParams();
+
+  for (int64_t i = 0; i < state_params.size(); ++i) {
+    int64_t param_index = proc()->GetParamIndex(state_params[i]).value();
+    jit_runtime_->BlitValueToBuffer(
+        v[i], state_params[i]->GetType(),
+        absl::Span<uint8_t>(
+            input_.pointers()[param_index],
+            jit_runtime_->GetTypeByteSize(state_params[i]->GetType())));
+  }
+
+  return absl::OkStatus();
 }
 
 std::string NameOfNodeOrDefault(Proc* p, int64_t id,

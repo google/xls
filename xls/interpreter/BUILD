@@ -352,12 +352,15 @@ cc_library(
     hdrs = ["proc_evaluator.h"],
     deps = [
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:proc_elaboration",
+        "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
     ],
 )
 

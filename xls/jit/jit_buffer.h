@@ -60,6 +60,7 @@ class JitArgumentSet {
 
   // The pointers to the values.
   absl::Span<uint8_t* const> pointers() const { return pointers_; }
+  absl::Span<uint8_t*> pointers() { return absl::MakeSpan(pointers_); }
 
   // The raw pointer the jitted code receives.
   const uint8_t* const* get() const { return pointers_.data(); }

@@ -60,6 +60,13 @@ class ProcInterpreterContinuation : public ProcContinuation {
   ~ProcInterpreterContinuation() override = default;
 
   std::vector<Value> GetState() const override { return state_; }
+
+  absl::Status SetState(std::vector<Value> v) override {
+    XLS_RETURN_IF_ERROR(CheckConformsToStateType(v));
+    state_ = std::move(v);
+    return absl::OkStatus();
+  }
+
   const InterpreterEvents& GetEvents() const override { return events_; }
   InterpreterEvents& GetEvents() override { return events_; }
   void ClearEvents() override { events_.Clear(); }
