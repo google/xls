@@ -308,4 +308,40 @@ TEST(XlsCApiTest, InterpretDslxFailFunction) {
             "ABORTED: Assertion failure via fail! @ my_module.x:2:8-2:33");
 }
 
+TEST(XlsCApiTest, VastAddIncludesAndEmit) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_file_add_include(f, "one_include.v");
+  xls_vast_verilog_file_add_include(f, "another_include.v");
+
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "my_empty_module");
+  ASSERT_NE(m, nullptr);
+
+  // Add input/output and a wire.
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, false);
+  xls_vast_verilog_module_add_input(m, "my_input", u8);
+  xls_vast_verilog_module_add_output(m, "my_output", scalar);
+  xls_vast_verilog_module_add_wire(m, "my_wire", scalar);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  const std::string_view kWant = R"(`include "one_include.v"
+`include "another_include.v"
+module my_empty_module(
+  input wire [7:0] my_input,
+  output wire my_output
+);
+  wire my_wire;
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}
+
 }  // namespace

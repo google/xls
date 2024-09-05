@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/init_xls.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/events.h"
@@ -432,6 +433,84 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
       new xls::Value(std::move(result_value.value())));
   *error_out = nullptr;
   return true;
+}
+
+// -- VAST
+
+struct xls_vast_verilog_file* xls_vast_make_verilog_file(
+    xls_vast_file_type file_type) {
+  auto* value = new xls::verilog::VerilogFile(
+      static_cast<xls::verilog::FileType>(file_type));
+  return reinterpret_cast<xls_vast_verilog_file*>(value);
+}
+
+void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f) {
+  delete reinterpret_cast<xls::verilog::VerilogFile*>(f);
+}
+
+struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
+    struct xls_vast_verilog_file* f, const char* name) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::Module* cpp_module =
+      cpp_file->AddModule(name, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_verilog_module*>(cpp_module);
+}
+
+void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
+                                       const char* path) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  cpp_file->AddInclude(path, xls::SourceInfo());
+}
+
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  xls::verilog::LogicRef* logic_ref =
+      cpp_module->AddInput(name, cpp_type, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
+}
+
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  xls::verilog::LogicRef* logic_ref =
+      cpp_module->AddOutput(name, cpp_type, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
+}
+
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  xls::verilog::LogicRef* logic_ref =
+      cpp_module->AddWire(name, cpp_type, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
+}
+
+char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f) {
+  const auto* cpp_file = reinterpret_cast<const xls::verilog::VerilogFile*>(f);
+  std::string result = cpp_file->Emit();
+  return ToOwnedCString(result);
+}
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
+    struct xls_vast_verilog_file* f) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::DataType* type = cpp_file->ScalarType(xls::SourceInfo());
+  return reinterpret_cast<xls_vast_data_type*>(type);
+}
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
+    struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::DataType* type =
+      cpp_file->BitVectorType(bit_count, xls::SourceInfo(), is_signed);
+  return reinterpret_cast<xls_vast_data_type*>(type);
 }
 
 }  // extern "C"

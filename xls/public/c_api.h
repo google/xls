@@ -181,6 +181,66 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
                             const struct xls_value** args, char** error_out,
                             struct xls_value** result_out);
 
+// -- VAST (Verilog AST) APIs
+//
+// Note that these are expected to be *less* stable than the above APIs, as
+// they are exposing a useful implementation library present within XLS.
+//
+// Per usual, in a general sense, no promises are made around API or ABI
+// stability overall. However, seems worth noting these are effectively
+// "protected" APIs, use with particular caution around stability. See
+// `xls/protected/BUILD` for how we tend to think about "protected" APIs in the
+// project.
+
+// Opaque structs.
+struct xls_vast_verilog_file;
+struct xls_vast_verilog_module;
+struct xls_vast_logic_ref;
+struct xls_vast_data_type;
+
+// Note: We define the enum with a fixed width integer type for clarity of the
+// exposed ABI.
+typedef int32_t xls_vast_file_type;
+enum {
+  xls_vast_file_type_verilog,
+  xls_vast_file_type_system_verilog,
+};
+
+// Note: caller owns the returned verilog file object, to be freed by
+// `xls_vast_verilog_file_free`.
+struct xls_vast_verilog_file* xls_vast_make_verilog_file(
+    xls_vast_file_type file_type);
+
+void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f);
+
+struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
+    struct xls_vast_verilog_file* f, const char* name);
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
+    struct xls_vast_verilog_file* f);
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
+    struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed);
+
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type);
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type);
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type);
+// TODO(cdleary): 2024-09-05 Add xls_vast_verilog_module_add_wire_with_expr
+
+void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
+                                       const char* path);
+
+// Emits/formats the contents of the given verilog file to a string.
+//
+// Note: caller owns the returned string, to be freed by `xls_c_str_free`.
+char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f);
+
 }  // extern "C"
 
 #endif  // XLS_PUBLIC_C_API_H_
