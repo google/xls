@@ -711,7 +711,8 @@ void MakeMutualExclusionAssertions(
                   absl::StrFormat(
                       "Node %s predicate was not mutually exclusive with {%s}.",
                       node->GetName(),
-                      absl::StrJoin(mutually_exclusive_nodes.at(node), ", ")));
+                      absl::StrJoin(mutually_exclusive_nodes.at(node), ", ")),
+                  /*label=*/"adapter_mutually_exclusive_A");
     activations.at(node).pred_recv_token = mutual_exclusion_assertion;
   }
 }
