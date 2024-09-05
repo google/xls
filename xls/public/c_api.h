@@ -204,14 +204,16 @@ enum {
   xls_vast_file_type_system_verilog,
 };
 
-struct xls_vast_verilog_file* xls_vast_make_verilog_file(xls_vast_file_type file_type);
+struct xls_vast_verilog_file* xls_vast_make_verilog_file(
+    xls_vast_file_type file_type);
 void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f);
 
-struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(struct xls_vast_verilog_file* f, const char* name);
-void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f, const char* path);
+struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
+    struct xls_vast_verilog_file* f, const char* name);
+void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
+                                       const char* path);
 
 char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f);
-
 
 }  // extern "C"
 

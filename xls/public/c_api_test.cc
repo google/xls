@@ -309,14 +309,16 @@ TEST(XlsCApiTest, InterpretDslxFailFunction) {
 }
 
 TEST(XlsCApiTest, VastAddIncludesAndEmit) {
-  xls_vast_verilog_file* f = xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
   ASSERT_NE(f, nullptr);
   absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
 
   xls_vast_verilog_file_add_include(f, "one_include.v");
   xls_vast_verilog_file_add_include(f, "another_include.v");
 
-  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "my_empty_module");
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "my_empty_module");
   ASSERT_NE(m, nullptr);
 
   char* emitted = xls_vast_verilog_file_emit(f);
