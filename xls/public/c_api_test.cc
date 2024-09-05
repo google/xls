@@ -323,7 +323,8 @@ TEST(XlsCApiTest, VastAddIncludesAndEmit) {
 
   // Add input/output and a wire.
   xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
-  xls_vast_data_type* u8 = xls_vast_verilog_file_make_bit_vector_type(f, 8, false);
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, false);
   xls_vast_verilog_module_add_input(m, "my_input", u8);
   xls_vast_verilog_module_add_output(m, "my_output", scalar);
   xls_vast_verilog_module_add_wire(m, "my_wire", scalar);
