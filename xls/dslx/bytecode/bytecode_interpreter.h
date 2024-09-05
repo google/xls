@@ -55,6 +55,12 @@ inline void InfoLoggingTraceHook(const Span& source_location,
                     source_location.start().GetHumanLineno());
 }
 
+// Stores name and use-location of a blocked channel, for error messaging.
+struct BlockedChannelInfo {
+  std::string name;
+  Span span;
+};
+
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
 // and a set of initial environmental bindings (key/value pairs) and executes
 // until end result.
@@ -94,8 +100,8 @@ class BytecodeInterpreter {
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
   const BytecodeInterpreterOptions& options() const { return options_; }
-  const std::optional<std::string>& blocked_channel_name() const {
-    return blocked_channel_name_;
+  const std::optional<BlockedChannelInfo>& blocked_channel_info() const {
+    return blocked_channel_info_;
   }
 
   // Sets `progress_made` to true (if not null) if at least a single bytecode
@@ -205,7 +211,7 @@ class BytecodeInterpreter {
   // TODO(meheff): 2023/02/14 A better way of handling this is by definining a
   // separate continuation data structure which encapsulates the entire
   // execution state including this value.
-  std::optional<std::string> blocked_channel_name_;
+  std::optional<BlockedChannelInfo> blocked_channel_info_;
 };
 
 // Specialization of BytecodeInterpreter for executing Proc `config` functions.
@@ -263,9 +269,9 @@ enum class ProcExecutionState : uint8_t {
 struct ProcRunResult {
   ProcExecutionState execution_state;
 
-  // If tick state is kBlockedOnReceive this field holds the name of the blocked
-  // channel.
-  std::optional<std::string> blocked_channel_name;
+  // If tick state is kBlockedOnReceive this field holds the name and usage
+  // location of the blocked channel.
+  std::optional<BlockedChannelInfo> blocked_channel_info;
 
   // Whether any progress was made (at least one instruction was executed).
   bool progress_made;
@@ -286,6 +292,7 @@ class ProcInstance {
 
   // Executes a single "tick" of the ProcInstance.
   absl::StatusOr<ProcRunResult> Run();
+  Proc* proc() const { return proc_; }
 
  private:
   Proc* proc_;

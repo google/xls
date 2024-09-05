@@ -374,6 +374,7 @@ proc incrementer {
          out_ch: chan<u32> out) {
     (in_ch, out_ch)
   }
+
   next(_: ()) {
     let (tok, i) = recv(join(), in_ch);
     let tok = send(tok, out_ch, i + u32:1);
@@ -398,7 +399,6 @@ proc tester_proc {
   next(state: ()) {
     let tok = send_if(join(), data_out, false, u32:42);
     let (tok, _result) = recv(tok, data_in);
-    let tok = send(tok, terminator, true);
  }
 })";
   ParseAndTestOptions options;
@@ -406,6 +406,14 @@ proc tester_proc {
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, "test_module", "test.x", options));
+
+  auto failures = result.failures();
+  EXPECT_EQ(failures.size(), 1);
+  EXPECT_THAT(failures[0],
+              AllOf(HasSubstr("proc `incrementer` is blocked on receive on "
+                              "channel `incrementer::in_ch`"),
+                    HasSubstr("proc `tester_proc` is blocked on receive on "
+                              "channel `tester_proc::data_in`")));
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
 }
 

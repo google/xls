@@ -177,7 +177,7 @@ BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
 }
 
 absl::Status BytecodeInterpreter::Run(bool* progress_made) {
-  blocked_channel_name_ = std::nullopt;
+  blocked_channel_info_ = std::nullopt;
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
     while (frame->pc() < frame->bf()->bytecodes().size()) {
@@ -1099,7 +1099,10 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
       stack_.Push(channel_value);
       stack_.Push(condition);
       stack_.Push(default_value);
-      blocked_channel_name_ = channel_data->channel_name();
+      blocked_channel_info_ = BlockedChannelInfo{
+          .name = std::string(channel_data->channel_name()),
+          .span = bytecode.source_span(),
+      };
       return absl::UnavailableError("Channel is empty.");
     }
 
@@ -1691,7 +1694,7 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
     XLS_RETURN_IF_ERROR(
         interpreter_->InitFrame(next_fn_.get(), next_args_, type_info_));
     return ProcRunResult{.execution_state = ProcExecutionState::kCompleted,
-                         .blocked_channel_name = std::nullopt,
+                         .blocked_channel_info = std::nullopt,
                          .progress_made = progress_made};
   }
 
@@ -1699,7 +1702,7 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
     // Empty recv channel. Just return Ok and we'll try again next time.
     return ProcRunResult{
         .execution_state = ProcExecutionState::kBlockedOnReceive,
-        .blocked_channel_name = interpreter_->blocked_channel_name(),
+        .blocked_channel_info = interpreter_->blocked_channel_info(),
         .progress_made = progress_made};
   }
 

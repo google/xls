@@ -33,6 +33,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -172,16 +173,20 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
     for (auto& p : proc_instances) {
       XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p.Run());
       if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
-        XLS_RET_CHECK(run_result.blocked_channel_name.has_value());
-        blocked_channels.push_back(run_result.blocked_channel_name.value());
+        XLS_RET_CHECK(run_result.blocked_channel_info.has_value());
+        BlockedChannelInfo channel_info =
+            run_result.blocked_channel_info.value();
+        blocked_channels.push_back(absl::StrFormat(
+            "%s: proc `%s` is blocked on receive on channel `%s`",
+            channel_info.span.ToString(), p.proc()->identifier(),
+            channel_info.name));
       }
       progress_made |= run_result.progress_made;
     }
 
     if (!progress_made) {
-      return absl::DeadlineExceededError(
-          absl::StrFormat("Procs are deadlocked. Blocked channels: %s",
-                          absl::StrJoin(blocked_channels, ", ")));
+      return absl::DeadlineExceededError(absl::StrFormat(
+          "Procs are deadlocked:\n%s", absl::StrJoin(blocked_channels, "\n")));
     }
     ++tick_count;
   }

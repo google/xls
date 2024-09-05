@@ -160,6 +160,19 @@ class TestResultData {
   void AddTestCase(test_xml::TestCase test_case) {
     test_cases_.push_back(std::move(test_case));
   }
+
+  std::vector<std::string> failures() {
+    std::vector<std::string> failures;
+    for (const auto& test_case : test_cases_) {
+      if (test_case.status == test_xml::RunStatus::kRun &&
+          test_case.result == test_xml::RunResult::kCompleted &&
+          test_case.failure.has_value()) {
+        failures.push_back(test_case.failure->message);
+      }
+    }
+    return failures;
+  }
+
   // When the test data is completed we can note the final test result (status)
   // and the duration it took.
   void Finish(TestResult result, absl::Duration duration) {
