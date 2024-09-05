@@ -358,6 +358,13 @@ class FunctionConverter {
   absl::Status HandleAssertBuiltin(const Invocation* node, BValue predicate,
                                    Expr* label_expr);
 
+  // Handles the `assert_eq` builtin invocation.
+  absl::Status HandleAssertEqBuiltin(const Invocation* node, BValue lhs,
+                                     BValue rhs);
+
+  // Handles the `assert_lt` builtin invocation.
+  absl::Status HandleAssertLtBuiltin(const Invocation* node, BValue lhs,
+                                     BValue rhs);
   // Handles the `cover!()` builtin invocation.
   absl::Status HandleCoverBuiltin(const Invocation* node, BValue condition);
 

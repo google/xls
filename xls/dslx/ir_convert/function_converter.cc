@@ -1835,6 +1835,34 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleAssertLtBuiltin(const Invocation* node,
+                                                      BValue lhs, BValue rhs) {
+  std::optional<Type*> lhs_type = current_type_info_->GetItem(node->args()[0]);
+  std::optional<Type*> rhs_type = current_type_info_->GetItem(node->args()[1]);
+  XLS_RET_CHECK(lhs_type.has_value());
+  XLS_RET_CHECK(rhs_type.has_value());
+  auto* lhs_bits_type = dynamic_cast<const BitsType*>(lhs_type.value());
+  bool is_lhs_signed = lhs_bits_type != nullptr && lhs_bits_type->is_signed();
+  auto* rhs_bits_type = dynamic_cast<const BitsType*>(rhs_type.value());
+  bool is_rhs_signed = rhs_bits_type != nullptr && rhs_bits_type->is_signed();
+  XLS_RET_CHECK_EQ(is_lhs_signed, is_rhs_signed);
+  BValue cmp;
+  if (is_lhs_signed) {
+    cmp = function_builder_->SLt(lhs, rhs);
+  } else {
+    cmp = function_builder_->ULt(lhs, rhs);
+  }
+  return HandleAssertBuiltin(
+      node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
+}
+
+absl::Status FunctionConverter::HandleAssertEqBuiltin(const Invocation* node,
+                                                      BValue lhs, BValue rhs) {
+  BValue cmp = function_builder_->Eq(lhs, rhs);
+  return HandleAssertBuiltin(
+      node, cmp, module_->Make<String>(node->span(), node->ToInlineString()));
+}
+
 absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
                                                     BValue assert_predicate,
                                                     Expr* label_expr) {
@@ -1855,9 +1883,9 @@ absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
     BValue ok = function_builder_->Or(function_builder_->Not(control_predicate),
                                       assert_predicate);
 
-    XLS_ASSIGN_OR_RETURN(
-        AssertionLabelData label_data,
-        GetAssertionLabel("assert!", label_expr, node->span()));
+    XLS_ASSIGN_OR_RETURN(std::string name, GetCalleeIdentifier(node));
+    XLS_ASSIGN_OR_RETURN(AssertionLabelData label_data,
+                         GetAssertionLabel(name, label_expr, node->span()));
     BValue assert_result_token =
         function_builder_->Assert(implicit_token_data_->entry_token, ok,
                                   label_data.message, label_data.label);
@@ -1982,6 +2010,18 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
         << called_name << " builtin requires two arguments";
     return HandleAssertBuiltin(node, /*predicate=*/args[0],
                                /*label_expr=*/node->args()[1]);
+  }
+  if (called_name == "assert_lt") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleAssertLtBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
+  }
+  if (called_name == "assert_eq") {
+    XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleAssertEqBuiltin(node, /*lhs=*/args[0], /*rhs=*/args[1]);
   }
   if (called_name == "cover!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
