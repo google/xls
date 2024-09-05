@@ -505,4 +505,11 @@ struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
   return reinterpret_cast<xls_vast_data_type*>(type);
 }
 
+struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
+    struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::DataType* type = cpp_file->BitVectorType(bit_count, xls::SourceInfo(), is_signed);
+  return reinterpret_cast<xls_vast_data_type*>(type);
+}
+
 }  // extern "C"

@@ -219,6 +219,9 @@ struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
 struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
     struct xls_vast_verilog_file* f);
 
+struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
+    struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed);
+
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type);
