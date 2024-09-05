@@ -195,6 +195,8 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
 // Opaque structs.
 struct xls_vast_verilog_file;
 struct xls_vast_verilog_module;
+struct xls_vast_logic_ref;
+struct xls_vast_data_type;
 
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
@@ -213,6 +215,13 @@ void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f);
 
 struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
     struct xls_vast_verilog_file* f, const char* name);
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(struct xls_vast_verilog_file* f);
+
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(struct xls_vast_verilog_module* m, const char* name, struct xls_vast_data_type* type);
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(struct xls_vast_verilog_module* m, const char* name, struct xls_vast_data_type* type);
+struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(struct xls_vast_verilog_module* m, const char* name, struct xls_vast_data_type* type);
+// TODO(cdleary): 2024-09-05 Add xls_vast_verilog_module_add_wire_with_expr
 
 void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
                                        const char* path);
