@@ -15,7 +15,7 @@
 from absl.testing import parameterized
 from xls.common import test_base
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model_utils
+from xls.estimators import estimator_model_utils
 
 
 def _create_sample_spec(
@@ -24,7 +24,7 @@ def _create_sample_spec(
     operand_widths: list[int],
     element_counts: list[int],
     specialization: estimator_model_pb2.SpecializationKind = estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
-) -> delay_model_utils.SampleSpec:
+) -> estimator_model_utils.SampleSpec:
   """Convenience function for tests to create SampleSpec protos."""
   op_samples = estimator_model_pb2.OpSamples()
   op_samples.op = op_name
@@ -39,7 +39,7 @@ def _create_sample_spec(
       operand_element_counts.operand_number = operand_idx
       operand_element_counts.element_counts.append(element_count)
       point.operand_element_counts.append(operand_element_counts)
-  return delay_model_utils.SampleSpec(op_samples, point)
+  return estimator_model_utils.SampleSpec(op_samples, point)
 
 
 def _create_data_point(
@@ -67,30 +67,30 @@ class DelayModelUtilsTest(parameterized.TestCase):
 
   def test_sample_spec_key_equal_for_same_sample(self):
     self.assertEqual(
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kAnd', 16, [8, 8], [0, 0])
         ),
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kAnd', 16, [8, 8], [0, 0])
         ),
     )
 
   def test_sample_spec_key_differs_for_op(self):
     self.assertNotEqual(
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kAnd', 16, [8, 8], [0, 0])
         ),
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kOr', 16, [8, 8], [0, 0])
         ),
     )
 
   def test_sample_spec_key_differs_for_result_width(self):
     self.assertNotEqual(
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kAnd', 16, [8, 8], [0, 0])
         ),
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kAnd', 8, [8, 8], [0, 0])
         ),
     )
@@ -107,12 +107,12 @@ class DelayModelUtilsTest(parameterized.TestCase):
       right_element_counts,
   ):
     self.assertNotEqual(
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec(
                 'kAnd', 8, left_operand_widths, left_element_counts
             )
         ),
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec(
                 'kAnd', 8, right_operand_widths, right_element_counts
             )
@@ -131,12 +131,12 @@ class DelayModelUtilsTest(parameterized.TestCase):
       right_element_counts,
   ):
     self.assertNotEqual(
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec(
                 'kArrayIndex', 8, left_operand_widths, left_element_counts
             )
         ),
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec(
                 'kArrayIndex', 8, right_operand_widths, right_element_counts
             )
@@ -159,10 +159,10 @@ class DelayModelUtilsTest(parameterized.TestCase):
       self, left_specialization, right_specialization
   ):
     self.assertNotEqual(
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kAnd', 4, [4], [0], left_specialization)
         ),
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec('kAnd', 4, [4], [0], right_specialization)
         ),
     )
@@ -189,7 +189,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
       specialization=estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
   ):
     self.assertEqual(
-        delay_model_utils.data_point_to_sample_spec(
+        estimator_model_utils.data_point_to_sample_spec(
             _create_data_point(
                 op_name,
                 result_width,
@@ -227,7 +227,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
       specialization=estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
   ):
     self.assertEqual(
-        delay_model_utils.get_data_point_key(
+        estimator_model_utils.get_data_point_key(
             _create_data_point(
                 op_name,
                 result_width,
@@ -236,7 +236,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
                 specialization,
             )
         ),
-        delay_model_utils.get_sample_spec_key(
+        estimator_model_utils.get_sample_spec_key(
             _create_sample_spec(
                 op_name,
                 result_width,
@@ -259,24 +259,24 @@ class DelayModelUtilsTest(parameterized.TestCase):
     )
     point4 = _create_data_point('kArrayIndex', 8, [8, 8], [0, 16])
     point5 = _create_data_point('kArrayIndex', 8, [8, 8], [0, 1])
-    mapping = delay_model_utils.map_data_points_by_key(
+    mapping = estimator_model_utils.map_data_points_by_key(
         [point1, point2, point3, point4, point5]
     )
     self.assertLen(mapping, 5)
     self.assertEqual(
-        mapping[delay_model_utils.get_data_point_key(point1)], point1
+        mapping[estimator_model_utils.get_data_point_key(point1)], point1
     )
     self.assertEqual(
-        mapping[delay_model_utils.get_data_point_key(point2)], point2
+        mapping[estimator_model_utils.get_data_point_key(point2)], point2
     )
     self.assertEqual(
-        mapping[delay_model_utils.get_data_point_key(point3)], point3
+        mapping[estimator_model_utils.get_data_point_key(point3)], point3
     )
     self.assertEqual(
-        mapping[delay_model_utils.get_data_point_key(point4)], point4
+        mapping[estimator_model_utils.get_data_point_key(point4)], point4
     )
     self.assertEqual(
-        mapping[delay_model_utils.get_data_point_key(point5)], point5
+        mapping[estimator_model_utils.get_data_point_key(point5)], point5
     )
 
 

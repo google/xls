@@ -33,8 +33,8 @@ from google.protobuf import text_format
 from xls.common import gfile
 from xls.common import runfiles
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model_utils
-from xls.estimators.delay_model import op_module_generator
+from xls.estimators import estimator_model_utils
+from xls.estimators import op_module_generator
 from xls.ir import xls_op_name_pb2
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
@@ -201,7 +201,7 @@ def _search_for_fmax_and_synth(
 def _synthesize_ir(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     ir_text: str,
-    spec: delay_model_utils.SampleSpec,
+    spec: estimator_model_utils.SampleSpec,
     operand_element_counts: Dict[int, int],
 ) -> estimator_model_pb2.DataPoint:
   """Synthesizes the given IR text and checkpoint resulting data points."""
@@ -244,7 +244,7 @@ def _synthesize_ir(
 
 
 def _run_point(
-    spec: delay_model_utils.SampleSpec,
+    spec: estimator_model_utils.SampleSpec,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     checkpoint_write_lock: Any,
     op_name_mapping: Dict[str, str],
@@ -327,7 +327,7 @@ def run_characterization(
   """Run characterization with the given synthesis service."""
   op_name_mapping = get_op_name_mapping()
   checkpointed_results = load_checkpoints(_CHECKPOINT_PATH.value)
-  checkpoint_dict = delay_model_utils.map_data_points_by_key(
+  checkpoint_dict = estimator_model_utils.map_data_points_by_key(
       checkpointed_results.data_points
   )
   samples_file = _SAMPLES_PATH.value
@@ -342,15 +342,15 @@ def run_characterization(
   for op_samples in op_samples_list.op_samples:
     if not op_include_list or op_samples.op in op_include_list:
       for point in op_samples.samples:
-        spec = delay_model_utils.SampleSpec(op_samples, point)
-        spec_key = delay_model_utils.get_sample_spec_key(spec)
+        spec = estimator_model_utils.SampleSpec(op_samples, point)
+        spec_key = estimator_model_utils.get_sample_spec_key(spec)
         all_sample_spec_keys_in_order.append(spec_key)
         if spec_key not in checkpoint_dict:
           sample_specs_without_prior_checkpoints.append(spec)
   logging.debug('Using thread pool of size %d', _MAX_THREADS.value)
   pool = mp_pool.ThreadPool(_MAX_THREADS.value)
   checkpoint_write_lock = mp.Lock()
-  results_dict = delay_model_utils.map_data_points_by_key(
+  results_dict = estimator_model_utils.map_data_points_by_key(
       pool.starmap(
           _run_point,
           (

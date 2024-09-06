@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Calculate error statistics for a delay model and write to CSV spreadsheet.
+r"""Calculate error statistics of a model and write to CSV spreadsheet.
 
 Summarizes the difference between the regression-fitted curve and the
 actual data points.
@@ -23,7 +23,7 @@ mean absolute percent error, mean percent error (bias),
 and root mean squared error.
 
 Sample usage:
-  delay_model_stats \
+  estimator_model_stats \
     [--output_csv stats.csv] \
     xls/estimators/delay_model/models/sky130.textproto
 """
@@ -101,8 +101,8 @@ def stats_for_op_model(
       y_delta_pct = 'NaN'
     logging.vlog(
         1,
-        f'x: {x_actual},  actual delay: {y_actual},  '
-        f'estimated delay: {round(y_est,2)},  '
+        f'x: {x_actual},  actual: {y_actual},  '
+        f'estimated: {round(y_est,2)},  '
         f'delta: {round(y_delta,2)}, '
         f'{y_delta_pct}%',
     )
@@ -163,7 +163,7 @@ def main(argv):
   else:
     csv_handle = None
 
-  dm = estimator_model.EstimatorModel(
+  em = estimator_model.EstimatorModel(
       text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
 
@@ -178,8 +178,8 @@ def main(argv):
         'mean % error (bias), root mean sq error (ps)\n\n'
     )
 
-  for op in dm.ops():
-    op_model = dm.op_model(op)
+  for op in em.ops():
+    op_model = em.op_model(op)
     stats_for_op_model(csv_handle, op_model.estimator)
 
     for (

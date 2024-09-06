@@ -37,7 +37,7 @@ py_binary(
         "@com_google_absl_py//absl/logging",
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
-        "//xls/estimators/delay_model:op_module_generator",
+        "//xls/estimators:op_module_generator",
         "//xls/synthesis:client_credentials",
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",

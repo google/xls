@@ -13,17 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Delay model utility.
+r"""Estimator model utility.
 
 Joins an "op_models" textproto and a "data_points" textproto
-into a single "delay_model" textproto.  Checks are performed
+into a single "estimator_model" textproto.  Checks are performed
 that ops with regression estimators (and only those ops)
 have data points.
 
 Usage:
-  delay_model_join --op_models=/path/to/op_models.textproto \
+  estimator_model_join --op_models=/path/to/op_models.textproto \
       --data_points=/path/to/data_points.textproto \
-      --output=/path/to/delay_model.textproto
+      --output=/path/to/estimator_model.textproto
 """
 
 import collections
@@ -35,8 +35,9 @@ from absl import flags
 
 from google.protobuf import text_format
 from xls.common import gfile
+from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model_utils
+from xls.estimators import estimator_model_utils
 
 
 @enum.unique
@@ -66,10 +67,18 @@ _DATA_POINTS = flags.DEFINE_string(
 )
 flags.mark_flag_as_required('data_points')
 
+_METRIC = flags.DEFINE_enum_class(
+    'metric',
+    None,
+    estimator_model.Metric,
+    'The metric estimated by this estimator model.',
+    required=True,
+)
+
 _OUTPUT = flags.DEFINE_string(
     'output',
     None,
-    'The file path/name to write the output delay_model textproto.',
+    'The file path/name to write the output estimator_model textproto.',
 )
 
 _UPDATE_MODE = flags.DEFINE_enum_class(
@@ -144,17 +153,17 @@ def update_op_data_points(
     new_dps: The updated and/or additional data points.
   """
   existing_order = [
-      delay_model_utils.get_data_point_key(point) for point in existing_dps
+      estimator_model_utils.get_data_point_key(point) for point in existing_dps
   ]
-  existing_points = delay_model_utils.map_data_points_by_key(existing_dps)
-  new_points = delay_model_utils.map_data_points_by_key(new_dps)
+  existing_points = estimator_model_utils.map_data_points_by_key(existing_dps)
+  new_points = estimator_model_utils.map_data_points_by_key(new_dps)
   return [
       new_points[key] if key in new_points else existing_points[key]
       for key in existing_order
   ] + [
       point
       for point in new_dps
-      if delay_model_utils.get_data_point_key(point) not in existing_points
+      if estimator_model_utils.get_data_point_key(point) not in existing_points
   ]
 
 
@@ -168,11 +177,11 @@ def update_data_points(
   new_points_by_op = create_op_to_points_mapping(new_dps.data_points)
   ops_with_finished_updates = set()
   with gfile.open(output_file, 'r') as f:
-    existing_dm = text_format.ParseLines(
+    existing_em = text_format.ParseLines(
         f, estimator_model_pb2.EstimatorModel()
     )
-  old_points_by_op = create_op_to_points_mapping(existing_dm.data_points)
-  for point in existing_dm.data_points:
+  old_points_by_op = create_op_to_points_mapping(existing_em.data_points)
+  for point in existing_em.data_points:
     op = point.operation.op
     if op in new_points_by_op:
       result_dps.data_points.extend(
@@ -202,28 +211,30 @@ def main(argv):
   with gfile.open(_DATA_POINTS.value, 'r') as f:
     dps = text_format.Parse(f.read(), dps)
 
-  dm = estimator_model_pb2.EstimatorModel()
+  em = estimator_model_pb2.EstimatorModel()
 
   for om in oms.op_models:
-    dm.op_models.append(om)
+    em.op_models.append(om)
 
   if _UPDATE_MODE.value != UpdateMode.NONE:
-    dm.data_points.extend(
+    em.data_points.extend(
         update_data_points(_OUTPUT.value, dps, _UPDATE_MODE.value).data_points
     )
   else:
     for dp in dps.data_points:
-      dm.data_points.append(dp)
+      em.data_points.append(dp)
+
+  em.metric = estimator_model.Metric.to_metric_proto(_METRIC.value)
 
   print('# proto-file: xls/estimators/estimator_model.proto')
   print('# proto-message: xls.estimator_model.EstimatorModel')
-  print(dm, end='')
+  print(em, end='')
 
   if _OUTPUT.value:
     with gfile.open(_OUTPUT.value, 'w') as f:
       f.write('# proto-file: xls/estimators/estimator_model.proto\n')
       f.write('# proto-message: xls.estimator_model.EstimatorModel\n')
-      f.write(text_format.MessageToString(dm))
+      f.write(text_format.MessageToString(em))
 
   sync_check(oms, dps, _UPDATE_MODE.value)
 

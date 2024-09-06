@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for xls.tools.extract_samples_from_delay_model."""
+"""Tests for xls.tools.extract_samples_from_estimator_model."""
 
 import subprocess
 
@@ -20,7 +20,7 @@ from xls.common import runfiles
 from xls.common import test_base
 
 EXTRACT_SAMPLES_PATH = runfiles.get_path(
-    'xls/estimators/delay_model/extract_sample_points_from_delay_model'
+    'xls/estimators/extract_sample_points_from_estimator_model'
 )
 
 TEST_DELAY_MODEL = """
@@ -58,6 +58,8 @@ data_points {
   delay: 4200
   delay_offset: 225
 }
+metric: DELAY_METRIC
+
 """
 
 

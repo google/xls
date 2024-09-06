@@ -120,6 +120,10 @@ absl::StatusOr<estimator_model::OpModels> LoadOpModels(std::string_view path) {
     models.Clear();
     estimator_model::EstimatorModel delay_model;
     success = google::protobuf::TextFormat::ParseFromString(content, &delay_model);
+    if (delay_model.metric() != estimator_model::Metric::DELAY_METRIC) {
+      return absl::UnimplementedError(
+          "extract_sample_points_from_ir_main only supports delay model");
+    }
     if (!success) {
       return absl::InvalidArgumentError(absl::StrCat(
           "Not a valid OpModels or EstimatorModel text proto file: ", path));

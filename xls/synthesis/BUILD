@@ -118,7 +118,7 @@ py_test(
     deps = [
         ":timing_characterization_client",
         "//xls/estimators:estimator_model_py_pb2",
-        "//xls/estimators/delay_model:delay_model_utils",
+        "//xls/estimators:estimator_model_utils",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -200,8 +200,8 @@ py_library(
         "//xls/common:gfile",
         "//xls/common:runfiles",
         "//xls/estimators:estimator_model_py_pb2",
-        "//xls/estimators/delay_model:delay_model_utils",
-        "//xls/estimators/delay_model:op_module_generator",
+        "//xls/estimators:estimator_model_utils",
+        "//xls/estimators:op_module_generator",
         "//xls/ir:xls_op_name_py_pb2",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",

@@ -32,7 +32,7 @@ import grpc
 
 from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import op_module_generator
+from xls.estimators import op_module_generator
 from xls.synthesis import client_credentials
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc

@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Delay model visualization tool.
+r"""Estimator model visualization tool.
 
-Dumps a graph (as an image) of each XLS op model in a specified directory.
+Dumps a graph (as an image) of each XLS op estimator model in a specified directory.
 
 Usage:
   delay_model_visualizer --output_dir=/tmp/images \
@@ -212,12 +212,12 @@ def main(argv):
   with open(argv[1], 'rb') as f:
     contents = f.read()
 
-  dm = estimator_model.EstimatorModel(
+  em = estimator_model.EstimatorModel(
       text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
 
-  for op in dm.ops():
-    op_model = dm.op_model(op)
+  for op in em.ops():
+    op_model = em.op_model(op)
     maybe_plot_estimator_and_data_points(op_model.estimator)
 
     for (

@@ -13,14 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Delay model utility.
+r"""Estimator model utility.
 
-Reads a "delay_model" textproto and outputs the sample points
+Reads an "estimator_model" textproto and outputs the sample points
 (bitwidth tuples) from the data points in "OpSamplesList" format.
 
 Usage:
-  extract_sample_points_from_delay_model \
-      --input=/path/to/delay_model.textproto \
+  extract_sample_points_from_estimator_model \
+      --input=/path/to/estimator_model.textproto \
       --output=/path/to/op_samples.textproto
 """
 
@@ -35,7 +35,7 @@ from xls.estimators import estimator_model_pb2
 _INPUT = flags.DEFINE_string(
     'input',
     None,
-    'The file path/name to write the input delay_model textproto.',
+    'The file path/name to write the input estimator_model textproto.',
 )
 flags.mark_flag_as_required('input')
 
@@ -50,15 +50,15 @@ def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  dm = estimator_model_pb2.EstimatorModel()
+  em = estimator_model_pb2.EstimatorModel()
   with gfile.open(_INPUT.value, 'r') as f:
-    dm = text_format.Parse(f.read(), dm)
+    em = text_format.Parse(f.read(), em)
 
   oss = estimator_model_pb2.OpSamplesList()
 
   this_op_samples = None
 
-  for dp in dm.data_points:
+  for dp in em.data_points:
 
     if (
         (this_op_samples is None)

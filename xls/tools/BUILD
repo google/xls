@@ -1119,8 +1119,8 @@ py_test(
 )
 
 py_binary(
-    name = "delay_model_stats",
-    srcs = ["delay_model_stats.py"],
+    name = "estimator_model_stats",
+    srcs = ["estimator_model_stats.py"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
@@ -1135,8 +1135,8 @@ py_binary(
 )
 
 py_test(
-    name = "delay_model_stats_test",
-    srcs = ["delay_model_stats_test.py"],
+    name = "estimator_model_stats_test",
+    srcs = ["estimator_model_stats_test.py"],
     data = [
         "testdata/asap7_delay_data_points.textproto",
         "testdata/asap7_delay_model_stats.csv",
@@ -1144,7 +1144,7 @@ py_test(
         "testdata/sky130_delay_model_stats.csv",
         "testdata/unit_delay_data_points.textproto",
         "testdata/unit_delay_model_stats.csv",
-        ":delay_model_stats",
+        ":estimator_model_stats",
     ],
     python_version = "PY3",
     srcs_version = "PY3",

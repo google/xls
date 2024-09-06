@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype test and library
+# pytype binary, test, library
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
@@ -61,5 +61,113 @@ py_test(
         ":estimator_model_py_pb2",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_library(
+    name = "op_module_generator",
+    srcs = ["op_module_generator.py"],
+    data = [
+        "//xls/tools:codegen_main",
+        "//xls/tools:parse_ir",
+    ],
+    srcs_version = "PY3",
+    deps = [
+        "//xls/codegen:module_signature_py_pb2",
+        "//xls/common:runfiles",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "op_module_generator_test",
+    srcs = ["op_module_generator_test.py"],
+    data = glob(["testdata/*"]),
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":op_module_generator",
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+py_binary(
+    name = "estimator_model_join",
+    srcs = ["estimator_model_join.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":estimator_model",
+        ":estimator_model_py_pb2",
+        ":estimator_model_utils",
+        "//xls/common:gfile",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "estimator_model_join_test",
+    srcs = ["estimator_model_join_test.py"],
+    data = [
+        ":estimator_model_join",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+py_library(
+    name = "estimator_model_utils",
+    srcs = ["estimator_model_utils.py"],
+    deps = [":estimator_model_py_pb2"],
+)
+
+py_test(
+    name = "estimator_model_utils_test",
+    srcs = ["estimator_model_utils_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":estimator_model_py_pb2",
+        ":estimator_model_utils",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+    ],
+)
+
+py_binary(
+    name = "extract_sample_points_from_estimator_model",
+    srcs = ["extract_sample_points_from_estimator_model.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":estimator_model_py_pb2",
+        "//xls/common:gfile",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "extract_sample_points_from_estimator_model_test",
+    srcs = ["extract_sample_points_from_estimator_model_test.py"],
+    data = [
+        ":extract_sample_points_from_estimator_model",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )

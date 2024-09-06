@@ -15,7 +15,7 @@
 
 from absl.testing import absltest
 from xls.common import runfiles
-from xls.estimators.delay_model import op_module_generator as opgen
+from xls.estimators import op_module_generator as opgen
 
 
 class OpModuleGeneratorTest(absltest.TestCase):
@@ -228,7 +228,7 @@ top fn main(op1: bits[17], op2: bits[3]) -> bits[17][4] {
     self.assertEqual(
         parallel_module,
         runfiles.get_contents_as_text(
-            'xls/estimators/delay_model/testdata/parallel_op_module.vtxt'
+            'xls/estimators/testdata/parallel_op_module.vtxt'
         ),
     )
 

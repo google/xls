@@ -56,6 +56,13 @@ class Metric(enum.Enum):
         estimator_model_pb2.Metric.AREA_METRIC: cls.AREA_METRIC,
     }[proto]
 
+  @classmethod
+  def to_metric_proto(cls, val: 'Metric') -> estimator_model_pb2.Metric:
+    return {
+        cls.DELAY_METRIC: estimator_model_pb2.Metric.DELAY_METRIC,
+        cls.AREA_METRIC: estimator_model_pb2.Metric.AREA_METRIC,
+    }[val]
+
 
 class Estimator(metaclass=abc.ABCMeta):
   """Base class for estimators.
