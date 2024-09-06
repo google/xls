@@ -918,7 +918,9 @@ class NodeChecker : public DfsVisitor {
     Proc* proc = next->function_base()->AsProcOrDie();
     XLS_ASSIGN_OR_RETURN(int64_t index,
                          proc->GetStateParamIndex(next->param()->As<Param>()));
-    return ExpectOperandHasType(next, /*operand_no=*/0,
+    XLS_RETURN_IF_ERROR(ExpectOperandHasType(next, /*operand_no=*/0,
+                                             proc->GetStateElementType(index)));
+    return ExpectOperandHasType(next, /*operand_no=*/1,  // value is operand 1
                                 proc->GetStateElementType(index));
   }
 

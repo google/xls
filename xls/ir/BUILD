@@ -941,10 +941,13 @@ cc_test(
     name = "verifier_test",
     srcs = ["verifier_test.cc"],
     deps = [
+        ":bits",
         ":channel",
         ":function_builder",
         ":ir",
         ":ir_test_base",
+        ":source_location",
+        ":value",
         ":verifier",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

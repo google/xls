@@ -24,10 +24,14 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -615,6 +619,46 @@ TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("ChannelReference `ch` in proc `subproc` bound to "
                          "channels with different flow control")));
+}
+
+TEST_F(VerifierTest, NextNodeWithWrongType) {
+  Package package("p");
+
+  ProcBuilder pb("p", &package, /*should_verify=*/false);
+  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  BValue pred = pb.UGt(s, pb.Literal(UBits(10, 32)));
+  BValue lit0_width_1 = pb.Literal(UBits(0, 1));
+  // Can't use pb.Next() because it checks the type without the verifier before
+  // making the node.
+  EXPECT_THAT(pb.function()->MakeNode<Next>(SourceInfo(), s.node(),
+                                            // This shouldn't verify!
+                                            lit0_width_1.node(), pred.node()),
+              StatusIs(absl::StatusCode::kInternal,
+                       AllOf(HasSubstr("to have type bits[32]"),
+                             HasSubstr("has type bits[1]"))));
+}
+
+TEST_F(VerifierTest, NextNodeWithWrongTypePredicate) {
+  Package package("p");
+
+  ProcBuilder pb("p", &package, /*should_verify=*/false);
+  BValue s = pb.StateElement("s", Value(UBits(0, 32)));
+  BValue pred = pb.UGt(s, pb.Literal(UBits(10, 32)));
+  // This shouldn't verify!
+  BValue not_pred = pb.ZeroExtend(pb.Not(pred), 32);
+  BValue lit0 = pb.Literal(UBits(0, 32));
+  BValue s_plus_one = pb.Add(s, pb.Literal(UBits(1, 32)));
+  // Can't use pb.Next() because it checks the type.
+  XLS_ASSERT_OK(pb.function()
+                    ->MakeNode<Next>(SourceInfo(), s.node(),
+                                     // This shouldn't verify!
+                                     lit0.node(), pred.node())
+                    .status());
+  EXPECT_THAT(pb.function()->MakeNode<Next>(SourceInfo(), s.node(),
+                                            s_plus_one.node(), not_pred.node()),
+              StatusIs(absl::StatusCode::kInternal,
+                       AllOf(HasSubstr("to have bit count 1:"),
+                             HasSubstr("had 32 bits"))));
 }
 
 }  // namespace
