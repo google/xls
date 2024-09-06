@@ -25,10 +25,10 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/estimators/delay_model/delay_model.pb.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/package.h"
 
-namespace xls::delay_model {
+namespace xls::estimator_model {
 
 // A flattened rendition of an `OpSamples` message for one specific
 // `Parameterization`, annotated with additional info.
@@ -65,6 +65,6 @@ OpSamplesList ConvertToOpSamplesList(
     absl::Span<const SamplePoint> samples,
     size_t n = std::numeric_limits<size_t>::max());
 
-}  // namespace xls::delay_model
+}  // namespace xls::estimator_model
 
 #endif  // XLS_ESTIMATORS_DELAY_MODEL_SAMPLE_POINT_EXTRACTION_UTILS_H_

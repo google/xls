@@ -1,5 +1,5 @@
-# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.DelayModel
+# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.EstimatorModel
 op_models {
   op: "kAdd"
   estimator {
@@ -125467,3 +125467,11 @@ data_points {
   delay: 73910
 }
 
+# TODO: https://github.com/google/xls/issues/1585
+
+# TODO(hnpl): Refactor this integration to use xls/estimators/area_model. The
+# metric here is supposed to be Metric.AREA_METRIC.
+# Note that, in xls/contrib/integrator/area_model, the area data is encoded in
+# the delay field, and this proto reuses delay model's C++ and Python
+# infrastructure.
+metric: DELAY_METRIC

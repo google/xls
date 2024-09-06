@@ -20,7 +20,7 @@ from google.protobuf import text_format
 from xls.common import gfile
 from xls.common import runfiles
 from xls.common import test_base
-from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators import estimator_model_pb2
 
 BINARY_PATH = runfiles.get_path(
     'xls/dev_tools/extract_sample_points_from_ir_main'
@@ -94,7 +94,7 @@ kSub                      4, 4 -> 4                                           1
 """,
     )
     with gfile.open(out_file.full_path, 'r') as f:
-      output = text_format.ParseLines(f, delay_model_pb2.OpSamplesList())
+      output = text_format.ParseLines(f, estimator_model_pb2.OpSamplesList())
 
     self.assertLen(output.op_samples, 3)
     self.assertEqual(output.op_samples[0].op, 'kIdentity')

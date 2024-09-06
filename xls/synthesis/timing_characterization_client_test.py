@@ -18,7 +18,7 @@ import multiprocessing as mp
 import tempfile
 
 from absl.testing import absltest
-from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model_utils
 from xls.synthesis import timing_characterization_client as client
 
@@ -27,7 +27,7 @@ class TimingCharacterizationClientMainTest(absltest.TestCase):
 
   def test_save_load_checkpoint(self):
 
-    results = delay_model_pb2.DataPoints()
+    results = estimator_model_pb2.DataPoints()
     # Maps an op name to the set of bit configurations we've run that op with.
 
     # Set up some fake data.
@@ -37,10 +37,10 @@ class TimingCharacterizationClientMainTest(absltest.TestCase):
     lock = mp.Lock()
     for op in ops:
       for bit_config in bit_configs:
-        result = delay_model_pb2.DataPoint()
+        result = estimator_model_pb2.DataPoint()
         result.operation.op = op
         for elem in bit_config.split(",")[1:]:
-          operand = delay_model_pb2.Operation.Operand()
+          operand = estimator_model_pb2.Operation.Operand()
           operand.bit_count = int(elem)
           result.operation.operands.append(operand)
         result.operation.bit_count = int(bit_config[0])

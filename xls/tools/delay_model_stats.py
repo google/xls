@@ -36,8 +36,8 @@ from absl import logging
 import numpy as np
 
 from google.protobuf import text_format
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model
-from xls.estimators.delay_model import delay_model_pb2
 
 _CSV = flags.DEFINE_string(
     'output_csv', None, 'The file to write statistics into.'
@@ -154,7 +154,7 @@ def main(argv):
     csv_handle = None
 
   dm = delay_model.DelayModel(
-      text_format.Parse(contents, delay_model_pb2.DelayModel())
+      text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
 
   # Print column headers.  Add a blank row to make sorting easier.
@@ -179,7 +179,7 @@ def main(argv):
       stats_for_op_model(
           csv_handle,
           estimator,
-          delay_model_pb2.SpecializationKind.Name(specialization_kind),
+          estimator_model_pb2.SpecializationKind.Name(specialization_kind),
           specialization_details,
       )
 

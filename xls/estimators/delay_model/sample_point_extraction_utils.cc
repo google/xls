@@ -35,14 +35,14 @@
 #include "xls/common/case_converters.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/estimators/delay_model/delay_model.pb.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
-namespace xls::delay_model {
+namespace xls::estimator_model {
 namespace {
 
 using SampleMap =
@@ -209,7 +209,7 @@ OpSamplesList ConvertSampleMapToList(SampleMap samples) {
 }  // namespace
 
 absl::StatusOr<std::vector<SamplePoint>> ExtractSamplePoints(
-    const Package& package, const delay_model::OpModels& op_models,
+    const Package& package, const estimator_model::OpModels& op_models,
     std::optional<DelayEstimator*> delay_estimator) {
   ExtractionConfig config = CategorizeOps(op_models);
   SampleMap samples;
@@ -249,4 +249,4 @@ OpSamplesList ConvertToOpSamplesList(absl::Span<const SamplePoint> samples,
   return ConvertSampleMapToList(std::move(map));
 }
 
-}  // namespace xls::delay_model
+}  // namespace xls::estimator_model

@@ -14,7 +14,7 @@
 
 from absl.testing import parameterized
 from xls.common import test_base
-from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model_utils
 
 
@@ -23,19 +23,19 @@ def _create_sample_spec(
     result_width: int,
     operand_widths: list[int],
     element_counts: list[int],
-    specialization: delay_model_pb2.SpecializationKind = delay_model_pb2.SpecializationKind.NO_SPECIALIZATION,
+    specialization: estimator_model_pb2.SpecializationKind = estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
 ) -> delay_model_utils.SampleSpec:
   """Convenience function for tests to create SampleSpec protos."""
-  op_samples = delay_model_pb2.OpSamples()
+  op_samples = estimator_model_pb2.OpSamples()
   op_samples.op = op_name
-  if specialization != delay_model_pb2.SpecializationKind.NO_SPECIALIZATION:
+  if specialization != estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION:
     op_samples.specialization = specialization
-  point = delay_model_pb2.Parameterization()
+  point = estimator_model_pb2.Parameterization()
   point.result_width = result_width
   point.operand_widths.extend(operand_widths)
   for operand_idx, element_count in enumerate(element_counts):
     if element_count:
-      operand_element_counts = delay_model_pb2.OperandElementCounts()
+      operand_element_counts = estimator_model_pb2.OperandElementCounts()
       operand_element_counts.operand_number = operand_idx
       operand_element_counts.element_counts.append(element_count)
       point.operand_element_counts.append(operand_element_counts)
@@ -47,16 +47,16 @@ def _create_data_point(
     result_width: int,
     operand_widths: list[int],
     element_counts: list[int],
-    specialization: delay_model_pb2.SpecializationKind = delay_model_pb2.SpecializationKind.NO_SPECIALIZATION,
-) -> delay_model_pb2.DataPoint:
+    specialization: estimator_model_pb2.SpecializationKind = estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
+) -> estimator_model_pb2.DataPoint:
   """Convenience function for tests to create DataPoint protos."""
-  dp = delay_model_pb2.DataPoint()
+  dp = estimator_model_pb2.DataPoint()
   dp.operation.op = op_name
-  if specialization != delay_model_pb2.SpecializationKind.NO_SPECIALIZATION:
+  if specialization != estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION:
     dp.operation.specialization = specialization
   dp.operation.bit_count = result_width
   for width, count in zip(operand_widths, element_counts):
-    operand = delay_model_pb2.Operation.Operand()
+    operand = estimator_model_pb2.Operation.Operand()
     operand.bit_count = width
     operand.element_count = count
     dp.operation.operands.append(operand)
@@ -146,13 +146,13 @@ class DelayModelUtilsTest(parameterized.TestCase):
   @parameterized.named_parameters(
       (
           'no_specialization_vs_specialization',
-          delay_model_pb2.SpecializationKind.NO_SPECIALIZATION,
-          delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL,
+          estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
+          estimator_model_pb2.SpecializationKind.OPERANDS_IDENTICAL,
       ),
       (
           'different_specializations',
-          delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL,
-          delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+          estimator_model_pb2.SpecializationKind.OPERANDS_IDENTICAL,
+          estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
       ),
   )
   def test_sample_spec_key_differs_for_specialization(
@@ -176,7 +176,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
           32,
           [16, 16],
           [0, 0],
-          delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+          estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
       ),
       ('non_zero_element_count', 'kArrayIndex', 8, [8, 8], [0, 16]),
   )
@@ -186,7 +186,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
       result_width,
       operand_widths,
       element_counts,
-      specialization=delay_model_pb2.SpecializationKind.NO_SPECIALIZATION,
+      specialization=estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
   ):
     self.assertEqual(
         delay_model_utils.data_point_to_sample_spec(
@@ -214,7 +214,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
           32,
           [16, 16],
           [0, 0],
-          delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+          estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
       ),
       ('non_zero_element_count', 'kArrayIndex', 8, [8, 8], [0, 16]),
   )
@@ -224,7 +224,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
       result_width,
       operand_widths,
       element_counts,
-      specialization=delay_model_pb2.SpecializationKind.NO_SPECIALIZATION,
+      specialization=estimator_model_pb2.SpecializationKind.NO_SPECIALIZATION,
   ):
     self.assertEqual(
         delay_model_utils.get_data_point_key(
@@ -255,7 +255,7 @@ class DelayModelUtilsTest(parameterized.TestCase):
         32,
         [16, 16],
         [0, 0],
-        delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+        estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
     )
     point4 = _create_data_point('kArrayIndex', 8, [8, 8], [0, 16])
     point5 = _create_data_point('kArrayIndex', 8, [8, 8], [0, 1])

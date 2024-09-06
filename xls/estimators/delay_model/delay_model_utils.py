@@ -18,25 +18,25 @@ import dataclasses
 import math
 from typing import Sequence
 
-from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators import estimator_model_pb2
 
 
 # A `Parameterization` proto message along with the containing `OpSamples`
 # message. This represents a request for the collection of one data point.
 @dataclasses.dataclass
 class SampleSpec(object):
-  op_samples: delay_model_pb2.OpSamples
-  point: delay_model_pb2.Parameterization
+  op_samples: estimator_model_pb2.OpSamples
+  point: estimator_model_pb2.Parameterization
 
 
 def map_data_points_by_key(
-    points: Sequence[delay_model_pb2.DataPoint],
-) -> Mapping[str, delay_model_pb2.DataPoint]:
+    points: Sequence[estimator_model_pb2.DataPoint],
+) -> Mapping[str, estimator_model_pb2.DataPoint]:
   """Converts a bare sequence of data point protos to a mapping by data point key."""
   return {get_data_point_key(point): point for point in points}
 
 
-def get_data_point_key(data_point: delay_model_pb2.DataPoint) -> str:
+def get_data_point_key(data_point: estimator_model_pb2.DataPoint) -> str:
   """Returns a key that can be used to represent a data point in a dict."""
   return get_sample_spec_key(data_point_to_sample_spec(data_point))
 
@@ -51,7 +51,7 @@ def get_sample_spec_key(spec: SampleSpec) -> str:
   }
   bit_count_strs = []
   for operand_idx, operand_width in enumerate(spec.point.operand_widths):
-    operand = delay_model_pb2.Operation.Operand(
+    operand = estimator_model_pb2.Operation.Operand(
         bit_count=operand_width,
         element_count=array_operand_element_counts.get(operand_idx, 0),
     )
@@ -67,14 +67,14 @@ def get_sample_spec_key(spec: SampleSpec) -> str:
 
 
 def data_point_to_sample_spec(
-    data_point: delay_model_pb2.DataPoint,
+    data_point: estimator_model_pb2.DataPoint,
 ) -> SampleSpec:
   """Converts a data point to the sample spec describing it."""
-  op_samples = delay_model_pb2.OpSamples()
+  op_samples = estimator_model_pb2.OpSamples()
   op_samples.op = data_point.operation.op
   if data_point.operation.specialization:
     op_samples.specialization = data_point.operation.specialization
-  point = delay_model_pb2.Parameterization()
+  point = estimator_model_pb2.Parameterization()
   point.result_width = data_point.operation.bit_count
   point.operand_widths.extend(
       [operand.bit_count for operand in data_point.operation.operands]
@@ -82,7 +82,7 @@ def data_point_to_sample_spec(
   for operand_idx, operand in enumerate(data_point.operation.operands):
     if operand.element_count:
       point.operand_element_counts.append(
-          delay_model_pb2.OperandElementCounts(
+          estimator_model_pb2.OperandElementCounts(
               operand_number=operand_idx,
               element_counts=[operand.element_count],
           )

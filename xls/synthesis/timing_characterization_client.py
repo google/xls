@@ -15,7 +15,7 @@
 """Sample points from a pb to characterize using a synthesis server.
 
 These datapoints can be used in a delay model (where they will be interpolated)
--- the results emitted on stdout are in xls.delay_model.DataPoints prototext
+-- the results emitted on stdout are in xls.estimator_model.DataPoints prototext
 format.
 """
 
@@ -31,7 +31,7 @@ from absl import logging
 
 from google.protobuf import text_format
 from xls.common import gfile
-from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model_utils
 from xls.estimators.delay_model import op_module_generator
 from xls.synthesis import synthesis_pb2
@@ -68,7 +68,7 @@ _MAX_THREADS = flags.DEFINE_integer(
 )
 
 
-def check_delay_offset(results: delay_model_pb2.DataPoints):
+def check_delay_offset(results: estimator_model_pb2.DataPoints):
   # find the minimum nonzero delay, presumably from a reg-->reg connection
   minimum_delay = min([x.delay for x in results.data_points if x.delay])
   logging.vlog(0, f'USING DELAY_OFFSET {minimum_delay}')
@@ -77,7 +77,7 @@ def check_delay_offset(results: delay_model_pb2.DataPoints):
 
 
 def save_checkpoint(
-    result: delay_model_pb2.DataPoint, checkpoint_path: str, write_lock: Any
+    result: estimator_model_pb2.DataPoint, checkpoint_path: str, write_lock: Any
 ) -> None:
   if checkpoint_path:
     write_lock.acquire()
@@ -186,7 +186,7 @@ def _synthesize_ir(
     ir_text: str,
     spec: delay_model_utils.SampleSpec,
     operand_element_counts: Dict[int, int],
-) -> delay_model_pb2.DataPoint:
+) -> estimator_model_pb2.DataPoint:
   """Synthesizes the given IR text and checkpoint resulting data points."""
   logging.info(
       'Running %s with %d / %s',
@@ -211,7 +211,7 @@ def _synthesize_ir(
     ps = 0
 
   # Add a new record to the results proto
-  result_dp = delay_model_pb2.DataPoint()
+  result_dp = estimator_model_pb2.DataPoint()
   result_dp.operation.op = spec.op_samples.op
   result_dp.operation.bit_count = spec.point.result_width
   if spec.op_samples.specialization:
@@ -245,7 +245,7 @@ def _run_point(
     spec: delay_model_utils.SampleSpec,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     checkpoint_write_lock: Any,
-) -> delay_model_pb2.DataPoint:
+) -> estimator_model_pb2.DataPoint:
   """Generate IR and Verilog, run synthesis for one op parameterization."""
 
   op = spec.op_samples.op
@@ -284,7 +284,7 @@ def _run_point(
   logging.debug('types: %s : %s', res_type, ' '.join(opnd_types))
   literal_operand = None
   repeated_operand = (
-      1 if (specialization == delay_model_pb2.OPERANDS_IDENTICAL) else None
+      1 if (specialization == estimator_model_pb2.OPERANDS_IDENTICAL) else None
   )
   ir_text = op_module_generator.generate_ir_package(
       op_name, res_type, (opnd_types), attr, literal_operand, repeated_operand
@@ -302,9 +302,9 @@ def _run_point(
   return result_dp
 
 
-def load_checkpoints(checkpoint_path: str) -> delay_model_pb2.DataPoints:
+def load_checkpoints(checkpoint_path: str) -> estimator_model_pb2.DataPoints:
   """Loads data from a checkpoint, if available."""
-  results = delay_model_pb2.DataPoints()
+  results = estimator_model_pb2.DataPoints()
   if checkpoint_path:
     with gfile.open(checkpoint_path, 'r') as f:
       contents = f.read()
@@ -327,7 +327,7 @@ def run_characterization(
       checkpointed_results.data_points
   )
   samples_file = _SAMPLES_PATH.value
-  op_samples_list = delay_model_pb2.OpSamplesList()
+  op_samples_list = estimator_model_pb2.OpSamplesList()
   op_include_list = set()
   if _OP_INCLUDE_LIST.value:
     op_include_list.update(['kIdentity'] + _OP_INCLUDE_LIST.value)
@@ -355,7 +355,7 @@ def run_characterization(
           ),
       )
   )
-  data_points_proto = delay_model_pb2.DataPoints()
+  data_points_proto = estimator_model_pb2.DataPoints()
   for request_key in all_sample_spec_keys_in_order:
     if request_key in checkpoint_dict:
       data_points_proto.data_points.append(checkpoint_dict[request_key])
@@ -370,6 +370,6 @@ def run_characterization(
     with gfile.open(_OUT_PATH.value, 'w') as f:
       f.write(text_format.MessageToString(data_points_proto))
 
-  print('# proto-file: xls/estimators/delay_model/delay_model.proto')
-  print('# proto-message: xls.delay_model.DataPoints')
+  print('# proto-file: xls/estimators/estimator_model.proto')
+  print('# proto-message: xls.estimator_model.DataPoints')
   print(data_points_proto)

@@ -74,8 +74,8 @@ class DelayExtractSamplesFromDelayModelTest(test_base.TestCase):
     ]).decode('utf-8')
     self.assertEqual(
         stdout,
-        """# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.OpSamples
+        """# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.OpSamples
 op_samples {
   op: "kAdd"
   samples {

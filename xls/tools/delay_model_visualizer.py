@@ -34,8 +34,8 @@ from mpl_toolkits import mplot3d  # pylint: disable=unused-import
 import numpy as np
 
 from google.protobuf import text_format
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model
-from xls.estimators.delay_model import delay_model_pb2
 
 flags.DEFINE_string(
     'output_dir', None, 'The directory to write image files into.'
@@ -203,7 +203,7 @@ def main(argv):
     contents = f.read()
 
   dm = delay_model.DelayModel(
-      text_format.Parse(contents, delay_model_pb2.DelayModel())
+      text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
 
   for op in dm.ops():
@@ -216,7 +216,7 @@ def main(argv):
     ), estimator in op_model.specializations.items():
       maybe_plot_estimator_and_data_points(
           estimator,
-          delay_model_pb2.SpecializationKind.Name(specialization_kind),
+          estimator_model_pb2.SpecializationKind.Name(specialization_kind),
           specialization_details,
       )
 

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.DelayModel
+# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.EstimatorModel
 
 # Dummy "unit" model for testing. All operations have unit latency (1ps).
 op_models { op: "kAdd" estimator { fixed: 1 } }
@@ -93,3 +93,5 @@ op_models { op: "kOutputPort" estimator { fixed: 0 } }
 op_models { op: "kRegisterRead" estimator { fixed: 0 } }
 op_models { op: "kRegisterWrite" estimator { fixed: 0 } }
 op_models { op: "kLiteral" estimator { fixed: 0 } }
+
+metric: DELAY_METRIC

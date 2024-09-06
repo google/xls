@@ -1,5 +1,5 @@
-# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.DelayModel
+# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.EstimatorModel
 op_models {
   op: "kIdentity"
   estimator {
@@ -20386,3 +20386,4 @@ data_points {
   delay: 12319
   delay_offset: 94
 }
+metric: DELAY_METRIC

@@ -15,7 +15,8 @@
 """Sweeps to characterize datapoints from a synthesis server.
 
 These datapoints can be used in an area model (where they may be interpolated)
--- the results emitted on stdout are in xls.delay_model.DelayModel prototext
+-- the results emitted on stdout are in xls.estimator_model.EstimatorModel
+prototext
 format.
 """
 
@@ -29,8 +30,8 @@ from absl import flags
 from absl import logging
 import grpc
 
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model
-from xls.estimators.delay_model import delay_model_pb2
 from xls.estimators.delay_model import op_module_generator
 from xls.synthesis import client_credentials
 from xls.synthesis import synthesis_pb2
@@ -85,68 +86,72 @@ def _operand_count_sweep():
 
 
 # Helper functions for setting expression fields
-def _set_add_expression(expr: delay_model_pb2.DelayExpression):
-  expr.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.ADD
+def _set_add_expression(expr: estimator_model_pb2.EstimatorExpression):
+  expr.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.ADD
 
 
-def _set_sub_expression(expr: delay_model_pb2.DelayExpression):
-  expr.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.SUB
+def _set_sub_expression(expr: estimator_model_pb2.EstimatorExpression):
+  expr.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.SUB
 
 
-def _set_divide_expression(expr: delay_model_pb2.DelayExpression):
-  expr.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.DIVIDE
+def _set_divide_expression(expr: estimator_model_pb2.EstimatorExpression):
+  expr.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.DIVIDE
 
 
-def _set_max_expression(expr: delay_model_pb2.DelayExpression):
-  expr.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MAX
+def _set_max_expression(expr: estimator_model_pb2.EstimatorExpression):
+  expr.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.MAX
 
 
-def _set_min_expression(expr: delay_model_pb2.DelayExpression):
-  expr.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MIN
+def _set_min_expression(expr: estimator_model_pb2.EstimatorExpression):
+  expr.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.MIN
 
 
-def _set_multiply_expression(expr: delay_model_pb2.DelayExpression):
-  expr.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MULTIPLY
+def _set_multiply_expression(expr: estimator_model_pb2.EstimatorExpression):
+  expr.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.MULTIPLY
 
 
-def _set_power_expression(expr: delay_model_pb2.DelayExpression):
-  expr.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.POWER
+def _set_power_expression(expr: estimator_model_pb2.EstimatorExpression):
+  expr.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.POWER
 
 
-def _set_constant_expression(expr: delay_model_pb2.DelayExpression, value: int):
+def _set_constant_expression(
+    expr: estimator_model_pb2.EstimatorExpression, value: int
+):
   expr.constant = value
 
 
 def _set_result_bit_count_expression_factor(
-    expr: delay_model_pb2.DelayExpression, add_constant=0
+    expr: estimator_model_pb2.EstimatorExpression, add_constant=0
 ):
   if add_constant != 0:
     _set_add_expression(expr)
     _set_result_bit_count_expression_factor(expr.rhs_expression)
     _set_constant_expression(expr.lhs_expression, add_constant)
   else:
-    expr.factor.source = delay_model_pb2.DelayFactor.RESULT_BIT_COUNT
+    expr.factor.source = estimator_model_pb2.EstimatorFactor.RESULT_BIT_COUNT
 
 
 def _set_addressable_element_count_factor(
-    expr: delay_model_pb2.DelayExpression,
+    expr: estimator_model_pb2.EstimatorExpression,
 ):
-  expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_ELEMENT_COUNT
+  expr.factor.source = estimator_model_pb2.EstimatorFactor.OPERAND_ELEMENT_COUNT
 
 
 def _set_operand_count_expression_factor(
-    expr: delay_model_pb2.DelayExpression, add_constant=0
+    expr: estimator_model_pb2.EstimatorExpression, add_constant=0
 ):
   if add_constant != 0:
     _set_add_expression(expr)
     _set_operand_count_expression_factor(expr.rhs_expression)
     _set_constant_expression(expr.lhs_expression, add_constant)
   else:
-    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_COUNT
+    expr.factor.source = estimator_model_pb2.EstimatorFactor.OPERAND_COUNT
 
 
 def _set_operand_bit_count_expression_factor(
-    expr: delay_model_pb2.DelayExpression, operand_idx: int, add_constant=0
+    expr: estimator_model_pb2.EstimatorExpression,
+    operand_idx: int,
+    add_constant=0,
 ):
   """Sets the operand bit count of the expression factor."""
   if add_constant != 0:
@@ -154,24 +159,24 @@ def _set_operand_bit_count_expression_factor(
     _set_operand_bit_count_expression_factor(expr.rhs_expression, operand_idx)
     _set_constant_expression(expr.lhs_expression, add_constant)
   else:
-    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expr.factor.source = estimator_model_pb2.EstimatorFactor.OPERAND_BIT_COUNT
     expr.factor.operand_number = operand_idx
 
 
 def _new_expression(
-    op_model: delay_model_pb2.OpModel,
-) -> delay_model_pb2.DelayExpression:
+    op_model: estimator_model_pb2.OpModel,
+) -> estimator_model_pb2.EstimatorExpression:
   """Add a new expression to op_model and return."""
   return op_model.estimator.regression.expressions.add()
 
 
 def _new_regression_op_model(
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     kop: str,
     result_bit_count: bool = False,
     operand_count: bool = False,
     operand_bit_counts: Sequence[int] = (),
-) -> delay_model_pb2.OpModel:
+) -> estimator_model_pb2.OpModel:
   """Add to 'model' a new regression model for op 'kop'."""
   add_op_model = model.op_models.add(op=kop)
   add_op_model.estimator.regression.kfold_validator.num_cross_validation_folds = (
@@ -209,7 +214,8 @@ def _synth(
 
 
 def _record_area(
-    response: synthesis_pb2.CompileResponse, result: delay_model_pb2.DataPoint
+    response: synthesis_pb2.CompileResponse,
+    result: estimator_model_pb2.DataPoint,
 ):
   """Extracts area from the server response and writes it to the datapoint."""
   cell_histogram = response.instance_count.cell_histogram
@@ -235,7 +241,7 @@ def _synthesize_op_and_make_bare_data_point(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     attributes: Sequence[Tuple[str, str]] = (),
     literal_operand: Optional[int] = None,
-) -> delay_model_pb2.DataPoint:
+) -> estimator_model_pb2.DataPoint:
   """Characterize an operation via synthesis server.
 
   Sets the area and op of the data point but not any other information about the
@@ -273,7 +279,7 @@ def _synthesize_op_and_make_bare_data_point(
   )
 
   response = _synth(stub, verilog_text, top_name)
-  result = delay_model_pb2.DataPoint()
+  result = estimator_model_pb2.DataPoint()
   _record_area(response, result)
   result.operation.op = kop
 
@@ -288,7 +294,7 @@ def _build_data_point(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     attributes: Sequence[Tuple[str, str]] = (),
     literal_operand: Optional[int] = None,
-) -> delay_model_pb2.DataPoint:
+) -> estimator_model_pb2.DataPoint:
   """Characterize an operation via synthesis server.
 
   Sets the area and op of the data point but not any other information about the
@@ -333,7 +339,7 @@ def _build_data_point_bit_types(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     attributes: Sequence[Tuple[str, str]] = (),
     literal_operand: Optional[int] = None,
-) -> delay_model_pb2.DataPoint:
+) -> estimator_model_pb2.DataPoint:
   """Characterize an operation with bit type input and output via synthesis server.
 
   Args:
@@ -373,7 +379,7 @@ def _run_nary_op(
     kop: str,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     num_inputs: int,
-) -> List[delay_model_pb2.DataPoint]:
+) -> List[estimator_model_pb2.DataPoint]:
   """Characterizes an nary op."""
   results = []
   for bit_count in _bitwidth_sweep(0):
@@ -396,7 +402,7 @@ def _run_nary_op(
 def _run_linear_bin_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the given linear bin_op and adds it to the model."""
@@ -409,7 +415,7 @@ def _run_linear_bin_op_and_add(
 def _run_quadratic_bin_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     signed: bool = False,
 ) -> None:
@@ -436,7 +442,7 @@ def _run_quadratic_bin_op_and_add(
 def _run_unary_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     signed=False,
 ) -> None:
@@ -454,7 +460,7 @@ def _run_unary_op_and_add(
 def _run_nary_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the given nary_op and adds it to the model."""
@@ -480,7 +486,7 @@ def _run_nary_op_and_add(
 def _run_single_bit_result_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     num_inputs: int,
 ) -> None:
@@ -500,7 +506,7 @@ def _run_single_bit_result_op_and_add(
 def _run_reduction_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   return _run_single_bit_result_op_and_add(op, kop, model, stub, num_inputs=1)
@@ -509,7 +515,7 @@ def _run_reduction_op_and_add(
 def _run_comparison_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   return _run_single_bit_result_op_and_add(op, kop, model, stub, num_inputs=2)
@@ -518,7 +524,7 @@ def _run_comparison_op_and_add(
 def _run_select_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the select op."""
@@ -574,7 +580,7 @@ def _run_select_op_and_add(
 def _run_one_hot_select_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the one hot select op."""
@@ -614,7 +620,7 @@ def _run_one_hot_select_op_and_add(
 def _run_encode_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the encode op."""
@@ -640,7 +646,7 @@ def _run_encode_op_and_add(
 def _run_decode_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the decode op."""
@@ -673,7 +679,7 @@ def _run_decode_op_and_add(
 def _run_dynamic_bit_slice_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the dynamic bit slice op."""
@@ -723,7 +729,7 @@ def _run_dynamic_bit_slice_op_and_add(
 def _run_one_hot_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the one hot op."""
@@ -765,14 +771,14 @@ def _run_one_hot_op_and_add(
 def _run_mul_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for a mul op."""
 
   def _get_big_op_bitcount_expr():
     """Returns larger bit count of the two operands."""
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_max_expression(expr)
     _set_operand_bit_count_expression_factor(expr.lhs_expression, 0)
     _set_operand_bit_count_expression_factor(expr.rhs_expression, 1)
@@ -780,7 +786,7 @@ def _run_mul_op_and_add(
 
   def _get_small_op_bitcount_expr():
     """Returns smaller bit count of the two operands."""
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_min_expression(expr)
     _set_operand_bit_count_expression_factor(expr.lhs_expression, 0)
     _set_operand_bit_count_expression_factor(expr.rhs_expression, 1)
@@ -788,13 +794,13 @@ def _run_mul_op_and_add(
 
   def _get_zero_expr():
     """Returns a constant 0 expression."""
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_constant_expression(expr, 0)
     return expr
 
   def _get_meaningful_width_bits_expr():
     """Returns the maximum number of meaningful result bits."""
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_add_expression(expr)
     _set_operand_bit_count_expression_factor(expr.lhs_expression, 0)
     _set_operand_bit_count_expression_factor(expr.rhs_expression, 1)
@@ -818,7 +824,7 @@ def _run_mul_op_and_add(
     Returns:
       Bounded offset of result_bit_count.
     """
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_sub_expression(expr)
     expr.rhs_expression.CopyFrom(begin_expr)
 
@@ -835,7 +841,7 @@ def _run_mul_op_and_add(
 
   def _get_rectangle_area(width_expr, height_expr):
     """Return the area of a rectangle of dimensions width_expr * height_expr."""
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_multiply_expression(expr)
     expr.lhs_expression.CopyFrom(width_expr)
     expr.rhs_expression.CopyFrom(height_expr)
@@ -852,7 +858,7 @@ def _run_mul_op_and_add(
     Returns:
       The area of a isosceles right triangle.
     """
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_divide_expression(expr)
     sqr_expression = _get_rectangle_area(width_expr, width_expr)
     expr.lhs_expression.CopyFrom(sqr_expression)
@@ -890,7 +896,7 @@ def _run_mul_op_and_add(
     Returns:
       Area of partial isosceles right triangle.
     """
-    expr = delay_model_pb2.DelayExpression()
+    expr = estimator_model_pb2.EstimatorExpression()
     _set_sub_expression(expr)
 
     rectangle_expr = _get_rectangle_area(width_expr, max_width_expr)
@@ -1045,7 +1051,7 @@ def _get_array_num_elements(
 def _run_array_index_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the ArrayIndex op."""
@@ -1115,7 +1121,7 @@ def _run_array_index_op_and_add(
 def _run_array_update_op_and_add(
     op: str,
     kop: str,
-    model: delay_model_pb2.DelayModel,
+    model: estimator_model_pb2.EstimatorModel,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization for the ArrayUpdate op."""
@@ -1188,7 +1194,7 @@ def run_characterization(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Runs characterization via 'stub', DelayModel to stdout as prototext."""
-  model = delay_model_pb2.DelayModel()
+  model = estimator_model_pb2.EstimatorModel()
 
   # Bin ops
   _run_linear_bin_op_and_add('add', 'kAdd', model, stub)
@@ -1271,8 +1277,8 @@ def run_characterization(
   # Final validation
   delay_model.DelayModel(model)
 
-  print('# proto-file: xls/estimators/delay_model/delay_model.proto')
-  print('# proto-message: xls.delay_model.DelayModel')
+  print('# proto-file: xls/estimators/estimator_model.proto')
+  print('# proto-message: xls.estimator_model.EstimatorModel')
   print(model)
 
 

@@ -20,18 +20,18 @@ from typing import Text
 
 from google.protobuf import text_format
 from absl.testing import absltest
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model
-from xls.estimators.delay_model import delay_model_pb2
 
 
-def _parse_data_point(s: Text) -> delay_model_pb2.DataPoint:
+def _parse_data_point(s: Text) -> estimator_model_pb2.DataPoint:
   """Parses a text proto representation of a DataPoint."""
-  return text_format.Parse(s, delay_model_pb2.DataPoint())
+  return text_format.Parse(s, estimator_model_pb2.DataPoint())
 
 
-def _parse_operation(s: Text) -> delay_model_pb2.Operation:
+def _parse_operation(s: Text) -> estimator_model_pb2.Operation:
   """Parses a text proto representation of an Operation."""
-  return text_format.Parse(s, delay_model_pb2.Operation())
+  return text_format.Parse(s, estimator_model_pb2.Operation())
 
 
 class DelayModelTest(absltest.TestCase):
@@ -84,13 +84,13 @@ class DelayModelTest(absltest.TestCase):
         'operation { op: "kBar" bit_count: 64 operands { bit_count: 64 } }'
         + 'delay: 1234 delay_offset: 0',
     ]
-    result_bit_count = delay_model_pb2.DelayFactor()
+    result_bit_count = estimator_model_pb2.EstimatorFactor()
     result_bit_count.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
-    operand0_bit_count = delay_model_pb2.DelayFactor()
+    operand0_bit_count = estimator_model_pb2.EstimatorFactor()
     operand0_bit_count.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     operand0_bit_count.operand_number = 0
     bar = delay_model.BoundingBoxEstimator(
@@ -178,9 +178,9 @@ class DelayModelTest(absltest.TestCase):
         'operation { op: "kFoo" bit_count: 8 } delay: 810 delay_offset: 10',
         'operation { op: "kFoo" bit_count: 10 } delay: 1010 delay_offset: 10',
     ]
-    result_bit_count = delay_model_pb2.DelayExpression()
+    result_bit_count = estimator_model_pb2.EstimatorExpression()
     result_bit_count.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     foo = delay_model.RegressionEstimator(
         'kFoo',
@@ -236,9 +236,9 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 12 delay_offset: 0' % gen_operation(4),
         'operation { %s } delay: 13 delay_offset: 0' % gen_operation(8),
     ]
-    operand_count = delay_model_pb2.DelayExpression()
+    operand_count = estimator_model_pb2.EstimatorExpression()
     operand_count.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_COUNT
     )
     foo = delay_model.RegressionEstimator(
         'kFoo',
@@ -282,13 +282,13 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 200 delay_offset: 0' % gen_operation(10, 12),
         'operation { %s } delay: 400 delay_offset: 0' % gen_operation(30, 15),
     ]
-    result_bit_count = delay_model_pb2.DelayExpression()
+    result_bit_count = estimator_model_pb2.EstimatorExpression()
     result_bit_count.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
-    operand_bit_count = delay_model_pb2.DelayExpression()
+    operand_bit_count = estimator_model_pb2.EstimatorExpression()
     operand_bit_count.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     operand_bit_count.factor.operand_number = 1
     foo = delay_model.RegressionEstimator(
@@ -332,7 +332,7 @@ class DelayModelTest(absltest.TestCase):
   def test_fixed_op_model(self):
     op_model = delay_model.OpModel(
         text_format.Parse(
-            'op: "kFoo" estimator { fixed: 42 }', delay_model_pb2.OpModel()
+            'op: "kFoo" estimator { fixed: 42 }', estimator_model_pb2.OpModel()
         ),
         (),
     )
@@ -355,7 +355,7 @@ class DelayModelTest(absltest.TestCase):
         text_format.Parse(
             'op: "kFoo" estimator { fixed: 42 } specializations { kind:'
             ' OPERANDS_IDENTICAL estimator { fixed: 123 } }',
-            delay_model_pb2.OpModel(),
+            estimator_model_pb2.OpModel(),
         ),
         (),
     )
@@ -368,7 +368,7 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(
         op_model.specializations[
-            delay_model_pb2.SpecializationKind.OPERANDS_IDENTICAL, None
+            estimator_model_pb2.SpecializationKind.OPERANDS_IDENTICAL, None
         ].operation_delay(_parse_operation('op: "kBar" bit_count: 123')),
         123,
     )
@@ -396,7 +396,7 @@ class DelayModelTest(absltest.TestCase):
             '  }'
             '  estimator { fixed: 123 }'
             '}',
-            delay_model_pb2.OpModel(),
+            estimator_model_pb2.OpModel(),
         ),
         (),
     )
@@ -409,7 +409,7 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(
         op_model.specializations[
-            delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+            estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
             delay_model.SpecializationDetails(
                 literal_operand_details=delay_model.LiteralOperandDetails(
                     required_literal_operands=frozenset([0]),
@@ -446,7 +446,7 @@ class DelayModelTest(absltest.TestCase):
             '  }'
             '  estimator { fixed: 123 }'
             '}',
-            delay_model_pb2.OpModel(),
+            estimator_model_pb2.OpModel(),
         ),
         (),
     )
@@ -459,7 +459,7 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(
         op_model.specializations[
-            delay_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
+            estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
             delay_model.SpecializationDetails(
                 literal_operand_details=delay_model.LiteralOperandDetails(
                     allowed_nonliteral_operands=frozenset([2, 3]),
@@ -508,13 +508,15 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 22  delay_offset: 0' % gen_operation(10, 12),
         'operation { %s } delay: 45  delay_offset: 0' % gen_operation(30, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.ADD
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.ADD
+    )
     expression.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     expression.rhs_expression.factor.operand_number = 1
 
@@ -576,13 +578,15 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 7   delay_offset: 0' % gen_operation(12, 5),
         'operation { %s } delay: 15  delay_offset: 0' % gen_operation(30, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.SUB
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.SUB
+    )
     expression.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     expression.rhs_expression.factor.operand_number = 1
 
@@ -640,13 +644,15 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 5  delay_offset: 0' % gen_operation(50, 10),
         'operation { %s } delay: 2  delay_offset: 0' % gen_operation(30, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.DIVIDE
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.DIVIDE
+    )
     expression.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     expression.rhs_expression.factor.operand_number = 1
 
@@ -711,13 +717,15 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 12  delay_offset: 0' % gen_operation(10, 12),
         'operation { %s } delay: 30  delay_offset: 0' % gen_operation(30, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MAX
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.MAX
+    )
     expression.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     expression.rhs_expression.factor.operand_number = 1
 
@@ -779,13 +787,15 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 10  delay_offset: 0' % gen_operation(10, 12),
         'operation { %s } delay: 15  delay_offset: 0' % gen_operation(30, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MIN
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.MIN
+    )
     expression.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     expression.rhs_expression.factor.operand_number = 1
 
@@ -847,13 +857,15 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 120 delay_offset: 0' % gen_operation(10, 12),
         'operation { %s } delay: 450 delay_offset: 0' % gen_operation(30, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MULTIPLY
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.MULTIPLY
+    )
     expression.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     expression.rhs_expression.factor.operand_number = 1
 
@@ -913,11 +925,13 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 32  delay_offset: 0' % gen_operation(5, 12),
         'operation { %s } delay: 64  delay_offset: 0' % gen_operation(6, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.POWER
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.POWER
+    )
     expression.lhs_expression.constant = 2
     expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
 
     foo = delay_model.RegressionEstimator(
@@ -973,7 +987,7 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 99  delay_offset: 0' % gen_operation(10, 12),
         'operation { %s } delay: 99  delay_offset: 0' % gen_operation(30, 15),
     ]
-    expression = delay_model_pb2.DelayExpression()
+    expression = estimator_model_pb2.EstimatorExpression()
     expression.constant = 99
 
     # Not especially usuful tests since regression includes a
@@ -1027,17 +1041,19 @@ class DelayModelTest(absltest.TestCase):
         'operation { %s } delay: 20  delay_offset: 0' % gen_operation(30, 15),
     ]
     # min(1, RESULT_BIT_COUNT + OPERAND_BIT_COUNT)
-    expression = delay_model_pb2.DelayExpression()
-    expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MIN
+    expression = estimator_model_pb2.EstimatorExpression()
+    expression.bin_op = (
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.MIN
+    )
     expression.lhs_expression.constant = 20
     expression.rhs_expression.bin_op = (
-        delay_model_pb2.DelayExpression.BinaryOperation.ADD
+        estimator_model_pb2.EstimatorExpression.BinaryOperation.ADD
     )
     expression.rhs_expression.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     expression.rhs_expression.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     expression.rhs_expression.rhs_expression.factor.operand_number = 1
 
@@ -1092,7 +1108,7 @@ class DelayModelTest(absltest.TestCase):
             ' RESULT_BIT_COUNT } } } }specializations { kind:'
             ' OPERANDS_IDENTICAL estimator { bounding_box { factors { source:'
             ' RESULT_BIT_COUNT } } } }',
-            delay_model_pb2.OpModel(),
+            estimator_model_pb2.OpModel(),
         ),
         [gen_data_point(bc, 10 * bc) for bc in range(1, 10)]
         + [
@@ -1230,7 +1246,7 @@ class DelayModelTest(absltest.TestCase):
 
     with self.assertRaises(delay_model.Error) as e:
       delay_model.DelayModel(
-          text_format.Parse(proto_text, delay_model_pb2.DelayModel())
+          text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
       )
     self.assertEqualIgnoringWhitespaceAndFloats(
         'kFoo: Too few data points to cross validate: 6 data points, 8 folds',
@@ -1299,7 +1315,7 @@ class DelayModelTest(absltest.TestCase):
 
     with self.assertRaises(delay_model.Error) as e:
       delay_model.DelayModel(
-          text_format.Parse(proto_text, delay_model_pb2.DelayModel())
+          text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
       )
     self.assertEqualIgnoringWhitespaceAndFloats(
         'kFoo: Regression model failed k-fold cross validation for '
@@ -1373,7 +1389,7 @@ class DelayModelTest(absltest.TestCase):
 
     with self.assertRaises(delay_model.Error) as e:
       delay_model.DelayModel(
-          text_format.Parse(proto_text, delay_model_pb2.DelayModel())
+          text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
       )
 
     self.assertEqualIgnoringWhitespaceAndFloats(
@@ -1441,17 +1457,17 @@ class DelayModelTest(absltest.TestCase):
     proto_text = proto_text + '\n'.join(data_points_str)
 
     delay_model.DelayModel(
-        text_format.Parse(proto_text, delay_model_pb2.DelayModel())
+        text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
     )
 
   def test_description(self):
-    e = delay_model_pb2.DelayExpression()
-    e.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.ADD
+    e = estimator_model_pb2.EstimatorExpression()
+    e.bin_op = estimator_model_pb2.EstimatorExpression.BinaryOperation.ADD
     e.lhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
     e.rhs_expression.factor.source = (
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+        estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     e.rhs_expression.factor.operand_number = 1
     self.assertEqual(
@@ -1459,12 +1475,14 @@ class DelayModelTest(absltest.TestCase):
         '(Result bit count + Operand 1 bit count)',
     )
 
-    f = delay_model_pb2.DelayExpression()
+    f = estimator_model_pb2.EstimatorExpression()
     f.constant = 42
     self.assertEqual(delay_model.delay_expression_description(f), '42')
 
-    f = delay_model_pb2.DelayExpression()
-    f.factor.source = delay_model_pb2.DelayFactor().Source.RESULT_BIT_COUNT
+    f = estimator_model_pb2.EstimatorExpression()
+    f.factor.source = (
+        estimator_model_pb2.EstimatorFactor().Source.RESULT_BIT_COUNT
+    )
     self.assertEqual(
         delay_model.delay_expression_description(f), 'Result bit count'
     )

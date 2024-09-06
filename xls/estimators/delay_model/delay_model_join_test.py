@@ -117,8 +117,8 @@ TEST_DATAPOINT_UMUL = """data_points {
 }
 """
 
-TEST_DELAY_MODEL_ADD = """# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.DelayModel
+TEST_DELAY_MODEL_ADD = """# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.EstimatorModel
 op_models {
   op: "kAdd"
   estimator {
@@ -146,8 +146,8 @@ data_points {
 }
 """
 
-TEST_DELAY_MODEL_ADD_REPLACE = """# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.DelayModel
+TEST_DELAY_MODEL_ADD_REPLACE = """# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.EstimatorModel
 op_models {
   op: "kAdd"
   estimator {
@@ -178,8 +178,8 @@ data_points {
 }
 """
 
-TEST_DELAY_MODEL_ADD_UMUL = """# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.DelayModel
+TEST_DELAY_MODEL_ADD_UMUL = """# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.EstimatorModel
 op_models {
   op: "kAdd"
   estimator {

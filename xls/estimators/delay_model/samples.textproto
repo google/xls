@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# proto-file: xls/estimators/delay_model/delay_model.proto
+# proto-file: xls/estimators/estimator_model.proto
 # proto-message: OpSamplesList
 
 

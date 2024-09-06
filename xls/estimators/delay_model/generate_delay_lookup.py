@@ -21,8 +21,8 @@ import jinja2
 
 from google.protobuf import text_format
 from xls.common import runfiles
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model
-from xls.estimators.delay_model import delay_model_pb2
 
 flags.DEFINE_string(
     'model_name',
@@ -49,7 +49,7 @@ def main(argv):
     contents = f.read()
 
   dm = delay_model.DelayModel(
-      text_format.Parse(contents, delay_model_pb2.DelayModel())
+      text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
 
   env = jinja2.Environment(undefined=jinja2.StrictUndefined)

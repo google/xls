@@ -195,7 +195,7 @@ cc_library(
 py_library(
     name = "delay_model_utils",
     srcs = ["delay_model_utils.py"],
-    deps = [":delay_model_py_pb2"],
+    deps = ["//xls/estimators:estimator_model_py_pb2"],
 )
 
 py_test(
@@ -204,27 +204,12 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":delay_model_py_pb2",
         ":delay_model_utils",
         "//xls/common:test_base",
+        "//xls/estimators:estimator_model_py_pb2",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
     ],
-)
-
-proto_library(
-    name = "delay_model_proto",
-    srcs = ["delay_model.proto"],
-)
-
-cc_proto_library(
-    name = "delay_model_cc_proto",
-    deps = [":delay_model_proto"],
-)
-
-py_proto_library(
-    name = "delay_model_py_pb2",
-    deps = [":delay_model_proto"],
 )
 
 py_binary(
@@ -235,10 +220,10 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         ":delay_model",
-        ":delay_model_py_pb2",
         requirement("Jinja2"),
         requirement("MarkupSafe"),
         "//xls/common:runfiles",
+        "//xls/estimators:estimator_model_py_pb2",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
@@ -250,9 +235,9 @@ py_library(
     srcs = ["delay_model.py"],
     srcs_version = "PY3ONLY",
     deps = [
-        ":delay_model_py_pb2",
         requirement("numpy"),
         requirement("scipy"),
+        "//xls/estimators:estimator_model_py_pb2",
     ],
 )
 
@@ -264,7 +249,7 @@ py_test(
     tags = ["nomsan"],  # scipy seems not to be msan-clean.
     deps = [
         ":delay_model",
-        ":delay_model_py_pb2",
+        "//xls/estimators:estimator_model_py_pb2",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
@@ -304,9 +289,9 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":delay_model_py_pb2",
         ":delay_model_utils",
         "//xls/common:gfile",
+        "//xls/estimators:estimator_model_py_pb2",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
@@ -334,8 +319,8 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":delay_model_py_pb2",
         "//xls/common:gfile",
+        "//xls/estimators:estimator_model_py_pb2",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
@@ -363,9 +348,9 @@ cc_library(
     hdrs = ["sample_point_extraction_utils.h"],
     deps = [
         ":delay_estimator",
-        ":delay_model_cc_proto",
         "//xls/common:case_converters",
         "//xls/common/status:status_macros",
+        "//xls/estimators:estimator_model_cc_proto",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:type",
@@ -387,11 +372,11 @@ cc_test(
     srcs = ["sample_point_extraction_utils_test.cc"],
     deps = [
         ":delay_estimator",
-        ":delay_model_cc_proto",
         ":sample_point_extraction_utils",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/estimators:estimator_model_cc_proto",
         "//xls/ir",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",

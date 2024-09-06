@@ -14,14 +14,22 @@
 
 syntax = "proto3";
 
-package xls.delay_model;
+package xls.estimator_model;
 
-// Enum describing a specialization of the delay model of an operation. A
-// specialization describes a condition under which the delay of the operation
-// is appreciably different then the general case. For example, a synthesized
-// multiply is generally faster if both operands are identical and the delay
-// model may include a specialized delay computation for this case
-// (OPERANDS_IDENTICAL).
+// Enum describing the metric that the estimator is estimating. Every estimator
+// is specific to one metric.
+enum Metric {
+  UNSPECIFIED_METRIC = 0;
+  DELAY_METRIC = 1;
+  AREA_METRIC = 2;
+}
+
+// Enum describing a specialization of the estimator model of an operation. A
+// specialization describes a condition under which a metric (such as delay or
+// area) of the operation is appreciably different then the general case.
+// For example, a synthesized multiply is generally faster if both operands are
+// identical and the delay model may include a specialized delay computation for
+// this case (OPERANDS_IDENTICAL).
 enum SpecializationKind {
   NO_SPECIALIZATION = 0;
 
@@ -33,7 +41,7 @@ enum SpecializationKind {
   HAS_LITERAL_OPERAND = 2;
 }
 
-// Describes more specifics of the condition under which the delay of the
+// Describes more specifics of the condition under which the delay/area of the
 // operation differs. For example, if the kind is HAS_LITERAL_OPERAND, this
 // might specify that the literal operand must be operand 1.
 message LiteralOperandDetails {
@@ -44,7 +52,8 @@ message LiteralOperandDetails {
   repeated int64 required_literal_operand = 2;
 }
 
-// Describes an XLS operation (xls::Node) for the purposes of delay modeling.
+// Describes an XLS operation (xls::Node) for the purposes of delay/area
+// modeling.
 message Operation {
   // XLS Op (e.g., kAdd).
   string op = 1;
@@ -77,7 +86,7 @@ message Operation {
   LiteralOperandInstanceDetails literal_operand_details = 5;
 }
 
-// Describes a measured data point of the delay of an operation.
+// Describes a measured data point of the delay and area of an operation.
 message DataPoint {
   Operation operation = 1;
 
@@ -92,11 +101,16 @@ message DataPoint {
   // synthesis rules change and a delay model may be built up over a period of
   // time spanning these rules changes.
   int64 delay_offset = 3;
+
+  // Total area includes both sequential area and combinational area.
+  double total_area = 4;
+
+  double sequential_area = 5;
 }
 
 // Describes an aspect (bit count, number of operands, etc.) of an XLS operation
-// which may be used as a input in the delay computation for the operation.
-message DelayFactor {
+// which may be used as a input in the estimator for the operation.
+message EstimatorFactor {
   enum Source {
     INVALID_VARIABLE_SOURCE = 0;
 
@@ -126,12 +140,11 @@ message DelayFactor {
   int64 operand_number = 2;
 }
 
-// Describes a nested mathematical expression combining delay factors (and
+// Describes a nested mathematical expression combining estimator factors (and
 // possibly constants). Useful when data for an op cannot be described by a
-// linear combination of individual delay factors.
-message DelayExpression {
-  // The expression is a binary op combining
-  // two subexpressions.
+// linear combination of individual factors.
+message EstimatorExpression {
+  // The expression is a binary op combining two subexpressions.
   enum BinaryOperation {
     INVALID = 0;
     ADD = 1;
@@ -144,12 +157,12 @@ message DelayExpression {
   }
 
   // An expression can be either a BinaryOperation,
-  // a DelayFactor, or an int.
+  // a EstimatorFactor, or an int.
   oneof expression_type {
     BinaryOperation bin_op = 1;
 
-    // The expression is simply a delay factor.
-    DelayFactor factor = 2;
+    // The expression is simply an estimator factor.
+    EstimatorFactor factor = 2;
 
     // The expression is a constant.
     int64 constant = 3;
@@ -157,8 +170,8 @@ message DelayExpression {
 
   // Left and right hand side expressions combined by the BinaryOperation,
   // if present.
-  DelayExpression lhs_expression = 4;
-  DelayExpression rhs_expression = 5;
+  EstimatorExpression lhs_expression = 4;
+  EstimatorExpression rhs_expression = 5;
 }
 
 // Settings used for K-fold cross-validation of a regression estimor.
@@ -185,18 +198,18 @@ message KFoldValidator {
   }
 }
 
-// Describes a delay estimation model which fits a curve to the measured data
-// points for the operation. The function (curve) includes a constant term and
-// terms which are linear and logarithm functions of the indicated expressions.
-// For example, if the expressions are the result bit count and the operand
-// count then the function for the estimated delay has the form:
+// Describes a estimator estimation model which fits a curve to the measured
+// data points for the operation. The function (curve) includes a constant term
+// and terms which are linear and logarithm functions of the indicated
+// expressions. For example, if the expressions are the result bit count and the
+// operand count then the function for the estimated delay has the form:
 //
 //   delay_est = P_0 + P_1 * result_bit_count + P_2 * log2(result_bit_count) +
 //                     P_3 * operand_count    + P_4 * log2(operand_count)
 //
 // Where P_i are learned parameters.
 message RegressionEstimator {
-  repeated DelayExpression expressions = 1;
+  repeated EstimatorExpression expressions = 1;
 
   // Note: oneof used here because proto3 does not support optional
   // fields without experimental features enabled.
@@ -206,12 +219,12 @@ message RegressionEstimator {
   }
 }
 
-// Describes a delay estimation model in which the measured data points define
-// bounding boxes in the space of delay expressions. The estimated delay for an
-// operation X is equal to the delay of the first bounding box containing the
-// point defined by the operation. For example, suppose the factors of a
-// bounding box estimator are the result bit count and the operand count, and
-// the measured data points are:
+// Describes a estimation model in which the measured data points define
+// bounding boxes in the space of expressions. The estimated delay (or area) for
+// an operation X is equal to the delay (or area) of the first bounding box
+// containing the point defined by the operation. For example, suppose the
+// factors of a bounding box estimator are the result bit count and the operand
+// count, and the measured data points are:
 //
 //   (1) result_bit_count=8, operand_count=3    : 100ps
 //   (2) result_bit_count=5, operand_count=12   : 150ps
@@ -227,7 +240,7 @@ message RegressionEstimator {
 // TODO(meheff): To avoid this undesirable sensitivity, perhaps take the minimum
 // delay among the enclosing bounding boxes.
 message BoundingBoxEstimator {
-  repeated DelayFactor factors = 1;
+  repeated EstimatorFactor factors = 1;
 }
 
 // Estimator which uses logical effort computation to approximate
@@ -263,12 +276,13 @@ message Estimator {
   }
 }
 
-// Describes a model for computing the delay of a single operation (e.g. kAdd).
+// Describes a model for computing the delay/area of a single operation
+// (e.g. kAdd).
 message OpModel {
   // The xls::Op for this model (e.g., kAdd).
   string op = 1;
 
-  // The estimator to use to compute delay.
+  // The estimator to use to compute the metric.
   Estimator estimator = 2;
 
   // Zero or more estimators to use under specialized conditions indicated by
@@ -288,31 +302,36 @@ message OpModel {
   repeated Specialization specializations = 3;
 }
 
-// Describes a delay model used for estimated the delay of XLS operations.
-message DelayModel {
-  // The delay models for each op.
+// Describes an estimator model used for estimating a specific characteristic of
+// an XLS operation. For example, this could be use to hold a collection of
+// estimator models and data points for estimating the area of every op.
+message EstimatorModel {
+  // The models for each op.
   repeated OpModel op_models = 1;
 
   // Measured delays of XLS operations used as input data for
   // RegressionEstimator and BoundingBoxEstimator.
   repeated DataPoint data_points = 2;
+
+  // The metric this estimator model is estimating.
+  Metric metric = 3;
 }
 
-// The op model describes the estimator for each XLS op type
-//  supported by this delay model.
+// The op model describes the estimator for each XLS op type supported by this
+// model.
 message OpModels {
   repeated OpModel op_models = 1;
 }
 
-// Data points gathered from timing characterization
-//   (op, parameterization, specialization, result delay)
+// Data points gathered from timing characterization or area characterization
+//   (op, parameterization, specialization, result delay/area)
 //   used for XLS regression estimators.
 message DataPoints {
   repeated DataPoint data_points = 1;
 }
 
-// For an operand that is an array type,
-//   there will be one or more element counts.
+// For an operand that is an array type, there will be one or more element
+// counts.
 // This contains
 //   * which operand these element counts apply to
 //   * the element count(s)

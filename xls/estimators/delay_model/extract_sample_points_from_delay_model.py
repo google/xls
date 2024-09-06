@@ -29,7 +29,7 @@ from absl import flags
 
 from google.protobuf import text_format
 from xls.common import gfile
-from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators import estimator_model_pb2
 
 
 _INPUT = flags.DEFINE_string(
@@ -50,11 +50,11 @@ def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  dm = delay_model_pb2.DelayModel()
+  dm = estimator_model_pb2.EstimatorModel()
   with gfile.open(_INPUT.value, 'r') as f:
     dm = text_format.Parse(f.read(), dm)
 
-  oss = delay_model_pb2.OpSamplesList()
+  oss = estimator_model_pb2.OpSamplesList()
 
   this_op_samples = None
 
@@ -74,14 +74,14 @@ def main(argv):
         operand_widths=[opnd.bit_count for opnd in dp.operation.operands],
     )
 
-  print('# proto-file: xls/estimators/delay_model/delay_model.proto')
-  print('# proto-message: xls.delay_model.OpSamples')
+  print('# proto-file: xls/estimators/estimator_model.proto')
+  print('# proto-message: xls.estimator_model.OpSamples')
   print(oss)
 
   if _OUTPUT.value:
     with gfile.open(_OUTPUT.value, 'w') as f:
-      f.write('# proto-file: xls/estimators/delay_model/delay_model.proto\n')
-      f.write('# proto-message: xls.delay_model.OpSamples\n')
+      f.write('# proto-file: xls/estimators/estimator_model.proto\n')
+      f.write('# proto-message: xls.estimator_model.OpSamples\n')
       f.write(text_format.MessageToString(oss))
 
 

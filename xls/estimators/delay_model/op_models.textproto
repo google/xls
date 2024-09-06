@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# proto-file: xls/estimators/delay_model/delay_model.proto
-# proto-message: xls.delay_model.OpModels
+# proto-file: xls/estimators/estimator_model.proto
+# proto-message: xls.estimator_model.OpModels
 
 # This is a generic op_models file for use with any process node.
 # Since it is not process-node-specific, it doesn't contain

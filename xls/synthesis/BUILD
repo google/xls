@@ -117,7 +117,7 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":timing_characterization_client",
-        "//xls/estimators/delay_model:delay_model_py_pb2",
+        "//xls/estimators:estimator_model_py_pb2",
         "//xls/estimators/delay_model:delay_model_utils",
         "@com_google_absl_py//absl/testing:absltest",
     ],
@@ -195,7 +195,7 @@ py_library(
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
         "//xls/common:gfile",
-        "//xls/estimators/delay_model:delay_model_py_pb2",
+        "//xls/estimators:estimator_model_py_pb2",
         "//xls/estimators/delay_model:delay_model_utils",
         "//xls/estimators/delay_model:op_module_generator",
         "@com_google_absl_py//absl/flags",

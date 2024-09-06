@@ -28,12 +28,12 @@
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/estimators/delay_model/delay_model.pb.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 
-namespace xls::delay_model {
+namespace xls::estimator_model {
 namespace {
 
 using ::testing::ElementsAre;
@@ -263,4 +263,4 @@ TEST_F(SamplePointExtractionUtilsTest, ConvertLessThanNSamplesToListOfN) {
 }
 
 }  // namespace
-}  // namespace xls::delay_model
+}  // namespace xls::estimator_model

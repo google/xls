@@ -35,7 +35,7 @@ from absl import flags
 
 from google.protobuf import text_format
 from xls.common import gfile
-from xls.estimators.delay_model import delay_model_pb2
+from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model_utils
 
 
@@ -86,8 +86,8 @@ _UPDATE_MODE = flags.DEFINE_enum_class(
 
 
 def sync_check(
-    oms: delay_model_pb2.OpModels,
-    dps: delay_model_pb2.DataPoints,
+    oms: estimator_model_pb2.OpModels,
+    dps: estimator_model_pb2.DataPoints,
     update_mode: UpdateMode,
 ) -> None:
   """Compares the op types in the source protos to make sure they're in sync.
@@ -97,8 +97,8 @@ def sync_check(
   any data points.
 
   Args:
-    oms: delay_model_pb2.OpModels     OpModels proto
-    dps: delay_model_pb2.DataPoints   DataPoints proto
+    oms: estimator_model_pb2.OpModels     OpModels proto
+    dps: estimator_model_pb2.DataPoints   DataPoints proto
     update_mode: UpdateMode           The update semantics to apply
   """
   regression_ops = {
@@ -122,8 +122,8 @@ def sync_check(
 
 
 def create_op_to_points_mapping(
-    dps: Sequence[delay_model_pb2.DataPoint],
-) -> MutableMapping[str, Sequence[delay_model_pb2.DataPoint]]:
+    dps: Sequence[estimator_model_pb2.DataPoint],
+) -> MutableMapping[str, Sequence[estimator_model_pb2.DataPoint]]:
   """Returns a dict of sublists of the given data points, separated by op."""
   result = collections.defaultdict(list)
   for point in dps:
@@ -132,9 +132,9 @@ def create_op_to_points_mapping(
 
 
 def update_op_data_points(
-    existing_dps: Sequence[delay_model_pb2.DataPoint],
-    new_dps: Sequence[delay_model_pb2.DataPoint],
-) -> Sequence[delay_model_pb2.DataPoint]:
+    existing_dps: Sequence[estimator_model_pb2.DataPoint],
+    new_dps: Sequence[estimator_model_pb2.DataPoint],
+) -> Sequence[estimator_model_pb2.DataPoint]:
   """Returns a combined sequence of existing_dps + new_dps that are for one op.
 
   The new_dps data is preferred where a sample spec is represented in both.
@@ -160,15 +160,17 @@ def update_op_data_points(
 
 def update_data_points(
     output_file: str,
-    new_dps: delay_model_pb2.DataPoints,
+    new_dps: estimator_model_pb2.DataPoints,
     update_mode: UpdateMode,
-) -> delay_model_pb2.DataPoints:
+) -> estimator_model_pb2.DataPoints:
   """Creates a proto of the data points in output_file updated with new_dps."""
-  result_dps = delay_model_pb2.DataPoints()
+  result_dps = estimator_model_pb2.DataPoints()
   new_points_by_op = create_op_to_points_mapping(new_dps.data_points)
   ops_with_finished_updates = set()
   with gfile.open(output_file, 'r') as f:
-    existing_dm = text_format.ParseLines(f, delay_model_pb2.DelayModel())
+    existing_dm = text_format.ParseLines(
+        f, estimator_model_pb2.EstimatorModel()
+    )
   old_points_by_op = create_op_to_points_mapping(existing_dm.data_points)
   for point in existing_dm.data_points:
     op = point.operation.op
@@ -192,15 +194,15 @@ def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  oms = delay_model_pb2.OpModels()
+  oms = estimator_model_pb2.OpModels()
   with gfile.open(_OP_MODELS.value, 'r') as f:
     oms = text_format.Parse(f.read(), oms)
 
-  dps = delay_model_pb2.DataPoints()
+  dps = estimator_model_pb2.DataPoints()
   with gfile.open(_DATA_POINTS.value, 'r') as f:
     dps = text_format.Parse(f.read(), dps)
 
-  dm = delay_model_pb2.DelayModel()
+  dm = estimator_model_pb2.EstimatorModel()
 
   for om in oms.op_models:
     dm.op_models.append(om)
@@ -213,14 +215,14 @@ def main(argv):
     for dp in dps.data_points:
       dm.data_points.append(dp)
 
-  print('# proto-file: xls/estimators/delay_model/delay_model.proto')
-  print('# proto-message: xls.delay_model.DelayModel')
+  print('# proto-file: xls/estimators/estimator_model.proto')
+  print('# proto-message: xls.estimator_model.EstimatorModel')
   print(dm, end='')
 
   if _OUTPUT.value:
     with gfile.open(_OUTPUT.value, 'w') as f:
-      f.write('# proto-file: xls/estimators/delay_model/delay_model.proto\n')
-      f.write('# proto-message: xls.delay_model.DelayModel\n')
+      f.write('# proto-file: xls/estimators/estimator_model.proto\n')
+      f.write('# proto-message: xls.estimator_model.EstimatorModel\n')
       f.write(text_format.MessageToString(dm))
 
   sync_check(oms, dps, _UPDATE_MODE.value)

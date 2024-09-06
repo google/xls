@@ -38,8 +38,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
-#include "xls/estimators/delay_model/delay_model.pb.h"
 #include "xls/estimators/delay_model/sample_point_extraction_utils.h"
+#include "xls/estimators/estimator_model.pb.h"
 #include "xls/ir/ir_parser.h"
 
 namespace {
@@ -110,19 +110,19 @@ namespace {
 
 // Loads an `OpModels` proto from the text proto file in `path`. The file should
 // contain either an `OpModels` message or a `DelayModel` message wrapping one.
-absl::StatusOr<delay_model::OpModels> LoadOpModels(std::string_view path) {
+absl::StatusOr<estimator_model::OpModels> LoadOpModels(std::string_view path) {
   XLS_ASSIGN_OR_RETURN(std::string content, GetFileContents(path));
-  delay_model::OpModels models;
+  estimator_model::OpModels models;
   bool success = google::protobuf::TextFormat::ParseFromString(content, &models);
   if (!success) {
     // The `op_models_path` may actually point to a complete delay model,
     // containing op models plus other artifacts.
     models.Clear();
-    delay_model::DelayModel delay_model;
+    estimator_model::EstimatorModel delay_model;
     success = google::protobuf::TextFormat::ParseFromString(content, &delay_model);
     if (!success) {
       return absl::InvalidArgumentError(absl::StrCat(
-          "Not a valid OpModels or DelayModel text proto file: ", path));
+          "Not a valid OpModels or EstimatorModel text proto file: ", path));
     }
     *models.mutable_op_models() = std::move(*delay_model.mutable_op_models());
   }
@@ -131,7 +131,7 @@ absl::StatusOr<delay_model::OpModels> LoadOpModels(std::string_view path) {
 
 // Converts a `Parameterization` message to a concise string suitable for one
 // cell in the table this program writes to standard output.
-std::string ParamsToString(const delay_model::Parameterization& params) {
+std::string ParamsToString(const estimator_model::Parameterization& params) {
   std::string out;
   absl::StrAppend(&out, absl::StrJoin(params.operand_widths(), ", "));
   if (!out.empty()) {
@@ -145,15 +145,16 @@ std::string ParamsToString(const delay_model::Parameterization& params) {
 // prints a table in that order to standard error. The field of interest is
 // accessed by `accessor` and labeled in the table with `field_title`.
 void SortDescendingAndPrint(
-    std::vector<delay_model::SamplePoint>& points, std::string_view field_title,
-    absl::AnyInvocable<int64_t(const delay_model::SamplePoint&)> accessor) {
-  absl::c_stable_sort(points, [&](const delay_model::SamplePoint& x,
-                                  const delay_model::SamplePoint& y) {
+    std::vector<estimator_model::SamplePoint>& points,
+    std::string_view field_title,
+    absl::AnyInvocable<int64_t(const estimator_model::SamplePoint&)> accessor) {
+  absl::c_stable_sort(points, [&](const estimator_model::SamplePoint& x,
+                                  const estimator_model::SamplePoint& y) {
     return accessor(x) > accessor(y);
   });
   std::cerr << absl::StreamFormat("%-25s %-40s %12s\n", "Operation", "Params",
                                   field_title);
-  for (const delay_model::SamplePoint& point : points) {
+  for (const estimator_model::SamplePoint& point : points) {
     std::cerr << absl::StreamFormat("%-25s %-40s %12d\n", point.op_name,
                                     ParamsToString(point.params),
                                     accessor(point));
@@ -180,14 +181,14 @@ absl::Status RealMain() {
   }
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(delay_model::OpModels op_models,
+  XLS_ASSIGN_OR_RETURN(estimator_model::OpModels op_models,
                        LoadOpModels(op_models_path));
   std::optional<DelayEstimator*> delay_estimator;
   if (!delay_model.empty()) {
     XLS_ASSIGN_OR_RETURN(delay_estimator, GetDelayEstimator(delay_model));
   }
   XLS_ASSIGN_OR_RETURN(
-      std::vector<delay_model::SamplePoint> points,
+      std::vector<estimator_model::SamplePoint> points,
       ExtractSamplePoints(*package, op_models, delay_estimator));
 
   // Print a table in possibly two different orders, using the order specified
@@ -196,14 +197,14 @@ absl::Status RealMain() {
   // affects its output if `--limit` is specified.
   SortDescendingAndPrint(
       points, "Frequency",
-      [](const delay_model::SamplePoint& x) { return x.frequency; });
-  delay_model::OpSamplesList list;
+      [](const estimator_model::SamplePoint& x) { return x.frequency; });
+  estimator_model::OpSamplesList list;
   if (limit_type == LimitType::kFrequency) {
     list = ConvertToOpSamplesList(points, limit);
   }
   if (delay_estimator.has_value()) {
     SortDescendingAndPrint(points, "Delay",
-                           [](const delay_model::SamplePoint& x) {
+                           [](const estimator_model::SamplePoint& x) {
                              return x.delay_estimate_in_ps;
                            });
     if (limit_type == LimitType::kDelay) {

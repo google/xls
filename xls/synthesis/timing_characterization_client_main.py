@@ -15,7 +15,8 @@
 """Sweeps to characterize datapoints from a synthesis server.
 
 These datapoints can be used in a delay model (where they will be interpolated)
--- the results emitted on stdout are in xls.delay_model.DelayModel prototext
+-- the results emitted on stdout are in xls.estimator_model.EstimatorModel
+prototext
 format.
 """
 
