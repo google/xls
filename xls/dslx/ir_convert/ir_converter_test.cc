@@ -907,6 +907,30 @@ fn test() -> Foo<u32:5> {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ParametricDefaultClog2InStruct) {
+  const char* kProgram = R"(
+import std;
+
+struct Foo <X: u32, Y: u32 = {std::clog2(X)}> {
+    a: uN[X],
+    b: uN[Y],
+}
+
+fn make_zero_foo<X: u32>() -> Foo<X> {
+  zero!<Foo<X>>()
+}
+
+fn test() -> Foo<u32:5> {
+ make_zero_foo<u32:5>()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, UnrollForSimple) {
   const char* kProgram = R"(
 fn test() -> u32 {

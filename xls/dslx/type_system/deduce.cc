@@ -137,6 +137,21 @@ absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
             "Cannot convert expression to parametric: " + e->ToString());
     }
   }
+  // A `std::clog2` invocation maps to a dedicated type of
+  // `ParametricExpression` called `ParametricWidth`.
+  if (auto* n = dynamic_cast<const Invocation*>(e);
+      n != nullptr && n->callee()->kind() == AstNodeKind::kColonRef &&
+      n->callee()->ToString() == "std::clog2") {
+    if (n->args().size() != 1) {
+      // Note that type checking is expected to catch this before now, and this
+      // is an extra precaution.
+      return absl::InvalidArgumentError(
+          absl::StrCat("std::clog2 expects 1 argument; got ", n->args().size(),
+                       " at ", n->span().ToString()));
+    }
+    XLS_ASSIGN_OR_RETURN(auto arg, ExprToParametric(n->args()[0], ctx));
+    return std::make_unique<ParametricWidth>(std::move(arg));
+  }
   if (auto* n = dynamic_cast<const Number*>(e)) {
     auto default_type = BitsType::MakeU32();
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
@@ -229,8 +244,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantDef(const ConstantDef* node,
   const FnStackEntry& peek_entry = ctx->fn_stack().back();
   std::optional<FnCtx> fn_ctx;
   if (peek_entry.f() != nullptr) {
-    fn_ctx.emplace(FnCtx{peek_entry.module()->name(), peek_entry.name(),
-                         peek_entry.parametric_env()});
+    fn_ctx.emplace(FnCtx{.module_name = peek_entry.module()->name(),
+                         .fn_name = peek_entry.name(),
+                         .parametric_env = peek_entry.parametric_env()});
   }
 
   ctx->type_info()->SetItem(node, *result);
@@ -1877,16 +1893,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceRange(const Range* node,
   }
   return std::make_unique<ArrayType>(std::move(start_type),
                                      TypeDim(array_size));
-}
-
-// We need to evaluate/check `const_assert!`s at typechecking time; things like
-// parametrics are only instantiated when a `spawn` is encountered, at which
-// point we can check `const_assert!`s pass.
-static absl::Status TypecheckProcConstAsserts(const Proc& p, DeduceCtx* ctx) {
-  for (const ConstAssert* n : p.GetConstAssertStmts()) {
-    XLS_RETURN_IF_ERROR(ctx->Deduce(n).status());
-  }
-  return absl::OkStatus();
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceNameRef(const NameRef* node,
