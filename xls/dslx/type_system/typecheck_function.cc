@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -135,6 +136,7 @@ absl::Status TypecheckStructParametrics(
 
 absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
   VLOG(2) << "Typechecking fn: " << f.identifier();
+  XLS_VLOG_LINES(2, ctx->GetFnStackDebugString());
 
   WarnIfConfusinglyNamedLikeTest(f, ctx);
 
@@ -148,12 +150,21 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
     absl::StatusOr<TypeInfo*> proc_ti =
         ctx->type_info()->GetTopLevelProcTypeInfo(f.proc().value());
     if (proc_ti.ok()) {
+      VLOG(5) << "Typchecking fn; " << f.identifier()
+              << "; found proc-level type info for proc: "
+              << f.proc().value()->identifier();
       XLS_RETURN_IF_ERROR(ctx->PushTypeInfo(proc_ti.value()));
       derived_type_info = proc_ti.value();
     } else {
+      VLOG(5) << "Typchecking fn; " << f.identifier()
+              << "; creating proc-level type info for proc: "
+              << f.proc().value()->identifier();
       derived_type_info = ctx->AddDerivedTypeInfo();
     }
   }
+
+  VLOG(2) << "Typechecking fn: " << f.identifier() << "; starting params";
+  XLS_VLOG_LINES(2, ctx->GetFnStackDebugString());
 
   XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> param_types,
                        TypecheckFunctionParams(f, ctx));

@@ -2768,8 +2768,14 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
           [&](ArrayTypeAnnotation* array_type) -> absl::Status {
             // Type checking currently ensures that we're not taking a '::' on
             // anything other than a bits type.
-            XLS_ASSIGN_OR_RETURN(xls::Type * input_type,
-                                 ResolveTypeToIr(array_type));
+            xls::Type* input_type;
+            {
+              XLS_ASSIGN_OR_RETURN(
+                  TypeInfo * type_info,
+                  import_data_->GetRootTypeInfo(array_type->owner()));
+              ScopedTypeInfoSwap stis(this, type_info);
+              XLS_ASSIGN_OR_RETURN(input_type, ResolveTypeToIr(array_type));
+            }
             xls::BitsType* bits_type = input_type->AsBitsOrDie();
             const int64_t bit_count = bits_type->bit_count();
             XLS_ASSIGN_OR_RETURN(
@@ -3570,6 +3576,7 @@ absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
 absl::StatusOr<std::unique_ptr<Type>> FunctionConverter::ResolveType(
     const AstNode* node) {
   XLS_RET_CHECK(current_type_info_ != nullptr);
+  XLS_RET_CHECK_EQ(current_type_info_->module(), node->owner());
   std::optional<const Type*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
     return IrConversionErrorStatus(
