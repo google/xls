@@ -46,6 +46,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/exit_status.h"
@@ -241,6 +243,8 @@ static absl::Status EvaluateProcs(
     }
   }
 
+  absl::Time start_time = absl::Now();
+
   const int64_t trace_per_ticks = absl::GetFlag(FLAGS_trace_per_ticks);
 
   for (int64_t this_ticks : options.ticks) {
@@ -363,7 +367,8 @@ static absl::Status EvaluateProcs(
       }
     }
   }
-
+  absl::Duration elapsed_time = absl::Now() - start_time;
+  LOG(INFO) << "Elapsed time: " << elapsed_time;
   bool checked_any_output = false;
   std::vector<std::string> errors;
   for (const auto& [channel_name, values] : expected_outputs_for_channels) {
@@ -397,7 +402,6 @@ static absl::Status EvaluateProcs(
         absl::StrFormat("Outputs did not match expectations:\n\n%s",
                         absl::StrJoin(errors, "\n")));
   }
-
   if (!checked_any_output && !expected_outputs_for_channels.empty()) {
     return absl::UnknownError("No output verified (empty expected values?)");
   }
@@ -420,7 +424,6 @@ static absl::Status EvaluateProcs(
     }
     std::cout << ChannelValuesToString(expected_outputs_for_channels);
   }
-
   return absl::OkStatus();
 }
 
@@ -758,7 +761,7 @@ static absl::Status RunBlock(
 
   int64_t last_output_cycle = 0;
   int64_t matched_outputs = 0;
-
+  absl::Time start_time = absl::Now();
   for (int64_t cycle = 0;; ++cycle) {
     // Idealized reset behavior
     const bool resetting = (cycle == 0);
@@ -964,6 +967,9 @@ static absl::Status RunBlock(
       XLS_RETURN_IF_ERROR(model->Tick());
     }
   }
+
+  absl::Duration elapsed_time = absl::Now() - start_time;
+  LOG(INFO) << "Elapsed time: " << elapsed_time;
 
   absl::btree_map<std::string, std::vector<Value>> unconsumed_inputs;
   for (const auto& [channel_name, _] : inputs_for_channels) {
