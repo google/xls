@@ -190,14 +190,19 @@ py_library(
 py_library(
     name = "timing_characterization_client",
     srcs = ["timing_characterization_client.py"],
+    data = [
+        "//xls/ir:op_name_representations_proto",
+    ],
     srcs_version = "PY3",
     deps = [
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
         "//xls/common:gfile",
+        "//xls/common:runfiles",
         "//xls/estimators:estimator_model_py_pb2",
         "//xls/estimators/delay_model:delay_model_utils",
         "//xls/estimators/delay_model:op_module_generator",
+        "//xls/ir:xls_op_name_py_pb2",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
         "@com_google_protobuf//:protobuf_python",

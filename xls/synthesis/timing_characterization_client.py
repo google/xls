@@ -31,9 +31,11 @@ from absl import logging
 
 from google.protobuf import text_format
 from xls.common import gfile
+from xls.common import runfiles
 from xls.estimators import estimator_model_pb2
 from xls.estimators.delay_model import delay_model_utils
 from xls.estimators.delay_model import op_module_generator
+from xls.ir import xls_op_name_pb2
 from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
 
@@ -66,6 +68,21 @@ _MAX_THREADS = flags.DEFINE_integer(
     max(os.cpu_count() // 2, 1),
     'Max number of threads for parallelizing the generation of data points.',
 )
+
+
+def get_op_name_mapping() -> Dict[str, str]:
+  """Returns a map between an op's cpp enum name to its ir name."""
+  op_name_mapping = {}
+  protopath = runfiles.get_path('xls/ir/op_name_representations.textproto')
+  with gfile.open(protopath, 'r') as f:
+    op_samples_list = text_format.Parse(
+        f.read(), xls_op_name_pb2.OpNameRepresentationList()
+    )
+  for op_name_representation in op_samples_list.op_name_representations:
+    op_name_mapping[op_name_representation.cpp_enum_name] = (
+        op_name_representation.ir_name
+    )
+  return op_name_mapping
 
 
 def check_delay_offset(results: estimator_model_pb2.DataPoints):
@@ -226,25 +243,11 @@ def _synthesize_ir(
   return result_dp
 
 
-def op_cpp_enum_to_name(cpp_enum_name: str) -> str:
-  """Converts an op C++ enum (e.g., kZeroExt) to the op name (zero_ext)."""
-  if not cpp_enum_name.startswith('k'):
-    raise ValueError(f'Invalid op enum name {cpp_enum_name}')
-  snake_case = ''
-  for c in cpp_enum_name[1:]:
-    if c.isupper():
-      if snake_case:
-        snake_case += '_'
-      snake_case += c.lower()
-    else:
-      snake_case += c
-  return snake_case
-
-
 def _run_point(
     spec: delay_model_utils.SampleSpec,
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
     checkpoint_write_lock: Any,
+    op_name_mapping: Dict[str, str],
 ) -> estimator_model_pb2.DataPoint:
   """Generate IR and Verilog, run synthesis for one op parameterization."""
 
@@ -252,7 +255,7 @@ def _run_point(
   specialization = spec.op_samples.specialization
   attributes = spec.op_samples.attributes
 
-  op_name = op_cpp_enum_to_name(op)
+  op_name = op_name_mapping[op]
 
   # Result type - bitwidth and optionally element count(s)
   res_bit_count = spec.point.result_width
@@ -322,6 +325,7 @@ def run_characterization(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Run characterization with the given synthesis service."""
+  op_name_mapping = get_op_name_mapping()
   checkpointed_results = load_checkpoints(_CHECKPOINT_PATH.value)
   checkpoint_dict = delay_model_utils.map_data_points_by_key(
       checkpointed_results.data_points
@@ -350,7 +354,7 @@ def run_characterization(
       pool.starmap(
           _run_point,
           (
-              (request, stub, checkpoint_write_lock)
+              (request, stub, checkpoint_write_lock, op_name_mapping)
               for request in sample_specs_without_prior_checkpoints
           ),
       )
