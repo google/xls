@@ -988,8 +988,15 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     int64_t left_trailing_zeros = CountTrailingKnownZeros(lhs, mul);
     int64_t right_trailing_zeros = CountTrailingKnownZeros(rhs, mul);
-    if (left_trailing_zeros > 0 || right_trailing_zeros > 0) {
-      int64_t removed_bits = left_trailing_zeros + right_trailing_zeros;
+    int64_t known_zero_bits = left_trailing_zeros + right_trailing_zeros;
+    if (known_zero_bits >= result_bit_count) {
+      // All result bits are in the trailing 0s so the result is a constant 0.
+      XLS_RETURN_IF_ERROR(
+          mul->ReplaceUsesWithNew<Literal>(Value(UBits(0, result_bit_count)))
+              .status());
+      return Change();
+    }
+    if (known_zero_bits > 0) {
       XLS_ASSIGN_OR_RETURN(Node * new_left, ExtractMostSignificantBits(
                                                 lhs, lhs->BitCountOrDie() -
                                                          left_trailing_zeros));
@@ -1000,11 +1007,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(
           Node * new_mul,
           mul->function_base()->MakeNodeWithName<ArithOp>(
-              mul->loc(), new_left, new_right, mul->width() - removed_bits,
+              mul->loc(), new_left, new_right, mul->width() - known_zero_bits,
               mul->op(), mul->GetName() + "_NarrowedMult_"));
       XLS_ASSIGN_OR_RETURN(Node * zeros,
                            mul->function_base()->MakeNodeWithName<Literal>(
-                               mul->loc(), Value(Bits(removed_bits)),
+                               mul->loc(), Value(Bits(known_zero_bits)),
                                mul->GetName() + "_TrailingBits_"));
       XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<Concat>(
                                  absl::Span<Node* const>{new_mul, zeros})
