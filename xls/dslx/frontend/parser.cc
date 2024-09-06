@@ -2843,7 +2843,7 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(enum_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
     XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(enum_bindings));
-    return EnumMember{name_def, expr};
+    return EnumMember{.name_def = name_def, .value = expr};
   };
 
   XLS_ASSIGN_OR_RETURN(
@@ -2971,7 +2971,7 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on struct field"));
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
-    return StructMember{name_span, name, type};
+    return StructMember{.name_span = name_span, .name = name, .type = type};
   };
 
   XLS_ASSIGN_OR_RETURN(

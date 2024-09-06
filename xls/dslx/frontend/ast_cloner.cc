@@ -259,9 +259,9 @@ class AstCloner : public AstNodeVisitor {
 
     std::vector<EnumMember> new_values;
     for (const auto& member : n->values()) {
-      new_values.push_back(
-          EnumMember{down_cast<NameDef*>(old_to_new_.at(member.name_def)),
-                     down_cast<Expr*>(old_to_new_.at(member.value))});
+      new_values.push_back(EnumMember{
+          .name_def = down_cast<NameDef*>(old_to_new_.at(member.name_def)),
+          .value = down_cast<Expr*>(old_to_new_.at(member.value))});
     }
 
     EnumDef* new_enum_def =
@@ -657,8 +657,9 @@ class AstCloner : public AstNodeVisitor {
     std::vector<StructMember> new_members;
     for (const StructMember& member : n->members()) {
       new_members.push_back(StructMember{
-          member.name_span, member.name,
-          down_cast<TypeAnnotation*>(old_to_new_.at(member.type))});
+          .name_span = member.name_span,
+          .name = member.name,
+          .type = down_cast<TypeAnnotation*>(old_to_new_.at(member.type))});
     }
 
     auto* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
