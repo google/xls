@@ -13,38 +13,37 @@
 # limitations under the License.
 #
 
-"""Tests for xls.delay_model.models.delay_model."""
+"""Tests for xls.estimators.estimator_model."""
 
 import re
-from typing import Text
 
 from google.protobuf import text_format
 from absl.testing import absltest
+from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model
 
 
-def _parse_data_point(s: Text) -> estimator_model_pb2.DataPoint:
+def _parse_data_point(s: str) -> estimator_model_pb2.DataPoint:
   """Parses a text proto representation of a DataPoint."""
   return text_format.Parse(s, estimator_model_pb2.DataPoint())
 
 
-def _parse_operation(s: Text) -> estimator_model_pb2.Operation:
+def _parse_operation(s: str) -> estimator_model_pb2.Operation:
   """Parses a text proto representation of an Operation."""
   return text_format.Parse(s, estimator_model_pb2.Operation())
 
 
-class DelayModelTest(absltest.TestCase):
+class EstimatorModelTest(absltest.TestCase):
 
-  def assertEqualIgnoringWhitespace(self, a: Text, b: Text):
+  def assertEqualIgnoringWhitespace(self, a: str, b: str):
     """Asserts the two strings are equal ignoring all whitespace."""
 
-    def _strip_ws(s: Text) -> Text:
+    def _strip_ws(s: str) -> str:
       return re.sub(r'\s+', '', s.strip())
 
     self.assertEqual(_strip_ws(a), _strip_ws(b))
 
-  def assertEqualIgnoringWhitespaceAndFloats(self, a: Text, b: Text):
+  def assertEqualIgnoringWhitespaceAndFloats(self, a: str, b: str):
     """Asserts the two strings are equal ignoring whitespace and floats.
 
     Floats are replaced with 0.0.
@@ -54,24 +53,32 @@ class DelayModelTest(absltest.TestCase):
       b: Input string.
     """
 
-    def _floats_to_zero(s: Text) -> Text:
+    def _floats_to_zero(s: str) -> str:
       return re.sub(r'-?[0-9]+\.[0-9e+-]+', '0.0', s)
 
     self.assertEqualIgnoringWhitespace(_floats_to_zero(a), _floats_to_zero(b))
 
   def test_fixed_estimator(self):
-    foo = delay_model.FixedEstimator('kFoo', 42)
-    self.assertEqual(
-        foo.operation_delay(_parse_operation('op: "kBar" bit_count: 1')), 42
+    foo = estimator_model.FixedEstimator(
+        'kFoo', estimator_model.Metric.DELAY_METRIC, 42
     )
     self.assertEqual(
-        foo.operation_delay(_parse_operation('op: "kBar" bit_count: 123')), 42
+        foo.operation_estimation(_parse_operation('op: "kBar" bit_count: 1')),
+        42,
     )
-    self.assertEqual(foo.cpp_delay_code('node'), 'return 42;')
+    self.assertEqual(
+        foo.operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
+        42,
+    )
+    self.assertEqual(foo.cpp_estimation_code('node'), 'return 42;')
 
   def test_alias_estimator(self):
-    foo = delay_model.AliasEstimator('kFoo', 'kBar')
-    self.assertEqual(foo.cpp_delay_code('node'), """return BarDelay(node);""")
+    foo = estimator_model.AliasEstimator(
+        'kFoo', estimator_model.Metric.DELAY_METRIC, 'kBar'
+    )
+    self.assertEqual(
+        foo.cpp_estimation_code('node'), """return BarDelay(node);"""
+    )
 
   def test_bounding_box_estimator(self):
     data_points_str = [
@@ -93,13 +100,14 @@ class DelayModelTest(absltest.TestCase):
         estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     operand0_bit_count.operand_number = 0
-    bar = delay_model.BoundingBoxEstimator(
+    bar = estimator_model.BoundingBoxEstimator(
         'kBar',
+        estimator_model.Metric.DELAY_METRIC,
         (result_bit_count, operand0_bit_count),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertEqual(
-        bar.operation_delay(
+        bar.operation_estimation(
             _parse_operation(
                 'op: "kBar" bit_count: 1 operands { bit_count: 2 }'
             )
@@ -107,7 +115,7 @@ class DelayModelTest(absltest.TestCase):
         23,
     )
     self.assertEqual(
-        bar.operation_delay(
+        bar.operation_estimation(
             _parse_operation(
                 'op: "kBar" bit_count: 10 operands { bit_count: 32 }'
             )
@@ -115,7 +123,7 @@ class DelayModelTest(absltest.TestCase):
         100,
     )
     self.assertEqual(
-        bar.operation_delay(
+        bar.operation_estimation(
             _parse_operation(
                 'op: "kBar" bit_count: 32 operands { bit_count: 9 }'
             )
@@ -123,7 +131,7 @@ class DelayModelTest(absltest.TestCase):
         122,
     )
     self.assertEqual(
-        bar.operation_delay(
+        bar.operation_estimation(
             _parse_operation(
                 'op: "kBar" bit_count: 32 operands { bit_count: 33 }'
             )
@@ -131,7 +139,7 @@ class DelayModelTest(absltest.TestCase):
         1234,
     )
     self.assertEqual(
-        bar.operation_delay(
+        bar.operation_estimation(
             _parse_operation(
                 'op: "kBar" bit_count: 64 operands { bit_count: 64 }'
             )
@@ -139,7 +147,7 @@ class DelayModelTest(absltest.TestCase):
         1234,
     )
     self.assertEqualIgnoringWhitespace(
-        bar.cpp_delay_code('node'),
+        bar.cpp_estimation_code('node'),
         """
           if (node->GetType()->GetFlatBitCount() <= 3 &&
               node->operand(0)->GetType()->GetFlatBitCount() <= 7) {
@@ -162,8 +170,8 @@ class DelayModelTest(absltest.TestCase):
               node->ToStringWithOperandTypes());
         """,
     )
-    with self.assertRaises(delay_model.Error) as e:
-      bar.operation_delay(
+    with self.assertRaises(estimator_model.Error) as e:
+      bar.operation_estimation(
           _parse_operation(
               'op: "kBar" bit_count: 65 operands { bit_count: 64 }'
           )
@@ -182,33 +190,34 @@ class DelayModelTest(absltest.TestCase):
     result_bit_count.factor.source = (
         estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (result_bit_count,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation('op: "kFoo" bit_count: 2')),
+        foo.operation_estimation(_parse_operation('op: "kFoo" bit_count: 2')),
         200,
         delta=2,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation('op: "kFoo" bit_count: 3')),
+        foo.operation_estimation(_parse_operation('op: "kFoo" bit_count: 3')),
         300,
         delta=2,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation('op: "kFoo" bit_count: 5')),
+        foo.operation_estimation(_parse_operation('op: "kFoo" bit_count: 5')),
         500,
         delta=2,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation('op: "kFoo" bit_count: 42')),
+        foo.operation_estimation(_parse_operation('op: "kFoo" bit_count: 42')),
         4200,
         delta=2,
     )
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
@@ -240,22 +249,29 @@ class DelayModelTest(absltest.TestCase):
     operand_count.factor.source = (
         estimator_model_pb2.EstimatorFactor.Source.OPERAND_COUNT
     )
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (operand_count,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(1))), 10, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(1))),
+        10,
+        delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(4))), 12, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(4))),
+        12,
+        delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(256))), 18, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(256))),
+        18,
+        delta=1,
     )
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->operand_count()) +
@@ -291,28 +307,29 @@ class DelayModelTest(absltest.TestCase):
         estimator_model_pb2.EstimatorFactor.Source.OPERAND_BIT_COUNT
     )
     operand_bit_count.factor.operand_number = 1
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (result_bit_count, operand_bit_count),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(1, 2))),
+        foo.operation_estimation(_parse_operation(gen_operation(1, 2))),
         100,
         delta=10,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(10, 12))),
+        foo.operation_estimation(_parse_operation(gen_operation(10, 12))),
         200,
         delta=10,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(8, 8))),
+        foo.operation_estimation(_parse_operation(gen_operation(8, 8))),
         200,
         delta=50,
     )
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
@@ -330,7 +347,8 @@ class DelayModelTest(absltest.TestCase):
     )
 
   def test_fixed_op_model(self):
-    op_model = delay_model.OpModel(
+    op_model = estimator_model.OpModel(
+        estimator_model.Metric.DELAY_METRIC,
         text_format.Parse(
             'op: "kFoo" estimator { fixed: 42 }', estimator_model_pb2.OpModel()
         ),
@@ -338,20 +356,21 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(op_model.op, 'kFoo')
     self.assertEqual(
-        op_model.estimator.operation_delay(
+        op_model.estimator.operation_estimation(
             _parse_operation('op: "kBar" bit_count: 123')
         ),
         42,
     )
     self.assertEqualIgnoringWhitespace(
-        op_model.cpp_delay_function(),
+        op_model.cpp_estimation_function(),
         """absl::StatusOr<int64_t> FooDelay(Node* node) {
              return 42;
            }""",
     )
 
   def test_fixed_op_model_with_specialization(self):
-    op_model = delay_model.OpModel(
+    op_model = estimator_model.OpModel(
+        estimator_model.Metric.DELAY_METRIC,
         text_format.Parse(
             'op: "kFoo" estimator { fixed: 42 } specializations { kind:'
             ' OPERANDS_IDENTICAL estimator { fixed: 123 } }',
@@ -361,7 +380,7 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(op_model.op, 'kFoo')
     self.assertEqual(
-        op_model.estimator.operation_delay(
+        op_model.estimator.operation_estimation(
             _parse_operation('op: "kBar" bit_count: 123')
         ),
         42,
@@ -369,11 +388,11 @@ class DelayModelTest(absltest.TestCase):
     self.assertEqual(
         op_model.specializations[
             estimator_model_pb2.SpecializationKind.OPERANDS_IDENTICAL, None
-        ].operation_delay(_parse_operation('op: "kBar" bit_count: 123')),
+        ].operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
         123,
     )
     self.assertEqualIgnoringWhitespace(
-        op_model.cpp_delay_function(),
+        op_model.cpp_estimation_function(),
         """
           absl::StatusOr<int64_t> FooDelay(Node* node) {
             if (std::all_of(node->operands().begin(), node->operands().end(),
@@ -386,7 +405,8 @@ class DelayModelTest(absltest.TestCase):
     )
 
   def test_fixed_op_model_with_specialization_details(self):
-    op_model = delay_model.OpModel(
+    op_model = estimator_model.OpModel(
+        estimator_model.Metric.DELAY_METRIC,
         text_format.Parse(
             'op: "kFoo" estimator { fixed: 42 } '
             'specializations {'
@@ -402,7 +422,7 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(op_model.op, 'kFoo')
     self.assertEqual(
-        op_model.estimator.operation_delay(
+        op_model.estimator.operation_estimation(
             _parse_operation('op: "kBar" bit_count: 123')
         ),
         42,
@@ -410,16 +430,16 @@ class DelayModelTest(absltest.TestCase):
     self.assertEqual(
         op_model.specializations[
             estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
-            delay_model.SpecializationDetails(
-                literal_operand_details=delay_model.LiteralOperandDetails(
+            estimator_model.SpecializationDetails(
+                literal_operand_details=estimator_model.LiteralOperandDetails(
                     required_literal_operands=frozenset([0]),
                 ),
             ),
-        ].operation_delay(_parse_operation('op: "kBar" bit_count: 123')),
+        ].operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
         123,
     )
     self.assertEqualIgnoringWhitespace(
-        op_model.cpp_delay_function(),
+        op_model.cpp_estimation_function(),
         """
           absl::StatusOr<int64_t> FooDelay(Node* node) {
             if (node->operand(0)->Is<Literal>()) {
@@ -431,7 +451,8 @@ class DelayModelTest(absltest.TestCase):
     )
 
   def test_fixed_op_model_with_complex_specialization_details(self):
-    op_model = delay_model.OpModel(
+    op_model = estimator_model.OpModel(
+        estimator_model.Metric.DELAY_METRIC,
         text_format.Parse(
             'op: "kFoo" estimator { fixed: 42 } '
             'specializations {'
@@ -452,7 +473,7 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(op_model.op, 'kFoo')
     self.assertEqual(
-        op_model.estimator.operation_delay(
+        op_model.estimator.operation_estimation(
             _parse_operation('op: "kBar" bit_count: 123')
         ),
         42,
@@ -460,17 +481,17 @@ class DelayModelTest(absltest.TestCase):
     self.assertEqual(
         op_model.specializations[
             estimator_model_pb2.SpecializationKind.HAS_LITERAL_OPERAND,
-            delay_model.SpecializationDetails(
-                literal_operand_details=delay_model.LiteralOperandDetails(
+            estimator_model.SpecializationDetails(
+                literal_operand_details=estimator_model.LiteralOperandDetails(
                     allowed_nonliteral_operands=frozenset([2, 3]),
                     required_literal_operands=frozenset([0, 1]),
                 ),
             ),
-        ].operation_delay(_parse_operation('op: "kBar" bit_count: 123')),
+        ].operation_estimation(_parse_operation('op: "kBar" bit_count: 123')),
         123,
     )
     self.assertEqualIgnoringWhitespace(
-        op_model.cpp_delay_function(),
+        op_model.cpp_estimation_function(),
         """
           absl::StatusOr<int64_t> FooDelay(Node* node) {
             absl::flat_hash_set<int64_t> nonliteral_operands;
@@ -520,33 +541,34 @@ class DelayModelTest(absltest.TestCase):
     )
     expression.rhs_expression.factor.operand_number = 1
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(15, 15))),
+        foo.operation_estimation(_parse_operation(gen_operation(15, 15))),
         30,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         65,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(20, 45))),
+        foo.operation_estimation(_parse_operation(gen_operation(20, 45))),
         65,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(10, 25))),
+        foo.operation_estimation(_parse_operation(gen_operation(10, 25))),
         35,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(100, 250))),
+        foo.operation_estimation(_parse_operation(gen_operation(100, 250))),
         350,
         delta=1,
     )
@@ -554,7 +576,7 @@ class DelayModelTest(absltest.TestCase):
     expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
         + static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -590,29 +612,34 @@ class DelayModelTest(absltest.TestCase):
     )
     expression.rhs_expression.factor.operand_number = 1
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(16, 15))), 1, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(16, 15))),
+        1,
+        delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         25,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(20, 5))), 15, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(20, 5))),
+        15,
+        delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(100, 25))),
+        foo.operation_estimation(_parse_operation(gen_operation(100, 25))),
         75,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(250, 100))),
+        foo.operation_estimation(_parse_operation(gen_operation(250, 100))),
         150,
         delta=1,
     )
@@ -620,7 +647,7 @@ class DelayModelTest(absltest.TestCase):
     expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
         - static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -656,32 +683,35 @@ class DelayModelTest(absltest.TestCase):
     )
     expression.rhs_expression.factor.operand_number = 1
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(15, 15.0))),
+        foo.operation_estimation(_parse_operation(gen_operation(15, 15.0))),
         1,
         delta=1,
     )
-    # Note: operation_delay will round to nearest int.
+    # Note: operation_estimation will round to nearest int.
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         2.25,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(20, 45))),
+        foo.operation_estimation(_parse_operation(gen_operation(20, 45))),
         0.4444,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(81, 9))), 9, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(81, 9))),
+        9,
+        delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(256, 2))),
+        foo.operation_estimation(_parse_operation(gen_operation(256, 2))),
         128,
         delta=1,
     )
@@ -693,7 +723,7 @@ class DelayModelTest(absltest.TestCase):
             static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
         ))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -729,33 +759,34 @@ class DelayModelTest(absltest.TestCase):
     )
     expression.rhs_expression.factor.operand_number = 1
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(15, 15))),
+        foo.operation_estimation(_parse_operation(gen_operation(15, 15))),
         15,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         45,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(20, 45))),
+        foo.operation_estimation(_parse_operation(gen_operation(20, 45))),
         45,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(10, 25))),
+        foo.operation_estimation(_parse_operation(gen_operation(10, 25))),
         25,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(100, 250))),
+        foo.operation_estimation(_parse_operation(gen_operation(100, 250))),
         250,
         delta=1,
     )
@@ -763,7 +794,7 @@ class DelayModelTest(absltest.TestCase):
     expression_str = r"""std::max(static_cast<float>(node->GetType()->GetFlatBitCount()),
         static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -799,33 +830,34 @@ class DelayModelTest(absltest.TestCase):
     )
     expression.rhs_expression.factor.operand_number = 1
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(15, 15))),
+        foo.operation_estimation(_parse_operation(gen_operation(15, 15))),
         15,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         20,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(20, 45))),
+        foo.operation_estimation(_parse_operation(gen_operation(20, 45))),
         20,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(10, 25))),
+        foo.operation_estimation(_parse_operation(gen_operation(10, 25))),
         10,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(100, 250))),
+        foo.operation_estimation(_parse_operation(gen_operation(100, 250))),
         100,
         delta=1,
     )
@@ -833,7 +865,7 @@ class DelayModelTest(absltest.TestCase):
     expression_str = r"""std::min(static_cast<float>(node->GetType()->GetFlatBitCount()),
         static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -869,39 +901,42 @@ class DelayModelTest(absltest.TestCase):
     )
     expression.rhs_expression.factor.operand_number = 1
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(15, 15))),
+        foo.operation_estimation(_parse_operation(gen_operation(15, 15))),
         225,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         900,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(20, 45))),
+        foo.operation_estimation(_parse_operation(gen_operation(20, 45))),
         900,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(10, 25))),
+        foo.operation_estimation(_parse_operation(gen_operation(10, 25))),
         250,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(2, 8))), 16, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(2, 8))),
+        16,
+        delta=1,
     )
 
     expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
         * static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -934,28 +969,29 @@ class DelayModelTest(absltest.TestCase):
         estimator_model_pb2.EstimatorFactor.Source.RESULT_BIT_COUNT
     )
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(7, 15))),
+        foo.operation_estimation(_parse_operation(gen_operation(7, 15))),
         128,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(8, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(8, 20))),
         256,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(9, 45))),
+        foo.operation_estimation(_parse_operation(gen_operation(9, 45))),
         512,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(10, 25))),
+        foo.operation_estimation(_parse_operation(gen_operation(10, 25))),
         1024,
         delta=1,
     )
@@ -963,7 +999,7 @@ class DelayModelTest(absltest.TestCase):
     expression_str = r"""pow(static_cast<float>(2),
         static_cast<float>(node->GetType()->GetFlatBitCount()))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -992,23 +1028,24 @@ class DelayModelTest(absltest.TestCase):
 
     # Not especially usuful tests since regression includes a
     # constant variable that could mask issues...
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(15, 15))),
+        foo.operation_estimation(_parse_operation(gen_operation(15, 15))),
         99,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         99,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(20, 45))),
+        foo.operation_estimation(_parse_operation(gen_operation(20, 45))),
         99,
         delta=1,
     )
@@ -1016,7 +1053,7 @@ class DelayModelTest(absltest.TestCase):
     # This test is useful though!
     expression_str = r"""static_cast<float>(99)"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -1057,36 +1094,43 @@ class DelayModelTest(absltest.TestCase):
     )
     expression.rhs_expression.rhs_expression.factor.operand_number = 1
 
-    foo = delay_model.RegressionEstimator(
+    foo = estimator_model.RegressionEstimator(
         'kFoo',
+        estimator_model.Metric.DELAY_METRIC,
         (expression,),
         tuple(_parse_data_point(s) for s in data_points_str),
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(15, 15))),
+        foo.operation_estimation(_parse_operation(gen_operation(15, 15))),
         20,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(45, 20))),
+        foo.operation_estimation(_parse_operation(gen_operation(45, 20))),
         20,
         delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(5, 5))), 10, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(5, 5))),
+        10,
+        delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(1, 15))), 16, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(1, 15))),
+        16,
+        delta=1,
     )
     self.assertAlmostEqual(
-        foo.operation_delay(_parse_operation(gen_operation(6, 3))), 9, delta=1
+        foo.operation_estimation(_parse_operation(gen_operation(6, 3))),
+        9,
+        delta=1,
     )
 
     expression_str = r"""std::min(static_cast<float>(20),
         (static_cast<float>(node->GetType()->GetFlatBitCount()) +
         static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
-        foo.cpp_delay_code('node'),
+        foo.cpp_estimation_code('node'),
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
@@ -1102,7 +1146,8 @@ class DelayModelTest(absltest.TestCase):
           % (bit_count, specialization, delay)
       )
 
-    op_model = delay_model.OpModel(
+    op_model = estimator_model.OpModel(
+        estimator_model.Metric.DELAY_METRIC,
         text_format.Parse(
             'op: "kFoo" estimator { regression { expressions { factor { source:'
             ' RESULT_BIT_COUNT } } } }specializations { kind:'
@@ -1118,7 +1163,7 @@ class DelayModelTest(absltest.TestCase):
     )
     self.assertEqual(op_model.op, 'kFoo')
     self.assertEqualIgnoringWhitespaceAndFloats(
-        op_model.cpp_delay_function(),
+        op_model.cpp_estimation_function(),
         """
           absl::StatusOr<int64_t> FooDelay(Node* node) {
             if (std::all_of(node->operands().begin(), node->operands().end(),
@@ -1143,8 +1188,8 @@ class DelayModelTest(absltest.TestCase):
   def test_regression_estimator_generate_validation_sets(self):
 
     def gen_raw_dp(*a):
-      return delay_model.RawDataPoint(
-          delay_factors=list(a[0:-1]), delay_ps=a[-1]
+      return estimator_model.RawDataPoint(
+          factors=list(a[0:-1]), measurement=a[-1]
       )
 
     raw_data_points = [
@@ -1156,7 +1201,7 @@ class DelayModelTest(absltest.TestCase):
         gen_raw_dp(5, 5),
     ]
     training_dps, testing_dps = zip(
-        *delay_model.RegressionEstimator.generate_k_fold_cross_validation_train_and_test_sets(
+        *estimator_model.RegressionEstimator.generate_k_fold_cross_validation_train_and_test_sets(
             raw_data_points, num_cross_validation_folds=3
         )
     )
@@ -1218,6 +1263,7 @@ class DelayModelTest(absltest.TestCase):
         gen_data_point(30, 15, 400),
     ]
     proto_text = """
+    metric: DELAY_METRIC
     op_models {
       op: "kFoo"
       estimator {
@@ -1244,8 +1290,8 @@ class DelayModelTest(absltest.TestCase):
     """
     proto_text = proto_text + '\n'.join(data_points_str)
 
-    with self.assertRaises(delay_model.Error) as e:
-      delay_model.DelayModel(
+    with self.assertRaises(estimator_model.Error) as e:
+      estimator_model.EstimatorModel(
           text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
       )
     self.assertEqualIgnoringWhitespaceAndFloats(
@@ -1295,6 +1341,7 @@ class DelayModelTest(absltest.TestCase):
         gen_data_point(150, 100, 150),
     ]
     proto_text = """
+    metric: DELAY_METRIC
     op_models {
       op: "kFoo"
       estimator {
@@ -1313,13 +1360,13 @@ class DelayModelTest(absltest.TestCase):
     """
     proto_text = proto_text + '\n'.join(data_points_str)
 
-    with self.assertRaises(delay_model.Error) as e:
-      delay_model.DelayModel(
+    with self.assertRaises(estimator_model.Error) as e:
+      estimator_model.EstimatorModel(
           text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
       )
     self.assertEqualIgnoringWhitespaceAndFloats(
         'kFoo: Regression model failed k-fold cross validation for '
-        'data point RawDataPoint(delay_factors=[30], delay_ps=50) '
+        'data point RawDataPoint(factors=[30], measurement=50) '
         'with absolute error 0.0 > max 0.0',
         str(e.exception),
     )
@@ -1365,6 +1412,7 @@ class DelayModelTest(absltest.TestCase):
         gen_data_point(150, 100, 150),
     ]
     proto_text = """
+    metric: DELAY_METRIC
     op_models {
       op: "kFoo"
       estimator {
@@ -1387,8 +1435,8 @@ class DelayModelTest(absltest.TestCase):
     # Build regression model with operand_bit_count (uncorrelated with delay)
     # as only factor.
 
-    with self.assertRaises(delay_model.Error) as e:
-      delay_model.DelayModel(
+    with self.assertRaises(estimator_model.Error) as e:
+      estimator_model.EstimatorModel(
           text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
       )
 
@@ -1437,6 +1485,7 @@ class DelayModelTest(absltest.TestCase):
         gen_data_point(150, 100, 150),
     ]
     proto_text = """
+    metric: DELAY_METRIC
     op_models {
       op: "kFoo"
       estimator {
@@ -1456,7 +1505,7 @@ class DelayModelTest(absltest.TestCase):
     """
     proto_text = proto_text + '\n'.join(data_points_str)
 
-    delay_model.DelayModel(
+    estimator_model.EstimatorModel(
         text_format.Parse(proto_text, estimator_model_pb2.EstimatorModel())
     )
 
@@ -1471,20 +1520,54 @@ class DelayModelTest(absltest.TestCase):
     )
     e.rhs_expression.factor.operand_number = 1
     self.assertEqual(
-        delay_model.delay_expression_description(e),
+        estimator_model.estimator_expression_description(e),
         '(Result bit count + Operand 1 bit count)',
     )
 
     f = estimator_model_pb2.EstimatorExpression()
     f.constant = 42
-    self.assertEqual(delay_model.delay_expression_description(f), '42')
+    self.assertEqual(estimator_model.estimator_expression_description(f), '42')
 
     f = estimator_model_pb2.EstimatorExpression()
     f.factor.source = (
         estimator_model_pb2.EstimatorFactor().Source.RESULT_BIT_COUNT
     )
     self.assertEqual(
-        delay_model.delay_expression_description(f), 'Result bit count'
+        estimator_model.estimator_expression_description(f), 'Result bit count'
+    )
+
+  def test_area_fixed_op_model(self):
+    op_model = estimator_model.OpModel(
+        estimator_model.Metric.AREA_METRIC,
+        text_format.Parse(
+            'op: "kFoo" estimator { fixed: 42 }', estimator_model_pb2.OpModel()
+        ),
+        (),
+    )
+    self.assertEqual(op_model.op, 'kFoo')
+    self.assertEqual(
+        op_model.estimator.operation_estimation(
+            _parse_operation('op: "kBar" bit_count: 123')
+        ),
+        42,
+    )
+    self.assertEqualIgnoringWhitespace(
+        op_model.cpp_estimation_function(),
+        """absl::StatusOr<double> FooArea(Node* node) {
+             return 42;
+           }""",
+    )
+
+  def test_unspecified_metric(self):
+    with self.assertRaises(ValueError) as e:
+      estimator_model.EstimatorModel(
+          estimator_model_pb2.EstimatorModel(
+              metric=estimator_model_pb2.Metric.UNSPECIFIED_METRIC
+          )
+      )
+    self.assertEqualIgnoringWhitespaceAndFloats(
+        'The UNSPECIFIED metric is not allowed.',
+        str(e.exception),
     )
 
 

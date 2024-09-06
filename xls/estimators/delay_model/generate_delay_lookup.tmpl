@@ -16,11 +16,11 @@ namespace xls {
 namespace {
 
 {% for op in delay_model.ops() -%}
-{{ delay_model.op_model(op).cpp_delay_function_declaration() }}
+{{ delay_model.op_model(op).cpp_estimation_function_declaration() }}
 {%- endfor %}
 
 {% for op in delay_model.ops() %}
-{{ delay_model.op_model(op).cpp_delay_function() }}
+{{ delay_model.op_model(op).cpp_estimation_function() }}
 {% endfor %}
 
 }  // namespace
@@ -35,7 +35,7 @@ class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
     switch (node->op()) {
   {% for op in delay_model.ops() -%}
       case Op::{{op}}:
-        delay_status = {{delay_model.op_model(op).cpp_delay_function_name()}}(node);
+        delay_status = {{delay_model.op_model(op).cpp_estimation_function_name()}}(node);
         break;
   {%- endfor %}
       default:

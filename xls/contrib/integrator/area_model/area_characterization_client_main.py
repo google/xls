@@ -30,8 +30,8 @@ from absl import flags
 from absl import logging
 import grpc
 
+from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model
 from xls.estimators.delay_model import op_module_generator
 from xls.synthesis import client_credentials
 from xls.synthesis import synthesis_pb2
@@ -408,8 +408,8 @@ def _run_linear_bin_op_and_add(
   """Runs characterization for the given linear bin_op and adds it to the model."""
   _new_regression_op_model(model, kop, result_bit_count=True)
   model.data_points.extend(_run_nary_op(op, kop, stub, num_inputs=2))
-  # Validate model
-  delay_model.DelayModel(model)
+  # Validate model using k-fold validation in RegressionEstimator
+  estimator_model.EstimatorModel(model)
 
 
 def _run_quadratic_bin_op_and_add(
@@ -436,7 +436,7 @@ def _run_quadratic_bin_op_and_add(
 
   model.data_points.extend(_run_nary_op(op, kop, stub, num_inputs=2))
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_unary_op_and_add(
@@ -454,7 +454,7 @@ def _run_unary_op_and_add(
 
   model.data_points.extend(_run_nary_op(op, kop, stub, num_inputs=1))
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_nary_op_and_add(
@@ -480,7 +480,7 @@ def _run_nary_op_and_add(
         _run_nary_op(op, kop, stub, num_inputs=input_count)
     )
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_single_bit_result_op_and_add(
@@ -500,7 +500,7 @@ def _run_single_bit_result_op_and_add(
     )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_reduction_op_and_add(
@@ -574,7 +574,7 @@ def _run_select_op_and_add(
         )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_one_hot_select_op_and_add(
@@ -614,7 +614,7 @@ def _run_one_hot_select_op_and_add(
       )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_encode_op_and_add(
@@ -640,7 +640,7 @@ def _run_encode_op_and_add(
     )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_decode_op_and_add(
@@ -673,7 +673,7 @@ def _run_decode_op_and_add(
     )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_dynamic_bit_slice_op_and_add(
@@ -723,7 +723,7 @@ def _run_dynamic_bit_slice_op_and_add(
         idx = idx + 1
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_one_hot_op_and_add(
@@ -765,7 +765,7 @@ def _run_one_hot_op_and_add(
     )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_mul_op_and_add(
@@ -987,7 +987,7 @@ def _run_mul_op_and_add(
         )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _yield_array_dimension_sizes_helper(
@@ -1115,7 +1115,7 @@ def _run_array_index_op_and_add(
         )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def _run_array_update_op_and_add(
@@ -1187,7 +1187,7 @@ def _run_array_update_op_and_add(
         )
 
   # Validate model
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
 
 def run_characterization(
@@ -1275,7 +1275,7 @@ def run_characterization(
     entry.estimator.fixed = 0
 
   # Final validation
-  delay_model.DelayModel(model)
+  estimator_model.EstimatorModel(model)
 
   print('# proto-file: xls/estimators/estimator_model.proto')
   print('# proto-message: xls.estimator_model.EstimatorModel')

@@ -219,38 +219,13 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        ":delay_model",
         requirement("Jinja2"),
         requirement("MarkupSafe"),
         "//xls/common:runfiles",
+        "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
-        "@com_google_protobuf//:protobuf_python",
-    ],
-)
-
-py_library(
-    name = "delay_model",
-    srcs = ["delay_model.py"],
-    srcs_version = "PY3ONLY",
-    deps = [
-        requirement("numpy"),
-        requirement("scipy"),
-        "//xls/estimators:estimator_model_py_pb2",
-    ],
-)
-
-py_test(
-    name = "delay_model_test",
-    srcs = ["delay_model_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    tags = ["nomsan"],  # scipy seems not to be msan-clean.
-    deps = [
-        ":delay_model",
-        "//xls/estimators:estimator_model_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )

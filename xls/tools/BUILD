@@ -1124,8 +1124,8 @@ py_binary(
     srcs_version = "PY3",
     deps = [
         requirement("numpy"),
+        "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
-        "//xls/estimators/delay_model",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",

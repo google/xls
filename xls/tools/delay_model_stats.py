@@ -36,8 +36,8 @@ from absl import logging
 import numpy as np
 
 from google.protobuf import text_format
+from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model
 
 _CSV = flags.DEFINE_string(
     'output_csv', None, 'The file to write statistics into.'
@@ -46,9 +46,11 @@ _CSV = flags.DEFINE_string(
 
 def stats_for_op_model(
     csv_handle,
-    op_model: delay_model.OpModel,
+    op_model: estimator_model.OpModel,
     specialization_kind: Optional[str] = None,
-    specialization_details: Optional[delay_model.SpecializationDetails] = None,
+    specialization_details: Optional[
+        estimator_model.SpecializationDetails
+    ] = None,
 ) -> None:
   """Write one row of a CSV spreadsheet with this op's curve fitting error.
 
@@ -67,8 +69,8 @@ def stats_for_op_model(
   """
 
   if not isinstance(
-      op_model, delay_model.RegressionEstimator
-  ) and not isinstance(op_model, delay_model.BoundingBoxEstimator):
+      op_model, estimator_model.RegressionEstimator
+  ) and not isinstance(op_model, estimator_model.BoundingBoxEstimator):
     return
 
   if specialization_details and not specialization_kind:
@@ -77,8 +79,8 @@ def stats_for_op_model(
         'specialization_details'
     )
 
-  def delay_f(*args):
-    return op_model.raw_delay(args)
+  def estimation_f(*args):
+    return op_model.raw_estimation(args)
 
   title = op_model.op
   if specialization_kind:
@@ -88,10 +90,10 @@ def stats_for_op_model(
     title += ' ' + str(specialization_details)
 
   for dp in op_model.raw_data_points:
-    x_actual = dp.delay_factors
-    y_actual = dp.delay_ps
+    x_actual = dp.factors
+    y_actual = dp.measurement
 
-    y_est = delay_f(*x_actual)
+    y_est = estimation_f(*x_actual)
     y_delta = y_actual - y_est
     if y_actual > 0:
       y_delta_pct = round(y_delta * 100.0 / y_actual, 2)
@@ -105,22 +107,30 @@ def stats_for_op_model(
         f'{y_delta_pct}%',
     )
 
-  delays = [dp.delay_ps for dp in op_model.raw_data_points]
-  if min(delays) > 0:
+  measurements = [dp.measurement for dp in op_model.raw_data_points]
+  if min(measurements) > 0:
     max_pct_error = max([
-        abs((dp.delay_ps - delay_f(*dp.delay_factors)) * 100.0 / dp.delay_ps)
+        abs(
+            (dp.measurement - estimation_f(*dp.factors))
+            * 100.0
+            / dp.measurement
+        )
         for dp in op_model.raw_data_points
     ])
     mean_abs_pct_error = np.mean([
-        abs((dp.delay_ps - delay_f(*dp.delay_factors)) * 100.0 / dp.delay_ps)
+        abs(
+            (dp.measurement - estimation_f(*dp.factors))
+            * 100.0
+            / dp.measurement
+        )
         for dp in op_model.raw_data_points
     ])
     mean_pct_error = np.mean([
-        ((dp.delay_ps - delay_f(*dp.delay_factors)) * 100.0 / dp.delay_ps)
+        ((dp.measurement - estimation_f(*dp.factors)) * 100.0 / dp.measurement)
         for dp in op_model.raw_data_points
     ])
     mean_square_error = np.mean([
-        ((dp.delay_ps - delay_f(*dp.delay_factors)) ** 2)
+        ((dp.measurement - estimation_f(*dp.factors)) ** 2)
         for dp in op_model.raw_data_points
     ])
 
@@ -138,7 +148,7 @@ def stats_for_op_model(
     if csv_handle:
       csv_handle.write(csv_line + '\n')
   else:
-    logging.vlog(1, f'Zero delay detected for {op_model.op}.')
+    logging.vlog(1, f'Zero measurement detected for {op_model.op}.')
 
 
 def main(argv):
@@ -153,7 +163,7 @@ def main(argv):
   else:
     csv_handle = None
 
-  dm = delay_model.DelayModel(
+  dm = estimator_model.EstimatorModel(
       text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
 

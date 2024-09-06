@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pytype test and library
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # cc_proto_library is used in this file
 
@@ -36,4 +37,29 @@ cc_proto_library(
 py_proto_library(
     name = "estimator_model_py_pb2",
     deps = [":estimator_model_proto"],
+)
+
+py_library(
+    name = "estimator_model",
+    srcs = ["estimator_model.py"],
+    srcs_version = "PY3ONLY",
+    deps = [
+        ":estimator_model_py_pb2",
+        requirement("numpy"),
+        requirement("scipy"),
+    ],
+)
+
+py_test(
+    name = "estimator_model_test",
+    srcs = ["estimator_model_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    tags = ["nomsan"],  # scipy seems not to be msan-clean.
+    deps = [
+        ":estimator_model",
+        ":estimator_model_py_pb2",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )

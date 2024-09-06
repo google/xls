@@ -21,8 +21,8 @@ import jinja2
 
 from google.protobuf import text_format
 from xls.common import runfiles
+from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model
 
 flags.DEFINE_string(
     'model_name',
@@ -48,9 +48,13 @@ def main(argv):
   with open(argv[1], 'rb') as f:
     contents = f.read()
 
-  dm = delay_model.DelayModel(
+  em = estimator_model.EstimatorModel(
       text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
+
+  # Make sure that `dm` is an EstimatorModel estimating delay
+  if not em.is_delay_model():
+    raise ValueError('generate_delay_lookup only supports delay estimator.')
 
   env = jinja2.Environment(undefined=jinja2.StrictUndefined)
   tmpl_text = runfiles.get_contents_as_text(
@@ -58,7 +62,7 @@ def main(argv):
   )
   template = env.from_string(tmpl_text)
   rendered = template.render(
-      delay_model=dm,
+      delay_model=em,
       name=FLAGS.model_name,
       precedence=FLAGS.precedence,
       camel_case_name=''.join(

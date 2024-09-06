@@ -15,7 +15,7 @@
 
 r"""Delay model visualization tool.
 
-Dumps a graph (as an image) of each XLS op delay model in a specified directory.
+Dumps a graph (as an image) of each XLS op model in a specified directory.
 
 Usage:
   delay_model_visualizer --output_dir=/tmp/images \
@@ -34,8 +34,8 @@ from mpl_toolkits import mplot3d  # pylint: disable=unused-import
 import numpy as np
 
 from google.protobuf import text_format
+from xls.estimators import estimator_model
 from xls.estimators import estimator_model_pb2
-from xls.estimators.delay_model import delay_model
 
 flags.DEFINE_string(
     'output_dir', None, 'The directory to write image files into.'
@@ -58,11 +58,13 @@ def get_r2_score(y_pred: np.ndarray, y_true: np.ndarray) -> np.float64:
 
 
 def maybe_plot_estimator_and_data_points(
-    estimator: delay_model.Estimator,
+    estimator: estimator_model.Estimator,
     specialization_kind: Optional[Text] = None,
-    specialization_details: Optional[delay_model.SpecializationDetails] = None,
+    specialization_details: Optional[
+        estimator_model.SpecializationDetails
+    ] = None,
 ):
-  """Plots the given delay model and writes the figure to a file.
+  """Plots the given estimator model and writes the figure to a file.
 
   Only plots one-factor (2D plot) and two-factor (3D plot) regression and
   bounding box models.
@@ -74,14 +76,14 @@ def maybe_plot_estimator_and_data_points(
     specialization_details: Optional specialization details. Used in plot title.
   """
   if not isinstance(
-      estimator, delay_model.RegressionEstimator
-  ) and not isinstance(estimator, delay_model.BoundingBoxEstimator):
+      estimator, estimator_model.RegressionEstimator
+  ) and not isinstance(estimator, estimator_model.BoundingBoxEstimator):
     return
 
-  def delay_f(*args):
+  def estimation_f(*args):
     try:
-      return estimator.raw_delay(args)
-    except delay_model.Error:
+      return estimator.raw_estimation(args)
+    except estimator_model.Error:
       return 0
 
   title = estimator.op
@@ -92,64 +94,68 @@ def maybe_plot_estimator_and_data_points(
 
   coeffs = estimator.params
 
-  if len(estimator.delay_expressions) == 1:
+  if len(estimator.estimator_expressions) == 1:
     fig, ax = pyplot.subplots(figsize=_2D_GRAPH_FIGSIZE)
 
     # Plot the real data points as circles.
-    x_actual = [dp.delay_factors[0] for dp in estimator.raw_data_points]
-    y_actual = [dp.delay_ps for dp in estimator.raw_data_points]
+    x_actual = [dp.factors[0] for dp in estimator.raw_data_points]
+    y_actual = [dp.measurement for dp in estimator.raw_data_points]
     ax.plot(x_actual, y_actual, 'o')
 
     # Compute the R^2 score and add the score to the graph
-    r2_score = get_r2_score(np.vectorize(delay_f)(x_actual), y_actual)
+    r2_score = get_r2_score(np.vectorize(estimation_f)(x_actual), y_actual)
     title += f', $R^2$ = {r2_score:.2f}'
 
     # Describe the equation
     estimator_description = (
         f'f(x) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
         ' log(x)\nwhere x ='
-        f' {delay_model.delay_expression_description(estimator.delay_expressions[0])}'
+        f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}'
     )
     title += '\n' + estimator_description
 
-    # Plot a curve for the delay model.
+    # Plot a curve for the model.
     x_range = np.linspace(1, max(x_actual), num=100)
-    y_est = np.vectorize(delay_f)(x_range)
+    y_est = np.vectorize(estimation_f)(x_range)
     ax.plot(x_range, y_est)
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_expression_description(estimator.delay_expressions[0])
+        estimator_model.estimator_expression_description(
+            estimator.estimator_expressions[0]
+        )
     )
     ax.set_ylabel('delay (ps)')
     pyplot.ylim(bottom=0)
     pyplot.xlim(left=1)
 
-  elif len(estimator.delay_expressions) == 2:
-    x_actual = [dp.delay_factors[0] for dp in estimator.raw_data_points]
-    y_actual = [dp.delay_factors[1] for dp in estimator.raw_data_points]
-    z_actual = [dp.delay_ps for dp in estimator.raw_data_points]
+  elif len(estimator.estimator_expressions) == 2:
+    x_actual = [dp.factors[0] for dp in estimator.raw_data_points]
+    y_actual = [dp.factors[1] for dp in estimator.raw_data_points]
+    z_actual = [dp.measurement for dp in estimator.raw_data_points]
     fig = pyplot.figure(figsize=_3D_GRAPH_FIGSIZE)
     ax = fig.add_subplot(1, 1, 1, projection='3d')
 
     # Compute the R^2 score and add the score to the graph
-    r2_score = get_r2_score(np.vectorize(delay_f)(x_actual, y_actual), z_actual)
+    r2_score = get_r2_score(
+        np.vectorize(estimation_f)(x_actual, y_actual), z_actual
+    )
     title += f', $R^2$ = {r2_score:.2f}'
 
     # Describe the equation
     estimator_description = (
         f'f(x,y) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
         f' log(x) + {coeffs[3]:.2f} * y + {coeffs[4]:.2f} * log(y)\nwhere x ='
-        f' {delay_model.delay_expression_description(estimator.delay_expressions[0])}\ny'
-        f' = {delay_model.delay_expression_description(estimator.delay_expressions[1])}'
+        f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}\ny'
+        f' = {estimator_model.estimator_expression_description(estimator.estimator_expressions[1])}'
     )
     title += '\n' + estimator_description
 
-    # Plot the surface of the delay estimate.
+    # Plot the surface of the estimate.
     x_range, y_range = np.meshgrid(
         np.arange(1, max(x_actual), 1), np.arange(1, max(y_actual), 1)
     )
-    z_est = np.vectorize(delay_f)(x_range, y_range)
+    z_est = np.vectorize(estimation_f)(x_range, y_range)
     surf = ax.plot_surface(
         x_range,
         y_range,
@@ -167,23 +173,27 @@ def maybe_plot_estimator_and_data_points(
     # Plot the actual data points as circles with a line extending from the
     # model estimate.
     for rdp in estimator.raw_data_points:
-      x_i, y_i = rdp.delay_factors[0:2]
-      z_i = rdp.delay_ps
-      z_est_i = delay_f(x_i, y_i)
+      x_i, y_i = rdp.factors[0:2]
+      z_i = rdp.measurement
+      z_est_i = estimation_f(x_i, y_i)
       ax.scatter(x_i, y_i, z_i, marker='o', c='black')
       ax.plot([x_i, x_i], [y_i, y_i], [z_est_i, z_i], color='black', marker='_')
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_expression_description(estimator.delay_expressions[0])
+        estimator_model.estimator_expression_description(
+            estimator.estimator_expressions[0]
+        )
     )
     ax.set_ylabel(
-        delay_model.delay_expression_description(estimator.delay_expressions[1])
+        estimator_model.estimator_expression_description(
+            estimator.estimator_expressions[1]
+        )
     )
     ax.set_zlabel('delay (ps)')
 
   else:
-    # More than two delay expressions not supported.
+    # More than two expressions not supported.
     return
 
   if specialization_kind:
@@ -202,7 +212,7 @@ def main(argv):
   with open(argv[1], 'rb') as f:
     contents = f.read()
 
-  dm = delay_model.DelayModel(
+  dm = estimator_model.EstimatorModel(
       text_format.Parse(contents, estimator_model_pb2.EstimatorModel())
   )
 
