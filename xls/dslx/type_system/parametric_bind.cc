@@ -101,69 +101,71 @@ absl::Status ParametricBindBitsToConstructor(const ArrayType& param_type,
 
 }  // namespace
 
-absl::Status ParametricBindTypeDim(const Type& param_type,
-                                   const TypeDim& param_dim,
-                                   const Type& arg_type, const TypeDim& arg_dim,
+absl::Status ParametricBindTypeDim(const Type& formal_type,
+                                   const TypeDim& formal_dim,
+                                   const Type& actual_type,
+                                   const TypeDim& actual_dim,
                                    ParametricBindContext& ctx) {
-  VLOG(5) << "ParametricBindTypeDim;" << " param_type: " << param_type
-          << " param_dim: " << param_dim << " arg_type: " << arg_type
-          << " arg_dim: " << arg_dim;
+  VLOG(5) << "ParametricBindTypeDim;" << " formal_type: " << formal_type
+          << " formal_dim: " << formal_dim << " actual_type: " << actual_type
+          << " actual_dim: " << actual_dim;
 
-  XLS_RET_CHECK(!arg_dim.IsParametric()) << arg_dim.ToString();
+  XLS_RET_CHECK(!actual_dim.IsParametric()) << actual_dim.ToString();
 
   // See if there's a parametric symbol in the formal argument we need to bind
   // vs the actual argument.
-  const ParametricSymbol* symbol = TryGetParametricSymbol(param_dim);
+  const ParametricSymbol* symbol = TryGetParametricSymbol(formal_dim);
   if (symbol == nullptr) {
-    return absl::OkStatus();  // Nothing to bind in the formal argument type.
-  }
-
-  XLS_ASSIGN_OR_RETURN(int64_t arg_dim_i64, arg_dim.GetAsInt64());
-
-  // See if this is the first time we're binding this parametric symbol.
-  const std::string& pdim_name = symbol->identifier();
-  if (!ctx.parametric_env.contains(pdim_name)) {
-    XLS_RET_CHECK(ctx.parametric_binding_types.contains(pdim_name))
-        << "Cannot bind " << pdim_name << " : it has no associated type.";
-    VLOG(5) << "Binding " << pdim_name << " to " << arg_dim_i64;
-    const Type& type = *ctx.parametric_binding_types.at(pdim_name);
-    XLS_ASSIGN_OR_RETURN(TypeDim bit_count, type.GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(int64_t width, bit_count.GetAsInt64());
-    ctx.parametric_env.emplace(
-        pdim_name,
-        InterpValue::MakeUBits(/*bit_count=*/width, /*value=*/arg_dim_i64));
+    // Nothing to bind in the formal argument type.
     return absl::OkStatus();
   }
 
-  const InterpValue& seen = ctx.parametric_env.at(pdim_name);
+  XLS_ASSIGN_OR_RETURN(int64_t actual_dim_i64, actual_dim.GetAsInt64());
+
+  // See if this is the first time we're binding this parametric symbol.
+  const std::string& formal_name = symbol->identifier();
+  if (!ctx.parametric_env.contains(formal_name)) {
+    XLS_RET_CHECK(ctx.parametric_binding_types.contains(formal_name))
+        << "Cannot bind " << formal_name << " : it has no associated type.";
+    VLOG(5) << "Binding " << formal_name << " to " << actual_dim_i64;
+    const Type& type = *ctx.parametric_binding_types.at(formal_name);
+    XLS_ASSIGN_OR_RETURN(TypeDim bit_count, type.GetTotalBitCount());
+    XLS_ASSIGN_OR_RETURN(int64_t width, bit_count.GetAsInt64());
+    ctx.parametric_env.emplace(
+        formal_name,
+        InterpValue::MakeUBits(/*bit_count=*/width, /*value=*/actual_dim_i64));
+    return absl::OkStatus();
+  }
+
+  const InterpValue& seen = ctx.parametric_env.at(formal_name);
   XLS_ASSIGN_OR_RETURN(int64_t seen_value, seen.GetBitValueViaSign());
-  if (seen_value == arg_dim_i64) {
+  if (seen_value == actual_dim_i64) {
     return absl::OkStatus();  // No contradiction.
   }
 
   // We see a conflict between something we previously observed and something
   // we are now observing -- make an appropriate error.
-  if (auto it = ctx.parametric_default_exprs.find(pdim_name);
+  if (auto it = ctx.parametric_default_exprs.find(formal_name);
       it != ctx.parametric_default_exprs.end() && it->second != nullptr) {
     const Expr* expr = it->second;
     // Error is violated "constraint"; i.e. we see a binding that contradicts a
     // previous binding for the same key.
     std::string message = absl::StrFormat(
         "Parametric constraint violated, saw %s = %d; then %s = %s = %d",
-        pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim_i64);
+        formal_name, seen_value, formal_name, expr->ToString(), actual_dim_i64);
     auto saw_type =
         std::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
     return ctx.deduce_ctx.TypeMismatchError(ctx.span, expr, *saw_type, nullptr,
-                                            arg_type, message);
+                                            actual_type, message);
   }
 
   // Error is conflicting argument types.
   std::string message = absl::StrFormat(
       "Parametric value %s was bound to different values at different "
       "places in invocation; saw: %d; then: %d",
-      pdim_name, seen_value, arg_dim_i64);
-  return ctx.deduce_ctx.TypeMismatchError(ctx.span, nullptr, param_type,
-                                          nullptr, arg_type, message);
+      formal_name, seen_value, actual_dim_i64);
+  return ctx.deduce_ctx.TypeMismatchError(ctx.span, nullptr, formal_type,
+                                          nullptr, actual_type, message);
 }
 
 absl::Status ParametricBind(const Type& param_type, const Type& arg_type,

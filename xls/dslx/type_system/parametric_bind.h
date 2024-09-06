@@ -54,27 +54,27 @@ struct ParametricBindContext {
 // Returns an appropriate error if the binding has a type error or is in
 // conflict with a previous binding.
 //
-// This is key to the process that populates parametrics automatically from
-// actual arguments; e.g.
+// This is part of the process that populates parametrics from actual
+// arguments; e.g.,
 //
 //    fn p<X: u32>(x: uN[X])
 //
-// Implicitly gets X=8 bound via this invocation using an actual argument in
+// Implicitly binds X=8 via this invocation using an actual argument in
 // the caller where we know the concrete type:
 //
 //    p(u8:42)
 //
 // Args:
-//  param_type: The type of the (formal) parameter.
-//  param_dim: The dimension held by param_type, this may be parametric.
-//  arg_type: The type of the *actual* argument being passed to the formal
+//  formal_type: The type of the formal parameter.
+//  formal_dim: The dimension held by formal_type; this may be parametric.
+//  actual_type: The type of the actual argument being passed to the formal
 //    parameter.
-//  arg_dim: The dimension held by arg_type.
+//  actual_dim: The dimension held by actual_type.
 //  ctx: The parametric binding context.
-//  deduce_ctx: Used for reporting errors.
-absl::Status ParametricBindTypeDim(const Type& param_type,
-                                   const TypeDim& param_dim,
-                                   const Type& arg_type, const TypeDim& arg_dim,
+absl::Status ParametricBindTypeDim(const Type& formal_type,
+                                   const TypeDim& formal_dim,
+                                   const Type& actual_type,
+                                   const TypeDim& actual_dim,
                                    ParametricBindContext& ctx);
 
 // As described above in ParametricBindTypeDim, but handles arbitrary
