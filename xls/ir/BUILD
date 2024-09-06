@@ -16,9 +16,9 @@
 # Description Language.
 
 load("@rules_python//python:proto.bzl", "py_proto_library")
-# cc_proto_library is used in this file
-
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -2094,4 +2094,50 @@ cc_library(
     name = "op_list",
     hdrs = ["op_list.h"],
     visibility = ["//visibility:private"],
+)
+
+proto_library(
+    name = "xls_op_name_proto",
+    srcs = ["xls_op_name.proto"],
+)
+
+cc_proto_library(
+    name = "xls_op_name_cc_proto",
+    deps = [":xls_op_name_proto"],
+)
+
+py_proto_library(
+    name = "xls_op_name_py_pb2",
+    deps = [":xls_op_name_proto"],
+)
+
+cc_binary(
+    name = "generate_op_name_proto_main",
+    srcs = ["generate_op_name_proto_main.cc"],
+    deps = [
+        ":op_list",
+        ":xls_op_name_cc_proto",
+        "//xls/common:init_xls",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_protobuf//:protobuf",
+        "@com_google_protobuf//src/google/protobuf/io",
+    ],
+)
+
+genrule_wrapper(
+    name = "generate_op_name_representations_proto",
+    srcs = [],
+    outs = ["op_name_representations.textproto"],
+    cmd = "$(location :generate_op_name_proto_main) > $(OUTS)",
+    tools = [
+        ":generate_op_name_proto_main",
+    ],
+)
+
+filegroup(
+    name = "op_name_representations_proto",
+    srcs = ["op_name_representations.textproto"],
+    visibility = ["//xls/synthesis:__subpackages__"],
 )
