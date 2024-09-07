@@ -146,6 +146,23 @@ class SaturatingBddEvaluator
     return result;
   }
 
+  SaturatingBddNodeIndex If(const SaturatingBddNodeIndex& sel,
+                            const SaturatingBddNodeIndex& consequent,
+                            const SaturatingBddNodeIndex& alternate) const {
+    if (std::holds_alternative<TooManyPaths>(sel) ||
+        std::holds_alternative<TooManyPaths>(consequent) ||
+        std::holds_alternative<TooManyPaths>(alternate)) {
+      return TooManyPaths();
+    }
+    BddNodeIndex result = bdd_->IfThenElse(std::get<BddNodeIndex>(sel),
+                                           std::get<BddNodeIndex>(consequent),
+                                           std::get<BddNodeIndex>(alternate));
+    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
+      return TooManyPaths();
+    }
+    return result;
+  }
+
  private:
   int64_t path_limit_;
   BinaryDecisionDiagram* bdd_;

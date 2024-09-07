@@ -68,6 +68,13 @@ class TestAbstractEvaluator
     return {static_cast<bool>(static_cast<int>(a.value) |
                               static_cast<int>(b.value))};
   }
+  BoxedBool If(const BoxedBool& a, const BoxedBool& b,
+               const BoxedBool& c) const {
+    if (a.value) {
+      return b;
+    }
+    return c;
+  }
 };
 
 TEST(AbstractEvaluatorTest, Add) {

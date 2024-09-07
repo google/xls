@@ -865,7 +865,7 @@ TEST_F(TernaryQueryEngineTest, PrioritySelWithKnownBit) {
   constexpr std::string_view kP3Value = "0b001X_1000";
   constexpr std::string_view kP4Value = "0b1X10_0000";
   constexpr std::string_view kDefaultValue = "0b0000_0000";
-  constexpr std::string_view kP1Or2Value = "0b0000_XXXX";
+  constexpr std::string_view kP1Or2Value = "0b0000_XX1X";
   // Bits
   {
     auto p = CreatePackage();
@@ -1737,6 +1737,20 @@ TEST_F(TernaryQueryEngineTest, Repopulate) {
 
   XLS_EXPECT_OK(query_engine.Populate(f).status());
   EXPECT_THAT(query_engine.ToString(result.node()), "0b0");
+}
+
+TEST_F(TernaryQueryEngineTest, PrioritySelectJoin) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue v = fb.PrioritySelect(sel, {fb.Literal(UBits(127, 8))},
+                               fb.Literal(UBits(255, 8)));
+  BValue nv = fb.Not(v);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  TernaryQueryEngine query_engine;
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+  EXPECT_THAT(query_engine.ToString(v.node()), "0bX111_1111");
+  EXPECT_THAT(query_engine.ToString(nv.node()), "0bX000_0000");
 }
 
 namespace {

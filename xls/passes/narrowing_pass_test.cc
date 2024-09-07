@@ -1274,16 +1274,30 @@ TEST_F(ContextNarrowingPassTest, KnownSmallAdd) {
       << f->DumpIr();
 }
 
-TEST_P(NarrowingPassTest, FullNegativeNarrow) {
-  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
-    GTEST_SKIP() << "Skip due to bug in ternary analysis that causes this "
-                    "optimization to be incorrectly missed.";
-  }
+TEST_P(NarrowingPassTest, FullNegativeNarrowLit) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue sel = fb.Param("sel", p->GetBitsType(1));
   BValue v = fb.PrioritySelect(sel, {fb.Literal(UBits(127, 8))},
                                fb.Literal(UBits(255, 8)));
+  BValue nv = fb.Not(v);
+  fb.UMul(nv, nv);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
+}
+
+TEST_P(NarrowingPassTest, FullNegativeNarrow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue lb = fb.Param("lb", p->GetBitsType(1));
+  BValue rb = fb.Param("rb", p->GetBitsType(1));
+  BValue v = fb.PrioritySelect(sel, {fb.Concat({lb, fb.Literal(SBits(-1, 7))})},
+                               fb.Concat({rb, fb.Literal(SBits(-1, 7))}));
   BValue nv = fb.Not(v);
   fb.UMul(nv, nv);
 

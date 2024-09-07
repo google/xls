@@ -47,6 +47,20 @@ class TernaryEvaluator
   TernaryValue Or(const TernaryValue& a, const TernaryValue& b) const {
     return ternary_ops::Or(a, b);
   }
+
+  TernaryValue If(TernaryValue sel, TernaryValue consequent,
+                  TernaryValue alternate) const {
+    if (consequent == alternate) {
+      return consequent;
+    }
+    if (sel == TernaryValue::kKnownOne) {
+      return consequent;
+    }
+    if (sel == TernaryValue::kKnownZero) {
+      return alternate;
+    }
+    return TernaryValue::kUnknown;
+  }
 };
 
 }  // namespace xls

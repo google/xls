@@ -79,6 +79,22 @@ class AbstractEvaluator {
     return static_cast<const EvaluatorT*>(this)->Or(a, b);
   }
 
+  // If operation. Consequent if 'sel' is true, alt if 'sel' is false.
+  Element If(Element sel, Element consequent, Element alternate) const {
+    return static_cast<const EvaluatorT*>(this)->If(sel, consequent, alternate);
+  }
+
+  // If operation applied to each bit of the consequent and alternate.
+  Vector IfBits(Element sel, Span consequent, Span alternate) {
+    Vector result;
+    CHECK_EQ(consequent.size(), alternate.size());
+    result.reserve(consequent.size());
+    for (int64_t i = 0; i < consequent.size(); ++i) {
+      result.push_back(If(sel, consequent[i], alternate[i]));
+    }
+    return result;
+  }
+
   Element Xor(const Element& a, const Element& b) const {
     return And(Or(a, b), Not(And(a, b)));
   }
@@ -357,7 +373,7 @@ class AbstractEvaluator {
     return Add(BitwiseNot(x), BitsToVector(UBits(1, x.size())));
   }
 
-  Vector Abs(Span x) { return Select({x.back()}, {x, Neg(x)}); }
+  Vector Abs(Span x) { return IfBits(x.back(), Neg(x), x); }
 
   // Signed multiplication of two Vectors.
   // Returns a Vector of a.size() + b.size().
@@ -506,7 +522,7 @@ class AbstractEvaluator {
   //
   // Implements long division.
   DivisionResult UDivMod(Span n, Span d) {
-    Vector nonzero_divisor = OrReduce(d);
+    Element nonzero_divisor = OrReduce(d).front();
     Vector divisor = ZeroExtend(d, d.size() + 1);
     Vector neg_divisor = Neg(divisor);
 
@@ -520,15 +536,15 @@ class AbstractEvaluator {
       // If r >= divisor, then subtract divisor from r and set q[i] := 1.
       // Otherwise, set q[i] := 0.
       q[i] = Not(ULessThan(r, divisor));
-      r = Select({q[i]}, {r, Add(r, neg_divisor)});
+      r = IfBits(q[i], Add(r, neg_divisor), r);
 
       // Remove the MSB of r; guaranteed to be 0 because r < d.
       // Ensures r.size() == d.size().
       r.erase(r.end() - 1);
     }
     // If dividing by zero, return all 1s for q and all 0s for r.
-    q = Select({nonzero_divisor}, {Vector(q.size(), One()), q});
-    r = Select({nonzero_divisor}, {Vector(r.size(), Zero()), r});
+    q = IfBits(nonzero_divisor, q, Vector(q.size(), One()));
+    r = IfBits(nonzero_divisor, r, Vector(r.size(), Zero()));
     return {.quotient = q, .remainder = r};
   }
   Vector UDiv(Span n, Span d) { return UDivMod(n, d).quotient; }
@@ -544,9 +560,9 @@ class AbstractEvaluator {
     Element d_negative = d.size() > 0 ? d.back() : Zero();
     DivisionResult result = UDivMod(Abs(n), Abs(d));
     result.remainder =
-        Select({n_negative}, {result.remainder, Neg(result.remainder)});
-    result.quotient = Select({Xor(n_negative, d_negative)},
-                             {result.quotient, Neg(result.quotient)});
+        IfBits(n_negative, Neg(result.remainder), result.remainder);
+    result.quotient = IfBits(Xor(n_negative, d_negative), Neg(result.quotient),
+                             result.quotient);
     // If dividing by zero and n is negative, return largest negative value;
     // otherwise, return largest positive value.
     Vector largest_positive = Vector(result.quotient.size(), One());
@@ -575,26 +591,25 @@ class AbstractEvaluator {
     int64_t width = cases.front().size();
     Vector result(width, Zero());
     for (int64_t i = 0; i < selector.size(); ++i) {
-      for (int64_t j = 0; j < width; ++j) {
-        result[j] = Or(result[j], And(cases[i][j], selector[i]));
-      }
+      result = IfBits(selector[i], BitwiseOr(cases[i], result), result);
     }
-    if (!selector_can_be_zero) {
-      // If the selector cannot be zero, then a bit of the output can only be
-      // zero if one of the respective bits of one of the cases is zero.
-      // Construct such a mask and or it with the result.
-      Vector and_reduction(width, One());
-      for (int64_t i = 0; i < selector.size(); ++i) {
-        if (selector[i] != Zero()) {
-          for (int64_t j = 0; j < width; ++j) {
-            and_reduction[j] = And(and_reduction[j], cases[i][j]);
-          }
+    if (selector_can_be_zero) {
+      return result;
+    }
+    // If the selector cannot be zero, then a bit of the output can only be
+    // zero if one of the respective bits of one of the cases is zero.
+    // Construct such a mask and or it with the result.
+    Vector and_reduction(width, One());
+    for (int64_t i = 0; i < selector.size(); ++i) {
+      if (selector[i] != Zero()) {
+        for (int64_t j = 0; j < width; ++j) {
+          and_reduction[j] = And(and_reduction[j], cases[i][j]);
         }
       }
-      result = BitwiseOr(and_reduction, result);
     }
-    return result;
+    return BitwiseOr(and_reduction, result);
   }
+
   template <typename SpanOfSpanLike>
   Vector SelectInternal(
       Span selector, SpanOfSpanLike cases,
@@ -629,26 +644,16 @@ class AbstractEvaluator {
     for (absl::Span<const Element> case_span : cases) {
       CHECK_EQ(case_span.size(), width);
     }
-    Vector result(default_value.begin(), default_value.end());
-    for (int64_t i = selector.size() - 1; i >= 0; --i) {
-      for (int64_t j = 0; j < width; ++j) {
-        result[j] =
-            Or(And(cases[i][j], selector[i]), And(result[j], Not(selector[i])));
-      }
+    Vector result(cases[0].begin(), cases[0].end());
+    Element already_found = selector[0];
+    for (int64_t i = 1; i < selector.size(); ++i) {
+      result =
+          IfBits(And(Not(already_found), selector[i]), /*consequent=*/cases[i],
+                 /*alternate=*/result);
+      already_found = Or(already_found, selector[i]);
     }
-    if (!selector_can_be_zero) {
-      // If the selector cannot be zero, then a bit of the output can only be
-      // zero if one of the respective bits of one of the cases is zero.
-      // Construct such a mask and or it with the result.
-      Vector and_reduction(width, One());
-      for (int64_t i = 0; i < selector.size(); ++i) {
-        if (selector[i] != Zero()) {
-          for (int64_t j = 0; j < width; ++j) {
-            and_reduction[j] = And(and_reduction[j], cases[i][j]);
-          }
-        }
-      }
-      result = BitwiseOr(and_reduction, result);
+    if (selector_can_be_zero) {
+      return IfBits(already_found, result, default_value);
     }
     return result;
   }

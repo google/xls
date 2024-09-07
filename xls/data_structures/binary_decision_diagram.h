@@ -115,6 +115,10 @@ class BinaryDecisionDiagram {
     return GetNode(expr).high == one() && GetNode(expr).low == zero();
   }
 
+  // Returns the node corresponding to the given if-then-else expression.
+  BddNodeIndex IfThenElse(BddNodeIndex cond, BddNodeIndex if_true,
+                          BddNodeIndex if_false);
+
  private:
   // Helper for constructing a DNF string respresentation.
   void ToStringDnfHelper(BddNodeIndex expr, int64_t* minterms_to_emit,
@@ -129,10 +133,6 @@ class BinaryDecisionDiagram {
   // Returns the node equal to given expression with the given variable
   // set to the given value.
   BddNodeIndex Restrict(BddNodeIndex expr, BddVariable var, bool value);
-
-  // Returns the node corresponding to the given if-then-else expression.
-  BddNodeIndex IfThenElse(BddNodeIndex cond, BddNodeIndex if_true,
-                          BddNodeIndex if_false);
 
   // Returns the node corresponding to the value of the given variable.
   BddNodeIndex GetVariableBaseNode(BddVariable variable) const {

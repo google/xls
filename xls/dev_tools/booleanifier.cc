@@ -69,6 +69,19 @@ class BitEvaluator : public AbstractEvaluator<Node*, BitEvaluator> {
   Node* Or(Node* const& a, Node* const& b) const {
     return builder_->Or(BValue(a, builder_), BValue(b, builder_)).node();
   }
+  Node* If(Node* sel, Node* consequent, Node* alternate) const {
+    // Law of excluded middle applies so this is valid.
+    //    sel | con | alt | res
+    //     0  |  0  |  0  |  0
+    //     0  |  0  |  1  |  1
+    //     0  |  1  |  0  |  0
+    //     0  |  1  |  1  |  1
+    //     1  |  0  |  0  |  0
+    //     1  |  0  |  1  |  0
+    //     1  |  1  |  0  |  1
+    //     1  |  1  |  1  |  1
+    return Or(And(sel, consequent), And(Not(sel), alternate));
+  }
 
  private:
   FunctionBuilder* builder_;

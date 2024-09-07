@@ -92,6 +92,13 @@ class TestAbstractEvaluator
     return {static_cast<bool>(static_cast<int>(a.value) |
                               static_cast<int>(b.value))};
   }
+  BoxedBool If(const BoxedBool& sel, const BoxedBool& consequent,
+               const BoxedBool& alternate) const {
+    if (sel.value) {
+      return consequent;
+    }
+    return alternate;
+  }
 };
 
 using BoxedBoolNodeEvaluator = AbstractNodeEvaluator<TestAbstractEvaluator>;

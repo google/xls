@@ -116,6 +116,10 @@ class Z3AbstractEvaluator
   Element Or(const Element& a, const Element& b) const {
     return translator_.Or(a, b);
   }
+  Element If(const Element& sel, const Element& consequent,
+             const Element& alternate) const {
+    return translator_.If(sel, consequent, alternate);
+  }
 
  private:
   mutable Z3OpTranslator translator_;
