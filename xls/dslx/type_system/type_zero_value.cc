@@ -88,7 +88,8 @@ absl::StatusOr<InterpValue> ZeroOfLeafType(const Type& type,
       return TypeInferenceErrorStatus(
           span, enum_type,
           absl::StrFormat("Enum type '%s' does not have a known zero value.",
-                          enum_type->nominal_type().identifier()));
+                          enum_type->nominal_type().identifier()),
+          import_data.file_table());
     }
 
     XLS_ASSIGN_OR_RETURN(int64_t size, enum_type->size().GetAsInt64());
@@ -115,7 +116,8 @@ absl::StatusOr<InterpValue> AllOnesOfLeafType(const Type& type,
           span, enum_type,
           absl::StrFormat(
               "Enum type '%s' does not have a known all-ones value.",
-              enum_type->nominal_type().identifier()));
+              enum_type->nominal_type().identifier()),
+          import_data.file_table());
     }
     XLS_ASSIGN_OR_RETURN(int64_t size, enum_type->size().GetAsInt64());
     return InterpValue::MakeEnum(Bits::AllOnes(size), enum_type->is_signed(),
@@ -155,22 +157,26 @@ class MakeValueVisitor : public TypeVisitor {
   absl::Status HandleFunction(const FunctionType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of function type."));
+        absl::StrCat("Cannot make a ", value_name_, " of function type."),
+        file_table());
   }
   absl::Status HandleChannel(const ChannelType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of channel type."));
+        absl::StrCat("Cannot make a ", value_name_, " of channel type."),
+        file_table());
   }
   absl::Status HandleToken(const TokenType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of token type."));
+        absl::StrCat("Cannot make a ", value_name_, " of token type."),
+        file_table());
   }
   absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
     return TypeInferenceErrorStatus(span_, &t,
                                     absl::StrCat("Cannot make a ", value_name_,
-                                                 "of bits-constructor type."));
+                                                 "of bits-constructor type."),
+                                    file_table());
   }
   absl::Status HandleStruct(const StructType& t) override {
     std::vector<InterpValue> elems;
@@ -207,13 +213,16 @@ class MakeValueVisitor : public TypeVisitor {
   absl::Status HandleMeta(const MetaType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of a meta-type."));
+        absl::StrCat("Cannot make a ", value_name_, " of a meta-type."),
+        file_table());
   }
 
   absl::StatusOr<InterpValue> ResultOrError() const {
     XLS_RET_CHECK(result_.has_value());
     return *result_;
   }
+
+  const FileTable& file_table() const { return import_data_.file_table(); }
 
  private:
   LeafFn leaf_fn_;
@@ -228,7 +237,7 @@ class MakeValueVisitor : public TypeVisitor {
 absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span) {
-  VLOG(5) << "MakeZeroValue; type: " << type << " @ " << span;
+  VLOG(5) << "MakeZeroValue; type: " << type;
   MakeValueVisitor v(ZeroOfLeafType, import_data, span, kZeroValueName);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   return v.ResultOrError();
@@ -237,7 +246,7 @@ absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
 absl::StatusOr<InterpValue> MakeAllOnesValue(const Type& type,
                                              const ImportData& import_data,
                                              const Span& span) {
-  VLOG(5) << "MakeAllOnesValue; type: " << type << " @ " << span;
+  VLOG(5) << "MakeAllOnesValue; type: " << type;
   MakeValueVisitor v(AllOnesOfLeafType, import_data, span, kAllOnesValueName);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   return v.ResultOrError();

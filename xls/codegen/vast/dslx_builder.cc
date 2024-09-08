@@ -96,7 +96,7 @@ dslx::CommentData CommentAfter(const dslx::Span& span,
                                const std::string& comment) {
   dslx::Span comment_span(
       span.limit().BumpCol(),
-      dslx::Pos(span.filename(), span.limit().lineno() + 1, 0));
+      dslx::Pos(span.fileno(), span.limit().lineno() + 1, 0));
   return dslx::CommentData{.span = comment_span, .text = comment};
 }
 
@@ -112,8 +112,7 @@ dslx::CommentData CommentAtBeginning(const dslx::AstNode* node,
   std::optional<dslx::Span> span = node->GetSpan();
   QCHECK(span.has_value());
   dslx::Span comment_span(
-      span->start(),
-      dslx::Pos(span->filename(), span->start().lineno() + 1, 0));
+      span->start(), dslx::Pos(span->fileno(), span->start().lineno() + 1, 0));
   return dslx::CommentData{.span = comment_span, .text = comment};
 }
 
@@ -169,8 +168,8 @@ dslx::NameDef* DslxResolver::MakeNameDef(
           : GetNamespacedName(builder.module(), name, vast_module);
   const std::string name_in_dslx_code =
       generate_combined_dslx_module_ ? namespaced_name : std::string(name);
-  VLOG(3) << "MakeNameDef; span: " << span << " name: `" << namespaced_name
-          << "`";
+  VLOG(3) << "MakeNameDef; span: " << span.ToString(builder.file_table())
+          << " name: `" << namespaced_name << "`";
   auto* name_def = builder.module().Make<dslx::NameDef>(span, name_in_dslx_code,
                                                         /*definer=*/nullptr);
   namespaced_name_to_namedef_.emplace(namespaced_name, name_def);
@@ -195,8 +194,9 @@ absl::StatusOr<dslx::Expr*> DslxResolver::MakeNameRef(
       GetNamespacedName(builder.module(), name, vast_module);
   const std::string name_in_dslx_code =
       generate_combined_dslx_module_ ? namespaced_name : std::string(name);
-  VLOG(3) << "MakeNameRef; span: " << span << " name: `" << name_in_dslx_code
-          << "`" << " vast module: "
+  VLOG(3) << "MakeNameRef; span: " << span.ToString(builder.file_table())
+          << " name: `" << name_in_dslx_code << "`"
+          << " vast module: "
           << (vast_module.has_value() ? (*vast_module)->name() : "none");
   const auto it = namespaced_name_to_namedef_.find(namespaced_name);
   if (it == namespaced_name_to_namedef_.end()) {
@@ -289,14 +289,15 @@ DslxBuilder::DslxBuilder(
     const absl::flat_hash_map<verilog::Expression*, verilog::DataType*>&
         vast_type_map,
     dslx::WarningCollector& warnings)
-    : module_(std::string(main_module_name), /*fs_path=*/std::nullopt),
-      resolver_(resolver),
-      dslx_stdlib_path_(dslx_stdlib_path),
-      additional_search_paths_(
+    : additional_search_paths_(
           WrapOptionalPathInVector(additional_search_path)),
+      dslx_stdlib_path_(dslx_stdlib_path),
       import_data_(dslx::CreateImportData(
-          dslx_stdlib_path, additional_search_paths_,
+          dslx_stdlib_path_, additional_search_paths_,
           /*enabled_warnings=*/dslx::kDefaultWarningsSet)),
+      module_(std::string(main_module_name), /*fs_path=*/std::nullopt,
+              import_data_.file_table()),
+      resolver_(resolver),
       warnings_(warnings),
       type_info_(GetTypeInfoOrDie(import_data_, &module_)),
       deduce_ctx_(
@@ -427,7 +428,8 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::ConvertMaxToWidth(
       binop && binop->binop_kind() == dslx::BinopKind::kSub) {
     auto* rhs_number = dynamic_cast<dslx::Number*>(binop->rhs());
     if (rhs_number != nullptr) {
-      absl::StatusOr<uint64_t> rhs_value = rhs_number->GetAsUint64();
+      absl::StatusOr<uint64_t> rhs_value =
+          rhs_number->GetAsUint64(file_table());
       if (rhs_value.ok() && *rhs_value == 1) {
         return MaybeCast(unsigned_int_type, binop->lhs());
       }
@@ -517,7 +519,8 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
   }
 
   if (!module().FindMemberWithName(tail)) {
-    dslx::Span span{dslx::Pos(), dslx::Pos()};
+    VLOG(2) << "Could not find module member that represents import of: "
+            << import_tokens.ToString();
     XLS_ASSIGN_OR_RETURN(dslx::ModuleInfo * mod_info,
                          dslx::DoImport(
                              [this](dslx::Module* module) {
@@ -526,9 +529,11 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
                              },
                              import_tokens, &import_data_, dslx::Span::Fake()));
 
-    auto* name_def = resolver_->MakeNameDef(*this, span, tail);
-    auto* import = module().Make<dslx::Import>(span, import_tokens.pieces(),
-                                               *name_def, std::nullopt);
+    auto* name_def = resolver_->MakeNameDef(*this, dslx::Span::Fake(), tail);
+    VLOG(2) << "Creating import node via name definition `"
+            << name_def->ToString() << "`";
+    auto* import = module().Make<dslx::Import>(
+        dslx::Span::Fake(), import_tokens.pieces(), *name_def, std::nullopt);
     name_def->set_definer(import);
     XLS_RETURN_IF_ERROR(
         module().AddTop(import, /*make_collision_error=*/nullptr));
@@ -727,11 +732,12 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
   // relative to the appropriate spans.
   const std::string text = module_.ToString();
   const std::string file_name = module_.name() + ".x";
-  dslx::Scanner scanner(file_name, text);
-  dslx::Parser parser(module_.name(), &scanner);
   auto import_data =
       dslx::CreateImportData(dslx_stdlib_path_, additional_search_paths_,
                              /*enabled_warnings=*/dslx::kDefaultWarningsSet);
+  dslx::Fileno fileno = import_data.file_table().GetOrCreate(file_name);
+  dslx::Scanner scanner(import_data.file_table(), fileno, text);
+  dslx::Parser parser(module_.name(), &scanner);
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule parsed_module,
       ParseAndTypecheck(text, file_name, module_.name(), &import_data));

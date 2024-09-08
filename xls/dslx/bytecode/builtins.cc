@@ -423,7 +423,8 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                                  lhs_values[*i].ToHumanString(),
                                  rhs_values[*i].ToHumanString());
     }
-    return FailureErrorStatus(bytecode.source_span(), message);
+    return FailureErrorStatus(bytecode.source_span(), message,
+                              stack.file_table());
   }
 
   return absl::OkStatus();
@@ -450,7 +451,8 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                                                    bytecode, frame, options));
     std::string message = absl::StrFormat(
         "\n  lhs: %s\n was not less than rhs: %s", lhs_string, rhs_string);
-    return FailureErrorStatus(bytecode.source_span(), message);
+    return FailureErrorStatus(bytecode.source_span(), message,
+                              stack.file_table());
   }
 
   return absl::OkStatus();

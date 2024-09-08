@@ -40,8 +40,12 @@ namespace xls::dslx {
 
 // -- class Module
 
-Module::Module(std::string name, std::optional<std::filesystem::path> fs_path)
-    : AstNode(this), name_(std::move(name)), fs_path_(std::move(fs_path)) {
+Module::Module(std::string name, std::optional<std::filesystem::path> fs_path,
+               FileTable& file_table)
+    : AstNode(this),
+      name_(std::move(name)),
+      fs_path_(std::move(fs_path)),
+      file_table_(&file_table) {
   VLOG(3) << "Created module \"" << name_ << "\" @ " << this;
 }
 
@@ -354,7 +358,8 @@ absl::Status Module::AddTop(ModuleMember member,
     }
     return absl::InvalidArgumentError(absl::StrFormat(
         "Module %s already contains a member named %s @ %s: %s", name_,
-        member_name.value(), existing_span.ToString(), node->ToString()));
+        member_name.value(), existing_span.ToString(*file_table_),
+        node->ToString()));
   }
 
   top_.push_back(member);

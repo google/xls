@@ -369,8 +369,9 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
 }
 
 absl::Status BytecodeEmitter::HandleStatementBlock(const StatementBlock* node) {
-  VLOG(5) << "BytecodeEmitter::HandleStatementBlock @ " << node->span()
-          << " trailing semi? " << node->trailing_semi();
+  VLOG(5) << "BytecodeEmitter::HandleStatementBlock @ "
+          << node->span().ToString(file_table()) << " trailing semi? "
+          << node->trailing_semi();
   const Expr* last_expression = nullptr;
   for (const Statement* s : node->statements()) {
     // Do not permit expression-statements to have a result on the stack for any
@@ -569,7 +570,8 @@ static absl::Status CheckSupportedCastTypes(const AstNode* node,
 }
 
 absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
-  VLOG(5) << "BytecodeEmitter::HandleCast @ " << node->span();
+  VLOG(5) << "BytecodeEmitter::HandleCast @ "
+          << node->span().ToString(file_table());
 
   const Expr* from_expr = node->expr();
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -708,7 +710,8 @@ absl::Status BytecodeEmitter::HandleBuiltinSendIf(const Invocation* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBuiltinDecode(const Invocation* node) {
-  VLOG(5) << "BytecodeEmitter::HandleInvocation - Decode @ " << node->span();
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - Decode @ "
+          << node->span().ToString(file_table());
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -723,7 +726,7 @@ absl::Status BytecodeEmitter::HandleBuiltinDecode(const Invocation* node) {
 
 absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
   VLOG(5) << "BytecodeEmitter::HandleInvocation - CheckedCast @ "
-          << node->span();
+          << node->span().ToString(file_table());
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -739,7 +742,7 @@ absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
 absl::Status BytecodeEmitter::HandleBuiltinWideningCast(
     const Invocation* node) {
   VLOG(5) << "BytecodeEmitter::HandleInvocation - WideningCast @ "
-          << node->span();
+          << node->span().ToString(file_table());
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
@@ -1227,7 +1230,8 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
   auto* tuple_type = down_cast<TupleType*>(type);
   if (tuple_type == nullptr) {
     return TypeInferenceErrorStatus(
-        tree->span(), type, "Pattern expected matched-on type to be a tuple.");
+        tree->span(), type, "Pattern expected matched-on type to be a tuple.",
+        file_table());
   }
 
   XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
@@ -1353,7 +1357,7 @@ absl::Status BytecodeEmitter::HandleLet(const Let* node) {
   }
   return absl::InternalError(absl::StrFormat(
       "@ %s: Could not retrieve type of right-hand side of `let`.",
-      node->span().ToString()));
+      node->span().ToString(file_table())));
 }
 
 absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {
@@ -1403,10 +1407,10 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
     }
   }
 
-  return absl::InternalError(
-      absl::StrCat("BytecodeEmitter could not find slot or binding for name: ",
-                   name_def->ToString(), " @ ", name_def->span().ToString(),
-                   " stack: ", GetSymbolizedStackTraceAsString()));
+  return absl::InternalError(absl::StrCat(
+      "BytecodeEmitter could not find slot or binding for name: ",
+      name_def->ToString(), " @ ", name_def->span().ToString(file_table()),
+      " stack: ", GetSymbolizedStackTraceAsString()));
 }
 
 absl::Status BytecodeEmitter::HandleNumber(const Number* node) {
@@ -1432,7 +1436,7 @@ BytecodeEmitter::HandleNumberInternal(const Number* node) {
   XLS_ASSIGN_OR_RETURN(int64_t dim_val, bits_like->size.GetAsInt64());
   XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
 
-  XLS_ASSIGN_OR_RETURN(Bits bits_value, node->GetBits(dim_val));
+  XLS_ASSIGN_OR_RETURN(Bits bits_value, node->GetBits(dim_val, file_table()));
   return FormattedInterpValue{
       .value = InterpValue::MakeBits(is_signed, bits_value),
       .format_descriptor = GetFormatDescriptorFromNumber(node)};

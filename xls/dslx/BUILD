@@ -510,6 +510,7 @@ cc_library(
     srcs = ["command_line_utils.cc"],
     hdrs = ["command_line_utils.h"],
     deps = [
+        "//xls/dslx/frontend:pos",
         ":error_printer",
         "//xls/common/status:ret_check",
         "//xls/dslx/frontend:bindings",

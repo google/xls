@@ -62,8 +62,7 @@ ChannelScope::ChannelScope(PackageConversionData* conversion_info,
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
     const ChannelDecl* decl) {
-  VLOG(4) << "ChannelScope::HandleChannelDecl: " << decl->ToString() << " : "
-          << decl->span().ToString();
+  VLOG(4) << "ChannelScope::HandleChannelDecl: " << decl->ToString();
   CHECK(function_context_.has_value());
   XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
                        CreateBaseChannelName(decl));

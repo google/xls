@@ -240,9 +240,9 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
     return absl::OkStatus();
   }
 
-  return absl::InternalError(
-      absl::StrFormat("Unhandled parameter type for symbolic binding: %s @ %s",
-                      param_type.ToString(), ctx.span.ToString()));
+  return absl::InternalError(absl::StrFormat(
+      "Unhandled parameter type for symbolic binding: %s @ %s",
+      param_type.ToString(), ctx.span.ToString(ctx.deduce_ctx.file_table())));
 }
 
 }  // namespace xls::dslx

@@ -2119,7 +2119,8 @@ absl::StatusOr<bool> Number::FitsInType(int64_t bit_count) const {
       absl::StrFormat("Unreachable; invalid number kind: %d", number_kind_));
 }
 
-absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
+absl::StatusOr<Bits> Number::GetBits(int64_t bit_count,
+                                     const FileTable& file_table) const {
   XLS_RET_CHECK_GE(bit_count, 0);
   switch (number_kind_) {
     case NumberKind::kBool: {
@@ -2139,7 +2140,8 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
       XLS_RET_CHECK(bit_count >= bits.bit_count()) << absl::StreamFormat(
           "Internal error: %s Cannot fit number value %s in %d bits; %d "
           "required: `%s`",
-          span().ToString(), text_, bit_count, bits.bit_count(), ToString());
+          span().ToString(file_table), text_, bit_count, bits.bit_count(),
+          ToString());
       bits = bits_ops::ZeroExtend(bits, bit_count);
       if (sign) {
         bits = bits_ops::Negate(bits);
@@ -2154,7 +2156,7 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
 TypeAlias::TypeAlias(Module* owner, Span span, NameDef& name_def,
                      TypeAnnotation& type, bool is_public)
     : AstNode(owner),
-      span_(std::move(span)),
+      span_(span),
       name_def_(name_def),
       type_annotation_(type),
       is_public_(is_public) {}

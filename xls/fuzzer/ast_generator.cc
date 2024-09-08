@@ -1294,8 +1294,9 @@ int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
 }
 
 absl::StatusOr<uint64_t> AstGenerator::GetExprAsUint64(Expr* expr) {
+  const FileTable& file_table = *expr->owner()->file_table();
   if (auto* number = dynamic_cast<Number*>(expr)) {
-    return number->GetAsUint64();
+    return number->GetAsUint64(file_table);
   }
   auto* const_ref = dynamic_cast<ConstRef*>(expr);
   if (const_ref == nullptr) {
@@ -1304,7 +1305,7 @@ absl::StatusOr<uint64_t> AstGenerator::GetExprAsUint64(Expr* expr) {
   ConstantDef* const_def = constants_[const_ref->identifier()];
   Number* number = dynamic_cast<Number*>(const_def->value());
   XLS_RET_CHECK(number != nullptr) << const_def->ToString();
-  return number->GetAsUint64();
+  return number->GetAsUint64(file_table);
 }
 
 int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
@@ -3053,7 +3054,8 @@ absl::StatusOr<int64_t> AstGenerator::GenerateProcInModule(
 
 absl::StatusOr<AnnotatedModule> AstGenerator::Generate(
     const std::string& top_entity_name, const std::string& module_name) {
-  module_ = std::make_unique<Module>(module_name, /*fs_path=*/std::nullopt);
+  module_ = std::make_unique<Module>(module_name, /*fs_path=*/std::nullopt,
+                                     file_table_);
   int64_t min_stages = 1;
   if (options_.generate_proc) {
     XLS_ASSIGN_OR_RETURN(min_stages, GenerateProcInModule(top_entity_name));
@@ -3064,10 +3066,12 @@ absl::StatusOr<AnnotatedModule> AstGenerator::Generate(
                          .min_stages = min_stages};
 }
 
-AstGenerator::AstGenerator(AstGeneratorOptions options, absl::BitGenRef bit_gen)
+AstGenerator::AstGenerator(AstGeneratorOptions options, absl::BitGenRef bit_gen,
+                           FileTable& file_table)
     : bit_gen_(bit_gen),
       options_(options),
-      fake_pos_("<fake>", 0, 0),
+      file_table_(file_table),
+      fake_pos_(Fileno(0), 0, 0),
       fake_span_(fake_pos_, fake_pos_) {}
 
 }  // namespace xls::dslx

@@ -27,14 +27,14 @@
 namespace xls::dslx {
 
 /* static */ InterpreterStack InterpreterStack::CreateForTest(
-    absl::Span<const InterpValue> stack) {
+    const FileTable& file_table, absl::Span<const InterpValue> stack) {
   std::vector<FormattedInterpValue> elements;
   elements.reserve(stack.size());
   for (const InterpValue& value : stack) {
     elements.push_back(FormattedInterpValue{.value = value,
                                             .format_descriptor = std::nullopt});
   }
-  return InterpreterStack{std::move(elements)};
+  return InterpreterStack{file_table, std::move(elements)};
 }
 
 std::string InterpreterStack::ToString() const {

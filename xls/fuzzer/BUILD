@@ -791,6 +791,7 @@ cc_library(
     srcs = ["dslx_mutator.cc"],
     hdrs = ["dslx_mutator.h"],
     deps = [
+        "//xls/dslx/frontend:pos",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/frontend:token",

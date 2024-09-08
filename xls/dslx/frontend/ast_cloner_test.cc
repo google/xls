@@ -18,10 +18,9 @@
 #include <string>
 #include <string_view>
 #include <variant>
-#include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
@@ -60,14 +59,15 @@ fn main() -> u32 {
     u32:3
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   StatementBlock* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, NameRefs) {
@@ -82,14 +82,15 @@ fn main() -> u32 {
     a
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   StatementBlock* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, ReplaceOneOfTwoNameRefs) {
@@ -106,8 +107,9 @@ fn main() -> u32 {
     b
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   Number* a_replacement =
@@ -126,7 +128,7 @@ fn main() -> u32 {
                  return std::nullopt;
                }));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, XlsTuple) {
@@ -144,14 +146,15 @@ fn main() -> (u32, u32) {
     (a, b)
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   StatementBlock* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, BasicFunction) {
@@ -161,13 +164,14 @@ TEST(AstClonerTest, BasicFunction) {
     (a, b)
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f, clone));
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, StructDefAndInstance) {
@@ -191,8 +195,9 @@ fn main() -> MyStruct {
     MyStruct { a: u32:0, b: s64:0xbeef }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   StructDef* struct_def = module->GetStructDefs().at(0);
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(struct_def));
   EXPECT_EQ(kExpectedStructDef, clone->ToString());
@@ -201,7 +206,7 @@ fn main() -> MyStruct {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f, clone));
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, ColonRefToImportedStruct) {
@@ -219,13 +224,14 @@ fn main() -> foo::ImportedStruct {
     bar.b
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f, clone));
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, ArraysAndConstantDefs) {
@@ -240,13 +246,14 @@ fn main() -> u32[ARRAY_SIZE] {
     u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f, clone));
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, Binops) {
@@ -254,13 +261,14 @@ TEST(AstClonerTest, Binops) {
     u13:5 + u13:500
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f, clone));
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, Unops) {
@@ -268,13 +276,14 @@ TEST(AstClonerTest, Unops) {
     -u13:500
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f, clone));
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, Casts) {
@@ -282,13 +291,14 @@ TEST(AstClonerTest, Casts) {
     -u17:500 as u13
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f, clone));
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, Procs) {
@@ -306,12 +316,13 @@ TEST(AstClonerTest, Procs) {
     }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p, module->GetMemberOrError<Proc>("MyProc"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(p));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(p, clone));
+  XLS_ASSERT_OK(VerifyClone(p, clone, *module->file_table()));
 }
 
 TEST(AstClonerTest, TestFunctions) {
@@ -322,13 +333,14 @@ fn my_test() {
     ()
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            module->GetMemberOrError<TestFunction>("my_test"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(tf));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(tf, clone));
+  XLS_ASSERT_OK(VerifyClone(tf, clone, file_table));
 }
 
 TEST(AstClonerTest, TestProcs) {
@@ -348,13 +360,14 @@ proc my_test_proc {
     }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * tp,
                            module->GetMemberOrError<TestProc>("my_test_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(tp));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(tp, clone));
+  XLS_ASSERT_OK(VerifyClone(tp, clone, file_table));
 }
 
 TEST(AstClonerTest, EnumDef) {
@@ -365,27 +378,29 @@ TEST(AstClonerTest, EnumDef) {
     FOREVER = 3,
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(EnumDef * enum_def,
                            module->GetMemberOrError<EnumDef>("MyEnum"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(enum_def));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(enum_def, clone));
+  XLS_ASSERT_OK(VerifyClone(enum_def, clone, file_table));
 }
 
 TEST(AstClonerTest, TypeAlias) {
   constexpr std::string_view kProgram =
       R"(type RobsUnnecessaryType = uN[0xbeef];)";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(
       TypeAlias * type_alias,
       module->GetMemberOrError<TypeAlias>("RobsUnnecessaryType"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(type_alias));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(type_alias, clone));
+  XLS_ASSERT_OK(VerifyClone(type_alias, clone, file_table));
 }
 
 TEST(AstClonerTest, PreserveTypeDefinitionsReplacer) {
@@ -397,8 +412,9 @@ fn foo() -> u32 {
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
                            module->GetMemberOrError<Function>("foo"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone,
@@ -417,14 +433,15 @@ fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
     (a + b) + c == a + (b + c)
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(
       QuickCheck * quick_check,
       module->GetMemberOrError<QuickCheck>("my_quickcheck"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(quick_check));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(quick_check, clone));
+  XLS_ASSERT_OK(VerifyClone(quick_check, clone, file_table));
 }
 
 TEST(AstClonerTest, CloneModule) {
@@ -490,12 +507,13 @@ proc my_proc {
     }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, IndexVariants) {
@@ -507,12 +525,13 @@ TEST(AstClonerTest, IndexVariants) {
     ()
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, SplatStructInstance) {
@@ -527,12 +546,13 @@ fn main() {
     ()
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, Ternary) {
@@ -541,12 +561,13 @@ TEST(AstClonerTest, Ternary) {
     if a > u32:5 { b } else { c }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
 TEST(AstClonerTest, FormatMacro) {
@@ -555,8 +576,9 @@ TEST(AstClonerTest, FormatMacro) {
     ()
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
@@ -575,8 +597,9 @@ fn main(x: u32, y: u32) -> u32 {
     }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
@@ -587,8 +610,9 @@ TEST(AstClonerTest, String) {
     "dogs are good"
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
@@ -599,8 +623,9 @@ TEST(AstClonerTest, ConstAssert) {
     const_assert!(true);
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
@@ -613,8 +638,9 @@ TEST(AstClonerTest, NormalFor) {
     }(u32:0)
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
@@ -625,8 +651,9 @@ TEST(AstClonerTest, TupleIndex) {
     (u8:8, u16:16, u32:32, u64:64).2
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
@@ -695,13 +722,16 @@ proc MyProc {
     }
 })";
 
+  FileTable file_table;
   absl::StatusOr<std::unique_ptr<Module>> module_or =
-      ParseModule(kProgram, "fake_path.x", "the_module");
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table);
   if (!module_or.ok()) {
-    TryPrintError(module_or.status(),
-                  [&](std::string_view path) -> absl::StatusOr<std::string> {
-                    return std::string(kProgram);
-                  });
+    TryPrintError(
+        module_or.status(),
+        [&](std::string_view path) -> absl::StatusOr<std::string> {
+          return std::string(kProgram);
+        },
+        file_table);
   }
   XLS_ASSERT_OK(module_or.status());
   Module* module = module_or.value().get();
@@ -718,8 +748,9 @@ fn bar() -> u32{
 }
 )";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(Function * main,
                            module->GetMemberOrError<Function>("bar"));
   StatementBlock* body_expr = main->body();

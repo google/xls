@@ -39,11 +39,12 @@
 
 namespace xls::dslx {
 
-std::string FnStackEntry::ToReprString() const {
+std::string FnStackEntry::ToReprString(const FileTable& file_table) const {
   if (f_ != nullptr) {
     return absl::StrFormat(
-        "FnStackEntry{.f = `%s` @ %v, .name = \"%s\", .parametric_env = %s}",
-        f_->identifier(), f_->span(), name_, parametric_env_.ToString());
+        "FnStackEntry{.f = `%s` @ %s, .name = \"%s\", .parametric_env = %s}",
+        f_->identifier(), f_->span().ToString(file_table), name_,
+        parametric_env_.ToString());
   }
   return absl::StrFormat("FnStackEntry{\"%s\", %s}", name_,
                          parametric_env_.ToString());
@@ -111,7 +112,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::Deduce(const AstNode* node) {
 
   if (dynamic_cast<const TypeAnnotation*>(node) != nullptr) {
     XLS_RET_CHECK(result->IsMeta())
-        << node->ToString() << " @ " << SpanToString(node->GetSpan());
+        << node->ToString() << " @ "
+        << SpanToString(node->GetSpan(), file_table());
   }
 
   return result;
@@ -155,7 +157,7 @@ std::string DeduceCtx::GetFnStackDebugString() const {
   std::stringstream ss;
   ss << absl::StreamFormat("== Function Stack for DeduceCtx %p\n", this);
   for (const FnStackEntry& fse : fn_stack_) {
-    ss << "  " << fse.ToReprString() << "\n";
+    ss << "  " << fse.ToReprString(file_table()) << "\n";
   }
   return ss.str();
 }

@@ -92,10 +92,11 @@ constexpr size_t kUsizeBits = 32;
 
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status IrConversionErrorStatus(const std::optional<Span>& span,
-                                     std::string_view message) {
-  return absl::InternalError(
-      absl::StrFormat("IrConversionError: %s %s",
-                      span ? span->ToString() : "<no span>", message));
+                                     std::string_view message,
+                                     const FileTable& file_table) {
+  return absl::InternalError(absl::StrFormat(
+      "IrConversionError: %s %s",
+      span ? span->ToString(file_table) : "<no span>", message));
 }
 
 // Convert a NameDefTree node variant to an AstNode pointer (either the leaf
@@ -249,8 +250,8 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // Causes node "n" to accept this visitor (basic double-dispatch).
   absl::Status Visit(const AstNode* n) {
     VLOG(6) << this << " visiting: `" << n->ToString() << "` ("
-            << n->GetNodeTypeName() << ")" << " @ "
-            << SpanToString(n->GetSpan());
+            << n->GetNodeTypeName() << ")"
+            << " @ " << SpanToString(n->GetSpan(), converter_->file_table());
     return n->Accept(this);
   }
 
@@ -374,7 +375,8 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   absl::Status Invalid(const AstNode* node) {
     return absl::UnimplementedError(absl::StrFormat(
         "AST node unsupported for IR conversion: %s @ %s",
-        node->GetNodeTypeName(), SpanToString(node->GetSpan())));
+        node->GetNodeTypeName(),
+        SpanToString(node->GetSpan(), converter_->file_table())));
   }
 
   // The converter object we call back to for node handling.
@@ -408,10 +410,10 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
       module_(module),
       import_data_(import_data),
       options_(options),
-      fileno_(module->fs_path().has_value()
-                  ? package_data.conversion_info->package->GetOrCreateFileno(
-                        std::string{module->fs_path().value()})
-                  : Fileno(0)),
+      ir_fileno_(module->fs_path().has_value()
+                     ? package_data.conversion_info->package->GetOrCreateFileno(
+                           std::string{module->fs_path().value()})
+                     : xls::Fileno(0)),
       proc_data_(proc_data),
       channel_scope_(channel_scope),
       is_top_(is_top) {
@@ -457,7 +459,7 @@ absl::Status FunctionConverter::DefAlias(const AstNode* from,
     return absl::InternalError(absl::StrFormat(
         "TypeAliasError: %s internal error during IR conversion: could not "
         "find AST node for aliasing: %s (%s) to: %s (%s)",
-        SpanToString(from->GetSpan()), from->ToString(),
+        SpanToString(from->GetSpan(), file_table()), from->ToString(),
         from->GetNodeTypeName(), to->ToString(), to->GetNodeTypeName()));
   }
   IrValue value = it->second;
@@ -490,7 +492,7 @@ absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
   VLOG(6) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
                                 node->ToString(), node->GetNodeTypeName(),
                                 IrValueToString(result),
-                                SpanToString(node->GetSpan()));
+                                SpanToString(node->GetSpan(), file_table()));
 
   // If there was an error in the function builder while defining this node
   // (which is an internal error -- the system-level expectation is that any
@@ -623,7 +625,7 @@ absl::Status FunctionConverter::HandleNumber(const Number* node) {
   XLS_ASSIGN_OR_RETURN(TypeDim dim, type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bit_count,
                        std::get<InterpValue>(dim.value()).GetBitValueViaSign());
-  XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
+  XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count, file_table()));
   DefConst(node, Value(bits));
   return absl::OkStatus();
 }
@@ -944,7 +946,8 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
         absl::StrFormat("CheckedCast to and from array "
                         "is not currently supported for IR conversion; "
                         "attempted checked cast from: %s to: %s",
-                        input_type->ToString(), output_type->ToString()));
+                        input_type->ToString(), output_type->ToString()),
+        file_table());
   }
 
   // TODO(tedhong): 2023-05-22 Add verilog assertion that cast has not
@@ -1002,7 +1005,8 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
     return IrConversionErrorStatus(
         node->span(),
         "Only matches with trailing irrefutable patterns (i.e. `_ => ...`) "
-        "are currently supported for IR conversion.");
+        "are currently supported for IR conversion.",
+        file_table());
   }
 
   XLS_RETURN_IF_ERROR(Visit(node->matched()));
@@ -1088,7 +1092,8 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
     return IrConversionErrorStatus(
         node->span(),
         "Multiple patterns in default arm "
-        "is not currently supported for IR conversion.");
+        "is not currently supported for IR conversion.",
+        file_table());
   }
   XLS_RETURN_IF_ERROR(
       HandleMatcher(default_arm->patterns()[0], matched, *matched_type)
@@ -1131,7 +1136,8 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
         absl::StrFormat("iterable `%s` "
                         "must be bits-typed, constexpr, and its start must be "
                         "less than or equal to its limit.",
-                        iterable->ToString()));
+                        iterable->ToString()),
+        file_table());
   };
 
   // Easy case first: using the `..` range operator.
@@ -1210,7 +1216,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   XLS_ASSIGN_OR_RETURN(RangeData range_data, GetRangeData(node->iterable()));
 
-  VLOG(5) << "Converting for-loop @ " << node->span();
+  VLOG(5) << "Converting for-loop @ " << node->span().ToString(file_table());
   FunctionConverter body_converter(package_data_, module_, import_data_,
                                    options_, proc_data_, channel_scope_,
                                    /*is_top=*/false);
@@ -1368,9 +1374,9 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
     std::optional<IrValue> ir_value = GetNodeToIr(freevar_name_def);
     if (!ir_value.has_value()) {
-      return absl::InternalError(
-          absl::StrFormat("AST node had no associated IR value: %s @ %s",
-                          node->ToString(), SpanToString(node->GetSpan())));
+      return absl::InternalError(absl::StrFormat(
+          "AST node had no associated IR value: %s @ %s", node->ToString(),
+          SpanToString(node->GetSpan(), file_table())));
     }
 
     // If free variable is a constant, create constant node inside body.
@@ -1760,7 +1766,7 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
     XLS_RET_CHECK(implicit_token_data_.has_value()) << absl::StreamFormat(
         "If callee (%s @ %s) requires an implicit token, caller must require "
         "a token as well (property is transitive across call graph).",
-        f->name(), node->span().ToString());
+        f->name(), node->span().ToString(file_table()));
     // Prepend the token and the control predicate boolean on the args.
     std::vector<BValue> new_args = {implicit_token_data_->entry_token};
     new_args.push_back(implicit_token_data_->create_control_predicate());
@@ -1803,8 +1809,9 @@ FunctionConverter::GetAssertionLabel(std::string_view caller_name,
 
   // TODO(cdleary): 2024-03-12 We should put the label into the assertion
   // failure error message.
-  std::string message = absl::StrFormat("Assertion failure via %s @ %s",
-                                        caller_name, span.ToString());
+  std::string message =
+      absl::StrFormat("Assertion failure via %s @ %s", caller_name,
+                      span.ToString(file_table()));
   return AssertionLabelData{.label = label.value(), .message = message};
 }
 
@@ -1816,7 +1823,7 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
     // "control" leading to this DSL program point.
     XLS_RET_CHECK(implicit_token_data_.has_value())
         << "Invoking fail!(), but no implicit token is present for caller @ "
-        << node->span();
+        << node->span().ToString(file_table());
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     BValue control_predicate = implicit_token_data_->create_control_predicate();
 
@@ -1874,7 +1881,7 @@ absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
     // "control" leading to this DSL program point.
     XLS_RET_CHECK(implicit_token_data_.has_value())
         << "Invoking assert!(), but no implicit token is present for caller @ "
-        << node->span();
+        << node->span().ToString(file_table());
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     BValue control_predicate = implicit_token_data_->create_control_predicate();
 
@@ -1906,7 +1913,7 @@ absl::Status FunctionConverter::HandleAssertBuiltin(const Invocation* node,
 absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   XLS_RET_CHECK(implicit_token_data_.has_value())
       << "Invoking trace_fmt!(), but no implicit token is present for caller @ "
-      << node->span();
+      << node->span().ToString(file_table());
   XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
   BValue control_predicate = implicit_token_data_->create_control_predicate();
 
@@ -1954,7 +1961,7 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
     // "control" leading to this DSL program point.
     XLS_RET_CHECK(implicit_token_data_.has_value())
         << "Invoking cover!(), but no implicit token is present for caller @ "
-        << node->span();
+        << node->span().ToString(file_table());
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     BValue control_predicate = implicit_token_data_->create_control_predicate();
 
@@ -2104,7 +2111,8 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
         absl::StrFormat("Could not find name for "
                         "invocation: `%s`; available: [%s]",
                         called_name,
-                        absl::StrJoin(module_->GetFunctionNames(), ", ")));
+                        absl::StrJoin(module_->GetFunctionNames(), ", ")),
+        file_table());
   }
   XLS_RETURN_IF_ERROR(accept_args().status());
   auto f = it->second;
@@ -2710,7 +2718,7 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
   if (std::optional<Import*> import = node->ResolveImportSubject()) {
-    VLOG(6) << "ColonRef @ " << node->span()
+    VLOG(6) << "ColonRef @ " << node->span().ToString(file_table())
             << " was import subject; import: " << import.value()->ToString();
     std::optional<const ImportedInfo*> imported =
         current_type_info_->GetImported(*import);
@@ -2879,7 +2887,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   XLS_RET_CHECK(resolved_parametric_env.has_value());
   VLOG(5) << absl::StreamFormat("Node `%s` (%s) @ %s parametric bindings %s",
                                 node->ToString(), node->GetNodeTypeName(),
-                                node->span().ToString(),
+                                node->span().ToString(file_table()),
                                 (*resolved_parametric_env)->ToString());
   XLS_RET_CHECK(!(*resolved_parametric_env)->empty());
   return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
@@ -2897,7 +2905,7 @@ absl::Status FunctionConverter::HandleUnrollFor(const UnrollFor* node) {
   if (!unrolled_expr.has_value()) {
     return absl::FailedPreconditionError(
         absl::StrCat("unroll_for! should have been unrolled by now at: ",
-                     node->span().ToString()));
+                     node->span().ToString(file_table())));
   }
   SetNodeToIr(node, node_to_ir_.at(*unrolled_expr));
   return absl::OkStatus();
@@ -3041,7 +3049,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
 
 absl::Status FunctionConverter::HandleAttr(const Attr* node) {
   VLOG(5) << "FunctionConverter::HandleAttr: " << node->ToString() << " @ "
-          << node->span().ToString();
+          << node->span().ToString(file_table());
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   std::optional<const Type*> lhs_type =
       current_type_info_->GetItem(node->lhs());
@@ -3583,7 +3591,8 @@ absl::StatusOr<std::unique_ptr<Type>> FunctionConverter::ResolveType(
         node->GetSpan(),
         absl::StrFormat("Failed to convert IR because type was missing for AST "
                         "node: %s (kind: %s)",
-                        node->ToString(), AstNodeKindToString(node->kind())));
+                        node->ToString(), AstNodeKindToString(node->kind())),
+        file_table());
   }
 
   return t.value()->MapSize([this](const TypeDim& dim) {
@@ -3595,9 +3604,9 @@ absl::StatusOr<Value> FunctionConverter::GetConstValue(
     const AstNode* node) const {
   std::optional<IrValue> ir_value = GetNodeToIr(node);
   if (!ir_value.has_value()) {
-    return absl::InternalError(
-        absl::StrFormat("AST node had no associated IR value: %s @ %s",
-                        node->ToString(), SpanToString(node->GetSpan())));
+    return absl::InternalError(absl::StrFormat(
+        "AST node had no associated IR value: %s @ %s", node->ToString(),
+        SpanToString(node->GetSpan(), file_table())));
   }
   if (!std::holds_alternative<CValue>(*ir_value)) {
     return absl::InternalError(absl::StrFormat(

@@ -24,27 +24,28 @@ namespace {
 
 TEST(PosTest, PosStringRoundTrip) {
   std::string text = "/my/foo.x:1:2";
-  XLS_ASSERT_OK_AND_ASSIGN(Pos p, Pos::FromString(text));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(Pos p, Pos::FromString(text, file_table));
   EXPECT_EQ(p.lineno(), 0);
   EXPECT_EQ(p.colno(), 1);
-  EXPECT_EQ(p.filename(), "/my/foo.x");
-  EXPECT_EQ(text, p.ToString());
+  EXPECT_EQ(p.GetFilename(file_table), "/my/foo.x");
+  EXPECT_EQ(text, p.ToString(file_table));
 }
 
 TEST(PosTest, PosLt) {
-  const char* kFakeFile = "<fake>";
-  EXPECT_LT(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 0, 1));
-  EXPECT_LT(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 1, 0));
-  EXPECT_GE(Pos(kFakeFile, 0, 0), Pos(kFakeFile, 0, 0));
+  const Fileno fileno = Fileno(0);
+  EXPECT_LT(Pos(fileno, 0, 0), Pos(fileno, 0, 1));
+  EXPECT_LT(Pos(fileno, 0, 0), Pos(fileno, 1, 0));
+  EXPECT_GE(Pos(fileno, 0, 0), Pos(fileno, 0, 0));
 }
 
 TEST(SpanTest, SpanContainsOther) {
-  const char* kFakeFile = "<fake>";
-  const Pos origin = Pos(kFakeFile, 0, 0);
-  Span line0_col0 = Span(origin, Pos(kFakeFile, 0, 1));
-  Span line0_col0to5 = Span(origin, Pos(kFakeFile, 0, 5));
-  Span line0_col1to5 = Span(Pos(kFakeFile, 0, 1), Pos(kFakeFile, 0, 5));
-  Span line0to1_col0 = Span(origin, Pos(kFakeFile, 1, 0));
+  const Fileno fileno = Fileno(0);
+  const Pos origin = Pos(fileno, 0, 0);
+  Span line0_col0 = Span(origin, Pos(fileno, 0, 1));
+  Span line0_col0to5 = Span(origin, Pos(fileno, 0, 5));
+  Span line0_col1to5 = Span(Pos(fileno, 0, 1), Pos(fileno, 0, 5));
+  Span line0to1_col0 = Span(origin, Pos(fileno, 1, 0));
 
   EXPECT_TRUE(line0_col0to5.Contains(line0_col0));
   EXPECT_FALSE(line0_col0.Contains(line0_col0to5));

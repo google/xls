@@ -45,15 +45,17 @@ namespace xls::dslx {
 // TODO(leary): 2023-08-21 We can now use the payloads present in absl::Status
 // (we no longer have our own project-specific Status) -- we should not need to
 // encode conditional data in the string and parse it out.
-absl::Status ScanErrorStatus(const Span& span, std::string_view message);
+absl::Status ScanErrorStatus(const Span& span, std::string_view message,
+                             const FileTable& file_table);
 
 // Converts the conceptual character stream in a string of text into a stream of
 // tokens according to the DSLX syntax.
 class Scanner {
  public:
-  Scanner(std::string filename, std::string text,
+  Scanner(FileTable& file_table, Fileno fileno, std::string text,
           bool include_whitespace_and_comments = false)
-      : filename_(std::move(filename)),
+      : file_table_(file_table),
+        fileno_(fileno),
         text_(std::move(text)),
         include_whitespace_and_comments_(include_whitespace_and_comments) {}
 
@@ -63,7 +65,7 @@ class Scanner {
   //
   // TODO(leary): 2020-09-08 Attempt to privatize this, ideally consumers would
   // only care about the positions of tokens, not of the scanner itself.
-  Pos GetPos() const { return Pos(filename_, lineno_, colno_); }
+  Pos GetPos() const { return Pos(fileno_, lineno_, colno_); }
 
   // Pops a token from the current position in the character stream, or returns
   // a status error if no token can be scanned out.
@@ -93,7 +95,10 @@ class Scanner {
   void EnableDoubleCAngle() { double_c_angle_enabled_ = true; }
   void DisableDoubleCAngle() { double_c_angle_enabled_ = false; }
 
-  std::string_view filename() const { return filename_; }
+  FileTable& file_table() const { return file_table_; }
+
+  Fileno fileno() const { return fileno_; }
+  std::string_view filename() const { return file_table().Get(fileno_); }
 
   absl::Span<const CommentData> comments() const { return comments_; }
 
@@ -254,7 +259,13 @@ class Scanner {
   // are valid constituents of a string.
   absl::StatusOr<std::string> ProcessNextStringChar();
 
-  std::string filename_;
+  absl::Status ScanErrorStatus(const Span& span,
+                               std::string_view message) const {
+    return xls::dslx::ScanErrorStatus(span, message, file_table_);
+  }
+
+  FileTable& file_table_;
+  Fileno fileno_;
   std::string text_;
   bool include_whitespace_and_comments_;
   int64_t index_ = 0;

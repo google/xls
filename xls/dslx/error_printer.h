@@ -57,10 +57,12 @@ absl::Status PrintPositionalError(
     const Span& error_span, std::string_view error_message, std::ostream& os,
     std::function<absl::StatusOr<std::string>(std::string_view)>
         get_file_contents,
-    PositionalErrorColor color, int64_t error_context_line_count = 5);
+    PositionalErrorColor color, const FileTable& file_table,
+    int64_t error_context_line_count = 5);
 
 // Prints warnings to stderr.
-void PrintWarnings(const WarningCollector& warnings);
+void PrintWarnings(const WarningCollector& warnings,
+                   const FileTable& file_table);
 
 }  // namespace xls::dslx
 

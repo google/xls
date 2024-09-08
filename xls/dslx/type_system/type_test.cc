@@ -47,7 +47,7 @@ using testing::IsEmpty;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 
-const Pos kFakePos("<fake>", 0, 0);
+const Pos kFakePos(Fileno(0), 0, 0);
 const Span kFakeSpan(kFakePos, kFakePos);
 
 // Creates a struct type of the following form in the module, and returns the
@@ -197,7 +197,8 @@ TEST(TypeTest, TestUnit) {
 }
 
 TEST(TypeTest, TestTwoTupleOfStruct) {
-  Module module("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
   StructType s = CreateSimpleStruct(module);
   std::unique_ptr<TupleType> t2 =
       TupleType::Create2(s.CloneToUnique(), s.CloneToUnique());
@@ -209,7 +210,8 @@ TEST(TypeTest, TestTwoTupleOfStruct) {
 }
 
 TEST(TypeTest, TestArrayOfStruct) {
-  Module module("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
   StructType s = CreateSimpleStruct(module);
   ArrayType a(s.CloneToUnique(), TypeDim::CreateU32(2));
   EXPECT_EQ("S { x: uN[8], y: uN[1] }[2]", a.ToString());
@@ -231,8 +233,9 @@ TEST(TypeTest, TestArrayOfU32) {
 }
 
 TEST(TypeTest, TestEnum) {
-  Module m("test", /*fs_path=*/std::nullopt);
-  Pos fake_pos("fake.x", 0, 0);
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  Pos fake_pos(Fileno(0), 0, 0);
   Span fake_span(fake_pos, fake_pos);
   auto* my_enum = m.Make<NameDef>(fake_span, "MyEnum", nullptr);
   auto* e = m.Make<EnumDef>(fake_span, my_enum, /*type=*/nullptr,
@@ -245,7 +248,7 @@ TEST(TypeTest, TestEnum) {
   EXPECT_EQ(std::vector<TypeDim>{TypeDim::CreateU32(2)}, t.GetAllDims());
   EXPECT_EQ("MyEnum", t.ToString());
   EXPECT_EQ("MyEnum", t.ToInlayHintString());
-  EXPECT_EQ("fake.x:MyEnum", t.ToStringFullyQualified());
+  EXPECT_EQ("<no-file>:MyEnum", t.ToStringFullyQualified(file_table));
 }
 
 TEST(TypeTest, FunctionTypeU32ToS32) {
@@ -298,7 +301,8 @@ TEST(TypeTest, FromInterpValueTupleOfTwoNumbers) {
 }
 
 TEST(TypeTest, StructTypeGetTotalBitCount) {
-  Module module("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
   StructType s = CreateSimpleStruct(module);
   EXPECT_THAT(s.GetTotalBitCount(), IsOkAndHolds(TypeDim::CreateU32(9)));
   EXPECT_THAT(s.GetAllDims(),
@@ -307,7 +311,8 @@ TEST(TypeTest, StructTypeGetTotalBitCount) {
 }
 
 TEST(TypeTest, StructTypeNominalTypeDims) {
-  Module module("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
   StructType s = CreateSimpleParametricStruct(module);
   EXPECT_THAT(s.nominal_type_dims_by_identifier(), IsEmpty());
 
@@ -323,7 +328,8 @@ TEST(TypeTest, StructTypeNominalTypeDims) {
 }
 
 TEST(TypeTest, StructTypeAddNominalTypeDimsIncrementally) {
-  Module module("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
   StructType s = CreateSimpleParametricStruct(module);
   EXPECT_THAT(s.nominal_type_dims_by_identifier(), IsEmpty());
 
@@ -348,7 +354,8 @@ TEST(TypeTest, StructTypeAddNominalTypeDimsIncrementally) {
 }
 
 TEST(TypeTest, StructTypeNominalTypeDimsWithExpr) {
-  Module module("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
   StructType s = CreateStructWithParametricExpr(module);
   EXPECT_THAT(s.nominal_type_dims_by_identifier(), IsEmpty());
 
@@ -362,9 +369,11 @@ TEST(TypeTest, StructTypeNominalTypeDimsWithExpr) {
 }
 
 TEST(TypeTest, EmptyStructTypeIsNotUnit) {
+  FileTable file_table;
   std::filesystem::path fs_path = "relpath/to/test.x";
-  Module module("test", fs_path);
-  Span fake_span(Pos(fs_path, 0, 0), Pos(fs_path, 0, 0));
+  Fileno fileno = file_table.GetOrCreate(fs_path.c_str());
+  Module module("test", fs_path, file_table);
+  Span fake_span(Pos(fileno, 0, 0), Pos(fileno, 0, 0));
   auto* struct_def = module.Make<StructDef>(
       fake_span, module.Make<NameDef>(fake_span, "S", nullptr),
       std::vector<ParametricBinding*>{}, std::vector<StructMember>{},
@@ -377,7 +386,7 @@ TEST(TypeTest, EmptyStructTypeIsNotUnit) {
   EXPECT_FALSE(s.IsUnit());
   EXPECT_EQ(s.ToString(), "S {}");
   EXPECT_EQ(s.ToInlayHintString(), "S");
-  EXPECT_EQ(s.ToStringFullyQualified(), "relpath/to/test.x:S {}");
+  EXPECT_EQ(s.ToStringFullyQualified(file_table), "relpath/to/test.x:S {}");
 }
 
 // -- TypeDimTest

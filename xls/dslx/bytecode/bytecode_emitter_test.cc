@@ -124,7 +124,8 @@ fn expect_fail() -> u32{
       std::unique_ptr<BytecodeFunction> bf,
       EmitBytecodes(&import_data, kProgram, "expect_fail"));
 
-  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
             R"(000 literal u32:3
 001 store 0
 002 load 0
@@ -151,7 +152,8 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
       std::unique_ptr<BytecodeFunction> bf,
       EmitBytecodes(&import_data, kProgram, "has_name_def_tree"));
 
-  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
             R"(000 literal u4:0
 001 literal u8:1
 002 literal u16:2
@@ -257,7 +259,8 @@ fn do_ternary() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            EmitBytecodes(&import_data, kProgram, "do_ternary"));
 
-  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
             R"(000 literal u1:1
 001 jump_rel_if +3
 002 literal u32:64
@@ -279,7 +282,8 @@ fn f() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            EmitBytecodes(&import_data, kProgram, "f"));
 
-  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
             R"(000 literal u32:42
 001 store 0
 002 literal u32:64
@@ -324,7 +328,8 @@ fn do_match() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            EmitBytecodes(&import_data, kProgram, "do_match"));
 
-  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
             R"(000 literal u32:77
 001 store 0
 002 load 0
@@ -368,7 +373,8 @@ TEST(BytecodeEmitterTest, BytecodesFromString) {
                            BytecodesFromString(s));
   EXPECT_THAT(bytecodes.at(3).value_data(),
               IsOkAndHolds(InterpValue::MakeSBits(3, -1)));
-  EXPECT_EQ(BytecodesToString(bytecodes, /*source_locs=*/false), s);
+  FileTable file_table;
+  EXPECT_EQ(BytecodesToString(bytecodes, /*source_locs=*/false, file_table), s);
 }
 
 // Tests emission of all of the supported binary operators.
@@ -418,7 +424,8 @@ fn binops_galore() {
       EmitBytecodes(&import_data, kProgram, "binops_galore"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  std::string got = BytecodesToString(bytecodes, /*source_locs=*/false);
+  std::string got = BytecodesToString(bytecodes, /*source_locs=*/false,
+                                      import_data.file_table());
   std::vector<std::string_view> opcodes;
   for (std::string_view line : absl::StrSplit(got, '\n')) {
     if (RE2::FullMatch(line, RE2(R"(^\d+ (literal|store|load).*$)"))) {
@@ -541,21 +548,22 @@ fn index_array() -> u32 {
   ASSERT_EQ(bytecodes.size(), 11);
 
   const std::string_view kWant =
-      R"(literal [u32:0, u32:1, u32:2] @ test.x:3:18-3:27
-store 0 @ test.x:3:7-3:8
-literal [u32:3, u32:4, u32:5] @ test.x:4:23-4:32
-store 1 @ test.x:4:7-4:8
-load 0 @ test.x:6:3-6:4
-literal u32:0 @ test.x:6:5-6:10
-index @ test.x:6:4-6:11
-load 1 @ test.x:6:14-6:15
-literal u32:1 @ test.x:6:16-6:21
-index @ test.x:6:15-6:22
-uadd @ test.x:6:12-6:13)";
-  std::string got = absl::StrJoin(bf->bytecodes(), "\n",
-                                  [](std::string* out, const Bytecode& b) {
-                                    absl::StrAppend(out, b.ToString());
-                                  });
+      R"(literal [u32:0, u32:1, u32:2]
+store 0
+literal [u32:3, u32:4, u32:5]
+store 1
+load 0
+literal u32:0
+index
+load 1
+literal u32:1
+index
+uadd)";
+  std::string got = absl::StrJoin(
+      bf->bytecodes(), "\n",
+      [&import_data](std::string* out, const Bytecode& b) {
+        absl::StrAppend(out, b.ToString(import_data.file_table()));
+      });
 
   EXPECT_EQ(kWant, got);
 }
@@ -921,14 +929,15 @@ fn cast_array_to_bits() -> u32 {
   ASSERT_EQ(bytecodes.size(), 4);
 
   const std::string_view kWant =
-      R"(literal [u8:12, u8:10, u8:15, u8:14] @ test.x:3:17-3:37
-store 0 @ test.x:3:7-3:8
-load 0 @ test.x:4:3-4:4
-cast uN[32] @ test.x:4:3-4:11)";
-  std::string got = absl::StrJoin(bf->bytecodes(), "\n",
-                                  [](std::string* out, const Bytecode& b) {
-                                    absl::StrAppend(out, b.ToString());
-                                  });
+      R"(literal [u8:12, u8:10, u8:15, u8:14]
+store 0
+load 0
+cast uN[32])";
+  std::string got = absl::StrJoin(
+      bf->bytecodes(), "\n",
+      [&import_data](std::string* out, const Bytecode& b) {
+        absl::StrAppend(out, b.ToString(import_data.file_table()));
+      });
 
   EXPECT_EQ(kWant, got);
 }
@@ -1197,7 +1206,9 @@ fn main() -> u32 {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 30);
   for (int i = 0; i < bytecodes.size(); i++) {
-    ASSERT_EQ(bytecodes[i].ToString(/*source_locs=*/false), kExpected[i]);
+    ASSERT_EQ(
+        bytecodes[i].ToString(import_data.file_table(), /*source_locs=*/false),
+        kExpected[i]);
   }
 }
 
@@ -1254,8 +1265,10 @@ store 2
 jump_rel -25
 jump_dest)";
   std::string got = absl::StrJoin(
-      bf->bytecodes(), "\n", [](std::string* out, const Bytecode& b) {
-        absl::StrAppend(out, b.ToString(/*source_locs=*/false));
+      bf->bytecodes(), "\n",
+      [&import_data](std::string* out, const Bytecode& b) {
+        absl::StrAppend(
+            out, b.ToString(import_data.file_table(), /*source_locs=*/false));
       });
 
   EXPECT_EQ(kWant, got);
@@ -1379,16 +1392,17 @@ proc Foo {
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 7);
   const std::vector<std::string> kConfigExpected = {
-      "literal (channel, channel) @ test.x:7:18-7:26",
-      "expand_tuple @ test.x:7:9-7:15",
-      "store 0 @ test.x:7:10-7:11",
-      "store 1 @ test.x:7:13-7:14",
-      "load 1 @ test.x:8:6-8:7",
-      "literal u32:100 @ test.x:8:9-8:16",
-      "create_tuple 2 @ test.x:8:5-8:17"};
+      "literal (channel, channel)",
+      "expand_tuple",
+      "store 0",
+      "store 1",
+      "load 1",
+      "literal u32:100",
+      "create_tuple 2"};
 
   for (int i = 0; i < config_bytecodes.size(); i++) {
-    ASSERT_EQ(config_bytecodes[i].ToString(), kConfigExpected[i]);
+    ASSERT_EQ(config_bytecodes[i].ToString(import_data.file_table()),
+              kConfigExpected[i]);
   }
 }
 
@@ -1453,17 +1467,18 @@ proc Parent {
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 8);
   const std::vector<std::string> kConfigExpected = {
-      "load 0 @ test.x:8:6-8:7",           //
-      "load 1 @ test.x:8:9-8:10",          //
-      "cast uN[32] @ test.x:8:9-8:17",     //
-      "load 1 @ test.x:8:20-8:21",         //
-      "load 2 @ test.x:8:24-8:25",         //
-      "cast uN[64] @ test.x:8:24-8:32",    //
-      "uadd @ test.x:8:22-8:23",           //
-      "create_tuple 3 @ test.x:8:5-8:34",  //
+      "load 0",          //
+      "load 1",          //
+      "cast uN[32]",     //
+      "load 1",          //
+      "load 2",          //
+      "cast uN[64]",     //
+      "uadd",            //
+      "create_tuple 3",  //
   };
   for (int i = 0; i < config_bytecodes.size(); i++) {
-    ASSERT_EQ(config_bytecodes[i].ToString(), kConfigExpected[i]);
+    ASSERT_EQ(config_bytecodes[i].ToString(import_data.file_table()),
+              kConfigExpected[i]);
   }
 
   std::vector<NameDef*> members;
@@ -1478,26 +1493,27 @@ proc Parent {
   const std::vector<Bytecode>& next_bytecodes = bf->bytecodes();
   std::vector<std::string> next_bytecode_strings;
   absl::c_transform(next_bytecodes, std::back_inserter(next_bytecode_strings),
-                    [](const Bytecode& bc) { return bc.ToString(); });
+                    [&import_data](const Bytecode& bc) {
+                      return bc.ToString(import_data.file_table());
+                    });
   EXPECT_THAT(next_bytecode_strings,
-              ElementsAre(testing::MatchesRegex(
-                              "literal token:0x[0-9a-f]+ @ test.x:16:29-16:31"),
-                          "load 0 @ test.x:16:33-16:34",         //
-                          "literal u1:1 @ test.x:16:24-16:35",   //
-                          "literal u32:0 @ test.x:16:24-16:35",  //
-                          "recv Child::c @ test.x:16:24-16:35",  //
-                          "expand_tuple @ test.x:16:9-16:17",    //
-                          "store 4 @ test.x:16:10-16:13",        //
-                          "store 5 @ test.x:16:15-16:16",        //
-                          "load 3 @ test.x:17:5-17:6",           //
-                          "load 1 @ test.x:17:9-17:10",          //
-                          "cast uN[64] @ test.x:17:9-17:17",     //
-                          "uadd @ test.x:17:7-17:8",             //
-                          "load 2 @ test.x:17:20-17:21",         //
-                          "uadd @ test.x:17:18-17:19",           //
-                          "load 5 @ test.x:17:24-17:25",         //
-                          "cast uN[64] @ test.x:17:24-17:32",    //
-                          "uadd @ test.x:17:22-17:23"));
+              ElementsAre(testing::MatchesRegex("literal token:0x[0-9a-f]+"),
+                          "load 0",         //
+                          "literal u1:1",   //
+                          "literal u32:0",  //
+                          "recv Child::c",  //
+                          "expand_tuple",   //
+                          "store 4",        //
+                          "store 5",        //
+                          "load 3",         //
+                          "load 1",         //
+                          "cast uN[64]",    //
+                          "uadd",           //
+                          "load 2",         //
+                          "uadd",           //
+                          "load 5",         //
+                          "cast uN[64]",    //
+                          "uadd"));
 }
 
 // Verifies no explosions when calling BytecodeEmitter::EmitExpression with an
@@ -1538,12 +1554,13 @@ fn main() -> u32 {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 3);
   const std::vector<std::string> kNextExpected = {
-      "literal u32:4 @ test.x:6:3-6:16",   //
-      "literal u32:1 @ test.x:6:19-6:24",  //
-      "uadd @ test.x:6:17-6:18"            //
+      "literal u32:4",  //
+      "literal u32:1",  //
+      "uadd"            //
   };
   for (int i = 0; i < bytecodes.size(); i++) {
-    ASSERT_EQ(bytecodes[i].ToString(), kNextExpected[i]);
+    ASSERT_EQ(bytecodes[i].ToString(import_data.file_table()),
+              kNextExpected[i]);
   }
 }
 

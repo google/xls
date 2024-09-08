@@ -102,7 +102,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
         node->span(),
         absl::StrFormat(
             "Expected 2 arguments to `map` builtin but got %d argument(s).",
-            args.size()));
+            args.size()),
+        ctx->file_table());
   }
 
   // First, get the input element type.
@@ -119,7 +120,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
           node->span(), nullptr,
           absl::StrFormat("Attempted to refer to module member %s that "
                           "is not public.",
-                          callee->ToString()));
+                          callee->ToString()),
+          ctx->file_table());
     }
   }
 
@@ -160,8 +162,8 @@ static absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(
         ref->span(), nullptr,
         absl::StrFormat("Colon-reference subject `%s` did not refer to a "
                         "module, so `%s` cannot be invoked.",
-                        ToAstNode(ref->subject())->ToString(),
-                        ref->ToString()));
+                        ToAstNode(ref->subject())->ToString(), ref->ToString()),
+        ctx->file_table());
   }
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << ref->ToString();
@@ -178,7 +180,8 @@ static absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(
         absl::StrFormat("Attempted to resolve a module member that was not "
                         "public; `%s` defined in module `%s` @ %s",
                         resolved->identifier(), module->name(),
-                        resolved->span().ToString()));
+                        resolved->span().ToString(ctx->file_table())),
+        ctx->file_table());
   }
   return resolved;
 }
@@ -213,7 +216,8 @@ absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     return TypeInferenceErrorStatus(
         invocation->callee()->span(), callee_type.get(),
         absl::StrFormat("Invocation callee `%s` is not a function",
-                        invocation->callee()->ToString()));
+                        invocation->callee()->ToString()),
+        ctx->file_table());
   }
 
   return TypeAndParametricEnv{callee_fn_type->return_type().CloneToUnique(),
@@ -228,7 +232,8 @@ absl::Status AppendArgsForInstantiation(
                          DeduceAndResolve(arg, ctx));
     VLOG(5) << absl::StreamFormat(
         "AppendArgsForInstantiation; arg: `%s` deduced: `%s` @ %s",
-        arg->ToString(), type->ToString(), arg->span().ToString());
+        arg->ToString(), type->ToString(),
+        arg->span().ToString(ctx->file_table()));
     XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
                                    << " type: " << type->ToString();
     instantiate_args->push_back(InstantiateArg{std::move(type), arg->span()});
@@ -251,7 +256,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
         node->span(), nullptr,
         absl::StrFormat("Recursion of function `%s` detected -- recursion is "
                         "currently unsupported.",
-                        node->callee()->ToString()));
+                        node->callee()->ToString()),
+        ctx->file_table());
   }
 
   // Map is special.
@@ -282,14 +288,16 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
         return TypeInferenceErrorStatus(
             node->callee()->span(), nullptr,
             absl::StrFormat("Invocation callee `%s` is not a function",
-                            node->callee()->ToString()));
+                            node->callee()->ToString()),
+            ctx->file_table());
       }
     } else {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
           absl::StrCat("An invocation callee must be either a name reference "
                        "or a colon reference; instead got: ",
-                       AstNodeKindToString(callee->kind())));
+                       AstNodeKindToString(callee->kind())),
+          ctx->file_table());
     }
     return fn;
   };
@@ -304,7 +312,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
     return ArgCountMismatchErrorStatus(
         node->span(),
         absl::StrFormat("Expected %d parameter(s) but got %d arguments.",
-                        ft->params().size(), node->args().size()));
+                        ft->params().size(), node->args().size()),
+        ctx->file_table());
   }
 
   for (int i = 0; i < args.size(); i++) {
@@ -350,13 +359,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
         node->span(),
         absl::StrFormat("%s macro expects %d argument(s) from format but has "
                         "%d argument(s)",
-                        node->macro(), arg_count, node->args().size()));
+                        node->macro(), arg_count, node->args().size()),
+        ctx->file_table());
   }
 
   // Check types of each argument.
   struct Visitor : public TypeVisitor {
    public:
-    explicit Visitor(Span span) : span_(std::move(span)) {}
+    explicit Visitor(DeduceCtx* ctx, Span span) : ctx_(ctx), span_(span) {}
 
     absl::Status HandleArray(const ArrayType& t) override {
       return absl::OkStatus();
@@ -381,18 +391,22 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
     }
     absl::Status HandleFunction(const FunctionType& t) override {
       return TypeInferenceErrorStatus(
-          span_, &t, ": Cannot format an expression with function type");
+          span_, &t, ": Cannot format an expression with function type",
+          ctx_->file_table());
     }
     absl::Status HandleChannel(const ChannelType& t) override {
       return TypeInferenceErrorStatus(
-          span_, &t, ": Cannot format an expression with channel type");
+          span_, &t, ": Cannot format an expression with channel type",
+          ctx_->file_table());
     }
     absl::Status HandleMeta(const MetaType& t) override {
       return TypeInferenceErrorStatus(
-          span_, &t, ": Cannot format an expression with meta type");
+          span_, &t, ": Cannot format an expression with meta type",
+          ctx_->file_table());
     }
 
    private:
+    DeduceCtx* ctx_;
     Span span_;
   };
 
@@ -400,7 +414,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          DeduceAndResolve(arg, ctx));
 
-    Visitor v(arg->span());
+    Visitor v(ctx, arg->span());
     XLS_RETURN_IF_ERROR(type->Accept(v));
   }
 
@@ -423,7 +437,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceZeroMacro(const ZeroMacro* node,
                        DeduceAndResolve(ToAstNode(node->type()), ctx));
   XLS_ASSIGN_OR_RETURN(parametric_type,
                        UnwrapMetaType(std::move(parametric_type), node->span(),
-                                      "zero! macro type"));
+                                      "zero! macro type", ctx->file_table()));
   XLS_RET_CHECK(!parametric_type->IsMeta());
 
   XLS_ASSIGN_OR_RETURN(
@@ -443,9 +457,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAllOnesMacro(
   // parametric argument type are "all-ones capable".
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_type,
                        DeduceAndResolve(ToAstNode(node->type()), ctx));
-  XLS_ASSIGN_OR_RETURN(parametric_type,
-                       UnwrapMetaType(std::move(parametric_type), node->span(),
-                                      "all_ones! macro type"));
+  XLS_ASSIGN_OR_RETURN(
+      parametric_type,
+      UnwrapMetaType(std::move(parametric_type), node->span(),
+                     "all_ones! macro type", ctx->file_table()));
   XLS_RET_CHECK(!parametric_type->IsMeta());
 
   XLS_ASSIGN_OR_RETURN(

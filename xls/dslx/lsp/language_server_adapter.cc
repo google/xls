@@ -63,9 +63,10 @@ static const char kSource[] = "DSLX";
 // Convert error included in status message to LSP Diagnostic
 void AppendDiagnosticFromStatus(
     const absl::Status& status,
-    std::vector<verible::lsp::Diagnostic>* diagnostic_sink) {
+    std::vector<verible::lsp::Diagnostic>* diagnostic_sink,
+    FileTable& file_table) {
   absl::StatusOr<PositionalErrorData> extracted_error_or =
-      GetPositionalErrorData(status, std::nullopt);
+      GetPositionalErrorData(status, std::nullopt, file_table);
   if (!extracted_error_or.ok()) {
     LspLog() << extracted_error_or.status() << "\n";
     return;  // best effort. Ignore.
@@ -191,12 +192,13 @@ absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
 std::vector<verible::lsp::Diagnostic>
 LanguageServerAdapter::GenerateParseDiagnostics(std::string_view uri) const {
   std::vector<verible::lsp::Diagnostic> result;
-  if (const ParseData* parsed = FindParsedForUri(uri)) {
+  if (ParseData* parsed = FindParsedForUri(uri)) {
+    FileTable& file_table = parsed->import_data.file_table();
     if (parsed->ok()) {
       const TypecheckedModule& tm = parsed->typechecked_module();
       AppendDiagnosticFromTypecheck(tm, &result);
     } else {
-      AppendDiagnosticFromStatus(parsed->status(), &result);
+      AppendDiagnosticFromStatus(parsed->status(), &result, file_table);
     }
   }
   return result;
@@ -214,18 +216,21 @@ LanguageServerAdapter::GenerateDocumentSymbols(std::string_view uri) const {
 absl::StatusOr<std::vector<verible::lsp::Location>>
 LanguageServerAdapter::FindDefinitions(
     std::string_view uri, const verible::lsp::Position& position) const {
-  const Pos pos = ConvertLspPositionToPos(uri, position);
-  VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    FileTable& file_table = parsed->import_data.file_table();
+    const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
+    VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
     std::optional<Span> maybe_definition_span = xls::dslx::FindDefinition(
         parsed->module(), pos, parsed->type_info(), parsed->import_data);
     if (maybe_definition_span.has_value()) {
-      VLOG(1) << "FindDefinition; span: " << maybe_definition_span.value();
+      VLOG(1) << "FindDefinition; span: "
+              << maybe_definition_span.value().ToString(file_table);
       verible::lsp::Location location =
           ConvertSpanToLspLocation(maybe_definition_span.value());
       XLS_ASSIGN_OR_RETURN(
-          location.uri,
-          MaybeRelpathToUri(maybe_definition_span->filename(), dslx_paths_));
+          location.uri, MaybeRelpathToUri(maybe_definition_span->GetFilename(
+                                              parsed->import_data.file_table()),
+                                          dslx_paths_));
       return std::vector<verible::lsp::Location>{location};
     }
   }
@@ -271,8 +276,9 @@ absl::StatusOr<std::vector<verible::lsp::InlayHint>>
 LanguageServerAdapter::InlayHint(std::string_view uri,
                                  const verible::lsp::Range& range) const {
   std::vector<verible::lsp::InlayHint> results;
-  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
-    const Span want_span = ConvertLspRangeToSpan(uri, range);
+  if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    FileTable& file_table = parsed->import_data.file_table();
+    const Span want_span = ConvertLspRangeToSpan(uri, range, file_table);
     const Module& module = parsed->module();
     const TypeInfo& type_info = parsed->type_info();
     // Get let bindings in the AST that fall in the given range.
@@ -292,7 +298,7 @@ LanguageServerAdapter::InlayHint(std::string_view uri,
           // the language server.
           LspLog() << "No type information available for: "
                    << name_def_tree->ToString() << " @ "
-                   << name_def_tree->span();
+                   << name_def_tree->span().ToString(file_table);
           continue;
         }
         const Type& type = *maybe_type.value();

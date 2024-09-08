@@ -32,43 +32,51 @@ namespace xls::dslx {
 // Returned when an incorrect number of args is given to a function
 // invocation [in a design].
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
-                                         std::string_view message);
+                                         std::string_view message,
+                                         const FileTable& file_table);
 
 // Returned when interpretation of a design fails.
-absl::Status FailureErrorStatus(const Span& span, std::string_view message);
+absl::Status FailureErrorStatus(const Span& span, std::string_view message,
+                                const FileTable& file_table);
 
 // Returned when proof of a property fails.
-absl::Status ProofErrorStatus(const Span& span, std::string_view message);
+absl::Status ProofErrorStatus(const Span& span, std::string_view message,
+                              const FileTable& file_table);
 
 // Returned when an invalid identifier (invalid at some position in the
 // compilation chain, DSLX, IR, or Verilog) is encountered.
 absl::Status InvalidIdentifierErrorStatus(const Span& span,
-                                          std::string_view message);
+                                          std::string_view message,
+                                          const FileTable& file_table);
 
 // To be raised when an error occurs during type inference.
 absl::Status TypeInferenceErrorStatus(const Span& span, const Type* type,
-                                      std::string_view message);
+                                      std::string_view message,
+                                      const FileTable& file_table);
 
 // Variant of `TypeInferenceErrorStatus` for when there is only a
 // `type_annotation` available, or its readability is better than that of the
 // corresponding `Type` (e.g. due to erasure of parametric bindings).
 absl::Status TypeInferenceErrorStatusForAnnotation(
     const Span& span, const TypeAnnotation* type_annotation,
-    std::string_view message);
+    std::string_view message, const FileTable& file_table);
 
 // Creates a TypeMissingError status value referencing the given node (which has
 // its type missing) and user (which found that its type was missing).
-absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user);
+absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,
+                                    const FileTable& file_table);
 
 // To be raised when a recursive import is detected.
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         const Span& earlier_import,
-                                        absl::Span<const ImportRecord> cycle);
+                                        absl::Span<const ImportRecord> cycle,
+                                        const FileTable& file_table);
 
 // To be raised when a checked_cast is unable to cast without truncation.
 absl::Status CheckedCastErrorStatus(const Span& span,
                                     const InterpValue& from_value,
-                                    const Type* to_type);
+                                    const Type* to_type,
+                                    const FileTable& file_table);
 
 }  // namespace xls::dslx
 

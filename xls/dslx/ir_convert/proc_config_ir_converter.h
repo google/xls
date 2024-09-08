@@ -83,6 +83,8 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   // corresponding Proc members.
   absl::Status Finalize();
 
+  const FileTable& file_table() const { return import_data_->file_table(); }
+
  private:
   PackageConversionData* conversion_info_;
   Function* f_;

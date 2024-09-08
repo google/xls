@@ -92,7 +92,7 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
     WarningCollector* warning_collector, const ParametricEnv& bindings,
     const Expr* expr, const Type* type) {
   VLOG(5) << "ConstexprEvaluator::Evaluate; expr: " << expr->ToString() << " @ "
-          << expr->span();
+          << expr->span().ToString(import_data->file_table());
   if (type != nullptr) {
     XLS_RET_CHECK(!type->IsMeta());
   }
@@ -115,9 +115,10 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
   if (type_info->IsKnownConstExpr(expr)) {
     return type_info->GetConstExpr(expr);
   }
+  const FileTable& file_table = import_data->file_table();
   return absl::InvalidArgumentError(
       absl::StrFormat("Expression @ %s was not constexpr: `%s`",
-                      expr->span().ToString(), expr->ToString()));
+                      expr->span().ToString(file_table), expr->ToString()));
 }
 
 // Evaluates the given expression and terminates current function execution
@@ -149,20 +150,23 @@ absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
+  const FileTable& file_table = *expr->owner()->file_table();
   ExprOrType type_reference = expr->type();
   std::optional<Type*> maybe_type =
       type_info_->GetItem(ToAstNode(type_reference));
   if (!maybe_type.has_value()) {
     std::optional<Span> span = ToAstNode(type_reference)->GetSpan();
-    std::string span_str = span.has_value() ? span->ToString() : "<none>";
+    std::string span_str =
+        span.has_value() ? span->ToString(file_table) : "<none>";
     return absl::InternalError(
         absl::StrFormat("Could not find type for \"%s\" @ %s",
                         ToAstNode(type_reference)->ToString(), span_str));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                       UnwrapMetaType(maybe_type.value()->CloneToUnique(),
-                                      expr->span(), "zero macro input type"));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Type> type,
+      UnwrapMetaType(maybe_type.value()->CloneToUnique(), expr->span(),
+                     "zero macro input type", file_table));
 
   // At this point type inference should have checked that this type was
   // zero-able.
@@ -173,12 +177,14 @@ absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleAllOnesMacro(const AllOnesMacro* expr) {
+  const FileTable& file_table = *expr->owner()->file_table();
   ExprOrType type_reference = expr->type();
   std::optional<Type*> maybe_type =
       type_info_->GetItem(ToAstNode(type_reference));
   if (!maybe_type.has_value()) {
     std::optional<Span> span = ToAstNode(type_reference)->GetSpan();
-    std::string span_str = span.has_value() ? span->ToString() : "<none>";
+    std::string span_str =
+        span.has_value() ? span->ToString(file_table) : "<none>";
     return absl::InternalError(
         absl::StrFormat("Could not find type for \"%s\" @ %s",
                         ToAstNode(type_reference)->ToString(), span_str));
@@ -187,7 +193,7 @@ absl::Status ConstexprEvaluator::HandleAllOnesMacro(const AllOnesMacro* expr) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Type> type,
       UnwrapMetaType(maybe_type.value()->CloneToUnique(), expr->span(),
-                     "all-ones macro input type"));
+                     "all-ones macro input type", file_table));
 
   // At this point type inference should have checked that this type has an
   // all-ones value.
@@ -276,25 +282,28 @@ absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
 // itself is.
 absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
   VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
+  const FileTable& file_table = *expr->owner()->file_table();
   // Keep in mind that channels come in tuples, so peel out the first element.
   std::optional<Type*> maybe_decl_type = type_info_->GetItem(expr);
   if (!maybe_decl_type.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Could not find type for expr \"%s\" @ %s",
-                        expr->ToString(), expr->span().ToString()));
+                        expr->ToString(), expr->span().ToString(file_table)));
   }
 
   auto* tuple_type = dynamic_cast<TupleType*>(maybe_decl_type.value());
   if (tuple_type == nullptr) {
-    return TypeInferenceErrorStatus(expr->span(), maybe_decl_type.value(),
-                                    "Channel decl did not have tuple type:");
+    return TypeInferenceErrorStatus(
+        expr->span(), maybe_decl_type.value(),
+        "Channel decl did not have tuple type:", file_table);
   }
 
   // Verify that the channel tuple has exactly two elements; just yank one out
   // for channel [array] creation (they both point to the same object).
   if (tuple_type->size() != 2) {
-    return TypeInferenceErrorStatus(
-        expr->span(), tuple_type, "ChannelDecl type was a two-element tuple.");
+    return TypeInferenceErrorStatus(expr->span(), tuple_type,
+                                    "ChannelDecl type was a two-element tuple.",
+                                    file_table);
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue channel,
@@ -391,12 +400,14 @@ absl::Status ConstexprEvaluator::HandleConstantArray(
 
 absl::Status ConstexprEvaluator::HandleConstAssert(
     const ConstAssert* const_assert) {
+  const FileTable& file_table = *const_assert->owner()->file_table();
   GET_CONSTEXPR_OR_RETURN(InterpValue predicate, const_assert->arg());
   if (predicate.IsTrue()) {
     return absl::OkStatus();
   }
   return TypeInferenceErrorStatus(const_assert->span(), nullptr,
-                                  "const_assert! expression was false");
+                                  "const_assert! expression was false",
+                                  file_table);
 }
 
 absl::Status ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
@@ -487,10 +498,12 @@ absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
 
 absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
                                            const Type& type) {
+  const FileTable& file_table = *expr.owner()->file_table();
   XLS_RET_CHECK(!type.IsMeta())
       << "Got invalid type when evaluating number: " << type.ToString() << " @ "
-      << expr.span();
-  VLOG(4) << "Evaluating number: " << expr.ToString() << " @ " << expr.span();
+      << expr.span().ToString(file_table);
+  VLOG(4) << "Evaluating number: " << expr.ToString() << " @ "
+          << expr.span().ToString(file_table);
 
   std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
 
@@ -513,7 +526,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
   XLS_ASSIGN_OR_RETURN(int64_t bit_count,
                        std::get<InterpValue>(value).GetBitValueViaSign());
 
-  XLS_ASSIGN_OR_RETURN(Bits bits, expr.GetBits(bit_count));
+  XLS_ASSIGN_OR_RETURN(Bits bits, expr.GetBits(bit_count, file_table));
   return InterpValue::MakeBits(tag, std::move(bits));
 }
 
@@ -628,9 +641,10 @@ absl::Status ConstexprEvaluator::HandleTupleIndex(const TupleIndex* expr) {
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* values,
                        tuple.GetValues());
   if (index_value < 0 || index_value > values->size()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("%s: Out-of-range tuple index: %d vs %d.",
-                        expr->span().ToString(), index_value, values->size()));
+    const FileTable& file_table = *expr->owner()->file_table();
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "%s: Out-of-range tuple index: %d vs %d.",
+        expr->span().ToString(file_table), index_value, values->size()));
   }
   type_info_->NoteConstExpr(expr, values->at(index_value));
   return absl::OkStatus();

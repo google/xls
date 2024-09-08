@@ -83,7 +83,8 @@ absl::StatusOr<std::string> ToStringMaybeFormatted(
 // with the given BitsType.
 absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
                                             BitsType* to_bits, bool is_checked,
-                                            const Span& source_span) {
+                                            const Span& source_span,
+                                            const FileTable& file_table) {
   XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
                        to_bits->GetTotalBitCount().value().GetAsInt64());
 
@@ -104,7 +105,7 @@ absl::StatusOr<InterpValue> ResizeBitsValue(const InterpValue& from,
     }
 
     if (!does_fit) {
-      return CheckedCastErrorStatus(source_span, from, to_bits);
+      return CheckedCastErrorStatus(source_span, from, to_bits, file_table);
     }
   }
 
@@ -149,7 +150,9 @@ constexpr int64_t kChannelTraceIndentation = 2;
 
 BytecodeInterpreter::BytecodeInterpreter(
     ImportData* import_data, const BytecodeInterpreterOptions& options)
-    : import_data_(import_data), options_(options) {}
+    : import_data_(import_data),
+      stack_(import_data_->file_table()),
+      options_(options) {}
 
 absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
                                             absl::Span<const InterpValue> args,
@@ -183,9 +186,9 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
     while (frame->pc() < frame->bf()->bytecodes().size()) {
       const std::vector<Bytecode>& bytecodes = frame->bf()->bytecodes();
       const Bytecode& bytecode = bytecodes.at(frame->pc());
-      VLOG(2) << "Bytecode: " << bytecode.ToString();
+      VLOG(2) << "Bytecode: " << bytecode.ToString(file_table());
       VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
-              << bytecode.ToString();
+              << bytecode.ToString(file_table());
       VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
                                     stack_.ToString());
       int64_t old_pc = frame->pc();
@@ -198,9 +201,9 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
       } else if (frame->pc() != old_pc + 1) {
         XLS_RET_CHECK(bytecodes.at(frame->pc()).op() == Bytecode::Op::kJumpDest)
             << "Jumping from PC " << old_pc << " to PC: " << frame->pc()
-            << " bytecode: " << bytecodes.at(frame->pc()).ToString()
-            << " not a jump_dest or old bytecode: " << bytecode.ToString()
-            << " was not a call op.";
+            << " bytecode: " << bytecodes.at(frame->pc()).ToString(file_table())
+            << " not a jump_dest or old bytecode: "
+            << bytecode.ToString(file_table()) << " was not a call op.";
       }
       if (progress_made != nullptr) {
         *progress_made = true;
@@ -242,7 +245,7 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
                         frame->pc(), bytecodes.size()));
   }
   const Bytecode& bytecode = bytecodes.at(frame->pc());
-  VLOG(10) << "Running bytecode: " << bytecode.ToString()
+  VLOG(10) << "Running bytecode: " << bytecode.ToString(file_table())
            << " depth before: " << stack_.size();
   switch (bytecode.op()) {
     case Bytecode::Op::kUAdd: {
@@ -523,7 +526,8 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
           "invocation `%s` "
           "callee: %s (tag: %v), caller_bindings: %s span: %s",
           invocation->ToString(), f.identifier(), f.tag(),
-          caller_bindings.ToString(), invocation->span().ToString()));
+          caller_bindings.ToString(),
+          invocation->span().ToString(file_table())));
     }
 
     const InvocationData& invocation_data =
@@ -531,7 +535,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     XLS_RET_CHECK(
         invocation_data.env_to_callee_data().contains(caller_bindings))
         << "invocation: `" << invocation_data.node()->ToString() << "` @ "
-        << invocation_data.node()->span() << " caller: `"
+        << invocation_data.node()->span().ToString(file_table()) << " caller: `"
         << invocation_data.caller()->identifier() << "`"
         << " caller_bindings: " << caller_bindings;
 
@@ -551,7 +555,8 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
-  VLOG(3) << "BytecodeInterpreter::EvalCall: " << bytecode.ToString();
+  VLOG(3) << "BytecodeInterpreter::EvalCall: "
+          << bytecode.ToString(file_table());
   XLS_ASSIGN_OR_RETURN(InterpValue callee, Pop());
   if (callee.IsBuiltinFunction()) {
     frames_.back().IncrementPc();
@@ -622,9 +627,9 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
       return absl::InvalidArgumentError("Enum types can only be cast to bits.");
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue result,
-        ResizeBitsValue(from, to_bits, is_checked, bytecode.source_span()));
+    XLS_ASSIGN_OR_RETURN(InterpValue result,
+                         ResizeBitsValue(from, to_bits, is_checked,
+                                         bytecode.source_span(), file_table()));
     stack_.Push(result);
     return absl::OkStatus();
   }
@@ -664,9 +669,9 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
         "Bits can only be cast to arrays, enums, or other bits types.");
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue result,
-      ResizeBitsValue(from, to_bits, is_checked, bytecode.source_span()));
+  XLS_ASSIGN_OR_RETURN(InterpValue result,
+                       ResizeBitsValue(from, to_bits, is_checked,
+                                       bytecode.source_span(), file_table()));
   stack_.Push(result);
   return absl::OkStatus();
 }
@@ -768,7 +773,8 @@ absl::Status BytecodeInterpreter::EvalExpandTuple(const Bytecode& bytecode) {
     return FailureErrorStatus(
         bytecode.source_span(),
         absl::StrCat("Stack top for ExpandTuple was not a tuple, was: ",
-                     TagToString(tuple.tag())));
+                     TagToString(tuple.tag())),
+        file_table());
   }
 
   // Note that we destructure the tuple in "reverse" order, with the first
@@ -788,7 +794,7 @@ absl::Status BytecodeInterpreter::EvalFail(const Bytecode& bytecode) {
                        bytecode.trace_data());
   XLS_ASSIGN_OR_RETURN(std::string message,
                        TraceDataToString(*trace_data, stack_));
-  return FailureErrorStatus(bytecode.source_span(), message);
+  return FailureErrorStatus(bytecode.source_span(), message, file_table());
 }
 
 absl::Status BytecodeInterpreter::EvalGe(const Bytecode& bytecode) {
@@ -814,8 +820,9 @@ absl::Status BytecodeInterpreter::EvalTupleIndex(const Bytecode& bytecode) {
         basis.ToString());
   }
 
-  XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Index(index),
-                       _ << " while processing " << bytecode.ToString());
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue result, basis.Index(index),
+      _ << " while processing " << bytecode.ToString(file_table()));
   stack_.Push(result);
   return absl::OkStatus();
 }
@@ -831,8 +838,9 @@ absl::Status BytecodeInterpreter::EvalIndex(const Bytecode& bytecode) {
         basis.ToString());
   }
 
-  XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Index(index),
-                       _ << " while processing " << bytecode.ToString());
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue result, basis.Index(index),
+      _ << " while processing " << bytecode.ToString(file_table()));
   stack_.Push(result);
   return absl::OkStatus();
 }
@@ -1403,7 +1411,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinEnumerate(bytecode, stack_);
     case Builtin::kFail: {
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-      return FailureErrorStatus(bytecode.source_span(), value.ToString());
+      return FailureErrorStatus(bytecode.source_span(), value.ToString(),
+                                file_table());
     }
     case Builtin::kAssert: {
       XLS_ASSIGN_OR_RETURN(InterpValue label, Pop());
@@ -1412,7 +1421,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       XLS_ASSIGN_OR_RETURN(std::string label_as_string,
                            InterpValueAsString(label));
       if (predicate.IsFalse()) {
-        return FailureErrorStatus(bytecode.source_span(), label_as_string);
+        return FailureErrorStatus(bytecode.source_span(), label_as_string,
+                                  file_table());
       }
 
       stack_.Push(InterpValue::MakeUnit());

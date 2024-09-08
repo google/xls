@@ -46,7 +46,8 @@ StatusOr<std::string> RemoveDslxToken(std::string_view dslx,
   if (dslx.empty()) {
     return InvalidArgumentError("dslx is empty");
   }
-  Scanner scan("x.x", std::string(dslx),
+  FileTable file_table;
+  Scanner scan(file_table, Fileno(0), std::string(dslx),
                /*include_whitespace_and_comments=*/true);
   XLS_ASSIGN_OR_RETURN(std::vector<Token> tokens, scan.PopAll());
   int64_t index_to_remove =

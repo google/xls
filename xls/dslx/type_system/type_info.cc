@@ -33,6 +33,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/symbolized_stacktrace.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -70,9 +71,10 @@ InvocationData::InvocationData(
   if (caller != nullptr && !is_fn_in_parametric_proc() &&
       !ContainedWithinFunction(*node, *caller)) {
     LOG(FATAL) << "Invocation node: `" << node->ToString() << "` @ "
-               << node->span()
+               << node->span().ToString(*node->owner()->file_table())
                << " is not contained within caller: " << caller->identifier()
-               << " @ " << caller->span();
+               << " @ "
+               << caller->span().ToString(*node->owner()->file_table());
   }
 
   for (const auto& [env, _] : env_to_callee_data_) {
@@ -146,8 +148,14 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::New(Module* module, TypeInfo* parent) {
 absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(const Module* module) {
   auto it = module_to_root_.find(module);
   if (it == module_to_root_.end()) {
+    std::string available = absl::StrJoin(
+        module_to_root_, ", ", [](std::string* out, const auto& item) {
+          absl::StrAppend(out, "`", item.first->name(), "`");
+        });
     return absl::NotFoundError(absl::StrCat(
-        "Could not find (root) type information for module: ", module->name()));
+        "Could not find (root) type information for module: ", module->name(),
+        "; available: [", available, "] @ ",
+        GetSymbolizedStackTraceAsString()));
   }
   return it->second;
 }
@@ -196,7 +204,7 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
   return absl::NotFoundError(
       absl::StrFormat("No constexpr value found for node `%s` (%s) @ %s",
                       const_expr->ToString(), const_expr->GetNodeTypeName(),
-                      SpanToString(const_expr->GetSpan())));
+                      SpanToString(const_expr->GetSpan(), file_table())));
 }
 
 std::optional<InterpValue> TypeInfo::GetConstExprOption(
@@ -245,7 +253,7 @@ bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) const {
 
 void TypeInfo::NoteUnrolledLoop(const UnrollFor* loop, const ParametricEnv& env,
                                 Expr* unrolled_expr) {
-  VLOG(4) << "Converted unroll_for! at " << loop->span().ToString()
+  VLOG(4) << "Converted unroll_for! at " << loop->span().ToString(file_table())
           << " with bindings: " << env.ToString()
           << " to: " << unrolled_expr->ToString();
   unrolled_loops_[loop][env] = unrolled_expr;
@@ -263,7 +271,7 @@ std::optional<Expr*> TypeInfo::GetUnrolledLoop(const UnrollFor* loop,
   if (parent_ != nullptr) {
     return parent_->GetUnrolledLoop(loop, env);
   }
-  VLOG(4) << "Loop at " << loop->span().ToString()
+  VLOG(4) << "Loop at " << loop->span().ToString(file_table())
           << " has not been unrolled for " << env.ToString();
   return std::nullopt;
 }
@@ -348,9 +356,9 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
     CHECK(invocation != nullptr);
     CHECK_EQ(invocation, invocation_data.node());
 
-    pieces.push_back(
-        absl::StrFormat("  `%s` @ %v", invocation_data.node()->ToString(),
-                        SpanToString(invocation_data.node()->span())));
+    pieces.push_back(absl::StrFormat(
+        "  `%s` @ %s", invocation_data.node()->ToString(),
+        SpanToString(invocation_data.node()->span(), file_table())));
     for (const auto& [env, callee_data] :
          invocation_data.env_to_callee_data()) {
       pieces.push_back(absl::StrFormat(
@@ -401,7 +409,8 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
 
   VLOG(3) << "Type info " << top
           << " adding instantiation call bindings for invocation: `"
-          << invocation.ToString() << "` @ " << invocation.span()
+          << invocation.ToString() << "` @ "
+          << invocation.span().ToString(file_table())
           << " caller_env: " << caller_env.ToString()
           << " callee_env: " << callee_env.ToString();
   auto it = top->invocations_.find(&invocation);
@@ -517,8 +526,8 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
   const TypeInfo* top = GetRoot();
   VLOG(3) << absl::StreamFormat(
       "TypeInfo %p getting instantiation symbolic bindings: %p %s @ %s %s", top,
-      invocation, invocation->ToString(), invocation->span().ToString(),
-      caller.ToString());
+      invocation, invocation->ToString(),
+      invocation->span().ToString(file_table()), caller.ToString());
   auto it = top->invocations().find(invocation);
   if (it == top->invocations().end()) {
     VLOG(3) << "Could not find instantiation " << invocation
@@ -530,7 +539,7 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
   if (it2 == invocation_data.env_to_callee_data().end()) {
     VLOG(3) << "Could not find caller symbolic bindings in instantiation data: "
             << caller.ToString() << " " << invocation->ToString() << " @ "
-            << invocation->span();
+            << invocation->span().ToString(file_table());
     return std::nullopt;
   }
   const ParametricEnv* result = &it2->second.callee_bindings;
@@ -630,5 +639,9 @@ TypeInfo::~TypeInfo() {
     CHECK(top_level_proc_type_info_.empty());
   }
 }
+
+const FileTable& TypeInfo::file_table() const { return *module_->file_table(); }
+
+FileTable& TypeInfo::file_table() { return *module_->file_table(); }
 
 }  // namespace xls::dslx

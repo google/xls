@@ -82,9 +82,11 @@ fields {
   XLS_ASSERT_OK_AND_ASSIGN(auto schema_file,
                            TempFile::CreateInDirectory(tempdir.path()));
   XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
-                           ProtoToDslx(tempdir.path(), schema_file.path(),
-                                       "xls.Fields", textproto, "foo"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslx(tempdir.path(), schema_file.path(), "xls.Fields", textproto,
+                  "foo", file_table));
 
   EXPECT_EQ(module->ToString(),
             R"(pub struct SubField {
@@ -142,9 +144,11 @@ imported_field { field_0: 0xfeed }
   XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
   XLS_ASSERT_OK(
       SetFileContents(tempdir.path() / "imported.proto", kImportedSchema));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
-                           ProtoToDslx(tempdir.path(), schema_file.path(),
-                                       "xls.Top", kTextproto, "foo"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslx(tempdir.path(), schema_file.path(), "xls.Top", kTextproto,
+                  "foo", file_table));
   EXPECT_EQ(module->ToString(),
             R"(pub struct imported_Field {
     field_0: sN[32],
@@ -188,9 +192,11 @@ my_repeated_enum: VALUE_600
       auto schema_file,
       TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
   XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
-                           ProtoToDslx(tempdir.path(), schema_file.path(),
-                                       "xls.Top", kTextproto, "foo"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslx(tempdir.path(), schema_file.path(), "xls.Top", kTextproto,
+                  "foo", file_table));
   EXPECT_EQ(module->ToString(),
             R"(pub enum MyEnum : bits[11] {
     VALUE_1 = 1,
@@ -257,9 +263,11 @@ enum_holder {
   XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
   XLS_ASSERT_OK(
       SetFileContents(tempdir.path() / "imported.proto", kImportedSchema));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
-                           ProtoToDslx(tempdir.path(), schema_file.path(),
-                                       "xls.Top", kTextproto, "foo"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslx(tempdir.path(), schema_file.path(), "xls.Top", kTextproto,
+                  "foo", file_table));
   EXPECT_EQ(module->ToString(),
             R"(pub enum imported_Enum : bits[11] {
     VALUE_1 = 1,
@@ -301,9 +309,11 @@ my_string: "le boeuf"
       auto schema_file,
       TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
   XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
-                           ProtoToDslx(tempdir.path(), schema_file.path(),
-                                       "xls.Top", kTextproto, "foo"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslx(tempdir.path(), schema_file.path(), "xls.Top", kTextproto,
+                  "foo", file_table));
   EXPECT_EQ(module->ToString(),
             R"(pub struct Top {
     my_int: sN[64],
@@ -338,9 +348,11 @@ my_submessage { my_int: 6 }
       auto schema_file,
       TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
   XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
-                           ProtoToDslx(tempdir.path(), schema_file.path(),
-                                       "xls.Top", kTextproto, "foo"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslx(tempdir.path(), schema_file.path(), "xls.Top", kTextproto,
+                  "foo", file_table));
   EXPECT_EQ(module->ToString(),
             R"(pub struct SubMessage {
     my_int: sN[64],
@@ -382,9 +394,11 @@ submessage {
       auto schema_file,
       TempFile::CreateWithContentInDirectory(kSchema, tempdir.path()));
   XLS_ASSERT_OK(SetFileContents(schema_file.path(), kSchema));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> module,
-                           ProtoToDslx(tempdir.path(), schema_file.path(),
-                                       "xls.Top", kTextproto, "foo"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> module,
+      ProtoToDslx(tempdir.path(), schema_file.path(), "xls.Top", kTextproto,
+                  "foo", file_table));
   EXPECT_EQ(module->ToString(),
             R"(pub struct SubMessage {
     my_ints: sN[64][4],
@@ -447,7 +461,8 @@ message TypeB {
       ConstructProtoViaText(textproto_b2, "xls.TypeB", descriptor_pool.get(),
                             &factory));
 
-  dslx::Module module("test_module", /*fs_path=*/std::nullopt);
+  dslx::FileTable file_table;
+  dslx::Module module("test_module", /*fs_path=*/std::nullopt, file_table);
 
   ProtoToDslxManager proto_to_dslx(&module);
   XLS_ASSERT_OK(
@@ -504,10 +519,12 @@ message TypeA {
       ConstructProtoViaText(textproto_a2, "xls.TypeA", descriptor_pool.get(),
                             &factory));
 
+  dslx::FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<dslx::Module> module,
-      CreateDslxFromParams(
-          "module_test", {{"a1", message_a1.get()}, {"a2", message_a2.get()}}));
+      CreateDslxFromParams("module_test",
+                           {{"a1", message_a1.get()}, {"a2", message_a2.get()}},
+                           file_table));
 
   EXPECT_EQ(module->ToString(),
             R"(pub struct TypeA {

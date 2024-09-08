@@ -331,6 +331,9 @@ class TypeInfo {
     return dict_;
   }
 
+  const FileTable& file_table() const;
+  FileTable& file_table();
+
  private:
   friend class TypeInfoOwner;
 
@@ -404,14 +407,14 @@ inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
   if (!t.has_value()) {
     return absl::NotFoundError(
         absl::StrFormat("No type found for AST node: %s @ %s", key->ToString(),
-                        SpanToString(key->GetSpan())));
+                        SpanToString(key->GetSpan(), file_table())));
   }
   DCHECK(t.value() != nullptr);
   auto* target = dynamic_cast<T*>(t.value());
   if (target == nullptr) {
     return absl::FailedPreconditionError(absl::StrFormat(
         "AST node (%s) @ %s did not have expected Type subtype.",
-        key->GetNodeTypeName(), SpanToString(key->GetSpan())));
+        key->GetNodeTypeName(), SpanToString(key->GetSpan(), file_table())));
   }
   return target;
 }

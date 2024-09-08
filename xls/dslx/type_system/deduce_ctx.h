@@ -69,7 +69,7 @@ class FnStackEntry {
   static FnStackEntry MakeTop(Module* module) { return FnStackEntry(module); }
 
   // Represents a "representation" string for use in debugging, as in Python.
-  std::string ToReprString() const;
+  std::string ToReprString(const FileTable& file_table) const;
 
   const std::string& name() const { return name_; }
 
@@ -222,6 +222,10 @@ class DeduceCtx {
   }
 
   ImportData* import_data() const { return import_data_; }
+
+  FileTable& file_table() { return import_data()->file_table(); }
+  const FileTable& file_table() const { return import_data()->file_table(); }
+
   TypeInfoOwner& type_info_owner() const {
     return import_data_->type_info_owner();
   }

@@ -63,7 +63,8 @@ absl::Status ParseAndTypecheck(std::string_view text,
   auto import_data = CreateImportDataForTest();
   absl::StatusOr<TypecheckedModule> parsed_or = ParseAndTypecheck(
       text, /*path=*/filename, /*module_name=*/module_name, &import_data);
-  TryPrintError(parsed_or.status(), get_file_contents);
+  TryPrintError(parsed_or.status(), get_file_contents,
+                import_data.file_table());
   XLS_ASSIGN_OR_RETURN(TypecheckedModule parsed, parsed_or);
   XLS_RETURN_IF_ERROR(
       parsed.module->GetMemberOrError<ModuleMember>("main").status());
@@ -72,32 +73,37 @@ absl::Status ParseAndTypecheck(std::string_view text,
 
 }  // namespace
 
-TEST(AstGeneratorTest, BitsTypeGetMetadata) {
-  AstGeneratorOptions options;
-  std::mt19937_64 rng{0};
-  AstGenerator g(options, rng);
-  g.module_ = std::make_unique<Module>("test_module", /*fs_path=*/std::nullopt);
+class AstGeneratorTest : public ::testing::Test {
+ protected:
+  FileTable file_table_;
+  AstGeneratorOptions options_;
+  std::mt19937_64 rng_{0};
+  AstGenerator g_{options_, rng_, file_table_};
+};
 
-  TypeAnnotation* u7 = g.MakeTypeAnnotation(false, 7);
+TEST_F(AstGeneratorTest, BitsTypeGetMetadata) {
+  g_.module_ = std::make_unique<Module>("test_module", /*fs_path=*/std::nullopt,
+                                        file_table_);
+
+  TypeAnnotation* u7 = g_.MakeTypeAnnotation(false, 7);
   LOG(INFO) << "u7: " << u7->ToString();
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count, g.BitsTypeGetBitCount(u7));
-  XLS_ASSERT_OK_AND_ASSIGN(bool is_signed, g.BitsTypeIsSigned(u7));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count, g_.BitsTypeGetBitCount(u7));
+  XLS_ASSERT_OK_AND_ASSIGN(bool is_signed, g_.BitsTypeIsSigned(u7));
   EXPECT_EQ(bit_count, 7);
   EXPECT_EQ(is_signed, false);
 
-  TypeAnnotation* s129 = g.MakeTypeAnnotation(true, 129);
+  TypeAnnotation* s129 = g_.MakeTypeAnnotation(true, 129);
   LOG(INFO) << "s129: " << s129->ToString();
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count, g.BitsTypeGetBitCount(s129));
-  XLS_ASSERT_OK_AND_ASSIGN(is_signed, g.BitsTypeIsSigned(s129));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count, g_.BitsTypeGetBitCount(s129));
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed, g_.BitsTypeIsSigned(s129));
   EXPECT_EQ(bit_count, 129);
   EXPECT_EQ(is_signed, true);
 }
 
-TEST(AstGeneratorTest, GeneratesParametricBindings) {
-  std::mt19937_64 rng{0};
-  AstGenerator g(AstGeneratorOptions(), rng);
-  g.module_ = std::make_unique<Module>("my_mod", /*fs_path=*/std::nullopt);
-  std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
+TEST_F(AstGeneratorTest, GeneratesParametricBindings) {
+  g_.module_ =
+      std::make_unique<Module>("my_mod", /*fs_path=*/std::nullopt, file_table_);
+  std::vector<ParametricBinding*> pbs = g_.GenerateParametricBindings(2);
   EXPECT_EQ(pbs.size(), 2);
   // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12
   // googletest cannot currently seem to use \d in regexp patterns, which is
@@ -111,11 +117,12 @@ TEST(AstGeneratorTest, GeneratesParametricBindings) {
 namespace {
 // Simply tests that we generate a bunch of valid functions using seed 0 (that
 // parse and typecheck).
-TEST(AstGeneratorTest, GeneratesValidFunctions) {
+TEST(AstGeneratorMultiTest, GeneratesValidFunctions) {
+  FileTable file_table;
   std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   for (int64_t i = 0; i < 32; ++i) {
-    AstGenerator g(options, rng);
+    AstGenerator g(options, rng, file_table);
     LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
@@ -128,7 +135,8 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
 
 // Simply tests that we generate a bunch of valid procs with an empty state type
 // using seed 0 (that parse and typecheck).
-TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
+TEST(AstGeneratorMultiTest, GeneratesValidProcsWithEmptyState) {
+  FileTable file_table;
   std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   options.generate_proc = true;
@@ -136,7 +144,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
   // Regex matcher for the next function signature.
   constexpr const char* kWantPattern = R"(next\(x[0-9]+: \(\)\))";
   for (int64_t i = 0; i < 32; ++i) {
-    AstGenerator g(options, rng);
+    AstGenerator g(options, rng, file_table);
     LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
@@ -151,7 +159,8 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
 
 // Simply tests that we generate a bunch of valid procs with a random state type
 // using seed 0 (that parse and typecheck).
-TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
+TEST(AstGeneratorMultiTest, GeneratesValidProcsWithRandomState) {
+  FileTable file_table;
   std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   options.generate_proc = true;
@@ -161,7 +170,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
   constexpr const char* kWantPattern =
       R"(next\(x[0-9]+: []0-9a-zA-Z_, ()[]+\))";
   for (int64_t i = 0; i < 32; ++i) {
-    AstGenerator g(options, rng);
+    AstGenerator g(options, rng, file_table);
     LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
@@ -176,13 +185,14 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
 
 // Helper function that is used in a TEST_P so we can shard the work.
 static void TestRepeatable(uint64_t seed) {
+  FileTable file_table;
   AstGeneratorOptions options;
   // Capture first output at a given seed for comparison.
   std::optional<std::string> first;
   // Try 32 generations at a given seed.
   for (int64_t i = 0; i < 32; ++i) {
     std::mt19937_64 rng{seed};
-    AstGenerator g(options, rng);
+    AstGenerator g(options, rng, file_table);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", "test"));
     std::string text = module.module->ToString();
@@ -196,7 +206,8 @@ static void TestRepeatable(uint64_t seed) {
   }
 }
 
-TEST(AstGeneratorTest, GeneratesZeroWidthValues) {
+TEST(AstGeneratorMultiTest, GeneratesZeroWidthValues) {
+  FileTable file_table;
   std::mt19937_64 rng{0};
   AstGeneratorOptions options;
   options.emit_zero_width_bits_types = true;
@@ -206,7 +217,7 @@ TEST(AstGeneratorTest, GeneratesZeroWidthValues) {
   // generator.
   constexpr int64_t kNumSamples = 5000;
   for (int64_t i = 0; i < kNumSamples; ++i) {
-    AstGenerator g(options, rng);
+    AstGenerator g(options, rng, file_table);
     VLOG(1) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
     XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,

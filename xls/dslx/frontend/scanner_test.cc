@@ -37,7 +37,8 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 absl::StatusOr<std::vector<Token>> ToTokens(std::string text) {
-  Scanner s("fake_file.x", std::move(text));
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), std::move(text));
   return s.PopAll();
 }
 
@@ -96,7 +97,8 @@ TEST(ScannerTest, TickCannotStartAnIdentifier) {
 // supported escape sequences.
 TEST(ScannerTest, RecognizesEscapes) {
   std::string text = R"(\n\r\t\\\0\'\"\x6f\u{102DCB}Hello"extrastuff)";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   XLS_ASSERT_OK_AND_ASSIGN(std::string result, s.ScanUntilDoubleQuote());
   EXPECT_EQ(static_cast<uint8_t>(result[0]), 10);   // Newline.
   EXPECT_EQ(static_cast<uint8_t>(result[1]), 13);   // Carriage return.
@@ -239,7 +241,8 @@ TEST(ScannerTest, IncompleteCharacter) {
 }
 
 TEST(ScannerTest, WhitespaceAndCommentsMode) {
-  Scanner s("fake_file.x", R"(// Hello comment world.
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), R"(// Hello comment world.
   42
   // EOF)",
             /*include_whitespace_and_comments=*/true);
@@ -253,7 +256,8 @@ TEST(ScannerTest, WhitespaceAndCommentsMode) {
 }
 
 TEST(ScannerTest, PopSeveral) {
-  Scanner s("fake_file.x", "[!](-)");
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), "[!](-)");
   std::vector<TokenKind> expected = {
       TokenKind::kOBrack, TokenKind::kBang,  TokenKind::kCBrack,
       TokenKind::kOParen, TokenKind::kMinus, TokenKind::kCParen,
@@ -267,14 +271,15 @@ TEST(ScannerTest, PopSeveral) {
 }
 
 TEST(ScannerTest, ScanRandomLookingForCrashes) {
+  FileTable file_table;
   absl::BitGen bitgen;
-  for (int64_t i = 0; i < 256 * 1024; ++i) {
+  for (int64_t i = 0; i < int64_t{256} * 1024; ++i) {
     int64_t length = absl::Uniform(bitgen, 0, 512);
     std::string text;
     for (int64_t charno = 0; charno < length; ++charno) {
       text.push_back(absl::Uniform(bitgen, 0, 256));
     }
-    Scanner s("fake_file.x", text);
+    Scanner s(file_table, Fileno(0), text);
     absl::StatusOr<std::vector<Token>> tokens = s.PopAll();
     if (!tokens.ok()) {
       continue;
@@ -287,8 +292,8 @@ TEST(ScannerTest, ScanRandomLookingForCrashes) {
 }
 
 TEST(ScannerTest, TokenEqNeqTests) {
-  Span span_a(Pos("test.x", 0, 0), Pos("test.x", 1, 1));
-  Span span_b(Pos("test.x", 2, 2), Pos("test.x", 3, 3));
+  Span span_a(Pos(Fileno(0), 0, 0), Pos(Fileno(0), 1, 1));
+  Span span_b(Pos(Fileno(0), 2, 2), Pos(Fileno(0), 3, 3));
 
   Token test_token(TokenKind::kIdentifier, span_a, "payload");
   EXPECT_EQ(test_token, test_token);
@@ -320,7 +325,8 @@ TEST(ScannerTest, TokenEqNeqTests) {
 
 TEST(ScannerTest, HexCharLiteralBadDigit) {
   std::string text = R"('\xjk')";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::vector<Token>> result = s.PopAll();
   EXPECT_THAT(
       result.status(),
@@ -329,7 +335,8 @@ TEST(ScannerTest, HexCharLiteralBadDigit) {
 
 TEST(ScannerTest, NoCloseQuoteOnString) {
   std::string text = R"("abc)";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::vector<Token>> result = s.PopAll();
   EXPECT_THAT(
       result.status(),
@@ -341,7 +348,8 @@ TEST(ScannerTest, NoCloseQuoteOnString) {
 
 TEST(ScannerTest, StringCharUnicodeEscapeNonHexDigit) {
   std::string text = R"(\u{jk}")";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
   EXPECT_THAT(
       result.status(),
@@ -353,7 +361,8 @@ TEST(ScannerTest, StringCharUnicodeEscapeNonHexDigit) {
 
 TEST(ScannerTest, StringCharUnicodeEscapeEmpty) {
   std::string text = R"(\u{}")";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
   EXPECT_THAT(
       result.status(),
@@ -364,7 +373,8 @@ TEST(ScannerTest, StringCharUnicodeEscapeEmpty) {
 
 TEST(ScannerTest, StringCharUnicodeInvalidSequence) {
   std::string text = R"(\u{d835}")";  // surrogate character
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
   EXPECT_THAT(result.status(),
               IsPosError("ScanError",
@@ -373,7 +383,8 @@ TEST(ScannerTest, StringCharUnicodeInvalidSequence) {
 
 TEST(ScannerTest, StringCharUnicodeMoreThanSixDigits) {
   std::string text = R"(\u{1234567}")";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
   EXPECT_THAT(
       result.status(),
@@ -384,7 +395,8 @@ TEST(ScannerTest, StringCharUnicodeMoreThanSixDigits) {
 
 TEST(ScannerTest, StringCharUnicodeBadTerminator) {
   std::string text = R"(\u{123456!")";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
   EXPECT_THAT(
       result.status(),
@@ -395,7 +407,8 @@ TEST(ScannerTest, StringCharUnicodeBadTerminator) {
 
 TEST(ScannerTest, StringCharUnicodeBadStartChar) {
   std::string text = R"(\u!")";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
   EXPECT_THAT(
       result.status(),
@@ -407,7 +420,8 @@ TEST(ScannerTest, StringCharUnicodeBadStartChar) {
 
 TEST(ScannerTest, SimpleString) {
   std::string text = R"({"hello world!"})";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
 
   XLS_ASSERT_OK_AND_ASSIGN(Token ocurl, s.Pop());
   EXPECT_EQ(ocurl.kind(), TokenKind::kOBrace);
@@ -424,7 +438,8 @@ TEST(ScannerTest, SimpleString) {
 
 TEST(ScannerTest, SimpleCommentData) {
   std::string text = R"(// I haz comments!)";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
 
   ASSERT_EQ(tokens.size(), 1);
@@ -432,7 +447,7 @@ TEST(ScannerTest, SimpleCommentData) {
 
   ASSERT_EQ(s.comments().size(), 1);
   const CommentData& comment = s.comments()[0];
-  const Span want_span{Pos("fake_file.x", 0, 0), Pos("fake_file.x", 0, 18)};
+  const Span want_span{Pos(Fileno(0), 0, 0), Pos(Fileno(0), 0, 18)};
   EXPECT_EQ(comment.span, want_span);
   EXPECT_EQ(comment.text, " I haz comments!");
 }
@@ -440,7 +455,8 @@ TEST(ScannerTest, SimpleCommentData) {
 TEST(ScannerTest, CommentTokenSandwich) {
   std::string text = R"(+ // I haz comments!
 *)";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Scanner s(file_table, Fileno(0), text);
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
   ASSERT_EQ(tokens.size(), 2);
   EXPECT_EQ(tokens[0].kind(), TokenKind::kPlus);
@@ -448,7 +464,7 @@ TEST(ScannerTest, CommentTokenSandwich) {
 
   ASSERT_EQ(s.comments().size(), 1);
   const CommentData& comment = s.comments()[0];
-  const Span want_span{Pos("fake_file.x", 0, 2), Pos("fake_file.x", 1, 0)};
+  const Span want_span{Pos(Fileno(0), 0, 2), Pos(Fileno(0), 1, 0)};
   EXPECT_EQ(comment.span, want_span);
   EXPECT_EQ(comment.text, " I haz comments!\n");
 }
@@ -457,7 +473,9 @@ TEST(ScannerTest, TwoInlineStyleComments) {
   std::string text = R"(foo // one thing
 bar  // another thing
 )";
-  Scanner s("fake_file.x", text);
+  FileTable file_table;
+  Fileno fileno(0);
+  Scanner s(file_table, fileno, text);
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens, s.PopAll());
   ASSERT_EQ(tokens.size(), 3);
   EXPECT_EQ(tokens[0].kind(), TokenKind::kIdentifier);
@@ -468,14 +486,14 @@ bar  // another thing
 
   {
     const CommentData& comment = s.comments()[0];
-    const Span want_span{Pos("fake_file.x", 0, 4), Pos("fake_file.x", 1, 0)};
+    const Span want_span{Pos(fileno, 0, 4), Pos(fileno, 1, 0)};
     EXPECT_EQ(comment.span, want_span);
     EXPECT_EQ(comment.text, " one thing\n");
   }
 
   {
     const CommentData& comment = s.comments()[1];
-    const Span want_span{Pos("fake_file.x", 1, 5), Pos("fake_file.x", 2, 0)};
+    const Span want_span{Pos(fileno, 1, 5), Pos(fileno, 2, 0)};
     EXPECT_EQ(comment.span, want_span);
     EXPECT_EQ(comment.text, " another thing\n");
   }

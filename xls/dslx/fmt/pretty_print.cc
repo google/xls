@@ -410,7 +410,7 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
                          payload);
 }
 
-DocArena::DocArena() {
+DocArena::DocArena(const FileTable& file_table) : file_table_(file_table) {
   empty_ = MakeText("");
   space_ = MakeText(" ");
   // a hardline

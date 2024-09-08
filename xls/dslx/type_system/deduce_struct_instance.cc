@@ -95,7 +95,8 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
           expr->span(), nullptr,
           absl::StrFormat(
               "Duplicate value seen for '%s' in this '%s' struct instance.",
-              name, struct_text));
+              name, struct_text),
+          ctx->file_table());
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> expr_type,
                          DeduceAndResolve(expr, ctx));
@@ -115,7 +116,8 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
           expr->span(), nullptr,
           absl::StrFormat("Struct '%s' has no member '%s', but it was provided "
                           "by this instance.",
-                          struct_text, name));
+                          struct_text, name),
+          ctx->file_table());
     }
   }
 
@@ -130,14 +132,15 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                        ctx->Deduce(ToAstNode(node->struct_ref())));
-  XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(std::move(type), node->span(),
-                                            "struct instance type"));
+  XLS_ASSIGN_OR_RETURN(
+      type, UnwrapMetaType(std::move(type), node->span(),
+                           "struct instance type", ctx->file_table()));
 
   auto* struct_type = dynamic_cast<const StructType*>(type.get());
   if (struct_type == nullptr) {
     return TypeInferenceErrorStatus(
         node->span(), struct_type,
-        "Expected a struct definition to instantiate");
+        "Expected a struct definition to instantiate", ctx->file_table());
   }
 
   // Note what names we expect to be present.
@@ -162,7 +165,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
             absl::StrJoin(missing, ", ",
                           [](std::string* out, const std::string& piece) {
                             absl::StrAppendFormat(out, "'%s'", piece);
-                          })));
+                          })),
+        ctx->file_table());
   }
 
   const TypeAnnotation* struct_ref = node->struct_ref();
@@ -187,9 +191,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
     const SplatStructInstance* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> struct_type_ct,
                        ctx->Deduce(ToAstNode(node->struct_ref())));
-  XLS_ASSIGN_OR_RETURN(struct_type_ct,
-                       UnwrapMetaType(std::move(struct_type_ct), node->span(),
-                                      "splatted struct instance type"));
+  XLS_ASSIGN_OR_RETURN(
+      struct_type_ct,
+      UnwrapMetaType(std::move(struct_type_ct), node->span(),
+                     "splatted struct instance type", ctx->file_table()));
 
   // The type of the splatted value; e.g. in `MyStruct{..s}` the type of `s`.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> splatted_type_ct,
@@ -202,7 +207,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
   if (struct_type == nullptr) {
     return TypeInferenceErrorStatus(
         node->struct_ref()->span(), struct_type_ct.get(),
-        absl::StrFormat("Type given to struct instantiation was not a struct"));
+        absl::StrFormat("Type given to struct instantiation was not a struct"),
+        ctx->file_table());
   }
 
   auto* splatted_type = dynamic_cast<StructType*>(splatted_type_ct.get());
@@ -210,7 +216,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
     return TypeInferenceErrorStatus(
         node->splatted()->span(), splatted_type_ct.get(),
         absl::StrFormat(
-            "Type given to 'splatted' struct instantiation was not a struct"));
+            "Type given to 'splatted' struct instantiation was not a struct"),
+        ctx->file_table());
   }
 
   if (&struct_type->nominal_type() != &splatted_type->nominal_type()) {
@@ -229,8 +236,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSplatStructInstance(
 
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> all_names,
                        struct_type->GetMemberNames());
-  VLOG(5) << "SplatStructInstance @ " << node->span() << " seen names: ["
-          << absl::StrJoin(validated.seen_names, ", ") << "] "
+  const FileTable& file_table = *node->owner()->file_table();
+  VLOG(5) << "SplatStructInstance @ " << node->span().ToString(file_table)
+          << " seen names: [" << absl::StrJoin(validated.seen_names, ", ")
+          << "] "
           << " all names: [" << absl::StrJoin(all_names, ", ") << "]";
 
   if (validated.seen_names.size() == all_names.size()) {

@@ -36,12 +36,13 @@ using ::testing::HasSubstr;
 using ::xls::status_testing::IsOkAndHolds;
 
 TEST(SampleGeneratorTest, GenerateBasicSample) {
+  dslx::FileTable file_table;
   std::mt19937_64 rng;
   SampleOptions sample_options;
   sample_options.set_calls_per_sample(3);
   XLS_ASSERT_OK_AND_ASSIGN(
-      Sample sample,
-      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, rng));
+      Sample sample, GenerateSample(dslx::AstGeneratorOptions{}, sample_options,
+                                    rng, file_table));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());
@@ -52,6 +53,7 @@ TEST(SampleGeneratorTest, GenerateBasicSample) {
 }
 
 TEST(SampleGeneratorTest, GenerateCodegenSample) {
+  dslx::FileTable file_table;
   std::mt19937_64 rng;
   SampleOptions sample_options;
   sample_options.set_codegen(true);
@@ -59,8 +61,8 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
   constexpr int64_t kCallsPerSample = 0;
   sample_options.set_calls_per_sample(kCallsPerSample);
   XLS_ASSERT_OK_AND_ASSIGN(
-      Sample sample,
-      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, rng));
+      Sample sample, GenerateSample(dslx::AstGeneratorOptions{}, sample_options,
+                                    rng, file_table));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());
@@ -93,6 +95,7 @@ TEST(SampleGeneratorTest, GenerateChannelArgument) {
 }
 
 TEST(SampleGeneratorTest, GenerateBasicProcSample) {
+  dslx::FileTable file_table;
   std::mt19937_64 rng;
   SampleOptions sample_options;
   constexpr int64_t kProcTicks = 3;
@@ -101,7 +104,7 @@ TEST(SampleGeneratorTest, GenerateBasicProcSample) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample,
       GenerateSample(dslx::AstGeneratorOptions{.generate_proc = true},
-                     sample_options, rng));
+                     sample_options, rng, file_table));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());

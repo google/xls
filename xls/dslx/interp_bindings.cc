@@ -59,12 +59,13 @@ InterpBindings::InterpBindings(const InterpBindings* parent) : parent_(parent) {
 }
 
 absl::StatusOr<InterpValue> InterpBindings::ResolveValueFromIdentifier(
-    std::string_view identifier, const Span* ref_span) const {
+    std::string_view identifier, const Span* ref_span,
+    const FileTable& file_table) const {
   std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     std::string span_str;
     if (ref_span != nullptr) {
-      span_str = " @ " + ref_span->ToString();
+      span_str = " @ " + ref_span->ToString(file_table);
     }
     return absl::NotFoundError(absl::StrFormat(
         "InterpBindings could not find bindings entry for identifier: \"%s\"%s",

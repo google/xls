@@ -31,6 +31,7 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/meta/type_traits.h"
@@ -91,7 +92,8 @@ absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
   return results;
 }
 
-absl::Status MakeModuleTopCollisionError(std::string_view module_name,
+absl::Status MakeModuleTopCollisionError(const FileTable& file_table,
+                                         std::string_view module_name,
                                          std::string_view member_name,
                                          const Span& existing_span,
                                          const AstNode* existing_node,
@@ -100,7 +102,9 @@ absl::Status MakeModuleTopCollisionError(std::string_view module_name,
   return ParseErrorStatus(
       new_span,
       absl::StrFormat("Module `%s` already contains a member named `%s` @ %s",
-                      module_name, member_name, existing_span.ToString()));
+                      module_name, member_name,
+                      existing_span.ToString(file_table)),
+      file_table);
 }
 
 ColonRef::Subject CloneSubject(Module* module,
@@ -205,6 +209,11 @@ absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
   return BuiltinTypeFromString(*tok.GetValue());
 }
 
+absl::Status Parser::ParseErrorStatus(const Span& span,
+                                      std::string_view message) const {
+  return xls::dslx::ParseErrorStatus(span, message, file_table());
+}
+
 absl::StatusOr<Function*> Parser::ParseFunction(
     bool is_public, Bindings& bindings,
     absl::flat_hash_map<std::string, Function*>* name_to_fn) {
@@ -219,7 +228,8 @@ absl::StatusOr<Function*> Parser::ParseFunction(
         f->name_def()->span(),
         absl::StrFormat("Function '%s' is defined in this module multiple "
                         "times; previously @ %s'",
-                        f->identifier(), item->second->span().ToString()));
+                        f->identifier(),
+                        item->second->span().ToString(file_table())));
   }
   XLS_RETURN_IF_ERROR(VerifyParentage(f));
   return f;
@@ -271,6 +281,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
   absl::flat_hash_map<std::string, Function*> name_to_fn;
 
+  auto make_collision_error =
+      absl::bind_front(&MakeModuleTopCollisionError, file_table());
+
   while (!AtEof()) {
     XLS_ASSIGN_OR_RETURN(bool peek_is_eof, PeekTokenIs(TokenKind::kEof));
     if (peek_is_eof) {
@@ -286,37 +299,35 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(Function * fn,
                              ParseFunction(
                                  /*is_public=*/true, *bindings, &name_to_fn));
-        XLS_RETURN_IF_ERROR(module_->AddTop(fn, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(fn, make_collision_error));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kProc)) {
         XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
                                               /*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(proc, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(proc, make_collision_error));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kStruct)) {
         XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                              ParseStruct(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(struct_def, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(struct_def, make_collision_error));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kEnum)) {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
                              ParseEnumDef(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(enum_def, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(enum_def, make_collision_error));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kConst)) {
         XLS_ASSIGN_OR_RETURN(ConstantDef * def,
                              ParseConstantDef(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(def, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(def, make_collision_error));
         continue;
       }
 
@@ -324,8 +335,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_RET_CHECK(bindings != nullptr);
         XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
                              ParseTypeAlias(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(type_alias, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(type_alias, make_collision_error));
         continue;
       }
 
@@ -349,16 +359,16 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       XLS_RETURN_IF_ERROR(absl::visit(
           Visitor{
               [&](TestFunction* t) {
-                return module_->AddTop(t, MakeModuleTopCollisionError);
+                return module_->AddTop(t, make_collision_error);
               },
               [&](Function* f) {
-                return module_->AddTop(f, MakeModuleTopCollisionError);
+                return module_->AddTop(f, make_collision_error);
               },
               [&](TestProc* tp) {
-                return module_->AddTop(tp, MakeModuleTopCollisionError);
+                return module_->AddTop(tp, make_collision_error);
               },
               [&](QuickCheck* qc) {
-                return module_->AddTop(qc, MakeModuleTopCollisionError);
+                return module_->AddTop(qc, make_collision_error);
               },
               [&](TypeDefinition def) {
                 return absl::visit(
@@ -368,16 +378,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
                               "colon-ref annotated with attribute");
                         },
                         [&](TypeAlias* t) {
-                          return module_->AddTop(t,
-                                                 MakeModuleTopCollisionError);
+                          return module_->AddTop(t, make_collision_error);
                         },
                         [&](StructDef* t) {
-                          return module_->AddTop(t,
-                                                 MakeModuleTopCollisionError);
+                          return module_->AddTop(t, make_collision_error);
                         },
                         [&](EnumDef* t) {
-                          return module_->AddTop(t,
-                                                 MakeModuleTopCollisionError);
+                          return module_->AddTop(t, make_collision_error);
                         },
                     },
                     def);
@@ -400,7 +407,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       continue;
     }
 
-    auto top_level_error = [peek] {
+    auto top_level_error = [peek, this] {
       return ParseErrorStatus(
           peek->span(),
           absl::StrFormat("Expected start of top-level construct; got: '%s'",
@@ -416,48 +423,43 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(Function * fn,
                              ParseFunction(
                                  /*is_public=*/false, *bindings, &name_to_fn));
-        XLS_RETURN_IF_ERROR(module_->AddTop(fn, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(fn, make_collision_error));
         break;
       }
       case Keyword::kProc: {
         XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
                                               /*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(proc, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(proc, make_collision_error));
         break;
       }
       case Keyword::kImport: {
         XLS_ASSIGN_OR_RETURN(Import * import, ParseImport(*bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(import, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(import, make_collision_error));
         break;
       }
       case Keyword::kType: {
         XLS_RET_CHECK(bindings != nullptr);
         XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
                              ParseTypeAlias(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(type_alias, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(type_alias, make_collision_error));
         break;
       }
       case Keyword::kStruct: {
         XLS_ASSIGN_OR_RETURN(StructDef * struct_,
                              ParseStruct(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(struct_, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(struct_, make_collision_error));
         break;
       }
       case Keyword::kEnum: {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_,
                              ParseEnumDef(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(enum_, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(enum_, make_collision_error));
         break;
       }
       case Keyword::kConst: {
         XLS_ASSIGN_OR_RETURN(ConstantDef * const_def,
                              ParseConstantDef(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(
-            module_->AddTop(const_def, MakeModuleTopCollisionError));
+        XLS_RETURN_IF_ERROR(module_->AddTop(const_def, make_collision_error));
         break;
       }
       case Keyword::kImpl: {
@@ -526,7 +528,7 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     if (!parsed_ffi_annotation.ok()) {
       const int64_t error_at =
           CodeTemplate::ExtractErrorColumn(parsed_ffi_annotation.status());
-      Pos error_pos{template_start.filename(), template_start.lineno(),
+      Pos error_pos{template_start.fileno(), template_start.lineno(),
                     template_start.colno() + error_at};
       dslx::Span error_span(error_pos, error_pos);
       return ParseErrorStatus(error_span,
@@ -546,7 +548,6 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
   }
   if (directive_name == "sv_type") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-    Pos ident_start = GetPos();
     Pos ident_limit;
     XLS_ASSIGN_OR_RETURN(
         Token sv_type_id,
@@ -745,8 +746,9 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
   if (peek_is_double_colon) {
     return ParseModTypeRef(bindings, tok);
   }
-  XLS_ASSIGN_OR_RETURN(BoundNode type_def, bindings.ResolveNodeOrError(
-                                               *tok.GetValue(), tok.span()));
+  XLS_ASSIGN_OR_RETURN(
+      BoundNode type_def,
+      bindings.ResolveNodeOrError(*tok.GetValue(), tok.span(), file_table()));
   if (!IsOneOf<TypeAlias, EnumDef, StructDef>(ToAstNode(type_def))) {
     return ParseErrorStatus(
         tok.span(),
@@ -893,7 +895,8 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
   // If we failed to parse this ref, then put it back on the queue, in case
   // we try another production.
   XLS_ASSIGN_OR_RETURN(
-      BoundNode bn, bindings.ResolveNodeOrError(*tok->GetValue(), tok->span()));
+      BoundNode bn,
+      bindings.ResolveNodeOrError(*tok->GetValue(), tok->span(), file_table()));
   AnyNameDef name_def = BoundNodeToAnyNameDef(bn);
   if (std::holds_alternative<ConstantDef*>(bn)) {
     return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
@@ -1099,7 +1102,7 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings& bindings) {
           absl::StrFormat(
               "Name '%s' is defined twice in this pattern; previously @ %s",
               name_def->identifier(),
-              seen[name_def->identifier()]->span().ToString()));
+              seen[name_def->identifier()]->span().ToString(file_table())));
     }
   }
   return ndt;
@@ -1181,7 +1184,9 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings& bindings,
       type = type_status.value();
     } else {
       PositionalErrorData data =
-          GetPositionalErrorData(type_status.status()).value();
+          GetPositionalErrorData(type_status.status(), std::nullopt,
+                                 file_table())
+              .value();
       return ParseErrorStatus(
           data.span,
           absl::StrFormat("Expected a type as part of a cast expression: %s",
@@ -1521,8 +1526,9 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
           module_->FindMemberWithName(name_def->identifier())) {
     const std::optional<Span> maybe_span =
         ToAstNode(*existing_member.value())->GetSpan();
-    std::string span_str =
-        maybe_span.has_value() ? " at " + maybe_span->ToString() : "";
+    std::string span_str = maybe_span.has_value()
+                               ? " at " + maybe_span->ToString(file_table())
+                               : "";
     return ParseErrorStatus(
         name_def->span(),
         absl::StrFormat("Import of `%s` is shadowing an existing definition%s",
@@ -2054,7 +2060,7 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
                                   "valid Verilog identifier.");
         }
         XLS_RETURN_IF_ERROR(
-            bindings.AddFailLabel(label->text(), label->span()));
+            bindings.AddFailLabel(label->text(), label->span(), file_table()));
       }
     }
   }
@@ -2085,24 +2091,26 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
     std::string config_name = absl::StrCat(name_ref->identifier(), ".config");
     std::string next_name = absl::StrCat(name_ref->identifier(), ".next");
     std::string init_name = absl::StrCat(name_ref->identifier(), ".init");
-    XLS_ASSIGN_OR_RETURN(
-        AnyNameDef config_def,
-        bindings.ResolveNameOrError(config_name, spawnee->span()));
+    XLS_ASSIGN_OR_RETURN(AnyNameDef config_def,
+                         bindings.ResolveNameOrError(
+                             config_name, spawnee->span(), file_table()));
     if (!std::holds_alternative<const NameDef*>(config_def)) {
       return absl::InternalError("Proc config should be named \".config\"");
     }
     config_ref =
         module_->Make<NameRef>(name_ref->span(), config_name, config_def);
 
-    XLS_ASSIGN_OR_RETURN(AnyNameDef next_def, bindings.ResolveNameOrError(
-                                                  next_name, spawnee->span()));
+    XLS_ASSIGN_OR_RETURN(
+        AnyNameDef next_def,
+        bindings.ResolveNameOrError(next_name, spawnee->span(), file_table()));
     if (!std::holds_alternative<const NameDef*>(next_def)) {
       return absl::InternalError("Proc next should be named \".next\"");
     }
     next_ref = module_->Make<NameRef>(name_ref->span(), next_name, next_def);
 
-    XLS_ASSIGN_OR_RETURN(AnyNameDef init_def, bindings.ResolveNameOrError(
-                                                  init_name, spawnee->span()));
+    XLS_ASSIGN_OR_RETURN(
+        AnyNameDef init_def,
+        bindings.ResolveNameOrError(init_name, spawnee->span(), file_table()));
     if (!std::holds_alternative<const NameDef*>(init_def)) {
       return absl::InternalError("Proc init should be named \".init\"");
     }
@@ -2203,13 +2211,13 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   Bindings new_bindings(/*parent=*/&bindings);
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(new_bindings));
   if (bindings.HasName(name_def->identifier())) {
-    Span span =
-        BoundNodeGetSpan(bindings.ResolveNode(name_def->identifier()).value());
+    Span span = BoundNodeGetSpan(
+        bindings.ResolveNode(name_def->identifier()).value(), file_table());
     return ParseErrorStatus(
         name_def->span(),
         absl::StrFormat(
             "Constant definition is shadowing an existing definition from %s",
-            span.ToString()));
+            span.ToString(file_table())));
   }
 
   XLS_ASSIGN_OR_RETURN(bool dropped_colon, TryDropToken(TokenKind::kColon));
@@ -2309,10 +2317,8 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
     return ParseParam(inner_bindings);
   };
 
-  Pos params_start = GetPos();
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
-  Pos params_end = GetPos();
 
   if (next_params.size() != 1) {
     std::string next_params_str =
@@ -2411,17 +2417,20 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
 
   // Helper, if "f" is already non-null we give back an appropriate error
   // message given the "peek" token that names the function.
-  auto check_not_yet_specified = [name_def](Function* f,
-                                            const Token* peek) -> absl::Status {
+  auto check_not_yet_specified =
+      [this, name_def](Function* f, const Token* peek) -> absl::Status {
     if (f != nullptr) {
       return ParseErrorStatus(
           peek->span(),
           absl::StrFormat("proc `%s` %s function was already specified @ %s",
                           name_def->identifier(), *peek->GetValue(),
-                          peek->span().ToString()));
+                          peek->span().ToString(file_table())));
     }
     return absl::OkStatus();
   };
+
+  auto make_collision_error =
+      absl::bind_front(&MakeModuleTopCollisionError, file_table());
 
   ProcLikeBody proc_like_body = {
       .config = nullptr,
@@ -2472,7 +2481,7 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
       // collisions.
       outer_bindings.Add(config->name_def()->identifier(), config->name_def());
 
-      XLS_RETURN_IF_ERROR(module_->AddTop(config, MakeModuleTopCollisionError));
+      XLS_RETURN_IF_ERROR(module_->AddTop(config, make_collision_error));
       proc_like_body.stmts.push_back(config);
     } else if (peek->IsIdentifier("next")) {
       XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_like_body.next, peek));
@@ -2483,7 +2492,7 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
                            ParseProcNext(member_bindings, parametric_bindings,
                                          name_def->identifier(), is_public));
       proc_like_body.next = next;
-      XLS_RETURN_IF_ERROR(module_->AddTop(next, MakeModuleTopCollisionError));
+      XLS_RETURN_IF_ERROR(module_->AddTop(next, make_collision_error));
 
       // TODO(https://github.com/google/xls/issues/1029): 2024-03-25 this is a
       // bit of a kluge -- we add a function identifier that uses a reserved
@@ -2498,7 +2507,7 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
                            ParseProcInit(member_bindings, parametric_bindings,
                                          name_def->identifier(), is_public));
       proc_like_body.init = init;
-      XLS_RETURN_IF_ERROR(module_->AddTop(init, MakeModuleTopCollisionError));
+      XLS_RETURN_IF_ERROR(module_->AddTop(init, make_collision_error));
 
       // TODO(https://github.com/google/xls/issues/1029): 2024-03-25 this is a
       // bit of a kluge -- we add a function identifier that uses a reserved
@@ -2679,8 +2688,8 @@ absl::StatusOr<TypeRef*> Parser::ParseModTypeRef(Bindings& bindings,
                                                  const Token& start_tok) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleColon));
   XLS_ASSIGN_OR_RETURN(
-      BoundNode bn,
-      bindings.ResolveNodeOrError(*start_tok.GetValue(), start_tok.span()));
+      BoundNode bn, bindings.ResolveNodeOrError(
+                        *start_tok.GetValue(), start_tok.span(), file_table()));
   if (!std::holds_alternative<Import*>(bn)) {
     return ParseErrorStatus(
         start_tok.span(),
@@ -2709,7 +2718,7 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
         start_tok.span(),
         absl::StrFormat("Expected 'let' or 'const'; got %s @ %s",
                         start_tok.ToErrorString(),
-                        start_tok.span().ToString()));
+                        start_tok.span().ToString(file_table())));
   }
 
   Bindings new_bindings(&bindings);
@@ -2941,10 +2950,10 @@ absl::StatusOr<Number*> Parser::ParseNumber(Bindings& bindings) {
     return dynamic_cast<Number*>(cast.value());
   }
 
-  return ParseErrorStatus(
-      peek.span(),
-      absl::StrFormat("Expected number; got %s @ %s",
-                      TokenKindToString(peek.kind()), peek.span().ToString()));
+  return ParseErrorStatus(peek.span(),
+                          absl::StrFormat("Expected number; got %s @ %s",
+                                          TokenKindToString(peek.kind()),
+                                          peek.span().ToString(file_table())));
 }
 
 absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
@@ -3120,8 +3129,8 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
     // value. If it's a type, get on the track that `ParseTypeAnnotation` takes
     // with type refs.
     XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
-    absl::StatusOr<BoundNode> def =
-        bindings.ResolveNodeOrError(ToAstNode(nocr)->ToString(), peek->span());
+    absl::StatusOr<BoundNode> def = bindings.ResolveNodeOrError(
+        ToAstNode(nocr)->ToString(), peek->span(), file_table());
     if (def.ok() && IsOneOf<TypeAlias, EnumDef, StructDef>(ToAstNode(*def))) {
       XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                            BoundNodeToTypeDefinition(*def));
@@ -3205,7 +3214,8 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
         f->name_def()->span(),
         absl::StrFormat(
             "Test function '%s' has same name as module member @ %s",
-            f->identifier(), ToAstNode(**member)->GetSpan()->ToString()));
+            f->identifier(),
+            ToAstNode(**member)->GetSpan()->ToString(file_table())));
   }
   Span tf_span(directive_span.start(), f->span().limit());
   TestFunction* tf = module_->Make<TestFunction>(tf_span, *f);
@@ -3218,10 +3228,10 @@ absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings& bindings) {
   if (std::optional<ModuleMember*> member =
           module_->FindMemberWithName(p->identifier())) {
     return ParseErrorStatus(
-        p->span(),
-        absl::StrFormat("Test proc '%s' has same name as module member @ %s",
-                        p->identifier(),
-                        ToAstNode(**member)->GetSpan()->ToString()));
+        p->span(), absl::StrFormat(
+                       "Test proc '%s' has same name as module member @ %s",
+                       p->identifier(),
+                       ToAstNode(**member)->GetSpan()->ToString(file_table())));
   }
 
   // Verify no state or config args

@@ -88,15 +88,17 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings,
     absl::Span<absl::Nonnull<const ParametricBinding*> const>
         parametric_bindings) {
-  VLOG(5) << "Function instantiation @ " << span << " type: " << function_type;
+  const FileTable& file_table = ctx->file_table();
+  VLOG(5) << "Function instantiation @ " << span.ToString(file_table)
+          << " type: " << function_type;
   VLOG(5) << " typed-parametrics: " << ToString(typed_parametrics);
   VLOG(5) << " arg types:              " << ToTypesString(args);
   VLOG(5) << " explicit bindings:   " << ToString(explicit_bindings);
   XLS_ASSIGN_OR_RETURN(
       auto instantiator,
       internal::FunctionInstantiator::Make(
-          std::move(span), callee_fn, function_type, args, ctx,
-          typed_parametrics, explicit_bindings, parametric_bindings));
+          span, callee_fn, function_type, args, ctx, typed_parametrics,
+          explicit_bindings, parametric_bindings));
   return instantiator->Instantiate();
 }
 
@@ -107,14 +109,16 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     absl::Span<const ParametricWithType> typed_parametrics,
     absl::Span<absl::Nonnull<const ParametricBinding*> const>
         parametric_bindings) {
-  VLOG(5) << "Struct instantiation @ " << span << " type: " << struct_type;
+  const FileTable& file_table = ctx->file_table();
+  VLOG(5) << "Struct instantiation @ " << span.ToString(file_table)
+          << " type: " << struct_type;
   VLOG(5) << " arg types:           " << ToTypesString(args);
   VLOG(5) << " member types:        " << ToString(member_types);
   VLOG(5) << " typed-parametrics: " << ToString(typed_parametrics);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::StructInstantiator::Make(
-                           std::move(span), struct_type, args, member_types,
-                           ctx, typed_parametrics, parametric_bindings));
+                           span, struct_type, args, member_types, ctx,
+                           typed_parametrics, parametric_bindings));
   return instantiator->Instantiate();
 }
 

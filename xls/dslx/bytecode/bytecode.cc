@@ -324,14 +324,14 @@ std::string OpToString(Bytecode::Op op) {
 }
 
 std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
-                              bool source_locs) {
+                              bool source_locs, const FileTable& file_table) {
   std::string program;
   for (size_t i = 0; i < bytecodes.size(); ++i) {
     if (i != 0) {
       absl::StrAppend(&program, "\n");
     }
     absl::StrAppendFormat(&program, "%03d %s", i,
-                          bytecodes.at(i).ToString(source_locs));
+                          bytecodes.at(i).ToString(file_table, source_locs));
   }
   return program;
 }
@@ -588,11 +588,12 @@ void Bytecode::PatchJumpTarget(int64_t value) {
   data_ = JumpTarget(value);
 }
 
-std::string Bytecode::ToString(bool source_locs) const {
+std::string Bytecode::ToString(const FileTable& file_table,
+                               bool source_locs) const {
   std::string op_string = OpToString(op_);
   std::string loc_string;
   if (source_locs) {
-    loc_string = " @ " + source_span_.ToString();
+    loc_string = " @ " + source_span_.ToString(file_table);
   }
 
   if (op_ == Op::kJumpRel || op_ == Op::kJumpRelIf) {

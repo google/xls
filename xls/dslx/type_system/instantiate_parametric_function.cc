@@ -68,7 +68,8 @@ EvaluateExplicitParametrics(
           type_annotation->span(), nullptr,
           absl::StrFormat("Parametric function invocation cannot take "
                           "type `%s` -- parametric must be an expression",
-                          type_annotation->ToString()));
+                          type_annotation->ToString()),
+          ctx->file_table());
     }
 
     auto* parametric_expr = std::get<Expr*>(eot);
@@ -108,7 +109,8 @@ EvaluateExplicitParametrics(
           parametric_expr->span(), parametric_expr_type.get(),
           absl::StrFormat("Parametric expression `%s` was not constexpr -- "
                           "parametric values must be compile-time constants",
-                          parametric_expr->ToString()));
+                          parametric_expr->ToString()),
+          ctx->file_table());
     }
 
     XLS_ASSIGN_OR_RETURN(
@@ -125,9 +127,11 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     DeduceCtx* ctx, DeduceCtx* parent_ctx, const Invocation* invocation,
     Function& callee_fn, const FunctionType& fn_type,
     const std::vector<InstantiateArg>& instantiate_args) {
+  const FileTable& file_table = ctx->file_table();
   VLOG(5) << "InstantiateParametricFunction; callee_fn: "
           << callee_fn.identifier() << " invocation: `"
-          << invocation->ToString() << "` @ " << invocation->span();
+          << invocation->ToString() << "` @ "
+          << invocation->span().ToString(file_table);
 
   {
     // As a special case, flag recursion (that otherwise shows up as unresolved
@@ -141,7 +145,8 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
             invocation->span(), nullptr,
             absl::StrFormat("Recursive call to `%s` detected during "
                             "type-checking -- recursive calls are unsupported.",
-                            callee_fn.identifier()));
+                            callee_fn.identifier()),
+            file_table);
       }
     }
   }
@@ -154,7 +159,8 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
         absl::StrFormat(
             "Too many parametric values supplied; limit: %d given: %d",
             parametric_bindings.size(),
-            invocation->explicit_parametrics().size()));
+            invocation->explicit_parametrics().size()),
+        file_table);
   }
 
   using ParametricEnvMap = absl::flat_hash_map<std::string, InterpValue>;

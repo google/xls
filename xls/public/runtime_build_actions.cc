@@ -92,9 +92,10 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
                                         std::string_view message_name,
                                         std::string_view text_proto,
                                         std::string_view binding_name) {
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<dslx::Module> module,
-      ProtoToDslxViaText(proto_def, message_name, text_proto, binding_name));
+  dslx::FileTable file_table;
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Module> module,
+                       ProtoToDslxViaText(proto_def, message_name, text_proto,
+                                          binding_name, file_table));
   return module->ToString();
 }
 

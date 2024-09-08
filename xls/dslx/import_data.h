@@ -202,6 +202,9 @@ class ImportData {
   // into this ImportData set.
   WarningKindSet enabled_warnings() const { return enabled_warnings_; }
 
+  FileTable& file_table() { return file_table_; }
+  const FileTable& file_table() const { return file_table_; }
+
  private:
   friend ImportData CreateImportData(const std::filesystem::path&,
                                      absl::Span<const std::filesystem::path>,
@@ -224,6 +227,7 @@ class ImportData {
   // module is not available.
   absl::StatusOr<const Module*> FindModule(const Span& span) const;
 
+  FileTable file_table_;
   absl::flat_hash_map<ImportTokens, std::unique_ptr<ModuleInfo>> modules_;
   absl::flat_hash_map<std::string, ModuleInfo*> path_to_module_info_;
   absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>

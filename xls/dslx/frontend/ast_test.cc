@@ -34,7 +34,8 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 TEST(AstTest, ModuleWithConstant) {
-  Module m("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   const Span fake_span;
   Number* number = m.Make<Number>(fake_span, std::string("42"),
                                   NumberKind::kOther, /*type=*/nullptr);
@@ -68,18 +69,19 @@ TEST(AstTest, GetNumberAsInt64) {
        .want = static_cast<uint64_t>(-1)},
       {.text = "-1", .want = static_cast<uint64_t>(-1)},
   };
-  Module m("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   auto make_num = [&m](std::string text) {
     const Span fake_span;
     return m.Make<Number>(fake_span, text, NumberKind::kOther,
                           /*type=*/nullptr);
   };
   for (const Example& example : kCases) {
-    EXPECT_THAT(make_num(example.text)->GetAsUint64(),
+    EXPECT_THAT(make_num(example.text)->GetAsUint64(file_table),
                 IsOkAndHolds(example.want));
   }
 
-  EXPECT_THAT(make_num("0b")->GetAsUint64(),
+  EXPECT_THAT(make_num("0b")->GetAsUint64(file_table),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Could not convert 0b to a number")));
 }
@@ -94,7 +96,8 @@ TEST(AstTest, CharacterNumberToStringTest) {
       {.text = R"(S)", .want = R"('S')"},  {.text = R"(")", .want = R"('"')"},
       {.text = R"(')", .want = R"('\'')"}, {.text = R"(\)", .want = R"('\\')"},
   };
-  Module m("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   auto make_char_num = [&m](std::string text) {
     const Span fake_span;
     return m.Make<Number>(fake_span, text, NumberKind::kCharacter,
@@ -160,7 +163,7 @@ TEST(AstTest, GetBuiltinTypeBitCount) {
 // See comment on `MakeCastWithinLtComparison()` -- we need to insert parens
 // appropriately here.
 TEST(AstTest, ToStringCastWithinLtComparison) {
-  auto [module, lt] = MakeCastWithinLtComparison();
+  auto [file_table, module, lt] = MakeCastWithinLtComparison();
 
   EXPECT_EQ(lt->ToString(), "(x as t) < x");
 }

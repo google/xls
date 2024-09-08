@@ -22,8 +22,18 @@
 
 namespace xls::dslx {
 
+struct TypecheckResult {
+  // If `import_data` is not dependency injected into the `Typecheck` routine,
+  // we create import data, and it owns objects with lifetimes we need for the
+  // `TypecheckedModule` (e.g. the `FileTable`) so we provide it in the result.
+  std::unique_ptr<ImportData> import_data;
+  TypecheckedModule tm;
+};
+
 // Helper for parsing/typechecking a snippet of DSLX text.
-absl::StatusOr<TypecheckedModule> Typecheck(std::string_view text);
+//
+// If `import_data` is not provided one is created for internal use.
+absl::StatusOr<TypecheckResult> Typecheck(std::string_view text);
 
 }  // namespace xls::dslx
 

@@ -63,7 +63,8 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
   if (config_params.size() != 1) {
     return TypeInferenceErrorStatus(
         proc->span(), nullptr,
-        "Test proc `config` functions should only take a terminator channel.");
+        "Test proc `config` functions should only take a terminator channel.",
+        ctx->file_table());
   }
 
   ChannelTypeAnnotation* channel_type =
@@ -71,7 +72,8 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
   if (channel_type == nullptr) {
     return TypeInferenceErrorStatus(proc->config().span(), nullptr,
                                     "Test proc 'config' functions should "
-                                    "only take a terminator channel.");
+                                    "only take a terminator channel.",
+                                    ctx->file_table());
   }
   BuiltinTypeAnnotation* payload_type =
       dynamic_cast<BuiltinTypeAnnotation*>(channel_type->payload());
@@ -80,12 +82,14 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     return TypeInferenceErrorStatus(
         proc->config().span(), nullptr,
         "Test proc 'config' terminator channel must be outgoing "
-        "and have boolean payload.");
+        "and have boolean payload.",
+        ctx->file_table());
   }
 
   if (proc->IsParametric()) {
-    return TypeInferenceErrorStatus(
-        proc->span(), nullptr, "Test proc functions cannot be parametric.");
+    return TypeInferenceErrorStatus(proc->span(), nullptr,
+                                    "Test proc functions cannot be parametric.",
+                                    ctx->file_table());
   }
 
   {
@@ -117,16 +121,17 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     XLS_ASSIGN_OR_RETURN(Type * init_metatype,
                          type_info->GetItemOrError(proc->init().return_type()));
     XLS_RET_CHECK(init_metatype->IsMeta());
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<Type> init_type,
-        UnwrapMetaType(init_metatype->CloneToUnique(),
-                       proc->init().return_type()->span(), "init return type"));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> init_type,
+                         UnwrapMetaType(init_metatype->CloneToUnique(),
+                                        proc->init().return_type()->span(),
+                                        "init return type", ctx->file_table()));
 
     if (*state_type != *init_type) {
       return TypeInferenceErrorStatus(
           proc->next().span(), nullptr,
           absl::StrFormat("'next' state param and init types differ: %s vs %s.",
-                          state_type->ToString(), init_type->ToString()));
+                          state_type->ToString(), init_type->ToString()),
+          ctx->file_table());
     }
   }
 
@@ -180,7 +185,8 @@ static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
     return TypeInferenceErrorStatus(
         quickcheck_f.span(), nullptr,
         "Quickchecking parametric functions is unsupported; see "
-        "https://github.com/google/xls/issues/81");
+        "https://github.com/google/xls/issues/81",
+        ctx->file_table());
   }
 
   VLOG(2) << "Typechecking quickcheck function: " << quickcheck_f.ToString();
@@ -269,7 +275,8 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
     TestFunction* tf = std::get<TestFunction*>(member);
     if (tf->fn().IsParametric()) {
       return TypeInferenceErrorStatus(tf->fn().span(), nullptr,
-                                      "Test functions cannot be parametric.");
+                                      "Test functions cannot be parametric.",
+                                      ctx->file_table());
     }
 
     // Note: we push a function stack entry on top of the "top" entry for the
@@ -311,7 +318,7 @@ absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
         << "Internal error: type mismatch error "
            "was not accompanied by detail data; original status: "
         << orig;
-    return MaybeExplainError(data.value());
+    return MaybeExplainError(data.value(), ctx.file_table());
   }
 
   return orig;

@@ -67,7 +67,7 @@ bool IsDslxReserved(const std::string& identifier) {
 }
 
 dslx::Pos CreateNodePos(const SourceInfo& source_info) {
-  return dslx::Pos("", source_info.locations[0].lineno().value(),
+  return dslx::Pos(dslx::Fileno(0), source_info.locations[0].lineno().value(),
                    source_info.locations[0].colno().value());
 }
 
@@ -86,8 +86,7 @@ class VastToDslxTranslator {
       std::string_view dslx_stdlib_path,
       absl::flat_hash_map<verilog::Expression*, verilog::DataType*>
           vast_type_map)
-      : vast_target_module_(main_vast_module),
-        generate_combined_dslx_module_(generate_combined_dslx_module),
+      : generate_combined_dslx_module_(generate_combined_dslx_module),
         additional_search_path_(additional_search_path),
         dslx_stdlib_path_(dslx_stdlib_path),
         warnings_(dslx::kDefaultWarningsSet),
@@ -482,7 +481,7 @@ class VastToDslxTranslator {
         XLS_ASSIGN_OR_RETURN(
             enum_type,
             UnwrapMetaType(std::move(enum_type), enum_type_annotation->span(),
-                           "enum type"));
+                           "enum type", file_table()));
 
         XLS_ASSIGN_OR_RETURN(bool member_signedness,
                              IsSigned(*member_expr_type));
@@ -766,8 +765,8 @@ class VastToDslxTranslator {
   dslx::DeduceCtx& deduce_ctx() { return dslx_builder_->deduce_ctx(); }
   dslx::TypeInfo& type_info() { return dslx_builder_->type_info(); }
   dslx::ImportData& import_data() { return dslx_builder_->import_data(); }
+  dslx::FileTable& file_table() { return import_data().file_table(); }
 
-  verilog::Module* vast_target_module_;
   const bool generate_combined_dslx_module_;
   const std::optional<std::filesystem::path> additional_search_path_;
   const std::string dslx_stdlib_path_;
@@ -838,9 +837,11 @@ absl::StatusOr<std::string> TranslateVastToDslxInternal(
           if (!generate_combined_dslx_module) {
             XLS_ASSIGN_OR_RETURN(std::string dslx_code,
                                  translator->GetDslxModuleText());
-            XLS_RETURN_IF_ERROR(SetFileContents(
-                *out_dir_path / absl::StrCat(vast_module->name(), ".x"),
-                dslx_code));
+            std::filesystem::path x_path =
+                *out_dir_path / absl::StrCat(vast_module->name(), ".x");
+            VLOG(2) << "Writing DSLX module contents for VAST module "
+                    << vast_module->name() << " to " << x_path;
+            XLS_RETURN_IF_ERROR(SetFileContents(x_path, dslx_code));
           }
         }
       }

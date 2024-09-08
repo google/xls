@@ -141,7 +141,8 @@ static absl::Status ValidateWithinProc(std::string_view builtin_name,
   if (!ctx->WithinProc()) {
     return TypeInferenceErrorStatus(
         span, nullptr,
-        absl::StrFormat("Cannot %s() outside of a proc", builtin_name));
+        absl::StrFormat("Cannot %s() outside of a proc", builtin_name),
+        ctx->file_table());
   }
   return absl::OkStatus();
 }
@@ -156,14 +157,15 @@ static absl::Status TypecheckCoverBuiltinInvocation(
   XLS_RET_CHECK(identifier_node != nullptr);
   if (identifier_node->text().empty()) {
     return InvalidIdentifierErrorStatus(
-        invocation->span(),
-        "An identifier must be specified with a cover! op.");
+        invocation->span(), "An identifier must be specified with a cover! op.",
+        ctx->file_table());
   }
 
   std::string identifier = identifier_node->text();
   if (identifier[0] == '\\') {
     return InvalidIdentifierErrorStatus(
-        invocation->span(), "Verilog escaped strings are not supported.");
+        invocation->span(), "Verilog escaped strings are not supported.",
+        ctx->file_table());
   }
 
   // We don't support Verilog "escaped strings", so we only have to worry
@@ -173,7 +175,8 @@ static absl::Status TypecheckCoverBuiltinInvocation(
         invocation->span(),
         "A coverpoint identifier must start with a letter or underscore, "
         "and otherwise consist of letters, digits, underscores, and/or "
-        "dollar signs.");
+        "dollar signs.",
+        ctx->file_table());
   }
 
   return absl::OkStatus();
@@ -257,7 +260,8 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     if (arg_type->IsMeta()) {
       return TypeInferenceErrorStatus(
           invocation->args().at(i)->span(), arg_type.get(),
-          "Argument to built-in function must be a value, not a type.");
+          "Argument to built-in function must be a value, not a type.",
+          ctx->file_table());
     }
     arg_type_ptrs.push_back(arg_type.get());
   }
@@ -330,7 +334,7 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
 absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation, const AstEnv& constexpr_env) {
   VLOG(5) << "Typechecking invocation: `" << invocation->ToString() << "` @ "
-          << invocation->span();
+          << invocation->span().ToString(ctx->file_table());
   XLS_VLOG_LINES(5, ctx->GetFnStackDebugString());
 
   Expr* callee = invocation->callee();
@@ -346,7 +350,8 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     return TypeInferenceErrorStatus(
         callee->span(), nullptr,
         absl::StrFormat("Cannot resolve callee `%s` to a function; %s",
-                        callee->ToString(), callee_fn_or.status().message()));
+                        callee->ToString(), callee_fn_or.status().message()),
+        ctx->file_table());
   }
   XLS_RET_CHECK(callee_fn_or.value() != nullptr);
   Function& callee_fn = *callee_fn_or.value();
@@ -389,7 +394,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     XLS_ASSIGN_OR_RETURN(
         return_type,
         UnwrapMetaType(std::move(return_type), callee_fn.return_type()->span(),
-                       "function return type"));
+                       "function return type", ctx->file_table()));
   }
 
   FunctionType fn_type(std::move(param_types), std::move(return_type));
@@ -407,7 +412,8 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,
           absl::StrFormat("Recursion detected while typechecking; name: '%s'",
-                          callee_fn.identifier()));
+                          callee_fn.identifier()),
+          ctx->file_table());
     }
     fn_stack.pop_back();
   }
@@ -456,10 +462,11 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   for (ParametricBinding* parametric : callee_fn.parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
-    XLS_ASSIGN_OR_RETURN(parametric_binding_type,
-                         UnwrapMetaType(std::move(parametric_binding_type),
-                                        parametric->type_annotation()->span(),
-                                        "parametric binding type"));
+    XLS_ASSIGN_OR_RETURN(
+        parametric_binding_type,
+        UnwrapMetaType(std::move(parametric_binding_type),
+                       parametric->type_annotation()->span(),
+                       "parametric binding type", ctx->file_table()));
     if (bindings_map.contains(parametric->identifier())) {
       ctx->type_info()->NoteConstExpr(
           parametric->name_def(), bindings_map.at(parametric->identifier()));
@@ -534,10 +541,11 @@ absl::StatusOr<std::vector<std::unique_ptr<Type>>> TypecheckFunctionParams(
     for (ParametricBinding* parametric : f.parametric_bindings()) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_binding_type,
                            ctx->Deduce(parametric->type_annotation()));
-      XLS_ASSIGN_OR_RETURN(parametric_binding_type,
-                           UnwrapMetaType(std::move(parametric_binding_type),
-                                          parametric->type_annotation()->span(),
-                                          "parametric binding type"));
+      XLS_ASSIGN_OR_RETURN(
+          parametric_binding_type,
+          UnwrapMetaType(std::move(parametric_binding_type),
+                         parametric->type_annotation()->span(),
+                         "parametric binding type", ctx->file_table()));
 
       if (parametric->expr() != nullptr) {
         // TODO(leary): 2020-07-06 Fully document the behavior of parametric

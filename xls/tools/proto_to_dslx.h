@@ -110,8 +110,10 @@ class ProtoToDslxManager {
 // See ProtoToDslxTest.CreateDslxFromParamsTest for a full example.
 absl::StatusOr<std::unique_ptr<dslx::Module>> CreateDslxFromParams(
     std::string_view module_name,
-    absl::Span<const std::pair<std::string_view, const google::protobuf::Message*>>
-        params);
+    absl::Span<
+        const std::pair<std::string_view, const google::protobuf::Message*>>
+        params,
+    dslx::FileTable& file_table);
 
 // ProtoToDslx accepts a proto schema and textproto instantiating such, and
 // converts those definitions into a corresponding DSLX file.
@@ -129,7 +131,7 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
     const std::filesystem::path& source_root,
     const std::filesystem::path& proto_schema_path,
     std::string_view message_name, std::string_view text_proto,
-    std::string_view binding_name);
+    std::string_view binding_name, dslx::FileTable& file_table);
 
 // As above, but doesn't refer directly to the filesystem for resolution.
 //
@@ -138,7 +140,8 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
 //  ..rest: as above
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
     std::string_view proto_def, std::string_view message_name,
-    std::string_view text_proto, std::string_view binding_name);
+    std::string_view text_proto, std::string_view binding_name,
+    dslx::FileTable& file_table);
 
 // Compiles the specified proto schema into a "Descriptor" (contained in the
 // returned pool), potentially loading dependent schema files along the way.

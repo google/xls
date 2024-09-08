@@ -93,8 +93,11 @@ std::string ToHighlightStr(const Token& t) {
 }
 
 absl::Status RealMain(const std::filesystem::path& path) {
+  FileTable file_table;
+  Fileno fileno = file_table.GetOrCreate(path.c_str());
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
-  Scanner s(path, contents, /*include_whitespace_and_comments=*/true);
+  Scanner s(file_table, fileno, contents,
+            /*include_whitespace_and_comments=*/true);
   while (!s.AtEof()) {
     XLS_ASSIGN_OR_RETURN(Token t, s.Pop());
     std::cout << ToHighlightStr(t);

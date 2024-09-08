@@ -44,7 +44,8 @@ absl::Status PrintPositionalError(
     const Span& error_span, std::string_view error_message, std::ostream& os,
     std::function<absl::StatusOr<std::string>(std::string_view)>
         get_file_contents,
-    PositionalErrorColor color, int64_t error_context_line_count) {
+    PositionalErrorColor color, const FileTable& file_table,
+    int64_t error_context_line_count) {
   XLS_RET_CHECK_EQ(error_context_line_count % 2, 1);
 
   if (get_file_contents == nullptr) {
@@ -53,19 +54,19 @@ absl::Status PrintPositionalError(
     };
   }
   XLS_ASSIGN_OR_RETURN(std::string contents,
-                       get_file_contents(error_span.filename()));
+                       get_file_contents(error_span.GetFilename(file_table)));
   std::vector<std::string_view> lines = absl::StrSplit(contents, '\n');
   // Lines are \n-terminated, not \n-separated.
   if (lines.size() > 1 && lines.back().empty()) {
     lines.resize(lines.size() - 1);
   }
   XLS_RET_CHECK(!lines.empty());
-  const Pos file_start(error_span.filename(), 0, 0);
+  const Pos file_start(error_span.fileno(), 0, 0);
 
   // file_limit as a whole is an exclusive limit (the first not-included
   // character), but its file_limit.lineno() is inclusive (addresses the
   // last line, not the one after).
-  const Pos file_limit(error_span.filename(), lines.size() - 1,
+  const Pos file_limit(error_span.fileno(), lines.size() - 1,
                        lines.back().size());
 
   // Caps the effective start and limit against the file start and limit,
@@ -120,7 +121,7 @@ absl::Status PrintPositionalError(
   std::string_view bar = bar_off;
 
   // Emit an indicator of what we're displaying.
-  os << absl::StreamFormat("%s:%s-%s\n", error_span.filename(),
+  os << absl::StreamFormat("%s:%s-%s\n", error_span.GetFilename(file_table),
                            error_span.start().ToStringNoFile(),
                            error_span.limit().ToStringNoFile());
 
@@ -161,11 +162,12 @@ absl::Status PrintPositionalError(
   return absl::OkStatus();
 }
 
-void PrintWarnings(const WarningCollector& warnings) {
+void PrintWarnings(const WarningCollector& warnings,
+                   const FileTable& file_table) {
   for (const WarningCollector::Entry& e : warnings.warnings()) {
     absl::Status print_status = PrintPositionalError(
         e.span, e.message, std::cerr, /*get_file_contents=*/nullptr,
-        PositionalErrorColor::kWarningColor);
+        PositionalErrorColor::kWarningColor, file_table);
     if (!print_status.ok()) {
       LOG(WARNING) << "Could not print warning: " << print_status;
     }

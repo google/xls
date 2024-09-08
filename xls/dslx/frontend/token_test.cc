@@ -26,8 +26,10 @@ TEST(TokenTest, KeywordGetValueIsKeywordText) {
   EXPECT_EQ(token.GetValue().value(), "fn");
   EXPECT_EQ(token.ToErrorString(), "keyword:fn");
   EXPECT_EQ(token.ToString(), "fn");
-  EXPECT_EQ(token.ToRepr(),
-            "Token(Span(Pos(\"<fake>\", 0, 0), Pos(\"<fake>\", 0, 0)), fn)");
+  FileTable file_table;
+  EXPECT_EQ(
+      token.ToRepr(file_table),
+      "Token(Span(Pos(\"<no-file>\", 0, 0), Pos(\"<no-file>\", 0, 0)), fn)");
 }
 
 TEST(TokenTest, SimpleSelfEquality) {
@@ -48,9 +50,11 @@ TEST(TokenTest, IdentifierTokenAccessors) {
   EXPECT_EQ(token.GetValue().value(), "my_identifier");
   EXPECT_EQ(token.ToErrorString(), "identifier");
   EXPECT_EQ(token.ToString(), "my_identifier");
-  EXPECT_EQ(token.ToRepr(),
-            "Token(identifier, Span(Pos(\"<fake>\", 0, 0), Pos(\"<fake>\", 0, "
-            "0)), \"my_identifier\")");
+  FileTable file_table;
+  EXPECT_EQ(
+      token.ToRepr(file_table),
+      "Token(identifier, Span(Pos(\"<no-file>\", 0, 0), Pos(\"<no-file>\", 0, "
+      "0)), \"my_identifier\")");
 
   EXPECT_TRUE(token.IsIdentifier("my_identifier"));
   EXPECT_FALSE(token.IsIdentifier("my_ident"));

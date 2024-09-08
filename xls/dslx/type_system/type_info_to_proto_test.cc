@@ -56,7 +56,9 @@ void DoRun(std::string_view program, const std::string& test_name,
   std::string nodes_text = absl::StrJoin(
       tip.nodes(), "\n",
       [&](std::string* out, const AstNodeTypeInfoProto& node) {
-        absl::StrAppend(out, ToHumanString(node, *import_data).value());
+        absl::StrAppend(
+            out, ToHumanString(node, *import_data, import_data->file_table())
+                     .value());
       });
 
   std::filesystem::path golden_file_path = absl::StrFormat(

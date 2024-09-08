@@ -985,11 +985,12 @@ class Number : public Expr {
   absl::StatusOr<bool> FitsInType(int64_t bit_count) const;
 
   // Turns the text for this number into a Bits object with the given bit_count.
-  absl::StatusOr<Bits> GetBits(int64_t bit_count) const;
+  absl::StatusOr<Bits> GetBits(int64_t bit_count,
+                               const FileTable& file_table) const;
 
   // Note: fails if the value doesn't fit in 64 bits.
-  absl::StatusOr<uint64_t> GetAsUint64() const {
-    XLS_ASSIGN_OR_RETURN(Bits bits, GetBits(64));
+  absl::StatusOr<uint64_t> GetAsUint64(const FileTable& file_table) const {
+    XLS_ASSIGN_OR_RETURN(Bits bits, GetBits(64, file_table));
     return bits.ToUint64();
   }
 
@@ -1012,7 +1013,7 @@ class Number : public Expr {
 class String : public Expr {
  public:
   String(Module* owner, Span span, std::string_view text)
-      : Expr(owner, std::move(span)), text_(text) {}
+      : Expr(owner, span), text_(text) {}
 
   ~String() override;
 

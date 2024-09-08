@@ -348,8 +348,9 @@ TEST(InterpValueTest, FormatEnum) {
     BAR = 1,
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(EnumDef * enum_def,
                            module->GetMemberOrError<EnumDef>("MyEnum"));
   InterpValue foo = InterpValue::MakeEnum(UBits(0, 32), false, enum_def);

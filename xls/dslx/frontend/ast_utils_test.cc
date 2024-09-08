@@ -60,8 +60,9 @@ struct TheStruct {
   n: MyArray,
 }
  )";
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kDslxText, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kDslxText, "fake_path.x",
+                                                    "the_module", file_table));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<AstNode*> nodes,
                            CollectUnder(module.get(), /*want_types=*/true));
@@ -137,7 +138,8 @@ TEST(ResolveLocalStructDef, StructDefInTransitiveAlias) {
 type MyS1 = S;
 type MyS2 = MyS1;
 )";
-  Scanner scanner("test.x", kProgram);
+  FileTable file_table;
+  Scanner scanner(file_table, Fileno(0), kProgram);
   Parser parser("test", &scanner);
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
                            parser.ParseModule());
@@ -164,8 +166,9 @@ TEST(ContainedWithinFunctionTest, SampleInvocation) {
 fn f() { () }
 fn main() { f() }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   Function* f = module->GetFunctionByName().at("f");
   Function* main = module->GetFunctionByName().at("main");
   const Statement* last_stmt = main->body()->statements().back();
@@ -183,8 +186,9 @@ TEST(ContainedWithinFunctionTest, SampleBuiltinInvocation) {
   const std::string_view kProgram = R"(
 fn main(x: u32, y: u32, z: u32) -> u32 { bit_slice_update(x, y, z) }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   Function* main = module->GetFunctionByName().at("main");
   const Statement* last_stmt = main->body()->statements().back();
   const Expr* last_expr = std::get<Expr*>(last_stmt->wrapped());
@@ -199,8 +203,9 @@ TEST(ContainedWithinFunctionTest, InvocationWithinParametricExpression) {
 fn id(x: u32) -> u32 { x }
 fn f<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
   Function* f = module->GetFunctionByName().at("f");
   const std::vector<ParametricBinding*>& parametric_bindings =
       f->parametric_bindings();

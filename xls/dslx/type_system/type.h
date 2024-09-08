@@ -239,7 +239,9 @@ class Type {
   bool operator!=(const Type& other) const { return !(*this == other); }
 
   // Returns a string representation of this type.
-  std::string ToString() const { return ToStringInternal(FullyQualify::kNo); }
+  std::string ToString() const {
+    return ToStringInternal(FullyQualify::kNo, /*file_table=*/nullptr);
+  }
 
   // Returns a string representation of this type, but for nominal type
   // entities, like structs and enums, prefixes the struct/enum name with the
@@ -249,12 +251,16 @@ class Type {
   // different modules and they are not compatible with each other, we need to
   // report a non-confusing error by qualifying which struct/enum we're
   // referring to more precisely.
-  std::string ToStringFullyQualified() const {
-    return ToStringInternal(FullyQualify::kYes);
+  std::string ToStringFullyQualified(const FileTable& file_table) const {
+    return ToStringInternal(FullyQualify::kYes, &file_table);
   }
 
   // Converts the type to a string with given `fully_qualify` mode request.
-  virtual std::string ToStringInternal(FullyQualify fully_qualify) const = 0;
+  //
+  // Note: if the FullyQualify request is kNo, we should not need the
+  // file_table, and so it can be null in that case.
+  virtual std::string ToStringInternal(FullyQualify fully_qualify,
+                                       const FileTable* file_table) const = 0;
 
   // Variation on `ToString()` to be used in user-facing error reporting.
   virtual std::string ToErrorString() const { return ToString(); }
@@ -405,9 +411,10 @@ class MetaType : public Type {
   const std::unique_ptr<Type>& wrapped() const { return wrapped_; }
   std::unique_ptr<Type>& wrapped() { return wrapped_; }
 
-  std::string ToStringInternal(FullyQualify fully_qualify) const override {
-    return absl::StrCat("typeof(", wrapped_->ToStringInternal(fully_qualify),
-                        ")");
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override {
+    return absl::StrCat(
+        "typeof(", wrapped_->ToStringInternal(fully_qualify, file_table), ")");
   }
 
  private:
@@ -431,7 +438,8 @@ class TokenType : public Type {
     return v.HandleToken(*this);
   }
   bool operator==(const Type& other) const override { return other.IsToken(); }
-  std::string ToStringInternal(FullyQualify fully_qualify) const override {
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable*) const override {
     return "token";
   }
   std::vector<TypeDim> GetAllDims() const override { return {}; }
@@ -470,7 +478,8 @@ class StructType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "struct"; }
@@ -581,7 +590,8 @@ class TupleType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   std::string GetDebugTypeName() const override { return "tuple"; }
@@ -625,7 +635,7 @@ class ArrayType : public Type {
   ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
       : element_type_(std::move(element_type)), size_(size) {
     CHECK(!element_type_->IsMeta())
-        << element_type_->ToStringInternal(FullyQualify::kNo);
+        << element_type_->ToStringInternal(FullyQualify::kNo, nullptr);
   }
 
   absl::Status Accept(TypeVisitor& v) const override {
@@ -633,7 +643,8 @@ class ArrayType : public Type {
   }
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
   bool HasEnum() const override { return element_type_->HasEnum(); }
@@ -673,7 +684,8 @@ class EnumType : public Type {
   }
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::vector<TypeDim> GetAllDims() const override;
   bool HasEnum() const override { return true; }
   bool HasToken() const override { return false; }
@@ -724,7 +736,8 @@ class BitsConstructorType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override;
   bool HasToken() const override;
@@ -778,7 +791,8 @@ class BitsType : public Type {
   absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
 
   bool operator==(const Type& other) const override;
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::string GetDebugTypeName() const override;
   bool HasEnum() const override { return false; }
   bool HasToken() const override { return false; }
@@ -821,7 +835,8 @@ class FunctionType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleFunction(*this);
   }
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::string GetDebugTypeName() const override { return "function"; }
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;
@@ -881,7 +896,8 @@ class ChannelType : public Type {
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleChannel(*this);
   }
-  std::string ToStringInternal(FullyQualify fully_qualify) const override;
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
   std::string GetDebugTypeName() const override { return "channel"; }
   std::vector<TypeDim> GetAllDims() const override;
   absl::StatusOr<TypeDim> GetTotalBitCount() const override;

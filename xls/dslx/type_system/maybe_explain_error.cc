@@ -34,36 +34,40 @@ namespace {
 
 // To be raised when a type mismatch is encountered.
 absl::Status XlsTypeErrorStatus(const Span& span, const Type& lhs,
-                                const Type& rhs, std::string_view message) {
+                                const Type& rhs, std::string_view message,
+                                const FileTable& file_table) {
   if (lhs.IsAggregate() || rhs.IsAggregate()) {
-    XLS_ASSIGN_OR_RETURN(std::string type_diff, FormatTypeMismatch(lhs, rhs));
+    XLS_ASSIGN_OR_RETURN(std::string type_diff,
+                         FormatTypeMismatch(lhs, rhs, file_table));
     return absl::InvalidArgumentError(
         absl::StrFormat("XlsTypeError: %s %s\n"
                         "%s",
-                        span.ToString(), message, type_diff));
+                        span.ToString(file_table), message, type_diff));
   }
   std::string lhs_str = lhs.ToErrorString();
   std::string rhs_str = rhs.ToErrorString();
   return absl::InvalidArgumentError(
-      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(), lhs_str,
-                      rhs_str, message));
+      absl::StrFormat("XlsTypeError: %s %s vs %s: %s",
+                      span.ToString(file_table), lhs_str, rhs_str, message));
 }
 
 // Creates an XlsTypeErrorStatus using the data within the type mismatch struct.
-absl::Status MakeTypeError(const TypeMismatchErrorData& data) {
-  return XlsTypeErrorStatus(data.error_span, *data.lhs, *data.rhs,
-                            data.message);
+absl::Status MakeTypeError(const TypeMismatchErrorData& data,
+                           const FileTable& file_table) {
+  return XlsTypeErrorStatus(data.error_span, *data.lhs, *data.rhs, data.message,
+                            file_table);
 }
 
 }  // namespace
 
-absl::Status MaybeExplainError(const TypeMismatchErrorData& data) {
+absl::Status MaybeExplainError(const TypeMismatchErrorData& data,
+                               const FileTable& file_table) {
   bool lhs_is_unit = data.lhs->IsUnit();
   bool rhs_is_unit = data.rhs->IsUnit();
   VLOG(10) << "lhs is unit: " << lhs_is_unit << " rhs is unit: " << rhs_is_unit;
   bool only_one_side_is_unit = lhs_is_unit ^ rhs_is_unit;
   if (!only_one_side_is_unit) {
-    return MakeTypeError(data);
+    return MakeTypeError(data, file_table);
   }
 
   // If the expression with type unit:
@@ -78,14 +82,14 @@ absl::Status MaybeExplainError(const TypeMismatchErrorData& data) {
   const NameRef* unit_name_ref =
       dynamic_cast<const NameRef*>(node_yielding_unit);
   if (unit_name_ref == nullptr) {
-    return MakeTypeError(data);
+    return MakeTypeError(data, file_table);
   }
 
   VLOG(10) << "unit name reference: " << unit_name_ref->ToString();
 
   AnyNameDef any_name_def = unit_name_ref->name_def();
   if (std::holds_alternative<BuiltinNameDef*>(any_name_def)) {
-    return MakeTypeError(data);
+    return MakeTypeError(data, file_table);
   }
 
   const NameDef* name_def = std::get<const NameDef*>(any_name_def);
@@ -94,15 +98,16 @@ absl::Status MaybeExplainError(const TypeMismatchErrorData& data) {
   VLOG(10) << absl::StreamFormat("name_def: %s definer: %p block: %p",
                                  name_def->ToString(), definer, block);
   if (block == nullptr || !block->trailing_semi()) {
-    return MakeTypeError(data);
+    return MakeTypeError(data, file_table);
   }
 
   std::string message = absl::StrFormat(
       "%s; note that \"%s\" was defined by a block with a trailing semicolon @ "
       "%s",
       data.message, unit_name_ref->identifier(),
-      block->span().limit().ToString());
-  return XlsTypeErrorStatus(data.error_span, *data.lhs, *data.rhs, message);
+      block->span().limit().ToString(file_table));
+  return XlsTypeErrorStatus(data.error_span, *data.lhs, *data.rhs, message,
+                            file_table);
 }
 
 }  // namespace xls::dslx

@@ -55,20 +55,21 @@ Expr* GetSingleBodyExpr(Function* f) {
 
 struct TestData {
   std::unique_ptr<Module> module;
-  ImportData import_data;
+  std::unique_ptr<ImportData> import_data;
   TypeInfo* type_info;
 };
 
 absl::StatusOr<TestData> CreateTestData(std::string_view module_text) {
-  Scanner s("test.x", std::string(module_text));
+  auto import_data = std::make_unique<ImportData>(CreateImportDataForTest());
+  Scanner s(import_data->file_table(), Fileno(0), std::string(module_text));
   Parser parser{"test", &s};
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
-  TestData test_data{std::move(module), CreateImportDataForTest()};
+  TestData test_data{std::move(module), std::move(import_data)};
   WarningCollector warnings(kAllWarningsSet);
   XLS_ASSIGN_OR_RETURN(test_data.type_info,
                        TypecheckModule(test_data.module.get(),
-                                       &test_data.import_data, &warnings));
+                                       test_data.import_data.get(), &warnings));
   return std::move(test_data);
 }
 
@@ -106,9 +107,9 @@ fn Foo() -> u64 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, attr));
   WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             &warnings, ParametricEnv(), attr,
-                                             type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(test_data.import_data.get(),
+                                             type_info, &warnings,
+                                             ParametricEnv(), attr, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(attr));
   EXPECT_EQ(value.GetBitValueViaSign().value(), 14);
   EXPECT_TRUE(warnings.warnings().empty());
@@ -128,9 +129,9 @@ const kFoo = u32:7;
 
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, number));
   WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             &warnings, ParametricEnv(), number,
-                                             type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(test_data.import_data.get(),
+                                             type_info, &warnings,
+                                             ParametricEnv(), number, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(number));
   EXPECT_EQ(value.GetBitValueViaSign().value(), 7);
   EXPECT_TRUE(warnings.warnings().empty());
@@ -155,9 +156,9 @@ fn Foo() -> u64 {
   Cast* cast = down_cast<Cast*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, cast));
   WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             &warnings, ParametricEnv(), cast,
-                                             type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(test_data.import_data.get(),
+                                             type_info, &warnings,
+                                             ParametricEnv(), cast, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(cast));
   EXPECT_EQ(value.GetBitValueViaSign().value(), 13);
 }
@@ -178,9 +179,9 @@ fn main() -> u32 {
   Conditional* conditional = down_cast<Conditional*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, conditional));
   WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             &warnings, ParametricEnv(),
-                                             conditional, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      test_data.import_data.get(), type_info, &warnings, ParametricEnv(),
+      conditional, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            type_info->GetConstExpr(conditional));
   EXPECT_EQ(value.GetBitValueViaSign().value(), 500);
@@ -209,9 +210,9 @@ fn Foo() -> MyStruct {
       down_cast<StructInstance*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, struct_instance));
   WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             &warnings, ParametricEnv(),
-                                             struct_instance, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      test_data.import_data.get(), type_info, &warnings, ParametricEnv(),
+      struct_instance, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            type_info->GetConstExpr(struct_instance));
   InterpValue element_value = value.Index(InterpValue::MakeUBits(1, 0)).value();
@@ -245,9 +246,9 @@ fn main() -> MyStruct {
       down_cast<SplatStructInstance*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(Type * type, GetType(type_info, struct_instance));
   WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             &warnings, ParametricEnv(),
-                                             struct_instance, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      test_data.import_data.get(), type_info, &warnings, ParametricEnv(),
+      struct_instance, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            type_info->GetConstExpr(struct_instance));
   InterpValue element_value = value.Index(InterpValue::MakeUBits(1, 0)).value();
