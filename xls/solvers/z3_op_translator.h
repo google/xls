@@ -47,7 +47,7 @@ class Z3OpTranslator {
   Z3_ast EqZero(Z3_ast arg) { return Not(Z3_mk_bvredor(z3_ctx_, arg)); }
   Z3_ast Eq(Z3_ast lhs, Z3_ast rhs) { return EqZero(Xor(lhs, rhs)); }
   Z3_ast If(Z3_ast cond, Z3_ast consequent, Z3_ast alternate) {
-    return Cond(NeZeroBool(cond), consequent, alternate);
+    return Or(And(cond, consequent), And(Not(cond), alternate));
   }
 
   // Returns a boolean-kinded result that says whether lhs == rhs.

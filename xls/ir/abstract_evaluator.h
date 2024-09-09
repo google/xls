@@ -591,23 +591,25 @@ class AbstractEvaluator {
     int64_t width = cases.front().size();
     Vector result(width, Zero());
     for (int64_t i = 0; i < selector.size(); ++i) {
-      result = IfBits(selector[i], BitwiseOr(cases[i], result), result);
-    }
-    if (selector_can_be_zero) {
-      return result;
-    }
-    // If the selector cannot be zero, then a bit of the output can only be
-    // zero if one of the respective bits of one of the cases is zero.
-    // Construct such a mask and or it with the result.
-    Vector and_reduction(width, One());
-    for (int64_t i = 0; i < selector.size(); ++i) {
-      if (selector[i] != Zero()) {
-        for (int64_t j = 0; j < width; ++j) {
-          and_reduction[j] = And(and_reduction[j], cases[i][j]);
-        }
+      for (int64_t j = 0; j < width; ++j) {
+        result[j] = Or(result[j], And(cases[i][j], selector[i]));
       }
     }
-    return BitwiseOr(and_reduction, result);
+    if (!selector_can_be_zero) {
+      // If the selector cannot be zero, then a bit of the output can only be
+      // zero if one of the respective bits of one of the cases is zero.
+      // Construct such a mask and or it with the result.
+      Vector and_reduction(width, One());
+      for (int64_t i = 0; i < selector.size(); ++i) {
+        if (selector[i] != Zero()) {
+          for (int64_t j = 0; j < width; ++j) {
+            and_reduction[j] = And(and_reduction[j], cases[i][j]);
+          }
+        }
+      }
+      result = BitwiseOr(and_reduction, result);
+    }
+    return result;
   }
 
   template <typename SpanOfSpanLike>
