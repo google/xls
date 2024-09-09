@@ -47,7 +47,7 @@ namespace netlist {
 
 template <typename EvalT>
 using AbstractNetRef2Value =
-    absl::flat_hash_map<const rtl::AbstractNetRef<EvalT>, EvalT>;
+    absl::flat_hash_map<rtl::AbstractNetRef<EvalT>, EvalT>;
 
 using NetRef2Value = AbstractNetRef2Value<bool>;
 

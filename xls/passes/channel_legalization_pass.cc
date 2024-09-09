@@ -251,7 +251,7 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
 
   // result_map maps nodes to a flat_hash_set pointer owned by result_vector
   // (avoids extra copies).
-  absl::flat_hash_map<Node* const, absl::flat_hash_set<Node*>*> result_map;
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>*> result_map;
   result_map.reserve(operations.size());
 
   // Use btree set that sorts FunctionBases by name to ensure stable order of
@@ -264,7 +264,7 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
     XLS_ASSIGN_OR_RETURN(std::vector<NodeAndPredecessors> fbs_result,
                          ComputeTopoSortedTokenDAG(fb));
     // Resolve side-effecting nodes and after_alls.
-    absl::flat_hash_map<Node* const, absl::flat_hash_set<Node*>> resolved_ops;
+    absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> resolved_ops;
     // Initialize with all token-typed params & literals having no predecessors.
     for (Node* node : fb->nodes()) {
       if (node->GetType()->IsToken() &&
@@ -648,7 +648,7 @@ void MakeMutualExclusionAssertions(
   // Build a map of mutually exclusive nodes. Each key's predicate must be
   // mutually exclusive with every element in value's predicate. Distinct nodes
   // are mutually exclusive if neither node is a predecessor of the other.
-  absl::flat_hash_map<Node* const, absl::flat_hash_set<Node*>>
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>
       mutually_exclusive_nodes;
   // Make a set of all nodes, we default-initialize every node to being mutually
   // exclusive with every other node and remove predecessors as we go through
