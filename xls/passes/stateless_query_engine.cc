@@ -42,7 +42,7 @@ std::optional<Value> StatelessQueryEngine::KnownValue(Node* node) const {
     return node->As<Literal>()->value();
   }
 
-  return QueryEngine::KnownValue(node);
+  return std::nullopt;
 }
 
 LeafTypeTree<TernaryVector> StatelessQueryEngine::GetTernary(Node* node) const {
