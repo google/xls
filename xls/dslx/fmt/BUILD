@@ -38,6 +38,7 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:strong_int",
         "//xls/common:visitor",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:token",
     ],
 )

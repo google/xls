@@ -339,7 +339,9 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
     // must be specified in proto definitions.
     auto* array_size = dynamic_cast<dslx::Number*>(array_type->dim());
     XLS_RET_CHECK(array_size) << "Array size must be a simple number.";
-    XLS_ASSIGN_OR_RETURN(uint64_t real_size, array_size->GetAsUint64());
+    const dslx::FileTable& file_table = *module->file_table();
+    XLS_ASSIGN_OR_RETURN(uint64_t real_size,
+                         array_size->GetAsUint64(file_table));
     return module->Make<dslx::ConstantArray>(
         span, std::vector<dslx::Expr*>(real_size, member),
         /*has_ellipsis=*/false);
@@ -938,7 +940,8 @@ absl::StatusOr<dslx::Expr*> EmitData(const std::string& top_package,
 
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
     std::string_view message_name, std::string_view text_proto,
-    std::string_view binding_name, DescriptorPool* descriptor_pool) {
+    std::string_view binding_name, DescriptorPool* descriptor_pool,
+    dslx::FileTable& file_table) {
   XLS_RET_CHECK(descriptor_pool != nullptr);
 
   google::protobuf::DynamicMessageFactory factory;
@@ -947,8 +950,8 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
                        ConstructProtoViaText(text_proto, message_name,
                                              descriptor_pool, &factory));
 
-  auto module =
-      std::make_unique<dslx::Module>("the_module", /*fs_path=*/std::nullopt);
+  auto module = std::make_unique<dslx::Module>(
+      "the_module", /*fs_path=*/std::nullopt, file_table);
 
   ProtoToDslxManager proto_to_dslx(module.get());
   XLS_RETURN_IF_ERROR(proto_to_dslx.AddProtoInstantiationToDslxModule(
@@ -1053,20 +1056,21 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
     const std::filesystem::path& source_root,
     const std::filesystem::path& proto_schema_path,
     std::string_view message_name, std::string_view text_proto,
-    std::string_view binding_name) {
+    std::string_view binding_name, dslx::FileTable& file_table) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<DescriptorPool> descriptor_pool,
                        ProcessProtoSchema(source_root, proto_schema_path));
   return ProtoToDslxWithDescriptorPool(message_name, text_proto, binding_name,
-                                       descriptor_pool.get());
+                                       descriptor_pool.get(), file_table);
 }
 
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
     std::string_view proto_def, std::string_view message_name,
-    std::string_view text_proto, std::string_view binding_name) {
+    std::string_view text_proto, std::string_view binding_name,
+    dslx::FileTable& file_table) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<DescriptorPool> descriptor_pool,
                        ProcessStringProtoSchema(proto_def));
   return ProtoToDslxWithDescriptorPool(message_name, text_proto, binding_name,
-                                       descriptor_pool.get());
+                                       descriptor_pool.get(), file_table);
 }
 
 absl::StatusOr<std::unique_ptr<Message>> ConstructProtoViaText(
@@ -1092,9 +1096,11 @@ absl::StatusOr<std::unique_ptr<Message>> ConstructProtoViaText(
 absl::StatusOr<std::unique_ptr<dslx::Module>> CreateDslxFromParams(
     std::string_view module_name,
     absl::Span<const std::pair<std::string_view, const google::protobuf::Message*>>
-        params) {
-  auto module = std::make_unique<dslx::Module>(std::string{module_name},
-                                               /*fs_path=*/std::nullopt);
+        params,
+    dslx::FileTable& file_table) {
+  auto module =
+      std::make_unique<dslx::Module>(std::string{module_name},
+                                     /*fs_path=*/std::nullopt, file_table);
 
   ProtoToDslxManager proto_to_dslx(module.get());
 

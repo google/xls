@@ -15,7 +15,6 @@
 #include "xls/dslx/frontend/bindings.h"
 
 #include <optional>
-#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"
@@ -33,44 +32,59 @@ using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
 TEST(BindingsTest, ParseErrorGetData) {
-  Pos start_pos("fake_file.x", 42, 64);
-  Pos limit_pos("fake_file.x", 43, 65);
+  FileTable file_table;
+  Fileno fileno = file_table.GetOrCreate("fake_file.x");
+  Pos start_pos(fileno, 42, 64);
+  Pos limit_pos(fileno, 43, 65);
   Span span(start_pos, limit_pos);
-  absl::Status status = ParseErrorStatus(span, "my message");
-  XLS_ASSERT_OK_AND_ASSIGN(PositionalErrorData got,
-                           GetPositionalErrorData(status));
+  absl::Status status = ParseErrorStatus(span, "my message", file_table);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PositionalErrorData got,
+      GetPositionalErrorData(status, std::nullopt, file_table));
   EXPECT_EQ(got.span, span);
   EXPECT_EQ(got.message, "my message");
   EXPECT_EQ(got.error_type, "ParseError");
 }
 
 TEST(BindingsTest, ParseErrorFakeSpanGetData) {
+  FileTable file_table;
   Span span = FakeSpan();
-  absl::Status status = ParseErrorStatus(span, "my message");
-  XLS_ASSERT_OK_AND_ASSIGN(PositionalErrorData got,
-                           GetPositionalErrorData(status));
+
+  // Create a new ParseError status message.
+  absl::Status status = ParseErrorStatus(span, "my message", file_table);
+
+  // Extract the positional data from it.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PositionalErrorData got,
+      GetPositionalErrorData(status, "ParseError", file_table));
+
+  EXPECT_EQ(got.span.fileno(), span.fileno());
   EXPECT_EQ(got.span, span);
   EXPECT_EQ(got.message, "my message");
   EXPECT_EQ(got.error_type, "ParseError");
 }
 
 TEST(BindingsTest, NotPositionalError) {
+  FileTable file_table;
   auto status = absl::InvalidArgumentError("This has no position data");
   EXPECT_THAT(
-      GetPositionalErrorData(status),
+      GetPositionalErrorData(status, std::nullopt, file_table),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Provided status is not in recognized error form")));
 }
 
 TEST(BindingsTest, PositionalErrorNotTargetType) {
+  FileTable file_table;
+  Fileno fileno = file_table.GetOrCreate("fake_file.x");
   auto status = absl::InvalidArgumentError(
       "ParseError: fake_file.x:1:1-2:2 message goes here");
-  Span span = {Pos{"fake_file.x", 0, 0}, Pos{"fake_file.x", 1, 1}};
-  EXPECT_THAT(GetPositionalErrorData(status),
+  Span span = {Pos{fileno, 0, 0}, Pos{fileno, 1, 1}};
+  EXPECT_THAT(GetPositionalErrorData(status, std::nullopt, file_table),
               IsOkAndHolds(PositionalErrorData{span, "message goes here",
                                                "ParseError"}));
   EXPECT_THAT(
-      GetPositionalErrorData(status, /*target_type=*/"ShoobaDoobaError"),
+      GetPositionalErrorData(status, /*target_type=*/"ShoobaDoobaError",
+                             file_table),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Provided status is not in recognized error form")));
 }
@@ -83,9 +97,11 @@ TEST(BindingsTest, ResolveNameOrNulloptMissingCase) {
 }
 
 TEST(ParseNameErrorTest, ExtractName) {
+  FileTable file_table;
   const std::string_view kName = "shoobadooba";
   const Span kFakeSpan = FakeSpan();
-  const absl::Status name_error = ParseNameErrorStatus(kFakeSpan, kName);
+  const absl::Status name_error =
+      ParseNameErrorStatus(kFakeSpan, kName, file_table);
   std::optional<std::string_view> name = MaybeExtractParseNameError(name_error);
   ASSERT_TRUE(name.has_value());
   EXPECT_EQ(name.value(), kName);

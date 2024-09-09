@@ -144,8 +144,9 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
 absl::Status TryEnsureFitsInType(const Number& number,
                                  const BitsLikeProperties& bits_like,
                                  const Type& type) {
+  const FileTable& file_table = *number.owner()->file_table();
   VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
-          << number.span();
+          << number.span().ToString(file_table);
 
   std::optional<bool> maybe_signed;
   if (!bits_like.is_signed.IsParametric()) {
@@ -160,7 +161,8 @@ absl::Status TryEnsureFitsInType(const Number& number,
         number.span(), &type,
         absl::StrFormat("Number %s invalid: "
                         "can't assign a negative value to an unsigned type.",
-                        number.ToString()));
+                        number.ToString()),
+        file_table);
   }
 
   if (bits_like.size.IsParametric()) {
@@ -193,7 +195,8 @@ absl::Status TryEnsureFitsInType(const Number& number,
         absl::StrFormat("Value '%s' does not fit in "
                         "the bitwidth of a %s (%d). "
                         "Valid values are [%s, %s].",
-                        number.text(), type.ToString(), bit_count, low, high));
+                        number.text(), type.ToString(), bit_count, low, high),
+        file_table);
   };
 
   XLS_ASSIGN_OR_RETURN(bool fits_in_type, number.FitsInType(bit_count));
@@ -241,10 +244,12 @@ absl::Status ValidateNumber(const Number& number, const Type& type) {
     return TryEnsureFitsInType(number, bits_like.value(), type);
   }
 
+  const FileTable& file_table = *number.owner()->file_table();
   return TypeInferenceErrorStatus(
       number.span(), &type,
       absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
-                      type.GetDebugTypeName()));
+                      type.GetDebugTypeName()),
+      file_table);
 }
 
 // When a ColonRef's subject is a NameRef, this resolves the entity referred to
@@ -288,7 +293,8 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
         name_ref->span(), nullptr,
         absl::StrFormat("Cannot resolve `::` subject `%s` -- subject must be a "
                         "module or enum definition%s",
-                        name_ref->ToString(), type_str));
+                        name_ref->ToString(), type_str),
+        import_data->file_table());
   };
 
   if (definer == nullptr) {
@@ -362,7 +368,8 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
     return TypeInferenceErrorStatus(
         subject->span(), nullptr,
         absl::StrFormat("Cannot resolve `::` -- subject is %s",
-                        ToAstNode(resolved_subject)->GetNodeTypeName()));
+                        ToAstNode(resolved_subject)->GetNodeTypeName()),
+        import_data->file_table());
   }
 
   Module* module = std::get<Module*>(resolved_subject);
@@ -377,7 +384,8 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
         colon_ref->span(), nullptr,
         absl::StrFormat(
             "Cannot resolve `::` to type definition -- module: `%s` attr: `%s`",
-            module->name(), subject->attr()));
+            module->name(), subject->attr()),
+        import_data->file_table());
   }
   CHECK_OK(td.status())
       << "Only not-found error expected in retrieving type definition.";
@@ -470,7 +478,7 @@ absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> metatype,
                        binding_ctx->Deduce(binding.type_annotation()));
   return UnwrapMetaType(std::move(metatype), binding.type_annotation()->span(),
-                        "parametric binding type");
+                        "parametric binding type", ctx->file_table());
 }
 
 absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
@@ -489,6 +497,7 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          std::string_view original_ref_text,
                                          TypeDefinition current,
                                          TypeInfo* type_info) {
+  const FileTable& file_table = type_info->file_table();
   while (true) {
     StructDef* retval = nullptr;
 
@@ -510,7 +519,8 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                     absl::StrFormat(
                         "Could not resolve struct from %s; found: %s @ %s",
                         original_ref_text, annotation.ToString(),
-                        annotation.span().ToString()));
+                        annotation.span().ToString(file_table)),
+                    file_table);
               }
               current = type_ref->type_ref()->type_definition();
               return absl::OkStatus();
@@ -534,7 +544,8 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                     absl::StrFormat(
                         "Could not resolve struct from %s; found: %s @ %s",
                         original_ref_text, name_ref->ToString(),
-                        name_ref->span().ToString()));
+                        name_ref->span().ToString(file_table)),
+                    file_table);
               }
               std::optional<const ImportedInfo*> imported =
                   type_info->GetImported(import);
@@ -552,7 +563,8 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                   span, nullptr,
                   absl::StrFormat(
                       "Expected struct reference, but found enum: %s",
-                      enum_def->identifier()));
+                      enum_def->identifier()),
+                  file_table);
             },
         },
         current);
@@ -567,6 +579,7 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          std::string_view original_ref_text,
                                          const TypeAnnotation& type_annotation,
                                          TypeInfo* type_info) {
+  const FileTable& file_table = type_info->file_table();
   auto* type_ref_type_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(&type_annotation);
   if (type_ref_type_annotation == nullptr) {
@@ -575,7 +588,8 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
         absl::StrFormat("Could not resolve struct from %s (%s) @ %s",
                         type_annotation.ToString(),
                         type_annotation.GetNodeTypeName(),
-                        type_annotation.span().ToString()));
+                        type_annotation.span().ToString(file_table)),
+        file_table);
   }
 
   return DerefToStruct(span, original_ref_text,
@@ -585,13 +599,15 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
 
 absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
     const NameDefTree* name_def_tree, const TupleType* tuple_type) {
+  const FileTable& file_table = *name_def_tree->owner()->file_table();
   bool rest_of_tuple_found = false;
   for (const NameDefTree* node : name_def_tree->nodes()) {
     if (node->IsRestOfTupleLeaf()) {
       if (rest_of_tuple_found) {
         return TypeInferenceErrorStatus(
             node->span(), tuple_type,
-            absl::StrFormat("`..` can only be used once per tuple pattern."));
+            absl::StrFormat("`..` can only be used once per tuple pattern."),
+            file_table);
       }
       rest_of_tuple_found = true;
     }
@@ -610,7 +626,8 @@ absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
     return TypeInferenceErrorStatus(
         name_def_tree->span(), tuple_type,
         absl::StrFormat("Cannot match a %d-element tuple to %d values.",
-                        number_of_tuple_elements, number_of_names));
+                        number_of_tuple_elements, number_of_names),
+        file_table);
   }
   return std::make_pair(number_of_tuple_elements, number_of_names);
 }

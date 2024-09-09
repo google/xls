@@ -34,10 +34,12 @@ verible::lsp::Location ConvertSpanToLspLocation(const Span& span);
 // handle this in a uniform way, so we assume this will only be used in
 // single-file contexts for the moment and use an empty string for the filename.
 Pos ConvertLspPositionToPos(std::string_view file_uri,
-                            const verible::lsp::Position& position);
+                            const verible::lsp::Position& position,
+                            FileTable& file_table);
 
 Span ConvertLspRangeToSpan(std::string_view file_uri,
-                           const verible::lsp::Range& range);
+                           const verible::lsp::Range& range,
+                           FileTable& file_table);
 
 }  // namespace xls::dslx
 

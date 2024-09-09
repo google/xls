@@ -116,9 +116,11 @@ class IsPotentiallyDelayingNodeVisitor : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
-static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                       ParseModule(dslx_text, "sample.x", "sample"));
+static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text,
+                                               dslx::FileTable& file_table) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      ParseModule(dslx_text, "sample.x", "sample", file_table));
   XLS_RET_CHECK(module != nullptr);
 
   HasNonBlockingRecvVisitor visitor;
@@ -220,8 +222,9 @@ static std::vector<std::string> GenerateCodegenArgs(
 // DSLX for that module and the minimum number of stages it can be safely
 // scheduled in.
 static absl::StatusOr<std::pair<std::string, int64_t>> Generate(
-    const AstGeneratorOptions& ast_options, absl::BitGenRef bit_gen) {
-  AstGenerator g(ast_options, bit_gen);
+    const AstGeneratorOptions& ast_options, absl::BitGenRef bit_gen,
+    dslx::FileTable& file_table) {
+  AstGenerator g(ast_options, bit_gen, file_table);
   XLS_ASSIGN_OR_RETURN(dslx::AnnotatedModule module,
                        g.Generate("main", "test"));
   return std::make_pair(module.module->ToString(), module.min_stages);
@@ -347,7 +350,8 @@ static absl::StatusOr<Sample> GenerateProcSample(
 
 absl::StatusOr<Sample> GenerateSample(
     const AstGeneratorOptions& generator_options,
-    const SampleOptions& sample_options, absl::BitGenRef bit_gen) {
+    const SampleOptions& sample_options, absl::BitGenRef bit_gen,
+    dslx::FileTable& file_table) {
   constexpr std::string_view top_name = "main";
   if (generator_options.generate_proc) {
     CHECK_EQ(sample_options.calls_per_sample(), 0)
@@ -365,8 +369,9 @@ absl::StatusOr<Sample> GenerateSample(
   int64_t min_stages = 1;
   do {
     XLS_ASSIGN_OR_RETURN(std::tie(dslx_text, min_stages),
-                         Generate(generator_options, bit_gen));
-    XLS_ASSIGN_OR_RETURN(has_nb_recv, HasNonBlockingRecv(dslx_text));
+                         Generate(generator_options, bit_gen, file_table));
+    XLS_ASSIGN_OR_RETURN(has_nb_recv,
+                         HasNonBlockingRecv(dslx_text, file_table));
     // If this sample is going through codegen, regenerate the sample until it's
     // legal; we currently can't verify latency-sensitive samples, which means
     // we can't have a non-blocking recv except with 1 pipeline stage.

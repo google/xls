@@ -46,105 +46,113 @@ namespace {
 using status_testing::IsOkAndHolds;
 
 TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
-  auto [module, lt] = MakeCastWithinLtComparison();
+  auto [file_table, module, lt] = MakeCastWithinLtComparison();
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*lt, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as t) < x");
 }
 
 TEST(BuiltAstFmtTest, FormatIndexThatNeedsParens) {
-  auto [module, index] = MakeCastWithinIndexExpression();
+  auto [file_table, module, index] = MakeCastWithinIndexExpression();
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*index, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as u32[42])[i]");
 }
 
 TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
-  auto [module, tuple_index] = MakeIndexWithinTupleIndexExpression();
+  auto [file_table, module, tuple_index] =
+      MakeIndexWithinTupleIndexExpression();
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*tuple_index, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x[i]).2");
 }
 
 TEST(BuildAstFmtTest, FormatSingleElementTuple) {
-  auto [module, tuple] =
+  auto [file_table, module, tuple] =
       MakeNElementTupleExpression(1, /*has_trailing_comma=*/true);
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*tuple, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0,)");
 }
 
 TEST(BuildAstFmtTest, FormatShortTupleWithoutTrailingComma) {
-  auto [module, tuple] =
+  auto [file_table, module, tuple] =
       MakeNElementTupleExpression(2, /*has_trailing_comma=*/false);
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*tuple, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
 TEST(BuildAstFmtTest, FormatShortTupleWithTrailingComma) {
-  auto [module, tuple] =
+  auto [file_table, module, tuple] =
       MakeNElementTupleExpression(2, /*has_trailing_comma=*/true);
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*tuple, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
 TEST(BuildAstFmtTest, FormatLongTupleShouldTrailingComma) {
-  auto [module, tuple] =
-      MakeNElementTupleExpression(40, /*has_trailing_comma=*/true);
   const Comments empty_comments = Comments::Create({});
+  {
+    auto [file_table, module, tuple] =
+        MakeNElementTupleExpression(40, /*has_trailing_comma=*/true);
 
-  DocArena arena;
-  DocRef doc = Fmt(*tuple, empty_comments, arena);
-  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
-            R"((
+    DocArena arena(file_table);
+    DocRef doc = Fmt(*tuple, empty_comments, arena);
+    EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
+              R"((
     x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
     x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
 ))");
-  auto [_, tuple_without_trailing_comma] =
-      MakeNElementTupleExpression(40, /*has_trailing_comma=*/false);
+  }
 
-  doc = Fmt(*tuple_without_trailing_comma, empty_comments, arena);
-  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
-            R"((
+  {
+    auto [file_table, module, tuple_without_trailing_comma] =
+        MakeNElementTupleExpression(40, /*has_trailing_comma=*/false);
+
+    DocArena arena(file_table);
+    DocRef doc = Fmt(*tuple_without_trailing_comma, empty_comments, arena);
+    EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
+              R"((
     x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
     x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39,
 ))");
+  }
 }
 
 TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
-  auto [module, unop] = MakeCastWithinNegateExpression();
+  auto [file_table, module, unop] = MakeCastWithinNegateExpression();
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*unop, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "-(x as u32)");
 }
 
 TEST(BuiltAstFmtTest, FormatAttrThatNeedsParensOnOperand) {
-  auto [module, attr] = MakeArithWithinAttrExpression();
+  auto [file_table, module, attr] = MakeArithWithinAttrExpression();
   const Comments empty_comments = Comments::Create({});
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = Fmt(*attr, empty_comments, arena);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x * y).my_attr");
 }
 
 TEST(AstFmtTest, FormatLet) {
-  Scanner s{"fake.x", "{ let x: u32 = u32:42; }"};
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), "{ let x: u32 = u32:42; }"};
   Parser p("fake", &s);
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(StatementBlock * block,
@@ -153,7 +161,7 @@ TEST(AstFmtTest, FormatLet) {
 
   Comments comments = Comments::Create(s.comments());
 
-  DocArena arena;
+  DocArena arena(file_table);
   DocRef doc = FmtStatement(*stmt, comments, arena, /*trailing_semi=*/false);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
@@ -166,6 +174,8 @@ TEST(AstFmtTest, FormatLet) {
 // Use `ModuleFmtTest` for formatting of entire modules.
 class FunctionFmtTest : public testing::Test {
  public:
+  FunctionFmtTest() : arena_(file_table_) {}
+
   // Args:
   //  original: The text to parse-then-auto-format.
   //  builtin_name_defs: Names to initialize in the bindings as built-in.
@@ -175,7 +185,7 @@ class FunctionFmtTest : public testing::Test {
       int64_t text_width = kDslxDefaultTextWidth,
       bool opportunistic_postcondition = true) {
     CHECK(!scanner_.has_value());
-    scanner_.emplace("fake.x", std::string{original});
+    scanner_.emplace(file_table_, Fileno(0), std::string{original});
     parser_.emplace("fake", &scanner_.value());
 
     for (const std::string& name : builtin_name_defs) {
@@ -215,6 +225,7 @@ class FunctionFmtTest : public testing::Test {
   Bindings& bindings() { return bindings_; }
 
  private:
+  FileTable file_table_;
   DocArena arena_;
   std::optional<Scanner> scanner_;
   std::optional<Parser> parser_;
@@ -988,8 +999,9 @@ class ModuleFmtTest : public testing::Test {
            int64_t text_width = kDslxDefaultTextWidth,
            bool opportunistic_postcondition = true) {
     std::vector<CommentData> comments;
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m,
-                             ParseModule(input, "fake.x", "fake", &comments));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Module> m,
+        ParseModule(input, "fake.x", "fake", file_table_, &comments));
     std::string got = AutoFmt(*m, Comments::Create(comments), text_width);
 
     if (opportunistic_postcondition) {
@@ -1012,6 +1024,9 @@ class ModuleFmtTest : public testing::Test {
     Run(input, want, kDslxDefaultTextWidth,
         /*opportunistic_postcondition=*/false);
   }
+
+ private:
+  FileTable file_table_;
 };
 
 TEST_F(ModuleFmtTest, TwoSimpleFunctions) {

@@ -48,7 +48,7 @@ namespace xls::dslx {
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject, const std::filesystem::path& stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths,
-    const Span& import_span) {
+    const Span& import_span, const FileTable& file_table) {
   absl::Span<std::string const> pieces = subject.pieces();
   std::optional<std::string> subject_parent_path;
   const absl::flat_hash_set<std::string> builtins = {
@@ -133,12 +133,12 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
     }
   }
 
-  return absl::NotFoundError(
-      absl::StrFormat("ImportError: %s Could not find DSLX file for import; "
-                      "attempted: [ %s ]; working "
-                      "directory: \"%s\"; stdlib directory: \"%s\"",
-                      import_span.ToString(), absl::StrJoin(attempted, " :: "),
-                      GetCurrentDirectory().value(), stdlib_path));
+  return absl::NotFoundError(absl::StrFormat(
+      "ImportError: %s Could not find DSLX file for import; "
+      "attempted: [ %s ]; working "
+      "directory: \"%s\"; stdlib directory: \"%s\"",
+      import_span.ToString(file_table), absl::StrJoin(attempted, " :: "),
+      GetCurrentDirectory().value(), stdlib_path));
 }
 
 absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
@@ -153,10 +153,11 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
 
   VLOG(3) << "DoImport (uncached) subject: " << subject.ToString();
 
-  XLS_ASSIGN_OR_RETURN(
-      std::filesystem::path found_path,
-      FindExistingPath(subject, import_data->stdlib_path(),
-                       import_data->additional_search_paths(), import_span));
+  FileTable& file_table = import_data->file_table();
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path found_path,
+                       FindExistingPath(subject, import_data->stdlib_path(),
+                                        import_data->additional_search_paths(),
+                                        import_span, file_table));
 
   XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(import_span, found_path));
   absl::Cleanup cleanup = absl::MakeCleanup(
@@ -168,10 +169,14 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
   std::string fully_qualified_name = absl::StrJoin(pieces, ".");
   VLOG(3) << "Parsing and typechecking " << fully_qualified_name << ": start";
 
-  Scanner scanner(found_path, contents);
+  Fileno fileno = file_table.GetOrCreate(found_path.c_str());
+  Scanner scanner(file_table, fileno, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, ftypecheck(module.get()));
+
+  VLOG(3) << "Parsing and typechecking " << fully_qualified_name << ": done";
+
   return import_data->Put(
       subject, std::make_unique<ModuleInfo>(std::move(module), type_info,
                                             std::move(found_path)));

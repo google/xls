@@ -75,27 +75,28 @@ absl::Status RealMain(std::string_view input_path,
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path.c_str()));
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
 
+  ImportData import_data =
+      CreateImportData(xls::kDefaultDslxStdlibPath,
+                       /*additional_search_paths=*/{}, kNoWarningsSet);
   std::string formatted;
   if (mode == "autofmt") {
     std::vector<CommentData> comments;
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<Module> module,
-        ParseModule(contents, path.c_str(), module_name, &comments));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                         ParseModule(contents, path.c_str(), module_name,
+                                     import_data.file_table(), &comments));
     formatted = AutoFmt(*module, Comments::Create(comments));
   } else if (mode == "typecheck") {
     // Note: we don't flag any warnings in this binary as we're just formatting
     // the text.
-    ImportData import_data =
-        CreateImportData(xls::kDefaultDslxStdlibPath,
-                         /*additional_search_paths=*/{}, kNoWarningsSet);
     XLS_ASSIGN_OR_RETURN(
         TypecheckedModule tm,
         ParseAndTypecheck(contents, path.c_str(), module_name, &import_data));
     formatted = tm.module->ToString();
   } else if (mode == "parse") {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                         ParseModule(contents, path.c_str(), module_name,
-                                     /*comments=*/nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<Module> module,
+        ParseModule(contents, path.c_str(), module_name,
+                    import_data.file_table(), /*comments=*/nullptr));
     formatted = module->ToString();
   } else {
     return absl::InvalidArgumentError(absl::StrCat("Invalid mode: ", mode));

@@ -2315,11 +2315,13 @@ struct S {
 }
 fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
+  Fileno fileno = tr.import_data->file_table().GetOrCreate("fake.x");
+
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
-  std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
-            Span(Pos(filename, 5, 42), Pos(filename, 5, 43)));
+            Span(Pos(fileno, 5, 42), Pos(fileno, 5, 43)));
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "'Splatted' struct instance has all members of struct defined, "
             "consider removing the `..s`");
@@ -2327,7 +2329,7 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
       std::cerr,
       [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
-      PositionalErrorColor::kWarningColor));
+      PositionalErrorColor::kWarningColor, tr.import_data->file_table()));
 }
 
 TEST(TypecheckTest, LetWithWildcardMatchGivesWarning) {
@@ -2337,11 +2339,14 @@ fn f(x: u32) -> u32 {
   x
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
+  FileTable& file_table = tr.import_data->file_table();
+  Fileno fileno = file_table.GetOrCreate("fake.x");
+
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
-  std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
-            Span(Pos(filename, 2, 6), Pos(filename, 2, 7)));
+            Span(Pos(fileno, 2, 6), Pos(fileno, 2, 7)));
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "`let _ = expr;` statement can be simplified to `expr;` -- there "
             "is no need for a `let` binding here");
@@ -2349,7 +2354,7 @@ fn f(x: u32) -> u32 {
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
       std::cerr,
       [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
-      PositionalErrorColor::kWarningColor));
+      PositionalErrorColor::kWarningColor, file_table));
 }
 
 TEST(TypecheckTest, UselessTrailingNilGivesWarning) {
@@ -2359,11 +2364,14 @@ fn f() -> () {
   ()
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
+  FileTable& file_table = tr.import_data->file_table();
+  Fileno fileno = file_table.GetOrCreate("fake.x");
+
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
-  std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
-            Span(Pos(filename, 3, 2), Pos(filename, 3, 4)));
+            Span(Pos(fileno, 3, 2), Pos(fileno, 3, 4)));
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Block has a trailing nil (empty) tuple after a semicolon -- this "
             "is implied, please remove it");
@@ -2371,12 +2379,13 @@ fn f() -> () {
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
       std::cerr,
       [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
-      PositionalErrorColor::kWarningColor));
+      PositionalErrorColor::kWarningColor, file_table));
 }
 
 TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {
   const std::string program = R"(const mol = u32:42;)";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Standard style is SCREAMING_SNAKE_CASE for constant identifiers; "
@@ -2386,7 +2395,8 @@ TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {
 TEST(TypecheckTest, NonstandardConstantNamingOkViaAllow) {
   const std::string program = R"(#![allow(nonstandard_constant_naming)]
 const mol = u32:42;)";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
   ASSERT_TRUE(tm.warnings.warnings().empty());
 }
 
@@ -2817,7 +2827,8 @@ fn f(x: u32) -> u32 {
     x
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Definition of `y` (type `uN[32]`) is not used in function `f`");
@@ -2830,7 +2841,8 @@ fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
     t.0
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 5);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Definition of `a` (type `uN[32]`) is not used in function `f`");
@@ -2852,7 +2864,8 @@ fn f(x: u32) -> u32 {
   }
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Definition of `y` (type `uN[32]`) is not used in function `f`");

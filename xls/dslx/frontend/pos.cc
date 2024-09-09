@@ -25,7 +25,8 @@
 
 namespace xls::dslx {
 
-/* static */ absl::StatusOr<Span> Span::FromString(std::string_view s) {
+/* static */ absl::StatusOr<Span> Span::FromString(std::string_view s,
+                                                   FileTable& file_table) {
   std::string filename;
   int64_t start_lineno, start_colno, limit_lineno, limit_colno;
   if (RE2::FullMatch(s, R"((.*):(\d+):(\d+)-(\d+):(\d+))", &filename,
@@ -33,19 +34,22 @@ namespace xls::dslx {
                      &limit_colno)) {
     // The values used for display are 1-based, whereas the backing storage is
     // zero-based.
-    return Span(Pos(filename, start_lineno - 1, start_colno - 1),
-                Pos(filename, limit_lineno - 1, limit_colno - 1));
+    Fileno fileno = file_table.GetOrCreate(filename);
+    return Span(Pos(fileno, start_lineno - 1, start_colno - 1),
+                Pos(fileno, limit_lineno - 1, limit_colno - 1));
   }
 
   return absl::InvalidArgumentError(
       absl::StrFormat("Cannot convert string to span: \"%s\"", s));
 }
 
-/* static */ absl::StatusOr<Pos> Pos::FromString(std::string_view s) {
+/* static */ absl::StatusOr<Pos> Pos::FromString(std::string_view s,
+                                                 FileTable& file_table) {
   std::string filename;
   int64_t lineno, colno;
   if (RE2::FullMatch(s, "(.*):(\\d+):(\\d+)", &filename, &lineno, &colno)) {
-    return Pos(filename, lineno - 1, colno - 1);
+    Fileno fileno = file_table.GetOrCreate(filename);
+    return Pos(fileno, lineno - 1, colno - 1);
   }
 
   return absl::InvalidArgumentError(
@@ -53,7 +57,7 @@ namespace xls::dslx {
 }
 
 Span FakeSpan() {
-  Pos fake_pos("<fake>", 0, 0);
+  Pos fake_pos(Fileno(0), 0, 0);
   return Span(fake_pos, fake_pos);
 }
 

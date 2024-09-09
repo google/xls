@@ -29,6 +29,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
@@ -63,12 +64,14 @@ pub fn GetLatency() -> s64 {
     param::params.latency
 })";
 
+  dslx::FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<dslx::Module> params_module,
-      dslx::ParseModule(kParamsDslx, "params_module.x", "param"));
+      dslx::ParseModule(kParamsDslx, "params_module.x", "param", file_table));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> top_module,
-                           dslx::ParseModule(kTopDslx, "top_module.x", "top"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> top_module,
+      dslx::ParseModule(kTopDslx, "top_module.x", "top", file_table));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       IrWrapper ir_wrapper,
@@ -126,8 +129,10 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
     }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> top_module,
-                           dslx::ParseModule(kTopDslx, "top_module.x", "top"));
+  dslx::FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<dslx::Module> top_module,
+      dslx::ParseModule(kTopDslx, "top_module.x", "top", file_table));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       IrWrapper ir_wrapper,

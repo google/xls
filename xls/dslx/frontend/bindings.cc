@@ -49,7 +49,8 @@ std::optional<std::string_view> MaybeExtractParseNameError(
 }
 
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
-    const absl::Status& status, std::optional<std::string_view> target_type) {
+    const absl::Status& status, std::optional<std::string_view> target_type,
+    FileTable& file_table) {
   auto error = [&] {
     return absl::InvalidArgumentError(
         "Provided status is not in recognized error form: " +
@@ -73,7 +74,7 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
     return absl::InvalidArgumentError(
         "Provided status does not have a standard error message");
   }
-  XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0]));
+  XLS_ASSIGN_OR_RETURN(Span span, Span::FromString(pieces[0], file_table));
   return PositionalErrorData{span, std::string(pieces[1]), type_indicator};
 }
 
@@ -103,16 +104,17 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
              << " " << ToAstNode(bn)->GetNodeTypeName();
 }
 
-Span BoundNodeGetSpan(BoundNode bn) {
+Span BoundNodeGetSpan(BoundNode bn, FileTable& file_table) {
   return absl::visit(Visitor{
                          [](EnumDef* n) { return n->span(); },
                          [](TypeAlias* n) { return n->span(); },
                          [](ConstantDef* n) { return n->span(); },
                          [](NameDef* n) { return n->span(); },
-                         [](BuiltinNameDef* n) {
+                         [&](BuiltinNameDef* n) {
                            // Builtin name defs have no real span, so we provide
                            // a fake one here.
-                           Pos p("<builtin>", 0, 0);
+                           Fileno fileno = file_table.GetOrCreate("<builtin>");
+                           Pos p(fileno, 0, 0);
                            return Span(p, p);
                          },
                          [](StructDef* n) { return n->span(); },
@@ -141,8 +143,10 @@ Bindings::Bindings(Bindings* parent) : parent_(parent) {
 }
 
 absl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
-    std::string_view name, const Span& span) const {
-  XLS_ASSIGN_OR_RETURN(BoundNode bn, ResolveNodeOrError(name, span));
+    std::string_view name, const Span& span,
+    const FileTable& file_table) const {
+  XLS_ASSIGN_OR_RETURN(BoundNode bn,
+                       ResolveNodeOrError(name, span, file_table));
   return BoundNodeToAnyNameDef(bn);
 }
 
@@ -155,8 +159,8 @@ std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
   return BoundNodeToAnyNameDef(*bn);
 }
 
-absl::Status Bindings::AddFailLabel(const std::string& label,
-                                    const Span& span) {
+absl::Status Bindings::AddFailLabel(const std::string& label, const Span& span,
+                                    const FileTable& file_table) {
   // Traverse up to our function-scoped bindings since these labels must be
   // unique at the function scope.
   Bindings* top = this;
@@ -169,8 +173,8 @@ absl::Status Bindings::AddFailLabel(const std::string& label,
   CHECK(top->fail_labels_.has_value());
   auto [it, inserted] = top->fail_labels_->insert(label);
   if (!inserted) {
-    return ParseErrorStatus(span,
-                            "A fail label must be unique within a function.");
+    return ParseErrorStatus(
+        span, "A fail label must be unique within a function.", file_table);
   }
 
   top->fail_labels_.value().insert(label);

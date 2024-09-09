@@ -922,7 +922,7 @@ std::optional<AstNode*> PreserveTypeDefinitionsReplacer(const AstNode* node) {
 CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
   return [=](const AstNode* node) -> std::optional<AstNode*> {
     if (const auto* name_ref = dynamic_cast<const NameRef*>(node);
-        name_ref &&
+        name_ref != nullptr &&
         std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
         std::get<const NameDef*>(name_ref->name_def()) == def) {
       return replacement;
@@ -942,7 +942,8 @@ absl::StatusOr<AstNode*> CloneAst(AstNode* root, CloneReplacer replacer) {
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module,
                                                     CloneReplacer replacer) {
-  auto new_module = std::make_unique<Module>(module->name(), module->fs_path());
+  auto new_module = std::make_unique<Module>(module->name(), module->fs_path(),
+                                             *module->file_table());
   AstCloner cloner(new_module.get(), std::move(replacer));
   for (const ModuleMember member : module->top()) {
     ModuleMember new_member;
@@ -1013,7 +1014,8 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module,
 
 // Verifies that `node` consists solely of "new" AST nodes and none that are
 // in the "old" set.
-absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root) {
+absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root,
+                         const FileTable& file_table) {
   absl::flat_hash_set<const AstNode*> old_nodes = FlattenToSet(old_root);
   absl::flat_hash_set<const AstNode*> new_nodes = FlattenToSet(new_root);
   for (const AstNode* new_node : new_nodes) {
@@ -1023,7 +1025,7 @@ absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root) {
           "Node \"%s\" (%s; %s) was found in both the old set and "
           "new translation!",
           new_node->ToString(),
-          span.has_value() ? span.value().ToString() : "<no span>",
+          span.has_value() ? span.value().ToString(file_table) : "<no span>",
           new_node->GetNodeTypeName()));
     }
   }

@@ -36,8 +36,8 @@ namespace xls::dslx {
 //
 // The returned string should be assumed to be multi-line but not
 // newline-terminated.
-absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs,
-                                               const Type& rhs);
+absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs, const Type& rhs,
+                                               const FileTable& file_table);
 
 }  // namespace xls::dslx
 

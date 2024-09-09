@@ -37,10 +37,11 @@ TEST_P(FmtGeneratedAstTest, RunShard) {
   AstGeneratorOptions options;
 
   absl::BitGen bitgen;
+  FileTable file_table;
 
   for (size_t i = 0; i < 256; ++i) {
     static const std::string kModuleName = "test";
-    AstGenerator gen(options, bitgen);
+    AstGenerator gen(options, bitgen, file_table);
     XLS_ASSERT_OK_AND_ASSIGN(
         AnnotatedModule am,
         gen.Generate(/*top_entity_name=*/"main", /*module_name=*/kModuleName));
@@ -49,7 +50,7 @@ TEST_P(FmtGeneratedAstTest, RunShard) {
 
     // We re-parse the module so we can get proper positional annotations -- all
     // positions are trivial in the generated AST structure.
-    Scanner scanner("test.x", stringified);
+    Scanner scanner(file_table, Fileno(0), stringified);
     Parser parser(kModuleName, &scanner);
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> parsed,
                              parser.ParseModule());

@@ -91,6 +91,15 @@ class JitChannelQueueWrapper {
 // A class managing a dslx module and associated path.
 class DslxModuleAndPath {
  public:
+  // Take ownership of the dslx module and create a new object.
+  static absl::StatusOr<DslxModuleAndPath> Create(
+      std::unique_ptr<dslx::Module> module, std::string_view file_path);
+
+  // Parse dslx file from path and create a new object.
+  static absl::StatusOr<DslxModuleAndPath> Create(std::string_view module_name,
+                                                  std::string_view file_path,
+                                                  dslx::FileTable& file_table);
+
   // Gives up ownership the dslx module.
   std::unique_ptr<dslx::Module> GiveUpDslxModule() {
     return std::move(module_);
@@ -112,14 +121,6 @@ class DslxModuleAndPath {
 
   // Set new path of the dslx module.
   void SetFilePath(std::string_view path) { file_path_ = path; }
-
-  // Take ownership of the dslx module and create a new object.
-  static absl::StatusOr<DslxModuleAndPath> Create(
-      std::unique_ptr<dslx::Module> module, std::string_view file_path);
-
-  // Parse dslx file from path and create a new object.
-  static absl::StatusOr<DslxModuleAndPath> Create(std::string_view module_name,
-                                                  std::string_view file_path);
 
  private:
   DslxModuleAndPath() = default;

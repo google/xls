@@ -80,7 +80,8 @@ class Checker {
     if (arg_types_.size() != target) {
       status_ = ArgCountMismatchErrorStatus(
           span_,
-          absl::StrFormat("Invalid number of arguments passed to '%s'", name_));
+          absl::StrFormat("Invalid number of arguments passed to '%s'", name_),
+          deduce_ctx_.file_table());
     }
     return *this;
   }
@@ -446,6 +447,12 @@ class Checker {
           "%s",
           argno0, argno1, name_, lhs.ToString(), rhs.ToString());
     });
+  }
+
+  absl::Status TypeInferenceErrorStatus(const Span& span, const Type* type,
+                                        std::string_view message) {
+    return xls::dslx::TypeInferenceErrorStatus(span, type, message,
+                                               deduce_ctx_.file_table());
   }
 
   const absl::Status& status() const { return status_; }
@@ -880,14 +887,16 @@ PopulateSignatureToLambdaMap() {
           data.span,
           absl::StrFormat("Invalid number of parametrics passed to '%s', "
                           "expected 1, got %d",
-                          data.name, data.arg_explicit_parametrics.size()));
+                          data.name, data.arg_explicit_parametrics.size()),
+          ctx->file_table());
     }
 
     ExprOrType param_type = data.arg_explicit_parametrics.at(0);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
                          DeduceAndResolve(ToAstNode(param_type), ctx));
-    XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
-                                                     data.span, data.name));
+    XLS_ASSIGN_OR_RETURN(return_type,
+                         UnwrapMetaType(std::move(return_type), data.span,
+                                        data.name, ctx->file_table()));
 
     return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
@@ -910,7 +919,8 @@ PopulateSignatureToLambdaMap() {
           data.span, nullptr,
           absl::StrFormat("Need limit to '%s' to be >= than start value; "
                           "start: %s, limit: %s",
-                          data.name, start.ToString(), limit.ToString()));
+                          data.name, start.ToString(), limit.ToString()),
+          ctx->file_table());
     }
     XLS_RET_CHECK_EQ(static_cast<uint32_t>(length), length);
     auto return_type = std::make_unique<ArrayType>(
@@ -951,7 +961,8 @@ PopulateSignatureToLambdaMap() {
                 "Want argument 0 type %s dimensions: %d to be larger than "
                 "the number of indices: %d",
                 container_type->ToString(),
-                container_type->GetAllDims().size() - 1, index_size));
+                container_type->GetAllDims().size() - 1, index_size),
+            ctx->file_table());
       }
     }
     checker.TypesAreSame(*element_type, *data.arg_types[2], [&] {
@@ -1089,19 +1100,22 @@ PopulateSignatureToLambdaMap() {
           data.span,
           absl::StrFormat("Invalid number of parametrics passed to '%s', "
                           "expected 1, got %d",
-                          data.name, data.arg_explicit_parametrics.size()));
+                          data.name, data.arg_explicit_parametrics.size()),
+          ctx->file_table());
     }
     AstNode* param_type = ToAstNode(data.arg_explicit_parametrics.at(0));
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
                          DeduceAndResolve(param_type, ctx));
-    XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
-                                                     data.span, data.name));
+    XLS_ASSIGN_OR_RETURN(return_type,
+                         UnwrapMetaType(std::move(return_type), data.span,
+                                        data.name, ctx->file_table()));
     if (auto* a = dynamic_cast<const BitsType*>(return_type.get());
         a == nullptr || a->is_signed()) {
       return TypeInferenceErrorStatus(
           param_type->GetSpan().value_or(FakeSpan()), return_type.get(),
           absl::StrFormat("Want return type to be unsigned bits; got %s",
-                          return_type->ToString()));
+                          return_type->ToString()),
+          ctx->file_table());
     }
 
     return TypeAndParametricEnv{std::make_unique<FunctionType>(

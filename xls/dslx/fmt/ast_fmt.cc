@@ -60,7 +60,7 @@ std::optional<DocRef> EmitCommentsBetween(
     const Comments& comments, DocArena& arena,
     std::optional<Span>* last_comment_span) {
   if (!start_pos.has_value()) {
-    start_pos = Pos(limit_pos.filename(), 0, 0);
+    start_pos = Pos(limit_pos.fileno(), 0, 0);
   }
   // Due to the hack in AdjustCommentLimit, we can end up looking for a comment
   // between the fictitious end of a comment and the end of a block. Just don't
@@ -70,7 +70,8 @@ std::optional<DocRef> EmitCommentsBetween(
   }
   const Span span(start_pos.value(), limit_pos);
 
-  VLOG(3) << "Looking for comments in span: " << span;
+  const FileTable& file_table = arena.file_table();
+  VLOG(3) << "Looking for comments in span: " << span.ToString(file_table);
 
   std::vector<DocRef> pieces;
 
@@ -85,8 +86,10 @@ std::optional<DocRef> EmitCommentsBetween(
     if (previous_comment_span.has_value() &&
         previous_comment_span->start().lineno() + 1 !=
             comment_data->span.start().lineno()) {
-      VLOG(3) << "previous comment span: " << previous_comment_span.value()
-              << " this comment span: " << comment_data->span
+      VLOG(3) << "previous comment span: "
+              << previous_comment_span.value().ToString(file_table)
+              << " this comment span: "
+              << comment_data->span.ToString(file_table)
               << " -- inserting hard line";
       pieces.push_back(arena.hard_line());
     }
@@ -596,7 +599,7 @@ static Pos AdjustCommentLimit(const Span& comment_span, DocArena& arena,
                               DocRef comment_doc) {
   CHECK_EQ(comment_span.limit().colno(), 0);
   CHECK_GT(comment_span.limit().lineno(), 0);
-  return Pos(comment_span.start().filename(), comment_span.limit().lineno() - 1,
+  return Pos(comment_span.start().fileno(), comment_span.limit().lineno() - 1,
              std::numeric_limits<int32_t>::max());
 }
 
@@ -607,12 +610,13 @@ static Pos CollectInlineComments(const Pos& prev_limit,
                                  const Comments& comments, DocArena& arena,
                                  std::vector<DocRef>& pieces,
                                  std::optional<Span> last_comment_span) {
-  const Pos next_line(prev_limit.filename(), prev_limit.lineno() + 1, 0);
+  const Pos next_line(prev_limit.fileno(), prev_limit.lineno() + 1, 0);
   if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
           last_entity_pos, next_line, comments, arena, &last_comment_span)) {
     VLOG(3) << "Saw inline comment: "
             << arena.ToDebugString(comments_doc.value())
-            << " last_comment_span: " << last_comment_span.value();
+            << " last_comment_span: "
+            << last_comment_span.value().ToString(arena.file_table());
     pieces.push_back(arena.space());
     pieces.push_back(arena.space());
     pieces.push_back(arena.MakeAlign(comments_doc.value()));
@@ -687,7 +691,8 @@ static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
     const Pos& stmt_start = stmt_span->start();
     const Pos& stmt_limit = stmt_span->limit();
 
-    VLOG(5) << "stmt: `" << stmt->ToString() << "` span: " << stmt_span.value()
+    VLOG(5) << "stmt: `" << stmt->ToString()
+            << "` span: " << stmt_span.value().ToString(arena.file_table())
             << " last_entity_pos: " << last_entity_pos;
 
     std::optional<Span> last_comment_span;
@@ -695,7 +700,8 @@ static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
             last_entity_pos, stmt_start, comments, arena, &last_comment_span)) {
       VLOG(5) << "emitting comment ahead of: `" << stmt->ToString() << "`"
               << " last entity position: " << last_entity_pos
-              << " last_comment_span: " << last_comment_span.value();
+              << " last_comment_span: "
+              << last_comment_span.value().ToString(arena.file_table());
       // If there's a line break between the last entity and this comment, we
       // retain it in the output (i.e. in paragraph style).
       if (last_entity_pos != start_entity_pos &&
@@ -1555,8 +1561,6 @@ static bool InRange(const Span& node_span, const CommentData& comment) {
 
 std::vector<const CommentData*> Comments::GetComments(
     const Span& node_span) const {
-  VLOG(3) << "GetComments; node_span: " << node_span;
-
   // Implementation note: this will typically be a single access (as most things
   // will be on a single line), so we prefer a flat hash map to a btree map.
   std::vector<const CommentData*> results;
@@ -1794,7 +1798,8 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
                 next_comment_start_pos = last_stmt_limit;
               } else {
                 LOG(FATAL) << "Unexpected proc member function: "
-                           << f->identifier() << " @ " << f->span();
+                           << f->identifier() << " @ "
+                           << f->span().ToString(arena.file_table());
               }
               last_stmt_limit = f->span().limit();
             },
@@ -2312,7 +2317,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
 
     // Check the start of this member is >= the last member limit.
     if (last_entity_pos.has_value()) {
-      CHECK_GE(member_start, last_entity_pos.value()) << node->ToString();
+      CHECK_GE(member_start, last_entity_pos.value());
     }
 
     std::optional<Span> last_comment_span;
@@ -2322,7 +2327,8 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
       pieces.push_back(comments_doc.value());
       pieces.push_back(arena.hard_line());
 
-      VLOG(3) << "last_comment_span: " << last_comment_span.value()
+      VLOG(3) << "last_comment_span: "
+              << last_comment_span.value().ToString(arena.file_table())
               << " this member start: " << member_start;
 
       // If the comment abuts the module member we don't put a newline in
@@ -2381,7 +2387,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
 
 std::string AutoFmt(const Module& m, const Comments& comments,
                     int64_t text_width) {
-  DocArena arena;
+  DocArena arena(*m.file_table());
   DocRef ref = Fmt(m, comments, arena);
   return PrettyPrint(arena, ref, text_width);
 }

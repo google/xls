@@ -36,6 +36,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
 
@@ -196,14 +197,15 @@ absl::Status VerifyParentage(const AstNode* root) {
     }
 
     if (child->parent() != root) {
+      FileTable& file_table = *root->owner()->file_table();
       return absl::InvalidArgumentError(absl::StrFormat(
           "Child \"%s\" (%s, %s) of node \"%s\" (%s, %s) had "
           "node \"%s\" (%s, %s) as its parent.",
           child->ToString(), child->GetNodeTypeName(),
-          child->GetSpan()->ToString(), root->ToString(),
-          root->GetNodeTypeName(), root->GetSpan()->ToString(),
+          child->GetSpan()->ToString(file_table), root->ToString(),
+          root->GetNodeTypeName(), root->GetSpan()->ToString(file_table),
           child->parent()->ToString(), child->parent()->GetNodeTypeName(),
-          child->parent()->GetSpan()->ToString()));
+          child->parent()->GetSpan()->ToString(file_table)));
     }
   }
 
@@ -417,15 +419,16 @@ const Number* IsBareNumber(const AstNode* node, bool* is_boolean) {
 
 bool ContainedWithinFunction(const Invocation& invocation,
                              const Function& caller) {
+  const FileTable& file_table = *caller.owner()->file_table();
   VLOG(10) << absl::StreamFormat(
-      "Checking whether invocation `%s` @ %v is contained within caller `%s` @ "
-      "%v",
-      invocation.ToString(), invocation.span(), caller.identifier(),
-      caller.span());
+      "Checking whether invocation `%s` @ %s is contained within caller `%s` @ "
+      "%s",
+      invocation.ToString(), invocation.span().ToString(file_table),
+      caller.identifier(), caller.span().ToString(file_table));
   const AstNode* parent = invocation.parent();
   CHECK(parent != nullptr) << absl::StreamFormat(
-      "invocation node had no parent set: `%s` @ %v", invocation.ToString(),
-      invocation.span());
+      "invocation node had no parent set: `%s` @ %s", invocation.ToString(),
+      invocation.span().ToString(file_table));
   VLOG(10) << absl::StreamFormat("node `%s` has parent: `%s`",
                                  invocation.ToString(), parent->ToString());
 

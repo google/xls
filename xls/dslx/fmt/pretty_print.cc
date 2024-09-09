@@ -33,6 +33,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
@@ -410,7 +411,7 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
                          payload);
 }
 
-DocArena::DocArena() {
+DocArena::DocArena(const FileTable& file_table) : file_table_(file_table) {
   empty_ = MakeText("");
   space_ = MakeText(" ");
   // a hardline

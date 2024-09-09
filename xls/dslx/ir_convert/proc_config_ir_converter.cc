@@ -108,7 +108,7 @@ absl::Status ProcConfigIrConverter::Finalize() {
 absl::Status ProcConfigIrConverter::HandleStatementBlock(
     const StatementBlock* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleStatementBlock: " << node->ToString()
-          << " : " << node->span().ToString();
+          << " : " << node->span().ToString(file_table());
   for (const Statement* statement : node->statements()) {
     XLS_RETURN_IF_ERROR(statement->Accept(this));
   }
@@ -121,7 +121,7 @@ absl::Status ProcConfigIrConverter::HandleStatement(const Statement* node) {
 
 absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleChannelDecl: " << node->ToString()
-          << " : " << node->span().ToString();
+          << " : " << node->span().ToString(file_table());
   XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
                        channel_scope_->DefineChannelOrArray(node));
   node_to_ir_[node] = ChannelOrArrayToProcConfigValue(channel_or_array);
@@ -297,7 +297,7 @@ absl::Status ProcConfigIrConverter::HandleUnrollFor(const UnrollFor* node) {
   }
   return absl::InvalidArgumentError(
       absl::StrCat("unroll_for! should have been unrolled by now at: ",
-                   node->span().ToString()));
+                   node->span().ToString(file_table())));
 }
 
 absl::Status ProcConfigIrConverter::HandleXlsTuple(const XlsTuple* node) {

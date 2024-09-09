@@ -71,7 +71,8 @@ std::optional<Span> FindDefinition(const Module& m, const Pos& selected,
   std::vector<Reference> defs;
   for (const AstNode* node : intercepting) {
     VLOG(5) << "Intercepting node kind: " << node->kind() << " @ "
-            << node->GetSpan().value() << " :: `" << node->ToString() << "`";
+            << node->GetSpan().value().ToString(import_data.file_table())
+            << " :: `" << node->ToString() << "`";
     if (auto* colon_ref = dynamic_cast<const ColonRef*>(node);
         colon_ref != nullptr) {
       VLOG(3) << "Intercepting colon ref: `" << colon_ref->ToString() << "`";
@@ -126,7 +127,8 @@ std::optional<Span> FindDefinition(const Module& m, const Pos& selected,
     }
     const Reference& reference = defs.at(most_containing);
     VLOG(3) << "Most containing; reference is to: `" << reference.to->ToString()
-            << "` @ " << reference.to->span();
+            << "` @ "
+            << reference.to->span().ToString(import_data.file_table());
     return reference.to->GetSpan();
   }
 

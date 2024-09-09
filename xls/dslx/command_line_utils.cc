@@ -31,17 +31,20 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
 bool TryPrintError(
     const absl::Status& status,
     const std::function<absl::StatusOr<std::string>(std::string_view)>&
-        get_file_contents) {
+        get_file_contents,
+    FileTable& file_table) {
   if (status.ok()) {
     return false;
   }
-  absl::StatusOr<PositionalErrorData> data_or = GetPositionalErrorData(status);
+  absl::StatusOr<PositionalErrorData> data_or =
+      GetPositionalErrorData(status, std::nullopt, file_table);
   if (!data_or.ok()) {
     LOG(ERROR) << "Could not extract a textual position from error message: "
                << status << ": " << data_or.status();
@@ -53,7 +56,8 @@ bool TryPrintError(
       data.span, absl::StrFormat("%s: %s", data.error_type, data.message),
       std::cerr, get_file_contents,
       is_tty ? PositionalErrorColor::kErrorColor
-             : PositionalErrorColor::kNoColor);
+             : PositionalErrorColor::kNoColor,
+      file_table);
   if (!print_status.ok()) {
     LOG(ERROR) << "Could not print positional error: " << print_status;
   }

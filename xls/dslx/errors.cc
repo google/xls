@@ -35,68 +35,79 @@ namespace {
 template <typename TypeOrAnnotation>
 absl::Status TypeInferenceErrorStatusInternal(
     const Span& span, const TypeOrAnnotation* type_or_annotation,
-    std::string_view message) {
+    std::string_view message, const FileTable& file_table) {
   std::string type_str;
   if (type_or_annotation != nullptr) {
     type_str = type_or_annotation->ToString() + " ";
   }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "TypeInferenceError: %s %s%s", span.ToString(), type_str, message));
+  return absl::InvalidArgumentError(
+      absl::StrFormat("TypeInferenceError: %s %s%s", span.ToString(file_table),
+                      type_str, message));
 }
 
 }  // namespace
 
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
-                                         std::string_view message) {
+                                         std::string_view message,
+                                         const FileTable& file_table) {
   return absl::InvalidArgumentError(absl::StrFormat(
-      "ArgCountMismatchError: %s %s", span.ToString(), message));
+      "ArgCountMismatchError: %s %s", span.ToString(file_table), message));
 }
 
-absl::Status FailureErrorStatus(const Span& span, std::string_view message) {
+absl::Status FailureErrorStatus(const Span& span, std::string_view message,
+                                const FileTable& file_table) {
   return absl::InternalError(absl::StrFormat(
       "FailureError: %s The program being interpreted failed!%s%s",
-      span.ToString(), message.empty() || message[0] == '\n' ? "" : " ",
-      message));
+      span.ToString(file_table),
+      message.empty() || message[0] == '\n' ? "" : " ", message));
 }
 
-absl::Status ProofErrorStatus(const Span& span, std::string_view message) {
+absl::Status ProofErrorStatus(const Span& span, std::string_view message,
+                              const FileTable& file_table) {
   return absl::InternalError(absl::StrFormat(
-      "ProofError: %s Failed to prove the property!%s%s", span.ToString(),
+      "ProofError: %s Failed to prove the property!%s%s",
+      span.ToString(file_table),
       message.empty() || message[0] == '\n' ? "" : " ", message));
 }
 
 absl::Status InvalidIdentifierErrorStatus(const Span& span,
-                                          std::string_view message) {
+                                          std::string_view message,
+                                          const FileTable& file_table) {
   return absl::InvalidArgumentError(absl::StrFormat(
-      "InvalidIdentifierError: %s %s", span.ToString(), message));
+      "InvalidIdentifierError: %s %s", span.ToString(file_table), message));
 }
 
 absl::Status TypeInferenceErrorStatus(const Span& span, const Type* type,
-                                      std::string_view message) {
-  return TypeInferenceErrorStatusInternal(span, type, message);
+                                      std::string_view message,
+                                      const FileTable& file_table) {
+  return TypeInferenceErrorStatusInternal(span, type, message, file_table);
 }
 
 absl::Status TypeInferenceErrorStatusForAnnotation(
     const Span& span, const TypeAnnotation* type_annotation,
-    std::string_view message) {
-  return TypeInferenceErrorStatusInternal(span, type_annotation, message);
+    std::string_view message, const FileTable& file_table) {
+  return TypeInferenceErrorStatusInternal(span, type_annotation, message,
+                                          file_table);
 }
 
-absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user) {
-  std::string span_string = user == nullptr ? SpanToString(node.GetSpan())
-                                            : SpanToString(user->GetSpan());
+absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,
+                                    const FileTable& file_table) {
+  std::string span_string = user == nullptr
+                                ? SpanToString(node.GetSpan(), file_table)
+                                : SpanToString(user->GetSpan(), file_table);
 
   return absl::InternalError(absl::StrFormat(
       "TypeMissingError: %s node: %p user: %p internal error: AST node is "
       "missing a corresponding type: %s %p (kind: %s) defined @ %s. "
       "This may be due to recursion, which is not supported.",
       span_string, &node, user, node.ToString(), &node, node.GetNodeTypeName(),
-      SpanToString(node.GetSpan())));
+      SpanToString(node.GetSpan(), file_table)));
 }
 
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         const Span& earlier_import,
-                                        absl::Span<const ImportRecord> cycle) {
+                                        absl::Span<const ImportRecord> cycle,
+                                        const FileTable& file_table) {
   std::string cycle_str = absl::StrJoin(
       cycle, " imports\n    ", [](std::string* out, const ImportRecord& r) {
         absl::StrAppend(out, std::string{r.imported});
@@ -105,26 +116,28 @@ absl::Status RecursiveImportErrorStatus(const Span& nested_import,
   // Display the entry translation unit specially.
   std::string earlier_import_str;
   if (earlier_import.empty()) {
-    earlier_import_str = absl::StrCat(earlier_import.filename(), " (entry)");
+    earlier_import_str =
+        absl::StrCat(earlier_import.GetFilename(file_table), " (entry)");
   } else {
-    earlier_import_str = earlier_import.ToString();
+    earlier_import_str = earlier_import.ToString(file_table);
   }
 
   return absl::InvalidArgumentError(
       absl::StrFormat("RecursiveImportError: %s import cycle detected, import "
                       "cycles are not allowed:\n  previous import @ %s\n  "
                       "subsequent (nested) import @ %s\n  cycle:\n    %s",
-                      nested_import.ToString(), earlier_import_str,
-                      nested_import.ToString(), cycle_str));
+                      nested_import.ToString(file_table), earlier_import_str,
+                      nested_import.ToString(file_table), cycle_str));
 }
 
 absl::Status CheckedCastErrorStatus(const Span& span,
                                     const InterpValue& from_value,
-                                    const Type* to_type) {
+                                    const Type* to_type,
+                                    const FileTable& file_table) {
   return absl::InvalidArgumentError(absl::StrFormat(
       "CheckedCastError: %s unable to cast value %s to type %s without "
       "truncation.",
-      span.ToString(), from_value.ToString(), to_type->ToString()));
+      span.ToString(file_table), from_value.ToString(), to_type->ToString()));
 }
 
 }  // namespace xls::dslx

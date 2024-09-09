@@ -32,7 +32,8 @@ TEST(IsPosErrorTest, VariousErrors) {
   EXPECT_THAT(
       absl::InvalidArgumentError("ScanError: <> missing positional data"),
       testing::Not(IsPosError("ScanError", testing::_)));
-  EXPECT_THAT(ScanErrorStatus(FakeSpan(), "my message"),
+  FileTable file_table;
+  EXPECT_THAT(ScanErrorStatus(FakeSpan(), "my message", file_table),
               IsPosError("ScanError", "my message"));
 }
 

@@ -27,13 +27,14 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<std::unique_ptr<Type>> UnwrapMetaType(std::unique_ptr<Type> t,
-                                                     const Span& span,
-                                                     std::string_view context) {
+absl::StatusOr<std::unique_ptr<Type>> UnwrapMetaType(
+    std::unique_ptr<Type> t, const Span& span, std::string_view context,
+    const FileTable& file_table) {
   MetaType* metatype = dynamic_cast<MetaType*>(t.get());
   if (metatype == nullptr) {
     return TypeInferenceErrorStatus(
-        span, t.get(), absl::StrCat("Expected a type in ", context));
+        span, t.get(), absl::StrCat("Expected a type in ", context),
+        file_table);
   }
   return std::move(metatype->wrapped());
 }

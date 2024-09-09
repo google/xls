@@ -26,7 +26,7 @@
 namespace xls::dslx {
 namespace {
 
-const Pos kFakePos("<fake>", 0, 0);
+const Pos kFakePos(Fileno(0), 0, 0);
 const Span kFakeSpan(kFakePos, kFakePos);
 
 TEST(ParametricExpressionTest, SampleEvaluation) {

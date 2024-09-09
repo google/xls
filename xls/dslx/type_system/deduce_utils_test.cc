@@ -38,7 +38,8 @@ namespace xls::dslx {
 namespace {
 
 TEST(DeduceUtilsTest, ValidateNumber) {
-  Scanner scanner("test.x", "42 256");
+  FileTable file_table;
+  Scanner scanner(file_table, Fileno(0), "42 256");
   Parser parser("test", &scanner);
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(Expr * e, parser.ParseExpression(bindings));
@@ -59,7 +60,8 @@ TEST(DeduceUtilsTest, ValidateNumber) {
 }
 
 TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
-  Module module("test_module", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test_module", /*fs_path=*/std::nullopt, file_table);
   NameDef* name_def = module.Make<NameDef>(Span::Fake(), "proc_name", nullptr);
   NameDef* config_name_def =
       module.Make<NameDef>(Span::Fake(), "config_name", nullptr);
@@ -118,9 +120,11 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
 
 TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   std::vector<std::string> import_tokens{"robs", "dslx", "import_module"};
+  FileTable file_table;
   ImportTokens subject(import_tokens);
   ModuleInfo module_info(
-      std::make_unique<Module>("import_module", /*fs_path=*/std::nullopt),
+      std::make_unique<Module>("import_module", /*fs_path=*/std::nullopt,
+                               file_table),
       /*type_info=*/nullptr, "robs/dslx/import_module.x");
   Module* import_module = &module_info.module();
 
@@ -175,7 +179,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       import_module->AddTop(original_proc, /*make_collision_error=*/nullptr));
   name_def->set_definer(original_proc);
 
-  Module module("test_module", /*fs_path=*/std::nullopt);
+  Module module("test_module", /*fs_path=*/std::nullopt, file_table);
   NameDef* module_def =
       module.Make<NameDef>(Span::Fake(), "import_module", nullptr);
   Import* import = module.Make<Import>(Span::Fake(), import_tokens, *module_def,

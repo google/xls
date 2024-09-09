@@ -54,7 +54,7 @@ class Comments {
   Comments(absl::flat_hash_map<int64_t, CommentData> line_to_comment,
            std::optional<Pos> last_data_limit)
       : line_to_comment_(std::move(line_to_comment)),
-        last_data_limit_(std::move(last_data_limit)) {}
+        last_data_limit_(last_data_limit) {}
 
   absl::flat_hash_map<int64_t, CommentData> line_to_comment_;
   std::optional<Pos> last_data_limit_;

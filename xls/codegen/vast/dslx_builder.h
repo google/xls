@@ -106,6 +106,11 @@ class DslxResolver {
 // attempts to separate most of the DSLX-related logic from AST traversal.
 class DslxBuilder {
  public:
+  // Args:
+  //  additional_search_path: Optional directory in which we can search for
+  //    imports -- this is useful when we're generating multiple `.x` files
+  //    from a single VAST input and we need to resolve already-generated
+  //    modules via import.
   DslxBuilder(
       std::string_view main_module_name, DslxResolver* resolver,
       const std::optional<std::filesystem::path>& additional_search_path,
@@ -178,6 +183,7 @@ class DslxBuilder {
   dslx::DeduceCtx& deduce_ctx() { return deduce_ctx_; }
   dslx::TypeInfo& type_info() { return *type_info_; }
   dslx::Module& module() { return module_; }
+  dslx::FileTable& file_table() { return import_data_.file_table(); }
 
  private:
   // Returns `expr` casted, whether necessary or not, to the equivalent of the
@@ -195,11 +201,12 @@ class DslxBuilder {
       const dslx::Span& span, verilog::DataType* vast_type,
       bool force_builtin = false);
 
+  const std::vector<std::filesystem::path> additional_search_paths_;
+  const std::string dslx_stdlib_path_;
+
+  dslx::ImportData import_data_;
   dslx::Module module_;
   DslxResolver* const resolver_;
-  const std::string dslx_stdlib_path_;
-  const std::vector<std::filesystem::path> additional_search_paths_;
-  dslx::ImportData import_data_;
   dslx::WarningCollector warnings_;
   dslx::TypeInfo* const type_info_;
 

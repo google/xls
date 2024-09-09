@@ -68,7 +68,8 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(
 // Verifies that the AST node tree rooted at `new_root` does not contain any of
 // the AST nodes in the tree rooted at `old_root`. In practice, this will verify
 // that a clone doesn't contain any 'old' AST nodes.
-absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root);
+absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root,
+                         const FileTable& file_table);
 
 // Helper for CloneAst that uses the apparent (derived) type given by the
 // parameter as the return type. (This helps encapsulate casts to be safer.)

@@ -50,6 +50,7 @@ cc_library(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/ir",

@@ -150,7 +150,9 @@ struct Doc {
 // on this object.
 class DocArena {
  public:
-  DocArena();
+  DocArena(const FileTable& file_table);
+
+  const FileTable& file_table() { return file_table_; }
 
   std::string ToDebugString(DocRef ref) const {
     return Deref(ref).ToDebugString(*this);
@@ -271,6 +273,8 @@ class DocArena {
   }
 
  private:
+  const FileTable& file_table_;
+
   // Note: we use reference indices so we can realloc inline data (instead of
   // boxing everything) and to avoid the variant type being recursive.
   std::vector<pprint_internal::Doc> items_;

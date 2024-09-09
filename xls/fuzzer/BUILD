@@ -792,6 +792,7 @@ cc_library(
     hdrs = ["dslx_mutator.h"],
     deps = [
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/frontend:token",
         "@com_google_absl//absl/random",

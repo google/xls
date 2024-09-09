@@ -24,7 +24,8 @@ namespace xls::dslx {
 namespace {
 
 TEST(InterpreterStackTest, PushThenDoublePop) {
-  InterpreterStack stack;
+  FileTable file_table;
+  InterpreterStack stack(file_table);
   EXPECT_TRUE(stack.empty());
   stack.Push(InterpValue::MakeU32(42));
   EXPECT_FALSE(stack.empty());

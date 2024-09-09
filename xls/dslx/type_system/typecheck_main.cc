@@ -68,7 +68,7 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
   absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
       input_contents, input_path.c_str(), module_name, &import_data);
   if (!tm_or.ok()) {
-    if (TryPrintError(tm_or.status())) {
+    if (TryPrintError(tm_or.status(), nullptr, import_data.file_table())) {
       return absl::InvalidArgumentError(
           "An error occurred during parsing / typechecking.");
     }
@@ -80,7 +80,9 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
     QCHECK(tip.SerializeToString(&output));
     return SetFileContents(output_path->c_str(), output);
   }
-  XLS_ASSIGN_OR_RETURN(std::string humanized, ToHumanString(tip, import_data));
+  XLS_ASSIGN_OR_RETURN(
+      std::string humanized,
+      ToHumanString(tip, import_data, import_data.file_table()));
   std::cout << humanized << '\n';
   return absl::OkStatus();
 }

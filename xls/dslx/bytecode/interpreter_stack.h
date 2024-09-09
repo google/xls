@@ -44,9 +44,11 @@ class InterpreterStack {
   // Convenience helper for creating a stack with given values for testing.
   //
   // Note: stack.back() is the topmost (most recently pushed) value.
-  static InterpreterStack CreateForTest(absl::Span<const InterpValue> stack);
+  static InterpreterStack CreateForTest(const FileTable& file_table,
+                                        absl::Span<const InterpValue> stack);
 
-  InterpreterStack() = default;
+  explicit InterpreterStack(const FileTable& file_table)
+      : file_table_(file_table) {}
 
   absl::StatusOr<InterpValue> Pop() {
     XLS_ASSIGN_OR_RETURN(FormattedInterpValue value, PopFormattedValue());
@@ -92,10 +94,14 @@ class InterpreterStack {
   bool empty() const { return stack_.empty(); }
   int64_t size() const { return stack_.size(); }
 
- private:
-  explicit InterpreterStack(std::vector<FormattedInterpValue> stack)
-      : stack_(std::move(stack)) {}
+  const FileTable& file_table() const { return file_table_; }
 
+ private:
+  explicit InterpreterStack(const FileTable& file_table,
+                            std::vector<FormattedInterpValue> stack)
+      : file_table_(file_table), stack_(std::move(stack)) {}
+
+  const FileTable& file_table_;
   std::vector<FormattedInterpValue> stack_;
 };
 

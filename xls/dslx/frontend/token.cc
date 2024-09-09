@@ -26,6 +26,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 
 namespace xls::dslx {
@@ -114,17 +115,17 @@ std::string Token::ToString() const {
   return TokenKindToString(kind_);
 }
 
-std::string Token::ToRepr() const {
+std::string Token::ToRepr(const FileTable& file_table) const {
   if (kind_ == TokenKind::kKeyword) {
-    return absl::StrFormat("Token(%s, %s)", span_.ToRepr(),
+    return absl::StrFormat("Token(%s, %s)", span_.ToRepr(file_table),
                            KeywordToString(GetKeyword()));
   }
   if (GetValue().has_value()) {
     return absl::StrFormat("Token(%s, %s, \"%s\")", TokenKindToString(kind_),
-                           span_.ToRepr(), GetValue().value());
+                           span_.ToRepr(file_table), GetValue().value());
   }
   return absl::StrFormat("Token(%s, %s)", TokenKindToString(kind_),
-                         span_.ToRepr());
+                         span_.ToRepr(file_table));
 }
 
 }  // namespace xls::dslx

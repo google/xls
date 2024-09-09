@@ -27,15 +27,17 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<TypecheckedModule> Typecheck(std::string_view text) {
-  auto import_data = CreateImportDataForTest();
+absl::StatusOr<TypecheckResult> Typecheck(std::string_view text) {
+  auto import_data = CreateImportDataPtrForTest();
   absl::StatusOr<TypecheckedModule> tm_or =
-      ParseAndTypecheck(text, "fake.x", "fake", &import_data);
+      ParseAndTypecheck(text, "fake.x", "fake", import_data.get());
   if (!tm_or.ok()) {
-    TryPrintError(tm_or.status(),
-                  [&](std::string_view path) -> absl::StatusOr<std::string> {
-                    return std::string(text);
-                  });
+    TryPrintError(
+        tm_or.status(),
+        [&](std::string_view path) -> absl::StatusOr<std::string> {
+          return std::string(text);
+        },
+        import_data->file_table());
     return tm_or.status();
   }
   TypecheckedModule& tm = tm_or.value();
@@ -43,7 +45,7 @@ absl::StatusOr<TypecheckedModule> Typecheck(std::string_view text) {
   // its protobuf form.
   XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm.type_info).status());
 
-  return std::move(tm);
+  return TypecheckResult{std::move(import_data), std::move(tm)};
 }
 
 }  // namespace xls::dslx

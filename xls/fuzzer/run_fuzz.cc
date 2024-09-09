@@ -249,15 +249,16 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
 }
 
 absl::StatusOr<Sample> GenerateSampleAndRun(
-    absl::BitGenRef bit_gen,
+    dslx::FileTable& file_table, absl::BitGenRef bit_gen,
     const dslx::AstGeneratorOptions& ast_generator_options,
     const SampleOptions& sample_options, const std::filesystem::path& run_dir,
     const std::optional<std::filesystem::path>& crasher_dir,
     const std::optional<std::filesystem::path>& summary_file,
     bool force_failure) {
   Stopwatch stopwatch;
-  XLS_ASSIGN_OR_RETURN(Sample smp, GenerateSample(ast_generator_options,
-                                                  sample_options, bit_gen));
+  XLS_ASSIGN_OR_RETURN(
+      Sample smp, GenerateSample(ast_generator_options, sample_options, bit_gen,
+                                 file_table));
   absl::Duration generate_sample_elapsed = stopwatch.GetElapsedTime();
 
   absl::Status status =

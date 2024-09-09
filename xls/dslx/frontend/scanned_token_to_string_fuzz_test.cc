@@ -44,11 +44,13 @@ using ::xls::status_testing::StatusIs;
 
 constexpr size_t kMaxModuleLengthInBytes = 5'000;
 
-MATCHER(
-    TokenStreamHasPositionalErrorData,
+MATCHER_P(
+    TokenStreamHasPositionalErrorData, file_table,
     "Calling GetPostitionalErrorData() on Token stream returns OK status.") {
+  xls::dslx::FileTable& ft = *file_table;
   return ::testing::ExplainMatchResult(
-      IsOk(), xls::dslx::GetPositionalErrorData(arg.status()), result_listener);
+      IsOk(), xls::dslx::GetPositionalErrorData(arg.status(), std::nullopt, ft),
+      result_listener);
 }
 
 // Matcher to check correctness of a stream of tokens.
@@ -70,8 +72,9 @@ class TokenStreamMatcher {
  public:
   using is_gtest_matcher = void;
 
-  explicit TokenStreamMatcher(std::string_view expected)
-      : expected_(expected) {}
+  explicit TokenStreamMatcher(std::string_view expected,
+                              xls::dslx::FileTable& file_table)
+      : expected_(expected), file_table_(file_table) {}
 
   // Given a span in text, find the number of bytes between the start and the
   // end of the span.
@@ -114,7 +117,7 @@ class TokenStreamMatcher {
   template <char Delimiter>
   static std::pair<bool, std::string_view> MatchTokenWithDelimiter(
       std::string_view expected, const xls::dslx::Token& token,
-      std::ostream* listener) {
+      const xls::dslx::FileTable& file_table, std::ostream* listener) {
     absl::StatusOr<int64_t> span_size = SpanSize(token.span(), expected);
     if (!span_size.ok()) {
       *listener << span_size.status().message();
@@ -134,7 +137,7 @@ class TokenStreamMatcher {
     if (expected[span_size.value() - 1] != Delimiter) {
       *listener << "Expected token to end with " << Delimiter << ", but was "
                 << expected[span_size.value() - 1];
-      *listener << "\nToken span is " << token.span().ToRepr();
+      *listener << "\nToken span is " << token.span().ToRepr(file_table);
       return {false, expected};
     }
 
@@ -149,12 +152,14 @@ class TokenStreamMatcher {
   // string_view after the removing the matched token from the beginning.
   static std::pair<bool, std::string_view> MatchToken(
       std::string_view expected, const xls::dslx::Token& token,
-      std::ostream* listener) {
+      const xls::dslx::FileTable& file_table, std::ostream* listener) {
     switch (token.kind()) {
       case xls::dslx::TokenKind::kCharacter:
-        return MatchTokenWithDelimiter<'\''>(expected, token, listener);
+        return MatchTokenWithDelimiter<'\''>(expected, token, file_table,
+                                             listener);
       case xls::dslx::TokenKind::kString:
-        return MatchTokenWithDelimiter<'\"'>(expected, token, listener);
+        return MatchTokenWithDelimiter<'\"'>(expected, token, file_table,
+                                             listener);
       default: {
         std::string token_str = token.ToString();
         std::string_view token_str_view = token_str;
@@ -174,7 +179,7 @@ class TokenStreamMatcher {
     std::string_view expected_substr = expected_;
     for (const xls::dslx::Token& token : tokens) {
       auto [match, next_expected_substr] =
-          MatchToken(expected_substr, token, listener);
+          MatchToken(expected_substr, token, file_table_, listener);
       if (!match) {
         return false;
       }
@@ -193,20 +198,24 @@ class TokenStreamMatcher {
 
  private:
   std::string expected_;
+  xls::dslx::FileTable& file_table_;
 };
 
-inline auto TokenStreamMatches(std::string_view expected) {
-  return TokenStreamMatcher(expected);
+inline auto TokenStreamMatches(std::string_view expected,
+                               xls::dslx::FileTable& file_table) {
+  return TokenStreamMatcher(expected, file_table);
 }
 
 void ScanningGivesErrorOrConvertsToOriginal(std::string_view test_module) {
-  xls::dslx::Scanner scanner("fake.x", std::string(test_module),
+  xls::dslx::FileTable file_table;
+  xls::dslx::Scanner scanner(file_table, xls::dslx::Fileno(0),
+                             std::string(test_module),
                              /*include_whitespace_and_comments=*/true);
   EXPECT_THAT(
       scanner.PopAll(),
-      AnyOf(IsOkAndHolds(TokenStreamMatches(test_module)),
+      AnyOf(IsOkAndHolds(TokenStreamMatches(test_module, file_table)),
             AllOf(Not(IsOk()), Not(StatusIs(absl::StatusCode::kInternal)),
-                  TokenStreamHasPositionalErrorData())));
+                  TokenStreamHasPositionalErrorData(&file_table))));
 }
 
 FUZZ_TEST(ScanFuzzTest, ScanningGivesErrorOrConvertsToOriginal)

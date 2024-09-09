@@ -77,6 +77,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",

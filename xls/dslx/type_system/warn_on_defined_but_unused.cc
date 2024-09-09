@@ -98,8 +98,8 @@ absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx) {
     XLS_RET_CHECK(type.has_value()) << absl::StreamFormat(
         "NameDef `%s` %p @ %s parent kind `%v` had no associated type "
         "information in type info %p",
-        n->ToString(), n, n->span().ToString(), n->parent()->kind(),
-        ctx->type_info());
+        n->ToString(), n, n->span().ToString(ctx->file_table()),
+        n->parent()->kind(), ctx->type_info());
     // For now tokens are implicitly joined at the end of a proc `next()`, so we
     // don't warn on these.
     if (type.value()->IsToken()) {

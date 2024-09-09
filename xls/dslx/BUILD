@@ -513,6 +513,7 @@ cc_library(
         ":error_printer",
         "//xls/common/status:ret_check",
         "//xls/dslx/frontend:bindings",
+        "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -585,6 +586,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:builtins_metadata",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/frontend:token",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -786,6 +788,7 @@ cc_library(
     hdrs = ["error_test_utils.h"],
     deps = [
         "//xls/dslx/frontend:bindings",
+        "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",

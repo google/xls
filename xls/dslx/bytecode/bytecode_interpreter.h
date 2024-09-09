@@ -49,9 +49,10 @@ using PostFnEvalHook = std::function<absl::Status(
     const InterpValue& got)>;
 
 // Trace hook which logs trace messages to INFO.
-inline void InfoLoggingTraceHook(const Span& source_location,
+inline void InfoLoggingTraceHook(const FileTable& file_table,
+                                 const Span& source_location,
                                  std::string_view message) {
-  XLS_LOG_LINES_LOC(INFO, message, source_location.filename(),
+  XLS_LOG_LINES_LOC(INFO, message, source_location.GetFilename(file_table),
                     source_location.start().GetHumanLineno());
 }
 
@@ -84,6 +85,8 @@ class BytecodeInterpreter {
   // trace data.
   static absl::StatusOr<std::string> TraceDataToString(
       const Bytecode::TraceData& trace_data, InterpreterStack& stack);
+
+  const FileTable& file_table() const { return import_data_->file_table(); }
 
  protected:
   BytecodeInterpreter(ImportData* import_data,

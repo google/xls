@@ -45,24 +45,28 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     ImportData* import_data, std::vector<CommentData>* comments) {
   XLS_RET_CHECK(import_data != nullptr);
 
+  FileTable& file_table = import_data->file_table();
+  Fileno fileno = file_table.GetOrCreate(path);
+
   // The outermost import doesn't have a real import statement associated with
   // it, but we need the filename to be correct to detect cycles.
-  const Span fake_import_span =
-      Span(Pos(std::string(path), 0, 0), Pos(std::string(path), 0, 0));
+  const Span fake_import_span = Span(Pos(fileno, 0, 0), Pos(fileno, 0, 0));
   XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(fake_import_span, path));
   absl::Cleanup cleanup = [&] {
     CHECK_OK(import_data->PopFromImporterStack(fake_import_span));
   };
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                       ParseModule(text, path, module_name, comments));
+                       ParseModule(text, path, module_name,
+                                   import_data->file_table(), comments));
   return TypecheckModule(std::move(module), path, import_data);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     std::string_view text, std::string_view path, std::string_view module_name,
-    std::vector<CommentData>* comments) {
-  Scanner scanner{std::string{path}, std::string{text}};
+    FileTable& file_table, std::vector<CommentData>* comments) {
+  Fileno fileno = file_table.GetOrCreate(path);
+  Scanner scanner(file_table, fileno, std::string{text});
   Parser parser(std::string{module_name}, &scanner);
   XLS_ASSIGN_OR_RETURN(auto module, parser.ParseModule());
   if (comments != nullptr) {
@@ -72,11 +76,12 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModule(
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
-    std::string_view file_path, std::string_view module_name) {
+    std::string_view file_path, std::string_view module_name,
+    FileTable& file_table) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
                        GetXlsRunfilePath(file_path));
   XLS_ASSIGN_OR_RETURN(std::string text_dslx, GetFileContents(path));
-  return ParseModule(text_dslx, file_path, module_name);
+  return ParseModule(text_dslx, file_path, module_name, file_table);
 }
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(

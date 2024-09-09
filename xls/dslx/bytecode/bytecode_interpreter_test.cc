@@ -66,10 +66,12 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, "test.x", "test", import_data);
   if (!tm_or.ok()) {
-    TryPrintError(tm_or.status(),
-                  [&](std::string_view) -> absl::StatusOr<std::string> {
-                    return std::string{program};
-                  });
+    TryPrintError(
+        tm_or.status(),
+        [&](std::string_view) -> absl::StatusOr<std::string> {
+          return std::string{program};
+        },
+        import_data->file_table());
   }
   return tm_or;
 }
@@ -79,10 +81,12 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 TEST(BytecodeInterpreterTest, TraceDataToString) {
-  auto stack = InterpreterStack::CreateForTest(std::vector<InterpValue>{
-      InterpValue::MakeUBits(8, /*value=*/0x42),
-      InterpValue::MakeUBits(3, /*value=*/4),
-  });
+  FileTable file_table;
+  auto stack = InterpreterStack::CreateForTest(
+      file_table, std::vector<InterpValue>{
+                      InterpValue::MakeUBits(8, /*value=*/0x42),
+                      InterpValue::MakeUBits(3, /*value=*/4),
+                  });
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<FormatStep> steps,
                            ParseFormatString("x: {:x} y: {}"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string result,
@@ -97,10 +101,16 @@ TEST(BytecodeInterpreterTest, TraceDataToString) {
 static absl::StatusOr<InterpValue> Interpret(
     std::string_view program, std::string_view entry,
     const std::vector<InterpValue>& args = {},
-    const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions()) {
-  ImportData import_data(CreateImportDataForTest());
+    const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions(),
+    ImportData* import_data = nullptr) {
+  std::optional<ImportData> local_import_data;
+  if (import_data == nullptr) {
+    local_import_data.emplace(CreateImportDataForTest());
+    import_data = &local_import_data.value();
+  }
+
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                       ParseAndTypecheckOrPrintError(program, &import_data));
+                       ParseAndTypecheckOrPrintError(program, import_data));
 
   XLS_ASSIGN_OR_RETURN(Function * f,
                        tm.module->GetMemberOrError<Function>(entry));
@@ -108,15 +118,15 @@ static absl::StatusOr<InterpValue> Interpret(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(
-          &import_data, tm.type_info, *f, ParametricEnv(),
+          import_data, tm.type_info, *f, ParametricEnv(),
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
   XLS_RET_CHECK_EQ(bf->owner(), f->owner());
 
-  return BytecodeInterpreter::Interpret(&import_data, bf.get(), args, options);
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), args, options);
 }
 
-static const Pos kFakePos("fake.x", 0, 0);
+static const Pos kFakePos(Fileno(0), 0, 0);
 static const Span kFakeSpan = Span(kFakePos, kFakePos);
 
 TEST(BytecodeInterpreterTest, DupLiteral) {
@@ -130,9 +140,10 @@ TEST(BytecodeInterpreterTest, DupLiteral) {
                                /*type_info=*/nullptr, std::move(bytecodes)));
   BytecodeInterpreterOptions options;
   options.set_validate_final_stack_depth(false);
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, BytecodeInterpreter::Interpret(
-                                                   /*import_data=*/nullptr,
-                                                   bfunc.get(), {}, options));
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue result,
+      BytecodeInterpreter::Interpret(&import_data, bfunc.get(), {}, options));
   EXPECT_EQ(result.ToString(), "u32:42");
 }
 
@@ -143,10 +154,10 @@ TEST(BytecodeInterpreterTest, DupEmptyStack) {
       auto bfunc,
       BytecodeFunction::Create(/*owner=*/nullptr, /*source_fn=*/nullptr,
                                /*type_info=*/nullptr, std::move(bytecodes)));
-  ASSERT_THAT(
-      BytecodeInterpreter::Interpret(/*import_data=*/nullptr, bfunc.get(), {}),
-      StatusIs(absl::StatusCode::kInternal,
-               ::testing::HasSubstr("!stack_.empty()")));
+  ImportData import_data = CreateImportDataForTest();
+  ASSERT_THAT(BytecodeInterpreter::Interpret(&import_data, bfunc.get(), {}),
+              StatusIs(absl::StatusCode::kInternal,
+                       ::testing::HasSubstr("!stack_.empty()")));
 }
 
 TEST(BytecodeInterpreterTest, TraceBitsValueDefaultFormat) {
@@ -2883,6 +2894,8 @@ fn main(x: u2, y: u2) -> u2 {
 )";
 
   for (uint64_t flat = 0; flat < 16; ++flat) {
+    ImportData import_data = CreateImportDataForTest();
+    const FileTable& file_table = import_data.file_table();
     uint64_t x = (flat >> 0) & 0x3;
     uint64_t y = (flat >> 2) & 0x3;
     std::vector<Span> source_spans;
@@ -2894,17 +2907,18 @@ fn main(x: u2, y: u2) -> u2 {
                       InterpValue::MakeUBits(2, y),
                   },
                   BytecodeInterpreterOptions().rollover_hook(
-                      [&](const Span& s) { source_spans.push_back(s); })));
+                      [&](const Span& s) { source_spans.push_back(s); }),
+                  &import_data));
     VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
             << " result: " << result.ToString();
 
     for (const Span& source_span : source_spans) {
-      VLOG(1) << "Rollover span: " << source_span;
+      VLOG(1) << "Rollover span: " << source_span.ToString(file_table);
     }
 
     if (x + y >= 4) {  // We should have a rollover in these cases.
       ASSERT_EQ(source_spans.size(), 1);
-      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
     } else {
       ASSERT_TRUE(source_spans.empty());
     }
@@ -2919,6 +2933,8 @@ fn main(x: u2, y: u2) -> u2 {
 )";
 
   for (uint64_t flat = 0; flat < 16; ++flat) {
+    ImportData import_data = CreateImportDataForTest();
+    const FileTable& file_table = import_data.file_table();
     uint64_t x = (flat >> 0) & 0x3;
     uint64_t y = (flat >> 2) & 0x3;
     std::vector<Span> source_spans;
@@ -2930,18 +2946,19 @@ fn main(x: u2, y: u2) -> u2 {
                       InterpValue::MakeUBits(2, y),
                   },
                   BytecodeInterpreterOptions().rollover_hook(
-                      [&](const Span& s) { source_spans.push_back(s); })));
+                      [&](const Span& s) { source_spans.push_back(s); }),
+                  &import_data));
     VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
             << " result: " << result.ToString();
 
     for (const Span& source_span : source_spans) {
-      VLOG(1) << "Rollover span: " << source_span;
+      VLOG(1) << "Rollover span: " << source_span.ToString(file_table);
     }
 
     if (static_cast<int64_t>(x) - static_cast<int64_t>(y) <
         0) {  // We should have a rollover in these cases.
       ASSERT_EQ(source_spans.size(), 1);
-      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
     } else {
       ASSERT_TRUE(source_spans.empty());
     }
@@ -2956,6 +2973,8 @@ fn main(x: u2, y: u2) -> u2 {
 )";
 
   for (uint64_t flat = 0; flat < 16; ++flat) {
+    ImportData import_data = CreateImportDataForTest();
+    const FileTable& file_table = import_data.file_table();
     uint64_t x = (flat >> 0) & 0x3;
     uint64_t y = (flat >> 2) & 0x3;
     std::vector<Span> source_spans;
@@ -2967,17 +2986,18 @@ fn main(x: u2, y: u2) -> u2 {
                       InterpValue::MakeUBits(2, y),
                   },
                   BytecodeInterpreterOptions().rollover_hook(
-                      [&](const Span& s) { source_spans.push_back(s); })));
+                      [&](const Span& s) { source_spans.push_back(s); }),
+                  &import_data));
     VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
             << " result: " << result.ToString();
 
     for (const Span& source_span : source_spans) {
-      VLOG(1) << "Rollover span: " << source_span;
+      VLOG(1) << "Rollover span: " << source_span.ToString(file_table);
     }
 
     if (x * y >= 4) {  // We should have a rollover in these cases.
       ASSERT_EQ(source_spans.size(), 1);
-      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
     } else {
       ASSERT_TRUE(source_spans.empty());
     }
@@ -2993,6 +3013,8 @@ fn main(x: s2, y: s2) -> s2 {
 
   for (int64_t x : {-2, -1, 0, 1}) {
     for (int64_t y : {-2, -1, 0, 1}) {
+      ImportData import_data = CreateImportDataForTest();
+      const FileTable& file_table = import_data.file_table();
       std::vector<Span> source_spans;
       XLS_ASSERT_OK_AND_ASSIGN(
           InterpValue result,
@@ -3002,7 +3024,8 @@ fn main(x: s2, y: s2) -> s2 {
                         InterpValue::MakeSBits(2, y),
                     },
                     BytecodeInterpreterOptions().rollover_hook(
-                        [&](const Span& s) { source_spans.push_back(s); })));
+                        [&](const Span& s) { source_spans.push_back(s); }),
+                    &import_data));
 
       XLS_ASSERT_OK_AND_ASSIGN(int64_t got, result.GetBitValueViaSign());
       bool rollover = x * y != got;
@@ -3010,7 +3033,7 @@ fn main(x: s2, y: s2) -> s2 {
               << " rollover: " << rollover;
       if (rollover) {
         ASSERT_EQ(source_spans.size(), 1);
-        EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+        EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
       } else {
         ASSERT_TRUE(source_spans.empty());
       }

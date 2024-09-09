@@ -79,7 +79,8 @@ enum class ModuleAnnotation : uint8_t {
 //    running distributed compilation.
 class Module : public AstNode {
  public:
-  Module(std::string name, std::optional<std::filesystem::path> fs_path);
+  Module(std::string name, std::optional<std::filesystem::path> fs_path,
+         FileTable& file_table);
 
   ~Module() override;
 
@@ -87,6 +88,11 @@ class Module : public AstNode {
   Module& operator=(Module&& other) = default;
 
   AstNodeKind kind() const override { return AstNodeKind::kModule; }
+
+  FileTable& file_name() const {
+    CHECK(file_table_ != nullptr);
+    return *file_table_;
+  }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleModule(this);
@@ -98,7 +104,7 @@ class Module : public AstNode {
   //
   // Note: After module parsing, span() is safe to call as an accessor instead
   // of GetSpan().
-  void set_span(Span span) { span_ = std::move(span); }
+  void set_span(Span span) { span_ = span; }
 
   const Span& span() const { return span_.value(); }
 
@@ -245,6 +251,8 @@ class Module : public AstNode {
     return annotations_;
   }
 
+  FileTable* file_table() const { return file_table_; }
+
  private:
   template <typename T, typename... Args>
   T* MakeInternal(Args&&... args) {
@@ -287,6 +295,8 @@ class Module : public AstNode {
   // Optional filesystem path (may not be present e.g. for DSLX files created in
   // memory).
   std::optional<std::filesystem::path> fs_path_;
+
+  FileTable* file_table_;
 
   std::vector<ModuleMember> top_;  // Top-level members of this module.
   std::vector<std::unique_ptr<AstNode>> nodes_;  // Lifetime-owned AST nodes.

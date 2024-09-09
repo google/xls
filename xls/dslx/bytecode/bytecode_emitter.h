@@ -147,6 +147,8 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status DestructureLet(NameDefTree* tree,
                               std::variant<Type*, int64_t> type_or_size);
 
+  const FileTable& file_table() const { return import_data_->file_table(); }
+
   ImportData* import_data_;
   const TypeInfo* type_info_;
   const std::optional<ParametricEnv>& caller_bindings_;

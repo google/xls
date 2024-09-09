@@ -96,7 +96,8 @@ absl::Status TypecheckParametric(
         absl::StrFormat(
             "Parametric argument of the returned value does not match the "
             "function return type. Expected %s; got %s.",
-            formal_dim.ToString(), actual_dim.ToString()));
+            formal_dim.ToString(), actual_dim.ToString()),
+        ctx->file_table());
   }
   return absl::OkStatus();
 }
@@ -176,9 +177,10 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
     return_type = TupleType::MakeUnit();
   } else {
     XLS_ASSIGN_OR_RETURN(return_type, DeduceAndResolve(f.return_type(), ctx));
-    XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
-                                                     f.return_type()->span(),
-                                                     "function return type"));
+    XLS_ASSIGN_OR_RETURN(
+        return_type,
+        UnwrapMetaType(std::move(return_type), f.return_type()->span(),
+                       "function return type", ctx->file_table()));
   }
 
   // Add proc members to the environment before typechecking the fn body.
@@ -198,7 +200,8 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
                              return_type->ToString(), body_type->ToString());
   if (body_type->IsMeta()) {
     return TypeInferenceErrorStatus(f.body()->span(), body_type.get(),
-                                    "Types cannot be returned from functions");
+                                    "Types cannot be returned from functions",
+                                    ctx->file_table());
   }
   if (*return_type != *body_type) {
     VLOG(5) << "return type: " << return_type->ToString()
@@ -237,7 +240,8 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
         f.return_type()->span(), return_type.get(),
         absl::StrFormat(
             "Parametric type being returned from function -- types must be "
-            "fully resolved, please fully instantiate the type"));
+            "fully resolved, please fully instantiate the type"),
+        ctx->file_table());
   }
   if (return_type->IsStruct() &&
       !body_type->AsStruct().nominal_type_dims_by_identifier().empty()) {

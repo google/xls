@@ -123,7 +123,7 @@ absl::StatusOr<const EnumDef*> ImportData::FindEnumDef(const Span& span) const {
   if (enum_def == nullptr) {
     return absl::NotFoundError(
         absl::StrFormat("Could not find enum def @ %s within module %s",
-                        span.ToString(), module->name()));
+                        span.ToString(file_table_), module->name()));
   }
   return enum_def;
 }
@@ -135,20 +135,20 @@ absl::StatusOr<const StructDef*> ImportData::FindStructDef(
   if (struct_def == nullptr) {
     return absl::NotFoundError(
         absl::StrFormat("Could not find struct def @ %s within module %s",
-                        span.ToString(), module->name()));
+                        span.ToString(file_table_), module->name()));
   }
   return struct_def;
 }
 
 absl::StatusOr<const Module*> ImportData::FindModule(const Span& span) const {
-  auto it = path_to_module_info_.find(span.filename());
+  auto it = path_to_module_info_.find(span.GetFilename(file_table_));
   if (it == path_to_module_info_.end()) {
     std::vector<std::string> paths;
     for (const auto& [path, module_info] : path_to_module_info_) {
       paths.push_back(std::string(path));
     }
     return absl::NotFoundError(
-        absl::StrCat("Could not find module: ", span.filename(),
+        absl::StrCat("Could not find module: ", span.GetFilename(file_table_),
                      "; have: ", absl::StrJoin(paths, ", ")));
   }
   return &it->second->module();
@@ -161,14 +161,14 @@ absl::StatusOr<const AstNode*> ImportData::FindNode(AstNodeKind kind,
   if (node == nullptr) {
     return absl::NotFoundError(absl::StrFormat(
         "Could not find node with kind %s @ %s within module %s",
-        AstNodeKindToString(kind), span.ToString(), module->name()));
+        AstNodeKindToString(kind), span.ToString(file_table_), module->name()));
   }
   return node;
 }
 
 absl::Status ImportData::AddToImporterStack(
     const Span& importer_span, const std::filesystem::path& imported) {
-  VLOG(3) << "Checking import span: " << importer_span;
+  VLOG(3) << "Checking import span: " << importer_span.ToString(file_table());
 
   ImportRecord new_import_record{imported, importer_span};
 
@@ -181,20 +181,21 @@ absl::Status ImportData::AddToImporterStack(
                                       importer_stack_.end());
       cycle.push_back(new_import_record);
       return RecursiveImportErrorStatus(importer_span, existing.imported_from,
-                                        cycle);
+                                        cycle, file_table());
     }
   }
 
-  VLOG(3) << "Adding import span to stack: " << importer_span;
+  VLOG(3) << "Adding import span to stack: "
+          << importer_span.ToString(file_table());
   importer_stack_.push_back(new_import_record);
   return absl::OkStatus();
 }
 
 absl::Status ImportData::PopFromImporterStack(const Span& import_span) {
   XLS_RET_CHECK(!importer_stack_.empty());
-  XLS_RET_CHECK_EQ(import_span, importer_stack_.back().imported_from);
+  XLS_RET_CHECK(import_span == importer_stack_.back().imported_from);
   VLOG(3) << "Popping import span from stack: "
-          << importer_stack_.back().imported_from;
+          << importer_stack_.back().imported_from.ToString(file_table());
   importer_stack_.pop_back();
   return absl::OkStatus();
 }

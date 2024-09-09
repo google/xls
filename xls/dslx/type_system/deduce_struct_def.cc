@@ -62,13 +62,15 @@ static void WarnOnInappropriateMemberName(std::string_view member_name,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceStructDef(const StructDef* node,
                                                       DeduceCtx* ctx) {
+  const FileTable& file_table = ctx->file_table();
   for (const ParametricBinding* parametric : node->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
-    XLS_ASSIGN_OR_RETURN(parametric_binding_type,
-                         UnwrapMetaType(std::move(parametric_binding_type),
-                                        parametric->type_annotation()->span(),
-                                        "parametric binding type annotation"));
+    XLS_ASSIGN_OR_RETURN(
+        parametric_binding_type,
+        UnwrapMetaType(std::move(parametric_binding_type),
+                       parametric->type_annotation()->span(),
+                       "parametric binding type annotation", file_table));
     if (parametric->expr() != nullptr) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> expr_type,
                            ctx->Deduce(parametric->expr()));
@@ -91,7 +93,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructDef(const StructDef* node,
                          DeduceAndResolve(type, ctx));
     XLS_ASSIGN_OR_RETURN(concrete,
                          UnwrapMetaType(std::move(concrete), type->span(),
-                                        "struct member type"));
+                                        "struct member type", file_table));
     members.push_back(std::move(concrete));
   }
   auto wrapped = std::make_unique<StructType>(std::move(members), *node);

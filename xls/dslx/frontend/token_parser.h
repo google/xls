@@ -186,6 +186,9 @@ class TokenParser {
   void DisableDoubleCAngle() { scanner_->DisableDoubleCAngle(); }
   void EnableDoubleCAngle() { scanner_->EnableDoubleCAngle(); }
 
+  FileTable& file_table() { return scanner_->file_table(); }
+  const Scanner& scanner() const { return *scanner_; }
+
  private:
   Scanner* scanner_;
   int64_t index_;

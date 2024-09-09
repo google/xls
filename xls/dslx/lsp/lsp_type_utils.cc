@@ -14,7 +14,6 @@
 
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
-#include <string>
 #include <string_view>
 
 #include "external/verible/common/lsp/lsp-protocol.h"
@@ -37,14 +36,17 @@ verible::lsp::Location ConvertSpanToLspLocation(const Span& span) {
 }
 
 Pos ConvertLspPositionToPos(std::string_view file_uri,
-                            const verible::lsp::Position& position) {
-  return Pos(std::string{file_uri}, position.line, position.character);
+                            const verible::lsp::Position& position,
+                            FileTable& file_table) {
+  Fileno fileno = file_table.GetOrCreate(file_uri);
+  return Pos(fileno, position.line, position.character);
 }
 
 Span ConvertLspRangeToSpan(std::string_view file_uri,
-                           const verible::lsp::Range& range) {
-  return Span(ConvertLspPositionToPos(file_uri, range.start),
-              ConvertLspPositionToPos(file_uri, range.end));
+                           const verible::lsp::Range& range,
+                           FileTable& file_table) {
+  return Span(ConvertLspPositionToPos(file_uri, range.start, file_table),
+              ConvertLspPositionToPos(file_uri, range.end, file_table));
 }
 
 }  // namespace xls::dslx

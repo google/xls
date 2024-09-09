@@ -117,9 +117,11 @@ absl::Status JitChannelQueueWrapper::Read(absl::Span<uint8_t> buffer) {
 }
 
 absl::StatusOr<DslxModuleAndPath> DslxModuleAndPath::Create(
-    std::string_view module_name, std::string_view file_path) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Module> module,
-                       dslx::ParseModuleFromFileAtPath(file_path, module_name));
+    std::string_view module_name, std::string_view file_path,
+    dslx::FileTable& file_table) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<dslx::Module> module,
+      dslx::ParseModuleFromFileAtPath(file_path, module_name, file_table));
 
   return Create(std::move(module), file_path);
 }

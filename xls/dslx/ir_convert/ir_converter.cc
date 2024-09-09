@@ -473,15 +473,14 @@ absl::StatusOr<std::string> ConvertOneFunction(
 }
 
 namespace {
-absl::StatusOr<std::unique_ptr<Module>> ParseText(std::string_view text,
-                                                  std::string_view module_name,
-                                                  bool print_on_error,
-                                                  std::string_view filename,
-                                                  bool* printed_error) {
-  Scanner scanner{std::string(filename), std::string(text)};
+absl::StatusOr<std::unique_ptr<Module>> ParseText(
+    FileTable& file_table, std::string_view text, std::string_view module_name,
+    bool print_on_error, std::string_view filename, bool* printed_error) {
+  Fileno fileno = file_table.GetOrCreate(filename);
+  Scanner scanner{file_table, fileno, std::string(text)};
   Parser parser(std::string(module_name), &scanner);
   absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
-  *printed_error = TryPrintError(module_or.status());
+  *printed_error = TryPrintError(module_or.status(), nullptr, file_table);
   return module_or;
 }
 
@@ -512,13 +511,15 @@ absl::Status AddContentsToPackage(
   // Parse the module text.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> module,
-      ParseText(file_contents, module_name, /*print_on_error=*/true,
+      ParseText(import_data->file_table(), file_contents, module_name,
+                /*print_on_error=*/true,
                 /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
   WarningCollector warnings(import_data->enabled_warnings());
   absl::StatusOr<TypeInfo*> type_info_or =
       TypecheckModule(module.get(), import_data, &warnings);
   if (!type_info_or.ok()) {
-    *printed_error = TryPrintError(type_info_or.status());
+    *printed_error = TryPrintError(type_info_or.status(), nullptr,
+                                   import_data->file_table());
     return type_info_or.status();
   }
 
@@ -526,7 +527,7 @@ absl::Status AddContentsToPackage(
     if (printed_error != nullptr) {
       *printed_error = true;
     }
-    PrintWarnings(warnings);
+    PrintWarnings(warnings, import_data->file_table());
     return absl::InvalidArgumentError(
         "Warnings encountered and warnings-as-errors set.");
   }

@@ -21,6 +21,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
@@ -34,7 +35,8 @@ namespace xls::dslx {
 bool TryPrintError(
     const absl::Status& status,
     const std::function<absl::StatusOr<std::string>(std::string_view)>&
-        get_file_contents = nullptr);
+        get_file_contents,
+    FileTable& file_table);
 
 // Converts a path to a DSLX module into its corresponding module name; e.g.
 //

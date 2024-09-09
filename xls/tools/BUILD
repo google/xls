@@ -121,6 +121,7 @@ cc_test(
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],

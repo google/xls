@@ -71,6 +71,9 @@ absl::StatusOr<std::string> Translate(T... files) {
 
 // Translates the given `std::unique_ptr<VerilogFile>` objects to multiple DSLX
 // files using the function under test.
+//
+// Note that `out_dir_path` should be a real filesystem directory path where
+// the translated files can be written.
 template <typename... T>
 absl::StatusOr<std::vector<std::string>> TranslateToMultiDslx(
     const std::filesystem::path& out_dir_path, T... files) {

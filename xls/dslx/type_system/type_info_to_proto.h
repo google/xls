@@ -31,11 +31,13 @@ absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info);
 // Converts the given protobuf representation of an AST node in module "m" into
 // a human readable string suitable for debugging and convenient testing.
 absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
-                                          const ImportData& import_data);
+                                          const ImportData& import_data,
+                                          FileTable& file_table);
 
 // As above, but puts every node in the TypeInfoProto on its own line.
 absl::StatusOr<std::string> ToHumanString(const TypeInfoProto& tip,
-                                          const ImportData& import_data);
+                                          const ImportData& import_data,
+                                          FileTable& file_table);
 
 }  // namespace xls::dslx
 

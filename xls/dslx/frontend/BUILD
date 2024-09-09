@@ -107,6 +107,7 @@ cc_library(
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:bind_front",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/meta:type_traits",
@@ -165,6 +166,7 @@ cc_library(
         ":ast",
         ":builtins_metadata",
         ":module",
+        ":pos",
         ":token_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -346,10 +348,12 @@ cc_library(
     srcs = ["pos.cc"],
     hdrs = ["pos.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:strong_int",
         "@com_googlesource_code_re2//:re2",
     ],
 )

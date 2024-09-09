@@ -48,7 +48,9 @@ Emits the original DSLX source text with comment tokens stripped out.
 absl::StatusOr<std::string> RealMain(const std::filesystem::path& path,
                                      std::optional<std::string>* contents_out) {
   XLS_ASSIGN_OR_RETURN(*contents_out, GetFileContents(path));
-  Scanner s(path, contents_out->value(),
+  FileTable file_table;
+  Fileno fileno = file_table.GetOrCreate(std::string{path});
+  Scanner s(file_table, fileno, contents_out->value(),
             /*include_whitespace_and_comments=*/true);
 
   // We output to a string stream as an intermediary in case we encounter an

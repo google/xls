@@ -25,7 +25,8 @@ namespace xls {
 // Generates and returns a random Sample with the given options.
 absl::StatusOr<Sample> GenerateSample(
     const dslx::AstGeneratorOptions& generator_options,
-    const SampleOptions& sample_options, absl::BitGenRef bit_gen);
+    const SampleOptions& sample_options, absl::BitGenRef bit_gen,
+    dslx::FileTable& file_table);
 
 }  // namespace xls
 

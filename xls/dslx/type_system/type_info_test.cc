@@ -26,6 +26,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -38,7 +39,8 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 TEST(TypeInfoTest, Instantiate) {
-  Module module("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module module("test", /*fs_path=*/std::nullopt, file_table);
   TypeInfoOwner owner;
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info, owner.New(&module));
   EXPECT_EQ(type_info->parent(), nullptr);

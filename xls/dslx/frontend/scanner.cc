@@ -42,9 +42,10 @@
 
 namespace xls::dslx {
 
-absl::Status ScanErrorStatus(const Span& span, std::string_view message) {
+absl::Status ScanErrorStatus(const Span& span, std::string_view message,
+                             const FileTable& file_table) {
   return absl::InvalidArgumentError(
-      absl::StrFormat("ScanError: %s %s", span.ToString(), message));
+      absl::StrFormat("ScanError: %s %s", span.ToString(file_table), message));
 }
 
 char Scanner::PopChar() {

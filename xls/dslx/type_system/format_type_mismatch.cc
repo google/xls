@@ -31,6 +31,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/zip_types.h"
 
@@ -228,8 +229,8 @@ class Callbacks : public ZipTypesCallbacks {
 
 }  // namespace
 
-absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs,
-                                               const Type& rhs) {
+absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs, const Type& rhs,
+                                               const FileTable& file_table) {
   MismatchData data;
 
   Callbacks callbacks(data);
@@ -268,8 +269,8 @@ absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs,
     // mismatch) we try to fully qualify type names in order to not give a
     // confusing error message.
     if (lhs_string == rhs_string) {
-      lhs_string = lhs.ToStringFullyQualified();
-      rhs_string = rhs.ToStringFullyQualified();
+      lhs_string = lhs.ToStringFullyQualified(file_table);
+      rhs_string = rhs.ToStringFullyQualified(file_table);
     }
     lines.push_back(absl::StrFormat("   %s", lhs_string));
     lines.push_back(absl::StrFormat("vs %s", rhs_string));

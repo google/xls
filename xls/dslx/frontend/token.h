@@ -180,7 +180,7 @@ class Token {
 
   std::string ToString() const;
 
-  std::string ToRepr() const;
+  std::string ToRepr(const FileTable& file_table) const;
 
  private:
   TokenKind kind_;

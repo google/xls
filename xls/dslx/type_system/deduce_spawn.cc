@@ -133,7 +133,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("spawn had wrong argument count; want: %d got: %d",
-                        paramc, argc));
+                        paramc, argc),
+        ctx->file_table());
   }
   for (int i = 0; i < node->config()->args().size(); i++) {
     XLS_ASSIGN_OR_RETURN(InterpValue value,
@@ -185,7 +186,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
           proc->config().span(), nullptr,
           absl::StrFormat("Proc '%s' has %d members to configure, but no proc "
                           "configuration tuple was provided",
-                          proc->identifier(), proc->members().size()));
+                          proc->identifier(), proc->members().size()),
+          ctx->file_table());
     }
   } else {
     // When a config tuple is present (and returned from the `config()`) we

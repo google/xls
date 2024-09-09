@@ -143,7 +143,8 @@ std::string AbslUnparseFlag(const AstGeneratorOptions& ast_generator_options);
 class AstGenerator {
  public:
   // The random generator must be alive for the lifetime of the object.
-  AstGenerator(AstGeneratorOptions options, absl::BitGenRef bit_gen);
+  AstGenerator(AstGeneratorOptions options, absl::BitGenRef bit_gen,
+               FileTable& file_table);
 
   // Generates the entity with name "name" in a module named "module_name".
   absl::StatusOr<AnnotatedModule> Generate(const std::string& top_entity_name,
@@ -716,6 +717,8 @@ class AstGenerator {
   absl::BitGenRef bit_gen_;
 
   const AstGeneratorOptions options_;
+
+  FileTable& file_table_;
 
   const Pos fake_pos_;
   const Span fake_span_;

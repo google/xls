@@ -51,6 +51,7 @@ cc_library(
         "//xls/dslx:channel_direction",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
         "//xls/ir:bits_ops",
     ],
 )
@@ -603,6 +604,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
+        "//xls/common:symbolized_stacktrace",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -631,6 +633,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -895,6 +898,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -907,6 +911,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:channel_direction",
+        "//xls/dslx/frontend:pos",
         "@com_google_googletest//:gtest",
     ],
 )

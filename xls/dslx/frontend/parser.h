@@ -80,7 +80,11 @@ class Parser : public TokenParser {
  public:
   Parser(std::string module_name, Scanner* scanner)
       : TokenParser(scanner),
-        module_(new Module(std::move(module_name), scanner->filename())) {}
+        module_(new Module(std::move(module_name), scanner->filename(),
+                           scanner->file_table())) {}
+
+  const FileTable& file_table() const { return scanner().file_table(); }
+  FileTable& file_table() { return scanner().file_table(); }
 
   absl::StatusOr<Function*> ParseFunction(
       bool is_public, Bindings& bindings,
@@ -116,6 +120,9 @@ class Parser : public TokenParser {
       Bindings& bindings, absl::Nullable<const Token*> identifier = nullptr);
 
   Module& module() { return *module_; }
+
+  absl::Status ParseErrorStatus(const Span& span,
+                                std::string_view message) const;
 
  private:
   friend class ParserTest;

@@ -73,7 +73,8 @@ class InterpBindings {
   // Resolution functions from identifiers to values / AST nodes.
 
   absl::StatusOr<InterpValue> ResolveValueFromIdentifier(
-      std::string_view identifier, const Span* ref_span = nullptr) const;
+      std::string_view identifier, const Span* ref_span,
+      const FileTable& file_table) const;
 
   absl::StatusOr<Module*> ResolveModule(std::string_view identifier) const;
 

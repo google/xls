@@ -75,11 +75,13 @@ class IrRunner : public AbstractParsedTestRunner {
           proc_runner,
       std::function<absl::StatusOr<InterpreterResult<Value>>(
           xls::Function* f, absl::Span<Value const>)>
-          func_runner)
+          func_runner,
+      ImportData* import_data)
       : packages_(std::move(packages)),
         finish_chan_names_(std::move(finish_chan_names)),
         proc_runner_(std::move(proc_runner)),
-        func_runner_(std::move(func_runner)) {}
+        func_runner_(std::move(func_runner)),
+        import_data_(import_data) {}
 
   // TODO need to move to having each test proc have its own package from
   // ir_convert.
@@ -104,8 +106,9 @@ class IrRunner : public AbstractParsedTestRunner {
     for (xls::ProcInstance* instance : rt->elaboration().proc_instances()) {
       const InterpreterEvents& events = rt->GetInterpreterEvents(instance);
       for (const auto& trace : events.trace_msgs) {
-        options.trace_hook()(Span::FromString(trace.message).value_or(Span{}),
-                             trace.message);
+        options.trace_hook()(
+            Span::FromString(trace.message, file_table()).value_or(Span{}),
+            trace.message);
       }
       absl::c_copy(events.assert_msgs, std::back_inserter(asserts));
     }
@@ -113,9 +116,10 @@ class IrRunner : public AbstractParsedTestRunner {
       std::optional<Value> proc_result =
           rt->queue_manager().GetQueue(terminate).Read();
       if (!proc_result || !proc_result->bits().IsOne()) {
-        return RunResult{
-            .result = FailureErrorStatus(
-                Span::Fake(), "Proc terminated without a true result!")};
+        return RunResult{.result = FailureErrorStatus(
+                             Span::Fake(),
+                             "Proc terminated without a true result!",
+                             file_table())};
       }
       return RunResult{.result = absl::OkStatus()};
     }
@@ -164,8 +168,9 @@ class IrRunner : public AbstractParsedTestRunner {
         << f->GetType();
     XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> v, this->func_runner_(f, {}));
     for (const TraceMessage& trace : v.events.trace_msgs) {
-      options.trace_hook()(Span::FromString(trace.message).value_or(Span{}),
-                           trace.message);
+      options.trace_hook()(
+          Span::FromString(trace.message, file_table()).value_or(Span{}),
+          trace.message);
     }
     if (v.events.assert_msgs.empty()) {
       return RunResult{.result = absl::OkStatus()};
@@ -175,6 +180,8 @@ class IrRunner : public AbstractParsedTestRunner {
   }
 
  private:
+  FileTable& file_table() { return import_data_->file_table(); }
+
   absl::flat_hash_map<std::string, std::unique_ptr<Package>> packages_;
   absl::flat_hash_map<std::string, std::string> finish_chan_names_;
   std::function<absl::StatusOr<std::unique_ptr<ProcRuntime>>(xls::Package*)>
@@ -182,6 +189,7 @@ class IrRunner : public AbstractParsedTestRunner {
   std::function<absl::StatusOr<InterpreterResult<Value>>(
       xls::Function* f, absl::Span<Value const>)>
       func_runner_;
+  ImportData* import_data_;
 };
 
 absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
@@ -220,9 +228,9 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
     }
     packages[name] = std::move(package_data.package);
   }
-  return std::make_unique<IrRunner>(std::move(packages),
-                                    std::move(finish_chan_names),
-                                    std::move(proc), std::move(func));
+  return std::make_unique<IrRunner>(
+      std::move(packages), std::move(finish_chan_names), std::move(proc),
+      std::move(func), import_data);
 }
 }  // namespace
 

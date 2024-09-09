@@ -32,20 +32,26 @@ TEST(InterpBindingsTest, EmptyInstance) {
 }
 
 TEST(InterpBindingsTest, AddResolveValue) {
+  FileTable file_table;
   InterpBindings bindings;
   bindings.AddValue("t", InterpValue::MakeBool(true));
   bindings.AddValue("f", InterpValue::MakeBool(false));
 
-  bindings.ResolveValueFromIdentifier("t").value().IsTrue();
-  bindings.ResolveValueFromIdentifier("f").value().IsFalse();
+  bindings.ResolveValueFromIdentifier("t", nullptr, file_table)
+      .value()
+      .IsTrue();
+  bindings.ResolveValueFromIdentifier("f", nullptr, file_table)
+      .value()
+      .IsFalse();
 }
 
 TEST(InterpBindingsTest, ResolveValueViaParentLnk) {
+  FileTable file_table;
   InterpBindings parent;
   parent.AddValue("t", InterpValue::MakeBool(true));
 
   InterpBindings child(&parent);
-  child.ResolveValueFromIdentifier("t").value().IsTrue();
+  child.ResolveValueFromIdentifier("t", nullptr, file_table).value().IsTrue();
   EXPECT_THAT(child.ResolveModule("t"),
               status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,

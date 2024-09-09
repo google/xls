@@ -432,7 +432,8 @@ class Bytecode {
   absl::StatusOr<const Type*> type_data() const;
   absl::StatusOr<InterpValue> value_data() const;
 
-  std::string ToString(bool source_locs = true) const;
+  std::string ToString(const FileTable& file_table,
+                       bool source_locs = false) const;
 
   // Value used as an integer data placeholder in jumps before their
   // target/amount has become known during bytecode emission.
@@ -504,7 +505,7 @@ class BytecodeFunction {
 // source_locs indicating whether source locations are annotated on the bytecode
 // lines.
 std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
-                              bool source_locs);
+                              bool source_locs, const FileTable& file_table);
 
 // Converts a string as given by BytecodesToString(..., /*source_locs=*/false)
 // into a bytecode sequence; e.g. for testing.

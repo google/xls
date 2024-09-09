@@ -29,8 +29,9 @@
 
 namespace xls::dslx {
 
-std::pair<Module, Binop*> MakeCastWithinLtComparison() {
-  Module m("test", /*fs_path=*/std::nullopt);
+std::tuple<FileTable, Module, Binop*> MakeCastWithinLtComparison() {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   const Span fake_span;
   BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
   NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
@@ -53,11 +54,12 @@ std::pair<Module, Binop*> MakeCastWithinLtComparison() {
   // x as t < x
   Cast* cast = m.Make<Cast>(fake_span, x_ref, type_ref_type_annotation);
   Binop* lt = m.Make<Binop>(fake_span, BinopKind::kLt, cast, x_ref);
-  return std::make_pair(std::move(m), lt);
+  return std::make_tuple(file_table, std::move(m), lt);
 }
 
-std::pair<Module, Index*> MakeCastWithinIndexExpression() {
-  Module m("test", /*fs_path=*/std::nullopt);
+std::tuple<FileTable, Module, Index*> MakeCastWithinIndexExpression() {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   const Span fake_span;
   BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
   NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
@@ -75,11 +77,13 @@ std::pair<Module, Index*> MakeCastWithinIndexExpression() {
   // (x as u32[4])[i]
   Cast* cast = m.Make<Cast>(fake_span, x_ref, u32_4);
   Index* index = m.Make<Index>(fake_span, cast, i_ref);
-  return std::make_pair(std::move(m), index);
+  return std::make_tuple(file_table, std::move(m), index);
 }
 
-std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression() {
-  Module m("test", /*fs_path=*/std::nullopt);
+std::tuple<FileTable, Module, TupleIndex*>
+MakeIndexWithinTupleIndexExpression() {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   const Span fake_span;
   BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
   NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
@@ -91,13 +95,14 @@ std::pair<Module, TupleIndex*> MakeIndexWithinTupleIndexExpression() {
   Number* two =
       m.Make<Number>(fake_span, "2", NumberKind::kOther, /*type=*/nullptr);
   TupleIndex* tuple_index = m.Make<TupleIndex>(fake_span, index, two);
-  return std::make_pair(std::move(m), tuple_index);
+  return std::make_tuple(file_table, std::move(m), tuple_index);
 }
 
-std::pair<Module, XlsTuple*> MakeNElementTupleExpression(
+std::tuple<FileTable, Module, XlsTuple*> MakeNElementTupleExpression(
     int64_t n, bool has_trailing_comma) {
   CHECK(n != 1 || has_trailing_comma);  // n==1 -> has_trailing_comme
-  Module m("test", /*fs_path=*/std::nullopt);
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   const Span fake_span;
   std::vector<Expr*> elements;
   elements.reserve(n);
@@ -112,11 +117,12 @@ std::pair<Module, XlsTuple*> MakeNElementTupleExpression(
                                      /*has_trailing_comma=*/has_trailing_comma
 
   );
-  return std::make_pair(std::move(m), tuple);
+  return std::make_tuple(file_table, std::move(m), tuple);
 }
 
-std::pair<Module, Unop*> MakeCastWithinNegateExpression() {
-  Module m("test", /*fs_path=*/std::nullopt);
+std::tuple<FileTable, Module, Unop*> MakeCastWithinNegateExpression() {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   const Span fake_span;
   BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
   NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
@@ -128,11 +134,12 @@ std::pair<Module, Unop*> MakeCastWithinNegateExpression() {
   // x as u32
   Cast* cast = m.Make<Cast>(fake_span, x_ref, builtin_u32);
   Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, cast);
-  return std::make_pair(std::move(m), unop);
+  return std::make_tuple(file_table, std::move(m), unop);
 }
 
-std::pair<Module, Attr*> MakeArithWithinAttrExpression() {
-  Module m("test", /*fs_path=*/std::nullopt);
+std::tuple<FileTable, Module, Attr*> MakeArithWithinAttrExpression() {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
   const Span fake_span;
   BuiltinNameDef* x_def = m.GetOrCreateBuiltinNameDef("x");
   NameRef* x_ref = m.Make<NameRef>(fake_span, "x", x_def);
@@ -141,7 +148,7 @@ std::pair<Module, Attr*> MakeArithWithinAttrExpression() {
 
   Binop* binop = m.Make<Binop>(fake_span, BinopKind::kMul, x_ref, y_ref);
   Attr* attr = m.Make<Attr>(fake_span, binop, "my_attr");
-  return std::make_pair(std::move(m), attr);
+  return std::make_tuple(file_table, std::move(m), attr);
 }
 
 }  // namespace xls::dslx

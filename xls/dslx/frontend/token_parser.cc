@@ -87,12 +87,12 @@ absl::StatusOr<Token> TokenParser::PopTokenOrError(TokenKind target,
     msg = absl::StrFormat(
         "Expected '%s' for construct starting with '%s' @ %s, got '%s'",
         TokenKindToString(target), start->ToErrorString(),
-        start->span().ToString(), tok->ToErrorString());
+        start->span().ToString(file_table()), tok->ToErrorString());
   }
   if (!context.empty()) {
     absl::StrAppend(&msg, ": ", context);
   }
-  return ParseErrorStatus(tok->span(), msg);
+  return ParseErrorStatus(tok->span(), msg, file_table());
 }
 
 absl::Status TokenParser::DropTokenOrError(TokenKind target, const Token* start,
@@ -116,7 +116,7 @@ absl::StatusOr<Token> TokenParser::PopKeywordOrError(Keyword keyword,
   if (!context.empty()) {
     absl::StrAppend(&msg, ": ", context);
   }
-  return ParseErrorStatus(tok.span(), msg);
+  return ParseErrorStatus(tok.span(), msg, file_table());
 }
 
 absl::Status TokenParser::DropKeywordOrError(Keyword target, Pos* limit_pos) {

@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/channel_direction.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/type.h"
 
 namespace xls::dslx {
@@ -40,7 +41,9 @@ TEST(FormatTypeMismatchTest, ElementInTuple) {
                                std::make_unique<BitsType>(true, 16),
                                BitsType::MakeU32());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*t0, *t1, file_table));
 
   EXPECT_EQ(
       got,
@@ -63,7 +66,9 @@ TEST(FormatTypeMismatchTest, NestedTuple) {
       TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU1()),
       TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU1()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*t0, *t1, file_table));
 
   EXPECT_EQ(got,
             ANSI_RESET
@@ -84,7 +89,9 @@ TEST(FormatTypeMismatchTest, ElementTypeInArrayInTuple) {
       BitsType::MakeU1(),
       std::make_unique<ArrayType>(BitsType::MakeS32(), TypeDim::CreateU32(4)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*t0, *t1, file_table));
 
   EXPECT_EQ(got,
             ANSI_RESET "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
@@ -106,7 +113,9 @@ TEST(FormatTypeMismatchTest, MismatchedArraySizeInTuple) {
       BitsType::MakeU1(),
       std::make_unique<ArrayType>(BitsType::MakeU32(), TypeDim::CreateU32(2)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*t0, *t1, file_table));
 
   EXPECT_EQ(got,
             ANSI_RESET "Mismatched elements " ANSI_BOLD "within" ANSI_UNBOLD
@@ -124,7 +133,9 @@ TEST(FormatTypeMismatchTest, TotallyDifferentTuples) {
   auto t0 = TupleType::Create2(BitsType::MakeU8(), BitsType::MakeU32());
   auto t1 = TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU64());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*t0, *t1, file_table));
 
   EXPECT_EQ(got,
             "Type mismatch:\n"
@@ -137,7 +148,9 @@ TEST(FormatTypeMismatchTest, TuplesWithSharedPrefixDifferentLength) {
                                BitsType::MakeU32());
   auto t1 = TupleType::Create2(BitsType::MakeU1(), BitsType::MakeU8());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*t0, *t1, file_table));
 
   EXPECT_EQ(got,
             "Tuple is missing elements:\n"
@@ -146,7 +159,7 @@ TEST(FormatTypeMismatchTest, TuplesWithSharedPrefixDifferentLength) {
             "   (uN[1], uN[8], uN[32])\n"
             "vs (uN[1], uN[8])");
 
-  XLS_ASSERT_OK_AND_ASSIGN(got, FormatTypeMismatch(*t1, *t0));
+  XLS_ASSERT_OK_AND_ASSIGN(got, FormatTypeMismatch(*t1, *t0, file_table));
   EXPECT_EQ(got,
             "Tuple has extra elements:\n"
             "   uN[32] (index 2 of (uN[1], uN[8], uN[32]))\n"
@@ -161,7 +174,9 @@ TEST(FormatTypeMismatchTest, ChannelTypeMismatch) {
   std::unique_ptr<ChannelType> ch1 =
       std::make_unique<ChannelType>(BitsType::MakeU32(), ChannelDirection::kIn);
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*ch0, *ch1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*ch0, *ch1, file_table));
 
   EXPECT_EQ(got,
             "Type mismatch:\n"
@@ -175,7 +190,9 @@ TEST(FormatTypeMismatchTest, ChannelTypeDirectionMismatch) {
   std::unique_ptr<ChannelType> ch1 =
       std::make_unique<ChannelType>(BitsType::MakeU8(), ChannelDirection::kOut);
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*ch0, *ch1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*ch0, *ch1, file_table));
 
   EXPECT_EQ(got,
             "Type mismatch:\n"
@@ -194,7 +211,9 @@ TEST(FormatTypeMismatchTest, TupleOfChannelTypesElementMismatch) {
   std::unique_ptr<TupleType> t1 = TupleType::Create3(
       ch0->CloneToUnique(), ch1->CloneToUnique(), ch1->CloneToUnique());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string got, FormatTypeMismatch(*t0, *t1));
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                           FormatTypeMismatch(*t0, *t1, file_table));
 
   EXPECT_EQ(
       got,

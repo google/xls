@@ -308,7 +308,9 @@ absl::Status CommandReload() {
   XLS_ASSIGN_OR_RETURN(std::string dslx_contents,
                        GetFileContents(globals.dslx_path));
 
-  dslx::Scanner scanner(std::string(globals.dslx_path), dslx_contents);
+  dslx::FileTable& file_table = globals.dslx->import_data.file_table();
+  dslx::Fileno fileno = file_table.GetOrCreate(globals.dslx_path);
+  dslx::Scanner scanner(file_table, fileno, dslx_contents);
   dslx::Parser parser("main", &scanner);
 
   // TODO(taktoa): 2021-03-10 allow other kinds of failures to be recoverable

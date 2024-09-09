@@ -189,6 +189,8 @@ class InvocationVisitor : public ExprVisitor {
 
   ~InvocationVisitor() override = default;
 
+  const FileTable& file_table() const { return *module_->file_table(); }
+
   // Helper type used to hold callee information for different forms of
   // invocations.
   struct CalleeInfo {
@@ -330,7 +332,7 @@ class InvocationVisitor : public ExprVisitor {
     // See if there are parametric bindings to use in the callee for this
     // invocation.
     VLOG(5) << "Getting callee bindings for invocation: " << node->ToString()
-            << " @ " << node->span()
+            << " @ " << node->span().ToString(file_table())
             << " caller bindings: " << bindings_.ToString();
 
     std::optional<const ParametricEnv*> callee_bindings =

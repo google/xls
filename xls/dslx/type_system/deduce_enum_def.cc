@@ -62,7 +62,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceEnumSansUnderlyingType(
   }
   if (deduced.empty()) {
     return TypeInferenceErrorStatus(
-        node->span(), nullptr, "Could not deduce underlying type for enum.");
+        node->span(), nullptr, "Could not deduce underlying type for enum.",
+        ctx->file_table());
   }
   const Type& target = *deduced.front().second;
   for (int64_t i = 1; i < deduced.size(); ++i) {
@@ -97,14 +98,15 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
     XLS_ASSIGN_OR_RETURN(type, DeduceAndResolve(node->type_annotation(), ctx));
     XLS_ASSIGN_OR_RETURN(
         type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
-                             "enum underlying type"));
+                             "enum underlying type", ctx->file_table()));
   }
 
   auto* bits_type = dynamic_cast<BitsType*>(type.get());
   if (bits_type == nullptr) {
     return TypeInferenceErrorStatus(node->span(), bits_type,
                                     "Underlying type for an enum "
-                                    "must be a bits type.");
+                                    "must be a bits type.",
+                                    ctx->file_table());
   }
 
   // Grab the bit count of the Enum's underlying type.

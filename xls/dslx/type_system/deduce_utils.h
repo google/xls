@@ -111,16 +111,19 @@ inline absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
     return TypeInferenceErrorStatus(
         span, nullptr,
         absl::StrFormat("Name '%s' does not exist in module `%s`", name,
-                        m->name()));
+                        m->name()),
+        *m->file_table());
   }
 
   if (!std::holds_alternative<T*>(*member.value())) {
+    const FileTable& file_table = *m->owner()->file_table();
     return TypeInferenceErrorStatus(
         span, nullptr,
         absl::StrFormat(
             "Name '%s' in module `%s` refers to a %s but a %s is required",
             name, m->name(), GetModuleMemberTypeName(*member.value()),
-            T::GetDebugTypeName()));
+            T::GetDebugTypeName()),
+        file_table);
   }
 
   T* result = std::get<T*>(*member.value());
