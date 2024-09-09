@@ -41,6 +41,10 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 
+using ::testing::_;
+using ::testing::AllOf;
+using ::testing::Contains;
+using ::testing::StartsWith;
 using ::testing::UnorderedElementsAre;
 
 enum class NextValueType : std::uint8_t {
@@ -328,6 +332,45 @@ TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
         proc->next_values(proc->GetStateParam(5)),
         UnorderedElementsAre(m::Next(m::Param("c_1"), m::Param("a_2"))));
   }
+}
+
+TEST_P(ProcStateFlatteningPassTest, NextPredicateIsState) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue a = pb.StateElement(
+      "a",
+      Value::Tuple({Value(UBits(1, 1)),
+                    Value::Tuple({Value(UBits(2, 32)), Value(UBits(3, 32))})}));
+  BValue b = pb.StateElement("b", Value(UBits(1, 1)));
+  BValue not_b = pb.Not(b);
+
+  BValue next_a_if_b = a;
+  BValue next_a_if_not_b =
+      pb.Tuple({pb.Not(pb.TupleIndex(a, 0)), pb.TupleIndex(a, 1)});
+  BValue next_b = not_b;
+  pb.Next(a, next_a_if_b, /*pred=*/b);
+  pb.Next(a, next_a_if_not_b, /*pred=*/not_b);
+  pb.Next(b, next_b);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 4);
+  EXPECT_THAT(
+      proc->nodes(),
+      AllOf(Contains(m::Next(m::Param("a_0"), _, m::Param(StartsWith("b")))),
+            Contains(
+                m::Next(m::Param("a_0"), _, m::Not(m::Param(StartsWith("b"))))),
+            Contains(m::Next(m::Param("a_1"), _, m::Param(StartsWith("b")))),
+            Contains(
+                m::Next(m::Param("a_1"), _, m::Not(m::Param(StartsWith("b"))))),
+            Contains(m::Next(m::Param("a_2"), _, m::Param(StartsWith("b")))),
+            Contains(
+                m::Next(m::Param("a_2"), _, m::Not(m::Param(StartsWith("b"))))),
+            Contains(m::Next(m::Param(StartsWith("b")),
+                             m::Not(m::Param(StartsWith("b")))))));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,

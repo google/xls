@@ -260,11 +260,23 @@ absl::Status FlattenState(Proc* proc) {
           value_component = element.placeholder;
         }
 
+        std::optional<Node*> predicate = next->predicate();
+        if (predicate.has_value() && (*predicate)->Is<Param>()) {
+          // If the predicate is itself a state param, it will be invalid after
+          // ReplaceProcState(). Insert an identity so the predicate will still
+          // be valid.
+          XLS_ASSIGN_OR_RETURN(Node * predicate_identity,
+                               proc->MakeNode<UnOp>((*predicate)->loc(),
+                                                    *predicate, Op::kIdentity));
+          identities.push_back(predicate_identity);
+          predicate = predicate_identity;
+        }
         element.next_values.push_back(NextValue{
             .name = absl::StrCat(next->GetName(), component_suffix(i)),
             .loc = next->loc(),
             .value = value_component,
-            .predicate = next->predicate()});
+            .predicate = predicate,
+        });
       }
     }
 
