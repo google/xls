@@ -3368,7 +3368,8 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
 std::string PipelineSignalName(std::string_view root, int64_t stage) {
   std::string base;
   // Strip any existing pipeline prefix from the name.
-  if (!RE2::PartialMatch(root, R"(^p\d+_(.+))", &base)) {
+  static constexpr LazyRE2 kPipelinePrefix = {.pattern_ = R"(^p\d+_(.+))"};
+  if (!RE2::PartialMatch(root, *kPipelinePrefix, &base)) {
     base = root;
   }
   return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(base));
