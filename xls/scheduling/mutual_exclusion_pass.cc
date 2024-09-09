@@ -954,14 +954,61 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
     return absl::OkStatus();
   }
 
+  std::vector<std::pair<Node*, int64_t>> predicate_nodes = PredicateNodes(p, f);
+  if (VLOG_IS_ON(3)) {
+    for (const auto& [node, index] : predicate_nodes) {
+      VLOG(3) << "Predicate: " << node;
+    }
+  }
+
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Op>> ops_for_pred;
+  for (const auto& [node, index] : predicate_nodes) {
+    bool includes_heavy_op = false;
+    for (Node* predicated_by : p->GetNodesPredicatedBy(node)) {
+      ops_for_pred[node].insert(predicated_by->op());
+      if (IsHeavyOp(predicated_by->op())) {
+        includes_heavy_op = true;
+      }
+    }
+    if (!includes_heavy_op) {
+      // Irrelevant; doesn't affect any heavy operation.
+      ops_for_pred.erase(node);
+    }
+  }
+
+  // Remove any predicate nodes that don't participate in any potential mutual
+  // exclusion computations.
+  std::erase_if(predicate_nodes,
+                [&](const std::pair<Node*, int64_t>& predicate_node) {
+                  const auto& [node, index] = predicate_node;
+                  return !ops_for_pred.contains(node);
+                });
+  std::erase_if(
+      predicate_nodes, [&](const std::pair<Node*, int64_t>& predicate_node) {
+        const auto& [node, index] = predicate_node;
+        const absl::flat_hash_set<Op>& ops = ops_for_pred.at(node);
+        return absl::c_none_of(
+            predicate_nodes, [&](const std::pair<Node*, int64_t>& other) {
+              const auto& [other_node, other_index] = other;
+              if (other_node == node) {
+                // Skip if this is the same instance - but otherwise, if the
+                // nodes match, the ops definitely intersect!
+                return other_index != index;
+              }
+              return HasIntersection(ops, ops_for_pred.at(other_node));
+            });
+      });
+
+  if (predicate_nodes.empty()) {
+    return absl::OkStatus();
+  }
+
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<solvers::z3::IrTranslator> translator,
                        solvers::z3::IrTranslator::CreateAndTranslate(f, true));
 
   Z3_context ctx = translator->ctx();
 
   solvers::z3::ScopedErrorHandler seh(ctx);
-
-  std::vector<std::pair<Node*, int64_t>> predicate_nodes = PredicateNodes(p, f);
 
   // Determine for each predicate whether it is always false using Z3.
   // Dead nodes are mutually exclusive with all other nodes, so this can reduce
@@ -993,32 +1040,9 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
     }
   }
 
-  for (const auto& [node, index] : predicate_nodes) {
-    VLOG(3) << "Predicate: " << node;
-  }
-
   int64_t known_false = 0;
   int64_t known_true = 0;
   int64_t unknown = 0;
-
-  absl::flat_hash_map<Node*, absl::flat_hash_set<Op>> ops_for_pred;
-  for (const auto& [node, index] : predicate_nodes) {
-    for (Node* predicated_by : p->GetNodesPredicatedBy(node)) {
-      ops_for_pred[node].insert(predicated_by->op());
-    }
-  }
-
-  {
-    std::vector<Node*> irrelevant;
-    for (const auto& [pred, ops] : ops_for_pred) {
-      if (!std::any_of(ops.begin(), ops.end(), IsHeavyOp)) {
-        irrelevant.push_back(pred);
-      }
-    }
-    for (Node* pred : irrelevant) {
-      ops_for_pred.erase(pred);
-    }
-  }
 
   for (const auto& [node_a, index_a] : predicate_nodes) {
     XLS_ASSIGN_OR_RETURN(
@@ -1054,9 +1078,7 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
       XLS_ASSIGN_OR_RETURN(
           absl::flat_hash_set<Channel*> channels_b,
           GetControlledProvenMutuallyExclusiveChannels(node_b, p, f));
-      bool required_for_compilation = absl::c_any_of(
-          channels_a,
-          [&](Channel* channel) { return channels_b.contains(channel); });
+      bool required_for_compilation = HasIntersection(channels_a, channels_b);
       translator->SetRlimit(required_for_compilation ? 0 : z3_rlimit);
       if (required_for_compilation) {
         LOG(INFO) << "Removing Z3's rlimit for mutual exclusion between "
