@@ -13,6 +13,9 @@
 // limitations under the License.
 
 #include <string_view>
+
+// NOLINTBEGIN(build/include_order) - Silence include order warnings.
+#include "xls/simulation/sim_test_base.h"
 #define ZSTD_STATIC_LINKING_ONLY 1
 
 #include <algorithm>
@@ -23,6 +26,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+// NOLINTEND(build/include_order) - Silence include order warnings.
 
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
@@ -40,7 +44,6 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 #include "xls/modules/zstd/data_generator.h"
 #include "external/zstd/lib/zstd.h"
@@ -91,7 +94,7 @@ class ZstdFrameHeader {
   size_t result_;
 };
 
-class FrameHeaderTest : public xls::IrTestBase {
+class FrameHeaderTest : public xls::SimTestBase {
  public:
   // Prepare simulation environment
   void SetUp() override {

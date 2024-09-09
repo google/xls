@@ -27,27 +27,15 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/codegen_options.h"
-#include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.h"
-#include "xls/codegen/vast/vast.h"
-#include "xls/common/source_location.h"
-#include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/events.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_test_util.h"
 #include "xls/ir/verifier.h"
-#include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/simulation/default_verilog_simulator.h"
-#include "xls/simulation/module_simulator.h"
 
 namespace xls {
 
@@ -153,57 +141,6 @@ Block* IrTestBase::FindBlock(std::string_view name, Package* package) {
   LOG(FATAL) << "No block named " << name << " in package:\n" << *package;
 }
 
-void IrTestBase::RunAndExpectEq(
-    const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
-    std::string_view package_text, bool run_optimized, bool simulate,
-    xabsl::SourceLocation loc) {
-  // Emit the filename/line of the test code in any failure message. The
-  // location is captured as a default argument to RunAndExpectEq.
-  testing::ScopedTrace trace(loc.file_name(), loc.line(),
-                             "RunAndExpectEq failed");
-  VLOG(3) << "Package text:\n" << package_text;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           ParsePackage(package_text));
-  absl::flat_hash_map<std::string, Value> arg_values;
-  XLS_ASSERT_OK_AND_ASSIGN(arg_values, UInt64ArgsToValues(args, package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Value expected_value,
-                           UInt64ResultToValue(expected, package.get()));
-
-  RunAndExpectEq(arg_values, expected_value, std::move(package), run_optimized,
-                 simulate);
-}
-
-void IrTestBase::RunAndExpectEq(
-    const absl::flat_hash_map<std::string, Bits>& args, Bits expected,
-    std::string_view package_text, bool run_optimized, bool simulate,
-    xabsl::SourceLocation loc) {
-  // Emit the filename/line of the test code in any failure message. The
-  // location is captured as a default argument to RunAndExpectEq.
-  testing::ScopedTrace trace(loc.file_name(), loc.line(),
-                             "RunAndExpectEq failed");
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           ParsePackage(package_text));
-  absl::flat_hash_map<std::string, Value> args_as_values;
-  for (const auto& pair : args) {
-    args_as_values[pair.first] = Value(pair.second);
-  }
-  RunAndExpectEq(args_as_values, Value(std::move(expected)), std::move(package),
-                 run_optimized, simulate);
-}
-
-void IrTestBase::RunAndExpectEq(
-    const absl::flat_hash_map<std::string, Value>& args, Value expected,
-    std::string_view package_text, bool run_optimized, bool simulate,
-    xabsl::SourceLocation loc) {
-  // Emit the filename/line of the test code in any failure message. The
-  // location is captured as a default argument to RunAndExpectEq.
-  testing::ScopedTrace trace(loc.file_name(), loc.line(),
-                             "RunAndExpectEq failed");
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           ParsePackage(package_text));
-  RunAndExpectEq(args, expected, std::move(package), run_optimized, simulate);
-}
-
 absl::StatusOr<absl::flat_hash_map<std::string, Value>>
 IrTestBase::UInt64ArgsToValues(
     const absl::flat_hash_map<std::string, uint64_t>& args, Package* package) {
@@ -256,61 +193,5 @@ absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64_t value,
   return Value(UBits(value, return_type->AsBitsOrDie()->bit_count()));
 }
 
-void IrTestBase::RunAndExpectEq(
-    const absl::flat_hash_map<std::string, Value>& args, const Value& expected,
-    std::unique_ptr<Package>&& package, bool run_optimized, bool simulate) {
-  InterpreterEvents unopt_events;
-
-  // Run interpreter on unoptimized IR.
-  {
-    XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->GetTopAsFunction());
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
-                             InterpretFunctionKwargs(entry, args));
-    XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
-    unopt_events = result.events;
-    ASSERT_TRUE(ValuesEqual(expected, result.value))
-        << "(interpreted unoptimized IR)";
-  }
-
-  if (run_optimized) {
-    // Run main pipeline.
-    XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()));
-
-    // Run interpreter on optimized IR.
-    {
-      XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->GetTopAsFunction());
-      XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
-                               InterpretFunctionKwargs(main, args));
-      XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
-      ASSERT_EQ(unopt_events, result.events);
-      ASSERT_TRUE(ValuesEqual(expected, result.value))
-          << "(interpreted optimized IR)";
-    }
-  }
-
-  // Emit Verilog with combinational generator and run with ModuleSimulator.
-  if (simulate) {
-    ASSERT_EQ(package->functions().size(), 1);
-    std::optional<FunctionBase*> top = package->GetTop();
-    EXPECT_TRUE(top.has_value());
-    EXPECT_TRUE(top.value()->IsFunction());
-
-    XLS_ASSERT_OK_AND_ASSIGN(
-        verilog::ModuleGeneratorResult result,
-        verilog::GenerateCombinationalModule(
-            top.value(), verilog::CodegenOptions().use_system_verilog(false)));
-
-    absl::flat_hash_map<std::string, Value> arg_set;
-    for (const auto& pair : args) {
-      arg_set.insert(pair);
-    }
-    VLOG(3) << "Verilog text:\n" << result.verilog_text;
-    verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
-                                       verilog::FileType::kVerilog,
-                                       &verilog::GetDefaultVerilogSimulator());
-    XLS_ASSERT_OK_AND_ASSIGN(Value actual, simulator.RunFunction(arg_set));
-    ASSERT_TRUE(ValuesEqual(expected, actual)) << "(Verilog simulation)";
-  }
-}
 
 }  // namespace xls

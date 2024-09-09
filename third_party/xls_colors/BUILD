@@ -49,8 +49,8 @@ cc_test(
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/ir:bits",
-        "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "//xls/simulation:sim_test_base",
         "@com_google_googletest//:gtest",
     ],
 )

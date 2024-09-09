@@ -402,3 +402,43 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+cc_library(
+    name = "sim_test_base",
+    testonly = True,
+    srcs = ["sim_test_base.cc"],
+    hdrs = ["sim_test_base.h"],
+    deps = [
+        ":default_verilog_simulator",
+        ":module_simulator",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:combinational_generator",
+        "//xls/codegen:module_signature",
+        "//xls/codegen/vast",
+        "//xls/common:source_location",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:events",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "//xls/ir:value_test_util",
+        "//xls/passes:optimization_pass_pipeline",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "sim_test_base_test",
+    srcs = ["sim_test_base_test.cc"],
+    deps = [
+        ":sim_test_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)

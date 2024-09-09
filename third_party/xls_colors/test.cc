@@ -25,7 +25,6 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "third_party/xls_colors/fast_hsv2rgb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -35,21 +34,23 @@
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
+#include "xls/simulation/sim_test_base.h"
+#include "third_party/xls_colors/fast_hsv2rgb.h"
 
 namespace {
 
 using xls::UBits;
 using xls::Value;
 
-class XlsColorsTest : public xls::IrTestBase {
+class XlsColorsTest : public xls::SimTestBase {
  public:
   void Run(uint16_t hstart, uint16_t hlimit) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::filesystem::path path,
         xls::GetXlsRunfilePath("third_party/xls_colors/hsv2rgb.x"));
-    XLS_ASSERT_OK_AND_ASSIGN(std::string moduleText, xls::GetFileContents(path));
+    XLS_ASSERT_OK_AND_ASSIGN(std::string moduleText,
+                             xls::GetFileContents(path));
     auto import_data = xls::dslx::CreateImportDataForTest();
     XLS_ASSERT_OK_AND_ASSIGN(
         xls::dslx::TypecheckedModule tm,

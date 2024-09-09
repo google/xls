@@ -39,11 +39,11 @@
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/simulation/sim_test_base.h"
 
 struct CapturedLogEntry {
   CapturedLogEntry();
@@ -60,7 +60,7 @@ struct CapturedLogEntry {
 
 // Support for XLS[cc] related tests, such as invoking XLS[cc]
 //  with the appropriate parameters for the test environment
-class XlsccTestBase : public xls::IrTestBase, public ::absl::LogSink {
+class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
  public:
   XlsccTestBase();
 

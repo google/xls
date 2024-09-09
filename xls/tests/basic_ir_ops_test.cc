@@ -30,13 +30,14 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/simulation/sim_test_base.h"
 
 namespace xls {
 namespace {
 
 // Simple tests of arithmetic, logical, and bit twiddling IR operations which
 // operate on Bits types.
-class BasicOpsTest : public IrTestBase {};
+class BasicOpsTest : public SimTestBase {};
 
 TEST_F(BasicOpsTest, LogicalNot) {
   std::string text = R"(
