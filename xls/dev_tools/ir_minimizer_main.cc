@@ -88,8 +88,8 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
+#include "xls/passes/proc_state_tuple_flattening_pass.h"
 #include "xls/passes/unroll_pass.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -794,7 +794,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
     // Only can inline from the top.
     passes.push_back(std::make_unique<InliningPass>());
   }
-  passes.push_back(std::make_unique<ProcStateFlatteningPass>());
+  passes.push_back(std::make_unique<ProcStateTupleFlatteningPass>());
   passes.push_back(std::make_unique<ProcStateOptimizationPass>());
 
   int64_t pass_no = absl::Uniform<int64_t>(rng, 0, passes.size());

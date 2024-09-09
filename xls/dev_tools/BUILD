@@ -535,6 +535,7 @@ cc_binary(
         "//xls/tools:opt_main",
     ],
     deps = [
+        ":extract_segment",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -559,7 +560,6 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/data_structures:binary_search",
         "//xls/data_structures:inline_bitmap",
-        "//xls/dev_tools:extract_segment",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:channel",
@@ -589,8 +589,8 @@ cc_binary(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
-        "//xls/passes:proc_state_flattening_pass",
         "//xls/passes:proc_state_optimization_pass",
+        "//xls/passes:proc_state_tuple_flattening_pass",
         "//xls/passes:unroll_pass",
     ],
 )

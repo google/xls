@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/proc_state_flattening_pass.h"
+#include "xls/passes/proc_state_tuple_flattening_pass.h"
 
 #include <cstdint>
 
@@ -96,9 +96,9 @@ class ProcStateFlatteningPassTest
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(
-        bool changed,
-        ProcStateFlatteningPass().Run(p, OptimizationPassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         ProcStateTupleFlatteningPass().Run(
+                             p, OptimizationPassOptions(), &results));
     // Run dataflow_simplification and dce to clean things up.
     XLS_RETURN_IF_ERROR(DataflowSimplificationPass()
                             .Run(p, OptimizationPassOptions(), &results)

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/proc_state_flattening_pass.h"
+#include "xls/passes/proc_state_tuple_flattening_pass.h"
 
 #include <cstdint>
 #include <optional>
@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/btree_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -297,7 +298,7 @@ absl::Status FlattenState(Proc* proc) {
 
 }  // namespace
 
-absl::StatusOr<bool> ProcStateFlatteningPass::RunOnProcInternal(
+absl::StatusOr<bool> ProcStateTupleFlatteningPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options,
     PassResults* results) const {
   if (!HasTupleStateElement(proc)) {
@@ -307,6 +308,6 @@ absl::StatusOr<bool> ProcStateFlatteningPass::RunOnProcInternal(
   return true;
 }
 
-REGISTER_OPT_PASS(ProcStateFlatteningPass);
+REGISTER_OPT_PASS(ProcStateTupleFlatteningPass);
 
 }  // namespace xls

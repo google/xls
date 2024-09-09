@@ -56,10 +56,10 @@ cc_library(
         ":optimization_pass_registry",
         ":pass_base",
         ":proc_inlining_pass",
-        ":proc_state_flattening_pass",
         ":proc_state_narrowing_pass",
         ":proc_state_optimization_pass",
         ":proc_state_provenance_narrowing_pass",
+        ":proc_state_tuple_flattening_pass",
         ":ram_rewrite_pass",
         ":reassociation_pass",
         ":receive_default_value_simplification_pass",
@@ -1716,14 +1716,15 @@ cc_library(
 )
 
 cc_library(
-    name = "proc_state_flattening_pass",
-    srcs = ["proc_state_flattening_pass.cc"],
-    hdrs = ["proc_state_flattening_pass.h"],
+    name = "proc_state_tuple_flattening_pass",
+    srcs = ["proc_state_tuple_flattening_pass.cc"],
+    hdrs = ["proc_state_tuple_flattening_pass.h"],
     deps = [
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -1854,14 +1855,14 @@ cc_test(
 )
 
 cc_test(
-    name = "proc_state_flattening_pass_test",
-    srcs = ["proc_state_flattening_pass_test.cc"],
+    name = "proc_state_tuple_flattening_pass_test",
+    srcs = ["proc_state_tuple_flattening_pass_test.cc"],
     deps = [
         ":dataflow_simplification_pass",
         ":dce_pass",
         ":optimization_pass",
         ":pass_base",
-        ":proc_state_flattening_pass",
+        ":proc_state_tuple_flattening_pass",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",

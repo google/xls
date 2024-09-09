@@ -27,13 +27,14 @@ namespace xls {
 // Pass which flattens tuple elements of the proc state into their constituent
 // components. Array elements are left-unflattened. Flattening improves
 // optimizability because each state element can be considered and transformed
-// in isolation.
-class ProcStateFlatteningPass : public OptimizationProcPass {
+// in isolation. Flattening also gives the scheduler more flexibility; without
+// flattening, each element in the aggregate must have the same lifetime.
+class ProcStateTupleFlatteningPass : public OptimizationProcPass {
  public:
-  static constexpr std::string_view kName = "proc_state_flat";
-  ProcStateFlatteningPass()
-      : OptimizationProcPass(kName, "Proc State Flattening") {}
-  ~ProcStateFlatteningPass() override = default;
+  static constexpr std::string_view kName = "proc_state_tuple_flat";
+  ProcStateTupleFlatteningPass()
+      : OptimizationProcPass(kName, "Proc State Tuple Flattening") {}
+  ~ProcStateTupleFlatteningPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
