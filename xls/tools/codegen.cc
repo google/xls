@@ -267,19 +267,19 @@ absl::StatusOr<CodegenResult> CodegenPipeline(
   PackagePipelineSchedulesProto package_pipeline_schedules_proto;
   if (std::holds_alternative<PipelineSchedule>(schedules)) {
     const PipelineSchedule& schedule = std::get<PipelineSchedule>(schedules);
+    package_pipeline_schedules_proto.mutable_schedules()->insert(
+        {schedule.function_base()->name(), schedule.ToProto(*delay_estimator)});
     XLS_ASSIGN_OR_RETURN(
         result, verilog::ToPipelineModuleText(
                     schedule, *p->GetTop(), codegen_options, delay_estimator));
-    package_pipeline_schedules_proto.mutable_schedules()->insert(
-        {schedule.function_base()->name(), schedule.ToProto(*delay_estimator)});
   } else if (std::holds_alternative<PackagePipelineSchedules>(schedules)) {
     const PackagePipelineSchedules& schedule_group =
         std::get<PackagePipelineSchedules>(schedules);
+    package_pipeline_schedules_proto =
+        PackagePipelineSchedulesToProto(schedule_group, *delay_estimator);
     XLS_ASSIGN_OR_RETURN(
         result, verilog::ToPipelineModuleText(
                     schedule_group, p, codegen_options, delay_estimator));
-    package_pipeline_schedules_proto =
-        PackagePipelineSchedulesToProto(schedule_group, *delay_estimator);
   } else {
     LOG(FATAL) << absl::StreamFormat("Unknown schedules type (%d).",
                                      schedules.index());
