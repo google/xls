@@ -56,6 +56,13 @@ class UnrollingAndInliningPassGroup : public OptimizationCompoundPass {
   explicit UnrollingAndInliningPassGroup(int64_t opt_level);
 };
 
+// Passes that flatten proc state of aggregate types into individual elements.
+class ProcStateFlatteningFixedPointPass
+    : public OptimizationFixedPointCompoundPass {
+ public:
+  explicit ProcStateFlatteningFixedPointPass();
+};
+
 // The passes which are executed after all inlining has been performed.
 //
 // NB Proc-inlining (if enabled) is performed during this pass group.

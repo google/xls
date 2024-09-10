@@ -270,8 +270,8 @@ top fn __testit__main_0_next() -> bits[32] {
 chan multi_proc__bytes_src\(bits\[32\], id=[0-9]+, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata=""""""\)
 
 top proc __multi_proc__proc_ten_0_next\(\) \{
-  tok: token = after_all\(id=1\)
-  receive_9: \(token, bits\[32\]\) = receive\(tok, channel=multi_proc__bytes_src, id=2\)
+  tok: token = after_all\(id=\d+\)
+  receive_9: \(token, bits\[32\]\) = receive\(tok, channel=multi_proc__bytes_src, id=\d+\)
 \}
 ''',
     )
@@ -325,11 +325,9 @@ fn bar(x: bits[8][8]) -> bits[8][4] {
   ret literal.57: bits[8][4] = literal(value=[0, 0, 0, 0], id=57)
 }
 
-top fn foo(x: bits[8], y: bits[8]) -> bits[8][2] {
+top fn foo(x: bits[8], y: bits[8]) -> bits[8][4] {
   literal.62: bits[8][8] = literal(value=[0, 0, 0, 0, 0, 0, 0, 0], id=62)
-  invoke.26: bits[8][4] = invoke(literal.62, to_apply=bar, id=26)
-  literal.64: bits[1] = literal(value=0, id=64)
-  ret array_slice.65: bits[8][2] = array_slice(invoke.26, literal.64, width=2, id=65)
+  ret invoke.26: bits[8][4] = invoke(literal.62, to_apply=bar, id=26)
 }
 """,
     )

@@ -59,6 +59,7 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_inlining_pass.h"
+#include "xls/passes/proc_state_array_flattening_pass.h"
 #include "xls/passes/proc_state_narrowing_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/proc_state_provenance_narrowing_pass.h"
@@ -165,6 +166,13 @@ UnrollingAndInliningPassGroup::UnrollingAndInliningPassGroup(int64_t opt_level)
   Add<DeadFunctionEliminationPass>();
 }
 
+ProcStateFlatteningFixedPointPass::ProcStateFlatteningFixedPointPass()
+    : OptimizationFixedPointCompoundPass("fixedpoint_proc_state_flattening",
+                                         "Proc State Flattening") {
+  Add<ProcStateArrayFlatteningPass>();
+  Add<ProcStateTupleFlatteningPass>();
+}
+
 PostInliningPassGroup::PostInliningPassGroup(int64_t opt_level)
     : OptimizationCompoundPass(PostInliningPassGroup::kName,
                                "Post-inlining passes") {
@@ -215,7 +223,7 @@ PostInliningPassGroup::PostInliningPassGroup(int64_t opt_level)
   // After proc inlining flatten and optimize the proc state. Run tuple
   // simplification to simplify tuple structures left over from flattening.
   // TODO(meheff): Consider running proc state optimization more than once.
-  Add<ProcStateTupleFlatteningPass>();
+  Add<ProcStateFlatteningFixedPointPass>();
   Add<IdentityRemovalPass>();
   Add<DataflowSimplificationPass>();
   Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));

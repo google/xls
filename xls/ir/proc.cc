@@ -90,7 +90,8 @@ std::string Proc::DumpIr() const {
     absl::StrAppend(&res, "  ", node->ToString(), "\n");
   }
 
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
   if (next_values_.empty() && !params_.empty()) {
     auto node_formatter = [](std::string* s, Node* node) {
       absl::StrAppend(s, node->GetName());
@@ -205,7 +206,8 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
                         index, name(), old_param->GetName()));
   }
 
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
   next_state_indices_[next_state_[index]].erase(index);
   next_state_[index] = nullptr;
 
@@ -227,7 +229,8 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
   }
   init_values_[index] = init_value;
 
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
   next_state_[index] = next_state.value_or(param);
   next_state_indices_[next_state_[index]].insert(index);
 
@@ -237,7 +240,8 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
 absl::Status Proc::RemoveStateElement(int64_t index) {
   XLS_RET_CHECK_LT(index, GetStateElementCount());
 
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
   if (index < GetStateElementCount() - 1) {
     for (auto& [_, indices] : next_state_indices_) {
       // Relabel all indices > `index`.
@@ -283,7 +287,8 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
                            state_param_name));
   XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index));
 
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
   if (next_state.has_value()) {
     if (!ValueConformsToType(init_value, next_state.value()->GetType())) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -312,7 +317,8 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
 }
 
 bool Proc::HasImplicitUse(Node* node) const {
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
   if (auto it = next_state_indices_.find(node);
       it != next_state_indices_.end() && !it->second.empty()) {
     return true;
@@ -534,7 +540,8 @@ absl::StatusOr<Proc*> Proc::Clone(
     }
   }
 
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
   for (int64_t i = 0; i < GetStateElementCount(); ++i) {
     XLS_RETURN_IF_ERROR(cloned_proc->SetNextStateElement(
         i, original_to_clone.at(GetNextStateElement(i))));

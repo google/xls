@@ -589,6 +589,7 @@ cc_binary(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
+        "//xls/passes:proc_state_array_flattening_pass",
         "//xls/passes:proc_state_optimization_pass",
         "//xls/passes:proc_state_tuple_flattening_pass",
         "//xls/passes:unroll_pass",

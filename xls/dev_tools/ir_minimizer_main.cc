@@ -88,6 +88,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/proc_state_array_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/proc_state_tuple_flattening_pass.h"
 #include "xls/passes/unroll_pass.h"
@@ -498,7 +499,7 @@ absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
   LOG(FATAL) << "RemoveDeadParameters only handles procs and functions";
 }
 
-enum class SimplificationResult {
+enum class SimplificationResult : uint8_t {
   kCannotChange,  // Cannot simplify.
   kDidNotChange,  // Did not simplify, e.g. because RNG didn't come up that way.
   kDidChange,     // Did simplify in some way.
@@ -794,6 +795,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
     // Only can inline from the top.
     passes.push_back(std::make_unique<InliningPass>());
   }
+  passes.push_back(std::make_unique<ProcStateArrayFlatteningPass>());
   passes.push_back(std::make_unique<ProcStateTupleFlatteningPass>());
   passes.push_back(std::make_unique<ProcStateOptimizationPass>());
 
