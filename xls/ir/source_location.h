@@ -15,6 +15,7 @@
 #ifndef XLS_IR_SOURCE_LOCATION_H_
 #define XLS_IR_SOURCE_LOCATION_H_
 
+#include <compare>
 #include <string>
 #include <vector>
 
@@ -44,9 +45,14 @@ class SourceLocation {
                            colno_.value());
   }
 
-  bool operator<(const SourceLocation& other) const {
-    return fileno_ < other.fileno_ || lineno_ < other.lineno_ ||
-           colno_ < other.colno_;
+  std::strong_ordering operator<=>(const SourceLocation& other) const {
+    if (fileno_ != other.fileno_) {
+      return fileno_.value() <=> other.fileno_.value();
+    }
+    if (lineno_ != other.lineno_) {
+      return lineno_.value() <=> other.lineno_.value();
+    }
+    return colno_.value() <=> other.colno_.value();
   }
 
  private:
