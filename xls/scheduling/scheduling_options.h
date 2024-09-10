@@ -26,6 +26,7 @@
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/ir/node.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
@@ -230,6 +231,7 @@ class SchedulingOptions {
   explicit SchedulingOptions(
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
       : strategy_(strategy),
+        opt_level_(kMaxOptLevel),
         minimize_clock_on_failure_(true),
         recover_after_minimizing_clock_(false),
         minimize_worst_case_throughput_(false),
@@ -248,6 +250,13 @@ class SchedulingOptions {
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
+
+  // Sets/gets the target delay model
+  SchedulingOptions& opt_level(int64_t value) {
+    opt_level_ = value;
+    return *this;
+  }
+  int64_t opt_level() const { return opt_level_; }
 
   // Sets/gets the target delay model
   SchedulingOptions& delay_model(std::string& value) {
@@ -515,6 +524,7 @@ class SchedulingOptions {
 
  private:
   SchedulingStrategy strategy_;
+  int64_t opt_level_;
   std::optional<int64_t> clock_period_ps_;
   std::optional<std::string> delay_model_;
   std::optional<int64_t> pipeline_stages_;

@@ -90,6 +90,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
         "//xls/ir",
+        "//xls/passes:optimization_pass",
         "//xls/tools:scheduling_options_flags_cc_proto",
     ],
 )
@@ -377,6 +378,7 @@ cc_library(
         ":scheduling_wrapper_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:literal_uncommoning_pass",
+        "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
     ],
 )

@@ -123,6 +123,7 @@ CODEGEN_FIELDS = {
 }
 
 SCHEDULING_FIELDS = {
+    "opt_level": "Optional(int): The optimization level used during scheduling.",
     "clock_period_ps": "Optional(string): The clock period used for " +
                        "scheduling.",
     "pipeline_stages": "Optional(string): The number of pipeline stages.",

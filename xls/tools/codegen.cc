@@ -81,7 +81,7 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
   sched_options.delay_estimator = delay_estimator;
   sched_options.synthesizer = synthesizer;
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateSchedulingPassPipeline();
+      CreateSchedulingPassPipeline(scheduling_options.opt_level());
   SchedulingPassResults results;
   XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
   auto scheduling_unit =

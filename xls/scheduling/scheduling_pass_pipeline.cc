@@ -17,6 +17,7 @@
 
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 
+#include <cstdint>
 #include <memory>
 
 #include "xls/passes/dce_pass.h"
@@ -31,7 +32,8 @@
 
 namespace xls {
 
-std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline() {
+std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
+    int64_t opt_level) {
   auto top = std::make_unique<SchedulingCompoundPass>(
       "scheduling", "Top level scheduling pass pipeline");
   top->AddInvariantChecker<SchedulingChecker>();
@@ -41,8 +43,10 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline() {
   top->Add<ProcStateLegalizationPass>();
 
   top->Add<MutualExclusionPass>();
-  top->Add<SchedulingWrapperPass>(
-      std::make_unique<FixedPointSimplificationPass>(3));
+  if (opt_level > 0) {
+    top->Add<SchedulingWrapperPass>(
+        std::make_unique<FixedPointSimplificationPass>(opt_level));
+  }
   top->Add<SchedulingWrapperPass>(std::make_unique<LiteralUncommoningPass>());
   top->Add<PipelineSchedulingPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
