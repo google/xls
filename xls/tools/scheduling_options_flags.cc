@@ -34,14 +34,10 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/package.h"
-#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 // LINT.IfChange
-ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
-          absl::StrFormat("Optimization level. Ranges from 1 to %d.",
-                          xls::kMaxOptLevel));
 ABSL_FLAG(int64_t, clock_period_ps, 0,
           "Target clock period, in picoseconds. See "
           "https://google.github.io/xls/scheduling for details.");
@@ -196,7 +192,6 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
     } while (0);                                                              \
   }
   bool any_flags_set = false;
-  POPULATE_FLAG(opt_level);
   POPULATE_FLAG(clock_period_ps);
   POPULATE_FLAG(pipeline_stages);
   POPULATE_FLAG(delay_model);
@@ -277,9 +272,6 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   // Some fields are pre-initialized with defaults
   SchedulingOptions scheduling_options;
 
-  if (proto.has_opt_level()) {
-    scheduling_options.opt_level(proto.opt_level());
-  }
   if (proto.pipeline_stages() != 0) {
     scheduling_options.pipeline_stages(proto.pipeline_stages());
   }

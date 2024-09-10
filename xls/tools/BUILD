@@ -608,7 +608,6 @@ cc_library(
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/fdo:synthesizer",
         "//xls/ir",
-        "//xls/passes:optimization_pass",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",

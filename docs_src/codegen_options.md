@@ -48,9 +48,6 @@ control the scheduler.
 -   `--generator=...` controls which generator to use. The options are
     `pipeline` and `combinational`. The `pipeline` generator runs a scheduler
     that partitions the IR ops into pipeline stages.
--   `--opt_level=...` controls the optimization level to apply when using the
-    `pipeline` generator, to take advantage of any discovered optimization
-    opportunities.
 -   `--delay_model=...` selects the delay model to use when scheduling. See the
     [page here](delay_estimation.md) for more detail.
 -   `--clock_period_ps=...` sets the target clock period. See
