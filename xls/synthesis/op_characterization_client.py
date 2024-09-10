@@ -14,9 +14,9 @@
 # limitations under the License.
 """Sample points from a pb to characterize using a synthesis server.
 
-These datapoints can be used in a delay model (where they will be interpolated)
--- the results emitted on stdout are in xls.estimator_model.DataPoints prototext
-format.
+These datapoints can be used in an estimator model (where they will be
+interpolated) -- the results emitted on stdout are in
+xls.estimator_model.DataPoints prototext format.
 """
 
 import multiprocessing as mp

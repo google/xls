@@ -1057,8 +1057,8 @@ py_test(
 )
 
 py_binary(
-    name = "run_timing_characterization",
-    srcs = ["run_timing_characterization.py"],
+    name = "run_op_characterization",
+    srcs = ["run_op_characterization.py"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [

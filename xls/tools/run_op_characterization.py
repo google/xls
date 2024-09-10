@@ -205,7 +205,9 @@ def _do_config_task(config: WorkerConfig):
     config.server_bin = (
         f'{config.bazel_bin_path}/xls/synthesis/yosys/yosys_server_main'
     )
-    config.client_bin = f'{config.bazel_bin_path}/xls/synthesis/timing_characterization_client_main'
+    config.client_bin = (
+        f'{config.bazel_bin_path}/xls/synthesis/op_characterization_client_main'
+    )
   else:
     if not _SERVER.value:
       raise app.UsageError('Must provide either --bazel_bin_path or --server.')

@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for xls.synthesis.timing_characterization_client_main."""
+"""Tests for xls.synthesis.op_characterization_client_main."""
 
 import multiprocessing as mp
 import tempfile
@@ -20,10 +20,10 @@ import tempfile
 from absl.testing import absltest
 from xls.estimators import estimator_model_pb2
 from xls.estimators import estimator_model_utils
-from xls.synthesis import timing_characterization_client as client
+from xls.synthesis import op_characterization_client as client
 
 
-class TimingCharacterizationClientMainTest(absltest.TestCase):
+class OpCharacterizationClientMainTest(absltest.TestCase):
 
   def test_save_load_checkpoint(self):
 

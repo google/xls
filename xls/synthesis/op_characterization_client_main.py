@@ -14,10 +14,9 @@
 # limitations under the License.
 """Sweeps to characterize datapoints from a synthesis server.
 
-These datapoints can be used in a delay model (where they will be interpolated)
--- the results emitted on stdout are in xls.estimator_model.EstimatorModel
-prototext
-format.
+These datapoints can be used in an estimator model (where they will be
+interpolated) -- the results emitted on stdout are in
+xls.estimator_model.EstimatorModel prototext format.
 """
 
 from absl import app
@@ -25,8 +24,8 @@ from absl import flags
 import grpc
 
 from xls.synthesis import client_credentials
+from xls.synthesis import op_characterization_client as client
 from xls.synthesis import synthesis_service_pb2_grpc
-from xls.synthesis import timing_characterization_client as client
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer('port', 10000, 'Port to connect to synthesis server on.')

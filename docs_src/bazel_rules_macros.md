@@ -199,11 +199,11 @@ Builds a script to generate an XLS delay model for one PDK corner.
 
 This rule gathers the locations of the required dependencies
 (Yosys, OpenSTA, helper scripts, and cell libraries) and
-generates a wrapper script that invokes "run_timing_characterization"
+generates a wrapper script that invokes "run_op_characterization"
 with the dependency locations provided as args.
 
 Any extra runtime args will get passed in to the
-"run_timing_characterization" script (e.g. "--debug" or "--quick_run").
+"run_op_characterization" script (e.g. "--debug" or "--quick_run").
 
 The script must be "run" from the root of the workspace
 to perform the timing characterization.  The output textproto

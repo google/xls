@@ -365,8 +365,8 @@ def _xls_delay_model_generation_impl(ctx):
     sta = ctx.executable._opensta
     sta_runfiles_dir = sta.path + ".runfiles"
 
-    run_timing_characterization = ctx.executable._run_timing_characterization
-    timing_characterization_client_main = ctx.executable._timing_characterization_client_main
+    run_op_characterization = ctx.executable._run_op_characterization
+    op_characterization_client_main = ctx.executable._op_characterization_client_main
     yosys_server_main = ctx.executable._yosys_server_main
 
     samples_file = ctx.file.samples_file
@@ -380,13 +380,13 @@ def _xls_delay_model_generation_impl(ctx):
     script_contents.append("export DONT_USE_ARGS=")
     script_contents.append("set -e")
 
-    cmd = [run_timing_characterization.short_path]
+    cmd = [run_op_characterization.short_path]
     cmd.append("--yosys_path \"{}\"".format(yosys.short_path))
     cmd.append("--sta_path \"{}\"".format(sta.short_path))
     cmd.append("--synth_libs \"{}\"".format(lib.short_path))
     cmd.append("--default_driver_cell \"{}\"".format(default_driver_cell))
     cmd.append("--default_load \"{}\"".format(default_load))
-    cmd.append("--client \"{}\"".format(timing_characterization_client_main.short_path))
+    cmd.append("--client \"{}\"".format(op_characterization_client_main.short_path))
     cmd.append("--server \"{}\"".format(yosys_server_main.short_path))
     cmd.append("--samples_path \"{}\"".format(samples_file.short_path))
     cmd.append("--out_path \"${{BUILD_WORKING_DIRECTORY}}/{}\"".format(ctx.attr.name + ".textproto"))
@@ -404,8 +404,8 @@ def _xls_delay_model_generation_impl(ctx):
     transitive_runfiles = [
         ctx.attr.standard_cells[DefaultInfo].default_runfiles,
         ctx.attr._opensta[DefaultInfo].default_runfiles,
-        ctx.attr._run_timing_characterization[DefaultInfo].default_runfiles,
-        ctx.attr._timing_characterization_client_main[DefaultInfo].default_runfiles,
+        ctx.attr._run_op_characterization[DefaultInfo].default_runfiles,
+        ctx.attr._op_characterization_client_main[DefaultInfo].default_runfiles,
         ctx.attr._yosys[DefaultInfo].default_runfiles,
         ctx.attr._yosys_server_main[DefaultInfo].default_runfiles,
     ]
@@ -424,11 +424,11 @@ xls_delay_model_generation = rule(
 
 This rule gathers the locations of the required dependencies
 (Yosys, OpenSTA, helper scripts, and cell libraries) and
-generates a wrapper script that invokes "run_timing_characterization"
+generates a wrapper script that invokes "run_op_characterization"
 with the dependency locations provided as args.
 
 Any extra runtime args will get passed in to the
-"run_timing_characterization" script (e.g. "--debug" or "--quick_run").
+"run_op_characterization" script (e.g. "--debug" or "--quick_run").
 
 The script must be "run" from the root of the workspace
 to perform the timing characterization.  The output textproto
@@ -455,13 +455,13 @@ currently produced should be considered INCOMPLETE.""",
             executable = True,
             cfg = "target",
         ),
-        "_run_timing_characterization": attr.label(
-            default = Label("//xls/tools:run_timing_characterization"),
+        "_run_op_characterization": attr.label(
+            default = Label("//xls/tools:run_op_characterization"),
             executable = True,
             cfg = "target",
         ),
-        "_timing_characterization_client_main": attr.label(
-            default = Label("//xls/synthesis:timing_characterization_client_main"),
+        "_op_characterization_client_main": attr.label(
+            default = Label("//xls/synthesis:op_characterization_client_main"),
             executable = True,
             cfg = "target",
         ),
