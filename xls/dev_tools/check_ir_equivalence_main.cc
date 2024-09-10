@@ -241,6 +241,7 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   }
 
   std::vector<FunctionBase*> functions;
+  functions.reserve(packages.size());
   for (const auto& package : packages) {
     functions.push_back(*package->GetTop());
   }
