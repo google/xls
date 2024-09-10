@@ -275,7 +275,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_empty_array_error(self):
     stderr = self._run('xls/dslx/tests/errors/empty_array.x')
-    self.assertIn('Cannot deduce the type of an empty array.', stderr)
+    self.assertIn('Empty array must have a type annotation', stderr)
 
   def test_invalid_array_expression_type(self):
     stderr = self._run(

@@ -59,9 +59,63 @@ extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
 extern absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type,
                                                      DeduceCtx* ctx);
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceEmptyArray(const Array* node,
+                                                       DeduceCtx* ctx) {
+  // We cannot have an array that is just an ellipsis, ellipsis indicates we
+  // should replicate the last member.
+  if (node->has_ellipsis()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Array cannot have an ellipsis without an element to repeat; please "
+        "add at least one element",
+        ctx->file_table());
+  }
+
+  if (node->type_annotation() == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Empty array must have a type annotation; please add one",
+        ctx->file_table());
+  }
+
+  // We need the type annotation because we don't have an element that allows
+  // us to deduce the type of the empty array.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> annotated,
+                       ctx->Deduce(node->type_annotation()));
+  XLS_ASSIGN_OR_RETURN(
+      annotated,
+      UnwrapMetaType(std::move(annotated), node->span(),
+                     "array type-prefix position", ctx->file_table()));
+
+  // Check that it's an array type of size zero.
+  auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
+  if (array_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), annotated.get(),
+        "Array was not annotated with an array type.", ctx->file_table());
+  }
+  const TypeDim& annotation_size = array_type->size();
+  XLS_ASSIGN_OR_RETURN(int64_t annotation_size_i64,
+                       annotation_size.GetAsInt64());
+  if (annotation_size_i64 != 0) {
+    return TypeInferenceErrorStatus(
+        node->span(), array_type,
+        absl::StrFormat(
+            "Array has zero elements but type annotation size is %d",
+            annotation_size_i64),
+        ctx->file_table());
+  }
+
+  return annotated;
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
                                                   DeduceCtx* ctx) {
   VLOG(5) << "DeduceArray; node: " << node->ToString();
+
+  if (node->members().empty()) {
+    return DeduceEmptyArray(node, ctx);
+  }
 
   std::vector<std::unique_ptr<Type>> member_types;
   for (Expr* member : node->members()) {
@@ -70,6 +124,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
     member_types.push_back(std::move(member_type));
   }
 
+  // Check that all subsequent member types are the same as the original member
+  // type.
   for (int64_t i = 1; i < member_types.size(); ++i) {
     if (*member_types[0] != *member_types[i]) {
       return ctx->TypeMismatchError(
@@ -78,40 +134,26 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
     }
   }
 
-  if (!member_types.empty() && member_types[0]->HasToken()) {
+  // Check that we're not making a token array, as tokens must not alias, and
+  // arrays obscure their provenance as they are aggregate types.
+  if (member_types[0]->HasToken()) {
     return TypeInferenceErrorStatus(
         node->span(), member_types[0].get(),
         "Types with tokens cannot be placed in arrays.", ctx->file_table());
-  }
-
-  if (node->has_ellipsis() && node->members().empty()) {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        "Array cannot have an ellipsis without an element to repeat; please "
-        "add at least one element",
-        ctx->file_table());
   }
 
   auto member_types_dim =
       TypeDim::CreateU32(static_cast<uint32_t>(member_types.size()));
 
   // Try to infer the array type from the first member.
-  std::unique_ptr<ArrayType> inferred;
-  if (!member_types.empty()) {
-    inferred = std::make_unique<ArrayType>(member_types[0]->CloneToUnique(),
-                                           member_types_dim);
-  }
+  std::unique_ptr<ArrayType> inferred = std::make_unique<ArrayType>(
+      member_types[0]->CloneToUnique(), member_types_dim);
 
   if (node->type_annotation() == nullptr) {
-    if (inferred != nullptr) {
-      return inferred;
-    }
-
-    return TypeInferenceErrorStatus(node->span(), nullptr,
-                                    "Cannot deduce the type of an empty array.",
-                                    ctx->file_table());
+    return inferred;
   }
 
+  // The type annotation is present, see what it is.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> annotated,
                        ctx->Deduce(node->type_annotation()));
   XLS_ASSIGN_OR_RETURN(
@@ -122,6 +164,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
       "DeduceArray; inferred type annotation `%s` to be `%s`",
       node->type_annotation()->ToString(), annotated->ToString());
 
+  // It must be an array!
   auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
@@ -138,28 +181,40 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
         ctx->file_table());
   }
 
+  const TypeDim& annotation_size = array_type->size();
+
   // If we were presented with the wrong number of elements (vs what the
   // annotated type expected), flag an error.
-  if (array_type->size() != member_types_dim && !node->has_ellipsis()) {
-    std::string message = absl::StrFormat(
-        "Annotated array size %s does not match inferred array size %d.",
-        array_type->size().ToString(), member_types.size());
-    if (inferred == nullptr) {
-      // No type to compare our expectation to, as there was no member to infer
-      // the type from.
-      return TypeInferenceErrorStatus(node->span(), array_type, message,
-                                      ctx->file_table());
+  if (node->has_ellipsis()) {
+    XLS_ASSIGN_OR_RETURN(int64_t annotation_size_i64,
+                         annotation_size.GetAsInt64());
+    // Check that there are <= members vs the annotated type if it's present.
+    if (annotation_size_i64 < member_types.size()) {
+      std::string message = absl::StrFormat(
+          "Annotated array size %s is too small for observed array member "
+          "count %d",
+          array_type->size().ToString(), member_types.size());
+      return ctx->TypeMismatchError(node->span(), nullptr, *array_type, nullptr,
+                                    *inferred, message);
     }
-    return ctx->TypeMismatchError(node->span(), nullptr, *array_type, nullptr,
-                                  *inferred, message);
+  } else {  // No ellipsis.
+    if (annotation_size != member_types_dim) {
+      std::string message = absl::StrFormat(
+          "Annotated array size %s does not match inferred array size %d.",
+          array_type->size().ToString(), member_types.size());
+      if (inferred == nullptr) {
+        // No type to compare our expectation to, as there was no member to
+        // infer the type from.
+        return TypeInferenceErrorStatus(node->span(), array_type, message,
+                                        ctx->file_table());
+      }
+      return ctx->TypeMismatchError(node->span(), nullptr, *array_type, nullptr,
+                                    *inferred, message);
+    }
   }
 
-  // Implementation note: we can only do this after we've checked that the size
-  // is correct (zero elements provided and zero elements expected).
-  if (member_types.empty()) {
-    return annotated;
-  }
-
+  // Check the element type of the annotation is the same as the inferred type
+  // from the element(s).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_element_type,
                        Resolve(array_type->element_type(), ctx));
   if (*resolved_element_type != *member_types[0]) {
@@ -170,6 +225,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
         "element type.");
   }
 
+  // In case of an ellipsis, the annotated type wins out.
   return annotated;
 }
 
