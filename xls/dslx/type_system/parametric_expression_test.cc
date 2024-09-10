@@ -61,5 +61,16 @@ TEST(ParametricExpressionTest, TestNonIdentityEquality) {
             "ParametricAdd(ParametricSymbol(\"s\"), ParametricSymbol(\"s\"))");
 }
 
+TEST(ParametricExpressionTest, TestDiv) {
+  auto param_2 = InterpValue::MakeUBits(32, 2);
+  auto param_8 = InterpValue::MakeUBits(32, 8);
+  auto e = std::make_unique<ParametricDiv>(
+      std::make_unique<ParametricSymbol>("A", kFakeSpan),
+      std::make_unique<ParametricConstant>(param_2));
+  EXPECT_EQ(e->ToString(), "(A/u32:2)");
+  EXPECT_EQ(InterpValue::MakeUBits(32, 4),
+            std::get<InterpValue>(e->Evaluate({{"A", param_8}})));
+}
+
 }  // namespace
 }  // namespace xls::dslx

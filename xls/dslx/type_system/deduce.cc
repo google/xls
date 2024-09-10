@@ -128,10 +128,12 @@ absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
     XLS_ASSIGN_OR_RETURN(auto lhs, ExprToParametric(n->lhs(), ctx));
     XLS_ASSIGN_OR_RETURN(auto rhs, ExprToParametric(n->rhs(), ctx));
     switch (n->binop_kind()) {
-      case BinopKind::kMul:
-        return std::make_unique<ParametricMul>(std::move(lhs), std::move(rhs));
       case BinopKind::kAdd:
         return std::make_unique<ParametricAdd>(std::move(lhs), std::move(rhs));
+      case BinopKind::kDiv:
+        return std::make_unique<ParametricDiv>(std::move(lhs), std::move(rhs));
+      case BinopKind::kMul:
+        return std::make_unique<ParametricMul>(std::move(lhs), std::move(rhs));
       default:
         return absl::InvalidArgumentError(
             "Cannot convert expression to parametric: " + e->ToString());

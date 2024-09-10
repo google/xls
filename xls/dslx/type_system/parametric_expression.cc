@@ -65,6 +65,17 @@ std::unique_ptr<ParametricExpression> ParametricExpression::Mul(
   }
   return std::make_unique<ParametricMul>(ToOwned(lhs), ToOwned(rhs));
 }
+std::unique_ptr<ParametricExpression> ParametricExpression::Div(
+    const EnvValue& lhs, const EnvValue& rhs) {
+  if (std::holds_alternative<InterpValue>(lhs) &&
+      std::holds_alternative<InterpValue>(rhs)) {
+    return std::make_unique<ParametricConstant>(
+        std::get<InterpValue>(lhs)
+            .FloorDiv(std::get<InterpValue>(rhs))
+            .value());
+  }
+  return std::make_unique<ParametricDiv>(ToOwned(lhs), ToOwned(rhs));
+}
 std::unique_ptr<ParametricExpression> ParametricExpression::CeilOfLog2(
     const EnvValue& arg) {
   if (std::holds_alternative<InterpValue>(arg)) {

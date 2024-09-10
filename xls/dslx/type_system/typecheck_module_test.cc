@@ -749,6 +749,21 @@ fn f(x: u32) -> (u32, u8) {
                     "For-loop annotated type did not match inferred type."))));
 }
 
+TEST(TypecheckTest, DerivedParametricStruct) {
+  XLS_EXPECT_OK(Typecheck(R"(
+struct StructFoo<A: u32, B: u32 = {u32:32}, C:u32 = {B / u32:2}> {
+  a: uN[A],
+  b: uN[B],
+  c: uN[C],
+}
+
+fn Foo() {
+  let a = zero!<StructFoo<u32:32>>();
+  let b = StructFoo<u32:32>{a: u32:0, b: u32:1, c: u16:4};
+}
+)"));
+}
+
 TEST(TypecheckTest, DerivedExprTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(

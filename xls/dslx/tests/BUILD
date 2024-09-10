@@ -123,6 +123,11 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "derived_parametric_struct",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
     name = "struct_with_const_sized_array",
     convert_to_ir = False,
 )
