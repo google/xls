@@ -22,10 +22,6 @@
 
 #include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
-#include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/fdo/synthesizer.h"
-#include "xls/ir/node.h"
-#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 ABSL_DECLARE_FLAG(std::optional<std::string>,
@@ -34,16 +30,6 @@ ABSL_DECLARE_FLAG(std::optional<std::string>,
 namespace xls {
 
 absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto();
-
-absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
-    const SchedulingOptionsFlagsProto& flags, Package* p);
-
-absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
-    const SchedulingOptionsFlagsProto& flags);
-absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag(
-    const SchedulingOptionsFlagsProto& flags);
-absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
-    const SchedulingOptions& flags);
 
 }  // namespace xls
 

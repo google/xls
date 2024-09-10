@@ -84,11 +84,19 @@ cc_test(
 
 cc_library(
     name = "scheduling_options",
+    srcs = ["scheduling_options.cc"],
     hdrs = ["scheduling_options.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/tools:scheduling_options_flags_cc_proto",
     ],

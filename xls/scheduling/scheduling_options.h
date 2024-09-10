@@ -24,8 +24,11 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
+#include "xls/ir/package.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
@@ -548,6 +551,14 @@ class SchedulingOptions {
 
 // A map from node to cycle as a bare-bones representation of a schedule.
 using ScheduleCycleMap = absl::flat_hash_map<Node*, int64_t>;
+
+absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
+    const SchedulingOptionsFlagsProto& flags, Package* p);
+
+absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
+    const SchedulingOptionsFlagsProto& flags);
+absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag(
+    const SchedulingOptionsFlagsProto& flags);
 
 }  // namespace xls
 

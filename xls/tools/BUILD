@@ -604,16 +604,9 @@ cc_library(
         ":scheduling_options_flags_cc_proto",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
-        "//xls/estimators/delay_model:delay_estimator",
-        "//xls/estimators/delay_model:delay_estimators",
-        "//xls/fdo:synthesizer",
-        "//xls/ir",
-        "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -660,7 +653,6 @@ cc_library(
     hdrs = ["codegen.h"],
     deps = [
         ":codegen_flags_cc_proto",
-        ":scheduling_options_flags",
         ":scheduling_options_flags_cc_proto",
         "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
@@ -1155,4 +1147,9 @@ py_test(
         "//xls/common:test_base",
         "@com_google_absl_py//absl/testing:absltest",
     ],
+)
+
+py_binary(
+    name = "make_release",
+    srcs = ["make_release.py"],
 )

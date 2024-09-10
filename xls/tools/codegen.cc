@@ -49,7 +49,6 @@
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 #include "xls/tools/codegen_flags.pb.h"
-#include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {

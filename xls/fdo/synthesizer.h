@@ -158,6 +158,10 @@ class SynthesizerManager {
 SynthesizerManager &GetSynthesizerManagerSingleton();
 
 }  // namespace synthesis
+
+absl::StatusOr<synthesis::Synthesizer *> SetUpSynthesizer(
+    const SchedulingOptions &flags);
+
 }  // namespace xls
 
 #endif  // XLS_FDO_SYNTHESIZER_H_

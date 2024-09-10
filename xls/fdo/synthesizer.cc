@@ -201,4 +201,14 @@ SynthesizerManager &GetSynthesizerManagerSingleton() {
 }
 
 }  // namespace synthesis
+
+absl::StatusOr<synthesis::Synthesizer *> SetUpSynthesizer(
+    const SchedulingOptions &flags) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<synthesis::Synthesizer> synthesizer,
+      synthesis::GetSynthesizerManagerSingleton().MakeSynthesizer(
+          flags.fdo_synthesizer_name(), flags));
+  return synthesizer.release();
+}
+
 }  // namespace xls
