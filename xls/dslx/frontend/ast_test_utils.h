@@ -16,9 +16,20 @@
 #define XLS_DSLX_FRONTEND_AST_TEST_UTILS_H_
 
 #include <cstdint>
-#include <utility>
+#include <tuple>
+#include <tuple>
+#include <tuple>
+#include <tuple>
+#include <tuple>
+#include <tuple>
 
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 

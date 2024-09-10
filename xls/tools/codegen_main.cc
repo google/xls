@@ -36,6 +36,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"

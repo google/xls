@@ -29,6 +29,9 @@
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/message.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls {
 namespace internal {

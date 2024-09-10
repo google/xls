@@ -46,9 +46,9 @@
 #include "xls/ir/xls_type.pb.h"
 #include "xls/jit/block_jit.h"
 #include "xls/public/ir_parser.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.pb.h"
-#include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls::verilog {

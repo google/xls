@@ -18,6 +18,8 @@
 #include <string>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_info.pb.h"

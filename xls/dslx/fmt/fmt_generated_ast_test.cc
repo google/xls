@@ -25,6 +25,8 @@
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/fuzzer/ast_generator.h"
 

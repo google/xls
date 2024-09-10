@@ -42,6 +42,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
 #include "xls/common/subprocess.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/cpp_run_fuzz.h"
 #include "xls/fuzzer/sample.h"

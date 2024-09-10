@@ -16,6 +16,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_MAYBE_EXPLAIN_ERROR_H_
 
 #include "absl/status/status.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/type_mismatch_error_data.h"
 
 namespace xls::dslx {

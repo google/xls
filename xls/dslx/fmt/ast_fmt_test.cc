@@ -37,6 +37,11 @@
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
