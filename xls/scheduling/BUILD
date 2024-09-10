@@ -98,6 +98,7 @@ cc_library(
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
+        "//xls/passes:optimization_pass",
         "//xls/tools:scheduling_options_flags_cc_proto",
     ],
 )
@@ -385,6 +386,7 @@ cc_library(
         ":scheduling_wrapper_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:literal_uncommoning_pass",
+        "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
     ],
 )

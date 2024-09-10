@@ -22,11 +22,16 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 // LINT.IfChange
+ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
+          absl::StrFormat("Optimization level. Ranges from 1 to %d.",
+                          xls::kMaxOptLevel));
 ABSL_FLAG(int64_t, clock_period_ps, 0,
           "Target clock period, in picoseconds. See "
           "https://google.github.io/xls/scheduling for details.");
@@ -181,6 +186,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
     } while (0);                                                              \
   }
   bool any_flags_set = false;
+  POPULATE_FLAG(opt_level);
   POPULATE_FLAG(clock_period_ps);
   POPULATE_FLAG(pipeline_stages);
   POPULATE_FLAG(delay_model);

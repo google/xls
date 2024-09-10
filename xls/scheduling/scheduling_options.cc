@@ -39,6 +39,9 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   // Some fields are pre-initialized with defaults
   SchedulingOptions scheduling_options;
 
+  if (proto.has_opt_level()) {
+    scheduling_options.opt_level(proto.opt_level());
+  }
   if (proto.pipeline_stages() != 0) {
     scheduling_options.pipeline_stages(proto.pipeline_stages());
   }
