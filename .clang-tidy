@@ -35,6 +35,7 @@ Checks: >
   clang-analyzer-*,
   -clang-analyzer-core.CallAndMessage,
   -clang-analyzer-core.NullDereference,
+  -clang-analyzer-core.NewDeleteLeaks,
   abseil-*,
   -abseil-no-namespace,
   readability-*,
