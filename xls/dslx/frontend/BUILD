@@ -191,6 +191,7 @@ cc_test(
         ":ast_utils",
         ":module",
         ":parser",
+        ":pos",
         ":scanner",
         "@com_google_absl//absl/log",
         "//xls/common:casts",

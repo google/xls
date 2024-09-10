@@ -15,7 +15,6 @@
 #include "xls/dslx/frontend/pos.h"
 
 #include <cstdint>
-#include <string>
 #include <string_view>
 
 #include "absl/status/status.h"
@@ -27,14 +26,15 @@ namespace xls::dslx {
 
 /* static */ absl::StatusOr<Span> Span::FromString(std::string_view s,
                                                    FileTable& file_table) {
-  std::string filename;
+  static const LazyRE2 kFileLocationSpanRe = {
+      .pattern_ = R"((.*):(\d+):(\d+)-(\d+):(\d+))"};
+  std::string_view filename;
   int64_t start_lineno, start_colno, limit_lineno, limit_colno;
-  if (RE2::FullMatch(s, R"((.*):(\d+):(\d+)-(\d+):(\d+))", &filename,
-                     &start_lineno, &start_colno, &limit_lineno,
-                     &limit_colno)) {
+  if (RE2::FullMatch(s, *kFileLocationSpanRe, &filename, &start_lineno,
+                     &start_colno, &limit_lineno, &limit_colno)) {
     // The values used for display are 1-based, whereas the backing storage is
     // zero-based.
-    Fileno fileno = file_table.GetOrCreate(filename);
+    const Fileno fileno = file_table.GetOrCreate(filename);
     return Span(Pos(fileno, start_lineno - 1, start_colno - 1),
                 Pos(fileno, limit_lineno - 1, limit_colno - 1));
   }
@@ -45,10 +45,11 @@ namespace xls::dslx {
 
 /* static */ absl::StatusOr<Pos> Pos::FromString(std::string_view s,
                                                  FileTable& file_table) {
-  std::string filename;
+  static const LazyRE2 kFileLocationRe = {.pattern_ = R"((.*):(\d+):(\d+))"};
+  std::string_view filename;
   int64_t lineno, colno;
-  if (RE2::FullMatch(s, "(.*):(\\d+):(\\d+)", &filename, &lineno, &colno)) {
-    Fileno fileno = file_table.GetOrCreate(filename);
+  if (RE2::FullMatch(s, *kFileLocationRe, &filename, &lineno, &colno)) {
+    const Fileno fileno = file_table.GetOrCreate(filename);
     return Pos(fileno, lineno - 1, colno - 1);
   }
 

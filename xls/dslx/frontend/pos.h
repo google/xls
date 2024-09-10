@@ -67,6 +67,7 @@ class FileTable {
 // Represents a position in the text (file, line, column).
 class Pos {
  public:
+  // Parse "<filename>:<line>:<col>" and convert to Position.
   static absl::StatusOr<Pos> FromString(std::string_view s,
                                         FileTable& file_table);
 
@@ -144,6 +145,7 @@ inline std::ostream& operator<<(std::ostream& os, const Pos& pos) {
 // Represents a positional span in the text.
 class Span {
  public:
+  // Parse "<filename>:<line>:<col>-<line>:<col>" and convert to Span.
   static absl::StatusOr<Span> FromString(std::string_view s,
                                          FileTable& file_table);
   static Span Fake() { return Span(Pos(), Pos()); }

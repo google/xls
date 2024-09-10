@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
