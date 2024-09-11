@@ -819,6 +819,7 @@ cc_test(
         "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
@@ -855,7 +856,6 @@ cc_test(
         "testdata/ir_parser_round_trip_test_*.ir",
     ]),
     deps = [
-        ":channel_cc_proto",
         ":ir",
         ":ir_parser",
         "//xls/common:golden_files",
@@ -864,7 +864,6 @@ cc_test(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",

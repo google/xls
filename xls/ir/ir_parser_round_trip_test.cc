@@ -19,10 +19,7 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
-#include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/file/filesystem.h"
@@ -30,7 +27,6 @@
 #include "xls/common/golden_files.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"

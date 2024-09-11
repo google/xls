@@ -16,7 +16,6 @@
 #define XLS_PASSES_PROC_STATE_ARRAY_FLATTENING_PASS_H_
 
 #include <cstdint>
-#include <limits>
 #include <string_view>
 
 #include "absl/status/statusor.h"
