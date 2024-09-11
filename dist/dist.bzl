@@ -14,8 +14,8 @@
 
 """Provides utility rules for naming release artifacts."""
 
-load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
 
 def _xls_release(ctx):
     values = {

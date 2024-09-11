@@ -29,6 +29,10 @@ cc_library(
     srcs = ["pretty_print.cc"],
     hdrs = ["pretty_print.h"],
     deps = [
+        "//xls/common:strong_int",
+        "//xls/common:visitor",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:token",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -36,10 +40,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
-        "//xls/common:strong_int",
-        "//xls/common:visitor",
-        "//xls/dslx/frontend:pos",
-        "//xls/dslx/frontend:token",
     ],
 )
 
@@ -48,9 +48,9 @@ cc_test(
     srcs = ["pretty_print_test.cc"],
     deps = [
         ":pretty_print",
-        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/dslx/frontend:pos",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -60,14 +60,6 @@ cc_library(
     hdrs = ["ast_fmt.h"],
     deps = [
         ":pretty_print",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
         "//xls/dslx:channel_direction",
         "//xls/dslx/frontend:ast",
@@ -78,6 +70,14 @@ cc_library(
         "//xls/dslx/frontend:token",
         "//xls/dslx/frontend:token_utils",
         "//xls/ir:format_strings",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -87,12 +87,6 @@ cc_test(
     deps = [
         ":ast_fmt",
         ":pretty_print",
-        "@com_google_googletest//:gtest",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -105,6 +99,12 @@ cc_test(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -114,9 +114,6 @@ cc_test(
     shard_count = 50,
     deps = [
         ":ast_fmt",
-        "@com_google_googletest//:gtest",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/random",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -125,5 +122,8 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "//xls/fuzzer:ast_generator",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/random",
+        "@com_google_googletest//:gtest",
     ],
 )

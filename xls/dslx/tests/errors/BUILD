@@ -35,9 +35,9 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/logging",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 

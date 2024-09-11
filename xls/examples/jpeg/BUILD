@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -191,10 +191,10 @@ cc_test(
     srcs = ["idct_chen_jit_wrapper_test.cc"],
     deps = [
         ":idct_chen_jit_wrapper",
-        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -211,6 +211,8 @@ cc_library(
     hdrs = ["streams.h"],
     deps = [
         ":constants",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -218,8 +220,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -229,11 +229,11 @@ cc_test(
     deps = [
         ":constants",
         ":streams",
-        "@com_google_googletest//:gtest",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -245,16 +245,16 @@ cc_library(
         ":constants",
         ":idct_chen_jit_wrapper",
         ":streams",
+        "//xls/common:math_util",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_view",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:math_util",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_view",
     ],
 )
 
@@ -265,11 +265,11 @@ cc_test(
         ":constants",
         ":jpeg_grm",
         ":streams",
-        "@com_google_googletest//:gtest",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )
 

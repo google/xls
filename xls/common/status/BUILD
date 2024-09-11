@@ -42,8 +42,8 @@ cc_test(
     deps = [
         ":error_code_to_status",
         ":matchers",
-        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -55,11 +55,11 @@ cc_library(
     deps = [
         ":status_builder",
         ":status_macros",
+        "//xls/common:source_location",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:source_location",
     ],
 )
 
@@ -69,11 +69,11 @@ cc_test(
     deps = [
         ":matchers",
         ":ret_check",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:scoped_mock_log",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/logging:scoped_mock_log",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -86,6 +86,8 @@ cc_library(
     ],
     hdrs = ["status_builder.h"],
     deps = [
+        "//xls/common:source_location",
+        "//xls/common:symbolized_stacktrace",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -98,8 +100,6 @@ cc_library(
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "//xls/common:source_location",
-        "//xls/common:symbolized_stacktrace",
     ],
 )
 
@@ -108,6 +108,9 @@ cc_test(
     srcs = ["status_builder_test.cc"],
     deps = [
         ":status_builder",
+        "//xls/common:source_location",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:scoped_mock_log",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/log:globals",
         "@com_google_absl//absl/log:log_entry",
@@ -116,9 +119,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
-        "//xls/common:source_location",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/logging:scoped_mock_log",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -129,9 +129,9 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         ":status_builder",
+        "//xls/common:source_location",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
-        "//xls/common:source_location",
     ],
 )
 
@@ -141,9 +141,9 @@ cc_test(
     deps = [
         ":status_builder",
         ":status_macros",
+        "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
 )

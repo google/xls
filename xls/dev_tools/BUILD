@@ -29,13 +29,13 @@ cc_binary(
     name = "run_clang_tidy_cached",
     srcs = ["run_clang_tidy_cached.cc"],
     deps = [
+        "//xls/common:subprocess",
+        "//xls/common:thread",
+        "//xls/common/file:filesystem",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
-        "//xls/common:subprocess",
-        "//xls/common:thread",
-        "//xls/common/file:filesystem",
         "@com_googlesource_code_re2//:re2",
     ],
 )
@@ -45,9 +45,9 @@ cc_library(
     srcs = ["tool_timeout.cc"],
     hdrs = ["tool_timeout.h"],
     deps = [
+        "//xls/common:timeout_support",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/time",
-        "//xls/common:timeout_support",
     ],
 )
 
@@ -57,12 +57,12 @@ cc_binary(
     srcs = ["tool_timeout_test_main.cc"],
     deps = [
         ":tool_timeout",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/time",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
     ],
 )
 
@@ -73,8 +73,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -125,9 +125,6 @@ cc_binary(
     srcs = ["extract_interface_main.cc"],
     deps = [
         ":extract_interface",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -135,6 +132,9 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/ir:xls_ir_interface_cc_proto",
         "//xls/public:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -159,14 +159,6 @@ cc_binary(
     name = "extract_sample_points_from_ir_main",
     srcs = ["extract_sample_points_from_ir_main.cc"],
     deps = [
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/functional:any_invocable",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -176,6 +168,14 @@ cc_binary(
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/estimators/delay_model:sample_point_extraction_utils",
         "//xls/ir:ir_parser",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -187,11 +187,11 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:gfile",
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/estimators:estimator_model_py_pb2",
+        "@com_google_absl_py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -201,12 +201,6 @@ cc_library(
     srcs = ["extract_segment.cc"],
     hdrs = ["extract_segment.h"],
     deps = [
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -214,6 +208,12 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:type",
         "//xls/passes:node_dependency_analysis",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -222,11 +222,6 @@ cc_binary(
     srcs = ["extract_segment_main.cc"],
     deps = [
         ":extract_segment",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -234,6 +229,11 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/public:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -244,8 +244,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -269,15 +269,15 @@ cc_library(
     srcs = ["remove_identifiers.cc"],
     hdrs = ["remove_identifiers.h"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:source_location",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -286,7 +286,6 @@ cc_test(
     srcs = ["remove_identifiers_test.cc"],
     deps = [
         ":remove_identifiers",
-        "@com_google_absl//absl/algorithm:container",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -296,6 +295,7 @@ cc_test(
         "//xls/ir:register",
         "//xls/ir:source_location",
         "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -305,16 +305,16 @@ cc_binary(
     srcs = ["remove_identifiers_main.cc"],
     deps = [
         ":remove_identifiers",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -322,14 +322,14 @@ cc_binary(
     name = "ir_stats_main",
     srcs = ["ir_stats_main.cc"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/ir:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -337,9 +337,6 @@ cc_binary(
     name = "extract_stage_main",
     srcs = ["extract_stage_main.cc"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -349,6 +346,9 @@ cc_binary(
         "//xls/scheduling:extract_stage",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:pipeline_schedule_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -364,10 +364,10 @@ py_binary(
     main = "dump_llvm_artifacts_main.py",
     visibility = ["//xls:xls_internal"],
     deps = [
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
         "//xls/common:runfiles",
         "//xls/jit:aot_entrypoint_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
     ],
 )
 
@@ -379,8 +379,8 @@ py_test(
         "@llvm-project//llvm:lli",
     ],
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -389,13 +389,6 @@ cc_library(
     srcs = ["booleanifier.cc"],
     hdrs = ["booleanifier.h"],
     deps = [
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -407,6 +400,13 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -419,9 +419,6 @@ cc_test(
     shard_count = 4,
     deps = [
         ":booleanifier",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/time",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -436,6 +433,9 @@ cc_test(
         "//xls/ir:value",
         "//xls/ir:value_builder",
         "//xls/jit:function_jit",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -446,14 +446,14 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":booleanifier",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -462,15 +462,6 @@ cc_binary(
     srcs = ["check_ir_equivalence_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -492,6 +483,15 @@ cc_binary(
         "//xls/scheduling:scheduling_pass",
         "//xls/solvers:z3_ir_equivalence",
         "//xls/solvers:z3_ir_translator",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -504,8 +504,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -536,20 +536,6 @@ cc_binary(
     ],
     deps = [
         ":extract_segment",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/random:bit_gen_ref",
-        "@com_google_absl//absl/random:distributions",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
@@ -593,6 +579,20 @@ cc_binary(
         "//xls/passes:proc_state_optimization_pass",
         "//xls/passes:proc_state_tuple_flattening_pass",
         "//xls/passes:unroll_pass",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -603,8 +603,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -625,17 +625,6 @@ cc_binary(
     srcs = ["benchmark_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
         "//xls/codegen:module_signature",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -677,6 +666,17 @@ cc_binary(
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags",
         "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -684,13 +684,6 @@ cc_binary(
     name = "benchmark_codegen_main",
     srcs = ["benchmark_codegen_main.cc"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
         "//xls/codegen:block_metrics",
         "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
@@ -713,6 +706,13 @@ cc_binary(
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags",
         "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
     ],
 )
 
@@ -725,8 +725,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )

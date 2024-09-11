@@ -60,8 +60,8 @@ py_test(
         ":simple_unsigned_pipelined_loop_fsm.opt.ir.interface.binpb",
     ],
     deps = [
-        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/ir:xls_ir_interface_py_pb2",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )

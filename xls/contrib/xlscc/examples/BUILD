@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "proto_data",
@@ -548,7 +548,6 @@ cc_test(
     srcs = ["mux3_opt_ir_test.cc"],
     data = [":mux3_opt_ir.opt.ir"],
     deps = [
-        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -556,6 +555,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -567,7 +567,6 @@ cc_test(
         ":mux3_stages_5_v.sv",
     ],
     deps = [
-        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -575,5 +574,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
     ],
 )

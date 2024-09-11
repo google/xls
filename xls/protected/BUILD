@@ -29,9 +29,9 @@ cc_library(
     name = "call_graph",
     hdrs = ["call_graph.h"],
     deps = [
+        "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
-        "//xls/ir",
     ],
 )
 

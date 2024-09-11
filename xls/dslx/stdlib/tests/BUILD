@@ -92,10 +92,10 @@ cc_test(
     deps = [
         ":umul_with_overflow_21_21_18_jit_wrapper",
         ":umul_with_overflow_35_32_18_jit_wrapper",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -119,13 +119,13 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float32_add_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -139,13 +139,13 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float32_mul_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -182,12 +182,12 @@ cc_test(
     deps = [
         ":float32_test_utils",
         ":float32_upcast_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -196,13 +196,13 @@ cc_test(
     srcs = ["float32_test.cc"],
     tags = ["optonly"],
     deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_from_int32_wrapper",
         "//xls/dslx/stdlib:float32_to_int32_wrapper",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -216,11 +216,6 @@ cc_binary(
         "//xls/dslx/stdlib:float32_add.opt.ir",
     ],
     deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -230,6 +225,11 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
         "@z3//:api",
     ],
 )
@@ -244,16 +244,16 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float32_fma_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -267,17 +267,17 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/dslx/stdlib:float32_ldexp_jit_wrapper",
+        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/dslx/stdlib:float32_ldexp_jit_wrapper",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
     ],
 )
 
@@ -291,13 +291,13 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float32_fast_rsqrt_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -319,15 +319,15 @@ cc_test(
     ],
     tags = ["optonly"],
     deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/dslx/stdlib:float64_add_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -341,13 +341,13 @@ cc_test(
     # Flakes in fastbuild seen on 2021-06-04.
     tags = ["optonly"],
     deps = [
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float64_mul_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -360,17 +360,17 @@ cc_test(
     ],
     tags = ["optonly"],
     deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/dslx/stdlib:float64_fma_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -384,13 +384,13 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float32_ceil_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -404,13 +404,13 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float32_floor_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -424,12 +424,12 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":float32_test_utils",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx/stdlib:float32_trunc_jit_wrapper",
         "//xls/tools:testbench",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
     ],
 )

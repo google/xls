@@ -31,8 +31,8 @@ cc_library(
     srcs = ["file_descriptor.cc"],
     hdrs = ["file_descriptor.h"],
     deps = [
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:error_code_to_status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -54,13 +54,13 @@ cc_library(
     srcs = ["filesystem.cc"],
     hdrs = ["filesystem.h"],
     deps = [
+        "//xls/common/status:error_code_to_status",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common/status:error_code_to_status",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
         "@com_google_protobuf//:protobuf",
         "@com_google_protobuf//src/google/protobuf/io",
         "@com_google_protobuf//src/google/protobuf/io:tokenizer",
@@ -76,10 +76,10 @@ cc_test(
         ":filesystem_test_cc_proto",
         ":temp_directory",
         ":temp_file",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -101,13 +101,13 @@ cc_library(
     visibility = ["//xls:xls_utility_users"],
     deps = [
         ":filesystem",
+        "//xls/common/status:status_macros",
+        "@bazel_tools//tools/cpp/runfiles",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
-        "//xls/common/status:status_macros",
-        "@bazel_tools//tools/cpp/runfiles",
     ],
 )
 
@@ -118,9 +118,9 @@ cc_test(
     deps = [
         ":filesystem",
         ":get_runfile_path",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -130,8 +130,8 @@ cc_library(
     srcs = ["path.cc"],
     hdrs = ["path.h"],
     deps = [
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:error_code_to_status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -176,12 +176,12 @@ cc_library(
     srcs = ["temp_file.cc"],
     hdrs = ["temp_file.h"],
     deps = [
+        "//xls/common:strerror",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common:strerror",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -191,12 +191,12 @@ cc_library(
     hdrs = ["named_pipe.h"],
     deps = [
         ":file_descriptor",
+        "//xls/common/status:error_code_to_status",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common/status:error_code_to_status",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -207,13 +207,13 @@ cc_test(
         ":filesystem",
         ":named_pipe",
         ":temp_directory",
+        "//xls/common:thread",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
-        "//xls/common:thread",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -224,10 +224,10 @@ cc_test(
     deps = [
         ":filesystem",
         ":temp_file",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )

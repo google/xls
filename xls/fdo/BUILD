@@ -27,15 +27,15 @@ cc_library(
     srcs = ["extract_nodes.cc"],
     hdrs = ["extract_nodes.h"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -44,12 +44,12 @@ cc_test(
     srcs = ["extract_nodes_test.cc"],
     deps = [
         ":extract_nodes",
-        "@com_google_absl//absl/container:flat_hash_set",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -60,13 +60,13 @@ cc_library(
     hdrs = ["grpc_synthesizer.h"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:casts",
         "//xls/common:module_initializer",
         "//xls/common/status:status_macros",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_client",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
     ],
     alwayslink = True,  # Always link because it has a module-level initialization that registers the synthesizer.
 )
@@ -77,14 +77,14 @@ cc_library(
     hdrs = ["synthesized_delay_diff_utils.h"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:analyze_critical_path",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/scheduling:extract_stage",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -94,8 +94,6 @@ cc_test(
     deps = [
         ":synthesized_delay_diff_utils",
         ":synthesizer",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/estimators/delay_model:analyze_critical_path",
@@ -104,6 +102,8 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -114,14 +114,6 @@ cc_library(
     hdrs = ["synthesizer.h"],
     deps = [
         ":extract_nodes",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/codegen:block_conversion",
         "//xls/codegen:block_generator",
         "//xls/codegen:codegen_options",
@@ -133,6 +125,14 @@ cc_library(
         "//xls/ir",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -141,12 +141,12 @@ cc_test(
     srcs = ["synthesizer_test.cc"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -157,15 +157,15 @@ cc_library(
     hdrs = ["yosys_synthesizer.h"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:casts",
         "//xls/common:module_initializer",
         "//xls/common/status:status_macros",
         "//xls/scheduling:scheduling_options",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis/yosys:yosys_synthesis_service",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
     alwayslink = True,  # Always link because it has a module-level initialization that registers the synthesizer.
 )
@@ -175,6 +175,12 @@ cc_library(
     srcs = ["delay_manager.cc"],
     hdrs = ["delay_manager.h"],
     deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/functional:function_ref",
@@ -182,12 +188,6 @@ cc_library(
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/estimators/delay_model:delay_estimator",
-        "//xls/ir",
-        "//xls/ir:op",
-        "//xls/scheduling:scheduling_options",
     ],
 )
 
@@ -196,13 +196,13 @@ cc_test(
     srcs = ["delay_manager_test.cc"],
     deps = [
         ":delay_manager",
-        "@com_google_absl//absl/container:flat_hash_map",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -213,10 +213,10 @@ cc_library(
     hdrs = ["delay_synthesis_service.h"],
     deps = [
         ":synthesizer",
-        "@com_google_absl//absl/status:statusor",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
         "@com_github_grpc_grpc//:grpc++_public_hdrs",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -225,16 +225,16 @@ cc_library(
     srcs = ["node_cut.cc"],
     hdrs = ["node_cut.h"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -243,13 +243,13 @@ cc_test(
     srcs = ["node_cut_test.cc"],
     deps = [
         ":node_cut",
-        "@com_google_absl//absl/container:flat_hash_set",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -263,6 +263,13 @@ cc_library(
         ":node_cut",
         ":synthesizer",
         ":yosys_synthesizer",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:sdc_scheduler",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -273,13 +280,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging:log_lines",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:op",
-        "//xls/scheduling:scheduling_options",
-        "//xls/scheduling:sdc_scheduler",
         "@com_google_ortools//ortools/math_opt/cpp:math_opt",
     ],
 )

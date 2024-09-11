@@ -156,15 +156,15 @@ cc_library(
         "@zstd//:decodecorpus",
     ],
     deps = [
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "//xls/common:subprocess",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -215,9 +215,6 @@ cc_test(
     shard_count = 50,
     deps = [
         ":data_generator",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -233,8 +230,11 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:value",
         "//xls/simulation:sim_test_base",
-        "@zstd",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
+        "@zstd",
     ],
 )
 
@@ -1012,10 +1012,6 @@ cc_test(
     shard_count = 50,
     deps = [
         ":data_generator",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -1030,8 +1026,12 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/jit:jit_proc_runtime",
-        "@zstd",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
+        "@zstd",
     ],
 )
 

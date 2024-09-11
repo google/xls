@@ -32,15 +32,15 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
         "//xls/estimators:op_module_generator",
         "//xls/synthesis:client_credentials",
         "//xls/synthesis:synthesis_py_pb2",
         "//xls/synthesis:synthesis_service_py_pb2_grpc",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -50,10 +50,10 @@ cc_library(
     hdrs = ["area_estimator.h"],
     deps = [
         ":models",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 

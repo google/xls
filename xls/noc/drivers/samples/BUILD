@@ -27,8 +27,6 @@ cc_library(
     srcs = ["simple_vc_experiment.cc"],
     hdrs = ["simple_vc_experiment.h"],
     deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
@@ -36,6 +34,8 @@ cc_library(
         "//xls/noc/drivers:experiment_factory",
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:traffic_description",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -44,9 +44,6 @@ cc_library(
     srcs = ["aggregate_tree_experiment.cc"],
     hdrs = ["aggregate_tree_experiment.h"],
     deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
         "//xls/noc/config:network_config_cc_proto",
         "//xls/noc/config:network_config_proto_builder",
@@ -54,5 +51,8 @@ cc_library(
         "//xls/noc/drivers:experiment_factory",
         "//xls/noc/simulation:common",
         "//xls/noc/simulation:traffic_description",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )

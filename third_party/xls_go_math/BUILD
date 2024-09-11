@@ -1,5 +1,6 @@
 # XLS libraries ported from Go math library.
 
+load("@rules_license//rules:license.bzl", "license")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -9,7 +10,6 @@ load(
     "xls_dslx_test",
     "xls_eval_ir_test",
 )
-load("@rules_license//rules:license.bzl", "license")
 
 package(
     default_applicable_licenses = [":license"],
@@ -79,9 +79,6 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fpexp_32_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/common/file:get_runfile_path",
@@ -89,6 +86,9 @@ cc_test(
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -152,16 +152,16 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fp_sincos_32_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "//xls/common:init_xls",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -218,17 +218,17 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fp_trig_reduce_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/numeric:int128",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "//xls/common:init_xls",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -281,9 +281,6 @@ cc_test(
     tags = ["optonly"],
     deps = [
         ":fpsqrt_32_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/common/file:get_runfile_path",
@@ -291,5 +288,8 @@ cc_test(
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
         "//xls/tools:testbench_builder",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
     ],
 )

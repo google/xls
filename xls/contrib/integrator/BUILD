@@ -36,14 +36,6 @@ cc_library(
     hdrs = ["ir_integrator.h"],
     deps = [
         ":integration_options",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/container:node_hash_map",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -52,6 +44,14 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -61,9 +61,6 @@ cc_test(
     deps = [
         ":integration_options",
         ":ir_integrator",
-        "@com_google_googletest//:gtest",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -72,6 +69,9 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -82,17 +82,17 @@ cc_library(
     deps = [
         ":integration_options",
         ":ir_integrator",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/contrib/integrator/integration_algorithms:basic_integration_algorithm",
         "//xls/ir",
         "//xls/ir:name_uniquer",
         "//xls/ir:op",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -101,7 +101,6 @@ cc_test(
     srcs = ["integration_builder_test.cc"],
     deps = [
         ":integration_builder",
-        "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
@@ -110,5 +109,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:verifier",
+        "@com_google_googletest//:gtest",
     ],
 )

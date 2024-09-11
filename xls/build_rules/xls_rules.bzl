@@ -16,8 +16,8 @@
 This module contains build rules for XLS.
 """
 
-load("@rules_hdl//pdk:build_defs.bzl", "StandardCellInfo")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@rules_hdl//pdk:build_defs.bzl", "StandardCellInfo")
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "xls_ir_verilog_attrs",

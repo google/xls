@@ -14,6 +14,7 @@
 
 # Interpreter-based standalone tests.
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
@@ -25,7 +26,6 @@ load(
 )
 load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 load("//xls/dslx/tests:build_defs.bzl", "dslx_lang_test")
-load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 package(
     default_applicable_licenses = ["//:license"],

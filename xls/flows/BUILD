@@ -27,13 +27,6 @@ cc_library(
     srcs = ["ir_wrapper.cc"],
     hdrs = ["ir_wrapper.h"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -59,6 +52,13 @@ cc_library(
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",
         "//xls/passes:optimization_pass_pipeline",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -68,10 +68,6 @@ cc_test(
     data = glob(["testdata/*.ir"]),
     deps = [
         ":ir_wrapper",
-        "@com_google_googletest//:gtest",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
@@ -86,5 +82,9 @@ cc_test(
         "//xls/ir:value",
         "//xls/ir:value_view",
         "//xls/jit:function_jit",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
     ],
 )

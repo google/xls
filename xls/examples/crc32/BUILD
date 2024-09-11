@@ -81,10 +81,10 @@ cc_binary(
     name = "crc32_reference",
     srcs = ["crc32_reference.cc"],
     deps = [
+        "//xls/common:init_xls",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:span",
-        "//xls/common:init_xls",
     ],
 )

@@ -43,7 +43,6 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xlscc_providers_bzl",
-        "@bazel_skylib//lib:dicts",
         "//xls/build_rules:xls_codegen_rules_bzl",
         "//xls/build_rules:xls_common_rules_bzl",
         "//xls/build_rules:xls_config_rules_bzl",
@@ -51,6 +50,7 @@ bzl_library(
         "//xls/build_rules:xls_providers_bzl",
         "//xls/build_rules:xls_toolchains_bzl",
         "//xls/build_rules:xls_type_check_utils_bzl",
+        "@bazel_skylib//lib:dicts",
     ],
 )
 

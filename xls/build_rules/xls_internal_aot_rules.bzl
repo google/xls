@@ -18,6 +18,7 @@ This module contains rules for generating AOT compiled ir entrypoints.
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "get_input_infos",
@@ -41,7 +42,6 @@ load(
     "//xls/build_rules:xls_utilities.bzl",
     "BoolConfigSettingInfo",
 )
-load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 
 _PROTO_FILE_EXTENSION = ".pb"
 

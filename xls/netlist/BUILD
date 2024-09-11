@@ -35,6 +35,8 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":cell_library",
+        "//xls/common:bits_util",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -42,8 +44,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:bits_util",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -56,10 +56,10 @@ cc_library(
     deps = [
         ":cell_library",
         ":netlist_cc_proto",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -73,6 +73,9 @@ cc_library(
         ":cell_library",
         ":function_parser",
         ":netlist",
+        "//xls/common:thread",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -84,9 +87,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
-        "//xls/common:thread",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -102,11 +102,11 @@ cc_test(
         ":netlist",
         ":netlist_cc_proto",
         ":netlist_parser",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/time",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -119,6 +119,11 @@ cc_library(
     deps = [
         ":cell_library",
         ":netlist",
+        "//xls/common:string_to_int",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir:bits",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -127,11 +132,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common:string_to_int",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/data_structures:inline_bitmap",
-        "//xls/ir:bits",
         "@com_googlesource_code_re2//:re2",
     ],
 )
@@ -144,12 +144,12 @@ cc_test(
         ":fake_cell_library",
         ":netlist",
         ":netlist_parser",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -171,6 +171,8 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":netlist_cc_proto",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -178,8 +180,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -189,9 +189,9 @@ cc_test(
     deps = [
         ":cell_library",
         ":netlist_cc_proto",
-        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:differencer",
         "@com_google_protobuf//:protobuf",
@@ -207,14 +207,14 @@ cc_binary(
         ":netlist",
         ":netlist_cc_proto",
         ":netlist_parser",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -233,12 +233,12 @@ cc_library(
     deps = [
         ":cell_library",
         ":netlist",
+        "//xls/data_structures:union_find",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/data_structures:union_find",
     ],
 )
 
@@ -264,14 +264,14 @@ cc_library(
     deps = [
         ":cell_library",
         ":netlist",
+        "//xls/common:math_util",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common:math_util",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -296,6 +296,7 @@ cc_library(
     hdrs = ["lib_parser.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log",
@@ -305,7 +306,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -314,11 +314,11 @@ cc_test(
     srcs = ["lib_parser_test.cc"],
     deps = [
         ":lib_parser",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -331,6 +331,8 @@ cc_library(
     deps = [
         ":lib_parser",
         ":netlist_cc_proto",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
@@ -338,8 +340,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -350,14 +350,14 @@ cc_binary(
         ":function_extractor",
         ":lib_parser",
         ":netlist_cc_proto",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -369,9 +369,9 @@ cc_test(
         ":function_extractor",
         ":lib_parser",
         ":netlist_cc_proto",
-        "@com_google_absl//absl/container:flat_hash_set",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -381,13 +381,13 @@ cc_library(
     srcs = ["function_parser.cc"],
     hdrs = ["function_parser.h"],
     deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
     ],
 )
 
@@ -413,12 +413,6 @@ cc_binary(
         ":netlist",
         ":netlist_cc_proto",
         ":netlist_parser",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
         "//xls/codegen:flattening",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -432,6 +426,12 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
