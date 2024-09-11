@@ -410,6 +410,7 @@ cc_binary(
         ":function_extractor",
         ":interpreter",
         ":lib_parser",
+        ":netlist",
         ":netlist_cc_proto",
         ":netlist_parser",
         "@com_google_absl//absl/flags:flag",
@@ -431,7 +432,6 @@ cc_binary(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/netlist",
     ],
 )
 
