@@ -646,16 +646,16 @@ class AbstractEvaluator {
     for (absl::Span<const Element> case_span : cases) {
       CHECK_EQ(case_span.size(), width);
     }
-    Vector result(cases[0].begin(), cases[0].end());
-    Element already_found = selector[0];
-    for (int64_t i = 1; i < selector.size(); ++i) {
-      result =
-          IfBits(And(Not(already_found), selector[i]), /*consequent=*/cases[i],
-                 /*alternate=*/result);
-      already_found = Or(already_found, selector[i]);
+    if (!selector_can_be_zero) {
+      CHECK(!cases.empty());
+      default_value = cases.back();
+      selector.remove_suffix(1);
+      cases.remove_suffix(1);
     }
-    if (selector_can_be_zero) {
-      return IfBits(already_found, result, default_value);
+    Vector result(default_value.begin(), default_value.end());
+    for (int64_t i = selector.size() - 1; i >= 0; --i) {
+      result = IfBits(selector[i], /*consequent=*/cases[i],
+                      /*alternate=*/result);
     }
     return result;
   }
