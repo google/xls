@@ -151,6 +151,7 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:casts",
         "//xls/common:visitor",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
