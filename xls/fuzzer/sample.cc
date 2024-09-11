@@ -277,6 +277,7 @@ std::string Sample::Serialize(
     std::optional<std::string_view> error_message) const {
   std::vector<std::string> lines;
   lines.push_back(absl::StrFormat("// %s", kStartConfig));
+  lines.push_back("// # proto-message: xls.fuzzer.CrasherConfigurationProto");
 
   fuzzer::CrasherConfigurationProto config;
   if (error_message.has_value()) {
