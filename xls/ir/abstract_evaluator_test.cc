@@ -405,6 +405,26 @@ TEST(AbstractEvaluatorTest, BitSliceUpdate) {
   test_eq(0x12, UBits(0x12, 8), UBits(8, 32), UBits(0xabcd, 16));
 }
 
+TEST(AbstractEvaluatorTest, BitSliceUpdateConsts) {
+  TestAbstractEvaluator eval;
+  auto test_eq = [&](int64_t expected, const Bits& a, const int64_t& start,
+                     const Bits& value) {
+    EXPECT_EQ(UBits(expected, a.bit_count()),
+              FromBoxedVector(eval.BitSliceUpdate(ToBoxedVector(a), start,
+                                                  ToBoxedVector(value))));
+  };
+
+  test_eq(0x123f, UBits(0x1234, 16), 0, UBits(0xf, 4));
+  test_eq(0x12f4, UBits(0x1234, 16), 4, UBits(0xf, 4));
+  test_eq(0xf234, UBits(0x1234, 16), 12, UBits(0xf, 4));
+  test_eq(0x1234, UBits(0x1234, 16), 16, UBits(0xf, 4));
+  test_eq(0x1234, UBits(0x1234, 16), 100000, UBits(0xf, 4));
+
+  test_eq(0xcd, UBits(0x12, 8), 0, UBits(0xabcd, 16));
+  test_eq(0xd2, UBits(0x12, 8), 4, UBits(0xabcd, 16));
+  test_eq(0x12, UBits(0x12, 8), 8, UBits(0xabcd, 16));
+}
+
 void UMulMatches32BitMultiplication(uint32_t a, uint32_t b) {
   TestAbstractEvaluator eval;
   Bits a_bits = UBits(a, 32);

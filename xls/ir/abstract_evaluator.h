@@ -267,6 +267,18 @@ class AbstractEvaluator {
     return Shift(input, amount, /*right=*/false, /*arithmetic=*/false);
   }
 
+  Vector BitSliceUpdate(Span input, int64_t start, Span value) {
+    if (start > input.size()) {
+      return Vector(input.begin(), input.end());
+    }
+    int64_t remaining = start + value.size() > input.size()
+                            ? (input.size() - start)
+                            : value.size();
+    Vector result(input.begin(), input.end());
+    absl::c_copy(value.subspan(0, remaining), result.begin() + start);
+    return result;
+  }
+
   Vector BitSliceUpdate(Span input, Span start, Span value) {
     // Create a mask which masks on the 'input' bits which are *not* updated. It
     // should look like:
