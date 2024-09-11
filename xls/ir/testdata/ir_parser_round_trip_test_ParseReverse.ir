@@ -1,0 +1,3 @@
+fn reverse(x: bits[32]) -> bits[32] {
+  ret reverse.1: bits[32] = reverse(x, id=1)
+}

@@ -1,0 +1,5 @@
+package test
+
+proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
+  next (my_token, my_state)
+}

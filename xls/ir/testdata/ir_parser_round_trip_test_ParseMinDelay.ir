@@ -1,0 +1,5 @@
+fn after_all_func() -> token {
+  after_all.1: token = after_all(id=1)
+  min_delay.2: token = min_delay(after_all.1, delay=3, id=2)
+  ret min_delay.3: token = min_delay(min_delay.2, delay=0, id=3)
+}

@@ -1,0 +1,5 @@
+fn foo(x: bits[32]) -> bits[32] {
+  literal.1: bits[32][2] = literal(value=[0, 1], id=1)
+  literal.2: bits[3] = literal(value=1, id=2)
+  ret array_index.3: bits[32] = array_index(literal.1, indices=[literal.2], id=3)
+}

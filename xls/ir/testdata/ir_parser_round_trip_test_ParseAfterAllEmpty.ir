@@ -1,0 +1,3 @@
+fn after_all_func() -> token {
+  ret after_all.1: token = after_all(id=1)
+}

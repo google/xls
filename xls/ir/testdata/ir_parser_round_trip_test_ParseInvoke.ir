@@ -1,0 +1,10 @@
+package foobar
+
+fn bar(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y, id=1)
+}
+
+fn foo(x: bits[32]) -> bits[32] {
+  literal.2: bits[32] = literal(value=5, id=2)
+  ret invoke.3: bits[32] = invoke(x, literal.2, to_apply=bar, id=3)
+}

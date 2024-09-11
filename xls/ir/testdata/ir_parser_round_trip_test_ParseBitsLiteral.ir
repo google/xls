@@ -1,0 +1,3 @@
+fn f() -> bits[37] {
+  ret literal.1: bits[37] = literal(value=42, id=1)
+}

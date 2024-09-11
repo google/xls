@@ -1,0 +1,3 @@
+fn foo(x: bits[16]) -> bits[4] {
+  ret encode.1: bits[4] = encode(x, id=1)
+}

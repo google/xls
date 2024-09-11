@@ -1,0 +1,3 @@
+fn array_and_array(x: bits[32], y: bits[32], z: bits[32]) -> bits[32][3] {
+  ret array.1: bits[32][3] = array(x, y, z, id=1)
+}

@@ -1,0 +1,12 @@
+package test
+
+chan ch_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+chan ch_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc my_proc() {
+  my_token: token = literal(value=token, id=1)
+  receive.2: (token, bits[32]) = receive(my_token, channel=ch_in, id=2)
+  tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
+  tuple_index.4: bits[32] = tuple_index(receive.2, index=1, id=4)
+  send.5: token = send(tuple_index.3, tuple_index.4, channel=ch_out, id=5)
+}

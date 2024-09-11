@@ -1,0 +1,5 @@
+package ParseParamReturn
+
+fn simple_neg(x: bits[2]) -> bits[2] {
+  ret x: bits[2] = param(name=x)
+}

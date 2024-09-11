@@ -1,0 +1,9 @@
+package test
+
+proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  receive.2: (token, bits[32]) = receive(send.1, channel=ch, id=2)
+  tuple_index.3: token = tuple_index(receive.2, index=0, id=3)
+  next (tuple_index.3, my_state)
+}

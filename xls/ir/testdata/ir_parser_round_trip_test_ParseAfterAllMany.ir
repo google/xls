@@ -1,0 +1,5 @@
+fn after_all_func() -> token {
+  after_all.1: token = after_all(id=1)
+  after_all.2: token = after_all(id=2)
+  ret after_all.3: token = after_all(after_all.1, after_all.2, id=3)
+}

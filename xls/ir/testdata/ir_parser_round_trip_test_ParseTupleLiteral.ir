@@ -1,0 +1,3 @@
+fn foo() -> (bits[32][2], bits[1]) {
+  ret literal.1: (bits[32][2], bits[1]) = literal(value=([123, 456], 0), id=1)
+}

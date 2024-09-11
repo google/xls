@@ -1,0 +1,5 @@
+package ParseSel
+
+fn sel_wrapper(x: bits[1], y: bits[32], z: bits[32]) -> bits[32] {
+  ret sel.1: bits[32] = sel(x, cases=[y, z], id=1)
+}

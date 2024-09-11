@@ -1,0 +1,9 @@
+fn parse_inequalities() -> bits[1] {
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  sge.3: bits[1] = sge(literal.1, literal.2, id=3)
+  sgt.4: bits[1] = sgt(literal.1, literal.2, id=4)
+  sle.5: bits[1] = sle(literal.1, literal.2, id=5)
+  slt.6: bits[1] = slt(literal.1, literal.2, id=6)
+  ret eq.7: bits[1] = eq(literal.1, literal.2, id=7)
+}

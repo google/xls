@@ -1,0 +1,6 @@
+fn f(a0: bits[32][2], a1: bits[32][3], a2: bits[32][1]) -> bits[32][7] {
+  array_concat.4: bits[32][1] = array_concat(a2, id=4)
+  array_concat.5: bits[32][2] = array_concat(array_concat.4, array_concat.4, id=5)
+  array_concat.6: bits[32][7] = array_concat(a0, array_concat.5, a1, id=6)
+  ret array_concat.7: bits[32][7] = array_concat(array_concat.6, id=7)
+}

@@ -1,0 +1,6 @@
+fn foo(x: bits[42]) -> bits[33] {
+  literal.1: bits[32] = literal(value=5, id=1)
+  literal.2: bits[33] = literal(value=123, id=2)
+  tuple.3: (bits[42], bits[32], bits[33]) = tuple(x, literal.1, literal.2, id=3)
+  ret tuple_index.4: bits[33] = tuple_index(tuple.3, index=2, id=4)
+}

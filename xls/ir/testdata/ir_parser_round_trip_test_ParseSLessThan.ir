@@ -1,0 +1,3 @@
+fn less_than(a: bits[32], b: bits[32]) -> bits[1] {
+  ret slt.3: bits[1] = slt(a, b, id=3)
+}

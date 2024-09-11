@@ -1,0 +1,12 @@
+package test
+
+block sub_block(out: bits[32]) {
+  zero: bits[32] = literal(value=0, id=1)
+  out: () = output_port(zero, name=out, id=2)
+}
+
+block my_block(y: bits[32]) {
+  instantiation foo(block=sub_block, kind=block)
+  out: bits[32] = instantiation_output(instantiation=foo, port_name=out, id=3)
+  y: () = output_port(out, name=y, id=4)
+}

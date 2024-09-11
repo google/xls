@@ -1,0 +1,5 @@
+fn foo(x: bits[8]) -> bits[32] {
+  zero_ext.1: bits[32] = zero_ext(x, new_bit_count=32, id=1)
+  sign_ext.2: bits[32] = sign_ext(x, new_bit_count=32, id=2)
+  ret xor.3: bits[32] = xor(zero_ext.1, sign_ext.2, id=3)
+}

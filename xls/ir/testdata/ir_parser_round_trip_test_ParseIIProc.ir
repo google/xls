@@ -1,0 +1,6 @@
+package test
+
+#[initiation_interval(12)]
+top proc example(tkn: token, init={token}) {
+  next (tkn)
+}

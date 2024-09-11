@@ -1,0 +1,3 @@
+fn foo(a0: bits[32][3], a1: bits[32][1]) -> bits[32][4] {
+  ret array_concat.3: bits[32][4] = array_concat(a0, a1, id=3)
+}

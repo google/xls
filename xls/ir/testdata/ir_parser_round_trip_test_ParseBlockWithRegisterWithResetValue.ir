@@ -1,0 +1,11 @@
+package test
+
+block my_block(clk: clock, rst: bits[1], in: bits[32], out: bits[32]) {
+  reg foo(bits[32], reset_value=42, asynchronous=true, active_low=false)
+
+  rst: bits[1] = input_port(name=rst, id=1)
+  in: bits[32] = input_port(name=in, id=2)
+  foo_d: () = register_write(in, register=foo, reset=rst, id=4)
+  foo_q: bits[32] = register_read(register=foo, id=3)
+  out: () = output_port(foo_q, name=out, id=5)
+}

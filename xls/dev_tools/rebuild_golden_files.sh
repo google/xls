@@ -17,6 +17,7 @@ TARGETS=(
 "//xls/dslx/ir_convert:ir_converter_test"
 "//xls/dslx/type_system:type_info_to_proto_test"
 "//xls/flows:ir_wrapper_test"
+"//xls/ir:ir_parser_round_trip_test"
 "//xls/simulation:module_testbench_test"
 "//xls/simulation:verilog_test_base_test"
 "//xls/tools:codegen_main_test"

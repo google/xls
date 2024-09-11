@@ -1,0 +1,10 @@
+package CountedFor
+
+fn body(x: bits[11], y: bits[11]) -> bits[11] {
+  ret add.3: bits[11] = add(x, y, id=3)
+}
+
+fn main() -> bits[11] {
+  literal.4: bits[11] = literal(value=0, id=4)
+  ret counted_for.5: bits[11] = counted_for(literal.4, trip_count=7, stride=1, body=body, id=5)
+}

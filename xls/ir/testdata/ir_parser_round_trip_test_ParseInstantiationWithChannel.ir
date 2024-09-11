@@ -1,0 +1,26 @@
+package test
+
+chan foo(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, fifo_depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false, metadata="""""")
+
+proc placeholder_channel_user(tok: token, init={token}) {
+  recv_out: (token, bits[32]) = receive(tok, channel=foo, id=1)
+  recv_tok: token = tuple_index(recv_out, index=0, id=2)
+  recv_data: bits[32] = tuple_index(recv_out, index=1, id=3)
+  send_out: token = send(recv_tok, recv_data, channel=foo, id=4)
+  next (send_out)
+}
+
+block sub_block(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in, id=5)
+  zero: bits[32] = literal(value=0, id=6)
+  out: () = output_port(zero, name=out, id=7)
+}
+
+block my_block(x: bits[32], y: bits[32]) {
+  instantiation foo_inst(data_type=bits[32], depth=0, bypass=true, register_push_outputs=false, register_pop_outputs=false, channel=foo, kind=fifo)
+  instantiation bar(block=sub_block, kind=block)
+  x: bits[32] = input_port(name=x, id=8)
+  x_in: () = instantiation_input(x, instantiation=bar, port_name=in, id=9)
+  x_out: bits[32] = instantiation_output(instantiation=bar, port_name=out, id=10)
+  y: () = output_port(x_out, name=y, id=11)
+}

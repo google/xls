@@ -1,0 +1,4 @@
+fn foo(arr: bits[32][6]) -> bits[32][2] {
+  literal.1: bits[32] = literal(value=5, id=1)
+  ret array_slice.2: bits[32][2] = array_slice(arr, literal.1, width=2, id=2)
+}

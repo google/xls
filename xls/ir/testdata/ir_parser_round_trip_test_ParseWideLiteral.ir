@@ -1,0 +1,3 @@
+fn f() -> bits[96] {
+  ret literal.1: bits[96] = literal(value=0xaaaa_bbbb_1234_5678_90ab_cdef, id=1)
+}

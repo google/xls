@@ -1,0 +1,8 @@
+package test
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=2)
+  b: bits[32] = input_port(name=b, id=3)
+  add.4: bits[32] = add(a, b, id=4)
+  out: () = output_port(add.4, name=out, id=5)
+}

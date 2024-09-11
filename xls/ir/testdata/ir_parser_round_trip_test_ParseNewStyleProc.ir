@@ -1,0 +1,9 @@
+package test
+
+proc my_proc<in_ch: bits[32] single_value in, out_ch: bits[32] streaming out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  send.1: token = send(my_token, my_state, channel=out_ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next (tuple_index.4, my_state)
+}

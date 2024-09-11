@@ -1,0 +1,13 @@
+package MultiFunctionPackage
+
+fn two_plus_two() -> bits[32] {
+  literal.1: bits[32] = literal(value=2, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  ret add.3: bits[32] = add(literal.1, literal.2, id=3)
+}
+
+fn seven_and_five() -> bits[32] {
+  literal.4: bits[32] = literal(value=7, id=4)
+  literal.5: bits[32] = literal(value=5, id=5)
+  ret and.6: bits[32] = and(literal.4, literal.5, id=6)
+}

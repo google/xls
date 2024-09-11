@@ -1,0 +1,3 @@
+fn foo(array: bits[32][3], idx: bits[32], newval: bits[32]) -> bits[32][3] {
+  ret array_update.4: bits[32][3] = array_update(array, newval, indices=[idx], id=4)
+}

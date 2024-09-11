@@ -1,0 +1,10 @@
+package test
+
+block sub_block() {
+}
+
+block my_block(x: bits[8], y: bits[8]) {
+  instantiation foo(block=sub_block, kind=block)
+  x: bits[8] = input_port(name=x, id=1)
+  y: () = output_port(x, name=y, id=2)
+}

@@ -1,0 +1,5 @@
+package foobar
+
+fn bar(cond: bits[1]) -> () {
+  ret cover.1: () = cover(cond, label="The foo is bar", id=1)
+}

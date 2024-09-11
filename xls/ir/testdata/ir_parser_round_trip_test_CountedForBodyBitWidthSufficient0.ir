@@ -1,0 +1,10 @@
+package test
+
+fn loop_fn(i: bits[4], data: bits[16]) -> bits[16] {
+  ret literal.10: bits[16] = literal(value=0, id=10)
+}
+
+fn f(x: bits[16]) -> bits[16] {
+  literal.2: bits[16] = literal(value=2, id=2)
+  ret counted_for.100: bits[16] = counted_for(x, trip_count=16, stride=1, body=loop_fn, id=100)
+}

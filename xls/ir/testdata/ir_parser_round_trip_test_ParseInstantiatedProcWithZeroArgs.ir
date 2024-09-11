@@ -1,0 +1,10 @@
+package test
+
+proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
+  next (my_token, my_state)
+}
+
+proc other_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
+  proc_instantiation foo(proc=my_proc)
+  next (my_token, my_state)
+}

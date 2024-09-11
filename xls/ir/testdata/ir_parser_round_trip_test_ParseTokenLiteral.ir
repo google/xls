@@ -1,0 +1,3 @@
+fn f() -> token {
+  ret literal.1: token = literal(value=token, id=1)
+}

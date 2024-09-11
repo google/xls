@@ -1,0 +1,4 @@
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=3, id=1, pos=[(0,3,11)])
+  ret sub.2: bits[32] = sub(literal.1, literal.1, id=2)
+}
