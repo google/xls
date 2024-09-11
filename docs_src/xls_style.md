@@ -248,6 +248,17 @@ further support the decision.
     [proto3](https://developers.google.com/protocol-buffers/docs/proto3#simple)
     specifications in all new protocol buffer files.
 
+## Tests
+
+*   If possible, avoid exact text comparisons of the output of XLS IR text
+    serialization (i.e., `ToString` or `DumpIR`). Such tests are sensitive to
+    the order and details of IR serialization and make it difficult to change
+    the serialization. If text comparison is needed, then use a separate golden
+    file which can be regenerated with the `--test_update_golden_files` flag
+    using the
+    [golden files](https://github.com/google/xls/tree/main/xls/common/golden_files.h)
+    library.
+
 ## FAQ
 
 ### How heavyweight is `StatusOr`?
