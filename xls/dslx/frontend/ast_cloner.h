@@ -25,6 +25,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 

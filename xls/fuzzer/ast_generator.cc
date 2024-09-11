@@ -55,6 +55,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/ast_generator_options.pb.h"

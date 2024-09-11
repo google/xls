@@ -15,9 +15,11 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
 
+#include <memory>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {

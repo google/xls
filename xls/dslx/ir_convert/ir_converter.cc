@@ -52,6 +52,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"

@@ -593,7 +593,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:value",
-        "//xls/tools:scheduling_options_flags",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -118,6 +118,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
@@ -148,6 +149,7 @@ cc_test(
         "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "@com_googlesource_code_re2//:re2",
@@ -169,6 +171,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx:value_format_descriptor",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -182,6 +185,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:pos",
     ],
 )
 

@@ -45,6 +45,7 @@ cc_library(
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/ir_convert:conversion_info",
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",

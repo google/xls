@@ -24,6 +24,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/tools/proto_to_dslx.h"
 
 ABSL_FLAG(std::string, proto_def_path, "",

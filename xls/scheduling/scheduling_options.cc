@@ -29,6 +29,7 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/package.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 

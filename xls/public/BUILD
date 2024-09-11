@@ -171,6 +171,7 @@ cc_library(
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
+        "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
     ],

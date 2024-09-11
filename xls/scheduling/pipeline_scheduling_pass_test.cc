@@ -36,7 +36,6 @@
 #include "xls/ir/value.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
-#include "xls/tools/scheduling_options_flags.h"
 
 namespace xls {
 namespace {

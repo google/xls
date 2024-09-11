@@ -27,6 +27,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
 #include "xls/common/strong_int.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {

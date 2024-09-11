@@ -671,6 +671,7 @@ cc_binary(
         "//xls/passes:pass_base",
         "//xls/passes:query_engine",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags",
         "//xls/tools:codegen_flags_cc_proto",

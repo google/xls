@@ -23,7 +23,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/inlined_vector.h"

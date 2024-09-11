@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {

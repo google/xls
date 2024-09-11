@@ -17,6 +17,7 @@
 #include <string.h>  // NOLINT(modernize-deprecated-headers)
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <memory>
@@ -38,6 +39,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/public/runtime_build_actions.h"

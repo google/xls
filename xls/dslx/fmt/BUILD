@@ -50,6 +50,7 @@ cc_test(
         ":pretty_print",
         "@com_google_googletest//:gtest",
         "//xls/common:xls_gunit_main",
+        "//xls/dslx/frontend:pos",
     ],
 )
 
@@ -102,6 +103,7 @@ cc_test(
         "//xls/dslx/frontend:bindings",
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
     ],
 )
@@ -120,6 +122,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "//xls/fuzzer:ast_generator",
     ],
