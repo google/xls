@@ -15,6 +15,7 @@
 #include "xls/solvers/z3_ir_translator.h"
 
 #include <algorithm>
+#include <compare>
 #include <cstdint>
 #include <functional>
 #include <iterator>
@@ -43,6 +44,7 @@
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -989,66 +991,77 @@ absl::Status IrTranslator::HandleZeroExtend(ExtendOp* zero_ext) {
 }
 
 absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
-  ScopedErrorHandler seh(ctx_);
-
-  // We translate zero length bitvectors to empty tuples.
-  // This will cause errors if the bitvectors are used in any nontrivial way.
-  if (bit_slice->width() == 0) {
-    if (absl::c_any_of(bit_slice->users(),
-                       [](Node* user) { return !user->Is<Concat>(); })) {
-      return absl::UnimplementedError(
-          "Zero length bitvectors must not have nontrivial uses in the IR "
-          "graph when translating to Z3");
-    }
-    TupleType tuple_type({});
-    NoteTranslation(bit_slice, CreateTuple(&tuple_type, {}));
-    return seh.status();
+  if (bit_slice->width() == 0 &&
+      absl::c_any_of(bit_slice->users(),
+                     [](Node* user) { return !user->Is<Concat>(); })) {
+    return absl::UnimplementedError(
+        "Zero length bitvectors must not have nontrivial uses in the IR "
+        "graph when translating to Z3");
   }
 
-  int64_t low = bit_slice->start();
-  int64_t high = low + bit_slice->width() - 1;
-  Z3_ast result =
-      Z3_mk_extract(ctx_, high, low, GetBitVec(bit_slice->operand(0)));
-  NoteTranslation(bit_slice, result);
+  ScopedErrorHandler seh(ctx_);
+  XLS_ASSIGN_OR_RETURN(Z3_ast res,
+                       HandleBitSlice(GetBitVec(bit_slice->operand(0)),
+                                      bit_slice->start(), bit_slice->width()));
+  NoteTranslation(bit_slice, res);
   return seh.status();
 }
 
+absl::StatusOr<Z3_ast> IrTranslator::HandleBitSlice(Z3_ast value, int64_t start,
+                                                    int64_t width) {
+  ScopedErrorHandler seh(ctx_);
+  // We translate zero length bitvectors to empty tuples.
+  // This will cause errors if the bitvectors are used in any nontrivial way.
+  if (width == 0) {
+    TupleType tuple_type({});
+    XLS_RETURN_IF_ERROR(seh.status());
+    return CreateTuple(&tuple_type, {});
+  }
+
+  unsigned int low = static_cast<unsigned int>(start);
+  unsigned int high = low + static_cast<unsigned int>(width) - 1;
+  Z3_ast result = Z3_mk_extract(ctx_, high, low, value);
+  XLS_RETURN_IF_ERROR(seh.status());
+  return result;
+}
+
 absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
-  if (update->start()->GetType()->GetFlatBitCount() > 130) {
-    VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
-            << "slice update start index";
-    return IrTranslator::DefaultHandler(update);
-  }
-  if (update->to_update()->GetType()->GetFlatBitCount() > 1000) {
-    VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
-            << "slice update to_update value ("
-            << update->to_update()->GetType()->GetFlatBitCount() << " bits)";
-    return IrTranslator::DefaultHandler(update);
-  }
   ScopedErrorHandler seh(ctx_);
   Z3OpTranslator op_translator(ctx_);
-  Z3AbstractEvaluator evaluator(ctx_);
-  std::vector<Z3_ast> to_update =
-      op_translator.ExplodeBits(GetBitVec(update->to_update()));
   Z3_ast start = GetBitVec(update->start());
-  std::vector<Z3_ast> update_value =
-      op_translator.ExplodeBits(GetBitVec(update->update_value()));
-
-  Z3_ast otherwise = GetValue(update->to_update());  // OOB update is noop
-  for (int64_t i = 0;
-       Bits::MinBitCountUnsigned(i) <= update->start()->BitCountOrDie() &&
-       i < update->to_update()->BitCountOrDie();
-       ++i) {
-    otherwise = op_translator.If(
-        op_translator.Eq(start, TranslateLiteralBits(
-                                    UBits(i, update->start()->BitCountOrDie()))
-                                    .value()),
-        UnflattenZ3Ast(update->GetType(),
-                       evaluator.BitSliceUpdate(to_update, i, update_value)),
-        otherwise);
+  Z3_ast to_update = GetBitVec(update->to_update());
+  // Get a mask that hits all update bits at the start == 0 position.
+  XLS_ASSIGN_OR_RETURN(
+      Z3_ast mask,
+      TranslateLiteralValue(
+          /*has_nonconcat_uses=*/true, update->GetType(),
+          Value(bits_ops::ZeroExtend(
+              Bits::AllOnes(std::min(update->BitCountOrDie(),
+                                     update->update_value()->BitCountOrDie())),
+              update->BitCountOrDie()))));
+  // Coerce the update_val to the same size as to_update.
+  Z3_ast ext_update_value;
+  int64_t to_update_bit_count = update->to_update()->BitCountOrDie();
+  int64_t update_value_bit_count = update->update_value()->BitCountOrDie();
+  if (to_update_bit_count == update_value_bit_count) {
+    ext_update_value = GetBitVec(update->update_value());
+  } else if (to_update_bit_count < update_value_bit_count) {
+    XLS_ASSIGN_OR_RETURN(ext_update_value,
+                         HandleBitSlice(GetBitVec(update->update_value()), 0,
+                                        update->to_update()->BitCountOrDie()));
+  } else {
+    ext_update_value = op_translator.Zext(GetBitVec(update->update_value()),
+                                          update->BitCountOrDie());
   }
-
-  NoteTranslation(update, otherwise);
+  // Shift mask and to_update over.
+  Z3_ast shift_mask = op_translator.Shll(mask, start);
+  Z3_ast shift_update_value = op_translator.Shll(ext_update_value, start);
+  // Invert mask
+  Z3_ast inv_mask = op_translator.Not(shift_mask);
+  // Zero updated part of to_update
+  Z3_ast masked_to_update = op_translator.And(inv_mask, to_update);
+  Z3_ast result = op_translator.Or(shift_update_value, masked_to_update);
+  NoteTranslation(update, result);
   return seh.status();
 }
 

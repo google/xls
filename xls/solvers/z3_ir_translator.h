@@ -277,6 +277,9 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::StatusOr<Z3_ast> GetLttElement(Type* type, Z3_ast value,
                                        absl::Span<int64_t const> index);
 
+  absl::StatusOr<Z3_ast> HandleBitSlice(Z3_ast value, int64_t start,
+                                        int64_t width);
+
   // Handles the translation of the given unary op using the AbstractEvaluator.
   absl::Status HandleUnaryViaAbstractEval(Node* op);
 

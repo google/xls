@@ -27,6 +27,32 @@
 
 namespace xls::solvers::z3 {
 
+Z3_ast Z3OpTranslator::Shll(Z3_ast l, Z3_ast r) {
+  int64_t l_bit_count = GetBvBitCount(l);
+  int64_t r_bit_count = GetBvBitCount(r);
+
+  if (r_bit_count == 0) {
+    return l;
+  }
+  if (l_bit_count == r_bit_count) {
+    return Z3_mk_bvshl(z3_ctx_, l, r);
+  }
+  if (l_bit_count > r_bit_count) {
+    // Easy case. Extend right side and return.
+    return Shll(l, Zext(r, l_bit_count));
+  }
+  // Extend l then truncate it back.
+  Z3_ast ext_l = Zext(l, r_bit_count);
+  Z3_ast ext_shift = Shll(ext_l, r);
+  return Z3_mk_extract(z3_ctx_, l_bit_count - 1, 0, ext_shift);
+}
+
+Z3_ast Z3OpTranslator::Zext(Z3_ast bits, int64_t new_bit_count) {
+  int64_t cur_bit_count = GetBvBitCount(bits);
+  CHECK_GT(new_bit_count, cur_bit_count);
+  return Z3_mk_zero_ext(z3_ctx_, new_bit_count - cur_bit_count, bits);
+}
+
 Z3_ast Z3OpTranslator::OrBool(Z3_ast lhs, Z3_ast rhs) {
   Z3_ast args[] = {lhs, rhs};
   return Z3_mk_or(z3_ctx_, /*num_args=*/ABSL_ARRAYSIZE(args), args);

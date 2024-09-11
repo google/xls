@@ -66,6 +66,11 @@ class Z3OpTranslator {
   Z3_ast ZextBy1b(Z3_ast arg) { return Z3_mk_zero_ext(z3_ctx_, 1, arg); }
   Z3_ast SextBy1b(Z3_ast arg) { return Z3_mk_sign_ext(z3_ctx_, 1, arg); }
 
+  // Left shift by 'r'. Handles coercing types internally.
+  Z3_ast Shll(Z3_ast l, Z3_ast r);
+
+  Z3_ast Zext(Z3_ast bits, int64_t new_bit_count);
+
   // Extracts bit "bitno" from the given argument, returns a single-bit
   // bitvector result.
   //
