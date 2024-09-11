@@ -28,6 +28,7 @@ cc_library(
     srcs = ["z3_op_translator.cc"],
     hdrs = ["z3_op_translator.h"],
     deps = [
+        "//xls/ir:bits",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",

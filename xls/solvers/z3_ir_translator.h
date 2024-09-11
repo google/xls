@@ -254,14 +254,12 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Translates a OneHotSelect or Sel node whose (non-selector) operands are
   // Tuple typed. Accepts a function to actually call into the AbstractEvaluator
-  // for that node. "FlatValue" is a helper to represent a value as a
-  // vector of individual Z3 bits.
-  using FlatValue = std::vector<Z3_ast>;
-  template <typename NodeT>
-  absl::Status HandleSelect(
-      NodeT* node, std::function<FlatValue(const FlatValue& selector,
-                                           const std::vector<FlatValue>& cases)>
-                       evaluator);
+  // for that node.
+  template <typename NodeT, typename Handler>
+    requires(std::is_invocable_r_v<absl::StatusOr<Z3_ast>, Handler, Z3_ast,
+                                   absl::Span<Z3_ast const>,
+                                   absl::Span<int64_t const>>)
+  absl::Status HandleSelect(NodeT* node, Handler evaluator);
 
   // Turn a single possibly compound typed z3 value into a leaf-type-tree of
   // bits values.

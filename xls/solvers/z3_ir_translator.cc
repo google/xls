@@ -49,6 +49,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/solvers/z3_op_translator.h"
 #include "xls/solvers/z3_utils.h"
 #include "external/z3/src/api/z3_api.h"
@@ -1028,18 +1029,26 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
   Z3OpTranslator op_translator(ctx_);
   Z3AbstractEvaluator evaluator(ctx_);
   std::vector<Z3_ast> to_update =
-      Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(update->to_update()));
-  std::vector<Z3_ast> start =
-      Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(update->start()));
+      op_translator.ExplodeBits(GetBitVec(update->to_update()));
+  Z3_ast start = GetBitVec(update->start());
   std::vector<Z3_ast> update_value =
-      Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(update->update_value()));
+      op_translator.ExplodeBits(GetBitVec(update->update_value()));
 
-  std::vector<Z3_ast> flat_results =
-      evaluator.BitSliceUpdate(to_update, start, update_value);
+  Z3_ast otherwise = GetValue(update->to_update());  // OOB update is noop
+  for (int64_t i = 0;
+       Bits::MinBitCountUnsigned(i) <= update->start()->BitCountOrDie() &&
+       i < update->to_update()->BitCountOrDie();
+       ++i) {
+    otherwise = op_translator.If(
+        op_translator.Eq(start, TranslateLiteralBits(
+                                    UBits(i, update->start()->BitCountOrDie()))
+                                    .value()),
+        UnflattenZ3Ast(update->GetType(),
+                       evaluator.BitSliceUpdate(to_update, i, update_value)),
+        otherwise);
+  }
 
-  Z3_ast result = UnflattenZ3Ast(update->GetType(), flat_results);
-
-  NoteTranslation(update, result);
+  NoteTranslation(update, otherwise);
   return seh.status();
 }
 
@@ -1206,73 +1215,115 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<const Z3_ast> flat,
   return FromLeafTypeTree(z3_tree->AsView()).value();
 }
 
-template <typename NodeT>
-absl::Status IrTranslator::HandleSelect(
-    NodeT* node, std::function<FlatValue(const FlatValue& selector,
-                                         const std::vector<FlatValue>& cases)>
-                     evaluator) {
-  // HandleSel could be implemented on its own terms (and not in the same way
-  // as one-hot), if there's concern that flattening to bitwise Z3_asts loses
-  // any semantic info.
+template <typename NodeT, typename Handler>
+  requires(std::is_invocable_r_v<absl::StatusOr<Z3_ast>, Handler, Z3_ast,
+                                 absl::Span<Z3_ast const>,
+                                 absl::Span<int64_t const>>)
+absl::Status IrTranslator::HandleSelect(NodeT* node, Handler evaluator) {
   ScopedErrorHandler seh(ctx_);
   Z3OpTranslator op_translator(ctx_);
-  std::vector<Z3_ast> selector =
-      Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(node->selector()));
+  Z3_ast sel = GetValue(node->selector());
 
-  std::vector<std::vector<Z3_ast>> case_elements;
+  int64_t case_size = node->cases().size();
+  LeafTypeTree<std::vector<Z3_ast>> case_elements(
+      node->GetType(), ([case_size]() -> std::vector<Z3_ast> {
+        std::vector<Z3_ast> vec;
+        vec.reserve(case_size);
+        return vec;
+      })());
   for (Node* element : node->cases()) {
-    case_elements.push_back(
-        FlattenValue(element->GetType(), GetValue(element)));
-    XLS_RETURN_IF_ERROR(seh.status());
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<Z3_ast> ltt, ToLeafTypeTree(element));
+    XLS_RETURN_IF_ERROR(
+        (leaf_type_tree::UpdateFrom<std::vector<Z3_ast>, Z3_ast>(
+            case_elements.AsMutableView(), ltt.AsView(),
+            [&](Type*, std::vector<Z3_ast>& cases, Z3_ast nv,
+                absl::Span<const int64_t>) -> absl::Status {
+              cases.push_back(nv);
+              return absl::OkStatus();
+            })));
   }
 
-  std::vector<Z3_ast> flat_results = evaluator(selector, case_elements);
-  Z3_ast result = UnflattenZ3Ast(node->GetType(), flat_results);
+  XLS_ASSIGN_OR_RETURN(
+      (LeafTypeTree<Z3_ast> result),
+      (leaf_type_tree::MapIndex<Z3_ast, std::vector<Z3_ast>>(
+          case_elements.AsView(),
+          [&](Type* ty, const std::vector<Z3_ast>& cases,
+              absl::Span<const int64_t> index) -> absl::StatusOr<Z3_ast> {
+            return evaluator(sel, cases, index);
+          })));
 
-  NoteTranslation(node, result);
+  XLS_ASSIGN_OR_RETURN(Z3_ast ast_result, FromLeafTypeTree(result.AsView()));
+
+  NoteTranslation(node, ast_result);
   return seh.status();
 }
 
 absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
-  Z3AbstractEvaluator evaluator(ctx_);
+  Z3OpTranslator op_translator(ctx_);
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<Value> ltt_base_val,
+      ValueToLeafTypeTree(ZeroOfType(one_hot->GetType()), one_hot->GetType()));
   return HandleSelect(
-      one_hot, [&evaluator](const std::vector<Z3_ast>& selector,
-                            const std::vector<std::vector<Z3_ast>>& cases) {
-        return evaluator.OneHotSelect(
-            selector, evaluator.SpanOfVectorsToVectorOfSpans(cases),
-            /*selector_can_be_zero=*/true);
+      one_hot,
+      [&](Z3_ast selector, absl::Span<Z3_ast const> cases,
+          absl::Span<int64_t const> idx) -> absl::StatusOr<Z3_ast> {
+        XLS_ASSIGN_OR_RETURN(
+            Z3_ast base,
+            TranslateLiteralValue(/*has_nonconcat_uses=*/true,
+                                  one_hot->GetType(), ltt_base_val.Get(idx)));
+        Z3_ast res = base;
+        std::vector<Z3_ast> sel_bits =
+            FlattenValue(one_hot->selector()->GetType(), selector);
+        for (int64_t i = 0; i < sel_bits.size(); ++i) {
+          res = op_translator.Or(res,
+                                 op_translator.If(sel_bits[i], cases[i], base));
+        }
+        return res;
       });
 }
 
 absl::Status IrTranslator::HandlePrioritySel(PrioritySelect* sel) {
-  Z3AbstractEvaluator evaluator(ctx_);
-  return HandleSelect(sel, [this, sel, &evaluator](
-                               const std::vector<Z3_ast>& selector,
-                               const std::vector<std::vector<Z3_ast>>& cases) {
-    // Calculate the Z3-ified default value, if any.
-    std::vector<Z3_ast> default_value = FlattenValue(
-        sel->default_value()->GetType(), GetValue(sel->default_value()));
-    return evaluator.PrioritySelect(
-        selector, evaluator.SpanOfVectorsToVectorOfSpans(cases),
-        /*selector_can_be_zero=*/true, default_value);
-  });
+  Z3OpTranslator op_translator(ctx_);
+  return HandleSelect(
+      sel,
+      [&](Z3_ast selector, absl::Span<Z3_ast const> cases,
+          absl::Span<int64_t const> idx) -> absl::StatusOr<Z3_ast> {
+        std::vector<Z3_ast> sel_bits =
+            FlattenValue(sel->selector()->GetType(), selector);
+        XLS_ASSIGN_OR_RETURN(
+            Z3_ast otherwise,
+            GetLttElement(sel->GetType(), GetValue(sel->default_value()), idx));
+        for (int64_t i = cases.size() - 1; i >= 0; --i) {
+          otherwise = op_translator.If(sel_bits[i], cases[i], otherwise);
+        }
+        return otherwise;
+      });
 }
 
 absl::Status IrTranslator::HandleSel(Select* sel) {
-  Z3AbstractEvaluator evaluator(ctx_);
   Z3OpTranslator op_translator(ctx_);
-  return HandleSelect(sel, [this, sel, &evaluator](
-                               const std::vector<Z3_ast>& selector,
-                               const std::vector<std::vector<Z3_ast>>& cases) {
-    // Calculate the Z3-ified default value, if any.
-    std::optional<std::vector<Z3_ast>> default_value = std::nullopt;
-    if (sel->default_value()) {
-      default_value = FlattenValue(sel->default_value().value()->GetType(),
-                                   GetValue(sel->default_value().value()));
-    }
-    return evaluator.Select(
-        selector, evaluator.SpanOfVectorsToVectorOfSpans(cases), default_value);
-  });
+  return HandleSelect(
+      sel,
+      [&](Z3_ast selector, absl::Span<Z3_ast const> cases,
+          absl::Span<int64_t const> index) -> absl::StatusOr<Z3_ast> {
+        Z3_ast otherwise;
+        if (sel->default_value()) {
+          XLS_ASSIGN_OR_RETURN(
+              otherwise, GetLttElement(sel->GetType(),
+                                       GetValue(*sel->default_value()), index));
+        } else {
+          otherwise = cases.back();
+          cases = cases.subspan(0, cases.size() - 1);
+        }
+        for (int64_t i = 0; i < cases.size(); ++i) {
+          XLS_ASSIGN_OR_RETURN(
+              Z3_ast value,
+              TranslateLiteralBits(UBits(i, sel->selector()->BitCountOrDie())));
+          otherwise = op_translator.If(op_translator.Eq(selector, value),
+                                       cases[i], otherwise);
+        }
+        return otherwise;
+      });
 }
 
 absl::StatusOr<Z3_ast> IrTranslator::GetLttElement(
