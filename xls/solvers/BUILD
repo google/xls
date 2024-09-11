@@ -156,6 +156,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:value_utils",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",

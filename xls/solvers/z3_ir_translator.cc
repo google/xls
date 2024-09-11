@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -1024,6 +1025,7 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
     return IrTranslator::DefaultHandler(update);
   }
   ScopedErrorHandler seh(ctx_);
+  Z3OpTranslator op_translator(ctx_);
   Z3AbstractEvaluator evaluator(ctx_);
   std::vector<Z3_ast> to_update =
       Z3OpTranslator(ctx_).ExplodeBits(GetBitVec(update->to_update()));
@@ -1035,7 +1037,6 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
   std::vector<Z3_ast> flat_results =
       evaluator.BitSliceUpdate(to_update, start, update_value);
 
-  std::reverse(flat_results.begin(), flat_results.end());
   Z3_ast result = UnflattenZ3Ast(update->GetType(), flat_results);
 
   NoteTranslation(update, result);
@@ -1160,96 +1161,49 @@ std::vector<Z3_ast> IrTranslator::FlattenValue(Type* type, Z3_ast value,
                                                bool little_endian) {
   Z3OpTranslator op_translator(ctx_);
 
-  switch (type->kind()) {
-    case TypeKind::kBits: {
-      std::vector<Z3_ast> boom = op_translator.ExplodeBits(value);
-      if (little_endian) {
-        std::reverse(boom.begin(), boom.end());
-      }
-      return boom;
+  absl::StatusOr<LeafTypeTree<Z3_ast>> ltt = ToLeafTypeTree(type, value);
+  CHECK_OK(ltt);
+  CHECK(
+      absl::c_all_of(ltt->leaf_types(), [](Type* ty) { return ty->IsBits(); }))
+      << "Unsupported type. Has non-bits leaf: " << ltt->type();
+  std::vector<Z3_ast> bits;
+  bits.reserve(type->GetFlatBitCount());
+  leaf_type_tree::ForEach(ltt->AsView(), [&](Z3_ast bv) {
+    std::vector<Z3_ast> boom = op_translator.ExplodeBits(bv);
+    if (little_endian) {
+      std::copy(boom.crbegin(), boom.crend(), std::back_inserter(bits));
+    } else {
+      absl::c_copy(boom, std::back_inserter(bits));
     }
-    case TypeKind::kArray: {
-      ArrayType* array_type = type->AsArrayOrDie();
-      std::vector<Z3_ast> flattened;
-      for (int i = 0; i < array_type->size(); i++) {
-        Z3_ast index = GetAsFormattedArrayIndex(ctx_, i, array_type);
-        Z3_ast element = GetArrayElement(array_type, value, index);
-        std::vector<Z3_ast> flat_child =
-            FlattenValue(array_type->element_type(), element, little_endian);
-        flattened.insert(flattened.end(), flat_child.begin(), flat_child.end());
-      }
-      return flattened;
-    }
-    case TypeKind::kTuple: {
-      TupleType* tuple_type = type->AsTupleOrDie();
-      Z3_sort tuple_sort = Z3_get_sort(ctx_, value);
-
-      std::vector<Z3_ast> flattened;
-      for (int i = 0; i < tuple_type->size(); i++) {
-        Z3_func_decl child_accessor =
-            Z3_get_tuple_sort_field_decl(ctx_, tuple_sort, i);
-        Z3_ast child = Z3_mk_app(ctx_, child_accessor, 1, &value);
-        std::vector<Z3_ast> flat_child =
-            FlattenValue(tuple_type->element_type(i), child, little_endian);
-        flattened.insert(flattened.end(), flat_child.begin(), flat_child.end());
-      }
-      return flattened;
-    }
-    default:
-      LOG(FATAL) << "Unsupported type kind: " << TypeKindToString(type->kind());
-  }
+  });
+  return bits;
 }
 
 Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<const Z3_ast> flat,
                                     bool little_endian) {
   Z3OpTranslator op_translator(ctx_);
-  switch (type->kind()) {
-    case TypeKind::kBits:
-      if (little_endian) {
-        std::vector<Z3_ast> flat_vec(flat.begin(), flat.end());
-        std::reverse(flat_vec.begin(), flat_vec.end());
-        return op_translator.ConcatN(flat_vec);
-      } else {
-        return op_translator.ConcatN(flat);
-      }
-    case TypeKind::kArray: {
-      ArrayType* array_type = type->AsArrayOrDie();
-      int num_elements = array_type->size();
-
-      Type* element_type = array_type->element_type();
-      int element_bits = element_type->GetFlatBitCount();
-      std::vector<Z3_ast> elements;
-      elements.reserve(num_elements);
-
-      int high = array_type->GetFlatBitCount();
-      for (int i = 0; i < num_elements; i++) {
-        absl::Span<const Z3_ast> subspan =
-            flat.subspan(high - element_bits, element_bits);
-        elements.push_back(
-            UnflattenZ3Ast(element_type, subspan, little_endian));
-        high -= element_bits;
-      }
-      return CreateArray(array_type, elements);
-    }
-    case TypeKind::kTuple: {
-      // For each tuple element, extract the sub-type's bits and unflatten, then
-      // munge into a tuple.
-      TupleType* tuple_type = type->AsTupleOrDie();
-      std::vector<Z3_ast> elements;
-      int high = tuple_type->GetFlatBitCount();
-      for (Type* element_type : tuple_type->element_types()) {
-        int64_t element_bits = element_type->GetFlatBitCount();
-        absl::Span<const Z3_ast> subspan =
-            flat.subspan(high - element_bits, element_bits);
-        elements.push_back(
-            UnflattenZ3Ast(element_type, subspan, little_endian));
-        high -= element_bits;
-      }
-      return CreateTuple(tuple_type, elements);
-    }
-    default:
-      LOG(FATAL) << "Unsupported type kind: " << TypeKindToString(type->kind());
-  }
+  auto it = flat.cbegin();
+  absl::StatusOr<LeafTypeTree<Z3_ast>> z3_tree =
+      LeafTypeTree<Z3_ast>::CreateFromFunction(
+          type,
+          [&](Type* leaf, absl::Span<int64_t const>) -> absl::StatusOr<Z3_ast> {
+            int64_t bit_count = leaf->AsBitsOrDie()->bit_count();
+            auto start = it;
+            it += bit_count;
+            if (!little_endian) {
+              // Need to use little-endian to match what z3 expects.
+              std::vector<Z3_ast> flat_vec(start, start + bit_count);
+              absl::c_reverse(flat_vec);
+              return op_translator.ConcatN(flat_vec);
+            }
+            return op_translator.ConcatN(
+                absl::MakeConstSpan(&*start, bit_count));
+          });
+  CHECK_OK(z3_tree);
+  CHECK(absl::c_all_of(z3_tree->leaf_types(),
+                       [](Type* ty) { return ty->IsBits(); }))
+      << "Unsupported type. Has non-bits leaf: " << z3_tree->type();
+  return FromLeafTypeTree(z3_tree->AsView()).value();
 }
 
 template <typename NodeT>
@@ -1269,10 +1223,10 @@ absl::Status IrTranslator::HandleSelect(
   for (Node* element : node->cases()) {
     case_elements.push_back(
         FlattenValue(element->GetType(), GetValue(element)));
+    XLS_RETURN_IF_ERROR(seh.status());
   }
 
   std::vector<Z3_ast> flat_results = evaluator(selector, case_elements);
-  std::reverse(flat_results.begin(), flat_results.end());
   Z3_ast result = UnflattenZ3Ast(node->GetType(), flat_results);
 
   NoteTranslation(node, result);
@@ -1319,6 +1273,66 @@ absl::Status IrTranslator::HandleSel(Select* sel) {
     return evaluator.Select(
         selector, evaluator.SpanOfVectorsToVectorOfSpans(cases), default_value);
   });
+}
+
+absl::StatusOr<Z3_ast> IrTranslator::GetLttElement(
+    Type* type, Z3_ast value, absl::Span<int64_t const> index) {
+  if (index.empty()) {
+    return value;
+  }
+  if (type->IsArray()) {
+    ArrayType* arr_type = type->AsArrayOrDie();
+    XLS_RET_CHECK_LT(index.front(), arr_type->size());
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast lit_index,
+        TranslateLiteralValue(/*has_nonconcat_uses=*/true,
+                              arr_type->element_type(),
+                              Value(UBits(index.front(), 64))));
+    return GetLttElement(arr_type->element_type(),
+                         GetArrayElement(arr_type, value, lit_index),
+                         index.subspan(1));
+  }
+  XLS_RET_CHECK(type->IsTuple());
+  XLS_RET_CHECK_LT(index.front(), type->AsTupleOrDie()->size());
+  Z3_sort tuple_sort = Z3_get_sort(ctx_, value);
+  Z3_func_decl proj_fn = Z3_get_tuple_sort_field_decl(
+      ctx_, tuple_sort, static_cast<unsigned int>(index.front()));
+  Z3_ast result = Z3_mk_app(ctx_, proj_fn, 1, &value);
+  return GetLttElement(type->AsTupleOrDie()->element_type(index.front()),
+                       result, index.subspan(1));
+}
+absl::StatusOr<LeafTypeTree<Z3_ast>> IrTranslator::ToLeafTypeTree(Type* type,
+                                                                  Z3_ast ast) {
+  return LeafTypeTree<Z3_ast>::CreateFromFunction(
+      type,
+      [&](Type*, absl::Span<int64_t const> index) -> absl::StatusOr<Z3_ast> {
+        return GetLttElement(type, ast, index);
+      });
+}
+
+absl::StatusOr<Z3_ast> IrTranslator::FromLeafTypeTree(
+    LeafTypeTreeView<Z3_ast> ast) {
+  if (ast.type()->IsBits()) {
+    return ast.Get({});
+  }
+  Type* ty = ast.type();
+  if (ty->IsArray()) {
+    std::vector<Z3_ast> elements;
+    elements.reserve(ty->AsArrayOrDie()->size());
+    for (int64_t i = 0; i < ty->AsArrayOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Z3_ast elem, FromLeafTypeTree(ast.AsView({i})));
+      elements.push_back(elem);
+    }
+    return CreateArray(ty->AsArrayOrDie(), elements);
+  }
+  XLS_RET_CHECK(ty->IsTuple());
+  std::vector<Z3_ast> elements;
+  elements.reserve(ty->AsTupleOrDie()->size());
+  for (int64_t i = 0; i < ty->AsTupleOrDie()->size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(Z3_ast elem, FromLeafTypeTree(ast.AsView({i})));
+    elements.push_back(elem);
+  }
+  return CreateTuple(ty->AsTupleOrDie(), elements);
 }
 
 absl::Status IrTranslator::HandleAndReduce(BitwiseReductionOp* and_reduce) {
