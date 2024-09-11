@@ -642,6 +642,10 @@ class AbstractEvaluator {
       Span selector, absl::Span<const absl::Span<const Element>> cases,
       bool selector_can_be_zero, Span default_value) {
     CHECK_EQ(selector.size(), cases.size());
+    if (selector.empty()) {
+      // No actual cases. Strange but valid.
+      return SpanToVec(default_value);
+    }
     int64_t width = default_value.size();
     for (absl::Span<const Element> case_span : cases) {
       CHECK_EQ(case_span.size(), width);

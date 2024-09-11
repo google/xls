@@ -360,7 +360,7 @@ TEST(AbstractEvaluatorTest, PrioritySelect) {
       boxed_cases.push_back(ToBoxedVector(i));
     }
     std::vector<BoxedBool> boxed_default_value = ToBoxedVector(default_value);
-    EXPECT_EQ(UBits(expected, cases.front().bit_count()),
+    EXPECT_EQ(UBits(expected, default_value.bit_count()),
               FromBoxedVector(eval.PrioritySelect(
                   ToBoxedVector(selector),
                   eval.SpanOfVectorsToVectorOfSpans(boxed_cases),
@@ -381,6 +381,7 @@ TEST(AbstractEvaluatorTest, PrioritySelect) {
           UBits(0x0FF0, 16));
   test_eq(0x0FF0, UBits(0, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, true,
           UBits(0x0FF0, 16));
+  test_eq(0x0FF0, UBits(0, 0), {}, true, UBits(0x0FF0, 16));
 }
 
 TEST(AbstractEvaluatorTest, BitSliceUpdate) {
