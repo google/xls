@@ -30,6 +30,7 @@
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"
 
