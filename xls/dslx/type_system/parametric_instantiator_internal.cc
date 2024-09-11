@@ -161,7 +161,7 @@ absl::Status EagerlyPopulateParametricEnvMap(
     const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs,
     absl::flat_hash_map<std::string, InterpValue>& parametric_env_map,
     const std::optional<Span>& parametrics_span, const Span& span,
-    std::string_view kind_name, DeduceCtx* ctx) {
+    ParametricInstantiator* instantiator, DeduceCtx* ctx) {
   // If there are no parametric bindings being instantiated (in the callee) we
   // should have already typechecked that there are no parametrics being
   // applied by the caller.
@@ -228,13 +228,18 @@ absl::Status EagerlyPopulateParametricEnvMap(
                                              keys_unsorted.end());
     for (const std::string& key : keys_sorted) {
       if (!parametric_env_map.contains(key)) {
-        return TypeInferenceErrorStatus(
-            freevars.GetFirstNameRefSpan(key), nullptr,
-            absl::StrFormat(
-                "Parametric expression `%s` refered to `%s` which is not "
-                "present in the parametric environment; instantiated from %s",
-                expr->ToString(), key, span.ToString(ctx->file_table())),
-            ctx->file_table());
+        std::string message = absl::StrFormat(
+            "Parametric expression `%s` refered to `%s` which is not "
+            "present in the parametric environment; instantiated from %s",
+            expr->ToString(), key, span.ToString(ctx->file_table()));
+        // For structs, this is not an issue at this stage because the value
+        // must be defined once the struct is used.
+        if (dynamic_cast<StructInstantiator*>(instantiator) != nullptr) {
+          VLOG(5) << message;
+          return absl::OkStatus();
+        }
+        return TypeInferenceErrorStatus(freevars.GetFirstNameRefSpan(key),
+                                        nullptr, message, ctx->file_table());
       }
     }
 
@@ -260,8 +265,8 @@ absl::Status EagerlyPopulateParametricEnvMap(
             "Inconsistent parametric instantiation of %s, first saw %s = %s; "
             "then saw %s = "
             "%s = %s",
-            kind_name, name, seen.ToString(), name, expr->ToString(),
-            result.value().ToString());
+            instantiator->GetKindName(), name, seen.ToString(), name,
+            expr->ToString(), result.value().ToString());
         return TypeInferenceErrorStatus(span, nullptr, message,
                                         ctx->file_table());
       }
@@ -419,7 +424,7 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
 
   XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
       typed_parametrics(), parametric_default_exprs(), parametric_env_map(),
-      parametrics_span(), span(), GetKindName(), &ctx()));
+      parametrics_span(), span(), this, &ctx()));
 
   // Phase 2: resolve and check.
   VLOG(10) << "Phase 2: resolve-and-check";
@@ -493,7 +498,7 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
 
   XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
       typed_parametrics(), parametric_default_exprs(), parametric_env_map(),
-      parametrics_span(), span(), GetKindName(), &ctx()));
+      parametrics_span(), span(), this, &ctx()));
 
   // Phase 2: resolve and check.
   for (int64_t i = 0; i < member_types_.size(); ++i) {

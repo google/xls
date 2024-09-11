@@ -764,6 +764,32 @@ fn Foo() {
 )"));
 }
 
+TEST(TypecheckTest, DerivedParametricStructUsingNonDefault) {
+  XLS_EXPECT_OK(Typecheck(R"(
+struct StructFoo<A: u32, B:u32 = {A * u32:2}> {
+  x: uN[B],
+}
+
+fn Foo() {
+  let b = StructFoo<u32:8>{x: u16:0};
+}
+)"));
+}
+
+TEST(TypecheckTest, DerivedParametricStructValueMissing) {
+  EXPECT_THAT(Typecheck(R"(
+struct StructFoo<A: u32, B: u32, C:u32 = {B * u32:2}> {
+  x: uN[C],
+}
+
+fn Foo() {
+  let b = StructFoo<u32:8>{x: u16:0};
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("No parametric value provided for 'B'")));
+}
+
 TEST(TypecheckTest, DerivedExprTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(

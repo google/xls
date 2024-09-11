@@ -14,8 +14,13 @@
 
 struct StructFoo<A: u32, B: u32 = {u32:32}, C: u32 = {B / u32:2}> { a: uN[A], b: uN[B], c: uN[C] }
 
+struct StructBar<A: u32, B: u32 = {u32:32 / A}> { a: uN[A], c: uN[B] }
+
 #[test]
 fn Foo() {
     let foo = StructFoo<u32:5> { a: u5:0, b: u32:1, c: u16:0 };
     assert_eq(foo.c, u16:0);
+
+    let bar = StructBar<u32:2> { a: u2:0, c: u16:5 };
+    assert_eq(bar.c, u16:5);
 }
