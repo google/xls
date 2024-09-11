@@ -1363,10 +1363,11 @@ TEST(TypecheckErrorTest, BadTypeForConstantArrayOfNumbers) {
 }
 
 TEST(TypecheckErrorTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
-  EXPECT_THAT(Typecheck("const MY_ARRAY = u32[1]:[];"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("uN[32][1] Annotated array size 1 does not "
-                                 "match inferred array size 0.")));
+  auto result = Typecheck("const MY_ARRAY = u32[1]:[];");
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("uN[32][1] Array has zero elements "
+                                         "but type annotation size is 1")))
+      << result.status();
 }
 
 TEST(TypecheckTest, MatchNoArms) {
@@ -1490,6 +1491,21 @@ enum MyEnum : u2 {
 
 TEST(TypecheckTest, ArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck("fn main() -> u8[2] { u8[2]:[0, ...] }"));
+}
+
+// See https://github.com/google/xls/issues/1587 #1
+TEST(TypecheckErrorTest, ArrayEllipsisTypeSmallerThanElements) {
+  auto result =
+      Typecheck("fn main() -> u32[2] { u32[2]:[u32:0, u32:1, u32:0, ...] }");
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Annotated array size 2 is too small "
+                                         "for observed array member count 3")));
+}
+
+// See https://github.com/google/xls/issues/1587 #2
+TEST(TypecheckErrorTest, ArrayEllipsisTypeEqElementCount) {
+  XLS_EXPECT_OK(
+      Typecheck("fn main() -> u32[2] { u32[2]:[u32:0, u32:1, ...] }"));
 }
 
 TEST(TypecheckErrorTest, ArrayEllipsisNoTrailingElement) {
