@@ -377,18 +377,8 @@ generate_crasher_regression_tests(
         "crashers/crasher_2023-10-01_eb60.x",
         # TODO(https://github.com/google/xls/issues/1141): Remove when fixed.
         "crashers/crasher_2023-10-02_7c14.x",
-        # TODO(https://github.com/google/xls/issues/1192): Remove when fixed.
-        "crashers/crasher_2023-07-06_feae.x",
-        # TODO(https://github.com/google/xls/issues/1200): Remove when fixed.
-        "crashers/crasher_2023-11-19_3094.x",
-        # TODO(https://github.com/google/xls/issues/1201): Remove when fixed.
-        "crashers/crasher_2023-11-19_0a23.x",
         # TODO(https://github.com/google/xls/issues/1205): Remove when fixed.
         "crashers/crasher_2023-11-26_cc51.x",
-        # TODO(https://github.com/google/xls/issues/1240): Remove when fixed.
-        "crashers/crasher_2023-12-26_044b.x",
-        # TODO(https://github.com/google/xls/issues/1511): Remove when fixed.
-        "crashers/crasher_2024-07-12_e4a0.x",
         # TODO(https://github.com/google/xls/issues/1512): Remove when fixed.
         "crashers/crasher_2024-07-14_b78c.x",
         # TODO(https://github.com/google/xls/issues/1514): Remove when fixed.
@@ -406,6 +396,9 @@ generate_crasher_regression_tests(
 
         # Tests which use iverilog and iverilog does not work with sanitizers.
         "crashers/crasher_2022-09-03_4d43.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2023-11-19_3094.x": [
             "optonly",
         ],
         "crashers/crasher_2022-10-24_40eb.x": [
