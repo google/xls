@@ -18,7 +18,7 @@ load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells
 # pytype binary only
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
-load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
+load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
 # cc_proto_library is used in this file
 
 package(
@@ -263,14 +263,14 @@ exports_files([
 # Skywater 130nm open source PDK
 # ========================================================================
 # Default model for SKY130
-xls_delay_model_generation(
+xls_model_generation(
     name = "data_points-sky130",
     samples_file = ":samples.textproto",
     standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
 )
 
 [
-    xls_delay_model_generation(
+    xls_model_generation(
         name = "data_points-" + cell_name,
         samples_file = ":samples.textproto",
         standard_cells = cell_target,
@@ -282,14 +282,14 @@ xls_delay_model_generation(
 # ASAP 7nm fake open source PDK
 # ========================================================================
 # Default model for ASAP7
-xls_delay_model_generation(
+xls_model_generation(
     name = "data_points-asap7",
     samples_file = ":samples.textproto",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
 )
 
 [
-    xls_delay_model_generation(
+    xls_model_generation(
         name = "data_points-" + cell_name,
         samples_file = ":samples.textproto",
         standard_cells = cell_target,
@@ -299,7 +299,7 @@ xls_delay_model_generation(
 ]
 
 [
-    xls_delay_model_generation(
+    xls_model_generation(
         name = "data_points-" + cell_name,
         samples_file = ":samples.textproto",
         standard_cells = cell_target,
@@ -309,7 +309,7 @@ xls_delay_model_generation(
 ]
 
 # Special ASAP7 rev27 standard cells scaled up 4x
-xls_delay_model_generation(
+xls_model_generation(
     name = "data_points-asap7-sc7p5t_rev27_rvt_4x",
     samples_file = ":samples.textproto",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt_4x",

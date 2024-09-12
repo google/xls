@@ -187,45 +187,6 @@ Example:
 | <a id="xls_benchmark_verilog-verilog_target"></a>verilog_target |  The verilog target to benchmark.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 
-<a id="xls_delay_model_generation"></a>
-
-## xls_delay_model_generation
-
-<pre>
-xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-samples_file">samples_file</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>)
-</pre>
-
-Builds a script to generate an XLS delay model for one PDK corner.
-
-This rule gathers the locations of the required dependencies
-(Yosys, OpenSTA, helper scripts, and cell libraries) and
-generates a wrapper script that invokes "run_op_characterization"
-with the dependency locations provided as args.
-
-Any extra runtime args will get passed in to the
-"run_op_characterization" script (e.g. "--debug" or "--quick_run").
-
-The script must be "run" from the root of the workspace
-to perform the timing characterization.  The output textproto
-will be produced in the current directory (which, as just
-stated, must be the root of the workspace).
-
-Currently, only a subset of XLS operators are characterized,
-including most arithmetic, logical, and shift operators.
-However, many common operators such as "concat", "bit_slice",
-and "encode" are missing, and so the delay model that is
-currently produced should be considered INCOMPLETE.
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="xls_delay_model_generation-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_delay_model_generation-samples_file"></a>samples_file |  Proto providing sample points.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
-| <a id="xls_delay_model_generation-standard_cells"></a>standard_cells |  Target for the PDK; will use the target's default corner.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
-
-
 <a id="xls_dslx_library"></a>
 
 ## xls_dslx_library
@@ -600,6 +561,46 @@ Example:
 | <a id="xls_ir_verilog_fdo-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a v extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="xls_ir_verilog_fdo-verilog_line_map_file"></a>verilog_line_map_file |  The filename of line map for the generated Verilog file.If not specified, the basename of the Verilog file followed by a .verilog_line_map.textproto extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_ir_verilog_fdo-yosys_tool"></a>yosys_tool |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `"//third_party/yosys"`  |
+
+
+<a id="xls_model_generation"></a>
+
+## xls_model_generation
+
+<pre>
+xls_model_generation(<a href="#xls_model_generation-name">name</a>, <a href="#xls_model_generation-samples_file">samples_file</a>, <a href="#xls_model_generation-standard_cells">standard_cells</a>)
+</pre>
+
+Builds a script to generate an XLS estimator model of a metric for one PDK corner.
+The metric can be either area or delay.
+
+This rule gathers the locations of the required dependencies
+(Yosys, OpenSTA, helper scripts, and cell libraries) and
+generates a wrapper script that invokes "run_op_characterization"
+with the dependency locations provided as args.
+
+Any extra runtime args will get passed in to the
+"run_op_characterization" script (e.g. "--debug" or "--quick_run").
+
+The script must be "run" from the root of the workspace
+to perform the op characterization.  The output textproto
+will be produced in the current directory (which, as just
+stated, must be the root of the workspace).
+
+Currently, only a subset of XLS operators are characterized,
+including most arithmetic, logical, and shift operators.
+However, many common operators such as "concat", "bit_slice",
+and "encode" are missing, and so the delay model that is
+currently produced should be considered INCOMPLETE.
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="xls_model_generation-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="xls_model_generation-samples_file"></a>samples_file |  Proto providing sample points.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_model_generation-standard_cells"></a>standard_cells |  Target for the PDK; will use the target's default corner.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 
 <a id="cc_xls_ir_jit_wrapper"></a>

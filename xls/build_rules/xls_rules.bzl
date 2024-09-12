@@ -350,7 +350,7 @@ Examples:
     attrs = _dslx_verilog_attrs,
 )
 
-def _xls_delay_model_generation_impl(ctx):
+def _xls_model_generation_impl(ctx):
     script_contents = [""]
 
     standard_cell = ctx.attr.standard_cells[StandardCellInfo]
@@ -418,9 +418,10 @@ def _xls_delay_model_generation_impl(ctx):
         ),
     ]
 
-xls_delay_model_generation = rule(
-    implementation = _xls_delay_model_generation_impl,
-    doc = """Builds a script to generate an XLS delay model for one PDK corner.
+xls_model_generation = rule(
+    implementation = _xls_model_generation_impl,
+    doc = """Builds a script to generate an XLS estimator model of a metric for one PDK corner.
+The metric can be either area or delay.
 
 This rule gathers the locations of the required dependencies
 (Yosys, OpenSTA, helper scripts, and cell libraries) and
@@ -431,7 +432,7 @@ Any extra runtime args will get passed in to the
 "run_op_characterization" script (e.g. "--debug" or "--quick_run").
 
 The script must be "run" from the root of the workspace
-to perform the timing characterization.  The output textproto
+to perform the op characterization.  The output textproto
 will be produced in the current directory (which, as just
 stated, must be the root of the workspace).
 
