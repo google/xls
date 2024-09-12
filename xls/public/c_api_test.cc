@@ -344,4 +344,86 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
 
+// Test that instantiates a module with the ports tied to literal zero.
+TEST(XlsCApiTest, VastInstantiate) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "my_module");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_literal* zero = xls_vast_verilog_file_make_plain_literal(f, 0);
+  xls_vast_expression* zero_expr = xls_vast_literal_as_expression(zero);
+
+  // Within the module we'll instantiate `mod_def_name` with `mod_inst_name`.
+  const char* connection_port_names[] = {"portA", "portB"};
+  xls_vast_expression* connection_expressions[] = {zero_expr, zero_expr};
+  xls_vast_instantiation* instantiation =
+      xls_vast_verilog_file_make_instantiation(
+          f, "mod_def_name", "mod_inst_name",
+          /*parameter_port_names=*/{},
+          /*parameter_expressions=*/{},
+          /*parameter_count=*/0, connection_port_names, connection_expressions,
+          /*connection_count=*/2);
+
+  xls_vast_verilog_module_add_member_instantiation(m, instantiation);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  const std::string_view kWant = R"(module my_module;
+  mod_def_name mod_inst_name (
+    .portA(0),
+    .portB(0)
+  );
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}
+
+// Test that creates a module definition that continuous-assigns a slice of the
+// input to the output.
+TEST(XlsCApiTest, ContinuousAssignmentOfSlice) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "my_module");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, false);
+  xls_vast_data_type* u4 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 4, false);
+  xls_vast_logic_ref* input_ref =
+      xls_vast_verilog_module_add_input(m, "my_input", u8);
+  xls_vast_logic_ref* output_ref =
+      xls_vast_verilog_module_add_output(m, "my_output", u4);
+
+  xls_vast_slice* input_slice = xls_vast_verilog_file_make_slice_i64(
+      f, xls_vast_logic_ref_as_indexable_expression(input_ref), 3, 0);
+
+  xls_vast_continuous_assignment* assignment =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(output_ref),
+          xls_vast_slice_as_expression(input_slice));
+
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assignment);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  const std::string_view kWant = R"(module my_module(
+  input wire [7:0] my_input,
+  output wire [3:0] my_output
+);
+  assign my_output = my_input[3:0];
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}
+
 }  // namespace
