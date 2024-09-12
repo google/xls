@@ -27,7 +27,7 @@ from xls.common import runfiles
 
 
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
-PARSE_IR_PATH = runfiles.get_path('xls/tools/parse_ir')
+PARSE_IR_PATH = runfiles.get_path('xls/dev_tools/parse_ir')
 
 
 def _random_bits_value(width: int) -> str:

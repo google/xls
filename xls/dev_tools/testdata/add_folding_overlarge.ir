@@ -1,0 +1,9 @@
+package add_folding_overlarge
+
+top fn candidate_main(x1310252: bits[29]) -> bits[1] {
+  bit_slice.245: bits[1] = bit_slice(x1310252, start=0, width=1)
+  literal.246: bits[1] = literal(value=1)
+  add.247: bits[1] = add(bit_slice.245, literal.246)
+  ret add.249: bits[1] = add(literal.246, add.247)
+}
+

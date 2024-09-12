@@ -128,23 +128,6 @@ cc_test(
     ],
 )
 
-cc_binary(
-    name = "smtlib_emitter_main",
-    srcs = ["smtlib_emitter_main.cc"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/solvers:z3_ir_translator",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@z3//:api",
-    ],
-)
-
 cc_library(
     name = "testbench",
     hdrs = ["testbench.h"],
@@ -199,32 +182,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/synchronization",
-    ],
-)
-
-cc_binary(
-    name = "parse_ir",
-    srcs = ["parse_ir.cc"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/ir:verifier",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-sh_test(
-    name = "parse_ir_test",
-    srcs = ["parse_ir_test.sh"],
-    data = [
-        "testdata/add_folding_overlarge.ir",
-        ":parse_ir",
     ],
 )
 
@@ -843,49 +800,6 @@ py_test(
     ],
 )
 
-cc_binary(
-    name = "solver",
-    srcs = ["solver.cc"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/solvers:z3_ir_translator",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-cc_binary(
-    name = "bdd_stats",
-    srcs = ["bdd_stats.cc"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/data_structures:binary_decision_diagram",
-        "//xls/examples:sample_packages",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
-        "//xls/passes:bdd_function",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
 cc_library(
     name = "bom",
     srcs = ["bom.cc"],
@@ -934,66 +848,6 @@ cc_binary(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_binary(
-    name = "cell_library_extract_formula",
-    srcs = ["cell_library_extract_formula.cc"],
-    deps = [
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/netlist:lib_parser",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-cc_binary(
-    name = "repl",
-    srcs = ["repl.cc"],
-    deps = [
-        "//xls/codegen:codegen_options",
-        "//xls/codegen:combinational_generator",
-        "//xls/codegen:module_signature",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx:create_import_data",
-        "//xls/dslx:import_data",
-        "//xls/dslx:mangle",
-        "//xls/dslx:warning_collector",
-        "//xls/dslx:warning_kind",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:parser",
-        "//xls/dslx/frontend:pos",
-        "//xls/dslx/frontend:scanner",
-        "//xls/dslx/ir_convert:conversion_info",
-        "//xls/dslx/ir_convert:convert_options",
-        "//xls/dslx/ir_convert:ir_converter",
-        "//xls/dslx/type_system:type",
-        "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:typecheck_module",
-        "//xls/ir",
-        "//xls/passes:optimization_pass_pipeline",
-        "@com_google_absl//absl/base:no_destructor",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-        "@linenoise",
     ],
 )
 

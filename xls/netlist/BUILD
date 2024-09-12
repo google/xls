@@ -455,3 +455,22 @@ py_test(
         "//xls/common:test_base",
     ],
 )
+
+cc_binary(
+    name = "cell_library_extract_formula",
+    srcs = ["cell_library_extract_formula.cc"],
+    deps = [
+        ":lib_parser",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+    ],
+)

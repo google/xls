@@ -62,11 +62,12 @@ Let's go over this, line-by-line:
 
 Let's run (and test) our code!
 
-First thing, though, we should make sure our module parses and passes
-type checking. The fastest way to do that is via the DSLX
+First thing, though, we should make sure our module parses and passes type
+checking. The fastest way to do that is via the DSLX
 "[repl](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)",
-conveniently called [`repl`](https://github.com/google/xls/tree/main/xls/tools/repl.cc).
-You can run it against the above example with the command:
+conveniently called
+[`repl`](https://github.com/google/xls/tree/main/xls/dev_tools/repl.cc). You can run it
+against the above example with the command:
 
 ```
 $ ./bazel-bin/xls/tools/repl hello_xls.x

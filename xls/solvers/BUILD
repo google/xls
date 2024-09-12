@@ -344,3 +344,39 @@ cc_test(
         "@z3//:api",
     ],
 )
+
+cc_binary(
+    name = "solver",
+    srcs = ["solver.cc"],
+    deps = [
+        ":z3_ir_translator",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_binary(
+    name = "smtlib_emitter_main",
+    srcs = ["smtlib_emitter_main.cc"],
+    deps = [
+        ":z3_ir_translator",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@z3//:api",
+    ],
+)

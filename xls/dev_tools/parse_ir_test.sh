@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BINPATH=./xls/tools/parse_ir
+BINPATH=./xls/dev_tools/parse_ir
 $BINPATH <<EOF
 wheeeeeeeee
 EOF
@@ -34,9 +34,9 @@ fn id(x: bits[2]) -> bits[2] {
 }
 EOF
 
-$BINPATH ./xls/tools/testdata/add_folding_overlarge.ir || exir -1
+$BINPATH ./xls/dev_tools/testdata/add_folding_overlarge.ir || exir -1
 
-$BINPATH ./xls/tools/testdata/file_that_definitely_does_not_or_at_least_should_not_exist.ir
+$BINPATH ./xls/dev_tools/testdata/file_that_definitely_does_not_or_at_least_should_not_exist.ir
 RETCODE=$?
 if [[ ${RETCODE} -ne 0 ]]; then
   echo "Bad path gave retcode ${RETCODE}.";

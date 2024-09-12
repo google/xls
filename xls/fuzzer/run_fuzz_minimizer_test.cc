@@ -38,7 +38,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<std::filesystem::path> GetParseIrPath() {
-  return GetXlsRunfilePath("xls/tools/parse_ir");
+  return GetXlsRunfilePath("xls/dev_tools/parse_ir");
 }
 
 using status_testing::IsOkAndHolds;

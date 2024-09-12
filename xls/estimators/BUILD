@@ -68,8 +68,8 @@ py_library(
     name = "op_module_generator",
     srcs = ["op_module_generator.py"],
     data = [
+        "//xls/dev_tools:parse_ir",
         "//xls/tools:codegen_main",
-        "//xls/tools:parse_ir",
     ],
     srcs_version = "PY3",
     deps = [

@@ -86,7 +86,7 @@ cc_test(
     timeout = "long",
     srcs = ["run_fuzz_minimizer_test.cc"],
     data = [
-        "//xls/tools:parse_ir",
+        "//xls/dev_tools:parse_ir",
     ],
     tags = ["optonly"],
     deps = [

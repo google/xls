@@ -2,7 +2,7 @@
 
 An index of XLS developer tools.
 
-## [`bdd_stats`](https://github.com/google/xls/tree/main/xls/tools/bdd_stats.cc)
+## [`bdd_stats`](https://github.com/google/xls/tree/main/xls/dev_tools/bdd_stats.cc)
 
 Constructs a binary decision diagram (BDD) using a given XLS function and prints
 various statistics about the BDD. BDD construction can be very slow in
@@ -397,7 +397,7 @@ or other behaviors requiring explanation:
     `./xls/tools/testdata/proto_to_dslx_main.*` demonstrates this
     behavior.
 
-## [`repl`](https://github.com/google/xls/tree/main/xls/tools/repl.cc)
+## [`repl`](https://github.com/google/xls/tree/main/xls/dev_tools/repl.cc)
 
 Allows you to interactively run various parts of the compiler, including
 parsing/type checking (`:reload`), lowering/optimization (`:ir`), Verilog
@@ -413,7 +413,7 @@ Runs a Verilog block emitted by XLS through a Verilog simulator. Requires both
 the Verilog text and the module signature which includes metadata about the
 block.
 
-## [`smtlib_emitter_main`](https://github.com/google/xls/tree/main/xls/tools/smtlib_emitter_main.cc)
+## [`smtlib_emitter_main`](https://github.com/google/xls/tree/main/xls/solvers/smtlib_emitter_main.cc)
 
 Simple driver for Z3IrTranslator - converts a given IR function into its Z3
 representation and outputs that translation as SMTLIB2.
@@ -427,7 +427,7 @@ $ bazel build -c opt //xls/examples:tiny_adder.opt.ir
 And then feed that XLS IR file into this binary:
 
 ```
-$ bazel run -c opt //xls/tools:smtlib_emitter_main -- --ir_path \
+$ bazel run -c opt //xls/solvers:smtlib_emitter_main -- --ir_path \
     $PWD/bazel-bin/xls/examples/tiny_adder.opt.ir
 (bvadd (concat #b0 x) (concat #b0 y))
 ```
@@ -439,7 +439,7 @@ To turn it into "gate level" SMTLib, we can do a pre-pass through the
 $ bazel run -c opt //xls/tools:booleanify_main -- --ir_path \
    $PWD/bazel-bin/xls/examples/tiny_adder.opt.ir \
    > /tmp/tiny_adder.boolified.ir
-$ bazel run -c opt //xls/tools:smtlib_emitter_main -- \
+$ bazel run -c opt //xls/solvers:smtlib_emitter_main -- \
     --ir_path /tmp/tiny_adder.boolified.ir
 (let ((a!1 (bvand (bvor ((_ extract 0 0) x) ((_ extract 0 0) y))
                   (bvnot (bvand ((_ extract 0 0) x) ((_ extract 0 0) y))))))
@@ -453,7 +453,7 @@ $ bazel run -c opt //xls/tools:smtlib_emitter_main -- \
           (bvand (bvor a!1 #b0) (bvnot (bvand a!1 #b0))))))
 ```
 
-## [`solver`](https://github.com/google/xls/tree/main/xls/tools/solver.cc)
+## [`solver`](https://github.com/google/xls/tree/main/xls/solvers/solver.cc)
 
 Uses a SMT solver (i.e. Z3) to prove properties of an XLS IR program from the
 command line. Currently the set of "predicates" that the solver supports from
@@ -463,7 +463,7 @@ arbitrary IR-function-specified predicates.
 This can be used to uncover opportunities for optimization that were missed, or
 to prove equivalence of transformed representations with their original version.
 
-## [`cell_library_extract_formula`](https://github.com/google/xls/tree/main/xls/tools/cell_library_extract_formula.cc)
+## [`cell_library_extract_formula`](https://github.com/google/xls/tree/main/xls/netlist/cell_library_extract_formula.cc)
 
 Parses a cell library ".lib" file and extracts boolean formulas from it that
 determine the functionality of cells. This is useful for LEC of the XLS IR
