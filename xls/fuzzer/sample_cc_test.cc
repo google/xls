@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -64,6 +65,29 @@ TEST(SampleCcTest, SerializeDeserializeFunction) {
   EXPECT_EQ(sample.args_batch()[0][0].ToString(), "u32:42");
   EXPECT_EQ(sample.args_batch()[1].size(), 1);
   EXPECT_EQ(sample.args_batch()[1][0].ToString(), "u32:123");
+}
+
+TEST(SampleCcTest, DeserializationCanHandleNewlinesInStringLiterals) {
+  // Due to file-formatting, it can happen that strings are separated
+  // like in the following args example
+  static constexpr std::string_view kNewlinedConfig = R"""(
+// BEGIN_CONFIG
+// # proto-message: xls.fuzzer.CrasherConfigurationProto
+// issue: "Foo"
+// inputs {
+//   function_args {
+//     args: "(bits[32]:0x01,
+//             bits[32]:0x02,
+//             bits[32]:0x03)"
+//   }
+// }
+// END_CONFIG
+)""";
+  XLS_ASSERT_OK_AND_ASSIGN(Sample parsed, Sample::Deserialize(kNewlinedConfig));
+
+  EXPECT_EQ(parsed.args_batch().size(), 1);
+  EXPECT_EQ(parsed.args_batch()[0].size(), 1);
+  EXPECT_EQ(parsed.args_batch()[0][0].ToString(), "(u32:1, u32:2, u32:3)");
 }
 
 TEST(SampleCcTest, SerializeDeserializeProc) {

@@ -223,7 +223,7 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
         in_config = true;
       } else if (contents == kEndConfig) {
         in_config = false;
-      } else if (in_config) {
+      } else if (in_config && !contents.empty() && contents[0] != '#') {
         config_lines.push_back(contents);
       }
     } else {
@@ -235,7 +235,10 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
         "Fuzz sample has a missing or empty config");
   }
   fuzzer::CrasherConfigurationProto proto;
-  XLS_RETURN_IF_ERROR(ParseTextProto(absl::StrJoin(config_lines, "\n"),
+  // Join lines with whitespace, not newline, as TextProto will have issues
+  // if string-literals are separated by newline.
+  // (Might happen due to file-formatting).
+  XLS_RETURN_IF_ERROR(ParseTextProto(absl::StrJoin(config_lines, " "),
                                      /*file_name=*/"", &proto));
   XLS_ASSIGN_OR_RETURN(SampleOptions options,
                        SampleOptions::FromProto(proto.sample_options()));
