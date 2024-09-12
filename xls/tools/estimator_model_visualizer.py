@@ -18,7 +18,7 @@ r"""Estimator model visualization tool.
 Dumps a graph (as an image) of each XLS op estimator model in a specified directory.
 
 Usage:
-  delay_model_visualizer --output_dir=/tmp/images \
+  estimator_model_visualizer --output_dir=/tmp/images \
     xls/estimators/delay_model/models/unit.textproto
 """
 
@@ -59,6 +59,7 @@ def get_r2_score(y_pred: np.ndarray, y_true: np.ndarray) -> np.float64:
 
 def maybe_plot_estimator_and_data_points(
     estimator: estimator_model.Estimator,
+    metric: estimator_model.Metric,
     specialization_kind: Optional[Text] = None,
     specialization_details: Optional[
         estimator_model.SpecializationDetails
@@ -71,13 +72,19 @@ def maybe_plot_estimator_and_data_points(
 
   Args:
     estimator: Estimator to plot. Estimator class also contains data points.
+    metric: The metric that the estimator estimates.
     specialization_kind: Optional kind of specialization. Used in plot title and
       file name.
     specialization_details: Optional specialization details. Used in plot title.
   """
   if not isinstance(
-      estimator, estimator_model.RegressionEstimator
-  ) and not isinstance(estimator, estimator_model.BoundingBoxEstimator):
+      estimator,
+      (
+          estimator_model.RegressionEstimator,
+          estimator_model.BoundingBoxEstimator,
+          estimator_model.AreaRegressionEstimator,
+      ),
+  ):
     return
 
   def estimation_f(*args):
@@ -107,11 +114,23 @@ def maybe_plot_estimator_and_data_points(
     title += f', $R^2$ = {r2_score:.2f}'
 
     # Describe the equation
-    estimator_description = (
-        f'f(x) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
-        ' log(x)\nwhere x ='
-        f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}'
-    )
+    if isinstance(estimator, estimator_model.AreaRegressionEstimator):
+      estimator_description = (
+          f'f(x) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x^2 + {coeffs[2]:.2f} *'
+          f' xlog(x) + {coeffs[3]:.2f} * x + {coeffs[4]:.2f} *'
+          ' log(x)\nwhere x ='
+          f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}'
+      )
+    elif isinstance(estimator, estimator_model.RegressionEstimator):
+      estimator_description = (
+          f'f(x) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
+          ' log(x)\nwhere x ='
+          f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}'
+      )
+    else:
+      raise NotImplementedError(
+          f'Plotting {type(estimator)} type with 1 factor is not implemented!'
+      )
     title += '\n' + estimator_description
 
     # Plot a curve for the model.
@@ -125,7 +144,12 @@ def maybe_plot_estimator_and_data_points(
             estimator.estimator_expressions[0]
         )
     )
-    ax.set_ylabel('delay (ps)')
+    if metric == estimator_model.Metric.DELAY_METRIC:
+      ax.set_ylabel('delay (ps)')
+    elif metric == estimator_model.Metric.AREA_METRIC:
+      ax.set_ylabel('area ($\\mu m^2$)')
+    else:
+      raise ValueError(f'Unsupported metric: {metric}')
     pyplot.ylim(bottom=0)
     pyplot.xlim(left=1)
 
@@ -143,12 +167,27 @@ def maybe_plot_estimator_and_data_points(
     title += f', $R^2$ = {r2_score:.2f}'
 
     # Describe the equation
-    estimator_description = (
-        f'f(x,y) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
-        f' log(x) + {coeffs[3]:.2f} * y + {coeffs[4]:.2f} * log(y)\nwhere x ='
-        f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}\ny'
-        f' = {estimator_model.estimator_expression_description(estimator.estimator_expressions[1])}'
-    )
+    if isinstance(estimator, estimator_model.AreaRegressionEstimator):
+      estimator_description = (
+          f'f(x,y) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x^2 +'
+          f' {coeffs[3]:.2f} *'
+          f' xlog(x) + {coeffs[5]:.2f} * x + {coeffs[7]:.2f} * log(x) +\n'
+          f' {coeffs[2]:.2f} * y^2 + {coeffs[4]:.2f} * ylog(y) + '
+          f'{coeffs[6]:.2f} * y + {coeffs[8]:.2f} * log(y)\nwhere x ='
+          f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}\ny'
+          f' = {estimator_model.estimator_expression_description(estimator.estimator_expressions[1])}'
+      )
+    elif isinstance(estimator, estimator_model.RegressionEstimator):
+      estimator_description = (
+          f'f(x,y) = {coeffs[0]:.2f} + {coeffs[1]:.2f} * x + {coeffs[2]:.2f} *'
+          f' log(x) + {coeffs[3]:.2f} * y + {coeffs[4]:.2f} * log(y)\nwhere x ='
+          f' {estimator_model.estimator_expression_description(estimator.estimator_expressions[0])}\ny'
+          f' = {estimator_model.estimator_expression_description(estimator.estimator_expressions[1])}'
+      )
+    else:
+      raise NotImplementedError(
+          f'Plotting {type(estimator)} type with 2 factors is not implemented!'
+      )
     title += '\n' + estimator_description
 
     # Plot the surface of the estimate.
@@ -190,7 +229,12 @@ def maybe_plot_estimator_and_data_points(
             estimator.estimator_expressions[1]
         )
     )
-    ax.set_zlabel('delay (ps)')
+    if metric == estimator_model.Metric.DELAY_METRIC:
+      ax.set_zlabel('delay (ps)')
+    elif metric == estimator_model.Metric.AREA_METRIC:
+      ax.set_zlabel('area ($\\mu m^2$)')
+    else:
+      raise ValueError(f'Unsupported metric: {metric}')
 
   else:
     # More than two expressions not supported.
@@ -218,7 +262,7 @@ def main(argv):
 
   for op in em.ops():
     op_model = em.op_model(op)
-    maybe_plot_estimator_and_data_points(op_model.estimator)
+    maybe_plot_estimator_and_data_points(op_model.estimator, em.get_metric())
 
     for (
         specialization_kind,
@@ -226,6 +270,7 @@ def main(argv):
     ), estimator in op_model.specializations.items():
       maybe_plot_estimator_and_data_points(
           estimator,
+          em.metric,
           estimator_model_pb2.SpecializationKind.Name(specialization_kind),
           specialization_details,
       )

@@ -50,7 +50,7 @@ class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
   }
 };
 
-XLS_REGISTER_MODULE_INITIALIZER(model_{{name}}, {
+XLS_REGISTER_MODULE_INITIALIZER(delay_model_{{name}}, {
   CHECK_OK(
         GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
           std::make_unique<DelayEstimatorModel{{camel_case_name}}>(),

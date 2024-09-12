@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Utility functions used in delay model generation."""
+"""Utility functions used in estimator model generation."""
 
 from collections.abc import Mapping
 import dataclasses

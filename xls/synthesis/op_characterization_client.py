@@ -238,6 +238,8 @@ def _synthesize_ir(
   for opnd_num, element_count in operand_element_counts.items():
     result_dp.operation.operands[opnd_num].element_count = element_count
   result_dp.delay = int(ps)
+  result_dp.total_area = result.area
+  result_dp.sequential_area = result.sequential_area
   # TODO(tcal) currently no support for array result type here
 
   return result_dp

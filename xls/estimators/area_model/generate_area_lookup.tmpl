@@ -1,0 +1,64 @@
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "xls/common/module_initializer.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+
+namespace xls {
+
+namespace {
+{% for op in area_model.ops() -%}
+{{ area_model.op_model(op).cpp_estimation_function_declaration() }}
+{%- endfor %}
+{% for op in area_model.ops() %}
+{{ area_model.op_model(op).cpp_estimation_function() }}
+{% endfor %}
+}  // namespace
+
+class AreaEstimatorModel{{camel_case_name}} : public AreaEstimator {
+ public:
+  AreaEstimatorModel{{camel_case_name}}() : AreaEstimator("{{name}}") {}
+
+ private:
+  absl::StatusOr<double> GetOperationAreaInSquareMicrons(Node* node) const final {
+    absl::StatusOr<double> area_status;
+    switch (node->op()) {
+  {% for op in area_model.ops() -%}
+      case Op::{{op}}:
+        area_status = {{area_model.op_model(op).cpp_estimation_function_name()}}(node);
+        break;
+  {%- endfor %}
+      default:
+        return absl::UnimplementedError(
+          "Unhandled node for area estimation in area model '{{name}}': "
+          + node->ToStringWithOperandTypes());
+    }
+    if (area_status.ok()) {
+      return area_status.value();
+    }
+    return area_status.status();
+  }
+
+  {% if one_bit_register_area %}
+  absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons() const final {
+    return {{one_bit_register_area}};
+  }
+  {% else %}
+  absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons() const final {
+    return UnimplementedError("Area model \"{{name}}\" does not have register area defined.")
+  }
+  {% endif %}
+};
+
+XLS_REGISTER_MODULE_INITIALIZER(area_model_{{name}}, {
+  CHECK_OK(
+        GetAreaEstimatorManagerSingleton().AddAreaEstimator(
+          std::make_unique<AreaEstimatorModel{{camel_case_name}}>())
+  );
+});
+
+}  // namespace xls

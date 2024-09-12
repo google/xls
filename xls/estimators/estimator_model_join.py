@@ -93,6 +93,10 @@ _UPDATE_MODE = flags.DEFINE_enum_class(
     ' counterparts.',
 )
 
+# A set containing the name of the fields in estimator_model.estimator.Estimator
+# proto such that the fields contain regression models.
+_REGRESSION_TYPES = frozenset({'regression', 'area_regression'})
+
 
 def sync_check(
     oms: estimator_model_pb2.OpModels,
@@ -113,7 +117,7 @@ def sync_check(
   regression_ops = {
       x.op
       for x in oms.op_models
-      if x.estimator.WhichOneof('estimator') == 'regression'
+      if x.estimator.WhichOneof('estimator') in _REGRESSION_TYPES
   }
   data_point_ops = set([x.operation.op for x in dps.data_points])
 

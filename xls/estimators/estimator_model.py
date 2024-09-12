@@ -367,6 +367,10 @@ class RawDataPoint:
     )
 
 
+# This regression estimator is specific to the regression in the delay model.
+# TODO(hnpl): make RegressionEstimator the base class, and
+# AreaRegressionEstimator and DelayRegressionEstimator should inherit from
+# RegressionEstimator.
 class RegressionEstimator(Estimator):
   """An estimator which uses curve fitting of measured data points.
 
@@ -634,6 +638,143 @@ class RegressionEstimator(Estimator):
       )
 
 
+class AreaRegressionEstimator(RegressionEstimator):
+  """An estimator which uses linear regression specialized for area estimations.
+
+  Suppose there are k factors, and X is the array of factors.
+  The curve has the form,
+
+    area_est =
+  P_0 + P_1 * (X[0] ** 2) + ... + P_k * (X[k-1] ** 2)
+      + P_{k+1} * (X[0] * log2(X[0])) + ... + P_{2k} * (X[k-1] * log2(X[k-1]))
+      + P_{2k+1} * X[0] + ... +  P_{3k} * X[k-1]
+      + P_{3k+1} * log2(X[0]) + ... + P_{4k} * log2(X[k-1])
+
+  where P_i are learned parameters The model supports an arbitrary number of
+  expressions.
+
+  Attributes:
+    estimator_expressions: The expressions used in curve fitting.
+    data_points: Measurements used by the model as DataPoint protos.
+    raw_data_points: Measurements stored in RawDataPoint structures. The
+      .factors list contains the estimator expressions, and the .measurement
+      field is the measured data of a given metric.
+    estimator_function: The curve-fitted function which computes the estimated
+      metric given the expressions as floats.
+    params: The list of learned parameters.
+    num_cross_validation_folds: The number of folds to use for cross validation.
+    max_data_point_error: The maximum allowable absolute error for any single
+      data point.
+    max_fold_geomean_error: The maximum allowable geomean absolute error over
+      all data points in a given test set.
+  """
+
+  def __init__(
+      self,
+      op,
+      metric: Metric,
+      estimator_expressions: Sequence[estimator_model_pb2.EstimatorExpression],
+      data_points: Sequence[estimator_model_pb2.DataPoint],
+      num_cross_validation_folds: int = 5,
+      max_data_point_error: float = np.inf,
+      max_fold_geomean_error: float = np.inf,
+  ):
+    if metric != Metric.AREA_METRIC:
+      raise ValueError(
+          f'AreaRegressionEstimator for metric "{metric}" is not supported!'
+      )
+    super().__init__(
+        op,
+        metric,
+        estimator_expressions,
+        data_points,
+        num_cross_validation_folds,
+        max_data_point_error,
+        max_fold_geomean_error,
+    )
+
+  def _fit_curve(
+      self, raw_data_points: Sequence[RawDataPoint]
+  ) -> Tuple[Callable[[Sequence[float]], float], np.ndarray]:
+    """Fits a curve to the given data points.
+
+    Args:
+      raw_data_points: A sequence of RawDataPoints, where each is a single
+        measurement point. Independent variables are in the .factors field, and
+        the dependent variable is in the .measurement field.
+
+    Returns:
+      A tuple containing the fitted function and the sequence of learned
+      parameters.
+    """
+    # Split the raw data points into independent (xdata) and dependent variables
+    # (ydata).
+    raw_xdata = np.array(
+        [pt.factors for pt in raw_data_points], dtype=np.float64
+    )
+    ydata = np.transpose([pt.measurement for pt in raw_data_points])
+
+    # Construct our augmented "independent" variables in a matrix:
+    # xdata = [1, x0**2, x1**2, x0*log2(x0), x1*log2(x1), x0, x1, log2(x0),
+    #          log2(x1), ...]
+    def get_x(x_arr: np.ndarray) -> np.ndarray:
+      mask = ~np.any(x_arr == 0, axis=1)
+      x = x_arr[mask]
+      x_squared = np.square(x)
+      x_log_x = x * np.log2(x)
+      log_x = np.log2(x)
+      return np.c_[np.ones(x.shape[0]), x_squared, x_log_x, x, log_x]
+
+    def get_x_y(
+        x_arr: np.ndarray, y_arr: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+      # filtering out rows with a zero element
+      mask = ~np.any(x_arr == 0, axis=1)
+      y_new = y_arr[mask]
+      return get_x(x_arr), y_new
+
+    xdata, ydata = get_x_y(raw_xdata, ydata)
+
+    # Now, the least-squares solution to the equation xdata @ p = ydata is
+    # exactly the set of parameters for our model! EXCEPT: we want to make sure
+    # none of the weights are negative, since we expect all terms to have net
+    # positive contribution. This helps make sure extrapolations are reasonable.
+    params = opt.nnls(xdata, ydata)[0]
+
+    def f(x) -> float:
+      x_augmented = get_x(np.array([x], dtype=np.float64))
+      # get_x() filters out rows with zero, so there might be no rows left
+      if x_augmented.shape[0] == 0:
+        return 0
+      return np.dot(x_augmented, params)[0]
+
+    return f, params.flatten()
+
+  def cpp_estimation_code(self, node_identifier: str) -> str:
+    num_expressions = len(self.estimator_expressions)
+    terms = [repr(float(self.params[0]))]
+    for i, expression in enumerate(self.estimator_expressions):
+      expression_str = _estimator_expression_cpp_expression(
+          expression, node_identifier
+      )
+      x_square_coeff = float(self.params[num_expressions * 0 + 1 + i])
+      x_logx_coeff = float(self.params[num_expressions * 1 + 1 + i])
+      x_coeff = float(self.params[num_expressions * 2 + 1 + i])
+      logx_coeff = float(self.params[num_expressions * 3 + 1 + i])
+      terms.append(
+          f'{repr(x_square_coeff)} * {expression_str} * {expression_str}'
+      )
+      terms.append(
+          f'{repr(x_logx_coeff)} * {expression_str} *'
+          f' std::log2({expression_str})'
+      )
+      terms.append(f'{repr(x_coeff)} * {expression_str}')
+      terms.append(f'{repr(logx_coeff)} * std::log2({expression_str})')
+
+    terms_str = ' + '.join(terms)
+    return f'return {terms_str};'
+
+
 class BoundingBoxEstimator(Estimator):
   """Bounding box estimator."""
 
@@ -764,6 +905,25 @@ def _estimator_from_proto(
           keyword_dict[arg] = getattr(proto.regression.kfold_validator, arg)
     return RegressionEstimator(
         op, metric, proto.regression.expressions, data_points, **keyword_dict
+    )
+  if proto.HasField('area_regression'):
+    assert data_points
+    keyword_dict = dict()
+    if proto.regression.HasField('kfold_validator'):
+      optional_args = [
+          'num_cross_validation_folds',
+          'max_data_point_error',
+          'max_fold_geomean_error',
+      ]
+      for arg in optional_args:
+        if proto.regression.kfold_validator.HasField(arg):
+          keyword_dict[arg] = getattr(proto.regression.kfold_validator, arg)
+    return AreaRegressionEstimator(
+        op,
+        metric,
+        proto.area_regression.expressions,
+        data_points,
+        **keyword_dict,
     )
   if proto.HasField('bounding_box'):
     assert data_points
@@ -976,6 +1136,7 @@ class EstimatorModel:
   Attributes:
     metric: The metric this model is estimating.
     op_models: A map from xls::Op (e.g., 'kAdd') to the OpModel for that op.
+    metric: The Metric this estimator model estimates.
   """
 
   def __init__(self, proto: estimator_model_pb2.EstimatorModel):
@@ -1002,3 +1163,6 @@ class EstimatorModel:
 
   def is_area_model(self) -> bool:
     return self.metric == Metric.AREA_METRIC
+
+  def get_metric(self) -> Metric:
+    return self.metric

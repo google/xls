@@ -219,6 +219,24 @@ message RegressionEstimator {
   }
 }
 
+// Similar to RegressionEstimator but includes more terms: x**2, xlogx, x, logx.
+// For example, if the expressions are u and v, where u is the result bit count,
+// and v is the operand count, then the area estimator has the form:
+//   area_est = P_0 + P_1 * u**2 + P_2 * u*log(u) + P_3 * u + P_4 * log(u) +
+//                    P_5 * v**2 + P_6 * v*log(v) + P_7 * v + P_8 * log(v)
+//
+// Where P_i are learned parameters.
+message AreaRegressionEstimator {
+  repeated EstimatorExpression expressions = 1;
+
+  // Note: oneof used here because proto3 does not support optional
+  // fields without experimental features enabled.
+  oneof optional_kfold_validator {
+    // K-Fold validation settings.
+    KFoldValidator kfold_validator = 2;
+  }
+}
+
 // Describes a estimation model in which the measured data points define
 // bounding boxes in the space of expressions. The estimated delay (or area) for
 // an operation X is equal to the delay (or area) of the first bounding box
@@ -273,6 +291,9 @@ message Estimator {
 
     // A logical effort estimator.
     LogicalEffortEstimator logical_effort = 5;
+
+    // A curve-fitting model for area.
+    AreaRegressionEstimator area_regression = 6;
   }
 }
 
@@ -310,7 +331,7 @@ message EstimatorModel {
   repeated OpModel op_models = 1;
 
   // Measured delays of XLS operations used as input data for
-  // RegressionEstimator and BoundingBoxEstimator.
+  // RegressionEstimator, AreaRegressionEstimator, and BoundingBoxEstimator.
   repeated DataPoint data_points = 2;
 
   // The metric this estimator model is estimating.

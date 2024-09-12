@@ -1,4 +1,4 @@
-# Copyright 2020 The XLS Authors
+# Copyright 2024 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Contains macros for creating XLS delay models."""
+"""Contains macros for creating XLS area models."""
 
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 
-def delay_model(
+def area_model(
         name,
         model_name,
-        precedence,
         srcs,
         **kwargs):
-    """Generates a delay model cc_library from an EstimatorModel protobuf.
+    """Generates an area model cc_library from an EstimatorModel protobuf.
 
     Args:
 
       name: Name of the cc_library target to generate.
       model_name: Name of the model. This is the string that is used to access
         the model when calling xls::GetDelayEstimator.
-      precedence: Precedence for the model in the delay model registry.
       srcs: The pbtext file containing the EstimatorModel proto. There should only
         be a single source file.
       **kwargs: Keyword args to pass to cc_library and genrule_wrapper rules.
@@ -38,19 +36,16 @@ def delay_model(
     if len(srcs) != 1:
         fail("More than one source not currently supported.")
 
-    if precedence not in ("kLow", "kMedium", "kHigh"):
-        fail("Invalid precedence for delay model: " + precedence)
-
     genrule_wrapper(
         name = "{}_source".format(name),
         srcs = srcs,
         outs = ["{}.cc".format(name)],
-        cmd = ("$(location //xls/estimators/delay_model:generate_delay_lookup) " +
-               "--model_name={model_name} --precedence={precedence} $< " +
+        cmd = ("$(location //xls/estimators/area_model:generate_area_lookup) " +
+               "--model_name={model_name} $< " +
                "| $(location @llvm_toolchain//:clang-format)" +
-               " > $(OUTS)").format(model_name = model_name, precedence = precedence),
+               " > $(OUTS)").format(model_name = model_name),
         tools = [
-            "//xls/estimators/delay_model:generate_delay_lookup",
+            "//xls/estimators/area_model:generate_area_lookup",
             "@llvm_toolchain//:clang-format",
         ],
         **kwargs
@@ -66,7 +61,7 @@ def delay_model(
             "@com_google_absl//absl/status",
             "//xls/common:module_initializer",
             "@com_google_absl//absl/status:statusor",
-            "//xls/estimators/delay_model:delay_estimator",
+            "//xls/estimators/area_model:area_estimator",
             "//xls/ir",
         ],
         **kwargs
