@@ -75,6 +75,9 @@ bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
   return false;
 }
 
+// Converts a C-API-given format preference value into the XLS internal enum --
+// since these values can be out of normal enum class range when passed to the
+// API, we validate here.
 bool FormatPreferenceFromC(xls_format_preference c_pref,
                            xls::FormatPreference* cpp_pref, char** error_out) {
   switch (c_pref) {
@@ -187,6 +190,25 @@ bool xls_parse_typed_value(const char* input, char** error_out,
   return false;
 }
 
+bool xls_value_get_bits(const struct xls_value* value, char** error_out,
+                        struct xls_bits** bits_out) {
+  CHECK(value != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(bits_out != nullptr);
+
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  absl::StatusOr<xls::Bits> bits_or = cpp_value->GetBitsWithStatus();
+  if (bits_or.ok()) {
+    xls::Bits* heap_bits = new xls::Bits(std::move(bits_or).value());
+    *bits_out = reinterpret_cast<xls_bits*>(heap_bits);
+    return true;
+  }
+
+  *bits_out = nullptr;
+  *error_out = ToOwnedCString(bits_or.status().ToString());
+  return false;
+}
+
 struct xls_value* xls_value_make_token() {
   auto* value = new xls::Value(xls::Value::Token());
   return reinterpret_cast<xls_value*>(value);
@@ -201,6 +223,8 @@ struct xls_value* xls_value_make_false() {
   auto* value = new xls::Value(xls::Value::Bool(false));
   return reinterpret_cast<xls_value*>(value);
 }
+
+void xls_bits_free(xls_bits* b) { delete reinterpret_cast<xls::Bits*>(b); }
 
 void xls_value_free(xls_value* v) {
   delete reinterpret_cast<xls::Value*>(v);
@@ -538,6 +562,24 @@ struct xls_vast_literal* xls_vast_verilog_file_make_plain_literal(
   xls::verilog::Literal* cpp_literal =
       cpp_file->PlainLiteral(value, xls::SourceInfo());
   return reinterpret_cast<xls_vast_literal*>(cpp_literal);
+}
+
+bool xls_vast_verilog_file_make_literal(struct xls_vast_verilog_file* f,
+                                        struct xls_bits* bits,
+                                        xls_format_preference format_preference,
+                                        bool emit_bit_count, char** error_out,
+                                        struct xls_vast_literal** literal_out) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_bits = reinterpret_cast<xls::Bits*>(bits);
+  xls::FormatPreference cpp_pref;
+  if (!FormatPreferenceFromC(format_preference, &cpp_pref, error_out)) {
+    return false;
+  }
+  xls::verilog::Literal* cpp_literal = cpp_file->Make<xls::verilog::Literal>(
+      xls::SourceInfo(), *cpp_bits, cpp_pref, emit_bit_count);
+  *error_out = nullptr;
+  *literal_out = reinterpret_cast<xls_vast_literal*>(cpp_literal);
+  return true;
 }
 
 struct xls_vast_continuous_assignment*
