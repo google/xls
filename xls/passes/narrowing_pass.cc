@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -947,41 +948,62 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         result_bit_count == lhs_bit_count && result_bit_count == rhs_bit_count;
 
     // Zero-extended operands of unsigned multiplies can be narrowed.
-    if (mul->op() == Op::kUMul || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand0,
-          MaybeNarrowUnsignedOperand(mul->operand(0), /*user=*/mul));
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand1,
-          MaybeNarrowUnsignedOperand(mul->operand(1), /*user=*/mul));
-      if (operand0.has_value() || operand1.has_value()) {
-        XLS_RETURN_IF_ERROR(
-            mul->ReplaceUsesWithNew<ArithOp>(operand0.value_or(mul->operand(0)),
-                                             operand1.value_or(mul->operand(1)),
-                                             result_bit_count, Op::kUMul)
-                .status());
-        return Change();
-      }
-    }
+    bool can_narrow_unsigned = mul->op() == Op::kUMul || is_sign_agnostic;
+    int64_t unsigned_narrowed_lhs_width =
+        can_narrow_unsigned ? UnsignedNarrowedWidth(lhs, /*user=*/mul)
+                            : lhs_bit_count;
+    int64_t unsigned_narrowed_rhs_width =
+        can_narrow_unsigned ? UnsignedNarrowedWidth(rhs, /*user=*/mul)
+                            : rhs_bit_count;
+    can_narrow_unsigned = unsigned_narrowed_lhs_width != lhs_bit_count ||
+                          unsigned_narrowed_rhs_width != rhs_bit_count;
+    absl::int128 unsigned_narrowed_complexity =
+        absl::int128(unsigned_narrowed_lhs_width) *
+        absl::int128(unsigned_narrowed_rhs_width);
 
     // Sign-extended operands of signed multiplies can be narrowed by
     // replacing the operand of the multiply with the value before
     // sign-extension.
-    if (mul->op() == Op::kSMul || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand0,
-          MaybeNarrowSignedOperand(mul->operand(0), /*user=*/mul));
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand1,
-          MaybeNarrowSignedOperand(mul->operand(1), /*user=*/mul));
-      if (operand0.has_value() || operand1.has_value()) {
-        XLS_RETURN_IF_ERROR(
-            mul->ReplaceUsesWithNew<ArithOp>(operand0.value_or(mul->operand(0)),
-                                             operand1.value_or(mul->operand(1)),
-                                             result_bit_count, Op::kSMul)
-                .status());
-        return Change();
-      }
+    bool can_narrow_signed = mul->op() == Op::kSMul || is_sign_agnostic;
+    int64_t signed_narrowed_lhs_width =
+        can_narrow_signed ? SignedNarrowedWidth(lhs, /*user=*/mul)
+                          : lhs_bit_count;
+    int64_t signed_narrowed_rhs_width =
+        can_narrow_signed ? SignedNarrowedWidth(rhs, /*user=*/mul)
+                          : rhs_bit_count;
+    can_narrow_signed = signed_narrowed_lhs_width != lhs_bit_count ||
+                        signed_narrowed_rhs_width != rhs_bit_count;
+    absl::int128 signed_narrowed_complexity =
+        absl::int128(signed_narrowed_lhs_width) *
+        absl::int128(signed_narrowed_rhs_width);
+
+    if (can_narrow_unsigned &&
+        unsigned_narrowed_complexity <= signed_narrowed_complexity) {
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_lhs,
+                           MaybeNarrowUnsignedOperand(lhs, mul));
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_rhs,
+                           MaybeNarrowUnsignedOperand(rhs, mul));
+      XLS_RET_CHECK(narrowed_lhs.has_value() || narrowed_rhs.has_value());
+      XLS_RETURN_IF_ERROR(
+          mul->ReplaceUsesWithNew<ArithOp>(narrowed_lhs.value_or(lhs),
+                                           narrowed_rhs.value_or(rhs),
+                                           result_bit_count, Op::kUMul)
+              .status());
+      return Change();
+    }
+
+    if (can_narrow_signed) {
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_lhs,
+                           MaybeNarrowSignedOperand(lhs, mul));
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_rhs,
+                           MaybeNarrowSignedOperand(rhs, mul));
+      XLS_RET_CHECK(narrowed_lhs.has_value() || narrowed_rhs.has_value());
+      XLS_RETURN_IF_ERROR(
+          mul->ReplaceUsesWithNew<ArithOp>(narrowed_lhs.value_or(lhs),
+                                           narrowed_rhs.value_or(rhs),
+                                           result_bit_count, Op::kSMul)
+              .status());
+      return Change();
     }
 
     int64_t left_trailing_zeros = CountTrailingKnownZeros(lhs, mul);
@@ -1185,41 +1207,62 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         result_bit_count == lhs_bit_count && result_bit_count == rhs_bit_count;
 
     // Zero-extended operands of unsigned multiplies can be narrowed.
-    if (mul->op() == Op::kUMulp || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand0,
-          MaybeNarrowUnsignedOperand(mul->operand(0), /*user=*/mul));
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand1,
-          MaybeNarrowUnsignedOperand(mul->operand(1), /*user=*/mul));
-      if (operand0.has_value() || operand1.has_value()) {
-        XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
-                                   operand0.value_or(mul->operand(0)),
-                                   operand1.value_or(mul->operand(1)),
-                                   result_bit_count, Op::kUMulp)
-                                .status());
-        return Change();
-      }
-    }
+    bool can_narrow_unsigned = mul->op() == Op::kUMulp || is_sign_agnostic;
+    int64_t unsigned_narrowed_lhs_width =
+        can_narrow_unsigned ? UnsignedNarrowedWidth(lhs, /*user=*/mul)
+                            : lhs_bit_count;
+    int64_t unsigned_narrowed_rhs_width =
+        can_narrow_unsigned ? UnsignedNarrowedWidth(rhs, /*user=*/mul)
+                            : rhs_bit_count;
+    can_narrow_unsigned = unsigned_narrowed_lhs_width != lhs_bit_count ||
+                          unsigned_narrowed_rhs_width != rhs_bit_count;
+    absl::int128 unsigned_narrowed_complexity =
+        absl::int128(unsigned_narrowed_lhs_width) *
+        absl::int128(unsigned_narrowed_rhs_width);
 
     // Sign-extended operands of signed multiplies can be narrowed by
     // replacing the operand of the multiply with the value before
     // sign-extension.
-    if (mul->op() == Op::kSMulp || is_sign_agnostic) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand0,
-          MaybeNarrowSignedOperand(mul->operand(0), /*user=*/mul));
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<Node*> operand1,
-          MaybeNarrowSignedOperand(mul->operand(1), /*user=*/mul));
-      if (operand0.has_value() || operand1.has_value()) {
-        XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
-                                   operand0.value_or(mul->operand(0)),
-                                   operand1.value_or(mul->operand(1)),
-                                   result_bit_count, Op::kSMulp)
-                                .status());
-        return Change();
-      }
+    bool can_narrow_signed = mul->op() == Op::kSMulp || is_sign_agnostic;
+    int64_t signed_narrowed_lhs_width =
+        can_narrow_signed ? SignedNarrowedWidth(lhs, /*user=*/mul)
+                          : lhs_bit_count;
+    int64_t signed_narrowed_rhs_width =
+        can_narrow_signed ? SignedNarrowedWidth(rhs, /*user=*/mul)
+                          : rhs_bit_count;
+    can_narrow_signed = signed_narrowed_lhs_width != lhs_bit_count ||
+                        signed_narrowed_rhs_width != rhs_bit_count;
+    absl::int128 signed_narrowed_complexity =
+        absl::int128(signed_narrowed_lhs_width) *
+        absl::int128(signed_narrowed_rhs_width);
+
+    if (can_narrow_unsigned &&
+        unsigned_narrowed_complexity <= signed_narrowed_complexity) {
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_lhs,
+                           MaybeNarrowUnsignedOperand(lhs, mul));
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_rhs,
+                           MaybeNarrowUnsignedOperand(rhs, mul));
+      XLS_RET_CHECK(narrowed_lhs.has_value() || narrowed_rhs.has_value());
+      XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
+                                 narrowed_lhs.value_or(lhs),
+                                 narrowed_rhs.value_or(rhs), result_bit_count,
+                                 Op::kUMulp)
+                              .status());
+      return Change();
+    }
+
+    if (can_narrow_signed) {
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_lhs,
+                           MaybeNarrowSignedOperand(lhs, mul));
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> narrowed_rhs,
+                           MaybeNarrowSignedOperand(rhs, mul));
+      XLS_RET_CHECK(narrowed_lhs.has_value() || narrowed_rhs.has_value());
+      XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
+                                 narrowed_lhs.value_or(lhs),
+                                 narrowed_rhs.value_or(rhs), result_bit_count,
+                                 Op::kSMulp)
+                              .status());
+      return Change();
     }
 
     // TODO(meheff): If either lhs or rhs has trailing zeros, the multiply can
@@ -1322,15 +1365,49 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return leading_ones;
   }
 
+  int64_t UnsignedNarrowedWidth(Node* operand, Node* user) {
+    if (operand->op() == Op::kZeroExt) {
+      // Operand is a zero-extended value; we can just drop the zero extension.
+      return operand->operand(0)->BitCountOrDie();
+    }
+    return operand->BitCountOrDie() - CountLeadingKnownZeros(operand, user);
+  }
+
   absl::StatusOr<std::optional<Node*>> MaybeNarrowUnsignedOperand(Node* operand,
                                                                   Node* user) {
-    int64_t leading_zeros = CountLeadingKnownZeros(operand, user);
-    if (leading_zeros == 0) {
+    if (operand->op() == Op::kZeroExt) {
+      // Operand is a zero-extended value. Just use the value before
+      // zero-extension.
+      return operand->operand(0);
+    }
+    int64_t narrowed_width = UnsignedNarrowedWidth(operand, user);
+    if (narrowed_width == operand->BitCountOrDie()) {
       return std::nullopt;
     }
-    return operand->function_base()->MakeNode<BitSlice>(
-        operand->loc(), operand, /*start=*/0,
-        /*width=*/operand->BitCountOrDie() - leading_zeros);
+    return MaybeNarrow(operand, narrowed_width);
+  }
+
+  int64_t SignedNarrowedWidth(Node* operand, Node* user) {
+    if (operand->op() == Op::kSignExt) {
+      // Operand is a sign-extended value; we can just drop the sign extension.
+      return operand->operand(0)->BitCountOrDie();
+    }
+
+    int64_t leading_sign_bits = std::max(CountLeadingKnownZeros(operand, user),
+                                         CountLeadingKnownOnes(operand, user));
+    if (leading_sign_bits > 1) {
+      // Operand has more than one leading sign bit, something like:
+      //    operand = 0000XXXX
+      // or
+      //    operand = 1111XXXX
+      // This is equivalent to:
+      //    operand = signextend(0XXXX)
+      // or
+      //    operand = signextend(1XXXX)
+      // respectively, so we can drop the first (N-1) bits.
+      return operand->BitCountOrDie() - leading_sign_bits + 1;
+    }
+    return operand->BitCountOrDie();
   }
 
   absl::StatusOr<std::optional<Node*>> MaybeNarrowSignedOperand(Node* operand,
@@ -1340,17 +1417,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       // sign-extension.
       return operand->operand(0);
     }
-    if (CountLeadingKnownZeros(operand, user) > 1) {
-      // Operand has more than one leading zero, something like:
-      //    operand = 0000XXXX
-      // This is equivalent to:
-      //    operand = signextend(0XXXX)
-      // So we can replace the operand with 0XXXX.
-      return MaybeNarrow(
-          operand,
-          operand->BitCountOrDie() - CountLeadingKnownZeros(operand, user) + 1);
+    int64_t narrowed_width = SignedNarrowedWidth(operand, user);
+    if (narrowed_width == operand->BitCountOrDie()) {
+      return std::nullopt;
     }
-    return std::nullopt;
+    return MaybeNarrow(operand, narrowed_width);
   }
 
   // If an ArrayIndex has a small set of possible indexes (based on range

@@ -419,9 +419,40 @@ TEST_P(NarrowingPassTest, ExtendedUMulOperands) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // Only the zero-extend should have been elided.
   EXPECT_THAT(f->return_value(),
-              m::UMul(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
-                                  /*width=*/17),
-                      m::SignExt(m::Param("rhs"))));
+              m::UMul(m::Param("lhs"), m::SignExt(m::Param("rhs"))));
+}
+
+TEST_P(NarrowingPassTest, ExtendedUMulSignAgnosticToUMul) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u20 = p->GetBitsType(20);
+  fb.UMul(fb.ZeroExtend(fb.Param("lhs", u17), 21),
+          fb.SignExtend(fb.Param("rhs", u20), 21),
+          /*result_width=*/21);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down.
+  EXPECT_THAT(f->return_value(),
+              m::UMul(m::Param("lhs"), m::SignExt(m::Param("rhs"))));
+}
+
+TEST_P(NarrowingPassTest, ExtendedUMulSignAgnosticToSMul) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u20 = p->GetBitsType(20);
+  fb.UMul(fb.ZeroExtend(fb.Param("lhs", u20), 21),
+          fb.SignExtend(fb.Param("rhs", u17), 21),
+          /*result_width=*/21);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The sign-extended operand should be sliced down to the sign bit, and the
+  // product switched to an SMul.
+  EXPECT_THAT(f->return_value(),
+              m::SMul(m::ZeroExt(m::Param("lhs")), m::Param("rhs")));
 }
 
 TEST_P(NarrowingPassTest, ExtendedSMulOperands) {
@@ -440,20 +471,37 @@ TEST_P(NarrowingPassTest, ExtendedSMulOperands) {
                       m::Param("rhs")));
 }
 
-TEST_P(NarrowingPassTest, ExtendedSMulSignAgnostic) {
+TEST_P(NarrowingPassTest, ExtendedSMulSignAgnosticToUMul) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u17 = p->GetBitsType(17);
-  Type* u21 = p->GetBitsType(21);
-  fb.SMul(fb.ZeroExtend(fb.Param("lhs", u17), 21), fb.Param("rhs", u21),
+  Type* u20 = p->GetBitsType(20);
+  fb.SMul(fb.ZeroExtend(fb.Param("lhs", u17), 21),
+          fb.SignExtend(fb.Param("rhs", u20), 21),
           /*result_width=*/21);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  // The zero-extended operand should be sliced down, and the product switched
+  // to a UMul.
   EXPECT_THAT(f->return_value(),
-              m::UMul(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
-                                  /*width=*/17),
-                      m::Param("rhs")));
+              m::UMul(m::Param("lhs"), m::SignExt(m::Param("rhs"))));
+}
+
+TEST_P(NarrowingPassTest, ExtendedSMulSignAgnosticToSMul) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u20 = p->GetBitsType(20);
+  fb.SMul(fb.ZeroExtend(fb.Param("lhs", u20), 21),
+          fb.SignExtend(fb.Param("rhs", u17), 21),
+          /*result_width=*/21);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The sign-extended operand should be sliced down to the sign bit.
+  EXPECT_THAT(f->return_value(),
+              m::SMul(m::ZeroExt(m::Param("lhs")), m::Param("rhs")));
 }
 
 TEST_P(NarrowingPassTest, PartialMultiplyWiderThanSumOfOperands) {
@@ -511,9 +559,46 @@ TEST_P(NarrowingPassTest, ExtendedUMulpOperands) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // Only the zero-extend should have been elided.
   EXPECT_THAT(f->return_value(),
-              m::UMulp(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
-                                   /*width=*/17),
-                       m::SignExt(m::Param("rhs"))));
+              m::UMulp(m::Param("lhs"), m::SignExt(m::Param("rhs"))));
+}
+
+TEST_P(NarrowingPassTest, ExtendedUMulpSignAgnosticToUMulp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u20 = p->GetBitsType(20);
+  BValue prod = fb.UMulp(fb.ZeroExtend(fb.Param("lhs", u17), 21),
+                         fb.SignExtend(fb.Param("rhs", u20), 21),
+                         /*result_width=*/21);
+  fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down.
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::TupleIndex(m::UMulp(m::Param("lhs"),
+                                            m::SignExt(m::Param("rhs")))),
+                     m::TupleIndex()));
+}
+
+TEST_P(NarrowingPassTest, ExtendedUMulpSignAgnosticToSMulp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u20 = p->GetBitsType(20);
+  BValue prod = fb.UMulp(fb.ZeroExtend(fb.Param("lhs", u20), 21),
+                         fb.SignExtend(fb.Param("rhs", u17), 21),
+                         /*result_width=*/21);
+  fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The sign-extended operand should be sliced down to the sign bit, and the
+  // product switched to an SMulp.
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::TupleIndex(m::SMulp(m::ZeroExt(m::Param("lhs")),
+                                            m::Param("rhs"))),
+                     m::TupleIndex()));
 }
 
 TEST_P(NarrowingPassTest, ExtendedSMulpOperands) {
@@ -532,20 +617,43 @@ TEST_P(NarrowingPassTest, ExtendedSMulpOperands) {
                        m::Param("rhs")));
 }
 
-TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnostic) {
+TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnosticToUMulp) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u17 = p->GetBitsType(17);
-  Type* u21 = p->GetBitsType(21);
-  fb.SMulp(fb.ZeroExtend(fb.Param("lhs", u17), 21), fb.Param("rhs", u21),
-           /*result_width=*/21);
+  Type* u20 = p->GetBitsType(20);
+  BValue prod = fb.SMulp(fb.ZeroExtend(fb.Param("lhs", u17), 21),
+                         fb.SignExtend(fb.Param("rhs", u20), 21),
+                         /*result_width=*/21);
+  fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  // The zero-extended operand should be sliced down, and the product switched
+  // to a UMulp.
   EXPECT_THAT(f->return_value(),
-              m::UMulp(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
-                                   /*width=*/17),
-                       m::Param("rhs")));
+              m::Add(m::TupleIndex(m::UMulp(m::Param("lhs"),
+                                            m::SignExt(m::Param("rhs")))),
+                     m::TupleIndex()));
+}
+
+TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnosticToSMulp) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u20 = p->GetBitsType(20);
+  BValue prod = fb.SMulp(fb.ZeroExtend(fb.Param("lhs", u20), 21),
+                         fb.SignExtend(fb.Param("rhs", u17), 21),
+                         /*result_width=*/21);
+  fb.Add(fb.TupleIndex(prod, 0), fb.TupleIndex(prod, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The sign-extended operand should be sliced down to the sign bit.
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::TupleIndex(m::SMulp(m::ZeroExt(m::Param("lhs")),
+                                            m::Param("rhs"))),
+                     m::TupleIndex()));
 }
 
 TEST_P(NarrowingPassTest, UMulTrailingZerosRight) {
