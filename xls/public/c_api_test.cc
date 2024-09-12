@@ -396,12 +396,12 @@ TEST(XlsCApiTest, ContinuousAssignmentOfSlice) {
 
   xls_vast_data_type* u8 =
       xls_vast_verilog_file_make_bit_vector_type(f, 8, false);
-  xls_vast_data_type* u3 =
+  xls_vast_data_type* u4 =
       xls_vast_verilog_file_make_bit_vector_type(f, 4, false);
   xls_vast_logic_ref* input_ref =
       xls_vast_verilog_module_add_input(m, "my_input", u8);
   xls_vast_logic_ref* output_ref =
-      xls_vast_verilog_module_add_output(m, "my_output", u3);
+      xls_vast_verilog_module_add_output(m, "my_output", u4);
 
   xls_vast_slice* input_slice = xls_vast_verilog_file_make_slice_i64(
       f, xls_vast_logic_ref_as_indexable_expression(input_ref), 3, 0);
