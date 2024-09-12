@@ -195,8 +195,15 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
 // Opaque structs.
 struct xls_vast_verilog_file;
 struct xls_vast_verilog_module;
+struct xls_vast_node;
+struct xls_vast_expression;
 struct xls_vast_logic_ref;
 struct xls_vast_data_type;
+struct xls_vast_indexable_expression;
+struct xls_vast_slice;
+struct xls_vast_literal;
+struct xls_vast_instantiation;
+struct xls_vast_continuous_assignment;
 
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
@@ -222,6 +229,12 @@ struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
 struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
     struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed);
 
+void xls_vast_verilog_module_add_member_instantiation(
+    struct xls_vast_verilog_module* m, struct xls_vast_instantiation* member);
+void xls_vast_verilog_module_add_member_continuous_assignment(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_continuous_assignment* member);
+
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type);
@@ -233,8 +246,40 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
     struct xls_vast_data_type* type);
 // TODO(cdleary): 2024-09-05 Add xls_vast_verilog_module_add_wire_with_expr
 
+struct xls_vast_continuous_assignment*
+xls_vast_verilog_file_make_continuous_assignment(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs);
+
+struct xls_vast_instantiation* xls_vast_verilog_file_make_instantiation(
+    struct xls_vast_verilog_file* f, const char* module_name,
+    const char* instance_name, const char** parameter_port_names,
+    struct xls_vast_expression** parameter_expressions, size_t parameter_count,
+    const char** connection_port_names,
+    struct xls_vast_expression** connection_expressions,
+    size_t connection_count);
+
 void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
                                        const char* path);
+
+struct xls_vast_slice* xls_vast_verilog_file_make_slice_i64(
+    struct xls_vast_verilog_file* f,
+    struct xls_vast_indexable_expression* subject, int64_t hi, int64_t lo);
+
+struct xls_vast_literal* xls_vast_verilog_file_make_plain_literal(
+    struct xls_vast_verilog_file* f, int32_t value);
+
+// Casts to turn the given node to an expression, where possible.
+struct xls_vast_expression* xls_vast_literal_as_expression(
+    struct xls_vast_literal* v);
+struct xls_vast_expression* xls_vast_logic_ref_as_expression(
+    struct xls_vast_logic_ref* v);
+struct xls_vast_expression* xls_vast_slice_as_expression(
+    struct xls_vast_slice* v);
+
+struct xls_vast_indexable_expression*
+xls_vast_logic_ref_as_indexable_expression(
+    struct xls_vast_logic_ref* logic_ref);
 
 // Emits/formats the contents of the given verilog file to a string.
 //
