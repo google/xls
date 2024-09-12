@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
@@ -1205,6 +1206,32 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
                                       n->BitCountOrDie())) {
       VLOG(2) << "FOUND: Removal of unnecessary decode guard";
       XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(0, clamp_expr->node));
+      return true;
+    }
+  }
+
+  // If a multiply is only used by narrowing slices, fold the narrowing into the
+  // multiplication.
+  if (n->OpIn({Op::kSMul, Op::kUMul}) &&
+      !n->function_base()->HasImplicitUse(n) && !n->users().empty() &&
+      absl::c_all_of(n->users(),
+                     [](Node* user) { return user->Is<BitSlice>(); })) {
+    int64_t width_used = 0;
+    for (Node* user : n->users()) {
+      BitSlice* slice = user->As<BitSlice>();
+      width_used = std::max(width_used, slice->start() + slice->width());
+    }
+    if (width_used < n->BitCountOrDie()) {
+      VLOG(2) << "FOUND: Narrow unnecessarily-wide " << OpToString(n->op());
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_mul,
+          n->function_base()->MakeNode<ArithOp>(
+              n->loc(), n->operand(0), n->operand(1), width_used, n->op()));
+      absl::FixedArray<Node*> starting_users(n->users().begin(),
+                                             n->users().end());
+      for (Node* user : starting_users) {
+        user->ReplaceOperand(n, narrowed_mul);
+      }
       return true;
     }
   }

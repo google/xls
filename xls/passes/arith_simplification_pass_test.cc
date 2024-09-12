@@ -1181,6 +1181,26 @@ TEST_F(ArithSimplificationPassTest, UMulByMaxPowerOfTwo) {
               m::Concat(m::BitSlice(m::Param("x")), m::Literal(UBits(0, 7))));
 }
 
+TEST_F(ArithSimplificationPassTest, UMulWithSlicedResult) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[16]) -> (bits[8], bits[8]) {
+        literal.1: bits[8] = literal(value=25)
+        umul.2: bits[16] = umul(x, literal.1)
+        lo_bits: bits[8] = bit_slice(umul.2, start=0, width=8)
+        mid_bits: bits[8] = bit_slice(umul.2, start=4, width=8)
+        ret tuple.10: (bits[8], bits[8]) = tuple(lo_bits, mid_bits)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::BitSlice(AllOf(m::UMul(), m::Type("bits[12]"))),
+                       m::BitSlice(AllOf(m::UMul(), m::Type("bits[12]")))));
+}
+
 TEST_F(ArithSimplificationPassTest, SMulByMinNegative) {
   // The minimal negative number has only one bit set like powers of two do, but
   // the mul-by-power-of-two optimization should not kick in.
@@ -1209,6 +1229,26 @@ TEST_F(ArithSimplificationPassTest, SMulByMinusOne) {
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(), m::SMul());
+}
+
+TEST_F(ArithSimplificationPassTest, SMulWithSlicedResult) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[16]) -> (bits[8], bits[8]) {
+        literal.1: bits[8] = literal(value=25)
+        smul.2: bits[16] = smul(x, literal.1)
+        lo_bits: bits[8] = bit_slice(smul.2, start=0, width=8)
+        mid_bits: bits[8] = bit_slice(smul.2, start=4, width=8)
+        ret tuple.10: (bits[8], bits[8]) = tuple(lo_bits, mid_bits)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::BitSlice(AllOf(m::SMul(), m::Type("bits[12]"))),
+                       m::BitSlice(AllOf(m::SMul(), m::Type("bits[12]")))));
 }
 
 TEST_F(ArithSimplificationPassTest, UDivBy1) {
