@@ -250,7 +250,6 @@ class DocArena {
   DocRef equals() const { return equals_; }
   DocRef dot_dot() const { return dot_dot_; }
   DocRef underscore() const { return underscore_; }
-  DocRef slash_slash() const { return slash_slash_; }
   DocRef ocurl() const { return ocurl_; }
   DocRef ccurl() const { return ccurl_; }
   DocRef semi() const { return semi_; }
@@ -298,7 +297,6 @@ class DocArena {
   DocRef equals_;
   DocRef dot_dot_;
   DocRef underscore_;
-  DocRef slash_slash_;
   DocRef ocurl_;
   DocRef ccurl_;
   DocRef semi_;

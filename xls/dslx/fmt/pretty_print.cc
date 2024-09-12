@@ -14,12 +14,14 @@
 
 #include "xls/dslx/fmt/pretty_print.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -181,9 +183,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               int64_t new_indent = entry.indent() + nest.delta;
               stack.push_back(StackEntry{&arena.Deref(nest.arg), entry.mode(),
                                          new_indent, entry.text_width()});
-              if (virtual_outcol < new_indent) {
-                virtual_outcol = new_indent;
-              }
+              virtual_outcol = std::max(virtual_outcol, new_indent);
             },
             [&](const Align& align) {
               VLOG(3) << "Align; outcol: " << virtual_outcol;
@@ -416,16 +416,22 @@ DocArena::DocArena(const FileTable& file_table) : file_table_(file_table) {
   space_ = MakeText(" ");
   // a hardline
   hard_line_ = DocRef{items_.size()};
-  items_.emplace_back(Doc{InfinityRequirement(), HardLine{}});
+  items_.emplace_back(
+      Doc{.flat_requirement = InfinityRequirement(), .value = HardLine{}});
   // am empty-break
   break0_ = DocRef{items_.size()};
-  items_.emplace_back(Doc{0, FlatChoice{empty_, hard_line_}});
+  items_.emplace_back(
+      Doc{.flat_requirement = 0,
+          .value = FlatChoice{.on_flat = empty_, .on_break = hard_line_}});
   // a space-break
   break1_ = DocRef{items_.size()};
-  items_.emplace_back(Doc{1, FlatChoice{space_, hard_line_}});
+  items_.emplace_back(
+      Doc{.flat_requirement = 1,
+          .value = FlatChoice{.on_flat = space_, .on_break = hard_line_}});
 
   force_break_mode_ = DocRef{items_.size()};
-  items_.emplace_back(Doc{InfinityRequirement(), ""});
+  items_.emplace_back(
+      Doc{.flat_requirement = InfinityRequirement(), .value = ""});
 
   oparen_ = MakeText("(");
   cparen_ = MakeText(")");
@@ -434,7 +440,6 @@ DocArena::DocArena(const FileTable& file_table) : file_table_(file_table) {
   equals_ = MakeText("=");
   dot_dot_ = MakeText("..");
   underscore_ = MakeText("_");
-  slash_slash_ = MakeText("//");
   ocurl_ = MakeText("{");
   ccurl_ = MakeText("}");
   semi_ = MakeText(";");
@@ -452,28 +457,32 @@ DocArena::DocArena(const FileTable& file_table) : file_table_(file_table) {
 
 DocRef DocArena::MakeText(std::string s) {
   int64_t size = items_.size();
-  items_.push_back(Doc{static_cast<int64_t>(s.size()), s});
+  items_.push_back(
+      Doc{.flat_requirement = static_cast<int64_t>(s.size()), .value = s});
   return DocRef{size};
 }
 
 DocRef DocArena::MakeGroup(DocRef arg_ref) {
   const Doc& arg = Deref(arg_ref);
   int64_t size = items_.size();
-  items_.push_back(Doc{arg.flat_requirement, Group{arg_ref}});
+  items_.push_back(
+      Doc{.flat_requirement = arg.flat_requirement, .value = Group{arg_ref}});
   return DocRef{size};
 }
 
 DocRef DocArena::MakeAlign(DocRef arg_ref) {
   const Doc& arg = Deref(arg_ref);
   int64_t size = items_.size();
-  items_.push_back(Doc{arg.flat_requirement, Align{arg_ref}});
+  items_.push_back(
+      Doc{.flat_requirement = arg.flat_requirement, .value = Align{arg_ref}});
   return DocRef{size};
 }
 
 DocRef DocArena::MakeReduceTextWidth(DocRef arg_ref, int64_t cols) {
   const Doc& arg = Deref(arg_ref);
   int64_t size = items_.size();
-  items_.push_back(Doc{arg.flat_requirement, ReduceTextWidth{arg_ref, cols}});
+  items_.push_back(Doc{.flat_requirement = arg.flat_requirement,
+                       .value = ReduceTextWidth{.arg = arg_ref, .cols = cols}});
   return DocRef{size};
 }
 
@@ -481,15 +490,17 @@ DocRef DocArena::MakePrefixedReflow(std::string prefix, std::string text) {
   int64_t size = items_.size();
   const Requirement requirement =
       static_cast<int64_t>(prefix.size() + text.size());
-  items_.push_back(
-      Doc{requirement, PrefixedReflow{std::move(prefix), std::move(text)}});
+  items_.push_back(Doc{.flat_requirement = requirement,
+                       .value = PrefixedReflow{.prefix = std::move(prefix),
+                                               .text = std::move(text)}});
   return DocRef{size};
 }
 
 DocRef DocArena::MakeNest(DocRef arg_ref, int64_t delta) {
   const Doc& arg = Deref(arg_ref);
   int64_t size = items_.size();
-  items_.push_back(Doc{arg.flat_requirement, Nest{delta, arg_ref}});
+  items_.push_back(Doc{.flat_requirement = arg.flat_requirement,
+                       .value = Nest{.delta = delta, .arg = arg_ref}});
   return DocRef{size};
 }
 
@@ -497,14 +508,17 @@ DocRef DocArena::MakeConcat(DocRef lhs, DocRef rhs) {
   Requirement lhs_req = Deref(lhs).flat_requirement;
   Requirement rhs_req = Deref(rhs).flat_requirement;
   int64_t size = items_.size();
-  items_.push_back(Doc{lhs_req + rhs_req, Concat{lhs, rhs}});
+  items_.push_back(Doc{.flat_requirement = lhs_req + rhs_req,
+                       .value = Concat{.lhs = lhs, .rhs = rhs}});
   return DocRef{size};
 }
 
 DocRef DocArena::MakeFlatChoice(DocRef on_flat, DocRef on_break) {
   Requirement flat_requirement = Deref(on_flat).flat_requirement;
   int64_t size = items_.size();
-  items_.push_back(Doc{flat_requirement, FlatChoice{on_flat, on_break}});
+  items_.push_back(
+      Doc{.flat_requirement = flat_requirement,
+          .value = FlatChoice{.on_flat = on_flat, .on_break = on_break}});
   return DocRef{size};
 }
 
@@ -513,7 +527,9 @@ DocRef DocArena::MakeNestIfFlatFits(DocRef on_nested_flat_ref,
   Requirement flat_requirement = Deref(on_other_ref).flat_requirement;
   int64_t size = items_.size();
   items_.push_back(
-      Doc{flat_requirement, NestIfFlatFits{on_nested_flat_ref, on_other_ref}});
+      Doc{.flat_requirement = flat_requirement,
+          .value = NestIfFlatFits{.on_nested_flat = on_nested_flat_ref,
+                                  .on_other = on_other_ref}});
   return DocRef{size};
 }
 
