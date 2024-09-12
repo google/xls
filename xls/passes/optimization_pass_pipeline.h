@@ -60,6 +60,7 @@ class UnrollingAndInliningPassGroup : public OptimizationCompoundPass {
 class ProcStateFlatteningFixedPointPass
     : public OptimizationFixedPointCompoundPass {
  public:
+  static constexpr std::string_view kName = "fixedpoint_proc_state_flattening";
   explicit ProcStateFlatteningFixedPointPass();
 };
 

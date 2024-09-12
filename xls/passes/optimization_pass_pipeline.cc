@@ -167,8 +167,8 @@ UnrollingAndInliningPassGroup::UnrollingAndInliningPassGroup(int64_t opt_level)
 }
 
 ProcStateFlatteningFixedPointPass::ProcStateFlatteningFixedPointPass()
-    : OptimizationFixedPointCompoundPass("fixedpoint_proc_state_flattening",
-                                         "Proc State Flattening") {
+    : OptimizationFixedPointCompoundPass(
+          ProcStateFlatteningFixedPointPass::kName, "Proc State Flattening") {
   Add<ProcStateArrayFlatteningPass>();
   Add<ProcStateTupleFlatteningPass>();
 }
@@ -333,6 +333,7 @@ XLS_REGISTER_MODULE_INITIALIZER(simp_pass, {
 
 REGISTER_OPT_PASS(PreInliningPassGroup, pass_config::kOptLevel);
 REGISTER_OPT_PASS(UnrollingAndInliningPassGroup, pass_config::kOptLevel);
+REGISTER_OPT_PASS(ProcStateFlatteningFixedPointPass);
 REGISTER_OPT_PASS(PostInliningPassGroup, pass_config::kOptLevel);
 
 }  // namespace xls
