@@ -27,8 +27,8 @@
 #include "xls/common/init_xls.h"
 #include "xls/dslx/stdlib/float32_ldexp_jit_wrapper.h"
 #include "xls/dslx/stdlib/tests/float32_test_utils.h"
-#include "xls/tools/testbench.h"
-#include "xls/tools/testbench_builder.h"
+#include "xls/tests/testbench.h"
+#include "xls/tests/testbench_builder.h"
 
 ABSL_FLAG(int, num_threads, 0,
           "Number of threads to use. Set to 0 to use all.");

@@ -29,7 +29,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "xls/tools/testbench_thread.h"
+#include "xls/tests/testbench_thread.h"
 
 namespace xls {
 

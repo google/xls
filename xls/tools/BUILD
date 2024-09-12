@@ -128,63 +128,6 @@ cc_test(
     ],
 )
 
-cc_library(
-    name = "testbench",
-    hdrs = ["testbench.h"],
-    deps = [
-        ":testbench_thread",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-cc_library(
-    name = "testbench_builder",
-    hdrs = ["testbench_builder.h"],
-    deps = [
-        ":testbench",
-        ":testbench_builder_utils",
-    ],
-)
-
-cc_library(
-    name = "testbench_builder_utils",
-    hdrs = ["testbench_builder_utils.h"],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/random:distributions",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_test(
-    name = "testbench_builder_utils_test",
-    srcs = ["testbench_builder_utils_test.cc"],
-    deps = [
-        ":testbench_builder_utils",
-        "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "testbench_thread",
-    hdrs = ["testbench_thread.h"],
-    deps = [
-        "//xls/common:thread",
-        "//xls/ir",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/synchronization",
-    ],
-)
-
 cc_binary(
     name = "eval_dslx_main",
     srcs = ["eval_dslx_main.cc"],

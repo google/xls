@@ -36,7 +36,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value_utils.h"
 #include "xls/ir/value_view_utils.h"
-#include "xls/tools/testbench_builder.h"
+#include "xls/tests/testbench_builder.h"
 #include "third_party/xls_berkeley_softfloat/fpdiv_2x32_jit_wrapper.h"
 
 ABSL_FLAG(bool, use_opt_ir, true, "Use optimized IR.");

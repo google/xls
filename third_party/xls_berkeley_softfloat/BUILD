@@ -66,7 +66,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir:value_utils",
         "//xls/ir:value_view_utils",
-        "//xls/tools:testbench_builder",
+        "//xls/tests:testbench_builder",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",

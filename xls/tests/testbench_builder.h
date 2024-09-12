@@ -44,8 +44,8 @@
 #include <thread>
 #include <type_traits>
 
-#include "xls/tools/testbench.h"
-#include "xls/tools/testbench_builder_utils.h"
+#include "xls/tests/testbench.h"
+#include "xls/tests/testbench_builder_utils.h"
 
 namespace xls {
 

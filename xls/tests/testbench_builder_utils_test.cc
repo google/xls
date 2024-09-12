@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/tools/testbench_builder_utils.h"
+#include "xls/tests/testbench_builder_utils.h"
 
 #include <bit>
 #include <cstdint>
