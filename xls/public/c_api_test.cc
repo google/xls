@@ -426,4 +426,61 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
 
+// Tests that we can assign a 128-bit output wire using a 128-bit literal
+// value.
+TEST(XlsCApiTest, ContinuousAssignmentOf128BitLiteral) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "my_module");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u128 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 128, false);
+  xls_vast_logic_ref* output_ref =
+      xls_vast_verilog_module_add_output(m, "my_output", u128);
+
+  char* error_out = nullptr;
+  struct xls_value* value = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value(
+      "bits[128]:"
+      "0b1001001000110100010101100111100010010000101010111100110111101111000100"
+      "1000110100010101100111100010010000101010111100110111101111",
+      &error_out, &value));
+  ASSERT_EQ(error_out, nullptr);
+  absl::Cleanup free_value([value] { xls_value_free(value); });
+
+  struct xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_value_get_bits(value, &error_out, &bits));
+  ASSERT_EQ(error_out, nullptr);
+  absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
+
+  xls_vast_literal* literal_128b = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_file_make_literal(
+      f, bits, xls_format_preference_binary, /*emit_bit_count=*/true,
+      &error_out, &literal_128b));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(literal_128b, nullptr);
+
+  xls_vast_continuous_assignment* assignment =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(output_ref),
+          xls_vast_literal_as_expression(literal_128b));
+
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assignment);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  const std::string_view kWant = R"(module my_module(
+  output wire [127:0] my_output
+);
+  assign my_output = 128'b1001_0010_0011_0100_0101_0110_0111_1000_1001_0000_1010_1011_1100_1101_1110_1111_0001_0010_0011_0100_0101_0110_0111_1000_1001_0000_1010_1011_1100_1101_1110_1111;
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}
+
 }  // namespace
