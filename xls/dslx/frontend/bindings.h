@@ -215,7 +215,6 @@ class Bindings {
     function_scoped_ = true;
     fail_labels_.emplace();
   }
-  bool IsFunctionScoped() const { return function_scoped_; }
 
   std::vector<std::string> GetLocalBindings() const {
     std::vector<std::string> result;
