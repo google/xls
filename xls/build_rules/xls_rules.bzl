@@ -457,7 +457,7 @@ currently produced should be considered INCOMPLETE.""",
             cfg = "target",
         ),
         "_run_op_characterization": attr.label(
-            default = Label("//xls/tools:run_op_characterization"),
+            default = Label("//xls/estimators:run_op_characterization"),
             executable = True,
             cfg = "target",
         ),

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls/tools/estimator_model_stats.py."""
+"""Tests for xls/estimators/estimator_model_stats.py."""
 
 import filecmp
 import subprocess
@@ -21,25 +21,25 @@ from absl.testing import absltest
 from xls.common import runfiles
 
 _ESTIMATOR_MODEL_STATS_PATH = runfiles.get_path(
-    'xls/tools/estimator_model_stats'
+    'xls/estimators/estimator_model_stats'
 )
 _ASAP7_DELAY_DATA_POINTS_PATH = runfiles.get_path(
-    'xls/tools/testdata/asap7_delay_data_points.textproto'
+    'xls/estimators/testdata/asap7_delay_data_points.textproto'
 )
 _ASAP7_DELAY_MODEL_STATS_PATH = runfiles.get_path(
-    'xls/tools/testdata/asap7_delay_model_stats.csv'
+    'xls/estimators/testdata/asap7_delay_model_stats.csv'
 )
 _SKY130_DELAY_DATA_POINTS_PATH = runfiles.get_path(
-    'xls/tools/testdata/sky130_delay_data_points.textproto'
+    'xls/estimators/testdata/sky130_delay_data_points.textproto'
 )
 _SKY130_DELAY_MODEL_STATS_PATH = runfiles.get_path(
-    'xls/tools/testdata/sky130_delay_model_stats.csv'
+    'xls/estimators/testdata/sky130_delay_model_stats.csv'
 )
 _UNIT_DELAY_DATA_POINTS_PATH = runfiles.get_path(
-    'xls/tools/testdata/unit_delay_data_points.textproto'
+    'xls/estimators/testdata/unit_delay_data_points.textproto'
 )
 _UNIT_DELAY_MODEL_STATS_PATH = runfiles.get_path(
-    'xls/tools/testdata/unit_delay_model_stats.csv'
+    'xls/estimators/testdata/unit_delay_model_stats.csv'
 )
 
 

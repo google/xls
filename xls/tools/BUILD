@@ -856,19 +856,6 @@ py_test(
     ],
 )
 
-py_binary(
-    name = "run_op_characterization",
-    srcs = ["run_op_characterization.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        requirement("portpicker"),
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
-    ],
-)
-
 proto_library(
     name = "design_stats_proto",
     srcs = ["design_stats.proto"],
@@ -911,47 +898,4 @@ py_test(
         "//xls/common:test_base",
         "@com_google_absl_py//absl/testing:absltest",
     ],
-)
-
-py_binary(
-    name = "estimator_model_stats",
-    srcs = ["estimator_model_stats.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        requirement("numpy"),
-        "//xls/estimators:estimator_model",
-        "//xls/estimators:estimator_model_py_pb2",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
-        "@com_google_protobuf//:protobuf_python",
-    ],
-)
-
-py_test(
-    name = "estimator_model_stats_test",
-    srcs = ["estimator_model_stats_test.py"],
-    data = [
-        "testdata/asap7_delay_data_points.textproto",
-        "testdata/asap7_delay_model_stats.csv",
-        "testdata/sky130_delay_data_points.textproto",
-        "testdata/sky130_delay_model_stats.csv",
-        "testdata/unit_delay_data_points.textproto",
-        "testdata/unit_delay_model_stats.csv",
-        ":estimator_model_stats",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    tags = ["nomsan"],  # scipy seems not to be msan-clean.
-    deps = [
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-py_binary(
-    name = "make_release",
-    srcs = ["make_release.py"],
 )
