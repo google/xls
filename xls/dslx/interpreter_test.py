@@ -759,6 +759,26 @@ class InterpreterTest(test_base.TestCase):
         stderr,
     )
 
+  def test_alternative_stdlib_path(self):
+    with tempfile.TemporaryDirectory(suffix='stdlib') as stdlib_dir:
+      # Make a std.x file in our fake stdlib.
+      with open(os.path.join(stdlib_dir, 'std.x'), 'w') as fake_std:
+        print('pub fn my_stdlib_func(x: u32) -> u32 { x }', file=fake_std)
+
+      # Invoke the function in our fake std.x which should be appropriately
+      # resolved via the dslx_stdlib_path flag.
+      program = """
+      import std;
+
+      #[test]
+      fn test_alternative_stdlib() { assert_eq(std::my_stdlib_func(u32:42), u32:42); }
+      """
+      self._parse_and_test(
+          program,
+          alsologtostderr=True,
+          extra_flags=[f'--dslx_stdlib_path={stdlib_dir}'],
+      )
+
 
 if __name__ == '__main__':
   test_base.main()

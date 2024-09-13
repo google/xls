@@ -33,8 +33,8 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
-#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
@@ -49,7 +49,6 @@
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 
@@ -97,7 +96,7 @@ class AbstractRunComparator {
 //    cause the run routine to report failure when a warning is encountered).
 //   warnings: Set of warnings to enable for reporting.
 struct ParseAndTestOptions {
-  std::string stdlib_path = xls::kDefaultDslxStdlibPath;
+  std::filesystem::path dslx_stdlib_path;
   absl::Span<const std::filesystem::path> dslx_paths;
   const RE2* test_filter = nullptr;
   FormatPreference format_preference = FormatPreference::kDefault;
@@ -114,7 +113,7 @@ struct ParseAndTestOptions {
 // As above, but a subset of the options required for the ParseAndProve()
 // routine.
 struct ParseAndProveOptions {
-  std::string stdlib_path = xls::kDefaultDslxStdlibPath;
+  std::filesystem::path dslx_stdlib_path;
   absl::Span<const std::filesystem::path> dslx_paths;
   const RE2* test_filter = nullptr;
   bool warnings_as_errors = true;

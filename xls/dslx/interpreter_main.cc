@@ -33,22 +33,25 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/run_routines/ir_test_runner.h"
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/format_preference.h"
-#include "re2/re2.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
+ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+          "Path to DSLX standard library directory.");
 ABSL_FLAG(
     std::string, format_preference, "",
     "Default format preference to use when one is not specified. Used for "
@@ -132,6 +135,7 @@ std::unique_ptr<AbstractTestRunner> GetTestRunner(EvaluatorType evaluator) {
 absl::StatusOr<TestResult> RealMain(
     std::string_view entry_module_path,
     absl::Span<const std::filesystem::path> dslx_paths,
+    const std::filesystem::path& dslx_stdlib_path,
     const std::optional<std::string>& test_filter,
     FormatPreference format_preference, CompareFlag compare_flag, bool execute,
     bool warnings_as_errors, std::optional<int64_t> seed, bool trace_channels,
@@ -176,7 +180,8 @@ absl::StatusOr<TestResult> RealMain(
     }
     test_filter_re_ptr = &test_filter_re.value();
   }
-  ParseAndTestOptions options = {.dslx_paths = dslx_paths,
+  ParseAndTestOptions options = {.dslx_stdlib_path = dslx_stdlib_path,
+                                 .dslx_paths = dslx_paths,
                                  .test_filter = test_filter_re_ptr,
                                  .format_preference = format_preference,
                                  .run_comparator = run_comparator.get(),
@@ -301,10 +306,13 @@ int main(int argc, char* argv[]) {
          compare_flag == xls::dslx::CompareFlag::kNone)
       << "--compare flag is only supported on --evaluator=dslx-interpreter";
 
+  std::filesystem::path dslx_stdlib_path =
+      absl::GetFlag(FLAGS_dslx_stdlib_path);
+
   absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
-      args[0], dslx_paths, test_filter, preference, compare_flag, execute,
-      warnings_as_errors, seed, trace_channels, max_ticks, xml_output_file,
-      evaluator.value());
+      args[0], dslx_paths, dslx_stdlib_path, test_filter, preference,
+      compare_flag, execute, warnings_as_errors, seed, trace_channels,
+      max_ticks, xml_output_file, evaluator.value());
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }
