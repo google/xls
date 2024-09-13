@@ -31,7 +31,7 @@ TEST(FunctionBuilderTest, SimpleFunctionToIrText) {
   ASSERT_NE(f, nullptr);
   EXPECT_EQ(package.DumpIr(), R"(package test_package
 
-fn f(x: bits[32], y: bits[32]) -> bits[32] {
+fn f(x: bits[32] id=1, y: bits[32] id=2) -> bits[32] {
   ret add.3: bits[32] = add(x, y, id=3)
 }
 )");

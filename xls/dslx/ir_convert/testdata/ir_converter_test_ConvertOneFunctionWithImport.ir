@@ -7,6 +7,6 @@ fn __a__a() -> bits[32] {
   ret literal.1: bits[32] = literal(value=42, id=1)
 }
 
-top fn __test_module__main(x: bits[32]) -> bits[32] {
+top fn __test_module__main(x: bits[32] id=2) -> bits[32] {
   ret invoke.3: bits[32] = invoke(to_apply=__a__a, id=3)
 }

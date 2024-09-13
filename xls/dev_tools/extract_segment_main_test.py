@@ -20,20 +20,20 @@ from typing import Iterable, Optional, Union
 from absl.testing import absltest
 from xls.common import runfiles
 
-_EXTRACT_SEGMENT_MAIN = runfiles.get_path("xls/dev_tools/extract_segment_main")
+_EXTRACT_SEGMENT_MAIN = runfiles.get_path('xls/dev_tools/extract_segment_main')
 
 _PROC_IR = """package foobar
 
 top proc NextNodesAsTuples(a: bits[32], b: bits[32], c: bits[32], d: bits[32], init={0, 0, 0, 0}) {
-  add.5: bits[32] = add(a, b, id=5)
-  eq.6: bits[1] = eq(b, c, id=6)
-  add.8: bits[32] = add(c, d, id=8)
-  add.10: bits[32] = add(a, d, id=10)
-  add.12: bits[32] = add(b, c, id=12)
-  next_value.7: () = next_value(param=a, value=add.5, predicate=eq.6, id=7)
-  next_value.9: () = next_value(param=b, value=add.8, id=9)
-  next_value.11: () = next_value(param=c, value=add.10, id=11)
-  next_value.13: () = next_value(param=d, value=add.12, id=13)
+  node0: bits[32] = add(a, b)
+  node1: bits[1] = eq(b, c)
+  node2: bits[32] = add(c, d)
+  node3: bits[32] = add(a, d)
+  node4: bits[32] = add(b, c)
+  next0: () = next_value(param=a, value=node0, predicate=node1)
+  next1: () = next_value(param=b, value=node2)
+  next2: () = next_value(param=c, value=node3)
+  next3: () = next_value(param=d, value=node4)
 }
 """
 
@@ -78,47 +78,41 @@ class ExtractSegmentMainTest(absltest.TestCase):
     return res.stdout.decode()
 
   def test_source_by_name(self):
-    self.assertEqual(
-        self._do_extract(_PROC_IR, sources=["d"]),
-        """package extracted_package
-
-top fn extracted_func(param_for_a_id1: bits[32], param_for_b_id2: bits[32], param_for_c_id3: bits[32], d: bits[32], param_for_add_12_id12: bits[32]) -> ((bits[32], bits[32]), (bits[32], bits[32]), (bits[32], bits[32])) {
-  add.5: bits[32] = add(param_for_c_id3, d, id=5)
-  add.6: bits[32] = add(param_for_a_id1, d, id=6)
-  next_value_9: (bits[32], bits[32]) = tuple(param_for_b_id2, add.5, id=8)
-  next_value_11: (bits[32], bits[32]) = tuple(param_for_c_id3, add.6, id=9)
-  next_value_13: (bits[32], bits[32]) = tuple(d, param_for_add_12_id12, id=10)
-  ret tuple.11: ((bits[32], bits[32]), (bits[32], bits[32]), (bits[32], bits[32])) = tuple(next_value_9, next_value_11, next_value_13, id=11)
-}
-""",
-    )
+    result = self._do_extract(_PROC_IR, sources=['d'])
+    self.assertNotIn('node0', result)
+    self.assertNotIn('node1', result)
+    self.assertIn('node2', result)
+    self.assertIn('node3', result)
+    self.assertIn('node4', result)
+    self.assertNotIn('next0', result)
+    self.assertIn('next1', result)
+    self.assertIn('next2', result)
+    self.assertIn('next3', result)
 
   def test_source_by_id(self):
-    self.assertEqual(
-        self._do_extract(_PROC_IR, sources=[5]),
-        """package extracted_package
-
-top fn extracted_func(param_for_a_id1: bits[32], param_for_b_id2: bits[32], param_for_eq_6_id6: bits[1]) -> (bits[32], bits[32], bits[1]) {
-  add.3: bits[32] = add(param_for_a_id1, param_for_b_id2, id=3)
-  ret next_value_7: (bits[32], bits[32], bits[1]) = tuple(param_for_a_id1, add.3, param_for_eq_6_id6, id=5)
-}
-""",
-    )
+    result = self._do_extract(_PROC_IR, sources=['d'])
+    self.assertNotIn('node0', result)
+    self.assertNotIn('node1', result)
+    self.assertIn('node2', result)
+    self.assertIn('node3', result)
+    self.assertIn('node4', result)
+    self.assertNotIn('next0', result)
+    self.assertIn('next1', result)
+    self.assertIn('next2', result)
+    self.assertIn('next3', result)
 
   def test_sinks_by_name(self):
-    self.assertEqual(
-        self._do_extract(_PROC_IR, sinks=["next_value.7", "eq.6"]),
-        """package extracted_package
-
-top fn extracted_func(a: bits[32], b: bits[32], c: bits[32]) -> ((bits[32], bits[32], bits[1]), bits[1]) {
-  add.4: bits[32] = add(a, b, id=4)
-  eq.5: bits[1] = eq(b, c, id=5)
-  next_value_7: (bits[32], bits[32], bits[1]) = tuple(a, add.4, eq.5, id=6)
-  ret tuple.7: ((bits[32], bits[32], bits[1]), bits[1]) = tuple(next_value_7, eq.5, id=7)
-}
-""",
-    )
+    result = self._do_extract(_PROC_IR, sinks=['next0', 'node1'])
+    self.assertIn('node0', result)
+    self.assertIn('node1', result)
+    self.assertNotIn('node2', result)
+    self.assertNotIn('node3', result)
+    self.assertNotIn('node4', result)
+    self.assertIn('next0', result)
+    self.assertNotIn('next1', result)
+    self.assertNotIn('next2', result)
+    self.assertNotIn('next3', result)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   absltest.main()

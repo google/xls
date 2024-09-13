@@ -1,5 +1,5 @@
 package ParseOneHot
 
-fn sel_wrapper(x: bits[42]) -> bits[43] {
+fn sel_wrapper(x: bits[42] id=3) -> bits[43] {
   ret one_hot.1: bits[43] = one_hot(x, lsb_prio=false, id=1)
 }

@@ -2,12 +2,12 @@ module main(
   input wire [122:0] x,
   output wire [122:0] out
 );
-  wire [368:0] literal_10 = {123'h000_0000_0000_0000_0000_0000_0001_0000, 123'h000_0000_0000_0000_0000_0000_0000_2000, 123'h000_0000_0000_0000_0000_0000_0000_0300};
+  wire [368:0] literal_14 = {123'h000_0000_0000_0000_0000_0000_0001_0000, 123'h000_0000_0000_0000_0000_0000_0000_2000, 123'h000_0000_0000_0000_0000_0000_0000_0300};
   wire [122:0] sum1;
   wire [122:0] sum2;
   wire [122:0] total;
-  assign sum1 = literal_10[368:246] + literal_10[245:123];
-  assign sum2 = literal_10[122:0] + x;
+  assign sum1 = literal_14[368:246] + literal_14[245:123];
+  assign sum2 = literal_14[122:0] + x;
   assign total = sum1 + sum2;
   assign out = total;
 endmodule

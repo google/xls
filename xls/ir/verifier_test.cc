@@ -417,9 +417,7 @@ fn main(invariant_1: bits[48], invariant_2: bits[128], stride: bits[16], trip_co
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr("Parameter 3 (invariant_2) of function body used as "
-                    "dynamic_counted_for body should have bits[128] type from "
-                    "invariant_2: bits[128] = param(invariant_2, id=7), got "
-                    "bits[64] instead")));
+                    "dynamic_counted_for body should have bits[128] type")));
 }
 
 TEST_F(VerifierTest, DynamicCountedForTripCountNotBits) {

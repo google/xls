@@ -2,6 +2,6 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__main(x: bits[2]) -> bits[1] {
+fn __test_module__main(x: bits[2] id=1) -> bits[1] {
   ret bit_slice.2: bits[1] = bit_slice(x, start=0, width=1, id=2)
 }

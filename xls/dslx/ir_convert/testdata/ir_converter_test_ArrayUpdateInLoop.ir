@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
+fn ____test_module__main_counted_for_0_body(i: bits[32] id=4, accum: bits[8][2] id=7) -> bits[8][2] {
   literal.5: bits[32] = literal(value=0, id=5)
   add.6: bits[32] = add(i, literal.5, id=6)
   bit_slice.8: bits[8] = bit_slice(add.6, start=0, width=8, id=8)

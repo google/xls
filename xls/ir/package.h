@@ -214,7 +214,7 @@ class Package {
 
   // Retrieves the next node ID to assign to a node in the package and
   // increments the next node counter. For use in node construction.
-  int64_t GetNextNodeId() { return next_node_id_++; }
+  int64_t GetNextNodeIdAndIncrement() { return next_node_id_++; }
 
   // Adds a file to the file-number table and returns its corresponding number.
   // If it already exists, returns the existing file-number entry.

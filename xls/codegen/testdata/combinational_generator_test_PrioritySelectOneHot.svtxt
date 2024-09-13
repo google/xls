@@ -5,10 +5,10 @@ module main(
   input wire [15:0] d,
   output wire [15:0] out
 );
-  wire [1:0] one_hot_11;
-  wire [2:0] one_hot_14;
-  assign one_hot_11 = {!p, p};
-  assign one_hot_14 = {one_hot_11[1:0] == 2'h0, one_hot_11[1] && !one_hot_11[0], one_hot_11[0]};
-  priority_sel_12_selector_one_hot_A: assert final ($isunknown(one_hot_11 == one_hot_14[1:0]) || one_hot_11 == one_hot_14[1:0]) else $fatal(0, "Selector one_hot.11 was expected to be one-hot, and is not.");
-  assign out = x & {16{one_hot_11[0]}} | y & {16{one_hot_11[1]}};
+  wire [1:0] one_hot_15;
+  wire [2:0] one_hot_18;
+  assign one_hot_15 = {!p, p};
+  assign one_hot_18 = {one_hot_15[1:0] == 2'h0, one_hot_15[1] && !one_hot_15[0], one_hot_15[0]};
+  priority_sel_16_selector_one_hot_A: assert final ($isunknown(one_hot_15 == one_hot_18[1:0]) || one_hot_15 == one_hot_18[1:0]) else $fatal(0, "Selector one_hot.15 was expected to be one-hot, and is not.");
+  assign out = x & {16{one_hot_15[0]}} | y & {16{one_hot_15[1]}};
 endmodule

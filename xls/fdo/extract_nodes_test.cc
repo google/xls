@@ -17,13 +17,17 @@
 #include <memory>
 #include <string>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
+
+namespace m = xls::op_matchers;
 
 namespace xls {
 namespace {
@@ -35,7 +39,7 @@ TEST_F(ExtractNodesTest, SimpleExtraction) {
 package p
 
 fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
-  ret add.1: bits[3] = add(i0, i1)
+  ret myadd: bits[3] = add(i0, i1)
 }
 )";
 
@@ -44,18 +48,14 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
 
   absl::flat_hash_set<Node*> nodes({FindNode("i0", function),
                                     FindNode("i1", function),
-                                    FindNode("add.1", function)});
+                                    FindNode("myadd", function)});
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> tmp_package,
                            ExtractNodes(nodes, "test"));
   XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f,
                            tmp_package->GetFunction("test"));
-  const std::string expected_result_ir =
-      R"(fn test(i0: bits[3], i1: bits[3]) -> bits[3] {
-  ret add.3: bits[3] = add(i0, i1, id=3)
-}
-)";
-  EXPECT_EQ(tmp_f->DumpIr(), expected_result_ir);
+  EXPECT_THAT(tmp_f->AsFunctionOrDie()->return_value(),
+              m::Add(m::Param("i0"), m::Param("i1")));
 }
 
 TEST_F(ExtractNodesTest, ExtractionWithLivein) {
@@ -63,27 +63,23 @@ TEST_F(ExtractNodesTest, ExtractionWithLivein) {
 package p
 
 fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
-  add.1: bits[3] = add(i0, i1)
-  ret sub.2: bits[3] = sub(add.1, i1)
+  myadd: bits[3] = add(i0, i1)
+  ret mysub: bits[3] = sub(myadd, i1)
 }
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetFunction("main"));
 
-  absl::flat_hash_set<Node*> nodes({FindNode("sub.2", function)});
+  absl::flat_hash_set<Node*> nodes({FindNode("mysub", function)});
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Package> tmp_package,
       ExtractNodes(nodes, "test", /*flop_inputs_outputs=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f,
                            tmp_package->GetFunction("test"));
-  const std::string expected_result_ir =
-      R"(fn test(add_1: bits[3], i1: bits[3]) -> bits[3] {
-  ret sub.3: bits[3] = sub(add_1, i1, id=3)
-}
-)";
-  EXPECT_EQ(tmp_f->DumpIr(), expected_result_ir);
+  EXPECT_THAT(tmp_f->AsFunctionOrDie()->return_value(),
+              m::Sub(m::Param("myadd"), m::Param("i1")));
 }
 
 TEST_F(ExtractNodesTest, ExtractionWithLiveout) {
@@ -91,9 +87,9 @@ TEST_F(ExtractNodesTest, ExtractionWithLiveout) {
 package p
 
 fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
-  add.1: bits[3] = add(i0, i1)
-  sub.2: bits[3] = sub(add.1, i1)
-  ret or.3: bits[3] = or(sub.2, add.1)
+  myadd: bits[3] = add(i0, i1)
+  mysub: bits[3] = sub(myadd, i1)
+  ret result: bits[3] = or(mysub, myadd)
 }
 )";
 
@@ -101,33 +97,22 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetFunction("main"));
 
   absl::flat_hash_set<Node*> nodes(
-      {FindNode("add.1", function), FindNode("sub.2", function)});
+      {FindNode("myadd", function), FindNode("mysub", function)});
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> tmp_package,
                            ExtractNodes(nodes, "test"));
   XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f,
                            tmp_package->GetFunction("test"));
-  const std::string expected_result_ir =
-      R"(fn test(i0: bits[3], i1: bits[3]) -> bits[3] {
-  add.3: bits[3] = add(i0, i1, id=3)
-  ret sub.4: bits[3] = sub(add.3, i1, id=4)
-}
-)";
-  EXPECT_EQ(tmp_f->DumpIr(), expected_result_ir);
+  EXPECT_THAT(tmp_f->AsFunctionOrDie()->return_value(),
+              m::Sub(m::Add(), m::Param("i1")));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> tmp_package_with_liveouts,
                            ExtractNodes(nodes, "test",
                                         /*return_all_liveouts=*/true));
   XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f_with_liveouts,
                            tmp_package_with_liveouts->GetFunction("test"));
-  const std::string expected_result_ir_with_liveouts =
-      R"(fn test(i0: bits[3], i1: bits[3]) -> (bits[3], bits[3]) {
-  add.3: bits[3] = add(i0, i1, id=3)
-  sub.4: bits[3] = sub(add.3, i1, id=4)
-  ret tuple.5: (bits[3], bits[3]) = tuple(add.3, sub.4, id=5)
-}
-)";
-  EXPECT_EQ(tmp_f_with_liveouts->DumpIr(), expected_result_ir_with_liveouts);
+  EXPECT_THAT(tmp_f_with_liveouts->AsFunctionOrDie()->return_value(),
+              m::Tuple(m::Add(), m::Sub()));
 }
 
 }  // namespace

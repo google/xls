@@ -3,7 +3,7 @@ module gate_example(
   input wire y,
   output wire [31:0] out
 );
-  wire [31:0] gate_6;
-  assign gate.6 = `MY_GATE(x, y);
-  assign out = gate_6;
+  wire [31:0] gate_8;
+  assign gate.8 = `MY_GATE(x, y);
+  assign out = gate_8;
 endmodule

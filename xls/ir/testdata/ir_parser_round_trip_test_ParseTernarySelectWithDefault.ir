@@ -1,6 +1,6 @@
 package ParseSel
 
-fn sel_wrapper(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+fn sel_wrapper(p: bits[2] id=7, x: bits[32] id=8, y: bits[32] id=9, z: bits[32] id=10) -> bits[32] {
   literal.1: bits[32] = literal(value=0, id=1)
   ret sel.2: bits[32] = sel(p, cases=[x, y, z], default=literal.1, id=2)
 }

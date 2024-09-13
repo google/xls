@@ -1,0 +1,9 @@
+module test(
+  input wire [2:0] i0,
+  input wire [2:0] i1,
+  output wire [2:0] out
+);
+  wire [2:0] add_8;
+  assign add_8 = i0 + i1;
+  assign out = add_8;
+endmodule

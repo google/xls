@@ -108,15 +108,6 @@ absl::StatusOr<Node*> FunctionBase::GetNodeById(int64_t id) const {
   return absl::NotFoundError(absl::StrFormat("No node found with id %d.", id));
 }
 
-absl::StatusOr<Node*> FunctionBase::GetNonParamNodeById(int64_t id) const {
-  for (Node* node : nodes()) {
-    if (node->op() != Op::kParam && node->id() == id) {
-      return node;
-    }
-  }
-  return absl::NotFoundError(absl::StrFormat("No node found with id %d.", id));
-}
-
 absl::StatusOr<Node*> FunctionBase::GetNode(
     std::string_view standard_node_name) const {
   for (Node* node : nodes()) {

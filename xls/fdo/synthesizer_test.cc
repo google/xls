@@ -15,11 +15,14 @@
 #include "xls/fdo/synthesizer.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
 
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
@@ -28,6 +31,8 @@
 
 namespace xls {
 namespace {
+
+constexpr std::string_view kTestdataPath = "xls/fdo/testdata";
 
 class FakeSynthesizer : public synthesis::Synthesizer {
  public:
@@ -42,6 +47,11 @@ class FakeSynthesizer : public synthesis::Synthesizer {
 
 class SynthesizerTest : public IrTestBase {
  public:
+  std::filesystem::path GoldenFilePath(std::string_view file_ext) {
+    return absl::StrFormat("%s/synthesizer_test_%s.%s", kTestdataPath,
+                           TestName(), file_ext);
+  }
+
   FakeSynthesizer synthesizer_;
 };
 
@@ -57,46 +67,17 @@ fn test(i0: bits[3], i1: bits[3]) -> bits[3] {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetFunction("test"));
 
-  const std::string expected_verilog_text = R"(module test(
-  input wire [2:0] i0,
-  input wire [2:0] i1,
-  output wire [2:0] out
-);
-  wire [2:0] add_6;
-  assign add_6 = i0 + i1;
-  assign out = add_6;
-endmodule
-)";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string actual_verilog_text,
       synthesizer_.FunctionBaseToVerilog(function,
                                          /*flop_inputs_outputs=*/false));
-  EXPECT_EQ(actual_verilog_text, expected_verilog_text);
+  ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), actual_verilog_text);
 
-  const std::string expected_ff_verilog_text = R"(module test(
-  input wire clk,
-  input wire [2:0] i0,
-  input wire [2:0] i1,
-  output wire [2:0] out
-);
-  reg [2:0] p0_i0;
-  reg [2:0] p0_i1;
-  reg [2:0] p1_add_14;
-  wire [2:0] add_14;
-  assign add_14 = p0_i0 + p0_i1;
-  always @ (posedge clk) begin
-    p0_i0 <= i0;
-    p0_i1 <= i1;
-    p1_add_14 <= add_14;
-  end
-  assign out = p1_add_14;
-endmodule
-)";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string actual_ff_verilog_text,
       synthesizer_.FunctionBaseToVerilog(function,
                                          /*flop_inputs_outputs=*/true));
-  EXPECT_EQ(actual_ff_verilog_text, expected_ff_verilog_text);
+  ExpectEqualToGoldenFile(GoldenFilePath("ff.vtxt"), actual_ff_verilog_text);
 }
 
 TEST_F(SynthesizerTest, FunctionBaseToVerilogWithLiveIn) {
@@ -110,22 +91,11 @@ fn test(add_1: bits[3], i1: bits[3]) -> bits[3] {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetFunction("test"));
-
-  const std::string expected_verilog_text = R"(module test(
-  input wire [2:0] add_1,
-  input wire [2:0] i1,
-  output wire [2:0] out
-);
-  wire [2:0] sub_6;
-  assign sub_6 = add_1 - i1;
-  assign out = sub_6;
-endmodule
-)";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string actual_verilog_text,
       synthesizer_.FunctionBaseToVerilog(function,
                                          /*flop_inputs_outputs=*/false));
-  EXPECT_EQ(actual_verilog_text, expected_verilog_text);
+  ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), actual_verilog_text);
 }
 
 TEST_F(SynthesizerTest, FunctionBaseToVerilogWithLiveOut) {
@@ -141,24 +111,11 @@ fn test(i0: bits[3], i1: bits[3]) -> (bits[3], bits[3]) {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetFunction("test"));
-
-  const std::string expected_verilog_text = R"(module test(
-  input wire [2:0] i0,
-  input wire [2:0] i1,
-  output wire [5:0] out
-);
-  wire [2:0] add_8;
-  wire [2:0] sub_9;
-  assign add_8 = i0 + i1;
-  assign sub_9 = add_8 - i1;
-  assign out = {add_8, sub_9};
-endmodule
-)";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string actual_verilog_text,
       synthesizer_.FunctionBaseToVerilog(function,
                                          /*flop_inputs_outputs=*/false));
-  EXPECT_EQ(actual_verilog_text, expected_verilog_text);
+  ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), actual_verilog_text);
 }
 
 }  // namespace

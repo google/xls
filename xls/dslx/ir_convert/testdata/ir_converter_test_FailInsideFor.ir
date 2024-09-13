@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], bits[32])) -> (token, bits[1], bits[32]) {
+fn ____itok__test_module__main_counted_for_0_body(i: bits[32] id=5, __token_wrapped: (token, bits[1], bits[32]) id=8) -> (token, bits[1], bits[32]) {
   tuple_index.10: bits[1] = tuple_index(__token_wrapped, index=1, id=10)
   tuple_index.9: token = tuple_index(__token_wrapped, index=0, id=9)
   not.13: bits[1] = not(tuple_index.10, id=13)
@@ -16,7 +16,7 @@ fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: 
   ret tuple.17: (token, bits[1], bits[32]) = tuple(after_all.16, tuple_index.10, identity.15, id=17)
 }
 
-fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[32]) {
   literal.4: bits[32] = literal(value=0, id=4)
   tuple.18: (token, bits[1], bits[32]) = tuple(__token, __activated, literal.4, id=18)
   counted_for.19: (token, bits[1], bits[32]) = counted_for(tuple.18, trip_count=1, stride=1, body=____itok__test_module__main_counted_for_0_body, id=19)

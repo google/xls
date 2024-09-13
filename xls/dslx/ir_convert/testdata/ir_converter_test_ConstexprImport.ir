@@ -3,7 +3,7 @@ package test_module
 file_number 0 "fake/imported/stuff.x"
 file_number 1 "test_module.x"
 
-fn __fake_imported_stuff__constexpr_fn(arg: bits[32]) -> bits[32] {
+fn __fake_imported_stuff__constexpr_fn(arg: bits[32] id=1) -> bits[32] {
   MY_CONST: bits[32] = literal(value=5, id=2)
   ret umul.3: bits[32] = umul(arg, MY_CONST, id=3)
 }

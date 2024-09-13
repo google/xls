@@ -15,7 +15,7 @@ module not_add(
   end
 
   // ===== Pipe stage 1:
-  wire [31:0] p1_add_11_comb;
-  assign p1_add_11_comb = p0_x + p0_y;
-  assign out = ~p1_add_11_comb;
+  wire [31:0] p1_add_13_comb;
+  assign p1_add_13_comb = p0_x + p0_y;
+  assign out = ~p1_add_13_comb;
 endmodule

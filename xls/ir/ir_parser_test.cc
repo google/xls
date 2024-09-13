@@ -838,7 +838,7 @@ proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
 TEST(IrParserTest, NodeNames) {
   std::string program = R"(package test
 
-fn foo(x: bits[32], foobar: bits[32]) -> bits[32] {
+fn foo(x: bits[32] id=2, foobar: bits[32] id=3) -> bits[32] {
   add.1: bits[32] = add(x, foobar, id=1)
   ret qux: bits[32] = not(add.1, id=123)
 }
@@ -850,12 +850,12 @@ fn foo(x: bits[32], foobar: bits[32]) -> bits[32] {
   Node* x = f->param(0);
   EXPECT_TRUE(x->HasAssignedName());
   EXPECT_EQ(x->GetName(), "x");
-  EXPECT_EQ(x->id(), 1);
+  EXPECT_EQ(x->id(), 2);
 
   Node* foobar = f->param(1);
   EXPECT_TRUE(foobar->HasAssignedName());
   EXPECT_EQ(foobar->GetName(), "foobar");
-  EXPECT_EQ(foobar->id(), 2);
+  EXPECT_EQ(foobar->id(), 3);
 
   Node* add = f->return_value()->operand(0);
   EXPECT_FALSE(add->HasAssignedName());
@@ -881,7 +881,6 @@ fn f(x: bits[4]) -> bits[4] {
   EXPECT_EQ(f->return_value()->id(), 333);
   EXPECT_EQ(f->return_value()->operand(0)->id(), 123);
   EXPECT_EQ(f->return_value()->operand(0)->operand(0)->id(), 42);
-  EXPECT_EQ(f->return_value()->operand(0)->operand(0)->operand(0)->id(), 2);
 }
 
 TEST(IrParserTest, ParseTopFunction) {
@@ -987,6 +986,19 @@ block my_block(in: bits[32], out: bits[32]) {
 }
 )";
   XLS_EXPECT_OK(Parser::ParsePackage(ir_text));
+}
+
+TEST(IrParserTest, ParseWithUnspecifiedIds) {
+  std::string input = R"(package test
+
+ top fn example() -> bits[32] {
+   node0: bits[32] = literal(value=2)
+   node1: bits[32] = literal(value=2, id=1)
+   node2: bits[32] = literal(value=2)
+   ret node3: bits[32] = literal(value=2, id=2)
+ }
+)";
+  XLS_ASSERT_OK(Parser::ParsePackage(input).status());
 }
 
 }  // namespace xls

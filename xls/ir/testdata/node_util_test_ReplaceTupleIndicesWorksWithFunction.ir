@@ -1,4 +1,4 @@
-fn ReplaceTupleIndicesWorksWithFunction(in: (bits[8], bits[16], bits[32])) -> bits[32] {
+fn ReplaceTupleIndicesWorksWithFunction(in: (bits[8], bits[16], bits[32]) id=1) -> bits[32] {
   literal.9: bits[8] = literal(value=0, id=9)
   tuple_index.15: bits[16] = tuple_index(in, index=1, id=15)
   literal.10: bits[32] = literal(value=1, id=10)

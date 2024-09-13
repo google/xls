@@ -43,10 +43,10 @@ module main(
   assign d_unflattened[1] = d[31:16];
   assign d_unflattened[2] = d[47:32];
   assign d_unflattened[3] = d[63:48];
-  wire [15:0] priority_sel_14[0:3];
-  assign priority_sel_14[0] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[0], y_unflattened[0], d_unflattened[0]);
-  assign priority_sel_14[1] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[1], y_unflattened[1], d_unflattened[1]);
-  assign priority_sel_14[2] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[2], y_unflattened[2], d_unflattened[2]);
-  assign priority_sel_14[3] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[3], y_unflattened[3], d_unflattened[3]);
-  assign out = {priority_sel_14[3], priority_sel_14[2], priority_sel_14[1], priority_sel_14[0]};
+  wire [15:0] priority_sel_18[0:3];
+  assign priority_sel_18[0] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[0], y_unflattened[0], d_unflattened[0]);
+  assign priority_sel_18[1] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[1], y_unflattened[1], d_unflattened[1]);
+  assign priority_sel_18[2] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[2], y_unflattened[2], d_unflattened[2]);
+  assign priority_sel_18[3] = priority_sel_64b_2way_snz_element16(p | 2'h1, x_unflattened[3], y_unflattened[3], d_unflattened[3]);
+  assign out = {priority_sel_18[3], priority_sel_18[2], priority_sel_18[1], priority_sel_18[0]};
 endmodule

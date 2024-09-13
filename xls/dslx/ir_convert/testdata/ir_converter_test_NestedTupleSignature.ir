@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__main(r: bits[9], l: bits[10], input: ((bits[1], (bits[6], bits[1]), bits[3])[3], bits[3], bits[1])) -> (bits[9], bits[10], (bits[64], bits[1])) {
+fn __test_module__main(r: bits[9] id=1, l: bits[10] id=2, input: ((bits[1], (bits[6], bits[1]), bits[3])[3], bits[3], bits[1]) id=3) -> (bits[9], bits[10], (bits[64], bits[1])) {
   literal.6: bits[64] = literal(value=0, id=6)
   literal.7: bits[1] = literal(value=0, id=7)
   literal.4: bits[9] = literal(value=0, id=4)

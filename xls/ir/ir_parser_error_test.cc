@@ -1921,7 +1921,7 @@ fn f(x: bits[4], y: bits[4][1]) -> bits[4] {
 TEST(IrParserErrorTest, NodeNames) {
   std::string program = R"(package test
 
-fn foo(x: bits[32], foobar: bits[32]) -> bits[32] {
+fn foo(x: bits[32] id=42, foobar: bits[32] id=43) -> bits[32] {
   add.1: bits[32] = add(x, foobar, id=1)
   ret qux: bits[32] = not(add.1, id=123)
 }
@@ -1933,12 +1933,12 @@ fn foo(x: bits[32], foobar: bits[32]) -> bits[32] {
   Node* x = f->param(0);
   EXPECT_TRUE(x->HasAssignedName());
   EXPECT_EQ(x->GetName(), "x");
-  EXPECT_EQ(x->id(), 1);
+  EXPECT_EQ(x->id(), 42);
 
   Node* foobar = f->param(1);
   EXPECT_TRUE(foobar->HasAssignedName());
   EXPECT_EQ(foobar->GetName(), "foobar");
-  EXPECT_EQ(foobar->id(), 2);
+  EXPECT_EQ(foobar->id(), 43);
 
   Node* add = f->return_value()->operand(0);
   EXPECT_FALSE(add->HasAssignedName());
@@ -1978,7 +1978,6 @@ fn f(x: bits[4]) -> bits[4] {
   EXPECT_EQ(f->return_value()->id(), 333);
   EXPECT_EQ(f->return_value()->operand(0)->id(), 123);
   EXPECT_EQ(f->return_value()->operand(0)->operand(0)->id(), 42);
-  EXPECT_EQ(f->return_value()->operand(0)->operand(0)->operand(0)->id(), 2);
 }
 
 TEST(IrParserErrorTest, MismatchedId) {
@@ -2552,23 +2551,61 @@ block my_block(in: bits[32], out: bits[32]) {
   }
 }
 
-TEST(IrParserErrorTest, ParseWithDuplicateIds) {
-  std::string program = R"(
-package Package
-
-fn main() -> bits[16] {
-  x: bits[16] = literal(value=0)
-  y: bits[16] = literal(value=1, id=1)
-  z: bits[16] = add(x, y, id=2)
-  ret v: bits[16] = add(x, z)
-}
-)";
-
-  // TODO(https://github.com/google/xls/issues/1534): Check for passing parse
-  //  once ids are guaranteed to be unique.
-  EXPECT_THAT(Parser::ParsePackage(program),
+TEST(IrParserErrorTest, InvalidKeywordArgumentInParameter) {
+  Package p("my_package");
+  const std::string input =
+      R"(fn f(x: bits[32] foo=bar) -> bits[32] {
+  ret literal.1: bits[32] = literal(value=42, value=123)
+})";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("ID 1 is not unique")));
+                       HasSubstr("Invalid parameter keyword argument `foo`")));
+}
+
+TEST(IrParserErrorTest, HalfBakedKeywordArgumentInParameter) {
+  Package p("my_package");
+  const std::string input =
+      R"(fn f(x: bits[32] id) -> bits[32] {
+  ret literal.1: bits[32] = literal(value=42, value=123)
+})";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token of type \"=\"")));
+}
+
+TEST(IrParserErrorTest, MissingValueKeywordArgumentInParameter) {
+  Package p("my_package");
+  const std::string input =
+      R"(fn f(x: bits[32] id=) -> bits[32] {
+  ret literal.1: bits[32] = literal(value=42, value=123)
+})";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token of type \"literal\"")));
+}
+
+TEST(IrParserErrorTest, InvalidParameterId) {
+  Package p("my_package");
+  const std::string input =
+      R"(fn f(x: bits[32] id=0) -> bits[32] {
+  ret literal.1: bits[32] = literal(value=42, value=123)
+})";
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Invalid node id 0, must be greater than zero")));
+}
+
+TEST(IrParserErrorTest, InvalidNodeId) {
+  Package p("my_package");
+  const std::string input =
+      R"(fn f(x: bits[32] id=123) -> bits[32] {
+  ret myliteral: bits[32] = literal(value=42, id=-1)
+})";
+  EXPECT_THAT(
+      Parser::ParseFunction(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Invalid node id -1, must be greater than zero")));
 }
 
 }  // namespace xls

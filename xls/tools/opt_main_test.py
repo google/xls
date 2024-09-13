@@ -163,12 +163,12 @@ class OptMainTest(test_base.TestCase):
         OPT_MAIN_PATH,
         ir_file.full_path,
         '--passes',
-        'dce dce dce dce basic_simp',
+        'dce dce dce dce basic_simp dce',
         '--passes_bisect_limit',
         '3',
     ]).decode('utf-8')
-    # No change since basic_simp is not run
-    self.assertEqual(optimized_ir, ADD_ZERO_IR)
+    # Add remains in graph since basic_simp + dce is not run
+    self.assertIn('bits[32] = add', optimized_ir)
 
   def test_bisect_limit_allows_changes(self):
     """Check that dce is not run after basic simp."""

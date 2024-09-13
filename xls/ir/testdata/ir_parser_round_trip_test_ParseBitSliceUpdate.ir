@@ -1,5 +1,5 @@
 package foobar
 
-fn bar(to_update: bits[123], start: bits[8], value: bits[23]) -> bits[123] {
+fn bar(to_update: bits[123] id=5, start: bits[8] id=6, value: bits[23] id=7) -> bits[123] {
   ret bit_slice_update.1: bits[123] = bit_slice_update(to_update, start, value, id=1)
 }

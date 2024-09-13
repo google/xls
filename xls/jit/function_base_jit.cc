@@ -1435,7 +1435,7 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildFromAot(
     for (const auto& [cont_point, node_id] :
          abi.continuation_point_node_ids()) {
       XLS_ASSIGN_OR_RETURN(continuation_points[cont_point],
-                           function->GetNonParamNodeById(node_id));
+                           function->GetNodeById(node_id));
     }
     for (auto* chan : function->package()->channels()) {
       if (abi.channel_queue_indices().contains(chan->name())) {

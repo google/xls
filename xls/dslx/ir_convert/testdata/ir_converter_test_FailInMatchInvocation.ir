@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __itok__test_module__do_fail(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__do_fail(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[32]) {
   not.5: bits[1] = not(__activated, id=5)
   assert.6: token = assert(__token, not.5, message="Assertion failure via fail! @ test_module.x:3:8-3:22", label="failure", id=6)
   after_all.8: token = after_all(assert.6, id=8)
@@ -11,7 +11,7 @@ fn __itok__test_module__do_fail(__token: token, __activated: bits[1], x: bits[32
   ret tuple.9: (token, bits[32]) = tuple(after_all.8, identity.7, id=9)
 }
 
-fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token id=10, __activated: bits[1] id=11, x: bits[32] id=12) -> (token, bits[32]) {
   literal.13: bits[32] = literal(value=42, id=13)
   literal.15: bits[1] = literal(value=1, id=15)
   eq.14: bits[1] = eq(literal.13, x, id=14)

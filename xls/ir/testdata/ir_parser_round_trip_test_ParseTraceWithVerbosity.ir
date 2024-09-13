@@ -1,5 +1,5 @@
 package foobar
 
-fn bar(tkn: token, cond: bits[1], x: bits[3]) -> token {
+fn bar(tkn: token id=5, cond: bits[1] id=6, x: bits[3] id=7) -> token {
   ret trace.1: token = trace(tkn, cond, format="x is {}", data_operands=[x], verbosity=1, id=1)
 }

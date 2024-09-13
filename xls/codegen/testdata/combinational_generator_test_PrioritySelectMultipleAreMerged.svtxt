@@ -24,7 +24,7 @@ module main(
       endcase
     end
   endfunction
-  wire [15:0] add_14;
-  assign add_14 = priority_sel_16b_2way(p, x, y, d) + priority_sel_16b_2way(p, y, x, d);
-  assign out = add_14;
+  wire [15:0] add_18;
+  assign add_18 = priority_sel_16b_2way(p, x, y, d) + priority_sel_16b_2way(p, y, x, d);
+  assign out = add_18;
 endmodule

@@ -1,3 +1,3 @@
-fn array_and_array(p: bits[2][5][4][42], q: bits[32], v: bits[2][5][4]) -> bits[2][5][4][42] {
+fn array_and_array(p: bits[2][5][4][42] id=5, q: bits[32] id=6, v: bits[2][5][4] id=7) -> bits[2][5][4][42] {
   ret array_update.1: bits[2][5][4][42] = array_update(p, v, indices=[q], id=1)
 }

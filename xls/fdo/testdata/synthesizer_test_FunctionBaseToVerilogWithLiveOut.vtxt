@@ -1,0 +1,11 @@
+module test(
+  input wire [2:0] i0,
+  input wire [2:0] i1,
+  output wire [5:0] out
+);
+  wire [2:0] add_10;
+  wire [2:0] sub_11;
+  assign add_10 = i0 + i1;
+  assign sub_11 = add_10 - i1;
+  assign out = {add_10, sub_11};
+endmodule

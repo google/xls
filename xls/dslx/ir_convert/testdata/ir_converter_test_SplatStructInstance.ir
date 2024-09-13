@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__f(p: (bits[32], bits[32]), new_y: bits[32]) -> (bits[32], bits[32]) {
+fn __test_module__f(p: (bits[32], bits[32]) id=1, new_y: bits[32] id=2) -> (bits[32], bits[32]) {
   tuple_index.3: bits[32] = tuple_index(p, index=0, id=3)
   ret tuple.4: (bits[32], bits[32]) = tuple(tuple_index.3, new_y, id=4)
 }

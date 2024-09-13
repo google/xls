@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __itok__test_module__foo(__token: token, __activated: bits[1], x: bits[32], y: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__foo(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3, y: bits[32] id=4) -> (token, bits[32]) {
   trace.5: token = trace(__token, __activated, format="x is {}", data_operands=[x], id=5)
   trace.6: token = trace(__token, __activated, format="y is {}", data_operands=[y], id=6)
   after_all.8: token = after_all(trace.5, trace.6, id=8)
@@ -10,7 +10,7 @@ fn __itok__test_module__foo(__token: token, __activated: bits[1], x: bits[32], y
   ret tuple.9: (token, bits[32]) = tuple(after_all.8, add.7, id=9)
 }
 
-fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], bits[32][4]), x: bits[32][4]) -> (token, bits[1], bits[32][4]) {
+fn ____itok__test_module__main_counted_for_0_body(i: bits[32] id=13, __token_wrapped: (token, bits[1], bits[32][4]) id=16, x: bits[32][4] id=20) -> (token, bits[1], bits[32][4]) {
   literal.14: bits[32] = literal(value=0, id=14)
   tuple_index.19: bits[32][4] = tuple_index(__token_wrapped, index=2, id=19)
   add.15: bits[32] = add(i, literal.14, id=15)
@@ -26,7 +26,7 @@ fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: 
   ret tuple.28: (token, bits[1], bits[32][4]) = tuple(after_all.27, tuple_index.18, array_update.26, id=28)
 }
 
-fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32][4]) -> (token, bits[32][4]) {
+fn __itok__test_module__main(__token: token id=10, __activated: bits[1] id=11, x: bits[32][4] id=12) -> (token, bits[32][4]) {
   tuple.29: (token, bits[1], bits[32][4]) = tuple(__token, __activated, x, id=29)
   counted_for.30: (token, bits[1], bits[32][4]) = counted_for(tuple.29, trip_count=4, stride=1, body=____itok__test_module__main_counted_for_0_body, invariant_args=[x], id=30)
   tuple_index.31: token = tuple_index(counted_for.30, index=0, id=31)

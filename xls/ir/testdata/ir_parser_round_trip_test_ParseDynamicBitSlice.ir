@@ -1,3 +1,3 @@
-fn dynamicbitslice(x: bits[32], y: bits[32]) -> bits[14] {
+fn dynamicbitslice(x: bits[32] id=4, y: bits[32] id=5) -> bits[14] {
   ret dynamic_bit_slice.1: bits[14] = dynamic_bit_slice(x, y, width=14, id=1)
 }

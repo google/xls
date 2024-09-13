@@ -92,7 +92,7 @@ TEST_F(NodeTest, CloneWithOperandsInDifferentFunctions) {
   Package p(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_from, ParseFunction(R"(
 fn add_from(x: bits[32], y: bits[32]) -> bits[32] {
-ret add.3: bits[32] = add(x, y)
+ret foo: bits[32] = add(x, y)
 }
 )",
                                                                &p));
@@ -109,7 +109,7 @@ ret x: bits[32] = param(name=x)
       add->CloneInNewFunction({func_from->param(0), func_to->param(0)},
                               func_to),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Operand x of node add.6 not in same function")));
+               HasSubstr("Operand x of node foo not in same function")));
 }
 
 TEST_F(NodeTest, CloneCountedFor) {
@@ -518,7 +518,7 @@ fn ReplaceUses(x: bits[8], y: bits[16]) -> bits[16] {
           ->ReplaceUsesWithNew<NaryOp>(
               std::vector<Node*>{FindNode("x", f), FindNode("y", f)}, Op::kXor),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Expected operand 1 of xor.5 to have type bits[8], "
+               HasSubstr("Expected operand 1 of xor.7 to have type bits[8], "
                          "has type bits[16].")));
 }
 

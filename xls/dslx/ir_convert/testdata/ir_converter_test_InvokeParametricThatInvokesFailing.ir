@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __itok__test_module__does_fail(__token: token, __activated: bits[1]) -> (token, bits[32]) {
+fn __itok__test_module__does_fail(__token: token id=1, __activated: bits[1] id=2) -> (token, bits[32]) {
   not.5: bits[1] = not(__activated, id=5)
   assert.6: token = assert(__token, not.5, message="Assertion failure via fail! @ test_module.x:3:8-3:27", label="failure", id=6)
   literal.4: bits[32] = literal(value=42, id=4)
@@ -12,7 +12,7 @@ fn __itok__test_module__does_fail(__token: token, __activated: bits[1]) -> (toke
   ret tuple.9: (token, bits[32]) = tuple(after_all.8, identity.7, id=9)
 }
 
-fn __itok__test_module__calls_failing__32(__token: token, __activated: bits[1]) -> (token, bits[32]) {
+fn __itok__test_module__calls_failing__32(__token: token id=10, __activated: bits[1] id=11) -> (token, bits[32]) {
   invoke.13: (token, bits[32]) = invoke(__token, __activated, to_apply=__itok__test_module__does_fail, id=13)
   tuple_index.14: token = tuple_index(invoke.13, index=0, id=14)
   after_all.16: token = after_all(tuple_index.14, id=16)
@@ -21,7 +21,7 @@ fn __itok__test_module__calls_failing__32(__token: token, __activated: bits[1]) 
   ret tuple.17: (token, bits[32]) = tuple(after_all.16, tuple_index.15, id=17)
 }
 
-fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token id=18, __activated: bits[1] id=19, x: bits[32] id=20) -> (token, bits[32]) {
   invoke.21: (token, bits[32]) = invoke(__token, __activated, to_apply=__itok__test_module__calls_failing__32, id=21)
   tuple_index.22: token = tuple_index(invoke.21, index=0, id=22)
   after_all.24: token = after_all(tuple_index.22, id=24)

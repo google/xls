@@ -60,10 +60,8 @@ namespace {
 std::string GetNodeUniqueId(
     Node* node,
     const absl::flat_hash_map<FunctionBase*, std::string>& function_ids) {
-  // Parameters can share xls::Node::id() values with non-parameter nodes so
-  // handle them specially.
-  return absl::StrFormat("%s_%s%d", function_ids.at(node->function_base()),
-                         node->Is<Param>() ? "p" : "", node->id());
+  return absl::StrFormat("%s_%d", function_ids.at(node->function_base()),
+                         node->id());
 }
 
 // Returns a globally unique identifier for the edge.

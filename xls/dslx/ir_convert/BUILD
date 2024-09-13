@@ -236,6 +236,7 @@ cc_library(
     name = "function_converter",
     srcs = ["function_converter.cc"],
     hdrs = ["function_converter.h"],
+    data = glob(["testdata/*.ir"]),
     deps = [
         ":channel_scope",
         ":conversion_info",
@@ -294,6 +295,7 @@ cc_test(
         ":conversion_info",
         ":convert_options",
         ":function_converter",
+        "//xls/common:golden_files",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -303,6 +305,7 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/ir",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
 )

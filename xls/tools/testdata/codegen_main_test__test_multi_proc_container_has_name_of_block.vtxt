@@ -130,35 +130,35 @@ module proc0(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire instantiation_output_140;
-  wire [31:0] instantiation_output_145;
-  wire instantiation_output_146;
-  wire instantiation_output_153;
-  wire [31:0] instantiation_output_157;
-  wire instantiation_output_158;
-  wire instantiation_output_147;
-  wire [31:0] instantiation_output_151;
-  wire instantiation_output_152;
+  wire instantiation_output_154;
+  wire [31:0] instantiation_output_159;
+  wire instantiation_output_160;
+  wire instantiation_output_167;
+  wire [31:0] instantiation_output_171;
+  wire instantiation_output_172;
+  wire instantiation_output_161;
+  wire [31:0] instantiation_output_165;
+  wire instantiation_output_166;
 
   // ===== Instantiations
   proc0__1 proc0__1_inst0 (
     .rst(rst),
     .in(in),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_147),
-    .in_rdy(instantiation_output_140),
-    .internal(instantiation_output_145),
-    .internal_vld(instantiation_output_146),
+    .internal_rdy(instantiation_output_161),
+    .in_rdy(instantiation_output_154),
+    .internal(instantiation_output_159),
+    .internal_vld(instantiation_output_160),
     .clk(clk)
   );
   proc1 proc1_inst1 (
     .rst(rst),
-    .internal(instantiation_output_151),
-    .internal_vld(instantiation_output_152),
+    .internal(instantiation_output_165),
+    .internal_vld(instantiation_output_166),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_153),
-    .out(instantiation_output_157),
-    .out_vld(instantiation_output_158),
+    .internal_rdy(instantiation_output_167),
+    .out(instantiation_output_171),
+    .out_vld(instantiation_output_172),
     .clk(clk)
   );
   xls_fifo_wrapper #(
@@ -170,14 +170,14 @@ module proc0(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_145),
-    .push_valid(instantiation_output_146),
-    .pop_ready(instantiation_output_153),
-    .push_ready(instantiation_output_147),
-    .pop_data(instantiation_output_151),
-    .pop_valid(instantiation_output_152)
+    .push_data(instantiation_output_159),
+    .push_valid(instantiation_output_160),
+    .pop_ready(instantiation_output_167),
+    .push_ready(instantiation_output_161),
+    .pop_data(instantiation_output_165),
+    .pop_valid(instantiation_output_166)
   );
-  assign in_rdy = instantiation_output_140;
-  assign out = instantiation_output_157;
-  assign out_vld = instantiation_output_158;
+  assign in_rdy = instantiation_output_154;
+  assign out = instantiation_output_171;
+  assign out_vld = instantiation_output_172;
 endmodule

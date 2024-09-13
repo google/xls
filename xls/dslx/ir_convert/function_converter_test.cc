@@ -14,11 +14,15 @@
 
 #include "xls/dslx/ir_convert/function_converter.h"
 
+#include <filesystem>  // NOLINT
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -33,6 +37,17 @@
 namespace xls::dslx {
 namespace {
 using proto_testing::EqualsProto;
+
+constexpr std::string_view kTestName = "function_converter_test";
+constexpr std::string_view kTestdataPath = "xls/dslx/ir_convert/testdata";
+
+static std::string TestName() {
+  return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+}
+
+static std::filesystem::path TestFilePath(std::string_view test_name) {
+  return absl::StrFormat("%s/%s_%s.ir", kTestdataPath, kTestName, test_name);
+}
 
 PackageConversionData MakeConversionData(std::string_view n) {
   return {.package = std::make_unique<Package>(n)};
@@ -60,15 +75,8 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithoutError) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(),
-            R"(package test_module_package
-
-file_number 0 "test_module.x"
-
-top fn __test_module__f() -> bits[32] {
-  ret literal.1: bits[32] = literal(value=42, id=1, pos=[(0,0,16)])
-}
-)");
+  EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -102,52 +110,7 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithAsserts) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(),
-            R"IR(package test_module_package
-
-file_number 0 "test_module.x"
-
-fn __itok__test_module__f(__token: token, __activated: bits[1]) -> (token, ()) {
-  literal.4: bits[32] = literal(value=31, id=4, pos=[(0,1,26)])
-  literal.5: bits[32] = literal(value=1, id=5, pos=[(0,1,35)])
-  literal.14: bits[32] = literal(value=31, id=14, pos=[(0,2,26)])
-  literal.15: bits[32] = literal(value=1, id=15, pos=[(0,2,35)])
-  literal.23: bits[32] = literal(value=31, id=23, pos=[(0,3,26)])
-  literal.24: bits[32] = literal(value=1, id=24, pos=[(0,3,35)])
-  literal.3: bits[32] = literal(value=42, id=3, pos=[(0,1,16)])
-  add.6: bits[32] = add(literal.4, literal.5, id=6, pos=[(0,1,33)])
-  literal.13: bits[32] = literal(value=42, id=13, pos=[(0,2,18)])
-  add.16: bits[32] = add(literal.14, literal.15, id=16, pos=[(0,2,33)])
-  literal.22: bits[32] = literal(value=41, id=22, pos=[(0,3,18)])
-  add.25: bits[32] = add(literal.23, literal.24, id=25, pos=[(0,3,33)])
-  not.9: bits[1] = not(__activated, id=9)
-  eq.7: bits[1] = eq(literal.3, add.6, id=7, pos=[(0,1,23)])
-  not.18: bits[1] = not(__activated, id=18)
-  eq.17: bits[1] = eq(literal.13, add.16, id=17)
-  not.27: bits[1] = not(__activated, id=27)
-  ult.26: bits[1] = ult(literal.22, add.25, id=26)
-  or.10: bits[1] = or(not.9, eq.7, id=10)
-  or.19: bits[1] = or(not.18, eq.17, id=19)
-  or.28: bits[1] = or(not.27, ult.26, id=28)
-  assert.11: token = assert(__token, or.10, message="Assertion failure via assert! @ test_module.x:2:16-2:49", label="foo", id=11)
-  assert.20: token = assert(__token, or.19, message="Assertion failure via assert_eq @ test_module.x:3:18-3:42", label="assert_eq(u32:42, u32:31 + u32:1)", id=20)
-  assert.29: token = assert(__token, or.28, message="Assertion failure via assert_lt @ test_module.x:4:18-4:42", label="assert_lt(u32:41, u32:31 + u32:1)", id=29)
-  after_all.32: token = after_all(assert.11, assert.20, assert.29, id=32)
-  tuple.31: () = tuple(id=31, pos=[(0,0,13)])
-  literal.8: bits[8][3] = literal(value=[102, 111, 111], id=8, pos=[(0,1,42)])
-  tuple.12: () = tuple(id=12)
-  tuple.21: () = tuple(id=21)
-  tuple.30: () = tuple(id=30)
-  ret tuple.33: (token, ()) = tuple(after_all.32, tuple.31, id=33)
-}
-
-top fn __test_module__f() -> () {
-  after_all.34: token = after_all(id=34)
-  literal.35: bits[1] = literal(value=1, id=35)
-  invoke.36: (token, ()) = invoke(after_all.34, literal.35, to_apply=__itok__test_module__f, id=36)
-  ret tuple_index.37: () = tuple_index(invoke.36, index=1, id=37)
-}
-)IR");
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__itok__test_module__f" }
@@ -194,15 +157,7 @@ TEST(FunctionConverterTest, TracksMultipleTypeAliasSvType) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(), R"(package test_module_package
-
-file_number 0 "test_module.x"
-
-top fn __test_module__f(b: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=42, id=2, pos=[(0,3,56)])
-  ret add.3: bits[32] = add(b, literal.2, id=3, pos=[(0,3,54)])
-}
-)");
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -242,16 +197,7 @@ TEST(FunctionConverterTest, TracksTypeAliasSvType) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(),
-            R"(package test_module_package
-
-file_number 0 "test_module.x"
-
-top fn __test_module__f(b: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=42, id=2, pos=[(0,4,56)])
-  ret add.3: bits[32] = add(b, literal.2, id=3, pos=[(0,4,54)])
-}
-)");
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -293,16 +239,7 @@ fn f(b: Baz) -> FooBar { b + u32:42 })",
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(),
-            R"(package test_module_package
-
-file_number 0 "test_module.x"
-
-top fn __test_module__f(b: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=42, id=2, pos=[(0,5,29)])
-  ret add.3: bits[32] = add(b, literal.2, id=3, pos=[(0,5,27)])
-}
-)");
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -448,23 +385,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithZipBuiltin) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(),
-            R"(package test_module_package
-
-file_number 0 "test_module.x"
-
-top fn __test_module__f(x: bits[32][2], y: bits[64][2]) -> (bits[32], bits[64])[2] {
-  literal.3: bits[32] = literal(value=0, id=3)
-  literal.7: bits[32] = literal(value=1, id=7)
-  array_index.4: bits[32] = array_index(x, indices=[literal.3], id=4, pos=[(0,0,49)])
-  array_index.5: bits[64] = array_index(y, indices=[literal.3], id=5, pos=[(0,0,49)])
-  array_index.8: bits[32] = array_index(x, indices=[literal.7], id=8, pos=[(0,0,49)])
-  array_index.9: bits[64] = array_index(y, indices=[literal.7], id=9, pos=[(0,0,49)])
-  tuple.6: (bits[32], bits[64]) = tuple(array_index.4, array_index.5, id=6, pos=[(0,0,49)])
-  tuple.10: (bits[32], bits[64]) = tuple(array_index.8, array_index.9, id=10, pos=[(0,0,49)])
-  ret array.11: (bits[32], bits[64])[2] = array(tuple.6, tuple.10, id=11, pos=[(0,0,49)])
-}
-)");
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -519,19 +440,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltin) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(),
-            R"(package test_module_package
-
-file_number 0 "test_module.x"
-
-top fn __test_module__f(a: bits[32][2][3]) -> bits[32][2][3] {
-  literal.2: bits[1] = literal(value=1, id=2, pos=[(0,0,45)])
-  literal.3: bits[32] = literal(value=0, id=3, pos=[(0,0,51)])
-  literal.5: bits[32] = literal(value=42, id=5, pos=[(0,0,59)])
-  tuple.4: (bits[1], bits[32]) = tuple(literal.2, literal.3, id=4, pos=[(0,0,44)])
-  ret array_update.6: bits[32][2][3] = array_update(a, literal.5, indices=[literal.2, literal.3], id=6, pos=[(0,0,40)])
-}
-)");
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -581,16 +490,8 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltinEmptyTuple) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  EXPECT_EQ(package.DumpIr(),
-            R"(package test_module_package
-
-file_number 0 "test_module.x"
-
-top fn __test_module__f(a: bits[32][2][3]) -> bits[32][2][3] {
-  tuple.2: () = tuple(id=2, pos=[(0,0,44)])
-  ret array_update.3: bits[32][2][3] = array_update(a, a, indices=[], id=3, pos=[(0,0,40)])
-}
-)");
+  EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
+  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }

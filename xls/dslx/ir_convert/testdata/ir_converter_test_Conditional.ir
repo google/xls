@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__main(x: bits[1]) -> bits[8] {
+fn __test_module__main(x: bits[1] id=1) -> bits[8] {
   literal.3: bits[8] = literal(value=24, id=3, pos=[(0,1,24)])
   literal.2: bits[8] = literal(value=42, id=2, pos=[(0,1,9)])
   ret sel.4: bits[8] = sel(x, cases=[literal.3, literal.2], id=4, pos=[(0,1,2)])

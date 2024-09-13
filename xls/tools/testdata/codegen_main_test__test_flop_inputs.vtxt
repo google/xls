@@ -15,15 +15,15 @@ module not_add(
   end
 
   // ===== Pipe stage 1:
-  wire [31:0] p1_add_11_comb;
-  wire [31:0] p1_not_12_comb;
-  assign p1_add_11_comb = p0_x + p0_y;
-  assign p1_not_12_comb = ~p1_add_11_comb;
+  wire [31:0] p1_add_13_comb;
+  wire [31:0] p1_not_14_comb;
+  assign p1_add_13_comb = p0_x + p0_y;
+  assign p1_not_14_comb = ~p1_add_13_comb;
 
   // Registers for pipe stage 1:
-  reg [31:0] p1_not_12;
+  reg [31:0] p1_not_14;
   always_ff @ (posedge clk) begin
-    p1_not_12 <= p1_not_12_comb;
+    p1_not_14 <= p1_not_14_comb;
   end
-  assign out = p1_not_12;
+  assign out = p1_not_14;
 endmodule

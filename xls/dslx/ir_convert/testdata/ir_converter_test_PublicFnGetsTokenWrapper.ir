@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __itok__test_module__callee_callee(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__callee_callee(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[32]) {
   not.7: bits[1] = not(__activated, id=7)
   literal.5: bits[32] = literal(value=3, id=5)
   assert.8: token = assert(__token, not.7, message="Assertion failure via fail! @ test_module.x:3:8-3:30", label="failure", id=8)
@@ -13,7 +13,7 @@ fn __itok__test_module__callee_callee(__token: token, __activated: bits[1], x: b
   ret tuple.11: (token, bits[32]) = tuple(after_all.10, x, id=11)
 }
 
-fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token id=12, __activated: bits[1] id=13, x: bits[32] id=14) -> (token, bits[32]) {
   invoke.15: (token, bits[32]) = invoke(__token, __activated, x, to_apply=__itok__test_module__callee_callee, id=15)
   tuple_index.16: token = tuple_index(invoke.15, index=0, id=16)
   after_all.18: token = after_all(tuple_index.16, id=18)
@@ -21,14 +21,14 @@ fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) 
   ret tuple.19: (token, bits[32]) = tuple(after_all.18, tuple_index.17, id=19)
 }
 
-fn __test_module__main(x: bits[32]) -> bits[32] {
+fn __test_module__main(x: bits[32] id=20) -> bits[32] {
   after_all.21: token = after_all(id=21)
   literal.22: bits[1] = literal(value=1, id=22)
   invoke.23: (token, bits[32]) = invoke(after_all.21, literal.22, x, to_apply=__itok__test_module__main, id=23)
   ret tuple_index.24: bits[32] = tuple_index(invoke.23, index=1, id=24)
 }
 
-fn __itok__test_module__callee(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__callee(__token: token id=25, __activated: bits[1] id=26, x: bits[32] id=27) -> (token, bits[32]) {
   invoke.28: (token, bits[32]) = invoke(__token, __activated, x, to_apply=__itok__test_module__main, id=28)
   tuple_index.29: token = tuple_index(invoke.28, index=0, id=29)
   after_all.31: token = after_all(tuple_index.29, id=31)

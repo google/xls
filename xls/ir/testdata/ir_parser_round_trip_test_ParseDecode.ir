@@ -1,4 +1,4 @@
-fn foo(x: bits[8]) -> bits[256] {
+fn foo(x: bits[8] id=4) -> bits[256] {
   decode.1: bits[42] = decode(x, width=42, id=1)
   ret decode.2: bits[256] = decode(x, width=256, id=2)
 }

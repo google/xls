@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__main(x: bits[10], y: bits[10]) -> bits[10] {
+fn __test_module__main(x: bits[10] id=1, y: bits[10] id=2) -> bits[10] {
   product: (bits[10], bits[10]) = umulp(x, y, id=3)
   tuple_index.5: bits[10] = tuple_index(product, index=0, id=5)
   tuple_index.7: bits[10] = tuple_index(product, index=1, id=7)

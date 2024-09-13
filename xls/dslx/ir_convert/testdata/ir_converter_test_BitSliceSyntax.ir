@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__f(x: bits[4]) -> bits[2] {
+fn __test_module__f(x: bits[4] id=1) -> bits[2] {
   bit_slice.2: bits[2] = bit_slice(x, start=0, width=2, id=2)
   bit_slice.3: bits[2] = bit_slice(x, start=2, width=2, id=3)
   add.4: bits[2] = add(bit_slice.2, bit_slice.3, id=4)

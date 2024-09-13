@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
+fn __itok__test_module__main(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[32]) {
   literal.4: bits[32] = literal(value=0, id=4)
   eq.5: bits[1] = eq(x, literal.4, id=5)
   not.7: bits[1] = not(eq.5, id=7)
@@ -16,7 +16,7 @@ fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) 
   ret tuple.14: (token, bits[32]) = tuple(after_all.13, sel.12, id=14)
 }
 
-fn __test_module__main(x: bits[32]) -> bits[32] {
+fn __test_module__main(x: bits[32] id=15) -> bits[32] {
   after_all.16: token = after_all(id=16)
   literal.17: bits[1] = literal(value=1, id=17)
   invoke.18: (token, bits[32]) = invoke(after_all.16, literal.17, x, to_apply=__itok__test_module__main, id=18)

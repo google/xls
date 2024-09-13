@@ -1,4 +1,4 @@
-fn foo(x: bits[32][6]) -> bits[32] {
+fn foo(x: bits[32][6] id=4) -> bits[32] {
   literal.1: bits[32] = literal(value=5, id=1)
   ret array_index.2: bits[32] = array_index(x, indices=[literal.1], id=2)
 }

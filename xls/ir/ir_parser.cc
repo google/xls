@@ -120,7 +120,28 @@ absl::StatusOr<std::vector<Parser::TypedArgument>> Parser::ParseTypedArguments(
                            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
       XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
-      args.push_back(TypedArgument{name.value(), type, name});
+      // The typed argument can include an optional `id=XX` following the type.
+      std::optional<int64_t> id;
+      if (scanner_.PeekTokenIs(LexicalTokenType::kIdent)) {
+        Token keyword = scanner_.PopToken();
+        if (keyword.value() != "id") {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Invalid parameter keyword argument `%s` @ %s",
+                              keyword.value(), name.pos().ToHumanString()));
+        }
+        XLS_RETURN_IF_ERROR(
+            scanner_.PopTokenOrError(LexicalTokenType::kEquals).status());
+        XLS_ASSIGN_OR_RETURN(Token literal, scanner_.PopTokenOrError(
+                                                LexicalTokenType::kLiteral));
+        XLS_ASSIGN_OR_RETURN(id, literal.GetValueInt64());
+        if (id.value() <= 0) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Invalid node id %d, must be greater than zero @ %s", id.value(),
+              name.pos().ToHumanString()));
+        }
+      }
+      args.push_back(TypedArgument{
+          .name = name.value(), .type = type, .id = id, .token = name});
     } while (scanner_.TryDropToken(LexicalTokenType::kComma));
   }
   return args;
@@ -663,6 +684,27 @@ absl::StatusOr<ProcBuilder*> CastToProcBuilderOrError(
 }
 
 }  // namespace
+
+// Reassign IDs of nodes which were *not* explicitly assigned in the IR (e.g.,
+// `id=42`).
+/* static */ void Parser::SetUnassignedNodeIds(
+    Package* package, std::optional<FunctionBase*> scope) {
+  auto assign_functionbase_node_ids = [&](FunctionBase* f) {
+    for (Node* node : f->nodes()) {
+      if (node->id() == kUnassignedNodeId) {
+        // SetId increments the package's next_node_id under the hood.
+        node->SetId(package->next_node_id());
+      }
+    }
+  };
+  if (scope.has_value()) {
+    assign_functionbase_node_ids(scope.value());
+    return;
+  }
+  for (FunctionBase* f : package->GetFunctionBases()) {
+    assign_functionbase_node_ids(f);
+  }
+}
 
 absl::StatusOr<BValue> Parser::ParseNode(
     BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value) {
@@ -1291,6 +1333,16 @@ absl::StatusOr<BValue> Parser::ParseNode(
           op_token.pos().ToHumanString()));
     }
 
+    if (id_attribute->has_value()) {
+      if (id_attribute->value() <= 0) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid node id %d, must be greater than zero @ %s",
+            id_attribute->value(), op_token.pos().ToHumanString()));
+      }
+    } else {
+      node->SetId(kUnassignedNodeId);
+    }
+
     if (split_name.has_value()) {
       // If the name is a generated from opcode and id (e.g., "add.42") then
       // verify the opcode and id attribute (if given) match then set the id.
@@ -1819,7 +1871,9 @@ Parser::ParseFunctionSignature(
   XLS_ASSIGN_OR_RETURN(std::vector<TypedArgument> params,
                        Parser::ParseTypedArguments(package));
   for (const TypedArgument& param : params) {
-    (*name_to_value)[param.name] = fb->Param(param.name, param.type);
+    BValue param_bvalue = fb->Param(param.name, param.type);
+    (*name_to_value)[param.name] = param_bvalue;
+    param_bvalue.node()->SetId(param.id.value_or(kUnassignedNodeId));
   }
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
                                                 "')' in function parameters"));
@@ -1971,8 +2025,10 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
                                             /*should_verify=*/false);
   }
   for (int64_t i = 0; i < state_params.size(); ++i) {
-    (*name_to_value)[state_params[i].name] =
+    BValue param_bvalue =
         builder->StateElement(state_params[i].name, init_values[i]);
+    (*name_to_value)[state_params[i].name] = param_bvalue;
+    param_bvalue.node()->SetId(state_params[i].id.value_or(kUnassignedNodeId));
   }
 
   return std::move(builder);
@@ -2538,6 +2594,7 @@ static absl::Status VerifyAndSwapError(Package* package) {
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Function * function,
                        p.ParseFunction(package, attributes));
+  SetUnassignedNodeIds(package, function);
 
   if (verify_function_only) {
     XLS_RETURN_IF_ERROR(VerifyFunction(function));
@@ -2546,7 +2603,6 @@ static absl::Status VerifyAndSwapError(Package* package) {
     // package-scoped invariants (eg, duplicate function name).
     XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
   }
-
   return function;
 }
 
@@ -2556,6 +2612,7 @@ static absl::Status VerifyAndSwapError(Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package, attributes));
+  SetUnassignedNodeIds(package, proc);
 
   // Verify the whole package because the addition of the proc may break
   // package-scoped invariants (eg, duplicate proc name).
@@ -2568,12 +2625,13 @@ static absl::Status VerifyAndSwapError(Package* package) {
     const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  XLS_ASSIGN_OR_RETURN(Block * proc, p.ParseBlock(package, attributes));
+  XLS_ASSIGN_OR_RETURN(Block * block, p.ParseBlock(package, attributes));
+  SetUnassignedNodeIds(package, block);
 
   // Verify the whole package because the addition of the block may break
   // package-scoped invariants (eg, duplicate block name).
   XLS_RETURN_IF_ERROR(VerifyAndSwapError(package));
-  return proc;
+  return block;
 }
 
 /* static */ absl::StatusOr<Channel*> Parser::ParseChannel(

@@ -2,6 +2,6 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top fn __test_module__signed_div(x: bits[32], y: bits[32]) -> bits[32] {
+top fn __test_module__signed_div(x: bits[32] id=1, y: bits[32] id=2) -> bits[32] {
   ret sdiv.3: bits[32] = sdiv(x, y, id=3, pos=[(0,1,4)])
 }

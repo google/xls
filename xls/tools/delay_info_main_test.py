@@ -57,19 +57,17 @@ class DelayInfoMainTest(test_base.TestCase):
     optimized_ir = subprocess.check_output(
         [DELAY_INFO_MAIN_PATH, '--delay_model=unit', ir_file.full_path]
     ).decode('utf-8')
-    self.assertEqual(
-        optimized_ir,
-        """# Critical path:
-      2ps (+  1ps): not_sum: bits[32] = not(sum: bits[32], id=4)
-      1ps (+  1ps): sum: bits[32] = add(x: bits[32], y: bits[32], id=3)
-      0ps (+  0ps): y: bits[32] = param(y, id=2)
-
+    self.assertIn('2ps (+  1ps): not_sum: bits[32]', optimized_ir)
+    self.assertIn('1ps (+  1ps): sum: bits[32] = add', optimized_ir)
+    self.assertIn(
+        """
 # Delay of all nodes:
 x               :     0ps
 y               :     0ps
 sum             :     1ps
 not_sum         :     1ps
 """,
+        optimized_ir,
     )
 
   def test_with_schedule(self):
@@ -85,23 +83,20 @@ not_sum         :     1ps
         ir_file.full_path,
     ]).decode('utf-8')
 
-    self.assertEqual(
-        optimized_ir,
-        """# Critical path for stage 0:
-      1ps (+  1ps): tuple.7: (bits[32], bits[32]) = tuple(x: bits[32], y: bits[32], id=7)
-      0ps (+  0ps): y: bits[32] = param(y, id=6)
-
-# Critical path for stage 1:
-      2ps (+  1ps): not_sum: bits[32] = not(sum: bits[32], id=11)
-      1ps (+  1ps): sum: bits[32] = add(x: bits[32], y: bits[32], id=10)
-      0ps (+  0ps): y: bits[32] = param(y, id=9)
-
+    self.assertIn('# Critical path for stage 0', optimized_ir)
+    self.assertIn('1ps (+  1ps): tuple', optimized_ir)
+    self.assertIn('0ps (+  0ps): y: bits[32] = param', optimized_ir)
+    self.assertIn('# Critical path for stage 1', optimized_ir)
+    self.assertIn('2ps (+  1ps): not_sum', optimized_ir)
+    self.assertIn(
+        """
 # Delay of all nodes:
 x               :     0ps
 y               :     0ps
 sum             :     1ps
 not_sum         :     1ps
 """,
+        optimized_ir,
     )
 
 

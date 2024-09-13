@@ -1,3 +1,3 @@
-fn foo(cond: bits[1], x: bits[16]) -> bits[16] {
+fn foo(cond: bits[1] id=4, x: bits[16] id=5) -> bits[16] {
   ret gate.1: bits[16] = gate(cond, x, id=1)
 }

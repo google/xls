@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-top fn __test_module__f(x: bits[31]) -> bits[32] {
+top fn __test_module__f(x: bits[31] id=1) -> bits[32] {
   literal.2: bits[1] = literal(value=1, id=2, pos=[(0,1,2)])
   ret concat.3: bits[32] = concat(literal.2, x, id=3, pos=[(0,1,12)])
 }

@@ -2,6 +2,6 @@ package test
 
 #[ffi_proto("""code_template: "verilog_module {fn} (\n.in({a})\n);"
 """)]
-fn fun(a: bits[23]) -> bits[42] {
+fn fun(a: bits[23] id=3) -> bits[42] {
   ret umul.1: bits[42] = umul(a, a, id=1)
 }

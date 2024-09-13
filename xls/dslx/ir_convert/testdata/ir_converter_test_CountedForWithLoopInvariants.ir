@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], outer_thing_1: bits[32], outer_thing_2: bits[32]) -> bits[32] {
+fn ____test_module__f_counted_for_0_body(i: bits[32] id=6, accum: bits[32] id=9, outer_thing_1: bits[32] id=10, outer_thing_2: bits[32] id=11) -> bits[32] {
   literal.7: bits[32] = literal(value=0, id=7)
   add.8: bits[32] = add(i, literal.7, id=8)
   add.14: bits[32] = add(accum, add.8, id=14)
@@ -14,7 +14,7 @@ fn ____test_module__f_counted_for_0_body(i: bits[32], accum: bits[32], outer_thi
   ret add.18: bits[32] = add(add.17, literal.13, id=18)
 }
 
-fn __test_module__f(outer_thing_1: bits[32], outer_thing_2: bits[32]) -> bits[32] {
+fn __test_module__f(outer_thing_1: bits[32] id=1, outer_thing_2: bits[32] id=2) -> bits[32] {
   literal.5: bits[32] = literal(value=0, id=5)
   outer_thing_3: bits[32] = literal(value=42, id=3)
   outer_thing_4: bits[32] = literal(value=24, id=4)

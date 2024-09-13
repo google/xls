@@ -146,19 +146,18 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc0, make_proc("proc0", ch0));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, make_proc("proc1", ch1));
 
-  EXPECT_THAT(
-      RunPipelineSchedulingPass(p.get(),
-                                SchedulingOptions().pipeline_stages(2)),
-      IsOkAndHolds(Pair(
-          true,
-          AllOf(SchedulingUnitWithElements(UnorderedElementsAre(
-                    Pair(proc0, VerifiedPipelineSchedule()),
-                    Pair(proc1, VerifiedPipelineSchedule()))),
-                HasDumpIr(AllOf(
-                    HasSubstr("// Pipeline Schedule"), HasSubstr("// Cycle 0:"),
-                    HasSubstr("//   st: bits[1] = param(st, id=2)"),
-                    HasSubstr("proc proc0(st: bits[1], init={0})"),
-                    HasSubstr("proc proc1(st: bits[1], init={0})")))))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto changed_unit, RunPipelineSchedulingPass(
+                             p.get(), SchedulingOptions().pipeline_stages(2)));
+  EXPECT_THAT(changed_unit,
+              Pair(true, AllOf(SchedulingUnitWithElements(UnorderedElementsAre(
+                             Pair(proc0, VerifiedPipelineSchedule()),
+                             Pair(proc1, VerifiedPipelineSchedule()))))));
+  EXPECT_THAT(changed_unit.second.DumpIr(),
+              AllOf(HasSubstr("// Pipeline Schedule"), HasSubstr("// Cycle 0:"),
+                    HasSubstr("//   st: bits[1] = param(name=st"),
+                    HasSubstr("proc proc0(st: bits[1]"),
+                    HasSubstr("proc proc1(st: bits[1]")));
 }
 
 TEST_F(PipelineSchedulingPassTest, MixedFunctionAndProcScheduling) {

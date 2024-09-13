@@ -72,24 +72,20 @@ namespace {
 using ::absl::StrFormat;
 
 absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
-  // TODO(meheff): param IDs currently collide with non-param IDs. All IDs
-  // should be globally unique.
-  if (!node->Is<Param>()) {
-    if (!ids->insert(node->id()).second) {
-      // Find locations of all nodes in the package with this node ID for error
-      // message.
-      std::vector<std::string> location_strings;
-      for (FunctionBase* f : node->package()->GetFunctionBases()) {
-        for (Node* n : f->nodes()) {
-          if (!n->Is<Param>() && n->id() == node->id()) {
-            location_strings.push_back(n->loc().ToString());
-          }
+  if (!ids->insert(node->id()).second) {
+    // Find locations of all nodes in the package with this node ID for error
+    // message.
+    std::vector<std::string> location_strings;
+    for (FunctionBase* f : node->package()->GetFunctionBases()) {
+      for (Node* n : f->nodes()) {
+        if (n->id() == node->id()) {
+          location_strings.push_back(n->loc().ToString());
         }
       }
-      return absl::InternalError(absl::StrFormat(
-          "ID %d is not unique; source locations of nodes with same id:\n%s",
-          node->id(), absl::StrJoin(location_strings, ", ")));
     }
+    return absl::InternalError(absl::StrFormat(
+        "ID %d is not unique; source locations of nodes with same id:\n%s",
+        node->id(), absl::StrJoin(location_strings, ", ")));
   }
   return absl::OkStatus();
 }

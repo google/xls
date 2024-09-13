@@ -55,7 +55,7 @@ namespace xls {
 Node::Node(Op op, Type* type, const SourceInfo& loc, std::string_view name,
            FunctionBase* function_base)
     : function_base_(function_base),
-      id_(function_base_->package()->GetNextNodeId()),
+      id_(function_base_->package()->GetNextNodeIdAndIncrement()),
       op_(op),
       type_(type),
       loc_(loc),
@@ -491,7 +491,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
   }
   switch (op_) {
     case Op::kParam:
-      args.push_back(GetName());
+      args.push_back(absl::StrFormat("name=%s", GetName()));
       break;
     case Op::kNext: {
       const Next* next = As<Next>();

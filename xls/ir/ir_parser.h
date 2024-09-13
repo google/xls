@@ -192,9 +192,15 @@ class Parser {
   // function signature. For example:
   //
   //   a: bits[32], b: bits[44], c: (bits[32][2], bits[1])
+  //
+  // Arguments can include optional unique ids:
+  //
+  //   a: bits[32] id=3, b: bits[44] id=4, c: (bits[32][2], bits[1]) id=5
+  //
   struct TypedArgument {
     std::string name;
     Type* type;
+    std::optional<int64_t> id;
     Token token;
   };
   absl::StatusOr<std::vector<TypedArgument>> ParseTypedArguments(
@@ -246,6 +252,14 @@ class Parser {
                                               SourceInfo* loc,
                                               std::string_view node_name,
                                               ArgParser* arg_parser);
+
+  // Reassign IDs of nodes which were *not* explicitly assigned in the IR (e.g.,
+  // `id=42`).
+  // TODO(https://github.com/google/xls/issues/1601): Consider alternate
+  // approaches if SetId is removed.
+  static constexpr int64_t kUnassignedNodeId = 0;
+  static void SetUnassignedNodeIds(
+      Package* package, std::optional<FunctionBase*> scope = std::nullopt);
 
   // Parses a node in a function/proc body. Example: "foo: bits[32] = add(x, y)"
   absl::StatusOr<BValue> ParseNode(
@@ -413,6 +427,7 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
     XLS_RETURN_IF_ERROR(package->SetTopByName(entry.value()));
     XLS_RETURN_IF_ERROR(package->GetFunction(*entry).status());
   }
+  SetUnassignedNodeIds(package.get());
   return package;
 }
 

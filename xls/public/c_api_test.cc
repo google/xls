@@ -132,7 +132,7 @@ TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
 TEST(XlsCApiTest, ParsePackageAndInterpretFunctionInIt) {
   const std::string kPackage = R"(package p
 
-fn f(x: bits[32]) -> bits[32] {
+fn f(x: bits[32] id=3) -> bits[32] {
   ret y: bits[32] = identity(x, id=2)
 }
 )";
@@ -211,7 +211,7 @@ fn f() -> bits[32] {
   const std::string kWant = R"(package p
 
 top fn f() -> bits[32] {
-  ret result: bits[32] = literal(value=2, id=3)
+  ret result: bits[32] = literal(value=2, id=5)
 }
 )";
 

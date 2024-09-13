@@ -2,13 +2,13 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn ____test_module__f__32_counted_for_0_body(i: bits[32], accum: bits[32]) -> bits[32] {
+fn ____test_module__f__32_counted_for_0_body(i: bits[32] id=3, accum: bits[32] id=6) -> bits[32] {
   literal.4: bits[32] = literal(value=0, id=4)
   add.5: bits[32] = add(i, literal.4, id=5)
   ret zero_ext.7: bits[32] = zero_ext(accum, new_bit_count=32, id=7)
 }
 
-fn __test_module__f__32(init: bits[32]) -> bits[32] {
+fn __test_module__f__32(init: bits[32] id=1) -> bits[32] {
   N: bits[32] = literal(value=32, id=2)
   ret counted_for.8: bits[32] = counted_for(init, trip_count=4, stride=1, body=____test_module__f__32_counted_for_0_body, id=8)
 }

@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __itok__test_module__main(__token: token, __activated: bits[1]) -> (token, ()) {
+fn __itok__test_module__main(__token: token id=1, __activated: bits[1] id=2) -> (token, ()) {
   trace.3: token = trace(__token, __activated, format="Look! I don\'t explode!", data_operands=[], id=3)
   after_all.5: token = after_all(trace.3, id=5)
   tuple.4: () = tuple(id=4)

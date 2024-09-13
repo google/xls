@@ -153,11 +153,6 @@ class FunctionBase {
   // Find a node with the given id.
   absl::StatusOr<Node*> GetNodeById(int64_t id) const;
 
-  // Find a non-param node by its id.
-  // TODO(https://github.com/google/xls/issues/1534): Remove once ids are
-  // globally unique.
-  absl::StatusOr<Node*> GetNonParamNodeById(int64_t id) const;
-
   // Removes the node from the function. The node must have no users.
   // Warning: if you remove a parameter node via this method you will change the
   // function type signature.

@@ -197,7 +197,7 @@ TEST(FunctionJitTest, TraceFmtSignedTest) {
   Package package("my_package");
   std::string ir_text = R"(
   fn trace_no_args(tkn: token, x: bits[8]) -> token {
-    pred: bits[1] = literal(value=1, id=0)
+    pred: bits[1] = literal(value=1)
     trace.1: token = trace(tkn, pred, format="signed: {:d}", data_operands=[x], id=1)
     trace.2: token = trace(trace.1, pred, format="unsigned: {:u}", data_operands=[x], id=2)
     ret trace.3: token = trace(trace.2, pred, format="default: {}", data_operands=[x], id=3)

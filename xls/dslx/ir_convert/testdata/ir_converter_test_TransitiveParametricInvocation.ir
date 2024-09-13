@@ -2,17 +2,17 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__parametric_id__8(x: bits[8]) -> bits[8] {
+fn __test_module__parametric_id__8(x: bits[8] id=1) -> bits[8] {
   N: bits[32] = literal(value=8, id=2)
   bit_slice.3: bits[8] = bit_slice(N, start=0, width=8, id=3)
   ret add.4: bits[8] = add(x, bit_slice.3, id=4)
 }
 
-fn __test_module__parametric_id_wrapper__8(x: bits[8]) -> bits[8] {
+fn __test_module__parametric_id_wrapper__8(x: bits[8] id=5) -> bits[8] {
   M: bits[32] = literal(value=8, id=6)
   ret invoke.7: bits[8] = invoke(x, to_apply=__test_module__parametric_id__8, id=7)
 }
 
-fn __test_module__main(x: bits[8]) -> bits[8] {
+fn __test_module__main(x: bits[8] id=8) -> bits[8] {
   ret invoke.9: bits[8] = invoke(x, to_apply=__test_module__parametric_id_wrapper__8, id=9)
 }

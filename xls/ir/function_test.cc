@@ -100,8 +100,8 @@ TEST_F(FunctionTest, DumpIrWhenParamIsRetval) {
   FunctionBuilder b("f", p.get());
   auto x = b.Param("x", p->GetBitsType(32));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.BuildWithReturnValue(x));
-  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[32]) -> bits[32] {
-  ret x: bits[32] = param(name=x)
+  EXPECT_EQ(f->DumpIr(), R"(fn f(x: bits[32] id=1) -> bits[32] {
+  ret x: bits[32] = param(name=x, id=1)
 }
 )");
 }
@@ -245,11 +245,12 @@ fn id(x: bits[16], y: bits[32]) -> bits[16] {
                                                           &p));
 
   EXPECT_THAT(
-      func->MakeNode<NaryOp>(
+      func->MakeNodeWithName<NaryOp>(
           FindNode("x", &p)->loc(),
-          std::vector<Node*>{FindNode("x", &p), FindNode("y", &p)}, Op::kXor),
+          std::vector<Node*>{FindNode("x", &p), FindNode("y", &p)}, Op::kXor,
+          "foo"),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Expected operand 1 of xor.3 to have type bits[16], "
+               HasSubstr("Expected operand 1 of foo to have type bits[16], "
                          "has type bits[32]")));
 }
 

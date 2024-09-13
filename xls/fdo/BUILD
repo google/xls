@@ -47,6 +47,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -139,14 +140,19 @@ cc_library(
 cc_test(
     name = "synthesizer_test",
     srcs = ["synthesizer_test.cc"],
+    data = glob([
+        "testdata/synthesizer_test_*",
+    ]),
     deps = [
         ":synthesizer",
+        "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
 )

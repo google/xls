@@ -1,5 +1,5 @@
 package ParsePrioritySel
 
-fn sel_wrapper(p: bits[3], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+fn sel_wrapper(p: bits[3] id=7, x: bits[32] id=8, y: bits[32] id=9, z: bits[32] id=10, d: bits[32] id=11) -> bits[32] {
   ret priority_sel.1: bits[32] = priority_sel(p, cases=[x, y, z], default=d, id=1)
 }

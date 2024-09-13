@@ -1,5 +1,5 @@
 package foobar
 
-fn bar(cond: bits[1]) -> () {
+fn bar(cond: bits[1] id=3) -> () {
   ret cover.1: () = cover(cond, label="The foo is bar", id=1)
 }

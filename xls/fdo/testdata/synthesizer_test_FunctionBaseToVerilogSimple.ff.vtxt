@@ -1,0 +1,18 @@
+module test(
+  input wire clk,
+  input wire [2:0] i0,
+  input wire [2:0] i1,
+  output wire [2:0] out
+);
+  reg [2:0] p0_i0;
+  reg [2:0] p0_i1;
+  reg [2:0] p1_add_16;
+  wire [2:0] add_16;
+  assign add_16 = p0_i0 + p0_i1;
+  always @ (posedge clk) begin
+    p0_i0 <= i0;
+    p0_i1 <= i1;
+    p1_add_16 <= add_16;
+  end
+  assign out = p1_add_16;
+endmodule

@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__main(x: bits[8], y: bits[8]) -> bits[32] {
+fn __test_module__main(x: bits[8] id=1, y: bits[8] id=2) -> bits[32] {
   bit_slice.5: bits[7] = bit_slice(y, start=0, width=7, id=5)
   y_16: bits[16] = sign_ext(bit_slice.5, new_bit_count=16, id=6)
   sign_ext.7: bits[32] = sign_ext(y_16, new_bit_count=32, id=7)

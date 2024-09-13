@@ -1,10 +1,10 @@
 package SimpleMap
 
-fn to_apply(element: bits[42]) -> bits[1] {
+fn to_apply(element: bits[42] id=6) -> bits[1] {
   literal.2: bits[42] = literal(value=10, id=2)
   ret ult.3: bits[1] = ult(element, literal.2, id=3)
 }
 
-fn main(input: bits[42][123]) -> bits[1][123] {
+fn main(input: bits[42][123] id=7) -> bits[1][123] {
   ret map.5: bits[1][123] = map(input, to_apply=to_apply, id=5)
 }

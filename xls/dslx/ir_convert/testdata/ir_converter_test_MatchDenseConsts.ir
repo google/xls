@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__f(x: bits[2]) -> bits[8] {
+fn __test_module__f(x: bits[2] id=1) -> bits[8] {
   TWO: bits[2] = literal(value=2, id=3)
   ONE: bits[2] = literal(value=1, id=2)
   ZERO: bits[2] = literal(value=0, id=4)

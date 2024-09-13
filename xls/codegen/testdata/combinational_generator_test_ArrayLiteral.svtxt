@@ -3,11 +3,11 @@ module main(
   input wire [31:0] y,
   output wire [43:0] out
 );
-  wire [43:0] literal_8[2][3];
-  assign literal_8 = '{'{44'h000_0000_0001, 44'h000_0000_0002, 44'h000_0000_0003}, '{44'h000_0000_0004, 44'h000_0000_0005, 44'h000_0000_0006}};
-  wire [43:0] array_index_9[3];
+  wire [43:0] literal_11[2][3];
+  assign literal_11 = '{'{44'h000_0000_0001, 44'h000_0000_0002, 44'h000_0000_0003}, '{44'h000_0000_0004, 44'h000_0000_0005, 44'h000_0000_0006}};
+  wire [43:0] array_index_12[3];
   wire [43:0] result;
-  assign array_index_9 = literal_8[x > 32'h0000_0001 ? 1'h1 : x[0:0]];
-  assign result = array_index_9[y > 32'h0000_0002 ? 2'h2 : y[1:0]];
+  assign array_index_12 = literal_11[x > 32'h0000_0001 ? 1'h1 : x[0:0]];
+  assign result = array_index_12[y > 32'h0000_0002 ? 2'h2 : y[1:0]];
   assign out = result;
 endmodule

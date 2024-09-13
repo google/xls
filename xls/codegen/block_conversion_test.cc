@@ -4765,7 +4765,7 @@ proc proc_ut(st: bits[32], init={0}) {
   st_lt_10: bits[1] = ult(st, lit10)
   recv_pred: bits[1] = and(st_gt_5, st_lt_10)
 
-  recv_plus_token: (token, bits[32]) = receive(tkn, predicate=recv_pred, channel=in, id=0)
+  recv_plus_token: (token, bits[32]) = receive(tkn, predicate=recv_pred, channel=in)
   recv_token : token = tuple_index(recv_plus_token, index=0)
   in_data : bits[32] = tuple_index(recv_plus_token, index=1)
 

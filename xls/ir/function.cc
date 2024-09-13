@@ -51,14 +51,12 @@ std::string Function::DumpIr() const {
   std::string res;
 
   absl::StrAppend(&res, "fn " + name() + "(");
-
-  std::vector<std::string> param_strings;
-  param_strings.reserve(params_.size());
-  for (Param* param : params_) {
-    param_strings.push_back(
-        absl::StrFormat("%s: %s", param->name(), param->GetType()->ToString()));
-  }
-  absl::StrAppend(&res, absl::StrJoin(param_strings, ", "));
+  absl::StrAppend(
+      &res,
+      absl::StrJoin(params_, ", ", [](std::string* s, Param* const param) {
+        absl::StrAppendFormat(s, "%s: %s id=%d", param->name(),
+                              param->GetType()->ToString(), param->id());
+      }));
   absl::StrAppend(&res, ") -> ");
 
   if (return_value() != nullptr) {
@@ -68,9 +66,7 @@ std::string Function::DumpIr() const {
 
   for (Node* node : TopoSort(const_cast<Function*>(this))) {
     if (node->op() == Op::kParam && node == return_value()) {
-      absl::StrAppendFormat(&res, "  ret %s: %s = param(name=%s)\n",
-                            node->GetName(), node->GetType()->ToString(),
-                            node->As<Param>()->name());
+      absl::StrAppendFormat(&res, "  ret %s\n", node->ToString());
       continue;
     }
     if (node->op() == Op::kParam) {

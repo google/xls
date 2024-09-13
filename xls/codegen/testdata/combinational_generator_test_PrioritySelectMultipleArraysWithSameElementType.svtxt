@@ -70,13 +70,13 @@ module main(
   assign d_long_unflattened[1] = d_long[31:16];
   assign d_long_unflattened[2] = d_long[47:32];
   assign d_long_unflattened[3] = d_long[63:48];
-  wire [15:0] priority_sel_18[2];
-  wire [15:0] priority_sel_19[4];
-  assign priority_sel_18[0] = priority_sel_32b_2way_element16(p, x_short_unflattened[0], y_short_unflattened[0], d_short_unflattened[0]);
-  assign priority_sel_18[1] = priority_sel_32b_2way_element16(p, x_short_unflattened[1], y_short_unflattened[1], d_short_unflattened[1]);
-  assign priority_sel_19[0] = priority_sel_64b_2way_element16(p, x_long_unflattened[0], y_long_unflattened[0], d_long_unflattened[0]);
-  assign priority_sel_19[1] = priority_sel_64b_2way_element16(p, x_long_unflattened[1], y_long_unflattened[1], d_long_unflattened[1]);
-  assign priority_sel_19[2] = priority_sel_64b_2way_element16(p, x_long_unflattened[2], y_long_unflattened[2], d_long_unflattened[2]);
-  assign priority_sel_19[3] = priority_sel_64b_2way_element16(p, x_long_unflattened[3], y_long_unflattened[3], d_long_unflattened[3]);
-  assign out = {{priority_sel_18[1], priority_sel_18[0]}, {priority_sel_19[3], priority_sel_19[2], priority_sel_19[1], priority_sel_19[0]}};
+  wire [15:0] priority_sel_25[2];
+  wire [15:0] priority_sel_26[4];
+  assign priority_sel_25[0] = priority_sel_32b_2way_element16(p, x_short_unflattened[0], y_short_unflattened[0], d_short_unflattened[0]);
+  assign priority_sel_25[1] = priority_sel_32b_2way_element16(p, x_short_unflattened[1], y_short_unflattened[1], d_short_unflattened[1]);
+  assign priority_sel_26[0] = priority_sel_64b_2way_element16(p, x_long_unflattened[0], y_long_unflattened[0], d_long_unflattened[0]);
+  assign priority_sel_26[1] = priority_sel_64b_2way_element16(p, x_long_unflattened[1], y_long_unflattened[1], d_long_unflattened[1]);
+  assign priority_sel_26[2] = priority_sel_64b_2way_element16(p, x_long_unflattened[2], y_long_unflattened[2], d_long_unflattened[2]);
+  assign priority_sel_26[3] = priority_sel_64b_2way_element16(p, x_long_unflattened[3], y_long_unflattened[3], d_long_unflattened[3]);
+  assign out = {{priority_sel_25[1], priority_sel_25[0]}, {priority_sel_26[3], priority_sel_26[2], priority_sel_26[1], priority_sel_26[0]}};
 endmodule

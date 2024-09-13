@@ -47,7 +47,7 @@ module ii_greater_than_one(
   wire __out_valid_and_ready_txfr;
   wire __in_out_valid_and_all_active_outputs_ready;
   wire __in_out_valid_and_ready_txfr;
-  wire or_1046;
+  wire or_1048;
   wire in_load_en;
   wire __out_not_stage_load;
   wire __out_has_been_sent_reg_load_en;
@@ -78,7 +78,7 @@ module ii_greater_than_one(
   assign __out_valid_and_ready_txfr = __out_valid_and_not_has_been_sent & out_load_en;
   assign __in_out_valid_and_all_active_outputs_ready = __in_out_vld_buf & in_out_load_en;
   assign __in_out_valid_and_ready_txfr = __in_out_valid_and_not_has_been_sent & in_out_load_en;
-  assign or_1046 = p0_data_enable | p1_stage_done;
+  assign or_1048 = p0_data_enable | p1_stage_done;
   assign in_load_en = in_vld & in_valid_load_en;
   assign __out_not_stage_load = ~__out_valid_and_all_active_outputs_ready;
   assign __out_has_been_sent_reg_load_en = __out_valid_and_ready_txfr | __out_valid_and_all_active_outputs_ready;
@@ -99,7 +99,7 @@ module ii_greater_than_one(
       __in_out_valid_reg <= 1'h0;
     end else begin
       __st <= p1_stage_done ? __in_reg : __st;
-      __st_full <= or_1046 ? p1_stage_done : __st_full;
+      __st_full <= or_1048 ? p1_stage_done : __st_full;
       p0_valid <= p0_enable ? p0_stage_done : p0_valid;
       __out_has_been_sent_reg <= __out_has_been_sent_reg_load_en ? __out_not_stage_load : __out_has_been_sent_reg;
       __in_out_has_been_sent_reg <= __in_out_has_been_sent_reg_load_en ? __in_out_not_stage_load : __in_out_has_been_sent_reg;

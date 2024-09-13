@@ -44,7 +44,7 @@ TEST_F(IrToJsonTest, SimpleFunction) {
 package test
 
 fn main(x: bits[32], y: bits[32]) -> bits[32] {
-  ret add.1: bits[32] = add(x, y)
+  ret my_add: bits[32] = add(x, y)
 }
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
@@ -61,12 +61,8 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
 
   EXPECT_THAT(json, HasSubstr(R"("edges": [)"));
   EXPECT_THAT(json, HasSubstr(R"("nodes": [)"));
-  EXPECT_THAT(json, HasSubstr(R"("id": "f0_p1")"));
-  EXPECT_THAT(
-      json,
-      HasSubstr(
-          "\"ir\": \"add.1: bits[32] = add(x: bits[32], y: bits[32], id=1)\""));
-  EXPECT_THAT(json, HasSubstr(R"("name": "add.1")"));
+  EXPECT_THAT(json, HasSubstr("\"ir\": \"my_add: bits[32] = add("));
+  EXPECT_THAT(json, HasSubstr(R"("name": "my_add")"));
   EXPECT_THAT(json, HasSubstr(R"("opcode": "add")"));
   EXPECT_THAT(
       json,

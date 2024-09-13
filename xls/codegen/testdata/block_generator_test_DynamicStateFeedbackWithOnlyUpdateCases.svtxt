@@ -27,15 +27,15 @@ module pipelined_proc(
   wire out_data_load_en;
   wire p0_stage_done;
   wire p0_data_enable;
-  wire and_1044;
-  wire and_1045;
+  wire and_1051;
+  wire and_1052;
   wire [31:0] lit1;
-  wire [1:0] concat_1046;
-  wire or_1048;
+  wire [1:0] concat_1053;
+  wire or_1055;
   wire [31:0] incremented_counter;
   wire even_iteration;
-  wire [31:0] one_hot_sel_1047;
-  wire or_1050;
+  wire [31:0] one_hot_sel_1054;
+  wire or_1057;
   assign p1_all_active_states_valid = 1'h1;
   assign p1_stage_valid = p1_all_active_states_valid & p0_valid;
   assign p1_all_active_inputs_valid = 1'h1;
@@ -50,15 +50,15 @@ module pipelined_proc(
   assign out_data_load_en = __out_valid_buf & out_data_valid_load_en;
   assign p0_stage_done = __counter_full & p0_all_active_inputs_valid & out_data_load_en;
   assign p0_data_enable = p0_enable & p0_stage_done;
-  assign and_1044 = __odd_iteration & p0_data_enable;
-  assign and_1045 = p0_even_iteration & p1_stage_done;
+  assign and_1051 = __odd_iteration & p0_data_enable;
+  assign and_1052 = p0_even_iteration & p1_stage_done;
   assign lit1 = 32'h0000_0001;
-  assign concat_1046 = {and_1044, and_1045};
-  assign or_1048 = and_1044 | and_1045;
+  assign concat_1053 = {and_1051, and_1052};
+  assign or_1055 = and_1051 | and_1052;
   assign incremented_counter = __counter + lit1;
   assign even_iteration = ~__odd_iteration;
-  assign one_hot_sel_1047 = p0_incremented_counter & {32{concat_1046[0]}} | lit1 & {32{concat_1046[1]}};
-  assign or_1050 = p0_data_enable | or_1048;
+  assign one_hot_sel_1054 = p0_incremented_counter & {32{concat_1053[0]}} | lit1 & {32{concat_1053[1]}};
+  assign or_1057 = p0_data_enable | or_1055;
   always_ff @ (posedge clk) begin
     if (rst) begin
       __counter <= 32'h0000_0000;
@@ -70,11 +70,11 @@ module pipelined_proc(
       __out_data_reg <= 32'h0000_0000;
       __out_data_valid_reg <= 1'h0;
     end else begin
-      __counter <= or_1048 ? one_hot_sel_1047 : __counter;
+      __counter <= or_1055 ? one_hot_sel_1054 : __counter;
       __odd_iteration <= p0_data_enable ? even_iteration : __odd_iteration;
       p0_incremented_counter <= p0_data_enable ? incremented_counter : p0_incremented_counter;
       p0_even_iteration <= p0_data_enable ? even_iteration : p0_even_iteration;
-      __counter_full <= or_1050 ? or_1048 : __counter_full;
+      __counter_full <= or_1057 ? or_1055 : __counter_full;
       p0_valid <= p0_enable ? p0_stage_done : p0_valid;
       __out_data_reg <= out_data_load_en ? __counter : __out_data_reg;
       __out_data_valid_reg <= out_data_valid_load_en ? __out_valid_buf : __out_data_valid_reg;

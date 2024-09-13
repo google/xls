@@ -1,6 +1,6 @@
 package CountedFor
 
-fn body(x: bits[11], y: bits[11]) -> bits[11] {
+fn body(x: bits[11] id=6, y: bits[11] id=7) -> bits[11] {
   ret add.3: bits[11] = add(x, y, id=3)
 }
 

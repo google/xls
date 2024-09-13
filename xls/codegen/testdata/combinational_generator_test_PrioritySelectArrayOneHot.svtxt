@@ -20,15 +20,15 @@ module main(
   assign d_unflattened[1] = d[31:16];
   assign d_unflattened[2] = d[47:32];
   assign d_unflattened[3] = d[63:48];
-  wire [1:0] one_hot_11;
-  wire [2:0] one_hot_14;
-  wire [15:0] one_hot_sel_19[4];
-  assign one_hot_11 = {!p, p};
-  assign one_hot_14 = {one_hot_11[1:0] == 2'h0, one_hot_11[1] && !one_hot_11[0], one_hot_11[0]};
-  assign one_hot_sel_19[0] = x_unflattened[0] & {16{one_hot_11[0]}} | y_unflattened[0] & {16{one_hot_11[1]}};
-  assign one_hot_sel_19[1] = x_unflattened[1] & {16{one_hot_11[0]}} | y_unflattened[1] & {16{one_hot_11[1]}};
-  assign one_hot_sel_19[2] = x_unflattened[2] & {16{one_hot_11[0]}} | y_unflattened[2] & {16{one_hot_11[1]}};
-  assign one_hot_sel_19[3] = x_unflattened[3] & {16{one_hot_11[0]}} | y_unflattened[3] & {16{one_hot_11[1]}};
-  priority_sel_12_selector_one_hot_A: assert final ($isunknown(one_hot_11 == one_hot_14[1:0]) || one_hot_11 == one_hot_14[1:0]) else $fatal(0, "Selector one_hot.11 was expected to be one-hot, and is not.");
-  assign out = {one_hot_sel_19[3], one_hot_sel_19[2], one_hot_sel_19[1], one_hot_sel_19[0]};
+  wire [1:0] one_hot_15;
+  wire [2:0] one_hot_18;
+  wire [15:0] one_hot_sel_23[4];
+  assign one_hot_15 = {!p, p};
+  assign one_hot_18 = {one_hot_15[1:0] == 2'h0, one_hot_15[1] && !one_hot_15[0], one_hot_15[0]};
+  assign one_hot_sel_23[0] = x_unflattened[0] & {16{one_hot_15[0]}} | y_unflattened[0] & {16{one_hot_15[1]}};
+  assign one_hot_sel_23[1] = x_unflattened[1] & {16{one_hot_15[0]}} | y_unflattened[1] & {16{one_hot_15[1]}};
+  assign one_hot_sel_23[2] = x_unflattened[2] & {16{one_hot_15[0]}} | y_unflattened[2] & {16{one_hot_15[1]}};
+  assign one_hot_sel_23[3] = x_unflattened[3] & {16{one_hot_15[0]}} | y_unflattened[3] & {16{one_hot_15[1]}};
+  priority_sel_16_selector_one_hot_A: assert final ($isunknown(one_hot_15 == one_hot_18[1:0]) || one_hot_15 == one_hot_18[1:0]) else $fatal(0, "Selector one_hot.15 was expected to be one-hot, and is not.");
+  assign out = {one_hot_sel_23[3], one_hot_sel_23[2], one_hot_sel_23[1], one_hot_sel_23[0]};
 endmodule

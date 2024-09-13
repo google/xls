@@ -249,7 +249,7 @@ class FunctionAdderPass : public OptimizationPass {
     const char format_string[] =
         R"(
 fn %s() -> bits[32] {
- ret literal.3: bits[32] = literal(value=42)
+ ret forty_two: bits[32] = literal(value=42)
 }
 )";
     XLS_RETURN_IF_ERROR(
