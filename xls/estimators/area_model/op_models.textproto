@@ -43,7 +43,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: OPERAND_COUNT }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -53,7 +63,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: OPERAND_COUNT }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -63,7 +83,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: OPERAND_COUNT }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -73,7 +103,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: OPERAND_COUNT }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -83,7 +123,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: OPERAND_COUNT }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -104,7 +154,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: OPERAND_BIT_COUNT operand_number: 0 }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -114,7 +174,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: OPERAND_BIT_COUNT operand_number: 0 }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -208,13 +278,16 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor {
-          source: RESULT_BIT_COUNT
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
         }
-      }
-      expressions {
-        factor {
-          source: OPERAND_COUNT
+        rhs_expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
         }
       }
     }
@@ -518,21 +591,10 @@ op_models {
   # indexing more than one step into a multidimensional array.
   estimator {
     area_regression {
-      expressions {
-        factor { source: RESULT_BIT_COUNT }
-      }
-      expressions {
-        bin_op: DIVIDE
-        lhs_expression {
-          factor {
-            source: OPERAND_BIT_COUNT
-            operand_number: 0
-          }
-        }
-        rhs_expression {
-          factor {
-            source: RESULT_BIT_COUNT
-          }
+      expressions: {
+        factor {
+          source: OPERAND_BIT_COUNT
+          operand_number: 0
         }
       }
     }
@@ -562,29 +624,15 @@ op_models {
 op_models {
   op: "kArrayUpdate"
   estimator {
+    # The area of this op is strongly correlated to the total result bit count.
+    # However, RESULT_BIT_COUNT only returns the width of one result element.
+    # So, we have to rely on the fact that the output has the same shape as
+    # the first operand to get the total result bit count.
     area_regression {
-      expressions {
-        # Width of the value being updated
+      expressions: {
         factor {
           source: OPERAND_BIT_COUNT
-          operand_number: 1
-        }
-      }
-      expressions {
-        bin_op: DIVIDE
-        lhs_expression {
-          factor {
-            # Width of the flattened array
-            source: OPERAND_BIT_COUNT
-            operand_number: 0
-          }
-        }
-        rhs_expression {
-          factor {
-            # Width of the value being updated
-            source: OPERAND_BIT_COUNT
-            operand_number: 1
-          }
+          operand_number: 0
         }
       }
     }
@@ -611,10 +659,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: RESULT_BIT_COUNT }
-      }
-      expressions {
-        factor { source: OPERAND_COUNT }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
       }
     }
   }
@@ -625,10 +680,17 @@ op_models {
   estimator {
     area_regression {
       expressions {
-        factor { source: RESULT_BIT_COUNT }
-      }
-      expressions {
-        factor { source: OPERAND_COUNT }
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: RESULT_BIT_COUNT
+          }
+        }
       }
     }
   }

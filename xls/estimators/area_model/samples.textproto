@@ -50,6 +50,10 @@ op_samples {
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
   # 4 inputs
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
+  samples { result_width:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8 }
+  samples { result_width:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   # 6 inputs
   samples {
     result_width:  4
@@ -62,6 +66,26 @@ op_samples {
     result_width:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 12 inputs
   samples {
@@ -77,6 +101,34 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 20 inputs - 5 * 4
   samples {
@@ -120,6 +172,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 40 inputs - 5 * 8
   samples {
     result_width:  4
@@ -162,6 +258,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 128 inputs - 8 * 8 * 2
   samples {
     result_width:  4
@@ -183,6 +323,90 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 6
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
+  }
+  samples {
+    result_width:  8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
   }
   # 192 inputs - 8 * 8 * 3
   samples {
@@ -215,7 +439,7 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
-  # 128 inputs - 8 * 8 * 4
+  # 256 inputs - 8 * 8 * 4
   samples {
     result_width:  4
     # 64 operands
@@ -271,6 +495,10 @@ op_samples {
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
   # 4 inputs
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
+  samples { result_width:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8 }
+  samples { result_width:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   # 6 inputs
   samples {
     result_width:  4
@@ -283,6 +511,26 @@ op_samples {
     result_width:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 12 inputs
   samples {
@@ -298,6 +546,34 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 20 inputs - 5 * 4
   samples {
@@ -341,6 +617,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 40 inputs - 5 * 8
   samples {
     result_width:  4
@@ -383,6 +703,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 128 inputs - 8 * 8 * 2
   samples {
     result_width:  4
@@ -404,6 +768,90 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 6
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
+  }
+  samples {
+    result_width:  8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
   }
   # 192 inputs - 8 * 8 * 3
   samples {
@@ -436,7 +884,7 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
-  # 128 inputs - 8 * 8 * 4
+  # 256 inputs - 8 * 8 * 4
   samples {
     result_width:  4
     # 64 operands
@@ -492,6 +940,10 @@ op_samples {
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
   # 4 inputs
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
+  samples { result_width:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8 }
+  samples { result_width:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   # 6 inputs
   samples {
     result_width:  4
@@ -504,6 +956,26 @@ op_samples {
     result_width:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 12 inputs
   samples {
@@ -519,6 +991,34 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 20 inputs - 5 * 4
   samples {
@@ -562,6 +1062,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 40 inputs - 5 * 8
   samples {
     result_width:  4
@@ -604,6 +1148,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 128 inputs - 8 * 8 * 2
   samples {
     result_width:  4
@@ -625,6 +1213,90 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 6
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
+  }
+  samples {
+    result_width:  8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
   }
   # 192 inputs - 8 * 8 * 3
   samples {
@@ -657,7 +1329,7 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
-  # 128 inputs - 8 * 8 * 4
+  # 256 inputs - 8 * 8 * 4
   samples {
     result_width:  4
     # 64 operands
@@ -713,6 +1385,10 @@ op_samples {
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
   # 4 inputs
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
+  samples { result_width:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8 }
+  samples { result_width:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   # 6 inputs
   samples {
     result_width:  4
@@ -725,6 +1401,26 @@ op_samples {
     result_width:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 12 inputs
   samples {
@@ -740,6 +1436,34 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 20 inputs - 5 * 4
   samples {
@@ -783,6 +1507,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 40 inputs - 5 * 8
   samples {
     result_width:  4
@@ -825,6 +1593,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 128 inputs - 8 * 8 * 2
   samples {
     result_width:  4
@@ -846,6 +1658,90 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 6
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
+  }
+  samples {
+    result_width:  8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
   }
   # 192 inputs - 8 * 8 * 3
   samples {
@@ -878,7 +1774,7 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
-  # 128 inputs - 8 * 8 * 4
+  # 256 inputs - 8 * 8 * 4
   samples {
     result_width:  4
     # 64 operands
@@ -934,6 +1830,10 @@ op_samples {
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
   # 4 inputs
   samples { result_width:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4  operand_widths:   4 }
+  samples { result_width:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8  operand_widths:   8 }
+  samples { result_width:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   # 6 inputs
   samples {
     result_width:  4
@@ -946,6 +1846,26 @@ op_samples {
     result_width:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 12 inputs
   samples {
@@ -961,6 +1881,34 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4
+  }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64
   }
   # 20 inputs - 5 * 4
   samples {
@@ -1004,6 +1952,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 40 inputs - 5 * 8
   samples {
     result_width:  4
@@ -1046,6 +2038,50 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
+  samples {
+    result_width:  8
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+  }
   # 128 inputs - 8 * 8 * 2
   samples {
     result_width:  4
@@ -1067,6 +2103,90 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 6
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
+  }
+  samples {
+    result_width:  8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+    # 64 operands
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 1
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 2
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 3
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 4
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 5
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 6
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 7
+    operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8  operand_widths:  8 # 8
+  }
+  samples {
+    result_width: 16
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+    # 64 operands
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 1
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 2
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 3
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 4
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 5
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 6
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 7
+    operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 # 8
+  }
+  samples {
+    result_width: 32
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+    # 64 operands
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 1
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 2
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 3
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 4
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 5
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 6
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 7
+    operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 # 8
+  }
+  samples {
+    result_width: 64
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
+    # 64 operands
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 1
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 2
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 3
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 4
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 5
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 6
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 7
+    operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 # 8
   }
   # 192 inputs - 8 * 8 * 3
   samples {
@@ -1099,7 +2219,7 @@ op_samples {
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 7
     operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4  operand_widths:  4 # 8
   }
-  # 128 inputs - 8 * 8 * 4
+  # 256 inputs - 8 * 8 * 4
   samples {
     result_width:  4
     # 64 operands
@@ -1150,6 +2270,8 @@ op_samples {
   samples { result_width: 1  operand_widths:  32 }
   samples { result_width: 1  operand_widths:  64 }
   samples { result_width: 1  operand_widths: 128 }
+  samples { result_width: 1  operand_widths: 256 }
+  samples { result_width: 1  operand_widths: 512 }
 }
 op_samples {
   op: "kOrReduce"
@@ -1159,6 +2281,8 @@ op_samples {
   samples { result_width: 1  operand_widths:  32 }
   samples { result_width: 1  operand_widths:  64 }
   samples { result_width: 1  operand_widths: 128 }
+  samples { result_width: 1  operand_widths: 256 }
+  samples { result_width: 1  operand_widths: 512 }
 }
 op_samples {
   op: "kXorReduce"
@@ -1168,6 +2292,8 @@ op_samples {
   samples { result_width: 1  operand_widths:  32 }
   samples { result_width: 1  operand_widths:  64 }
   samples { result_width: 1  operand_widths: 128 }
+  samples { result_width: 1  operand_widths: 256 }
+  samples { result_width: 1  operand_widths: 512 }
 }
 
 
@@ -1230,10 +2356,199 @@ op_samples {
   samples {
     result_width: 8
     operand_widths: 8
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
     operand_widths: 8
     operand_element_counts {
       operand_number: 0
       element_counts: 256
+    }
+  }
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
     }
   }
   samples {
@@ -1246,8 +2561,80 @@ op_samples {
     }
   }
   samples {
-    result_width: 16
-    operand_widths: 16
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
     operand_widths: 5
     operand_element_counts {
       operand_number: 0
@@ -1255,12 +2642,66 @@ op_samples {
     }
   }
   samples {
-    result_width: 16
-    operand_widths: 16
-    operand_widths: 4
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 6
     operand_element_counts {
       operand_number: 0
-      element_counts: 16
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 64
+    operand_widths: 64
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
     }
   }
   samples {
@@ -1270,6 +2711,51 @@ op_samples {
     operand_element_counts {
       operand_number: 0
       element_counts: 16
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
     }
   }
 }
@@ -1322,6 +2808,83 @@ op_samples {
   op: "kArrayUpdate"
   samples {
     result_width: 8
+    result_element_counts: 2
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 8
+    result_element_counts: 4
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 8
+    result_element_counts: 8
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 8
+    result_element_counts: 16
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 8
+    result_element_counts: 32
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 8
+    result_element_counts: 64
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 8
+    result_element_counts: 128
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 8
     result_element_counts: 256
     operand_widths: 8
     operand_widths: 8
@@ -1329,6 +2892,160 @@ op_samples {
     operand_element_counts {
       operand_number: 0
       element_counts: 256
+    }
+  }
+  samples {
+    result_width: 8
+    result_element_counts: 512
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 2
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 4
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 8
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 16
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 32
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 64
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 128
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 256
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 16
+    result_element_counts: 512
+    operand_widths: 16
+    operand_widths: 16
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 2
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 4
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 8
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 16
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
     }
   }
   samples {
@@ -1343,10 +3060,98 @@ op_samples {
     }
   }
   samples {
-    result_width: 16
+    result_width: 32
+    result_element_counts: 64
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 128
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 256
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 32
+    result_element_counts: 512
+    operand_widths: 32
+    operand_widths: 32
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 64
+    result_element_counts: 2
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 64
+    result_element_counts: 4
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 64
+    result_element_counts: 8
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
+    }
+  }
+  samples {
+    result_width: 64
+    result_element_counts: 16
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 64
     result_element_counts: 32
-    operand_widths: 16
-    operand_widths: 16
+    operand_widths: 64
+    operand_widths: 64
     operand_widths: 5
     operand_element_counts {
       operand_number: 0
@@ -1354,14 +3159,80 @@ op_samples {
     }
   }
   samples {
-    result_width: 16
-    result_element_counts: 16
-    operand_widths: 16
-    operand_widths: 16
-    operand_widths: 4
+    result_width: 64
+    result_element_counts: 64
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 6
     operand_element_counts {
       operand_number: 0
-      element_counts: 16
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 64
+    result_element_counts: 128
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 64
+    result_element_counts: 256
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 64
+    result_element_counts: 512
+    operand_widths: 64
+    operand_widths: 64
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 2
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 1
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 2
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 4
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 8
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 3
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 8
     }
   }
   samples {
@@ -1373,6 +3244,61 @@ op_samples {
     operand_element_counts {
       operand_number: 0
       element_counts: 16
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 32
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 64
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 6
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 64
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 128
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 7
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 128
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 256
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 128
+    result_element_counts: 512
+    operand_widths: 128
+    operand_widths: 128
+    operand_widths: 9
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 512
     }
   }
 }
@@ -1444,6 +3370,34 @@ op_samples {
   samples { result_width:   32  operand_widths: 2  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32 }
   samples { result_width:   16  operand_widths: 2  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16 }
   samples { result_width:    8  operand_widths: 2  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8 }
+  samples { result_width: 1024  operand_widths: 3  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024 }
+  samples { result_width:  512  operand_widths: 3  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512 }
+  samples { result_width:  128  operand_widths: 3  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128 }
+  samples { result_width:   64  operand_widths: 3  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64 }
+  samples { result_width:   32  operand_widths: 3  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32 }
+  samples { result_width:   16  operand_widths: 3  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16 }
+  samples { result_width:    8  operand_widths: 3  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8 }
+  samples { result_width: 1024  operand_widths: 4  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024 }
+  samples { result_width:  512  operand_widths: 4  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512 }
+  samples { result_width:  128  operand_widths: 4  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128 }
+  samples { result_width:   64  operand_widths: 4  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64 }
+  samples { result_width:   32  operand_widths: 4  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32 }
+  samples { result_width:   16  operand_widths: 4  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16 }
+  samples { result_width:    8  operand_widths: 4  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8 }
+  samples { result_width: 1024  operand_widths: 5  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024 }
+  samples { result_width:  512  operand_widths: 5  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512 }
+  samples { result_width:  128  operand_widths: 5  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128 }
+  samples { result_width:   64  operand_widths: 5  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64 }
+  samples { result_width:   32  operand_widths: 5  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32 }
+  samples { result_width:   16  operand_widths: 5  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16 }
+  samples { result_width:    8  operand_widths: 5  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8 }
+  samples { result_width: 1024  operand_widths: 6  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024 }
+  samples { result_width:  512  operand_widths: 6  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512  operand_widths:  512 }
+  samples { result_width:  128  operand_widths: 6  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128  operand_widths:  128 }
+  samples { result_width:   64  operand_widths: 6  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64  operand_widths:   64 }
+  samples { result_width:   32  operand_widths: 6  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32  operand_widths:   32 }
+  samples { result_width:   16  operand_widths: 6  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16  operand_widths:   16 }
+  samples { result_width:    8  operand_widths: 6  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8  operand_widths:    8 }
 }
 
 op_samples {
@@ -1454,9 +3408,13 @@ op_samples {
   samples { result_width:  64  operand_widths:  4  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   samples { result_width:  64  operand_widths:  8  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   samples { result_width:  64  operand_widths: 16  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width:  32  operand_widths:  4  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
   samples { result_width:  32  operand_widths:  8  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
   samples { result_width:  32  operand_widths: 16  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 }
   samples { result_width:  16  operand_widths:  2  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  16  operand_widths:  4  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  16  operand_widths:  8  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  16  operand_widths: 16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
   samples { result_width:  16  operand_widths:  5  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
 }
 
@@ -1467,11 +3425,15 @@ op_samples {
   samples { result_width: 128  operand_widths: 16  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
   samples { result_width:  64  operand_widths:  4  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
   samples { result_width:  64  operand_widths:  8  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64 }
-  samples { result_width:  64  operand_widths: 16  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths: 64 }
+  samples { result_width:  64  operand_widths: 16  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths:  64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width:  32  operand_widths:  4  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
   samples { result_width:  32  operand_widths:  8  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
-  samples { result_width:  32  operand_widths: 16  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32 }
+  samples { result_width:  32  operand_widths: 16  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths:  32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 }
   samples { result_width:  16  operand_widths:  2  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
-  samples { result_width:  16  operand_widths:  5  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths: 16 }
+  samples { result_width:  16  operand_widths:  4  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  16  operand_widths:  8  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
+  samples { result_width:  16  operand_widths: 16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width:  16  operand_widths:  5  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16  operand_widths:  16 }
 }
 
 op_samples {
