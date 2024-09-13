@@ -191,6 +191,9 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
     conjuction_bit =
         conjunction_value ? *conjuction_bit : bdd().Not(*conjuction_bit);
     bdd_predicate_bit = bdd().And(bdd_predicate_bit, *conjuction_bit);
+    if (ExceedsPathLimit(bdd_predicate_bit)) {
+      return std::nullopt;
+    }
   }
   // If the predicate evaluates to false, we can't determine
   // what node value it implies. That is, !predicate || node_bit
