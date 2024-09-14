@@ -118,12 +118,81 @@ TEST_F(ArraySimplificationPassTest, LiteralArrayWithNonLiteralIndex) {
 TEST_F(ArraySimplificationPassTest, IndexingArrayOperation) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
+  Type* u16 = p->GetBitsType(16);
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Array(
+      {fb.Param("x", u32), fb.Param("y", u32), fb.Param("z", u32)}, u32);
+  BValue index = fb.Param("i", u16);
+  fb.ArrayIndex(a, {index});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("i"), {m::Param("x"), m::Param("y")}, m::Param("z")));
+}
+
+TEST_F(ArraySimplificationPassTest, IndexingArrayOperationExactFit) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u2 = p->GetBitsType(2);
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Array({fb.Param("x", u32), fb.Param("y", u32),
+                       fb.Param("z", u32), fb.Param("w", u32)},
+                      u32);
+  BValue index = fb.Param("i", u2);
+  fb.ArrayIndex(a, {index});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("i"), {m::Param("x"), m::Param("y"),
+                                        m::Param("z"), m::Param("w")}));
+}
+
+TEST_F(ArraySimplificationPassTest, IndexingArrayOperationUndersizedIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u2 = p->GetBitsType(2);
+  Type* u32 = p->GetBitsType(32);
+  BValue a =
+      fb.Array({fb.Param("x", u32), fb.Param("y", u32), fb.Param("z", u32),
+                fb.Param("w", u32), fb.Param("q", u32)},
+               u32);
+  BValue index = fb.Param("i", u2);
+  fb.ArrayIndex(a, {index});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("i"), {m::Param("x"), m::Param("y"),
+                                        m::Param("z"), m::Param("w")}));
+}
+
+TEST_F(ArraySimplificationPassTest, IndexingArrayOperationWithLiteralIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
   BValue a = fb.Array(
       {fb.Param("x", u32), fb.Param("y", u32), fb.Param("z", u32)}, u32);
   BValue index = fb.Literal(Value(UBits(2, 16)));
   fb.ArrayIndex(a, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("z"));
+}
+
+TEST_F(ArraySimplificationPassTest, IndexingArrayOperationWithOobLiteralIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Array(
+      {fb.Param("x", u32), fb.Param("y", u32), fb.Param("z", u32)}, u32);
+  BValue index = fb.Literal(Value(UBits(5, 16)));
+  fb.ArrayIndex(a, {index});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("z"));
 }

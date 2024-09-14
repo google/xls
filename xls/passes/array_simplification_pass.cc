@@ -202,22 +202,82 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   if (array_index->array()->Is<Array>() && !array_index->indices().empty() &&
       query_engine.IsFullyKnown(array_index->indices().front())) {
     Array* array = array_index->array()->As<Array>();
-    Node* first_index = array_index->indices().front();
-    if (IndexIsDefinitelyInBounds(first_index, array->GetType()->AsArrayOrDie(),
-                                  query_engine)) {
-      // Indices are always interpreted as unsigned numbers.
-      XLS_ASSIGN_OR_RETURN(
-          uint64_t operand_no,
-          query_engine.KnownValueAsBits(first_index)->ToUint64());
-      VLOG(2) << absl::StrFormat(
-          "Array-index of array operation with constant index: %s",
-          array_index->ToString());
-      XLS_ASSIGN_OR_RETURN(
-          ArrayIndex * new_array_index,
-          array_index->ReplaceUsesWithNew<ArrayIndex>(
-              array->operand(operand_no), array_index->indices().subspan(1)));
-      return SimplifyResult::Changed({new_array_index});
+    XLS_RET_CHECK(!array->operands().empty());
+
+    VLOG(2) << absl::StrFormat(
+        "Array-index of array operation with constant index: %s",
+        array_index->ToString());
+
+    Bits first_index =
+        *query_engine.KnownValueAsBits(array_index->indices().front());
+
+    // Indices are always interpreted as unsigned numbers, and if past the end
+    // of the array, are clamped to the last value.
+    uint64_t operand_no;
+    if (bits_ops::UGreaterThan(first_index,
+                               UBits(array->operand_count() - 1, 64))) {
+      operand_no = array->operand_count() - 1;
+    } else {
+      XLS_ASSIGN_OR_RETURN(operand_no, first_index.ToUint64());
     }
+    XLS_ASSIGN_OR_RETURN(
+        ArrayIndex * new_array_index,
+        array_index->ReplaceUsesWithNew<ArrayIndex>(
+            array->operand(operand_no), array_index->indices().subspan(1)));
+    return SimplifyResult::Changed({new_array_index});
+  }
+
+  // An array index which indexes into a kArray operation can be replaced with a
+  // select between the values, using the last entry as the default value to
+  // reproduce the array index's clamping behavior if necessary:
+  //
+  //   array_index(array(a, b, c), {i, j, k, ...}
+  //     => select(i, cases=[array_index(a, {j, k, ...}),
+  //                         array_index(b, {j, k, ...})],
+  //                  default_value=array_index(c, {j, k, ...}))
+  //
+  if (array_index->array()->Is<Array>() && !array_index->indices().empty()) {
+    Array* array = array_index->array()->As<Array>();
+    XLS_RET_CHECK(!array->operands().empty());
+
+    VLOG(2) << absl::StrFormat("Array-index of array operation: %s",
+                               array_index->ToString());
+
+    absl::Span<Node* const> indices = array_index->indices();
+    Node* selector = array_index->indices().front();
+    indices.remove_prefix(1);
+
+    absl::Span<Node* const> cases;
+    std::vector<Node*> new_array_indexes;
+    uint64_t reachable_size =
+        uint64_t{1} << std::min(int64_t{63}, selector->BitCountOrDie());
+    absl::Span<Node* const> reachable_operands =
+        array->operands().subspan(0, reachable_size);
+    if (indices.empty()) {
+      cases = reachable_operands;
+    } else {
+      new_array_indexes.reserve(reachable_operands.size());
+      for (Node* entry : reachable_operands) {
+        XLS_ASSIGN_OR_RETURN(ArrayIndex * subindex,
+                             array_index->function_base()->MakeNode<ArrayIndex>(
+                                 array_index->loc(), entry, indices));
+        new_array_indexes.push_back(subindex);
+      }
+      cases = absl::MakeConstSpan(new_array_indexes);
+    }
+
+    std::optional<Node*> default_value;
+    if (selector->BitCountOrDie() >= Bits::MinBitCountUnsigned(cases.size())) {
+      // The selector can represent values that are past the end of the array,
+      // so move the last case to a default value to provide clamping.
+      default_value = cases.back();
+      cases.remove_suffix(1);
+    }
+
+    XLS_RETURN_IF_ERROR(
+        array_index->ReplaceUsesWithNew<Select>(selector, cases, default_value)
+            .status());
+    return SimplifyResult::Changed(new_array_indexes);
   }
 
   // An array index which indexes into a kArrayConcat operation and whose first
