@@ -2935,46 +2935,45 @@ TEST(TypecheckTest, ConcatU1U1) {
 TEST(TypecheckErrorTest, ConcatU1S1) {
   EXPECT_THAT(
       Typecheck("fn f(x: u1, y: s1) -> u2 { x ++ y }").status(),
-      IsPosError("XlsTypeError", HasSubstr("Concatenation requires operand "
+      IsPosError("TypeInferenceError", HasSubstr("Concatenation requires operand "
                                            "types to both be unsigned bits")));
 }
 
 TEST(TypecheckErrorTest, ConcatS1S1) {
   EXPECT_THAT(
       Typecheck("fn f(x: s1, y: s1) -> u2 { x ++ y }").status(),
-      IsPosError("XlsTypeError", HasSubstr("Concatenation requires operand "
+      IsPosError("TypeInferenceError", HasSubstr("Concatenation requires operand "
                                            "types to both be unsigned bits")));
 }
 
 TEST(TypecheckTest, ConcatU2S1) {
   EXPECT_THAT(
       Typecheck("fn f(x: u2, y: s1) -> u3 { x ++ y }").status(),
-      IsPosError("XlsTypeError", HasSubstr("Concatenation requires operand "
+      IsPosError("TypeInferenceError", HasSubstr("Concatenation requires operand "
                                            "types to both be unsigned bits")));
 }
 
 TEST(TypecheckTest, ConcatU1Nil) {
   EXPECT_THAT(
       Typecheck("fn f(x: u1, y: ()) -> () { x ++ y }").status(),
-      IsPosError("XlsTypeError",
-                 HasSubstr("uN[1] vs (): Concatenation requires operand types "
-                           "to be either both-arrays or both-bits")));
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Concatenation requires operand types "
+                                 "to be either both-arrays or both-bits")));
 }
 
 TEST(TypecheckTest, ConcatS1Nil) {
   EXPECT_THAT(
       Typecheck("fn f(x: s1, y: ()) -> () { x ++ y }").status(),
-      IsPosError("XlsTypeError",
-                 AllOf(HasSubstr("Concatenation requires operand types "
-                                 "to be either both-arrays or both-bits"),
-                       HasSubstr("sN[1] vs ()"))));
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Concatenation requires operand types "
+                                 "to be either both-arrays or both-bits")));
 }
 
 TEST(TypecheckTest, ConcatNilNil) {
   EXPECT_THAT(
       Typecheck("fn f(x: (), y: ()) -> () { x ++ y }").status(),
-      IsPosError("XlsTypeError",
-                 HasSubstr("() vs (): Concatenation requires operand types to "
+      IsPosError("TypeInferenceError",
+                 HasSubstr("Concatenation requires operand types to "
                            "be either both-arrays or both-bits")));
 }
 
@@ -2987,9 +2986,8 @@ enum MyEnum : u2 {
 fn f(x: MyEnum, y: u2) -> () { x ++ y }
 )")
                   .status(),
-              IsPosError("XlsTypeError",
-                         HasSubstr("MyEnum vs uN[2]: Enum values must be cast "
-                                   "to unsigned bits before concatenation.")));
+              IsPosError("TypeInferenceError",
+                 HasSubstr("Enum values must be cast to unsigned bits before concatenation")));
 }
 
 TEST(TypecheckTest, ConcatU2Enum) {
@@ -3001,9 +2999,8 @@ enum MyEnum : u2 {
 fn f(x: u2, y: MyEnum) -> () { x ++ y }
 )")
                   .status(),
-              IsPosError("XlsTypeError",
-                         HasSubstr("uN[2] vs MyEnum: Enum values must be cast "
-                                   "to unsigned bits before concatenation.")));
+              IsPosError("TypeInferenceError",
+                 HasSubstr("Enum values must be cast to unsigned bits before concatenation")));
 }
 
 TEST(TypecheckTest, ConcatEnumEnum) {
@@ -3015,17 +3012,31 @@ enum MyEnum : u2 {
 fn f(x: MyEnum, y: MyEnum) -> () { x ++ y }
 )")
                   .status(),
-              IsPosError("XlsTypeError",
+              IsPosError("TypeInferenceError",
                          HasSubstr("Enum values must be cast "
-                                   "to unsigned bits before concatenation.")));
+                                   "to unsigned bits before concatenation")));
+}
+
+TEST(TypecheckTest, ConcatStructStruct) {
+  EXPECT_THAT(Typecheck(R"(
+struct S {}
+fn f(x: S, y: S) -> () { x ++ y }
+)")
+                  .status(),
+              IsPosError("TypeInferenceError",
+                         HasSubstr("Concatenation requires operand types to be either both-arrays or both-bits")));
+}
+
+TEST(TypecheckTest, ConcatUnWithXn) {
+  XLS_ASSERT_OK(Typecheck(R"(
+fn f(x: u32, y: xN[false][32]) -> xN[false][64] { x ++ y }
+)"));
 }
 
 TEST(TypecheckTest, ConcatU1ArrayOfOneU8) {
   EXPECT_THAT(Typecheck("fn f(x: u1, y: u8[1]) -> () { x ++ y }").status(),
-              IsPosError("XlsTypeError",
-                         AllOf(HasSubstr("uN[1]\nvs uN[8][1]"),
-                               HasSubstr("Attempting to concatenate "
-                                         "array/non-array values together"))));
+              IsPosError("TypeInferenceError",
+                 HasSubstr("Attempting to concatenate array/non-array values together")));
 }
 
 TEST(TypecheckTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
@@ -3056,10 +3067,8 @@ TEST(TypecheckTest, AssertBuiltinIsUnitType) {
 
 TEST(TypecheckTest, ConcatNilArrayOfOneU8) {
   EXPECT_THAT(Typecheck("fn f(x: (), y: u8[1]) -> () { x ++ y }").status(),
-              IsPosError("XlsTypeError",
-                         AllOf(HasSubstr("()\nvs uN[8][1]"),
-                               HasSubstr("Attempting to concatenate "
-                                         "array/non-array values together"))));
+              IsPosError("TypeInferenceError",
+                 HasSubstr("Attempting to concatenate array/non-array values together")));
 }
 
 TEST(TypecheckTest, ParametricStructWithoutAllParametricsBoundInReturnType) {
