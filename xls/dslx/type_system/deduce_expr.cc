@@ -557,15 +557,17 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceConcat(const Binop* node,
   std::optional<BitsLikeProperties> lhs_bits_like = GetBitsLike(*lhs);
   std::optional<BitsLikeProperties> rhs_bits_like = GetBitsLike(*rhs);
   if (lhs_bits_like.has_value() && rhs_bits_like.has_value()) {
-    XLS_ASSIGN_OR_RETURN(bool lhs_is_signed, lhs_bits_like->is_signed.GetAsBool());
-    XLS_ASSIGN_OR_RETURN(bool rhs_is_signed, rhs_bits_like->is_signed.GetAsBool());
-    if (lhs_is_signed ||
-        rhs_is_signed) {
+    XLS_ASSIGN_OR_RETURN(bool lhs_is_signed,
+                         lhs_bits_like->is_signed.GetAsBool());
+    XLS_ASSIGN_OR_RETURN(bool rhs_is_signed,
+                         rhs_bits_like->is_signed.GetAsBool());
+    if (lhs_is_signed || rhs_is_signed) {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
           absl::StrFormat("Concatenation requires operand types to both be "
-          "unsigned bits; got lhs: `%s`; rhs: `%s`", lhs->ToString(), rhs->ToString()),
-          ctx->file_table() );
+                          "unsigned bits; got lhs: `%s`; rhs: `%s`",
+                          lhs->ToString(), rhs->ToString()),
+          ctx->file_table());
     }
     XLS_ASSIGN_OR_RETURN(TypeDim new_size,
                          lhs_bits_like->size.Add(rhs_bits_like->size));
@@ -578,15 +580,18 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceConcat(const Binop* node,
   bool rhs_is_array = rhs_array != nullptr && !rhs_bits_like.has_value();
 
   if (lhs_is_array != rhs_is_array) {
-    return TypeInferenceErrorStatus(node->span(), nullptr, absl::StrFormat(
-                                  "Attempting to concatenate array/non-array "
-                                  "values together; got lhs: `%s`; rhs: `%s`.",
-          lhs->ToString(), rhs->ToString()), ctx->file_table());
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Attempting to concatenate array/non-array "
+                        "values together; got lhs: `%s`; rhs: `%s`.",
+                        lhs->ToString(), rhs->ToString()),
+        ctx->file_table());
   }
 
   if (lhs_is_array && lhs_array->element_type() != rhs_array->element_type()) {
     return ctx->TypeMismatchError(
-        node->span(), nullptr, lhs_array->element_type(), nullptr, rhs_array->element_type(),
+        node->span(), nullptr, lhs_array->element_type(), nullptr,
+        rhs_array->element_type(),
         "Array concatenation requires element types to be the same.");
   }
 
@@ -600,13 +605,18 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceConcat(const Binop* node,
   if (lhs->HasEnum() || rhs->HasEnum()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
-        absl::StrFormat("Enum values must be cast to unsigned bits before concatenation; got lhs: `%s`; rhs: `%s`", lhs->ToString(), rhs->ToString()),
+        absl::StrFormat("Enum values must be cast to unsigned bits before "
+                        "concatenation; got lhs: `%s`; rhs: `%s`",
+                        lhs->ToString(), rhs->ToString()),
         ctx->file_table());
   }
-  return TypeInferenceErrorStatus(node->span(), nullptr,
-                                absl::StrFormat("Concatenation requires operand types to be "
-                                "either both-arrays or both-bits; got lhs: `%s`; rhs: `%s`", lhs->ToString(), rhs->ToString()),
-                        ctx->file_table());
+  return TypeInferenceErrorStatus(
+      node->span(), nullptr,
+      absl::StrFormat(
+          "Concatenation requires operand types to be "
+          "either both-arrays or both-bits; got lhs: `%s`; rhs: `%s`",
+          lhs->ToString(), rhs->ToString()),
+      ctx->file_table());
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceBinop(const Binop* node,
