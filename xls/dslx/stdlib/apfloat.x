@@ -1434,7 +1434,7 @@ fn test_fp_lt_2() {
 // Helper to convert to a signed or unsigned integer as raw bits.
 // to_int and to_uint to interpret the bits as signed or unsigned, respectively.
 fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, FRACTION_SZ: u32>
-    (x: APFloat<EXP_SZ, FRACTION_SZ>) -> xN[RESULT_SIGNED][RESULT_SZ] {
+    (x: APFloat<EXP_SZ, FRACTION_SZ>) -> bits[RESULT_SZ] {
     const WIDE_FRACTION: u32 = FRACTION_SZ + u32:1;
     const MAX_FRACTION_SZ: u32 = std::umax(RESULT_SZ, WIDE_FRACTION);
 
@@ -1481,15 +1481,14 @@ fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, F
         }
     };
 
-    type ReturnT = xN[RESULT_SIGNED][RESULT_SZ];
     if RESULT_SIGNED {
         // Reduce to the target size, preserving signedness.
         let result = result as sN[RESULT_SZ];
         let result = if !x.sign { result } else { -result };
-        result as ReturnT
+        result as bits[RESULT_SZ]
     } else {
         // Already unsigned, just size correctly.
-        result as ReturnT
+        result as bits[RESULT_SZ]
     }
 }
 
