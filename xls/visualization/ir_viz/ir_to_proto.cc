@@ -33,6 +33,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"  // IWYU pragma: keep
@@ -145,7 +146,8 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
     Node* node,
     const absl::flat_hash_map<Node*, CriticalPathEntry*>& critical_path_map,
     const QueryEngine& query_engine, const PipelineSchedule* schedule,
-    const DelayEstimator& delay_estimator) {
+    const DelayEstimator& delay_estimator,
+    const AreaEstimator& area_estimator) {
   AttributeVisitor visitor;
   XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
   viz::NodeAttributes attributes = visitor.attributes();
@@ -174,6 +176,11 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
   if (delay_ps_status.ok()) {
     attributes.set_delay_ps(delay_ps_status.value());
   }
+  absl::StatusOr<double> area_um_status =
+      area_estimator.GetOperationAreaInSquareMicrons(node);
+  if (area_um_status.ok()) {
+    attributes.set_area_um(*area_um_status);
+  }
 
   if (schedule != nullptr) {
     attributes.set_cycle(schedule->cycle(node));
@@ -184,7 +191,7 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
 
 absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     FunctionBase* function, const DelayEstimator& delay_estimator,
-    const PipelineSchedule* schedule,
+    const AreaEstimator& area_estimator, const PipelineSchedule* schedule,
     const absl::flat_hash_map<FunctionBase*, std::string>& function_ids) {
   viz::FunctionBase proto;
   proto.set_name(function->name());
@@ -234,7 +241,7 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     XLS_ASSIGN_OR_RETURN(
         *graph_node->mutable_attributes(),
         NodeAttributes(node, node_to_critical_path_entry, query_engine,
-                       schedule, delay_estimator));
+                       schedule, delay_estimator, area_estimator));
   }
   viz::Node* implicit_sink = nullptr;
   auto get_implicit_sink = [&]() {
@@ -501,11 +508,30 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
   return absl::StrJoin(lines, "\n");
 }
 
+struct NoAreaEstimator final : public AreaEstimator {
+ public:
+  explicit NoAreaEstimator() : AreaEstimator("NoArea") {}
+  absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons() const override {
+    return absl::UnknownError("No area estimation");
+  }
+  absl::StatusOr<double> GetOperationAreaInSquareMicrons(
+      Node* node) const override {
+    return absl::UnknownError("No area estimation");
+  }
+};
 }  // namespace
 
 absl::StatusOr<viz::Package> IrToProto(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule,
+    std::optional<std::string_view> entry_name) {
+  NoAreaEstimator no_area;
+  return IrToProto(package, delay_estimator, no_area, schedule, entry_name);
+}
+
+absl::StatusOr<viz::Package> IrToProto(
+    Package* package, const DelayEstimator& delay_estimator,
+    const AreaEstimator& area_estimator, const PipelineSchedule* schedule,
     std::optional<std::string_view> entry_name) {
   viz::Package proto;
 
@@ -517,7 +543,7 @@ absl::StatusOr<viz::Package> IrToProto(
     XLS_ASSIGN_OR_RETURN(
         *proto.add_function_bases(),
         FunctionBaseToVisualizationProto(
-            fb, delay_estimator,
+            fb, delay_estimator, area_estimator,
             schedule != nullptr && schedule->function_base() == fb ? schedule
                                                                    : nullptr,
             function_ids));

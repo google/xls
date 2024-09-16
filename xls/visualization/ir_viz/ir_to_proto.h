@@ -19,6 +19,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -30,9 +31,15 @@ namespace xls {
 // by a visualizer.
 absl::StatusOr<xls::viz::Package> IrToProto(
     Package* package, const DelayEstimator& delay_estimator,
+    const AreaEstimator& area_estimator,
     const PipelineSchedule* schedule = nullptr,
     std::optional<std::string_view> entry_name = std::nullopt);
 
+// Returns a proto without any area information.
+absl::StatusOr<xls::viz::Package> IrToProto(
+    Package* package, const DelayEstimator& delay_estimator,
+    const PipelineSchedule* schedule = nullptr,
+    std::optional<std::string_view> entry_name = std::nullopt);
 }  // namespace xls
 
 #endif  // XLS_VISUALIZATION_IR_VIZ_IR_TO_PROTO_H_

@@ -51,6 +51,7 @@ message NodeAttributes {
   // and initial value.
   optional double state_param_index = 9;
   optional string initial_value = 10;
+  optional double area_um = 11;
 }
 
 message SourceLocation {

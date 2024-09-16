@@ -34,6 +34,8 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/area_model/area_estimators.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/function_base.h"
@@ -78,40 +80,54 @@ std::string ToFieldValue(T v) {
   return absl::StrCat(v);
 }
 
-constexpr riegeli::CsvHeaderConstant kNodeHeader = {
-    "name",         "label",
-    "ir",           "opcode",
-    "value",        "start",
-    "width",        "delay_ps",
-    "known_bits",   "on_critical_path",
-    "cycle",        "state_param_index",
-    "initial_value"};
+constexpr riegeli::CsvHeaderConstant kNodeHeader = {"name",
+                                                    "label",
+                                                    "ir",
+                                                    "opcode",
+                                                    "value",
+                                                    "start",
+                                                    "width",
+                                                    "delay_ps",
+                                                    "known_bits",
+                                                    "on_critical_path",
+                                                    "cycle",
+                                                    "state_param_index",
+                                                    "initial_value",
+                                                    "area_um"};
 riegeli::CsvRecord NodeRecord(const viz::Node& node) {
   return riegeli::CsvRecord(
       *kNodeHeader,
-      {node.id(), node.name(), node.ir(), node.opcode(),
-       node.attributes().value(),
-       node.attributes().has_start()
-           ? ToFieldValue(static_cast<int64_t>(node.attributes().start()))
-           : "",
-       node.attributes().has_width()
-           ? ToFieldValue(static_cast<int64_t>(node.attributes().width()))
-           : "",
-       node.attributes().has_delay_ps()
-           ? ToFieldValue(node.attributes().delay_ps())
-           : "",
-       node.attributes().known_bits(),
-       node.attributes().has_on_critical_path()
-           ? ToFieldValue(node.attributes().on_critical_path())
-           : "",
-       node.attributes().has_cycle()
-           ? ToFieldValue(static_cast<int64_t>(node.attributes().cycle()))
-           : "",
-       node.attributes().has_state_param_index()
-           ? ToFieldValue(
-                 static_cast<int64_t>(node.attributes().state_param_index()))
-           : "",
-       node.attributes().initial_value()});
+      {
+          node.id(),
+          node.name(),
+          node.ir(),
+          node.opcode(),
+          node.attributes().value(),
+          node.attributes().has_start()
+              ? ToFieldValue(static_cast<int64_t>(node.attributes().start()))
+              : "",
+          node.attributes().has_width()
+              ? ToFieldValue(static_cast<int64_t>(node.attributes().width()))
+              : "",
+          node.attributes().has_delay_ps()
+              ? ToFieldValue(node.attributes().delay_ps())
+              : "",
+          node.attributes().known_bits(),
+          node.attributes().has_on_critical_path()
+              ? ToFieldValue(node.attributes().on_critical_path())
+              : "",
+          node.attributes().has_cycle()
+              ? ToFieldValue(static_cast<int64_t>(node.attributes().cycle()))
+              : "",
+          node.attributes().has_state_param_index()
+              ? ToFieldValue(
+                    static_cast<int64_t>(node.attributes().state_param_index()))
+              : "",
+          node.attributes().initial_value(),
+          node.attributes().has_area_um()
+              ? ToFieldValue(static_cast<int64_t>(node.attributes().area_um()))
+              : "",
+      });
 }
 
 constexpr riegeli::CsvHeaderConstant kEdgeHeader = {
@@ -146,6 +162,8 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   }
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
                        GetDelayEstimator(delay_model_name));
+  XLS_ASSIGN_OR_RETURN(AreaEstimator * area_estimator,
+                       GetAreaEstimator(delay_model_name));
 
   viz::Package package_proto;
   if (pipeline_stages.has_value()) {
@@ -160,9 +178,10 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
                          IrToProto(package.get(), *delay_estimator, &schedule,
                                    func_base->name()));
   } else {
-    XLS_ASSIGN_OR_RETURN(package_proto,
-                         IrToProto(package.get(), *delay_estimator,
-                                   /*schedule=*/nullptr, func_base->name()));
+    XLS_ASSIGN_OR_RETURN(
+        package_proto,
+        IrToProto(package.get(), *delay_estimator, *area_estimator,
+                  /*schedule=*/nullptr, func_base->name()));
   }
 
   const viz::FunctionBase* entry = nullptr;
