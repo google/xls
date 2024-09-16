@@ -1481,8 +1481,11 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
     final_bindings = *maybe_callee_bindings.value();
   }
 
-  Bytecode::SpawnData spawn_data{
-      node, proc, config_args, initial_state, caller_bindings, final_bindings};
+  Bytecode::SpawnFunctions spawn_functions = {.config = node->config(),
+                                              .next = node->next()};
+  Bytecode::SpawnData spawn_data{spawn_functions, proc,
+                                 config_args,     initial_state,
+                                 caller_bindings, final_bindings};
   Add(Bytecode::MakeSpawn(node->span(), spawn_data));
   return absl::OkStatus();
 }

@@ -661,7 +661,16 @@ std::string Bytecode::ToString(const FileTable& file_table,
       std::string operator()(const MatchArmItem& v) { return v.ToString(); }
 
       std::string operator()(const SpawnData& spawn_data) {
-        return spawn_data.spawn()->ToString();
+        // TODO: https://github.com/google/xls/issues/608 - source the rest
+        // of the data needed to print SpawnData, including the callee
+        // and parametrics.
+        std::string config_args =
+            absl::StrJoin(spawn_data.spawn_functions().config->args(), ", ",
+                          [](std::string* out, const Expr* e) {
+                            absl::StrAppend(out, e->ToString());
+                          });
+
+        return absl::StrFormat("spawn (%s)", config_args);
       }
     };
 

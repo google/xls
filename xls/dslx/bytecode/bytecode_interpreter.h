@@ -244,7 +244,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
       ImportData* import_data, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings,
       const std::optional<ParametricEnv>& callee_bindings,
-      std::optional<const Spawn*> maybe_spawn, Proc* proc,
+      std::optional<const Bytecode::SpawnFunctions*> spawn_funcs, Proc* proc,
       absl::Span<const InterpValue> config_args,
       std::vector<ProcInstance>* proc_instances,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());

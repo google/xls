@@ -269,6 +269,13 @@ class Bytecode {
         data_;
   };
 
+  // Represents the functions that are provided by a `Spawn` node, to decouple
+  // the `Spawn` node from the bytecode interpreter.
+  struct SpawnFunctions {
+    Invocation* config;
+    Invocation* next;
+  };
+
   // Information necessary to spawn a child proc.
   // The data here is used to drive evaluation and/or translation of the proc's
   // component functions: for constexpr evaluating the `config` call and for
@@ -277,18 +284,18 @@ class Bytecode {
   // exposed here to just Functions.
   class SpawnData {
    public:
-    SpawnData(const Spawn* spawn, Proc* proc,
+    SpawnData(SpawnFunctions spawn_functions, Proc* proc,
               std::vector<InterpValue> config_args, InterpValue initial_state,
               std::optional<ParametricEnv> caller_bindings,
               std::optional<ParametricEnv> callee_bindings)
-        : spawn_(spawn),
+        : spawn_functions_(spawn_functions),
           proc_(proc),
           config_args_(std::move(config_args)),
           initial_state_(std::move(initial_state)),
           caller_bindings_(std::move(caller_bindings)),
           callee_bindings_(std::move(callee_bindings)) {}
 
-    const Spawn* spawn() const { return spawn_; }
+    const SpawnFunctions& spawn_functions() const { return spawn_functions_; }
     Proc* proc() const { return proc_; }
     absl::Span<const InterpValue> config_args() const { return config_args_; }
     const InterpValue& initial_state() const { return initial_state_; }
@@ -300,7 +307,7 @@ class Bytecode {
     }
 
    private:
-    const Spawn* spawn_;
+    SpawnFunctions spawn_functions_;
 
     // The proc itself.
     Proc* proc_;

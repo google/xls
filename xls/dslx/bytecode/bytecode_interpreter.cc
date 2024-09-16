@@ -1584,7 +1584,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                        bytecode.spawn_data());
   return EvalSpawn(import_data(), frame.type_info(),
                    spawn_data->caller_bindings(), spawn_data->callee_bindings(),
-                   spawn_data->spawn(), spawn_data->proc(),
+                   &spawn_data->spawn_functions(), spawn_data->proc(),
                    spawn_data->config_args(), proc_instances_, options());
 }
 
@@ -1592,7 +1592,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     ImportData* import_data, const TypeInfo* type_info,
     const std::optional<ParametricEnv>& caller_bindings,
     const std::optional<ParametricEnv>& callee_bindings,
-    std::optional<const Spawn*> maybe_spawn, Proc* proc,
+    std::optional<const Bytecode::SpawnFunctions*> spawn_functions, Proc* proc,
     absl::Span<const InterpValue> config_args,
     std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options) {
@@ -1618,11 +1618,11 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   // We need to get a new TI if there's a spawn, i.e., this isn't a top-level
   // proc instantiation, to avoid constexpr values from colliding between
   // different proc instantiations.
-  if (maybe_spawn.has_value()) {
+  if (spawn_functions.has_value()) {
     // We're guaranteed that these have values if the proc is parametric (the
     // root proc can't be parametric).
     XLS_ASSIGN_OR_RETURN(
-        type_info, get_parametric_type_info(maybe_spawn.value()->config()));
+        type_info, get_parametric_type_info(spawn_functions.value()->config));
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -1645,10 +1645,10 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   // as the _actual_ state args themselves (plus the implicit token if needed).
   std::vector<InterpValue> full_next_args = *constants;
   InterpValue initial_state(InterpValue::MakeToken());
-  if (maybe_spawn.has_value()) {
+  if (spawn_functions.has_value()) {
     XLS_ASSIGN_OR_RETURN(
         initial_state,
-        parent_ti->GetConstExpr(maybe_spawn.value()->next()->args()[0]));
+        parent_ti->GetConstExpr(spawn_functions.value()->next->args()[0]));
   } else {
     // If this is the top-level proc, then we can get its initial state from the
     // ModuleMember typechecking, since A) top-level procs can't be
@@ -1665,9 +1665,9 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     member_defs.push_back(param->name_def());
   }
 
-  if (maybe_spawn.has_value()) {
-    XLS_ASSIGN_OR_RETURN(type_info,
-                         get_parametric_type_info(maybe_spawn.value()->next()));
+  if (spawn_functions.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        type_info, get_parametric_type_info(spawn_functions.value()->next));
   }
 
   XLS_ASSIGN_OR_RETURN(
