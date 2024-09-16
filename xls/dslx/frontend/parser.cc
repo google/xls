@@ -542,9 +542,7 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     return ParseTestProc(bindings);
   }
   if (directive_name == "quickcheck") {
-    XLS_ASSIGN_OR_RETURN(QuickCheck * n,
-                         ParseQuickCheck(name_to_fn, bindings, hash_pos));
-    return n;
+    return ParseQuickCheck(name_to_fn, bindings, hash_pos);
   }
   if (directive_name == "sv_type") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
@@ -809,10 +807,8 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
                                        : ChannelDirection::kOut;
 
       Span span(start_pos, GetPos());
-      TypeAnnotation* type =
-          module_->Make<ChannelTypeAnnotation>(span, direction, payload, dims);
-
-      return type;
+      return module_->Make<ChannelTypeAnnotation>(span, direction, payload,
+                                                  dims);
     }
 
     Pos limit_pos = tok.span().limit();
@@ -946,33 +942,29 @@ absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings& bindings,
 absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
     Bindings& bindings) {
   VLOG(5) << "ParseCastOrEnumRefOrStructInstanceOrToken @ " << GetPos()
-          << " peek: `" << PeekToken().value()->ToString() << "`";
+          << " peek: " << PeekToken().value()->ToString();
 
   Token tok = PopTokenOrDie();
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
     XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
-    XLS_ASSIGN_OR_RETURN(ColonRef * ref,
-                         ParseColonRef(bindings, subject, subject->span()));
-    return ref;
+    return ParseColonRef(bindings, subject, subject->span());
   }
 
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
                        ParseTypeAnnotation(bindings, tok));
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(bool peek_is_oparen, PeekTokenIs(TokenKind::kOParen));
-  Expr* expr;
   if (peek_is_obrace) {
-    XLS_ASSIGN_OR_RETURN(expr, ParseStructInstance(bindings, type));
-  } else if (peek_is_oparen) {
+    return ParseStructInstance(bindings, type);
+  }
+  XLS_ASSIGN_OR_RETURN(bool peek_is_oparen, PeekTokenIs(TokenKind::kOParen));
+  if (peek_is_oparen) {
     // Looks like a built-in function call with name overlapping with a type;
     // probably `token()`.
     return ParseNameRef(bindings, &tok);
-  } else {
-    XLS_ASSIGN_OR_RETURN(expr, ParseCast(bindings, type));
   }
-  return expr;
+  return ParseCast(bindings, type);
 }
 
 absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
