@@ -2091,6 +2091,143 @@ proc BTester {
   EXPECT_EQ(result.result(), TestResult::kAllPassed);
 }
 
+// https://github.com/google/xls/issues/1502
+TEST(BytecodeInterpreterTest, TwoTestProcsWithSameDeepNetwork) {
+  constexpr std::string_view kProgram = R"(
+pub proc BarA {
+    bar_in_r: chan<u1> in;
+    bar_out_s: chan<u1> out;
+
+    config(
+        bar_in_r: chan<u1> in,
+        bar_out_s: chan<u1> out,
+    ) {
+        (bar_in_r, bar_out_s)
+    }
+
+    init {  }
+
+    next (state: ()) {
+        let tok = join();
+        let (tok, a) = recv(tok, bar_in_r);
+        trace_fmt!("BarA recv {}", a);
+        send(tok, bar_out_s, a);
+        trace_fmt!("BarA sent {}", a);
+    }
+}
+
+pub proc Bar {
+    bar_in_r: chan<u1> in;
+    bar_s: chan<u1> out;
+
+    config(
+        bar_in_r: chan<u1> in,
+        bar_out_s: chan<u1> out,
+    ) {
+        let (bar_s, bar_r) = chan<u1, u32:1>("bar");
+
+        spawn BarA(bar_r, bar_out_s);
+
+        (bar_in_r, bar_s)
+    }
+
+    init {  }
+
+    next (state: ()) {
+        let tok = join();
+        let (tok, a) = recv(tok, bar_in_r);
+        trace_fmt!("Bar recv {}", a);
+        send(tok, bar_s, a);
+        trace_fmt!("Bar sent {}", a);
+    }
+}
+
+proc Foo {
+    config(
+        foo_in_r: chan<u1> in,
+        foo_out_s: chan<u1> out,
+    ) {
+        spawn Bar(foo_in_r, foo_out_s);
+    }
+
+    init {  }
+
+    next (state: ()) { }
+}
+
+#[test_proc]
+proc Foo_test_0 {
+    terminator: chan<bool> out;
+
+    foo_in_s: chan<u1> out;
+    foo_out_r: chan<u1> in;
+
+    config (terminator: chan<bool> out) {
+        let (foo_in_s, foo_in_r) = chan<u1, u32:1>("foo_in");
+        let (foo_out_s, foo_out_r) = chan<u1, u32:1>("foo_out");
+
+        spawn Foo(foo_in_r, foo_out_s);
+
+        (terminator, foo_in_s, foo_out_r)
+    }
+
+    init { }
+
+    next (state: ()) {
+        let tok = join();
+        let tok = send(tok, foo_in_s, u1:0);
+        trace_fmt!("Test 0 sent");
+        let (tok, data) = recv(tok, foo_out_r);
+        trace_fmt!("Test 0 recv {}", data);
+
+        assert_eq(u1:0, data);
+
+        send(tok, terminator, true);
+    }
+}
+
+#[test_proc]
+proc Foo_test_1 {
+    terminator: chan<bool> out;
+
+    foo_in_s: chan<u1> out;
+    foo_out_r: chan<u1> in;
+
+    config (terminator: chan<bool> out) {
+        let (foo_in_s, foo_in_r) = chan<u1, u32:1>("foo_in");
+        let (foo_out_s, foo_out_r) = chan<u1, u32:1>("foo_out");
+
+        spawn Foo(foo_in_r, foo_out_s);
+
+        (terminator, foo_in_s, foo_out_r)
+    }
+
+    init { }
+
+    next (state: ()) {
+        let tok = join();
+        let tok = send(tok, foo_in_s, u1:1);
+        trace_fmt!("Test 1 sent");
+        let (tok, data) = recv(tok, foo_out_r);
+        trace_fmt!("Test 1 recv {}", data);
+
+        assert_eq(u1:1, data);
+
+        send(tok, terminator, true);
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr std::string_view kModuleName = "test";
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, std::string{temp_file.path()},
+                   options));
+  EXPECT_EQ(result.result(), TestResult::kAllPassed);
+}
+
 TEST(BytecodeInterpreterTest, AssertEqStructs) {
   constexpr std::string_view kProgram = R"(
 struct InnerStruct {

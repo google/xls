@@ -276,28 +276,24 @@ class Bytecode {
     Invocation* next;
   };
 
-  // Information necessary to spawn a child proc.
-  // The data here is used to drive evaluation and/or translation of the proc's
-  // component functions: for constexpr evaluating the `config` call and for
-  // setting up the proc's `next` function.
+  // Information necessary to spawn a child proc. The data here is used to drive
+  // evaluation and/or translation of the proc's component functions.
   // TODO(https://github.com/google/xls/issues/608): Reduce the AST surface
   // exposed here to just Functions.
   class SpawnData {
    public:
     SpawnData(SpawnFunctions spawn_functions, Proc* proc,
-              std::vector<InterpValue> config_args, InterpValue initial_state,
+              InterpValue initial_state,
               std::optional<ParametricEnv> caller_bindings,
               std::optional<ParametricEnv> callee_bindings)
         : spawn_functions_(spawn_functions),
           proc_(proc),
-          config_args_(std::move(config_args)),
           initial_state_(std::move(initial_state)),
           caller_bindings_(std::move(caller_bindings)),
           callee_bindings_(std::move(callee_bindings)) {}
 
     const SpawnFunctions& spawn_functions() const { return spawn_functions_; }
     Proc* proc() const { return proc_; }
-    absl::Span<const InterpValue> config_args() const { return config_args_; }
     const InterpValue& initial_state() const { return initial_state_; }
     const std::optional<ParametricEnv>& caller_bindings() const {
       return caller_bindings_;
@@ -311,9 +307,6 @@ class Bytecode {
 
     // The proc itself.
     Proc* proc_;
-
-    // The arguments to the proc's `config` function.
-    std::vector<InterpValue> config_args_;
 
     // The initial state of the new proc.
     InterpValue initial_state_;

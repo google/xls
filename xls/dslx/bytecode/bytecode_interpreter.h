@@ -14,6 +14,7 @@
 #ifndef XLS_DSLX_BYTECODE_BYTECODE_INTERPRETER_H_
 #define XLS_DSLX_BYTECODE_BYTECODE_INTERPRETER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -110,6 +111,10 @@ class BytecodeInterpreter {
   // Sets `progress_made` to true (if not null) if at least a single bytecode
   // executed.  Progress can be stalled on blocked receive operations.
   absl::Status Run(bool* progress_made = nullptr);
+
+  // Pops `count` arguments to a function or spawn, assuming they were pushed in
+  // left-to-right order and must be popped in right-to-left order.
+  absl::StatusOr<std::vector<InterpValue>> PopArgsRightToLeft(size_t count);
 
  private:
   friend class ProcInstance;
@@ -223,13 +228,8 @@ class BytecodeInterpreter {
 // BytecodeInterpreter, can process `spawn` nodes.
 class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
  public:
-  // Channels have state, so we can't just copy args. We're guaranteed that args
-  // will live for the duration of network initialization, so storing references
-  // is safe.
-  // `config_args` is not moved, in order to allow callers to specify channels
-  // without losing their handles to them.
-  // `proc_instances` is an out-param into which instantiated ProcInstances
-  // should be placed.
+  // Populates `proc_instances` with the instances required to run the proc
+  // network rooted at `root_proc`.
   static absl::Status InitializeProcNetwork(
       ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
       const InterpValue& terminator, std::vector<ProcInstance>* proc_instances,
@@ -244,7 +244,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
       ImportData* import_data, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings,
       const std::optional<ParametricEnv>& callee_bindings,
-      std::optional<const Bytecode::SpawnFunctions*> spawn_funcs, Proc* proc,
+      std::optional<Bytecode::SpawnFunctions> spawn_functions, Proc* proc,
       absl::Span<const InterpValue> config_args,
       std::vector<ProcInstance>* proc_instances,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());

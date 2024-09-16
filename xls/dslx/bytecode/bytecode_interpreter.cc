@@ -237,6 +237,16 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::vector<InterpValue>>
+BytecodeInterpreter::PopArgsRightToLeft(size_t count) {
+  std::vector<InterpValue> args(count, InterpValue::MakeToken());
+  for (int i = 0; i < count; i++) {
+    XLS_ASSIGN_OR_RETURN(InterpValue arg, Pop());
+    args[count - i - 1] = arg;
+  }
+  return args;
+}
+
 absl::Status BytecodeInterpreter::EvalNextInstruction() {
   Frame* frame = &frames_.back();
   const std::vector<Bytecode>& bytecodes = frame->bf()->bytecodes();
@@ -581,12 +591,9 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   // Store the _return_ PC.
   frames_.back().IncrementPc();
 
-  int64_t num_args = user_fn_data.function->params().size();
-  std::vector<InterpValue> args(num_args, InterpValue::MakeToken());
-  for (int i = 0; i < num_args; i++) {
-    XLS_ASSIGN_OR_RETURN(InterpValue arg, Pop());
-    args[num_args - i - 1] = arg;
-  }
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<InterpValue> args,
+      PopArgsRightToLeft(user_fn_data.function->params().size()));
 
   std::vector<InterpValue> args_copy = args;
   frames_.push_back(Frame(bf, std::move(args), bf->type_info(),
@@ -1099,7 +1106,6 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
-
   XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                        bytecode.channel_data());
   if (condition.IsTrue()) {
@@ -1582,17 +1588,20 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   Frame& frame = frames().back();
   XLS_ASSIGN_OR_RETURN(const Bytecode::SpawnData* spawn_data,
                        bytecode.spawn_data());
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<InterpValue> config_args,
+      PopArgsRightToLeft(spawn_data->spawn_functions().config->args().size()));
   return EvalSpawn(import_data(), frame.type_info(),
                    spawn_data->caller_bindings(), spawn_data->callee_bindings(),
-                   &spawn_data->spawn_functions(), spawn_data->proc(),
-                   spawn_data->config_args(), proc_instances_, options());
+                   spawn_data->spawn_functions(), spawn_data->proc(),
+                   config_args, proc_instances_, options());
 }
 
 /* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     ImportData* import_data, const TypeInfo* type_info,
     const std::optional<ParametricEnv>& caller_bindings,
     const std::optional<ParametricEnv>& callee_bindings,
-    std::optional<const Bytecode::SpawnFunctions*> spawn_functions, Proc* proc,
+    std::optional<Bytecode::SpawnFunctions> spawn_functions, Proc* proc,
     absl::Span<const InterpValue> config_args,
     std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options) {
@@ -1621,8 +1630,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   if (spawn_functions.has_value()) {
     // We're guaranteed that these have values if the proc is parametric (the
     // root proc can't be parametric).
-    XLS_ASSIGN_OR_RETURN(
-        type_info, get_parametric_type_info(spawn_functions.value()->config));
+    XLS_ASSIGN_OR_RETURN(type_info,
+                         get_parametric_type_info(spawn_functions->config));
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -1646,9 +1655,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   std::vector<InterpValue> full_next_args = *constants;
   InterpValue initial_state(InterpValue::MakeToken());
   if (spawn_functions.has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        initial_state,
-        parent_ti->GetConstExpr(spawn_functions.value()->next->args()[0]));
+    XLS_ASSIGN_OR_RETURN(initial_state, parent_ti->GetConstExpr(
+                                            spawn_functions->next->args()[0]));
   } else {
     // If this is the top-level proc, then we can get its initial state from the
     // ModuleMember typechecking, since A) top-level procs can't be
@@ -1666,8 +1674,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   }
 
   if (spawn_functions.has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        type_info, get_parametric_type_info(spawn_functions.value()->next));
+    XLS_ASSIGN_OR_RETURN(type_info,
+                         get_parametric_type_info(spawn_functions->next));
   }
 
   XLS_ASSIGN_OR_RETURN(
