@@ -251,12 +251,14 @@ std::vector<Link> MatchLinks(QueryEngine& query_engine, Node* node,
 
     Node* next;
     Node* value_node;
-    if (next_case.has_value() || match->comparison_op == Op::kEq) {
+    if (match->comparison_op == Op::kEq) {
       value_node = true_case;
       next = false_case;
-    } else {
+    } else if (match->comparison_op == Op::kNe && !next_case.has_value()) {
       value_node = false_case;
       next = true_case;
+    } else {
+      break;
     }
 
     // The select instruction must have a literal value for the index-match

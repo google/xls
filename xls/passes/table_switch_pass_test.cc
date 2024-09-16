@@ -1105,5 +1105,22 @@ fn main(index: bits[32]) -> bits[32] {
   XLS_ASSERT_OK(CompareBeforeAfter(f, before_data));
 }
 
+// Discovered by fuzzing as `crasher_2024-09-14_3014.x`, then minimized.
+TEST_F(TableSwitchPassTest, NeMidPrioritySelect) {
+  std::string program = R"(
+fn main(x0: bits[2]) -> bits[2] {
+  lit1: bits[2] = literal(value=1)
+  lit0: bits[2] = literal(value=0)
+  is1: bits[1] = eq(lit1, x0)
+  not0: bits[1] = ne(x0, lit0)
+  selector: bits[3] = concat(is1, is1, not0)
+  ret x15: bits[2] = priority_sel(selector, cases=[lit1, lit0, lit1], default=lit0)
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls
