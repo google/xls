@@ -414,7 +414,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       next_state_value.value = next_val;
       next_state_value.condition = fsm_ret.returns_this_activation;
     } else {
-      next_state_value.value = pb.Literal(xls::Value(xls::UBits(0, 1)));
+      next_state_value.value =
+          pb.And(prev_val,
+                 pb.Not(fsm_ret.returns_this_activation, body_loc,
+                        /*name=*/"does_not_return_this_activation"),
+                 body_loc, /*name=*/"next_on_reset");
     }
     next_state_values.insert(
         {prev_val.node()->As<xls::Param>(), next_state_value});

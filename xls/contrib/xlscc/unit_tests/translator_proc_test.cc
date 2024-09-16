@@ -8438,6 +8438,140 @@ TEST_F(TranslatorProcTestWithoutFSMParam, MergedStatesIOFeedThrough) {
   }
 }
 
+TEST_P(TranslatorProcTest, DirectInStoredInStatic) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(const int& dir,
+              __xls_channel<int>& out) {
+     static int x = dir;
+
+      __xlscc_trace("foo() A: x {:d}", x);
+      out.write(x*2);
+
+      out.write(x*2 + 1);
+      __xlscc_trace("foo() B: x {:d}", x);
+
+      ++x;
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* dir_in = block_spec.add_channels();
+    dir_in->set_name("dir");
+    dir_in->set_is_input(true);
+    dir_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_out2 = block_spec.add_channels();
+    ch_out2->set_name("out");
+    ch_out2->set_is_input(false);
+    ch_out2->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["dir"] = {xls::Value(xls::SBits(11, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(22, 32)), xls::Value(xls::SBits(23, 32)),
+        xls::Value(xls::SBits(24, 32)), xls::Value(xls::SBits(25, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+TEST_P(TranslatorProcTest, ReadInStoredInStatic) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& dir,
+              __xls_channel<int>& out) {
+     static int x = dir.read();
+
+      __xlscc_trace("foo() A: x {:d}", x);
+      out.write(x*2);
+
+      out.write(x*2 + 1);
+      __xlscc_trace("foo() B: x {:d}", x);
+
+      ++x;
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* dir_in = block_spec.add_channels();
+    dir_in->set_name("dir");
+    dir_in->set_is_input(true);
+    dir_in->set_type(FIFO);
+
+    HLSChannel* ch_out2 = block_spec.add_channels();
+    ch_out2->set_name("out");
+    ch_out2->set_is_input(false);
+    ch_out2->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["dir"] = {xls::Value(xls::SBits(11, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(22, 32)), xls::Value(xls::SBits(23, 32)),
+        xls::Value(xls::SBits(24, 32)), xls::Value(xls::SBits(25, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+TEST_P(TranslatorProcTest, ReadInStoredInStaticBetweenStates) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& dir,
+              __xls_channel<int>& out) {
+      static int x = 1;
+
+      __xlscc_trace("foo() A: x {:d}", x);
+      out.write(x*2);
+
+      static int y = dir.read();
+
+      out.write(x*2 + 1);
+      __xlscc_trace("foo() B: x {:d}", x);
+
+      x *= y;
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* dir_in = block_spec.add_channels();
+    dir_in->set_name("dir");
+    dir_in->set_is_input(true);
+    dir_in->set_type(FIFO);
+
+    HLSChannel* ch_out2 = block_spec.add_channels();
+    ch_out2->set_name("out");
+    ch_out2->set_is_input(false);
+    ch_out2->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["dir"] = {xls::Value(xls::SBits(11, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(3, 32)),
+        xls::Value(xls::SBits(22, 32)), xls::Value(xls::SBits(23, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
 }  // namespace
 
 }  // namespace xlscc
