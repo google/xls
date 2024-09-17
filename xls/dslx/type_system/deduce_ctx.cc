@@ -76,10 +76,9 @@ absl::Status DeduceCtx::TypeMismatchError(
   while (top->parent_ != nullptr) {
     top = top->parent_;
   }
-  top->type_mismatch_error_data_ =
-      TypeMismatchErrorData{std::move(mismatch_span), lhs_node,
-                            lhs.CloneToUnique(),      rhs_node,
-                            rhs.CloneToUnique(),      std::move(message)};
+  top->type_mismatch_error_data_ = TypeMismatchErrorData{
+      mismatch_span,       lhs_node,          lhs.CloneToUnique(), rhs_node,
+      rhs.CloneToUnique(), std::move(message)};
   return absl::InvalidArgumentError("DslxTypeMismatchError");
 }
 
