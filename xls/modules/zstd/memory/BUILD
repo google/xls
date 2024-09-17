@@ -32,3 +32,17 @@ xls_dslx_library(
     name = "axi_st_dslx",
     srcs = ["axi_st.x"],
 )
+
+xls_dslx_library(
+    name = "common_dslx",
+    srcs = [
+        "common.x",
+    ],
+    deps = [":axi_dslx"],
+)
+
+xls_dslx_test(
+    name = "common_dslx_test",
+    library = ":common_dslx",
+    tags = ["manual"],
+)
