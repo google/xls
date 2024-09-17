@@ -34,6 +34,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/warning_kind.h"
@@ -41,6 +42,8 @@
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
+ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+          "Path to DSLX standard library directory.");
 ABSL_FLAG(std::string, test_filter, "",
           "Regexp that must be a full match of test name(s) to run.");
 ABSL_FLAG(std::string, disable_warnings, "",
@@ -59,6 +62,7 @@ namespace {
 
 absl::StatusOr<TestResultData> RealMain(
     std::string_view entry_module_path, std::string_view test_filter,
+    const std::filesystem::path& dslx_stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, bool warnings_as_errors,
     std::optional<std::string_view> xml_output_file) {
   XLS_ASSIGN_OR_RETURN(
@@ -81,6 +85,7 @@ absl::StatusOr<TestResultData> RealMain(
   }
 
   const ParseAndProveOptions options = {
+      .dslx_stdlib_path = dslx_stdlib_path,
       .dslx_paths = dslx_paths,
       .test_filter = test_filter_re_ptr,
       .warnings_as_errors = warnings_as_errors,
@@ -136,9 +141,12 @@ int main(int argc, char** argv) {
 
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
 
-  absl::StatusOr<xls::dslx::TestResultData> test_result =
-      xls::dslx::RealMain(positional_arguments[0], test_filter, dslx_paths,
-                          warnings_as_errors, xml_output_file);
+  std::filesystem::path dslx_stdlib_path =
+      absl::GetFlag(FLAGS_dslx_stdlib_path);
+
+  absl::StatusOr<xls::dslx::TestResultData> test_result = xls::dslx::RealMain(
+      positional_arguments[0], test_filter, dslx_stdlib_path, dslx_paths,
+      warnings_as_errors, xml_output_file);
   if (!test_result.ok()) {
     return xls::ExitStatus(test_result.status());
   }

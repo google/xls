@@ -32,7 +32,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
-        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:error_printer",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",

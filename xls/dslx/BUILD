@@ -533,6 +533,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":command_line_utils",
+        ":default_dslx_stdlib_path",
         ":warning_kind",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -561,6 +562,7 @@ cc_binary(
     srcs = ["prove_quickcheck_main.cc"],
     deps = [
         ":command_line_utils",
+        ":default_dslx_stdlib_path",
         ":warning_kind",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
