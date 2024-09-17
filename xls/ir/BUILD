@@ -2016,6 +2016,12 @@ cc_proto_library(
     deps = [":ram_rewrite_proto"],
 )
 
+py_proto_library(
+    name = "ram_rewrite_py_pb2",
+    visibility = ["//xls:xls_users"],
+    deps = [":ram_rewrite_proto"],
+)
+
 cc_library(
     name = "fuzz_type_domain",
     testonly = True,
