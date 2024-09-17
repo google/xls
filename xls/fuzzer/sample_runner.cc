@@ -87,15 +87,16 @@ namespace {
 
 using ArgsBatch = std::vector<std::vector<dslx::InterpValue>>;
 
-static constexpr std::string_view kCodegenMainPath = "xls/tools/codegen_main";
-static constexpr std::string_view kEvalIrMainPath = "xls/tools/eval_ir_main";
-static constexpr std::string_view kEvalProcMainPath =
-    "xls/tools/eval_proc_main";
-static constexpr std::string_view kIrConverterMainPath =
-    "xls/dslx/ir_convert/ir_converter_main";
-static constexpr std::string_view kIrOptMainPath = "xls/tools/opt_main";
-static constexpr std::string_view kSimulateModuleMainPath =
-    "xls/tools/simulate_module_main";
+// clang-format off
+static constexpr struct BinaryPaths {
+  std::string_view codegen_main       = "xls/tools/codegen_main";
+  std::string_view eval_ir_main       = "xls/tools/eval_ir_main";
+  std::string_view eval_proc_main     = "xls/tools/eval_proc_main";
+  std::string_view ir_converter_main  = "xls/dslx/ir_convert/ir_converter_main";
+  std::string_view ir_opt_main        = "xls/tools/opt_main";
+  std::string_view simulate_module_main = "xls/tools/simulate_module_main";
+} kBinary;
+// clang-format on
 
 absl::StatusOr<ArgsBatch> ConvertFunctionKwargs(
     const dslx::Function* f, const dslx::ImportData& import_data,
@@ -167,20 +168,12 @@ absl::StatusOr<std::vector<dslx::InterpValue>> InterpretDslxFunction(
   return results;
 }
 
-// Runs the given command, returning the command's stdout if successful, and
-// attaching the command's stderr to the resulting status if not.
-absl::StatusOr<std::string> RunCommand(
-    std::string_view desc, const SampleRunner::Commands::Command& command,
-    std::vector<std::string> args, const std::filesystem::path& run_dir,
-    const SampleOptions& options) {
-  if (std::holds_alternative<SampleRunner::Commands::Callable>(command)) {
-    return std::get<SampleRunner::Commands::Callable>(command)(args, run_dir,
-                                                               options);
-  }
-  CHECK(std::holds_alternative<std::filesystem::path>(command));
-  std::filesystem::path executable = std::get<std::filesystem::path>(command);
-  std::string basename = executable.filename();
-
+absl::StatusOr<std::string> RunCommandFromExecutable(
+    std::string_view executable_name, std::vector<std::string> args,
+    const std::filesystem::path& run_dir, const SampleOptions& options) {
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path executable,
+                       GetXlsRunfilePath(executable_name));
+  const std::string basename = executable.filename();
   std::vector<std::shared_ptr<RE2>> filters;
   for (const KnownFailure& filter : options.known_failures()) {
     if (filter.tool == nullptr || RE2::FullMatch(basename, *filter.tool)) {
@@ -205,8 +198,6 @@ absl::StatusOr<std::string> RunCommand(
       options.timeout_seconds().has_value()
           ? std::make_optional(absl::Seconds(*options.timeout_seconds()))
           : std::nullopt;
-  VLOG(1) << "Running: " << desc;
-  Stopwatch timer;
   XLS_ASSIGN_OR_RETURN(SubprocessResult result,
                        InvokeSubprocess(argv, run_dir, timeout));
   std::string command_string = absl::StrJoin(argv, " ");
@@ -219,7 +210,6 @@ absl::StatusOr<std::string> RunCommand(
         absl::StrCat("Subprocess call timed out after ",
                      *options.timeout_seconds(), " seconds: ", command_string));
   }
-  absl::Duration elapsed = timer.GetElapsedTime();
   XLS_RETURN_IF_ERROR(SetFileContents(
       run_dir / absl::StrCat(basename, ".stderr"), result.stderr_content));
   if (VLOG_IS_ON(4)) {
@@ -230,7 +220,6 @@ absl::StatusOr<std::string> RunCommand(
     VLOG(4) << basename << " stderr:";
     XLS_VLOG_LINES(4, result.stderr_content);
   }
-  VLOG(1) << desc << " complete, elapsed " << elapsed;
   if (!result.normal_termination) {
     return absl::InternalError(
         absl::StrFormat("Subprocess call failed: %s\n\n"
@@ -255,16 +244,40 @@ absl::StatusOr<std::string> RunCommand(
   return result.stdout_content;
 }
 
+SampleRunner::Commands::Callable CallableFromExecutable(
+    std::string_view executable) {
+  return [executable](
+             const std::vector<std::string>& args,
+             const std::filesystem::path& run_dir,
+             const SampleOptions& options) -> absl::StatusOr<std::string> {
+    return RunCommandFromExecutable(executable, args, run_dir, options);
+  };
+}
+
+// Runs the given command, returning the command's stdout if successful, and
+// attaching the command's stderr to the resulting status if not.
+absl::StatusOr<std::string> RunCommand(
+    std::string_view desc, const SampleRunner::Commands::Callable& command,
+    const std::vector<std::string>& args, const std::filesystem::path& run_dir,
+    const SampleOptions& options) {
+  VLOG(1) << "Running: " << desc;
+  Stopwatch timer;
+  absl::StatusOr<std::string> result = command(args, run_dir, options);
+  const absl::Duration elapsed = timer.GetElapsedTime();
+  VLOG(1) << desc << " complete, elapsed " << elapsed;
+  return result;
+}
+
 // Converts the DSLX file to an IR file with a function as the top whose
 // filename is returned.
 absl::StatusOr<std::filesystem::path> DslxToIrFunction(
     const std::filesystem::path& input_path, const SampleOptions& options,
     const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command =
+  std::optional<SampleRunner::Commands::Callable> command =
       commands.ir_converter_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kIrConverterMainPath));
+    command = CallableFromExecutable(kBinary.ir_converter_main);
   }
 
   std::vector<std::string> args;
@@ -307,10 +320,10 @@ absl::StatusOr<std::vector<dslx::InterpValue>> EvaluateIrFunction(
     const std::filesystem::path& args_path, bool use_jit,
     const SampleOptions& options, const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command =
+  std::optional<SampleRunner::Commands::Callable> command =
       commands.eval_ir_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kEvalIrMainPath));
+    command = CallableFromExecutable(kBinary.eval_ir_main);
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -334,10 +347,10 @@ absl::StatusOr<std::filesystem::path> Codegen(
     absl::Span<const std::string> codegen_args, const SampleOptions& options,
     const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command =
+  std::optional<SampleRunner::Commands::Callable> command =
       commands.codegen_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kCodegenMainPath));
+    command = CallableFromExecutable(kBinary.codegen_main);
   }
 
   std::vector<std::string> args = {
@@ -361,9 +374,10 @@ absl::StatusOr<std::filesystem::path> OptimizeIr(
     const std::filesystem::path& ir_path, const SampleOptions& options,
     const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command = commands.ir_opt_main;
+  std::optional<SampleRunner::Commands::Callable> command =
+      commands.ir_opt_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kIrOptMainPath));
+    command = CallableFromExecutable(kBinary.ir_opt_main);
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -382,10 +396,10 @@ absl::StatusOr<std::vector<dslx::InterpValue>> SimulateFunction(
     const std::filesystem::path& args_path, const SampleOptions& options,
     const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command =
+  std::optional<SampleRunner::Commands::Callable> command =
       commands.simulate_module_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kSimulateModuleMainPath));
+    command = CallableFromExecutable(kBinary.simulate_module_main);
   }
 
   std::vector<std::string> simulator_args = {
@@ -664,10 +678,10 @@ absl::StatusOr<std::filesystem::path> DslxToIrProc(
     const std::filesystem::path& dslx_path, const SampleOptions& options,
     const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command =
+  std::optional<SampleRunner::Commands::Callable> command =
       commands.ir_converter_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kIrConverterMainPath));
+    command = CallableFromExecutable(kBinary.ir_converter_main);
   }
 
   std::vector<std::string> args;
@@ -689,10 +703,10 @@ EvaluateIrProc(const std::filesystem::path& ir_path, int64_t tick_count,
                bool use_jit, const SampleOptions& options,
                const std::filesystem::path& run_dir,
                const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command =
+  std::optional<SampleRunner::Commands::Callable> command =
       commands.eval_proc_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kEvalProcMainPath));
+    command = CallableFromExecutable(kBinary.eval_proc_main);
   }
 
   std::string_view evaluation_type = use_jit ? "JIT" : "interpreter";
@@ -763,10 +777,10 @@ SimulateProc(const std::filesystem::path& verilog_path,
              std::string_view output_channel_counts,
              const SampleOptions& options, const std::filesystem::path& run_dir,
              const SampleRunner::Commands& commands) {
-  std::optional<SampleRunner::Commands::Command> command =
+  std::optional<SampleRunner::Commands::Callable> command =
       commands.simulate_module_main;
   if (!command.has_value()) {
-    XLS_ASSIGN_OR_RETURN(command, GetXlsRunfilePath(kSimulateModuleMainPath));
+    command = CallableFromExecutable(kBinary.simulate_module_main);
   }
 
   std::vector<std::string> simulator_args = {
