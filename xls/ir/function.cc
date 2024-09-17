@@ -15,7 +15,9 @@
 #include "xls/ir/function.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -46,16 +48,24 @@ FunctionType* Function::GetType() {
   CHECK(return_value() != nullptr);
   return package_->GetFunctionType(arg_types, return_value()->GetType());
 }
-
 std::string Function::DumpIr() const {
+  return DumpIrWithAnnotations(
+      [](Node* n) -> std::optional<std::string> { return std::nullopt; });
+}
+
+std::string Function::DumpIrWithAnnotations(
+    const std::function<std::optional<std::string>(Node*)>& annotate) const {
   std::string res;
 
   absl::StrAppend(&res, "fn " + name() + "(");
   absl::StrAppend(
       &res,
-      absl::StrJoin(params_, ", ", [](std::string* s, Param* const param) {
-        absl::StrAppendFormat(s, "%s: %s id=%d", param->name(),
-                              param->GetType()->ToString(), param->id());
+      absl::StrJoin(params_, ", ", [&](std::string* s, Param* const param) {
+        std::optional<std::string> annotation = annotate(param);
+        absl::StrAppendFormat(
+            s, "%s: %s id=%d%s", param->name(), param->GetType()->ToString(),
+            param->id(),
+            annotation ? absl::StrCat(" (", *annotation, ")") : "");
       }));
   absl::StrAppend(&res, ") -> ");
 
@@ -72,8 +82,10 @@ std::string Function::DumpIr() const {
     if (node->op() == Op::kParam) {
       continue;  // Already accounted for in the signature.
     }
-    absl::StrAppend(&res, "  ", node == return_value() ? "ret " : "",
-                    node->ToString(), "\n");
+    std::optional<std::string> annotation = annotate(node);
+    absl::StrAppend(
+        &res, "  ", node == return_value() ? "ret " : "", node->ToString(),
+        annotation ? absl::StrCat(" (", *annotation, ")") : "", "\n");
   }
 
   absl::StrAppend(&res, "}\n");

@@ -16,10 +16,15 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <variant>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -27,15 +32,56 @@
 #include "absl/time/time.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/function.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
+#include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 
 namespace xls::solvers::z3 {
+
+namespace {
+class FuncInterpreter final : public IrInterpreter {
+ public:
+  explicit FuncInterpreter(
+      const absl::flat_hash_map<std::string_view, Value>& param_vals)
+      : param_vals_(param_vals) {}
+
+  absl::Status HandleParam(Param* param) override {
+    XLS_RET_CHECK(param_vals_.contains(param->name()));
+    return IrInterpreter::SetValueResult(param, param_vals_.at(param->name()));
+  }
+
+ private:
+  const absl::flat_hash_map<std::string_view, Value>& param_vals_;
+};
+absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
+                                               const ProvenFalse& fail) {
+  XLS_ASSIGN_OR_RETURN(
+      (absl::flat_hash_map<const Param*, Value> param_counterexample),
+      fail.counterexample);
+  absl::flat_hash_map<std::string_view, Value> name_counterexample;
+  name_counterexample.reserve(param_counterexample.size());
+  for (const auto& [param, val] : param_counterexample) {
+    name_counterexample[param->name()] = val;
+  }
+  FuncInterpreter interp(name_counterexample);
+  XLS_RETURN_IF_ERROR(func->Accept(&interp));
+
+  return func->DumpIrWithAnnotations(
+      [&](Node* n) -> std::optional<std::string> {
+        return interp.ResolveAsValue(n).ToHumanString();
+      });
+}
+}  // namespace
 
 using status_testing::IsOkAndHolds;
 
@@ -60,9 +106,18 @@ ScopedVerifyEquivalence::~ScopedVerifyEquivalence() {
       absl::StrCat(
           "ScopedVerifyEquivalence failed to prove equivalence of function ",
           f_->name(), " before & after changes"));
-  EXPECT_THAT(TryProveEquivalence(original_f_, f_, timeout_),
-              IsOkAndHolds(VariantWith<ProvenTrue>(_)));
-  if (testing::Test::HasFailure()) {
+  absl::StatusOr<ProverResult> result =
+      TryProveEquivalence(original_f_, f_, timeout_);
+  EXPECT_THAT(result, IsOkAndHolds(VariantWith<ProvenTrue>(_)));
+  if (result.ok() && std::holds_alternative<ProvenFalse>(*result)) {
+    testing::Test::RecordProperty(
+        "original",
+        DumpWithNodeValues(original_f_, std::get<ProvenFalse>(*result))
+            .value_or(original_f_->DumpIr()));
+    testing::Test::RecordProperty(
+        "final", DumpWithNodeValues(f_, std::get<ProvenFalse>(*result))
+                     .value_or(f_->DumpIr()));
+  } else if (testing::Test::HasFailure()) {
     testing::Test::RecordProperty("original", original_f_->DumpIr());
     testing::Test::RecordProperty("final", f_->DumpIr());
   }

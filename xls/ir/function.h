@@ -15,8 +15,10 @@
 #ifndef XLS_IR_FUNCTION_H_
 #define XLS_IR_FUNCTION_H_
 
+#include <functional>
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -61,6 +63,11 @@ class Function : public FunctionBase {
   //   'recursive' if true, will dump counted-for body functions as well.
   //   This is only useful when dumping individual functions, and not packages.
   std::string DumpIr() const override;
+
+  // DumpIr emits the IR in a hierarchical text format with the returned
+  // annotations after each node definition.
+  std::string DumpIrWithAnnotations(
+      const std::function<std::optional<std::string>(Node*)>& annotate) const;
 
   // Creates a clone of the function with the new name 'new_name'. Function is
   // owned by target_package.  call_remapping specifies any function
