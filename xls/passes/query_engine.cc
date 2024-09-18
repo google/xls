@@ -149,19 +149,26 @@ std::optional<Value> QueryEngine::KnownValue(Node* node) const {
     return std::nullopt;
   }
 
-  bool fully_known = true;
   LeafTypeTree<TernaryVector> ternary = GetTernary(node);
-  LeafTypeTree<Value> value = leaf_type_tree::Map<Value, TernaryVector>(
-      ternary.AsView(), [&fully_known](const TernaryVector& v) {
-        if (!ternary_ops::IsFullyKnown(v)) {
-          fully_known = false;
-        }
-        return Value(ternary_ops::ToKnownBitsValues(v));
-      });
-  if (!fully_known) {
+  if (!absl::c_all_of(ternary.elements(), [](const TernaryVector& v) {
+        return ternary_ops::IsFullyKnown(v);
+      })) {
     return std::nullopt;
   }
-  absl::StatusOr<Value> result = LeafTypeTreeToValue(value.AsView());
+
+  absl::StatusOr<LeafTypeTree<Value>> value =
+      leaf_type_tree::MapIndex<Value, TernaryVector>(
+          ternary.AsView(),
+          [](Type* leaf_type, const TernaryVector& v,
+             absl::Span<const int64_t>) -> absl::StatusOr<Value> {
+            if (leaf_type->IsToken()) {
+              return Value::Token();
+            }
+            CHECK(leaf_type->IsBits());
+            return Value(ternary_ops::ToKnownBitsValues(v));
+          });
+  CHECK_OK(value.status());
+  absl::StatusOr<Value> result = LeafTypeTreeToValue(value->AsView());
   CHECK_OK(result.status());
   return *result;
 }
