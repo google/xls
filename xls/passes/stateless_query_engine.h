@@ -47,6 +47,10 @@ class StatelessQueryEngine : public QueryEngine {
 
   bool IsTracked(Node* node) const override { return true; }
 
+  std::optional<bool> KnownValue(const TreeBitLocation& bit) const override;
+  bool IsKnown(const TreeBitLocation& bit) const override {
+    return KnownValue(bit).has_value();
+  }
   std::optional<Value> KnownValue(Node* node) const override;
 
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override;
@@ -66,6 +70,9 @@ class StatelessQueryEngine : public QueryEngine {
 
   bool Implies(const TreeBitLocation& a,
                const TreeBitLocation& b) const override;
+
+  bool IsAllZeros(Node* node) const override;
+  bool IsAllOnes(Node* node) const override;
 
   std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,

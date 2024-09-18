@@ -29,6 +29,7 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
@@ -80,6 +81,11 @@ class UnownedUnionQueryEngine : public QueryEngine {
   std::optional<TernaryVector> ImpliedNodeTernary(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override;
+
+  bool IsKnown(const TreeBitLocation& bit) const override;
+  std::optional<bool> KnownValue(const TreeBitLocation& bit) const override;
+  bool IsAllZeros(Node* n) const override;
+  bool IsAllOnes(Node* n) const override;
 
  private:
   absl::flat_hash_map<Node*, Bits> known_bits_;

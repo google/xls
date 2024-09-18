@@ -168,11 +168,11 @@ class QueryEngine {
 
   // Returns whether the value of the output bit of the given node at the given
   // index is known (definitely zero or one).
-  bool IsKnown(const TreeBitLocation& bit) const;
+  virtual bool IsKnown(const TreeBitLocation& bit) const;
 
   // Returns the value of the output bit of the given node at the given index,
   // if known; otherwise returns std::nullopt.
-  std::optional<bool> KnownValue(const TreeBitLocation& bit) const;
+  virtual std::optional<bool> KnownValue(const TreeBitLocation& bit) const;
 
   // Returns the output of the given node at the given index, if completely
   // known; otherwise returns std::nullopt.
@@ -197,8 +197,8 @@ class QueryEngine {
 
   // Returns whether every bit in the output of the given node is definitely
   // zero (or one). Always returns false if the node includes a token.
-  bool IsAllZeros(Node* node) const;
-  bool IsAllOnes(Node* node) const;
+  virtual bool IsAllZeros(Node* node) const;
+  virtual bool IsAllOnes(Node* node) const;
 
   // Returns true if every output bit of the given node is known (definitely
   // zero or one).

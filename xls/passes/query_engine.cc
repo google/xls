@@ -191,8 +191,11 @@ bool QueryEngine::IsMsbKnown(Node* node) const {
   if (!IsTracked(node)) {
     return false;
   }
-  TernaryVector ternary = GetTernary(node).Get({});
-  return ternary_ops::ToKnownBits(ternary).msb();
+  if (node->BitCountOrDie() == 0) {
+    // Zero-length is considered unknown.
+    return false;
+  }
+  return IsKnown(TreeBitLocation(node, node->BitCountOrDie() - 1));
 }
 
 bool QueryEngine::IsOne(const TreeBitLocation& bit) const {
@@ -214,8 +217,7 @@ bool QueryEngine::IsZero(const TreeBitLocation& bit) const {
 bool QueryEngine::GetKnownMsb(Node* node) const {
   CHECK(node->GetType()->IsBits());
   CHECK(IsMsbKnown(node));
-  TernaryVector ternary = GetTernary(node).Get({});
-  return ternary_ops::ToKnownBitsValues(ternary).msb();
+  return KnownValue(TreeBitLocation(node, node->BitCountOrDie() - 1)).value();
 }
 
 bool QueryEngine::IsAllZeros(Node* node) const {
@@ -373,6 +375,16 @@ class ForwardingQueryEngine final : public QueryEngine {
                       const TreeBitLocation& b) const override {
     return real_.KnownNotEquals(a, b);
   }
+
+  bool IsKnown(const TreeBitLocation& bit) const override {
+    return real_.IsKnown(bit);
+  }
+  std::optional<bool> KnownValue(const TreeBitLocation& bit) const override {
+    return real_.KnownValue(bit);
+  }
+  bool IsAllZeros(Node* n) const override { return real_.IsAllZeros(n); }
+  bool IsAllOnes(Node* n) const override { return real_.IsAllOnes(n); }
+  bool IsFullyKnown(Node* n) const override { return real_.IsFullyKnown(n); }
 
  private:
   const QueryEngine& real_;
