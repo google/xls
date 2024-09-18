@@ -790,6 +790,19 @@ fn Foo() {
                        HasSubstr("No parametric value provided for 'B'")));
 }
 
+TEST(TypecheckTest, DerivedParametricStructNoParametrics) {
+  XLS_EXPECT_OK(Typecheck(R"(
+struct StructFoo<A: u32> {
+  x: uN[A],
+}
+
+fn extract_field() -> u16 {
+  let foo = StructFoo{x: u16:0};
+  foo.x
+}
+)"));
+}
+
 TEST(TypecheckTest, DerivedExprTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
@@ -3087,6 +3100,97 @@ fn f(x: Point1D) -> Point1D { x }
           .status(),
       IsPosError("TypeInferenceError",
                  HasSubstr("Parametric type being returned from function")));
+}
+
+// See https://github.com/google/xls/issues/1030
+TEST(TypecheckTest, InstantiateImportedParametricStruct) {
+  constexpr std::string_view kImported = R"(
+pub struct my_struct<N: u32> {
+    my_field: uN[N],
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  const local_struct = imported::my_struct<5> { my_field: u5:10 };
+  local_struct.my_field
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, InstantiateImportedParametricStructNoParametrics) {
+  constexpr std::string_view kImported = R"(
+pub struct my_struct<N: u32> {
+    my_field: uN[N],
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  const local_struct = imported::my_struct { my_field: u5:10 };
+  local_struct.my_field
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, InstantiateImportedParametricStructTypeAlias) {
+  constexpr std::string_view kImported = R"(
+pub struct my_struct<N: u32> {
+    my_field: uN[N],
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type MyTypeAlias = imported::my_struct<5>;
+
+fn extract_field(x: MyTypeAlias) -> u5 {
+  x.my_field
+}
+
+fn main() -> u5 {
+  const local_struct = imported::my_struct<5> { my_field: u5:10 };
+  extract_field(local_struct)
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, CallImportedParametricFn) {
+  constexpr std::string_view kImported = R"(
+pub fn my_fn<N: u32>(x: uN[N]) -> uN[N] {
+   x+uN[N]:1
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  let x = imported::my_fn<u32:5>(u5:10);
+  x
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
 TEST(TypecheckErrorTest, PrioritySelectOnNonBitsType) {

@@ -75,6 +75,24 @@ class ParserTest : public ::testing::Test {
     return module;
   }
 
+  std::unique_ptr<Module> ParseProgram(std::string program) {
+    scanner_.emplace(file_table_, Fileno(0), program);
+    parser_.emplace("test", &*scanner_);
+    auto module_or = parser_->ParseModule();
+    if (!module_or.ok()) {
+      TryPrintError(
+          module_or.status(),
+          [&](std::string_view path) -> absl::StatusOr<std::string> {
+            return program;
+          },
+          file_table_);
+      XLS_EXPECT_OK(module_or) << module_or.status();
+      return nullptr;
+    }
+    std::unique_ptr<Module> module = std::move(module_or).value();
+    return module;
+  }
+
   // Note: given expression text should have no free variables other than those
   // in "predefine": those are defined a builtin name definitions (like the DSLX
   // builtins are).
@@ -1213,6 +1231,82 @@ TEST_F(ParserTest, AllOnesMacroSimpleArray) {
 TEST_F(ParserTest, AllOnesMacroSimpleBitsArray) {
   RoundTripExpr("all_ones!<bits[32][10]>()", {},
                 /*populate_dslx_builtins=*/true);
+}
+
+TEST_F(ParserTest, LocalParametricStruct) {
+  ParseProgram(R"(struct my_struct<N: u32> {
+    my_field: uN[N],
+}
+const local_struct = my_struct<5> { my_field: u5:10 };)");
+}
+
+TEST_F(ParserTest, LocalParametricStructArray) {
+  ParseProgram(R"(struct my_struct<N: u32> {
+    my_field: uN[N],
+}
+const local_struct = my_struct<5>[1]:[my_struct { my_field: u5:10 }];)");
+}
+
+TEST_F(ParserTest, ImportedStruct) {
+  ParseProgram(R"(import lib;
+const lib_struct = lib::my_lib_struct { my_field: u5:10 };)");
+}
+
+// Exercises https://github.com/google/xls/issues/1030
+TEST_F(ParserTest, ImportedParametricStruct) {
+  ParseProgram(R"(import lib;
+const lib_struct = lib::my_lib_struct<5> { my_field: u5:10 };)");
+}
+
+TEST_F(ParserTest, SyntaxErrorParametricStruct) {
+  constexpr std::string_view kProgram = R"(import lib;
+const lib_struct = lib::my_lib_struct<{ my_field: u5:10 };)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected start of an expression; got: {")));
+}
+
+TEST_F(ParserTest, SyntaxErrorNoParametricForParametricStruct) {
+  constexpr std::string_view kProgram = R"(import lib;
+const lib_struct = lib::my_lib_struct<,>{ my_field: u5:10 };)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected start of an expression; got: ,")));
+}
+
+TEST_F(ParserTest, ImportedEnum) {
+  ParseProgram(R"(import lib;
+const lib_enum_value = lib::my_lib_enum.value;
+)");
+}
+
+TEST_F(ParserTest, ImportedParametricFn) {
+  ParseProgram(R"(import lib;
+fn main() -> () {
+    lib::my_proc<5>();
+})");
+}
+
+TEST_F(ParserTest, DISABLED_ImportedParametricStructArray) {
+  ParseProgram(R"(import lib;
+const local_struct = lib::my_struct<5>[1]:[lib::my_struct { my_field: u5:10 }];)");
+}
+
+TEST_F(ParserTest, ImportedParametricLt) {
+  ParseProgram(R"(import lib;
+
+fn main() -> bool {
+  lib::OFFSET < u32:32
+}
+)");
 }
 
 TEST_F(ParserTest, ParseBlockWithTwoStatements) {

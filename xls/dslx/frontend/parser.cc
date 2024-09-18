@@ -738,6 +738,7 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
     return ParseErrorStatus(tok.span(), absl::StrFormat("Expected type; got %s",
                                                         tok.ToErrorString()));
   }
+  VLOG(5) << "ParseTypeRef token " << tok.ToString();
 
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
@@ -949,6 +950,10 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
     XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
+    // TODO: google/xls#1030 - This assumes it is calling an imported function,
+    // (e.g., `lib::function();`) not instantiating an imported struct (e.g.,
+    // `lib::my_struct{};`). Instantiating both locally-defined and imported
+    // structs really should be unified in this method.
     return ParseColonRef(bindings, subject, subject->span());
   }
 
@@ -1035,6 +1040,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
 
 absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
     Bindings& bindings, std::string_view context) {
+  VLOG(5) << "ParseNameOrColonRef  @ " << GetPos() << " context: " << context;
   XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier,
                                                   /*start=*/nullptr, context));
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
@@ -1711,27 +1717,72 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
   } else if (peek->IsTypeKeyword() ||
              (peek->kind() == TokenKind::kIdentifier &&
               outer_bindings.ResolveNodeIsTypeDefinition(*peek->GetValue()))) {
+    VLOG(5) << "ParseTerm, kind is identifier AND it it a known type";
+    // The "local" struct case goes into here because it recognized the
+    // my_struct as a type
     XLS_ASSIGN_OR_RETURN(
         lhs, ParseCastOrEnumRefOrStructInstanceOrToken(outer_bindings));
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out) {
-    XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(outer_bindings));
-    if (std::holds_alternative<ColonRef*>(nocr) &&
+    VLOG(5) << "ParseTerm, kind is identifier but not a known type";
+    XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref,
+                         ParseNameOrColonRef(outer_bindings));
+    if (std::holds_alternative<ColonRef*>(name_or_colon_ref) &&
         !IsExprRestrictionEnabled(restrictions,
                                   ExprRestriction::kNoStructLiteral)) {
-      XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
-                           PeekTokenIs(TokenKind::kOBrace));
-      if (peek_is_obrace) {
-        ColonRef* colon_ref = std::get<ColonRef*>(nocr);
-        TypeRef* type_ref =
-            module_->Make<TypeRef>(colon_ref->span(), colon_ref);
-        XLS_ASSIGN_OR_RETURN(
-            TypeAnnotation * type,
-            MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref, {}, {}));
+      ColonRef* colon_ref = std::get<ColonRef*>(name_or_colon_ref);
+      TypeAnnotation* type = nullptr;
+      TypeRef* type_ref = nullptr;
+      Transaction parse_oangle_txn(this, &outer_bindings);
+      XLS_ASSIGN_OR_RETURN(bool found_oangle, PeekTokenIs(TokenKind::kOAngle));
+      if (found_oangle) {
+        VLOG(5) << "ParseTerm, kind is ColonRef then oAngle; trying parametric";
+        type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
+
+        // We're possibly look at an imported parametric struct, an imported
+        // parametric enum comparison, or an imported parametric function call.
+        // This block only deals with parametric struct instantiation; the other
+        // possibilities are handled in different places, so we will rollback
+        // if it's not actually an imported parametric struct.
+        auto type_and_dims = ParseTypeRefParametricsAndDims(
+            outer_bindings, peek->span(), type_ref);
+        if (!type_and_dims.ok()) {
+          // Probably a comparison, so the oAngle wasn't part of a parametric
+          // reference, and we won't be doing a struct instantiation.
+          VLOG(5)
+              << "ParseTerm, kind is ColonRef then oAngle, but not parametric";
+          type = nullptr;
+          type_ref = nullptr;
+        } else {
+          type = *type_and_dims;
+        }
+
+        // TODO: google/xls#1030 - Support array literals of imported parametric
+        // structs. (In that case, the next token won't be an oBrace, and it
+        // will fail to parse the array literal.)
+      }
+      XLS_ASSIGN_OR_RETURN(bool found_obrace, PeekTokenIs(TokenKind::kOBrace));
+      if (found_obrace) {
+        VLOG(5) << "ParseTerm, kind is ColonRef then oBrace";
+        parse_oangle_txn.Commit();
+
+        if (!found_oangle) {
+          type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
+          // Just a regular imported struct instantiation. Make the type
+          // annotation now.
+          XLS_ASSIGN_OR_RETURN(
+              type, MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref,
+                                              /*dims=*/{}, /*parametrics=*/{}));
+        }
         return ParseStructInstance(outer_bindings, type);
       }
+      VLOG(5) << "ParseTerm, kind is ColonRef, but not a struct instantiation";
+
+      // Roll back the transaction, so we can continue as if we never
+      // processed the kOAngle.
+      parse_oangle_txn.Rollback();
     }
-    lhs = ToExprNode(nocr);
+    lhs = ToExprNode(name_or_colon_ref);
   } else if (peek->kind() == TokenKind::kOParen) {
     XLS_ASSIGN_OR_RETURN(
         lhs, ParseParentheticalOrCastLhs(outer_bindings, start_pos));
@@ -1905,7 +1956,6 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
     }
     case TokenKind::kOAngle: {
       // Comparison op or parametric function invocation.
-      // TODO(rspringer): Or parameterization on ColonRef-to-type.
       Transaction sub_txn(this, &outer_bindings);
       absl::Cleanup sub_cleanup = [&sub_txn]() { sub_txn.Rollback(); };
 
