@@ -522,3 +522,17 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "proc_id",
+    srcs = ["proc_id.cc"],
+    hdrs = ["proc_id.h"],
+    deps = [
+        ":ast",
+        ":proc",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)

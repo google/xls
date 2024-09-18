@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -42,6 +41,7 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -69,20 +69,6 @@ std::string ConversionRecordsToString(
 }
 
 }  // namespace
-
-// -- class ProcIdFactory
-
-ProcId ProcIdFactory::CreateProcId(const ProcId& parent, Proc* spawnee,
-                                   bool count_as_new_instance) {
-  std::vector<std::pair<Proc*, int>> new_stack = parent.proc_instance_stack;
-  int& instance_count =
-      instance_counts_[std::make_pair(parent, spawnee->identifier())];
-  new_stack.push_back(std::make_pair(spawnee, instance_count));
-  if (count_as_new_instance) {
-    ++instance_count;
-  }
-  return ProcId{.proc_instance_stack = std::move(new_stack)};
-}
 
 // -- class Callee
 
