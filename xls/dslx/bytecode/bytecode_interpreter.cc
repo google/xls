@@ -655,7 +655,7 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
 
   int64_t from_bit_count = from_value.GetBits().value().bit_count();
 
-  // If the thing we're casing from is bits like, and the thing we're casting
+  // If the thing we're casting from is bits like, and the thing we're casting
   // to is bits, like, we use the `ResizeBitsValue` helper.
   if (std::optional<BitsLikeProperties> to_bits_like = GetBitsLike(to);
       to_bits_like.has_value()) {
