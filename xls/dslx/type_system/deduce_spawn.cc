@@ -71,8 +71,8 @@ absl::Status TypecheckProcConstAsserts(const Proc& p, DeduceCtx* ctx) {
 absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                                                   DeduceCtx* ctx) {
   const ParametricEnv caller_parametric_env = ctx->GetCurrentParametricEnv();
-  VLOG(5) << "Deducing type for spawn: `" << node->ToString()
-          << "` caller symbolic bindings: " << caller_parametric_env;
+  VLOG(5) << "DeduceSpawn: " << node->ToString()
+          << "; caller_parametric_env: " << caller_parametric_env;
 
   auto resolve_proc = [](const Instantiation* node,
                          DeduceCtx* ctx) -> absl::StatusOr<Proc*> {

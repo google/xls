@@ -488,9 +488,10 @@ absl::Status ConstexprEvaluator::HandleMatch(const Match* expr) {
 
 absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
   AstNode* name_def = ToAstNode(expr->name_def());
+
   if (type_info_->IsKnownNonConstExpr(name_def) ||
       !type_info_->IsKnownConstExpr(name_def)) {
-    return absl::Status();
+    return absl::OkStatus();
   }
   type_info_->NoteConstExpr(expr, type_info_->GetConstExpr(name_def).value());
   return absl::OkStatus();

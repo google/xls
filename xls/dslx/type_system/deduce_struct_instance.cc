@@ -55,6 +55,8 @@ namespace xls::dslx {
 // virtual function on DeduceCtx when we get things refactored nicely.
 extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
     const AstNode* node, DeduceCtx* ctx);
+extern absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type,
+                                                     DeduceCtx* ctx);
 
 namespace {
 
@@ -105,12 +107,15 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
         << " type: " << *expr_type;
 
     result.args.push_back(InstantiateArg{std::move(expr_type), expr->span()});
-    std::optional<const Type*> maybe_type =
+    std::optional<const Type*> maybe_member_type =
         struct_type.GetMemberTypeByName(name);
 
-    if (maybe_type.has_value()) {
-      XLS_RET_CHECK(!maybe_type.value()->IsMeta()) << *maybe_type.value();
-      result.member_types.push_back(maybe_type.value()->CloneToUnique());
+    if (maybe_member_type.has_value()) {
+      const Type* member_type = *maybe_member_type;
+      XLS_RET_CHECK(!member_type->IsMeta()) << *member_type;
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_member,
+                           Resolve(*member_type, ctx));
+      result.member_types.push_back(resolved_member->CloneToUnique());
     } else {
       return TypeInferenceErrorStatus(
           expr->span(), nullptr,
@@ -128,7 +133,7 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
     const StructInstance* node, DeduceCtx* ctx) {
-  VLOG(5) << "Deducing type for struct instance: " << node->ToString();
+  VLOG(5) << "DeduceStructInstance: " << node->ToString();
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                        ctx->Deduce(ToAstNode(node->struct_ref())));

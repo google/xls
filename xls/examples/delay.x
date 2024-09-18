@@ -82,6 +82,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
     ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>> out;
     ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in;
     ram_wr_comp: chan<()> in;
+    type DelayInternalRamReq = RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>;
 
     init {
         DelayState {
@@ -109,7 +110,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
 
         let data = next_write ++ state.prev_write;
 
-        let tok = send(tok, ram_req, RamReq {
+        let tok = send(tok, ram_req, DelayInternalRamReq {
             addr: state.idx,
             data: data,
             write_mask: (),

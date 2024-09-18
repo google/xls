@@ -36,7 +36,7 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
                                              DeduceCtx* ctx);
 
-// Resolves "type_" via provided symbolic bindings.
+// Resolves `type` via provided symbolic bindings.
 //
 // Uses the symbolic bindings of the function we're currently inside of to
 // resolve parametric types.
@@ -46,7 +46,7 @@ absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
 //  ctx: Deduction context to use in resolving the dims.
 //
 // Returns:
-//  "type" with dimensions resolved according to bindings in "ctx".
+//  `type` with dimensions resolved according to bindings in `ctx`.
 absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type, DeduceCtx* ctx);
 
 // Helpers that sequences Deduce, then Resolve.

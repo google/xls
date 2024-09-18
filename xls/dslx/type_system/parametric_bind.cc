@@ -116,6 +116,7 @@ absl::Status ParametricBindTypeDim(const Type& formal_type,
   // vs the actual argument.
   const ParametricSymbol* symbol = TryGetParametricSymbol(formal_dim);
   if (symbol == nullptr) {
+    VLOG(5) << "No parametric symbol in formal_dim: " << formal_dim;
     // Nothing to bind in the formal argument type.
     return absl::OkStatus();
   }

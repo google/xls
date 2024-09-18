@@ -1887,9 +1887,20 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRefTypeAnnotation(
       node->span(), type_ref->ToString(), type_definition, ctx->type_info());
   if (struct_def_or.ok()) {
     auto* struct_def = struct_def_or.value();
+    VLOG(5) << "DeduceTypeRefTypeAnnotation struct_def "
+            << struct_def->ToString()
+            << " IsParametric: " << struct_def->IsParametric();
+    VLOG(5) << "DeduceTypeRefTypeAnnotation node " << node->ToString()
+            << " parametrics.empty: " << node->parametrics().empty();
+    VLOG(5) << "DeduceTypeRefTypeAnnotation base type "
+            << base_type->ToString();
+
     if (struct_def->IsParametric() && !node->parametrics().empty()) {
       XLS_ASSIGN_OR_RETURN(base_type, ConcretizeStructAnnotation(
                                           node, struct_def, *base_type, ctx));
+      VLOG(5)
+          << "DeduceTypeRefTypeAnnotation after concretize, base type is now "
+          << base_type->ToString();
     }
   }
   XLS_RET_CHECK(base_type->IsMeta());

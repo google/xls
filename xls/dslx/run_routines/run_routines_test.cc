@@ -562,6 +562,76 @@ TEST_P(ParseAndTestTest, TestFilterSelectBoth) {
   EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 2, 0, 0));
 }
 
+// Exercises https://github.com/google/xls/issues/1368
+TEST_P(ParseAndTestTest, StructParametricFromProcParametric) {
+  constexpr std::string_view kProgram = R"(
+struct Data<WIDTH: u32> {struct_field_value: uN[WIDTH]}
+
+proc MyProc<DATA_WIDTH: u32> {
+  type MyProcData = Data<DATA_WIDTH>;
+  out_s: chan<MyProcData> out;
+
+  config(out_s: chan<MyProcData> out) {(out_s, )}
+  init {}
+
+ next(_: ()) {
+    // This line was failing in typecheck previously
+    send(join(), out_s, MyProcData{struct_field_value: uN[DATA_WIDTH]:42});
+  }
+}
+
+const TEST_WIDTH = u32:10;
+
+#[test_proc]
+proc MyProcTest {
+  type MyProcTestData = Data<TEST_WIDTH>;
+  terminator: chan<bool> out;
+  out_r: chan<MyProcTestData> in;
+
+  config(terminator: chan<bool> out) {
+    let(out_s, out_r) = chan<MyProcTestData>("out");
+    spawn MyProc<TEST_WIDTH>(out_s);
+    (terminator, out_r)
+  }
+
+  init {}
+
+  next(_: ()) {
+    let(tok, returned_struct) = recv(join(), out_r);
+    assert_eq(returned_struct.struct_field_value, uN[TEST_WIDTH]:42);
+    send(tok, terminator, true);
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions{}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
+TEST_P(ParseAndTestTest, StructParametricFromFnParametric) {
+  constexpr std::string_view kProgram = R"(
+struct Data<WIDTH: u32> {value: uN[WIDTH]}
+
+fn myFn<DATA_WIDTH: u32>() -> Data<DATA_WIDTH> {
+  type MyFnData = Data<DATA_WIDTH>;
+  let data = MyFnData{value: uN[DATA_WIDTH]:42};
+  data
+}
+
+const TEST_WIDTH = u32:32;
+
+#[test]
+fn test_simple() {
+  let output = myFn<TEST_WIDTH>();
+  assert_eq(output.value, uN[TEST_WIDTH]:42);
+  }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, "test", "test.x", ParseAndTestOptions{}));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
 INSTANTIATE_TEST_SUITE_P(RunRoutinesTest, RunRoutinesTest,
                          testing::Values(RunnerType::kDslxInterpreter,
                                          RunnerType::kIrInterpreter,
