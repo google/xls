@@ -1352,7 +1352,6 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
