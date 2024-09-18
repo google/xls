@@ -325,7 +325,10 @@ bool UEqual(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) == 0; }
 
 bool UEqual(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  return UEqual(lhs, UBits(rhs, 64));
+  if (!lhs.FitsInNBitsUnsigned(63)) {
+    return false;
+  }
+  return static_cast<int64_t>(*lhs.ToUint64()) == rhs;
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
@@ -356,22 +359,34 @@ const Bits& UMax(const Bits& lhs, const Bits& rhs) {
 
 bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  return UGreaterThanOrEqual(lhs, UBits(rhs, 64));
+  if (!lhs.FitsInNBitsUnsigned(63)) {
+    return true;
+  }
+  return static_cast<int64_t>(*lhs.ToUint64()) >= rhs;
 }
 
 bool UGreaterThan(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  return UGreaterThan(lhs, UBits(rhs, 64));
+  if (!lhs.FitsInNBitsUnsigned(63)) {
+    return true;
+  }
+  return static_cast<int64_t>(*lhs.ToUint64()) > rhs;
 }
 
 bool ULessThanOrEqual(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  return ULessThanOrEqual(lhs, UBits(rhs, 64));
+  if (!lhs.FitsInNBitsUnsigned(63)) {
+    return false;
+  }
+  return static_cast<int64_t>(*lhs.ToUint64()) <= rhs;
 }
 
 bool ULessThan(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  return ULessThan(lhs, UBits(rhs, 64));
+  if (!lhs.FitsInNBitsUnsigned(63)) {
+    return false;
+  }
+  return static_cast<int64_t>(*lhs.ToUint64()) < rhs;
 }
 
 bool SEqual(const Bits& lhs, const Bits& rhs) {
@@ -379,7 +394,10 @@ bool SEqual(const Bits& lhs, const Bits& rhs) {
 }
 
 bool SEqual(const Bits& lhs, int64_t rhs) {
-  return SEqual(lhs, SBits(rhs, 64));
+  if (!lhs.FitsInInt64()) {
+    return false;
+  }
+  return *lhs.ToInt64() == rhs;
 }
 
 bool SGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
@@ -402,19 +420,39 @@ bool SLessThan(const Bits& lhs, const Bits& rhs) {
 }
 
 bool SGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
-  return SGreaterThanOrEqual(lhs, SBits(rhs, 64));
+  if (lhs.FitsInInt64()) {
+    return *lhs.ToInt64() >= rhs;
+  }
+  // LHS is less than int64_t's minimum value (and thus rhs) if its MSB is set;
+  // otherwise it's greater than the maximum value (and thus rhs).
+  return !lhs.msb();
 }
 
 bool SGreaterThan(const Bits& lhs, int64_t rhs) {
-  return SGreaterThan(lhs, SBits(rhs, 64));
+  if (lhs.FitsInInt64()) {
+    return *lhs.ToInt64() > rhs;
+  }
+  // LHS is less than int64_t's minimum value (and thus rhs) if its MSB is set;
+  // otherwise it's greater than the maximum value (and thus rhs).
+  return !lhs.msb();
 }
 
 bool SLessThanOrEqual(const Bits& lhs, int64_t rhs) {
-  return SLessThanOrEqual(lhs, SBits(rhs, 64));
+  if (lhs.FitsInInt64()) {
+    return *lhs.ToInt64() <= rhs;
+  }
+  // LHS is less than int64_t's minimum value (and thus rhs) if its MSB is set;
+  // otherwise it's greater than the maximum value (and thus rhs).
+  return lhs.msb();
 }
 
 bool SLessThan(const Bits& lhs, int64_t rhs) {
-  return SLessThan(lhs, SBits(rhs, 64));
+  if (lhs.FitsInInt64()) {
+    return *lhs.ToInt64() < rhs;
+  }
+  // LHS is less than int64_t's minimum value (and thus rhs) if its MSB is set;
+  // otherwise it's greater than the maximum value (and thus rhs).
+  return lhs.msb();
 }
 
 Bits ZeroExtend(Bits bits, int64_t new_bit_count) {
