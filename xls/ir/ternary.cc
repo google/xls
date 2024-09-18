@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -123,19 +122,23 @@ TernaryVector FromKnownBits(const Bits& known_bits,
 }
 
 Bits ToKnownBits(TernarySpan ternary_vector) {
-  absl::InlinedVector<bool, 1> bits(ternary_vector.size());
-  for (int64_t i = 0; i < bits.size(); ++i) {
-    bits[i] = (ternary_vector[i] != TernaryValue::kUnknown);
+  InlineBitmap bitmap(ternary_vector.size());
+  for (int64_t i = 0; i < ternary_vector.size(); ++i) {
+    if (ternary_vector[i] != TernaryValue::kUnknown) {
+      bitmap.Set(i, true);
+    }
   }
-  return Bits(bits);
+  return Bits::FromBitmap(std::move(bitmap));
 }
 
 Bits ToKnownBitsValues(TernarySpan ternary_vector) {
-  absl::InlinedVector<bool, 1> bits(ternary_vector.size());
-  for (int64_t i = 0; i < bits.size(); ++i) {
-    bits[i] = (ternary_vector[i] == TernaryValue::kKnownOne);
+  InlineBitmap bitmap(ternary_vector.size());
+  for (int64_t i = 0; i < ternary_vector.size(); ++i) {
+    if (ternary_vector[i] == TernaryValue::kKnownOne) {
+      bitmap.Set(i, true);
+    }
   }
-  return Bits(bits);
+  return Bits::FromBitmap(std::move(bitmap));
 }
 
 std::optional<TernaryVector> Difference(TernarySpan lhs, TernarySpan rhs) {
