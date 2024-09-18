@@ -913,6 +913,8 @@ absl::Status CChannelType::GetMetadata(
   XLS_RETURN_IF_ERROR(item_type_->GetMetadata(
       translator, output->mutable_as_channel()->mutable_item_type(),
       aliases_used));
+  output->mutable_as_channel()->set_memory_size(
+      static_cast<int32_t>(memory_size_));
 
   return absl::OkStatus();
 }

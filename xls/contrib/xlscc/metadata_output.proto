@@ -159,6 +159,7 @@ message ArrayType {
 // Channel type
 message ChannelType {
   optional Type item_type = 1;
+  optional int32 memory_size = 2;
 }
 
 // Generic type
