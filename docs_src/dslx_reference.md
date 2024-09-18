@@ -323,6 +323,9 @@ s3::MAX   // s3:0b011 the "maximum signed" value
 
 u3::ZERO  // u3:0b000 the "fill with zeros" value
 s3::ZERO  // s3:0b000 the "fill with zeros" value
+
+u3::MIN   // u3:0b000 the minimum u3 value
+s3::MIN   // s3:0b100 AKA s3:-4 the minimum s3 value
 ```
 
 #### Character Constants
