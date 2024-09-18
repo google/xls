@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -38,6 +39,26 @@
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
+
+namespace {
+
+absl::StatusOr<std::unique_ptr<Type>> ResolveViaEnv(
+    const Type& type, const ParametricEnv& parametric_env) {
+  ParametricExpression::Env env;
+  for (const auto& [k, v] : parametric_env.bindings()) {
+    env[k] = v;
+  }
+
+  return type.MapSize([&](const TypeDim& dim) -> absl::StatusOr<TypeDim> {
+    if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
+      const auto& parametric = std::get<TypeDim::OwnedParametric>(dim.value());
+      return TypeDim(parametric->Evaluate(env));
+    }
+    return dim;
+  });
+}
+
+}  // namespace
 
 std::string FnStackEntry::ToReprString(const FileTable& file_table) const {
   if (f_ != nullptr) {
@@ -150,6 +171,14 @@ std::optional<FnStackEntry> DeduceCtx::PopFnStackEntry() {
   FnStackEntry result = fn_stack_.back();
   fn_stack_.pop_back();
   return result;
+}
+
+absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::Resolve(
+    const Type& type) const {
+  XLS_RET_CHECK(!fn_stack().empty());
+  const FnStackEntry& entry = fn_stack().back();
+  const ParametricEnv& fn_parametric_env = entry.parametric_env();
+  return ResolveViaEnv(type, fn_parametric_env);
 }
 
 std::string DeduceCtx::GetFnStackDebugString() const {

@@ -56,8 +56,6 @@ namespace xls::dslx {
 // virtual function on DeduceCtx when we get things refactored nicely.
 extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
     const AstNode* node, DeduceCtx* ctx);
-extern absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type,
-                                                     DeduceCtx* ctx);
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceEmptyArray(const Array* node,
                                                        DeduceCtx* ctx) {
@@ -216,7 +214,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
   // Check the element type of the annotation is the same as the inferred type
   // from the element(s).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_element_type,
-                       Resolve(array_type->element_type(), ctx));
+                       ctx->Resolve(array_type->element_type()));
   if (*resolved_element_type != *member_types[0]) {
     return ctx->TypeMismatchError(
         node->members().at(0)->span(), nullptr, *resolved_element_type, nullptr,
@@ -326,7 +324,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
   }
 
   CHECK(type != nullptr);
-  XLS_ASSIGN_OR_RETURN(type, Resolve(*type, ctx));
+  XLS_ASSIGN_OR_RETURN(type, ctx->Resolve(*type));
   XLS_RET_CHECK(!type->IsMeta());
 
   if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
@@ -419,7 +417,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConditional(const Conditional* node,
                                                         DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> test_type,
                        ctx->Deduce(node->test()));
-  XLS_ASSIGN_OR_RETURN(test_type, Resolve(*test_type, ctx));
+  XLS_ASSIGN_OR_RETURN(test_type, ctx->Resolve(*test_type));
   auto test_want = BitsType::MakeU1();
   if (*test_type != *test_want) {
     return ctx->TypeMismatchError(node->span(), node->test(), *test_type,
@@ -430,10 +428,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConditional(const Conditional* node,
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> consequent_type,
                        ctx->Deduce(node->consequent()));
-  XLS_ASSIGN_OR_RETURN(consequent_type, Resolve(*consequent_type, ctx));
+  XLS_ASSIGN_OR_RETURN(consequent_type, ctx->Resolve(*consequent_type));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> alternate_type,
                        ctx->Deduce(ToAstNode(node->alternate())));
-  XLS_ASSIGN_OR_RETURN(alternate_type, Resolve(*alternate_type, ctx));
+  XLS_ASSIGN_OR_RETURN(alternate_type, ctx->Resolve(*alternate_type));
 
   if (*consequent_type != *alternate_type) {
     return ctx->TypeMismatchError(

@@ -55,8 +55,6 @@ namespace xls::dslx {
 // virtual function on DeduceCtx when we get things refactored nicely.
 extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
     const AstNode* node, DeduceCtx* ctx);
-extern absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type,
-                                                     DeduceCtx* ctx);
 
 namespace {
 
@@ -114,7 +112,7 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
       const Type* member_type = *maybe_member_type;
       XLS_RET_CHECK(!member_type->IsMeta()) << *member_type;
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_member,
-                           Resolve(*member_type, ctx));
+                           ctx->Resolve(*member_type));
       result.member_types.push_back(resolved_member->CloneToUnique());
     } else {
       return TypeInferenceErrorStatus(

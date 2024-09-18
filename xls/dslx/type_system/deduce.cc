@@ -1139,7 +1139,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
     }
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_start_type,
-                         Resolve(*start_type, ctx));
+                         ctx->Resolve(*start_type));
     XLS_ASSIGN_OR_RETURN(TypeDim bit_count_ctd,
                          resolved_start_type->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, bit_count_ctd.GetAsInt64());
@@ -1476,7 +1476,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceIndex(const Index* node,
 static absl::Status Unify(NameDefTree* name_def_tree, const Type& other,
                           DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_rhs_type,
-                       Resolve(other, ctx));
+                       ctx->Resolve(other));
   if (name_def_tree->is_leaf()) {
     NameDefTree::Leaf leaf = name_def_tree->leaf();
     if (std::holds_alternative<NameDef*>(leaf)) {
@@ -2182,31 +2182,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInternal(const AstNode* node,
   return std::move(visitor.result());
 }
 
-absl::StatusOr<std::unique_ptr<Type>> ResolveViaEnv(
-    const Type& type, const ParametricEnv& parametric_env) {
-  ParametricExpression::Env env;
-  for (const auto& [k, v] : parametric_env.bindings()) {
-    env[k] = v;
-  }
-
-  return type.MapSize([&](const TypeDim& dim) -> absl::StatusOr<TypeDim> {
-    if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
-      const auto& parametric = std::get<TypeDim::OwnedParametric>(dim.value());
-      return TypeDim(parametric->Evaluate(env));
-    }
-    return dim;
-  });
-}
-
 }  // namespace
-
-absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type,
-                                              DeduceCtx* ctx) {
-  XLS_RET_CHECK(!ctx->fn_stack().empty());
-  const FnStackEntry& entry = ctx->fn_stack().back();
-  const ParametricEnv& fn_parametric_env = entry.parametric_env();
-  return ResolveViaEnv(type, fn_parametric_env);
-}
 
 absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
                                              DeduceCtx* ctx) {
@@ -2230,7 +2206,7 @@ absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
 absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node,
                                                        DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> deduced, ctx->Deduce(node));
-  return Resolve(*deduced, ctx);
+  return ctx->Resolve(*deduced);
 }
 
 absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,

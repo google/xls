@@ -211,6 +211,18 @@ class DeduceCtx {
   // returns it, conceptually the inverse of AddFnStackEntry().
   std::optional<FnStackEntry> PopFnStackEntry();
 
+  // Resolves "type" via provided symbolic bindings.
+  //
+  // Uses the symbolic bindings of the function we're currently inside of to
+  // resolve parametric types.
+  //
+  // Args:
+  //  type: Type to resolve any contained dims for.
+  //
+  // Returns:
+  //  "type" with dimensions resolved according to the current bindings.
+  absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type) const;
+
   const TypecheckModuleFn& typecheck_module() const {
     return typecheck_module_;
   }
