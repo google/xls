@@ -52,7 +52,8 @@ class FakeQueryEngine : public QueryEngine {
 
   bool IsTracked(Node* node) const override { return tracked_.contains(node); }
 
-  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
     CHECK(node->GetType()->IsBits());
     TernaryVector ternary = ternary_ops::FromKnownBits(
         known_bits_.at(node), known_bit_values_.at(node));
@@ -269,10 +270,10 @@ TEST_F(UnionQueryEngineTest, Simple) {
 
   EXPECT_FALSE(union_query_engine.IsTracked(nullptr));
   EXPECT_TRUE(union_query_engine.IsTracked(node));
-  EXPECT_EQ(ToString(union_query_engine.GetTernary(node).Get({})),
+  EXPECT_EQ(ToString(union_query_engine.GetTernary(node)->Get({})),
             "0bXXX1_XXXX");
   // Query the same ones again to test the caching of known bits
-  EXPECT_EQ(ToString(union_query_engine.GetTernary(node).Get({})),
+  EXPECT_EQ(ToString(union_query_engine.GetTernary(node)->Get({})),
             "0bXXX1_XXXX");
   EXPECT_TRUE(union_query_engine.AtMostOneTrue(
       {TreeBitLocation(node, 2), TreeBitLocation(node, 3)}));

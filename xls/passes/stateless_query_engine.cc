@@ -73,7 +73,8 @@ bool StatelessQueryEngine::IsAllOnes(Node* node) const {
   return false;
 }
 
-LeafTypeTree<TernaryVector> StatelessQueryEngine::GetTernary(Node* node) const {
+std::optional<LeafTypeTree<TernaryVector>> StatelessQueryEngine::GetTernary(
+    Node* node) const {
   if (node->Is<Literal>()) {
     LeafTypeTree<Value> values =
         ValueToLeafTypeTree(node->As<Literal>()->value(), node->GetType())
@@ -95,14 +96,7 @@ LeafTypeTree<TernaryVector> StatelessQueryEngine::GetTernary(Node* node) const {
         node->GetType(), std::move(ternary));
   }
 
-  return LeafTypeTree<TernaryVector>::CreateFromFunction(
-             node->GetType(),
-             [](Type* leaf_type,
-                absl::Span<const int64_t>) -> absl::StatusOr<TernaryVector> {
-               return TernaryVector(leaf_type->GetFlatBitCount(),
-                                    TernaryValue::kUnknown);
-             })
-      .value();
+  return std::nullopt;
 }
 
 StatelessQueryEngine::BitCounts StatelessQueryEngine::KnownBitCounts(
@@ -136,9 +130,12 @@ StatelessQueryEngine::BitCounts StatelessQueryEngine::KnownBitCounts(
       continue;
     }
 
-    LeafTypeTree<TernaryVector> ternary = GetTernary(node);
+    std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+    if (!ternary.has_value()) {
+      continue;
+    }
     for (const auto& [bit, count] : node_bits) {
-      switch (ternary.Get(bit.tree_index()).at(bit.bit_index())) {
+      switch (ternary->Get(bit.tree_index()).at(bit.bit_index())) {
         case TernaryValue::kKnownZero:
           counts.known_false += count;
           break;
@@ -170,15 +167,20 @@ bool StatelessQueryEngine::KnownEquals(const TreeBitLocation& a,
     return true;
   }
 
-  LeafTypeTree<TernaryVector> a_ternary = GetTernary(a.node());
-  const TernaryValue& a_value = a_ternary.Get(a.tree_index()).at(a.bit_index());
-  if (a_value == TernaryValue::kUnknown) {
+  if (a.node() == b.node() && a.node()->Is<OneHot>()) {
+    // No two distinct bits from a OneHot node can be equal.
     return false;
   }
 
-  LeafTypeTree<TernaryVector> b_ternary =
-      a.node() == b.node() ? a_ternary : GetTernary(b.node());
-  const TernaryValue& b_value = b_ternary.Get(b.tree_index()).at(b.bit_index());
+  std::optional<bool> a_value = QueryEngine::KnownValue(a);
+  if (!a_value.has_value()) {
+    return false;
+  }
+
+  std::optional<bool> b_value = QueryEngine::KnownValue(b);
+  if (!b_value.has_value()) {
+    return false;
+  }
 
   return a_value == b_value;
 }
@@ -194,16 +196,13 @@ bool StatelessQueryEngine::KnownNotEquals(const TreeBitLocation& a,
     return true;
   }
 
-  LeafTypeTree<TernaryVector> a_ternary = GetTernary(a.node());
-  const TernaryValue& a_value = a_ternary.Get(a.tree_index()).at(a.bit_index());
-  if (a_value == TernaryValue::kUnknown) {
+  std::optional<bool> a_value = QueryEngine::KnownValue(a);
+  if (!a_value.has_value()) {
     return false;
   }
 
-  LeafTypeTree<TernaryVector> b_ternary =
-      a.node() == b.node() ? a_ternary : GetTernary(b.node());
-  const TernaryValue& b_value = b_ternary.Get(b.tree_index()).at(b.bit_index());
-  if (b_value == TernaryValue::kUnknown) {
+  std::optional<bool> b_value = QueryEngine::KnownValue(b);
+  if (!b_value.has_value()) {
     return false;
   }
 

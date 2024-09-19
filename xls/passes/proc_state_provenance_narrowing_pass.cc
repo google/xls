@@ -199,15 +199,20 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, Param* param,
     if (unchanged_bits.IsZero()) {
       return unchanged_bits;
     }
-    TernaryVector ternary = tqe.GetTernary(next->value()).Get({});
-    Bits ternary_known_unchanged = bits_ops::Not(
-        // One on every bit that is not known to be identical
-        bits_ops::Or(
-            // 1 on every bit that's unknown
-            bits_ops::Not(ternary_ops::ToKnownBits(ternary)),
-            // 1 on every bit that differs
-            bits_ops::Xor(initial_bits,
-                          ternary_ops::ToKnownBitsValues(ternary))));
+    std::optional<LeafTypeTree<TernaryVector>> ternary =
+        tqe.GetTernary(next->value());
+    Bits ternary_known_unchanged =
+        ternary.has_value()
+            ? bits_ops::Not(
+                  // One on every bit that is not known to be identical
+                  bits_ops::Or(
+                      // 1 on every bit that's unknown
+                      bits_ops::Not(ternary_ops::ToKnownBits(ternary->Get({}))),
+                      // 1 on every bit that differs
+                      bits_ops::Xor(
+                          initial_bits,
+                          ternary_ops::ToKnownBitsValues(ternary->Get({})))))
+            : Bits(initial_bits.bit_count());
     const TreeBitSources& sources =
         provenance.GetBitSources(next->value()).Get({});
     InlineBitmap provenance_unchanged_bm(initial_bits.bit_count());

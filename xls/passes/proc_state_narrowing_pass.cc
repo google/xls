@@ -181,7 +181,13 @@ ExtractContextSensitiveRange(
                       dependencies);
   RangeQueryEngine contextual_range;
   XLS_RETURN_IF_ERROR(contextual_range.PopulateWithGivens(givens).status());
-  return std::make_pair(contextual_range.GetTernary(next->value()).Get({}),
+  std::optional<LeafTypeTree<TernaryVector>> ternary =
+      contextual_range.GetTernary(next->value());
+  TernaryVector ternary_vec =
+      ternary.has_value() ? ternary->Get({})
+                          : TernaryVector(next->value()->BitCountOrDie(),
+                                          TernaryValue::kUnknown);
+  return std::make_pair(ternary_vec,
                         contextual_range.GetIntervals(next->value()).Get({}));
 }
 
@@ -687,7 +693,13 @@ absl::StatusOr<absl::flat_hash_map<Param*, RangeData>> FindContextualRanges(
     IntervalSet contextual_intervals =
         IntervalSet::Precise(orig_init_value.bits());
     for (Next* next : updates) {
-      TernaryVector context_free = qe.GetTernary(next->value()).Get({});
+      std::optional<LeafTypeTree<TernaryVector>> context_free_ltt =
+          qe.GetTernary(next->value());
+      TernaryVector context_free =
+          context_free_ltt.has_value()
+              ? context_free_ltt->Get({})
+              : TernaryVector(next->value()->BitCountOrDie(),
+                              TernaryValue::kUnknown);
       // NB Only doing context-sensitive range analysis is a heuristic to avoid
       // performing the (somewhat) expensive range propagation when we have
       // already narrowed using static analysis. While its possible that better

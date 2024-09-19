@@ -60,13 +60,13 @@ class BddQueryEngine : public QueryEngine {
     return known_bits_.contains(node);
   }
 
-  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
     CHECK(node->GetType()->IsBits());
     TernaryVector ternary =
         ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
-    LeafTypeTree<TernaryVector> result(node->GetType());
-    result.Set({}, ternary);
-    return result;
+    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+        node->GetType(), std::move(ternary));
   }
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;

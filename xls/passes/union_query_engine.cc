@@ -107,21 +107,22 @@ bool UnownedUnionQueryEngine::IsTracked(Node* node) const {
   return false;
 }
 
-LeafTypeTree<TernaryVector> UnownedUnionQueryEngine::GetTernary(
+std::optional<LeafTypeTree<TernaryVector>> UnownedUnionQueryEngine::GetTernary(
     Node* node) const {
-  LeafTypeTree<TernaryVector> result =
-      LeafTypeTree<TernaryVector>::CreateFromFunction(
-          node->GetType(),
-          [](Type* leaf_type,
-             absl::Span<const int64_t> index) -> absl::StatusOr<TernaryVector> {
-            return TernaryVector(leaf_type->GetFlatBitCount(),
-                                 TernaryValue::kUnknown);
-          })
-          .value();
+  std::optional<LeafTypeTree<TernaryVector>> result = std::nullopt;
   for (const auto& engine : engines_) {
     if (engine->IsTracked(node)) {
+      std::optional<LeafTypeTree<TernaryVector>> ternary =
+          engine->GetTernary(node);
+      if (!ternary.has_value()) {
+        continue;
+      }
+      if (!result.has_value()) {
+        result = std::move(ternary);
+        continue;
+      }
       leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
-          result.AsMutableView(), engine->GetTernary(node).AsView(),
+          result->AsMutableView(), ternary->AsView(),
           [](TernaryVector& lhs, const TernaryVector& rhs) {
             CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
           });

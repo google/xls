@@ -44,6 +44,7 @@
 #include "xls/common/visitor.h"
 #include "xls/data_structures/algorithm.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -264,15 +265,20 @@ absl::StatusOr<bool> TrySqueezeSelect(SelectT* sel,
                                       const BitProvenanceAnalysis& provenance) {
   Node* node = sel;
   auto is_squeezable_mux = [&](Bits* msb, Bits* lsb) {
-    int64_t leading_known = bits_ops::CountLeadingOnes(
-        ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
-    int64_t trailing_known = bits_ops::CountTrailingOnes(
-        ternary_ops::ToKnownBits(query_engine.GetTernary(node).Get({})));
+    std::optional<LeafTypeTree<TernaryVector>> ternary =
+        query_engine.GetTernary(node);
+    if (!ternary.has_value()) {
+      return false;
+    }
+    TernaryVector ternary_vec = ternary->Get({});
+    Bits known_bits = ternary_ops::ToKnownBits(ternary_vec);
+    int64_t leading_known = bits_ops::CountLeadingOnes(known_bits);
+    int64_t trailing_known = bits_ops::CountTrailingOnes(known_bits);
     if (leading_known == 0 && trailing_known == 0) {
       return false;
     }
     int64_t bit_count = node->BitCountOrDie();
-    *msb = ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
+    *msb = ternary_ops::ToKnownBitsValues(ternary_vec)
                .Slice(/*start=*/bit_count - leading_known,
                       /*width=*/leading_known);
     if (leading_known == trailing_known && leading_known == bit_count) {
@@ -280,7 +286,7 @@ absl::StatusOr<bool> TrySqueezeSelect(SelectT* sel,
       // bits, the replacement will be the same.
       return true;
     }
-    *lsb = ternary_ops::ToKnownBitsValues(query_engine.GetTernary(node).Get({}))
+    *lsb = ternary_ops::ToKnownBitsValues(ternary_vec)
                .Slice(/*start=*/0, /*width=*/trailing_known);
     return true;
   };
@@ -920,23 +926,28 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   if (node->Is<PrioritySelect>()) {
     PrioritySelect* sel = node->As<PrioritySelect>();
     XLS_RET_CHECK(sel->selector()->GetType()->IsBits());
-    const TernaryVector selector =
-        query_engine.GetTernary(sel->selector()).Get({});
-    auto first_nonzero_case = absl::c_find_if(
-        selector, [](TernaryValue v) { return v != TernaryValue::kKnownZero; });
-    if (first_nonzero_case == selector.end()) {
-      // All zeros; priority select with a zero selector returns the default
-      // value.
-      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->default_value()));
-      return true;
+    std::optional<LeafTypeTree<TernaryVector>> selector_ltt =
+        query_engine.GetTernary(sel->selector());
+    if (selector_ltt.has_value()) {
+      const TernaryVector selector = selector_ltt->Get({});
+      auto first_nonzero_case = absl::c_find_if(selector, [](TernaryValue v) {
+        return v != TernaryValue::kKnownZero;
+      });
+      if (first_nonzero_case == selector.end()) {
+        // All zeros; priority select with a zero selector returns the default
+        // value.
+        XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->default_value()));
+        return true;
+      }
+      if (*first_nonzero_case == TernaryValue::kKnownOne) {
+        // Ends with a one followed by zeros; returns the corresponding case.
+        int64_t case_num = std::distance(selector.begin(), first_nonzero_case);
+        XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(case_num)));
+        return true;
+      }
+      // Has an unknown bit before the first known one, so the result is
+      // unknown.
     }
-    if (*first_nonzero_case == TernaryValue::kKnownOne) {
-      // Ends with a one followed by zeros; returns the corresponding case.
-      int64_t case_num = std::distance(selector.begin(), first_nonzero_case);
-      XLS_RETURN_IF_ERROR(sel->ReplaceUsesWith(sel->get_case(case_num)));
-      return true;
-    }
-    // Has an unknown bit before the first known one, so the result is unknown.
   }
 
   // One-hot-select with a constant selector can be replaced with OR of the
@@ -1556,7 +1567,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                         ? node->As<OneHotSelect>()->cases()
                                         : node->As<PrioritySelect>()->cases();
     if (query_engine.IsTracked(selector)) {
-      TernaryVector selector_bits = query_engine.GetTernary(selector).Get({});
+      std::optional<LeafTypeTree<TernaryVector>> selector_ltt =
+          query_engine.GetTernary(selector);
+      TernaryVector selector_bits =
+          selector_ltt.has_value() ? selector_ltt->Get({})
+                                   : TernaryVector(selector->BitCountOrDie(),
+                                                   TernaryValue::kUnknown);
       // For one-hot-selects if either the selector bit or the case value is
       // zero, the case can be removed. For priority selects, the case can be
       // removed only if the selector bit is zero, or if *all later* cases are

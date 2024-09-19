@@ -54,7 +54,8 @@ class UnownedUnionQueryEngine : public QueryEngine {
 
   bool IsTracked(Node* node) const override;
 
-  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override;
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override;
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;
 

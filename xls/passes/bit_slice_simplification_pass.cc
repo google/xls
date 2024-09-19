@@ -35,6 +35,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
@@ -82,7 +83,12 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
     // Check whether `scaled_index` has enough low zero-bits for us to take a
     // slice of it as the unscaled version.
     XLS_RET_CHECK(scaled_index->GetType()->IsBits());
-    TernaryVector known_bits = query_engine->GetTernary(scaled_index).Get({});
+    std::optional<LeafTypeTree<TernaryVector>> ternary =
+        query_engine->GetTernary(scaled_index);
+    if (!ternary.has_value()) {
+      return std::nullopt;
+    }
+    TernaryVector known_bits = ternary->Get({});
     if (known_bits.size() < bits_to_remove) {
       return std::nullopt;
     }

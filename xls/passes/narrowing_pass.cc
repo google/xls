@@ -204,21 +204,25 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       Node* to_replace, const QueryEngine& query_engine,
       const std::function<absl::Status(const Value&)>& replace_with,
       std::string_view context) {
-    LeafTypeTree<TernaryVector> ternary = query_engine.GetTernary(to_replace);
-    for (Type* leaf_type : ternary.leaf_types()) {
+    std::optional<LeafTypeTree<TernaryVector>> ternary =
+        query_engine.GetTernary(to_replace);
+    if (!ternary.has_value()) {
+      return false;
+    }
+    for (Type* leaf_type : ternary->leaf_types()) {
       if (leaf_type->IsToken()) {
         XLS_RETURN_IF_ERROR(NoChange());
         return false;
       }
     }
-    for (const TernaryVector& ternary_vector : ternary.elements()) {
+    for (const TernaryVector& ternary_vector : ternary->elements()) {
       if (!ternary_ops::IsFullyKnown(ternary_vector)) {
         XLS_RETURN_IF_ERROR(NoChange());
         return false;
       }
     }
     LeafTypeTree<Value> value_ltt = leaf_type_tree::Map<Value, TernaryVector>(
-        ternary.AsView(), [](const TernaryVector& ternary_vector) -> Value {
+        ternary->AsView(), [](const TernaryVector& ternary_vector) -> Value {
           return Value(ternary_ops::ToKnownBitsValues(ternary_vector));
         });
     XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_ltt.AsView()));
@@ -1726,12 +1730,20 @@ static void RangeAnalysisLog(FunctionBase* f,
 
       if (ternary_query_engine.IsTracked(node) &&
           range_query_engine.IsTracked(node)) {
-        TernaryVector ternary_result =
-            ternary_query_engine.GetTernary(node).Get({});
-        TernaryVector range_result =
-            range_query_engine.GetTernary(node).Get({});
+        std::optional<LeafTypeTree<TernaryVector>> ternary_result =
+            ternary_query_engine.GetTernary(node);
+        std::optional<LeafTypeTree<TernaryVector>> range_result =
+            range_query_engine.GetTernary(node);
+        TernaryVector ternary_vec =
+            ternary_result.has_value()
+                ? ternary_result->Get({})
+                : TernaryVector(node->BitCountOrDie(), TernaryValue::kUnknown);
+        TernaryVector range_vec =
+            range_result.has_value()
+                ? range_result->Get({})
+                : TernaryVector(node->BitCountOrDie(), TernaryValue::kUnknown);
         std::optional<TernaryVector> difference =
-            ternary_ops::Difference(range_result, ternary_result);
+            ternary_ops::Difference(range_vec, ternary_vec);
         CHECK(difference.has_value())
             << "Inconsistency detected in node: " << node->GetName();
         bits_saved += ternary_ops::NumberOfKnownBits(difference.value());

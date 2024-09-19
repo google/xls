@@ -148,15 +148,10 @@ class RangeQueryEngine : public QueryEngine {
     return IsTracked(node) || HasExplicitIntervals(node);
   }
 
-  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
     if (!node->GetType()->IsBits()) {
-      return LeafTypeTree<TernaryVector>::CreateFromFunction(
-                 node->GetType(),
-                 [](Type* leaf_type, absl::Span<const int64_t> index) {
-                   return TernaryVector(leaf_type->GetFlatBitCount(),
-                                        TernaryValue::kUnknown);
-                 })
-          .value();
+      return std::nullopt;
     }
     TernaryVector tvec = ternary_ops::FromKnownBits(known_bits_.at(node),
                                                     known_bit_values_.at(node));

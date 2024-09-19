@@ -333,11 +333,12 @@ class Analysis {
             return std::nullopt;
           }
           // return memoized value from base
+          std::optional<LeafTypeTree<TernaryVector>> ternary =
+              n->GetType()->IsBits() ? base_range_.GetTernary(n) : std::nullopt;
           return RangeData{
-              .ternary =
-                  n->GetType()->IsBits()
-                      ? std::make_optional(base_range_.GetTernary(n).Get({}))
-                      : std::nullopt,
+              .ternary = ternary.has_value()
+                             ? std::make_optional(ternary->Get({}))
+                             : std::nullopt,
               .interval_set = base_range_.GetIntervals(n),
           };
         });
@@ -370,8 +371,12 @@ class Analysis {
       if (interval.IsEmpty()) {
         // This case is actually impossible? For now just ignore.
         // TODO: Figure out some way to communicate this.
+        std::optional<LeafTypeTree<TernaryVector>> ternary =
+            base_range_.GetTernary(node);
         ranges[node] = RangeData{
-            .ternary = base_range_.GetTernary(node).Get({}),
+            .ternary = ternary.has_value()
+                           ? std::make_optional(ternary->Get({}))
+                           : std::nullopt,
             .interval_set = base_range_.GetIntervals(node),
         };
       } else {
@@ -404,7 +409,8 @@ class ProxyContextQueryEngine final : public QueryEngine {
   }
   bool IsTracked(Node* node) const override { return base_.IsTracked(node); }
 
-  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
     return MostSpecific(node).GetTernary(node);
   }
 
@@ -444,21 +450,25 @@ class ProxyContextQueryEngine final : public QueryEngine {
 
   bool KnownEquals(const TreeBitLocation& a,
                    const TreeBitLocation& b) const override {
-    if (!IsKnown(a) || !IsKnown(b)) {
+    std::optional<bool> a_value = QueryEngine::KnownValue(a);
+    if (!a_value.has_value()) {
       return false;
     }
-    TernaryValue av = GetTernary(a.node()).Get(a.tree_index())[a.bit_index()];
-    TernaryValue bv = GetTernary(b.node()).Get(b.tree_index())[b.bit_index()];
-    return av != TernaryValue::kUnknown && av == bv;
+    return a_value.has_value() && a_value == QueryEngine::KnownValue(b);
   }
 
   // Returns true if 'a' is the inverse of 'b'
   bool KnownNotEquals(const TreeBitLocation& a,
                       const TreeBitLocation& b) const override {
-    TernaryValue av = GetTernary(a.node()).Get(a.tree_index())[a.bit_index()];
-    TernaryValue bv = GetTernary(b.node()).Get(b.tree_index())[b.bit_index()];
-    return av != TernaryValue::kUnknown && bv != TernaryValue::kUnknown &&
-           av != bv;
+    std::optional<bool> a_value = QueryEngine::KnownValue(a);
+    if (!a_value.has_value()) {
+      return false;
+    }
+    std::optional<bool> b_value = QueryEngine::KnownValue(b);
+    if (!b_value.has_value()) {
+      return false;
+    }
+    return a_value != b_value;
   }
 
  private:

@@ -32,6 +32,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -316,8 +317,11 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
   if (binary_op->op == Op::kUMul) {
     // Check if the binary op can overflow.
     int64_t op_width = compare->operand->BitCountOrDie();
-    int64_t op_size = ternary_ops::MinimumBitCount(
-        query_engine.GetTernary(binary_op->operand).Get({}));
+    std::optional<LeafTypeTree<TernaryVector>> op_ternary =
+        query_engine.GetTernary(binary_op->operand);
+    int64_t op_size = op_ternary.has_value()
+                          ? ternary_ops::MinimumBitCount(op_ternary->Get({}))
+                          : binary_op->operand->BitCountOrDie();
     int64_t const_size = binary_op->constant.bits().bit_count() -
                          binary_op->constant.bits().CountLeadingZeros();
     // If op_width is greater than or equal to the combined sizes of the

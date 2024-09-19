@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
@@ -441,12 +442,18 @@ absl::StatusOr<bool> StrengthReduceNode(
       query_engine.IsTracked(node->operand(1))) {
     Node* left = node->operand(0);
     Node* right = node->operand(1);
-    TernaryVector left_ternary = query_engine.GetTernary(left).Get({});
-    TernaryVector right_ternary = query_engine.GetTernary(right).Get({});
+    std::optional<LeafTypeTree<TernaryVector>> left_ternary =
+        query_engine.GetTernary(left);
+    std::optional<LeafTypeTree<TernaryVector>> right_ternary =
+        query_engine.GetTernary(right);
     int64_t left_unknown_count =
-        absl::c_count(left_ternary, TernaryValue::kUnknown);
+        left_ternary.has_value()
+            ? absl::c_count(left_ternary->Get({}), TernaryValue::kUnknown)
+            : left->BitCountOrDie();
     int64_t right_unknown_count =
-        absl::c_count(right_ternary, TernaryValue::kUnknown);
+        right_ternary.has_value()
+            ? absl::c_count(right_ternary->Get({}), TernaryValue::kUnknown)
+            : right->BitCountOrDie();
     Node* unknown_operand = left_unknown_count == 0 ? right : left;
     auto replace_with_select = [&](Node* variable, const Bits& value,
                                    const Value& true_result,
@@ -479,18 +486,22 @@ absl::StatusOr<bool> StrengthReduceNode(
     // TODO(allight): It might be good to do this with more unknown bits in some
     // cases (eg 200 bit mul with -> 8 branch select).
     if (left_unknown_count + right_unknown_count == 1) {
-      Value known_value =
-          left_unknown_count == 0
-              ? Value(ternary_ops::ToKnownBitsValues(left_ternary))
-              : Value(ternary_ops::ToKnownBitsValues(right_ternary));
-      const TernaryVector& unknown_value =
+      const std::optional<LeafTypeTree<TernaryVector>>& known_ternary =
+          left_unknown_count == 0 ? left_ternary : right_ternary;
+      const std::optional<LeafTypeTree<TernaryVector>>& unknown_ternary =
           left_unknown_count == 0 ? right_ternary : left_ternary;
+      Value known_value =
+          Value(ternary_ops::ToKnownBitsValues(known_ternary->Get({})));
+      TernaryVector unknown_value =
+          unknown_ternary.has_value()
+              ? unknown_ternary->Get({})
+              : TernaryVector(unknown_operand->BitCountOrDie(),
+                              TernaryValue::kUnknown);
       TernaryVector zero_vec(unknown_value);
-      TernaryVector one_vec(unknown_value);
-      // Set the single unknown to zero.
+      TernaryVector one_vec(std::move(unknown_value));
+      // Set the single unknown to zero/one respectively.
       absl::c_replace(zero_vec, TernaryValue::kUnknown,
                       TernaryValue::kKnownZero);
-      // Set the single unknown to one.
       absl::c_replace(one_vec, TernaryValue::kUnknown, TernaryValue::kKnownOne);
       Value zero_value = Value(ternary_ops::ToKnownBitsValues(zero_vec));
       Value one_value = Value(ternary_ops::ToKnownBitsValues(one_vec));

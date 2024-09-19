@@ -47,7 +47,8 @@ class TernaryQueryEngine : public QueryEngine {
     return values_.contains(node) && values_.at(node).type() == node->GetType();
   }
 
-  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
     return LeafTypeTree<TernaryVector>(node->GetType(),
                                        GetTernaryView(node).elements());
   }

@@ -65,7 +65,8 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
     return base_case_ranges_.IsTracked(node);
   }
 
-  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
     return base_case_ranges_.GetTernary(node);
   }
 
