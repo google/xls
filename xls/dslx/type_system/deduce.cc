@@ -530,7 +530,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
                                                       DeduceCtx* ctx) {
   VLOG(5) << "DeduceUnrollFor: " << node->ToString();
 
-  XLS_RETURN_IF_ERROR(ctx->DeduceAndResolve(node->types()).status());
+  XLS_RETURN_IF_ERROR(ctx->DeduceAndResolve(node->type_annotation()).status());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> iterable_type,
                        ctx->DeduceAndResolve(node->iterable()));
   absl::StatusOr<InterpValue> iterable =
@@ -540,7 +540,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
         "unroll_for! must use a constexpr iterable expression at: ",
         node->iterable()->span().ToString(ctx->file_table())));
   }
-  const auto* types = dynamic_cast<const TupleTypeAnnotation*>(node->types());
+  const auto* types =
+      dynamic_cast<const TupleTypeAnnotation*>(node->type_annotation());
   CHECK(types);
   CHECK_EQ(types->members().size(), 2);
   TypeAnnotation* index_type_annot = types->members()[0];

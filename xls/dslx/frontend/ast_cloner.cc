@@ -839,7 +839,7 @@ class AstCloner : public AstNodeVisitor {
 
     UnrollFor* new_unroll_for = module_->Make<UnrollFor>(
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->types())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
         down_cast<Expr*>(old_to_new_.at(n->iterable())),
         down_cast<StatementBlock*>(old_to_new_.at(n->body())),
         down_cast<Expr*>(old_to_new_.at(n->init())));

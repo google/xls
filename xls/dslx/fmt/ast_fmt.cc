@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -836,10 +837,13 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
                               arena.MakeText(StripAnyDotModifier(n.attr()))});
 }
 
-DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
+DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n,
+                      const Comments& comments, DocArena& arena) {
+  CHECK(keyword == Keyword::kFor || keyword == Keyword::kUnrollFor)
+      << static_cast<std::underlying_type_t<Keyword>>(keyword);
   DocRef names_ref = Fmt(*n.names(), comments, arena);
   std::vector<DocRef> pieces = {
-      arena.Make(Keyword::kFor),
+      arena.Make(keyword),
       arena.MakeNestIfFlatFits(
           /*on_nested_flat_ref=*/names_ref,
           /*on_other_ref=*/arena.MakeConcat(arena.space(), names_ref))};
@@ -873,6 +877,14 @@ DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
       {arena.oparen(), Fmt(*n.init(), comments, arena), arena.cparen()}));
 
   return arena.MakeConcat(ConcatN(arena, pieces), ConcatN(arena, body_pieces));
+}
+
+DocRef Fmt(const UnrollFor& n, const Comments& comments, DocArena& arena) {
+  return FmtForLoopBase(Keyword::kUnrollFor, n, comments, arena);
+}
+
+DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
+  return FmtForLoopBase(Keyword::kFor, n, comments, arena);
 }
 
 DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
@@ -1332,10 +1344,6 @@ DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(arena.dot());
   pieces.push_back(Fmt(*n.index(), comments, arena));
   return ConcatNGroup(arena, pieces);
-}
-
-DocRef Fmt(const UnrollFor& n, const Comments& comments, DocArena& arena) {
-  LOG(FATAL) << "handle unroll for: " << n.ToString();
 }
 
 DocRef Fmt(const ZeroMacro& n, const Comments& comments, DocArena& arena) {

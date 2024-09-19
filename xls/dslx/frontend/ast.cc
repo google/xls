@@ -705,45 +705,9 @@ std::string StructInstance::ToStringInternal() const {
   return absl::StrFormat("%s { %s }", type_name, members_str);
 }
 
-std::string For::ToStringInternal() const {
-  std::string type_str;
-  if (type_annotation_ != nullptr) {
-    type_str = absl::StrCat(": ", type_annotation_->ToString());
-  }
-  return absl::StrFormat(R"(for %s%s in %s %s(%s))", names_->ToString(),
-                         type_str, iterable_->ToString(), body_->ToString(),
-                         init_->ToString());
-}
-
-UnrollFor::UnrollFor(Module* owner, Span span, NameDefTree* names,
-                     TypeAnnotation* types, Expr* iterable,
-                     StatementBlock* body, Expr* init)
-    : Expr(owner, std::move(span)),
-      names_(names),
-      types_(types),
-      iterable_(iterable),
-      body_(body),
-      init_(init) {}
+For::~For() = default;
 
 UnrollFor::~UnrollFor() = default;
-
-std::string UnrollFor::ToStringInternal() const {
-  std::string type_str;
-  if (types_ != nullptr) {
-    type_str = absl::StrCat(": ", types_->ToString());
-  }
-  return absl::StrFormat("unroll_for! %s%s in %s %s(%s)", names_->ToString(),
-                         type_str, iterable_->ToString(), body_->ToString(),
-                         init_->ToString());
-}
-
-std::vector<AstNode*> UnrollFor::GetChildren(bool want_types) const {
-  std::vector<AstNode*> children{names_, iterable_, body_, init_};
-  if (want_types && types_ != nullptr) {
-    children.push_back(types_);
-  }
-  return children;
-}
 
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
                          TypeAnnotation* type_annotation, Expr* value,
@@ -1598,21 +1562,19 @@ std::string StatementBlock::ToStringInternal() const {
       "{\n%s\n}", Indent(absl::StrJoin(stmts, "\n"), kRustSpacesPerIndent));
 }
 
-// -- class For
+// -- class ForLoopBase
 
-For::For(Module* owner, Span span, NameDefTree* names,
-         TypeAnnotation* type_annotation, Expr* iterable, StatementBlock* body,
-         Expr* init)
-    : Expr(owner, std::move(span)),
+ForLoopBase::ForLoopBase(Module* owner, Span span, NameDefTree* names,
+                         TypeAnnotation* type_annotation, Expr* iterable,
+                         StatementBlock* body, Expr* init)
+    : Expr(owner, span),
       names_(names),
       type_annotation_(type_annotation),
       iterable_(iterable),
       body_(body),
       init_(init) {}
 
-For::~For() = default;
-
-std::vector<AstNode*> For::GetChildren(bool want_types) const {
+std::vector<AstNode*> ForLoopBase::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {names_};
   if (want_types && type_annotation_ != nullptr) {
     results.push_back(type_annotation_);
@@ -1621,6 +1583,16 @@ std::vector<AstNode*> For::GetChildren(bool want_types) const {
   results.push_back(body_);
   results.push_back(init_);
   return results;
+}
+
+std::string ForLoopBase::ToStringInternal() const {
+  std::string type_str;
+  if (type_annotation_ != nullptr) {
+    type_str = absl::StrCat(": ", type_annotation_->ToString());
+  }
+  return absl::StrFormat("%s %s%s in %s %s(%s)", keyword(), names_->ToString(),
+                         type_str, iterable_->ToString(), body_->ToString(),
+                         init_->ToString());
 }
 
 // -- class Function

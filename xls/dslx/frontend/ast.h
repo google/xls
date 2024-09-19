@@ -2713,27 +2713,17 @@ class XlsTuple : public Expr {
   bool has_trailing_comma_;
 };
 
-// Represents a for-loop expression.
-class For : public Expr {
+// Abstract base class for a `for` loop-like expression, which may be e.g. a
+// regular `for` loop or an `unroll_for!`. The structure of these types of loops
+// should be as much the same as possible.
+class ForLoopBase : public Expr {
  public:
-  For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
-      Expr* iterable, StatementBlock* body, Expr* init);
-
-  ~For() override;
+  ForLoopBase(Module* owner, Span span, NameDefTree* names,
+              TypeAnnotation* type, Expr* iterable, StatementBlock* body,
+              Expr* init);
 
   // Leader chars are the for loop bindings and iterable.
   bool IsBlockedExprWithLeader() const override { return true; }
-
-  AstNodeKind kind() const override { return AstNodeKind::kFor; }
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleFor(this);
-  }
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleFor(this);
-  }
-
-  std::string_view GetNodeTypeName() const override { return "For"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -2756,8 +2746,12 @@ class For : public Expr {
     return Precedence::kStrongest;
   }
 
+ protected:
+  // Used by string conversion to determine the loop keyword for this loop.
+  virtual std::string_view keyword() const { return "for"; }
+
  private:
-  std::string ToStringInternal() const final;
+  std::string ToStringInternal() const override;
 
   NameDefTree* names_;
   TypeAnnotation* type_annotation_;
@@ -2766,17 +2760,38 @@ class For : public Expr {
   Expr* init_;
 };
 
-// Represents an operation to "unroll" the given for-like expression by the
-// number of elements in the given iterable.
-class UnrollFor : public Expr {
+// Represents a for-loop expression.
+class For : public ForLoopBase {
  public:
-  UnrollFor(Module* owner, Span span, NameDefTree* names, TypeAnnotation* types,
-            Expr* iterable, StatementBlock* body, Expr* init);
+  using ForLoopBase::ForLoopBase;
+
+  ~For() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kFor; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleFor(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleFor(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "For"; }
+
+ protected:
+  std::string_view keyword() const override { return "for"; }
+};
+
+// Represents an operation to "unroll" the given for-like expression by the
+// number of elements in the iterable.
+class UnrollFor : public ForLoopBase {
+ public:
+  using ForLoopBase::ForLoopBase;
+
   ~UnrollFor() override;
 
-  bool IsBlockedExprWithLeader() const override { return true; }
-
   AstNodeKind kind() const override { return AstNodeKind::kUnrollFor; }
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleUnrollFor(this);
   }
@@ -2784,26 +2799,9 @@ class UnrollFor : public Expr {
     return v->HandleUnrollFor(this);
   }
   std::string_view GetNodeTypeName() const override { return "unroll-for"; }
-  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  [[maybe_unused]] NameDefTree* names() const { return names_; }
-  TypeAnnotation* types() const { return types_; }
-  Expr* iterable() const { return iterable_; }
-  StatementBlock* body() const { return body_; }
-  [[maybe_unused]] Expr* init() const { return init_; }
-
-  Precedence GetPrecedenceWithoutParens() const final {
-    return Precedence::kStrongest;
-  }
-
- private:
-  std::string ToStringInternal() const final;
-
-  NameDefTree* names_;
-  TypeAnnotation* types_;
-  Expr* iterable_;
-  StatementBlock* body_;
-  Expr* init_;
+ protected:
+  std::string_view keyword() const override { return "unroll_for!"; }
 };
 
 // Represents a cast expression; converting a new value to a target type.
