@@ -598,6 +598,33 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+py_test(
+    name = "axi_writer_cocotb_test",
+    srcs = ["axi_writer_cocotb_test.py"],
+    data = [
+        ":axi_writer.v",
+        ":axi_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
 xls_dslx_library(
     name = "axi_stream_add_empty_dslx",
     srcs = ["axi_stream_add_empty.x"],
