@@ -37,15 +37,6 @@
 
 namespace xls::dslx {
 
-// Forward declaration from sister implementation file as we are recursively
-// bound to the central deduce-and-resolve routine in our node deduction
-// routines.
-//
-// TODO(cdleary): 2024-01-16 We can break this circular resolution with a
-// virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
-    const AstNode* node, DeduceCtx* ctx);
-
 // When enums have no type annotation explicitly placed on them we infer the
 // width of the enum from the values contained inside of its definition.
 static absl::StatusOr<std::unique_ptr<Type>> DeduceEnumSansUnderlyingType(
@@ -95,7 +86,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
   if (node->type_annotation() == nullptr) {
     XLS_ASSIGN_OR_RETURN(type, DeduceEnumSansUnderlyingType(node, ctx));
   } else {
-    XLS_ASSIGN_OR_RETURN(type, DeduceAndResolve(node->type_annotation(), ctx));
+    XLS_ASSIGN_OR_RETURN(type, ctx->DeduceAndResolve(node->type_annotation()));
     XLS_ASSIGN_OR_RETURN(
         type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
                              "enum underlying type", ctx->file_table()));

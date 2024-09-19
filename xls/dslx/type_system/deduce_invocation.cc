@@ -48,15 +48,6 @@
 
 namespace xls::dslx {
 
-// Forward declaration from sister implementation file as we are recursively
-// bound to the central deduce-and-resolve routine in our node deduction
-// routines.
-//
-// TODO(cdleary): 2024-01-16 We can break this circular resolution with a
-// virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
-    const AstNode* node, DeduceCtx* ctx);
-
 // Creates a function invocation on the first element of the given array.
 //
 // We need to create a fake invocation to deduce the type of a function
@@ -108,7 +99,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
 
   // First, get the input element type.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> arg0_type,
-                       DeduceAndResolve(args[0], ctx));
+                       ctx->DeduceAndResolve(args[0]));
 
   Expr* callee = args[1];
   // If the callee is an imported function, we need to check that it is public.
@@ -229,7 +220,7 @@ absl::Status AppendArgsForInstantiation(
     DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         DeduceAndResolve(arg, ctx));
+                         ctx->DeduceAndResolve(arg));
     VLOG(5) << absl::StreamFormat(
         "AppendArgsForInstantiation; arg: `%s` deduced: `%s` @ %s",
         arg->ToString(), type->ToString(),
@@ -412,7 +403,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
 
   for (Expr* arg : node->args()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         DeduceAndResolve(arg, ctx));
+                         ctx->DeduceAndResolve(arg));
 
     Visitor v(ctx, arg->span());
     XLS_RETURN_IF_ERROR(type->Accept(v));
@@ -434,7 +425,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceZeroMacro(const ZeroMacro* node,
   // However, we have to check that all of the transitive type within the
   // parametric argument type are "zero capable".
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_type,
-                       DeduceAndResolve(ToAstNode(node->type()), ctx));
+                       ctx->DeduceAndResolve(ToAstNode(node->type())));
   XLS_ASSIGN_OR_RETURN(parametric_type,
                        UnwrapMetaType(std::move(parametric_type), node->span(),
                                       "zero! macro type", ctx->file_table()));
@@ -456,7 +447,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAllOnesMacro(
   // However, we have to check that all of the transitive type within the
   // parametric argument type are "all-ones capable".
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_type,
-                       DeduceAndResolve(ToAstNode(node->type()), ctx));
+                       ctx->DeduceAndResolve(ToAstNode(node->type())));
   XLS_ASSIGN_OR_RETURN(
       parametric_type,
       UnwrapMetaType(std::move(parametric_type), node->span(),

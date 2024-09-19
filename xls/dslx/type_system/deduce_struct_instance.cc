@@ -47,15 +47,6 @@
 
 namespace xls::dslx {
 
-// Forward declaration from sister implementation file as we are recursively
-// bound to the central deduce-and-resolve routine in our node deduction
-// routines.
-//
-// TODO(cdleary): 2024-01-16 We can break this circular resolution with a
-// virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
-    const AstNode* node, DeduceCtx* ctx);
-
 namespace {
 
 struct ValidatedStructMembers {
@@ -99,7 +90,7 @@ absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
           ctx->file_table());
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> expr_type,
-                         DeduceAndResolve(expr, ctx));
+                         ctx->DeduceAndResolve(expr));
     XLS_RET_CHECK(!expr_type->IsMeta())
         << "name: " << name << " expr: " << expr->ToString()
         << " type: " << *expr_type;

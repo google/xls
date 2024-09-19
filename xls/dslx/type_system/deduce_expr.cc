@@ -48,15 +48,6 @@
 
 namespace xls::dslx {
 
-// Forward declaration from sister implementation file as we are recursively
-// bound to the central deduce-and-resolve routine in our node deduction
-// routines.
-//
-// TODO(cdleary): 2024-01-16 We can break this circular resolution with a
-// virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
-    const AstNode* node, DeduceCtx* ctx);
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceEmptyArray(const Array* node,
                                                        DeduceCtx* ctx) {
   // We cannot have an array that is just an ellipsis, ellipsis indicates we
@@ -118,7 +109,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
   std::vector<std::unique_ptr<Type>> member_types;
   for (Expr* member : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> member_type,
-                         DeduceAndResolve(member, ctx));
+                         ctx->DeduceAndResolve(member));
     member_types.push_back(std::move(member_type));
   }
 
@@ -480,7 +471,7 @@ static const absl::flat_hash_set<BinopKind>& GetEnumOkKinds() {
 static absl::StatusOr<std::unique_ptr<Type>> DeduceShift(const Binop* node,
                                                          DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs,
-                       DeduceAndResolve(node->lhs(), ctx));
+                       ctx->DeduceAndResolve(node->lhs()));
 
   std::optional<uint64_t> number_value;
   if (auto* number = dynamic_cast<Number*>(node->rhs());
@@ -504,7 +495,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceShift(const Binop* node,
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> rhs,
-                       DeduceAndResolve(node->rhs(), ctx));
+                       ctx->DeduceAndResolve(node->rhs()));
 
   // Validate bits type for lhs and rhs.
   BitsType* lhs_bit_type = dynamic_cast<BitsType*>(lhs.get());
@@ -548,9 +539,9 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceShift(const Binop* node,
 static absl::StatusOr<std::unique_ptr<Type>> DeduceConcat(const Binop* node,
                                                           DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs,
-                       DeduceAndResolve(node->lhs(), ctx));
+                       ctx->DeduceAndResolve(node->lhs()));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> rhs,
-                       DeduceAndResolve(node->rhs(), ctx));
+                       ctx->DeduceAndResolve(node->rhs()));
 
   std::optional<BitsLikeProperties> lhs_bits_like = GetBitsLike(*lhs);
   std::optional<BitsLikeProperties> rhs_bits_like = GetBitsLike(*rhs);
@@ -628,9 +619,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBinop(const Binop* node,
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs,
-                       DeduceAndResolve(node->lhs(), ctx));
+                       ctx->DeduceAndResolve(node->lhs()));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> rhs,
-                       DeduceAndResolve(node->rhs(), ctx));
+                       ctx->DeduceAndResolve(node->rhs()));
 
   if (*lhs != *rhs) {
     return ctx->TypeMismatchError(

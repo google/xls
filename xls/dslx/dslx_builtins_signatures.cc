@@ -893,7 +893,7 @@ PopulateSignatureToLambdaMap() {
 
     ExprOrType param_type = data.arg_explicit_parametrics.at(0);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
-                         DeduceAndResolve(ToAstNode(param_type), ctx));
+                         ctx->DeduceAndResolve(ToAstNode(param_type)));
     XLS_ASSIGN_OR_RETURN(return_type,
                          UnwrapMetaType(std::move(return_type), data.span,
                                         data.name, ctx->file_table()));
@@ -1105,7 +1105,7 @@ PopulateSignatureToLambdaMap() {
     }
     AstNode* param_type = ToAstNode(data.arg_explicit_parametrics.at(0));
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
-                         DeduceAndResolve(param_type, ctx));
+                         ctx->DeduceAndResolve(param_type));
     XLS_ASSIGN_OR_RETURN(return_type,
                          UnwrapMetaType(std::move(return_type), data.span,
                                         data.name, ctx->file_table()));

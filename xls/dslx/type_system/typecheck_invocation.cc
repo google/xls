@@ -362,7 +362,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   instantiate_args.reserve(args.size());
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         DeduceAndResolve(arg, ctx));
+                         ctx->DeduceAndResolve(arg));
     arg_types.push_back(type->CloneToUnique());
     instantiate_args.push_back(InstantiateArg{std::move(type), arg->span()});
   }
@@ -444,7 +444,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   if (callee_fn.proc().has_value()) {
     Proc* p = callee_fn.proc().value();
     for (auto* member : p->members()) {
-      XLS_ASSIGN_OR_RETURN(auto type, DeduceAndResolve(member, ctx));
+      XLS_ASSIGN_OR_RETURN(auto type, ctx->DeduceAndResolve(member));
       ctx->type_info()->SetItem(member, *type);
       ctx->type_info()->SetItem(member->name_def(), *type);
     }

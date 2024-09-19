@@ -181,6 +181,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::Resolve(
   return ResolveViaEnv(type, fn_parametric_env);
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::DeduceAndResolve(
+    const AstNode* node) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> deduced, Deduce(node));
+  return Resolve(*deduced);
+}
+
 std::string DeduceCtx::GetFnStackDebugString() const {
   std::stringstream ss;
   ss << absl::StreamFormat("== Function Stack for DeduceCtx %p\n", this);

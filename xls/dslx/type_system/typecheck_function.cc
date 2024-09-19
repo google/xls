@@ -176,7 +176,7 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
   if (f.return_type() == nullptr) {
     return_type = TupleType::MakeUnit();
   } else {
-    XLS_ASSIGN_OR_RETURN(return_type, DeduceAndResolve(f.return_type(), ctx));
+    XLS_ASSIGN_OR_RETURN(return_type, ctx->DeduceAndResolve(f.return_type()));
     XLS_ASSIGN_OR_RETURN(
         return_type,
         UnwrapMetaType(std::move(return_type), f.return_type()->span(),
@@ -187,7 +187,7 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
   if (f.proc().has_value()) {
     Proc* p = f.proc().value();
     for (auto* param : p->members()) {
-      XLS_ASSIGN_OR_RETURN(auto type, DeduceAndResolve(param, ctx));
+      XLS_ASSIGN_OR_RETURN(auto type, ctx->DeduceAndResolve(param));
       ctx->type_info()->SetItem(param, *type);
       ctx->type_info()->SetItem(param->name_def(), *type);
     }
@@ -195,7 +195,7 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
 
   // Assert type consistency between the body and deduced return types.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> body_type,
-                       DeduceAndResolve(f.body(), ctx));
+                       ctx->DeduceAndResolve(f.body()));
   VLOG(3) << absl::StrFormat("Resolved return type: %s => %s",
                              return_type->ToString(), body_type->ToString());
   if (body_type->IsMeta()) {

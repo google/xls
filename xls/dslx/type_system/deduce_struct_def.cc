@@ -34,15 +34,6 @@
 
 namespace xls::dslx {
 
-// Forward declaration from sister implementation file as we are recursively
-// bound to the central deduce-and-resolve routine in our node deduction
-// routines.
-//
-// TODO(cdleary): 2024-01-16 We can break this circular resolution with a
-// virtual function on DeduceCtx when we get things refactored nicely.
-extern absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(
-    const AstNode* node, DeduceCtx* ctx);
-
 // Warn folks if it's not following
 // https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
 static void WarnOnInappropriateMemberName(std::string_view member_name,
@@ -90,7 +81,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructDef(const StructDef* node,
     WarnOnInappropriateMemberName(name, name_span, *node->owner(), ctx);
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete,
-                         DeduceAndResolve(type, ctx));
+                         ctx->DeduceAndResolve(type));
     XLS_ASSIGN_OR_RETURN(concrete,
                          UnwrapMetaType(std::move(concrete), type->span(),
                                         "struct member type", file_table));

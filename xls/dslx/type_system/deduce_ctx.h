@@ -223,6 +223,9 @@ class DeduceCtx {
   //  "type" with dimensions resolved according to the current bindings.
   absl::StatusOr<std::unique_ptr<Type>> Resolve(const Type& type) const;
 
+  // Sequences Deduce, then Resolve.
+  absl::StatusOr<std::unique_ptr<Type>> DeduceAndResolve(const AstNode* node);
+
   const TypecheckModuleFn& typecheck_module() const {
     return typecheck_module_;
   }
