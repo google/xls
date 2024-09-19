@@ -70,6 +70,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:pos",
         "@boringssl//:crypto",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/status",

@@ -61,8 +61,9 @@ namespace {
 std::filesystem::path MaybeCopyFile(const std::filesystem::path& file_path,
                                     const std::filesystem::path& dir_path) {
   DCHECK(std::filesystem::is_directory(dir_path));
+  std::filesystem::path canonical_file = std::filesystem::canonical(file_path);
   std::filesystem::path basename = file_path.filename();
-  if (file_path.parent_path() != dir_path) {
+  if (canonical_file.parent_path() != dir_path) {
     std::filesystem::copy_file(file_path, dir_path / basename);
   }
   return dir_path / basename;

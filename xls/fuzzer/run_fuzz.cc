@@ -24,6 +24,8 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/flags/declare.h"
+#include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
@@ -49,6 +51,9 @@
 #include "xls/fuzzer/sample_generator.h"
 #include "xls/fuzzer/sample_runner.h"
 #include "xls/fuzzer/sample_summary.pb.h"
+
+ABSL_DECLARE_FLAG(int32_t, v);
+ABSL_DECLARE_FLAG(std::string, vmodule);
 
 namespace xls {
 
@@ -183,19 +188,26 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
       "--logtostderr",
   };
 
+  // Pass on verbosity flags if available.
+  if (int64_t verbosity = absl::GetFlag(FLAGS_v); verbosity > 0) {
+    argv.push_back(absl::StrCat("--v=", verbosity));
+  }
+  if (std::string vmodule = absl::GetFlag(FLAGS_vmodule); !vmodule.empty()) {
+    argv.push_back(absl::StrCat("--vmodule=", absl::GetFlag(FLAGS_vmodule)));
+  }
+
   std::filesystem::path sample_file_name = run_dir / "sample.x";
-  XLS_RETURN_IF_ERROR(
-      SetFileContents(run_dir / sample_file_name, smp.input_text()));
+  XLS_RETURN_IF_ERROR(SetFileContents(sample_file_name, smp.input_text()));
   argv.push_back("--input_file=sample.x");
 
   std::filesystem::path options_file_name = run_dir / "options.pbtxt";
   XLS_RETURN_IF_ERROR(
-      SetFileContents(run_dir / options_file_name, smp.options().ToPbtxt()));
+      SetFileContents(options_file_name, smp.options().ToPbtxt()));
   argv.push_back("--options_file=options.pbtxt");
 
   std::filesystem::path args_file_name = run_dir / "args.txt";
-  XLS_RETURN_IF_ERROR(SetFileContents(run_dir / args_file_name,
-                                      ArgsBatchToText(smp.args_batch())));
+  XLS_RETURN_IF_ERROR(
+      SetFileContents(args_file_name, ArgsBatchToText(smp.args_batch())));
   argv.push_back("--args_file=args.txt");
 
   std::optional<std::filesystem::path> ir_channel_names_file_name =
@@ -203,7 +215,7 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   if (!smp.ir_channel_names().empty()) {
     ir_channel_names_file_name = run_dir / "ir_channel_names.txt";
     XLS_RETURN_IF_ERROR(
-        SetFileContents(run_dir / *ir_channel_names_file_name,
+        SetFileContents(*ir_channel_names_file_name,
                         IrChannelNamesToText(smp.ir_channel_names())));
     argv.push_back("--ir_channel_names_file=ir_channel_names.txt");
   }
@@ -211,12 +223,12 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   argv.push_back(run_dir.string());
 
   std::filesystem::path run_script_path = run_dir / "run.sh";
-  XLS_RETURN_IF_ERROR(
-      SetFileContents(run_script_path, absl::StrFormat(R"(#!/bin/sh
-
-{ %s }
+  XLS_RETURN_IF_ERROR(SetFileContents(
+      run_script_path, absl::StrFormat(R"(#!/bin/sh
+cd '%s'
+%s
 )",
-                                                       ArgvToCmdline(argv))));
+                                       run_dir, ArgvToCmdline(argv))));
   std::filesystem::permissions(run_script_path,
                                std::filesystem::perms::owner_exec,
                                std::filesystem::perm_options::add);
