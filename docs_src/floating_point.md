@@ -379,13 +379,10 @@ X operand                          | `sN[RESULT_SZ]` value
 ---------------------------------- | -----------------------
 `NaN`                              | `sN[RESULT_SZ]::ZERO`
 `+Inf`                             | `sN[RESULT_SZ]::MAX`
-`-Inf`                             | `sN[RESULT_SZ]::MIN`[^1]
+`-Inf`                             | `sN[RESULT_SZ]::MIN`
 +0.0, -0.0 or any subnormal number | `sN[RESULT_SZ]::ZERO`
 `> sN[RESULT_SZ]::MAX`             | `sN[RESULT_SZ]::MAX`
 `< sN[RESULT_SZ]::MIN`             | `sN[RESULT_SZ]::MIN`
-
-[^1]: Does not exist yet (https://github.com/google/xls/issues/1556) but used
-    here for clarity.
 
 ### `apfloat::to_uint`
 
