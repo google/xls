@@ -61,6 +61,10 @@ absl::Status VerifyParentage(const AstNode* root);
 // well as that node itself).
 absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node);
 
+// Returns whether the given attribute is a known colon-ref attribute of a
+// builtin bits type.
+bool IsBuiltinBitsTypeAttr(std::string_view attr);
+
 // Returns whether node n is a parametric function.
 //
 // "n" may be null.

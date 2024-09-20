@@ -955,10 +955,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToBuiltinNameDef(
   if (auto it = sized_type_keywords.find(builtin_name_def->identifier());
       it != sized_type_keywords.end()) {
     auto [is_signed, size] = it->second;
-    if (node->attr() == "MAX") {
-      return std::make_unique<BitsType>(is_signed, size);
-    }
-    if (node->attr() == "ZERO") {
+    if (IsBuiltinBitsTypeAttr(node->attr())) {
       return std::make_unique<BitsType>(is_signed, size);
     }
     return TypeInferenceErrorStatus(
@@ -990,15 +987,15 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
                         resolved->ToString()),
         ctx->file_table());
   }
-  if (node->attr() != "MAX" && node->attr() != "ZERO") {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrFormat("Type '%s' does not have attribute '%s'.",
-                        array_type->ToString(), node->attr()),
-        ctx->file_table());
+  if (IsBuiltinBitsTypeAttr(node->attr())) {
+    VLOG(5) << "DeduceColonRefToArrayType result: " << resolved->ToString();
+    return resolved;
   }
-  VLOG(5) << "DeduceColonRefToArrayType result: " << resolved->ToString();
-  return resolved;
+  return TypeInferenceErrorStatus(
+      node->span(), nullptr,
+      absl::StrFormat("Type '%s' does not have attribute '%s'.",
+                      array_type->ToString(), node->attr()),
+      ctx->file_table());
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,

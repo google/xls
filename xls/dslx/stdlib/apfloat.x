@@ -1494,7 +1494,7 @@ fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, F
 
 // Returns the signed integer part of the input float, truncating any
 // fractional bits if necessary.
-// Exceptional cases (note: MIN does not yet exist but used for clarity):
+// Exceptional cases:
 // NaN                  -> sN[RESULT_SZ]::ZERO
 // +Inf                 -> sN[RESULT_SZ]::MAX
 // -Inf                 -> sN[RESULT_SZ]::MIN

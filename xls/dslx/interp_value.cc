@@ -106,6 +106,20 @@ std::string TagToString(InterpValueTag tag) {
   return InterpValue{InterpValueTag::kSBits, std::move(bits)};
 }
 
+/* static */ InterpValue InterpValue::MakeMinValue(bool is_signed,
+                                                   int64_t bit_count) {
+  auto bits = Bits(bit_count);
+  if (!is_signed) {
+    return InterpValue{InterpValueTag::kUBits, std::move(bits)};
+  }
+  // Set the highest bit to get the most-negative value in two's complement
+  // form.
+  if (bit_count > 0) {
+    bits = bits.UpdateWithSet(bit_count - 1, true);
+  }
+  return InterpValue{InterpValueTag::kSBits, std::move(bits)};
+}
+
 /* static */ InterpValue InterpValue::MakeSBits(int64_t bit_count,
                                                 int64_t value) {
   return InterpValue{InterpValueTag::kSBits,

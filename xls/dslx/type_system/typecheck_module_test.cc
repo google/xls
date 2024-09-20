@@ -2342,6 +2342,7 @@ fn main() {
 TEST(TypecheckTest, AttrViaColonRef) {
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::ZERO }"));
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MAX }"));
+  XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MIN }"));
 }
 
 TEST(TypecheckTest, ColonRefTypeAlias) {
@@ -2349,6 +2350,14 @@ TEST(TypecheckTest, ColonRefTypeAlias) {
 type MyU8 = u8;
 fn f() -> u8 { MyU8::MAX }
 fn g() -> u8 { MyU8::ZERO }
+fn h() -> u8 { MyU8::MIN }
+)"));
+}
+
+TEST(TypecheckTest, MinAttrUsedInConstAsserts) {
+  XLS_EXPECT_OK(Typecheck(R"(
+const_assert!(u8::MIN == u8:0);
+const_assert!(s4::MIN == s4:-8);
 )"));
 }
 

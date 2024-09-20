@@ -218,6 +218,28 @@ absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node) {
   return the_set;
 }
 
+bool IsBuiltinBitsTypeAttr(std::string_view attr) {
+  return attr == "ZERO" || attr == "MAX" || attr == "MIN";
+}
+
+static absl::StatusOr<InterpValue> GetBuiltinBitsTypeAttr(
+    bool is_signed, uint64_t width, std::string_view attr,
+    const std::function<std::string_view()>& get_subject) {
+  if (attr == "ZERO") {
+    return InterpValue::MakeZeroValue(is_signed, width);
+  }
+  if (attr == "MAX") {
+    return InterpValue::MakeMaxValue(is_signed, width);
+  }
+  if (attr == "MIN") {
+    return InterpValue::MakeMinValue(is_signed, width);
+  }
+  // We only support the above attributes on builtin types at the moment --
+  // this is checked during typechecking.
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Invalid attribute of builtin %s: %s", get_subject(), attr));
+}
+
 absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
     const BuiltinNameDef* builtin_name_def, std::string_view attr) {
   const auto& sized_type_keywords = GetSizedTypeKeywordsMetadata();
@@ -225,17 +247,8 @@ absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
   // We should have checked this was a valid type keyword in typechecking.
   XLS_RET_CHECK(it != sized_type_keywords.end());
   auto [is_signed, width] = it->second;
-  if (attr == "ZERO") {
-    return InterpValue::MakeZeroValue(is_signed, width);
-  }
-  if (attr == "MAX") {
-    return InterpValue::MakeMaxValue(is_signed, width);
-  }
-  // We only support the above attributes on builtin types at the moment -- this
-  // is checked during typechecking.
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid attribute of builtin name %s: %s",
-                      builtin_name_def->identifier(), attr));
+  return GetBuiltinBitsTypeAttr(is_signed, width, attr,
+                                [&] { return builtin_name_def->identifier(); });
 }
 
 absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
@@ -261,14 +274,8 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
           "Can only take '::' attributes of uN/sN/bits array types.");
   }
 
-  if (attr == "ZERO") {
-    return InterpValue::MakeZeroValue(is_signed, constexpr_dim);
-  }
-  if (attr == "MAX") {
-    return InterpValue::MakeMaxValue(is_signed, constexpr_dim);
-  }
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid attribute of builtin array type: %s", attr));
+  return GetBuiltinBitsTypeAttr(is_signed, constexpr_dim, attr,
+                                [&] { return array_type->ToString(); });
 }
 
 std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
