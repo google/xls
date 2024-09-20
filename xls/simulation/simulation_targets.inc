@@ -14,23 +14,21 @@
 
 // The default list of parameterizations of the test. Use with testing::ValuesIn
 // in the INSTANTIATE_TEST_SUITE_P invocation.
-const SimulationTarget kDefaultSimulationTargets[] = {
+inline constexpr SimulationTarget kDefaultSimulationTargets[] = {
 #if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
     !defined(ABSL_HAVE_MEMORY_SANITIZER)
     // iverilog crashes with ASAN.
-    SimulationTarget{"iverilog",
-                     /*use_system_verilog=*/false}
+    {.simulator = "iverilog", .use_system_verilog = false},
 #endif
 };
 
-// Test parametameterization which fixes use_system_verilog to false, and is
+// Test parameterization which fixes use_system_verilog to false, and is
 // only parameterized on Verilog simulator. Use with testing::ValuesIn in the
 // INSTANTIATE_TEST_SUITE_P invocation.
-const SimulationTarget kVerilogOnlySimulationTargets[] = {
+inline constexpr SimulationTarget kVerilogOnlySimulationTargets[] = {
 #if !defined(ABSL_HAVE_ADDRESS_SANITIZER) && \
     !defined(ABSL_HAVE_MEMORY_SANITIZER)
     // iverilog crashes with ASAN.
-    SimulationTarget{"iverilog",
-                     /*use_system_verilog=*/false}
+    {.simulator = "iverilog", .use_system_verilog = false},
 #endif
 };

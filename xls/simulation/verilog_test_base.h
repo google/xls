@@ -77,7 +77,7 @@ namespace verilog {
 struct SimulationTarget {
   // Name of the simulator (e.g., "iverilog"). This string is passed to
   // xls::verilog::GetVerilogSimulator.
-  std::string simulator;
+  std::string_view simulator;
   // Whether or not to use SystemVerilog.
   bool use_system_verilog;
 };
