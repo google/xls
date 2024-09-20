@@ -312,6 +312,32 @@ s0
 Signed numbers differ in their behavior from unsigned numbers primarily via
 operations like comparisons, (variable width) multiplications, and divisions.
 
+#### Parametric Signedness
+
+The DSL also has a way to make a function parameterized on the signedness of a
+type, via the `xN` type constructor:
+
+```dslx
+// Parametric function that gives back a zero bits value of arbitrary
+// signedness and size.
+fn p<S: bool, N: u32>() -> xN[S][N] { xN[S][N]:0 }
+
+#[test]
+fn test_parametric_signedness() {
+  assert_eq(p<false, u32:32>(), u32:0);
+  assert_eq(p<true, u32:32>(), s32:0);
+  assert_eq(p<true, u32:64>(), s64:0);
+}
+```
+
+The above example shows that `xN[false][u32:32]` is an equivalent type to
+`u32`, and `xN[true][u32:64]` is an equivalent type to `s64`.
+
+The name `xN` indicates that it can be either `uN` or `sN` based on the first
+"signedness" given to the type constructor, which should be a `bool`. After the
+signedness is given, the bit-width for the type is provided, and that gives all
+the information to describe an arbitrary-signedness bit type.
+
 #### Bit Type Attributes
 
 Bit types have helpful type-level attributes that provide limit values, similar

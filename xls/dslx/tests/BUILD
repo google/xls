@@ -608,6 +608,8 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(name = "casts_to_xn")
+
 dslx_lang_test(
     name = "cast_to_array",
     # Note: no meaningful function to convert.

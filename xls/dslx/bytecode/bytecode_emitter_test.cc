@@ -271,6 +271,22 @@ fn do_ternary() -> u32 {
 006 jump_dest)");
 }
 
+TEST(BytecodeEmitterTest, CastToXbits) {
+  constexpr std::string_view kProgram = R"(#[test]
+fn main(x: u1) -> s1 {
+  x as xN[true][1]
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
+
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false,
+                              import_data.file_table()),
+            R"(000 load 0
+001 cast xN[is_signed=1][1])");
+}
+
 TEST(BytecodeEmitterTest, Shadowing) {
   constexpr std::string_view kProgram = R"(#[test]
 fn f() -> u32 {

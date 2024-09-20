@@ -262,6 +262,14 @@ fn f() -> (bool, u32)[2] { [p(u4:0), p(s8:0)] }
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, XbitsCast) {
+  std::string program = R"(
+fn f(x: u1) -> s1 { x as xN[true][1] }
+fn g() -> s1 { u1:0 as xN[true][1] }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckTest, ParametricPlusGlobal) {
   std::string program = R"(
 const GLOBAL = u32:4;
