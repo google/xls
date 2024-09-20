@@ -794,6 +794,18 @@ absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
       absl::StrFormat("No channel with name `%s`", name));
 }
 
+bool Package::ChannelsAreProcScoped() const {
+  if (!channels_.empty()) {
+    return false;
+  }
+  if (procs_.empty()) {
+    return false;
+  }
+  // The verifier checks that all procs are the same style so just check the
+  // first proc.
+  return procs_.front()->is_new_style_proc();
+}
+
 absl::StatusOr<Channel*> Package::CloneChannel(
     Channel* channel, std::string_view name,
     const CloneChannelOverrides& overrides) {

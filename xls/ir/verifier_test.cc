@@ -659,5 +659,35 @@ TEST_F(VerifierTest, NextNodeWithWrongTypePredicate) {
                              HasSubstr("had 32 bits"))));
 }
 
+TEST_F(VerifierTest, NewAndOldStyleProcs) {
+  const std::string input = R"(package test
+
+proc my_new_proc<>() {}
+proc my_old_proc() {}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Package has both new style procs (proc-scoped "
+                         "channels) and old-style procs")));
+}
+
+TEST_F(VerifierTest, NewStyleProcAndGlobalChannels) {
+  const std::string input = R"(package test
+
+chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
+
+proc my_new_proc<>() {}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Package has global channels and procs with "
+                                 "proc-scoped channels")));
+}
+
 }  // namespace
 }  // namespace xls

@@ -329,6 +329,10 @@ class Package {
   absl::StatusOr<Channel*> GetChannel(int64_t id) const;
   absl::StatusOr<Channel*> GetChannel(std::string_view name) const;
 
+  // Returns true if channels are proc scoped in this package. Returns false if
+  // there are no channels or procs.
+  bool ChannelsAreProcScoped() const;
+
   // Returns whether there exists a channel with the given ID / name.
   bool HasChannelWithId(int64_t id) const {
     for (Channel* channel : channel_vec_) {

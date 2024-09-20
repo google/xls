@@ -210,6 +210,22 @@ std::string DirectionToString(Direction direction) {
   }
 }
 
+absl::StatusOr<Direction> DirectionFromString(std::string_view str) {
+  if (str == "send") {
+    return Direction::kSend;
+  }
+  if (str == "receive") {
+    return Direction::kReceive;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid direction %s.", str));
+}
+
+std::ostream& operator<<(std::ostream& os, Direction direction) {
+  os << DirectionToString(direction);
+  return os;
+}
+
 std::string_view ChannelRefName(ChannelRef ref) {
   return absl::visit([](const auto& ch) { return ch->name(); }, ref);
 }

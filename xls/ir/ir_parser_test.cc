@@ -594,6 +594,8 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
   EXPECT_EQ(ch->metadata().channel_oneof_case(),
             ChannelMetadataProto::kModulePort);
   EXPECT_TRUE(ch->metadata().module_port().flopped());
+
+  EXPECT_FALSE(p.ChannelsAreProcScoped());
 }
 
 TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
@@ -914,6 +916,8 @@ top proc my_proc(tkn: token, st: bits[32], init={token, 42}) {
   XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * my_proc, pkg->GetProc("my_proc"));
   EXPECT_TRUE(pkg->GetTop().has_value());
   EXPECT_EQ(pkg->GetTop().value(), my_proc);
+
+  EXPECT_FALSE(pkg->ChannelsAreProcScoped());
 }
 
 TEST(IrParserTest, ParseTopBlock) {
@@ -999,6 +1003,18 @@ TEST(IrParserTest, ParseWithUnspecifiedIds) {
  }
 )";
   XLS_ASSERT_OK(Parser::ParsePackage(input).status());
+}
+
+TEST(IrParserTest, TrivialNewStyleProc) {
+  const std::string input = R"(package test
+
+top proc my_proc<>() {
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  EXPECT_TRUE(pkg->ChannelsAreProcScoped());
 }
 
 }  // namespace xls

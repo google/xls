@@ -347,6 +347,8 @@ inline std::ostream& operator<<(std::ostream& os, const Channel* channel) {
 enum class Direction : int8_t { kSend, kReceive };
 
 std::string DirectionToString(Direction direction);
+absl::StatusOr<Direction> DirectionFromString(std::string_view str);
+std::ostream& operator<<(std::ostream& os, Direction direction);
 
 // Abstraction representing a reference to a channel. The reference can be
 // typed to refer to the send or receive side. With proc-scoped channels (new

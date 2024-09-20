@@ -246,6 +246,27 @@ absl::Status VerifyTokenConnectivity(Node* source_token, Node* sink_token,
 
 // Verify various invariants about the channels owned by the given package.
 absl::Status VerifyChannels(Package* package, bool codegen) {
+  // All channels must be proc-scoped or no channels should be proc scoped.
+  bool has_global_channels = !package->channels().empty();
+  bool has_new_style_procs = false;
+  bool has_old_style_procs = false;
+  for (const std::unique_ptr<Proc>& proc : package->procs()) {
+    if (proc->is_new_style_proc()) {
+      has_new_style_procs = true;
+    } else {
+      has_old_style_procs = true;
+    }
+  }
+  if (has_global_channels && has_new_style_procs) {
+    return absl::InternalError(
+        "Package has global channels and procs with proc-scoped channels.");
+  }
+  if (has_new_style_procs && has_old_style_procs) {
+    return absl::InternalError(
+        "Package has both new style procs (proc-scoped channels) and old-style "
+        "procs.");
+  }
+
   // Verify unique ids.
   absl::flat_hash_map<int64_t, Channel*> channels_by_id;
   for (Channel* channel : package->channels()) {
