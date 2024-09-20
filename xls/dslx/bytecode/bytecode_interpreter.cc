@@ -49,6 +49,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -140,7 +141,9 @@ constexpr int64_t kChannelTraceIndentation = 2;
     ImportData* import_data, BytecodeFunction* bf,
     const std::vector<InterpValue>& args,
     const BytecodeInterpreterOptions& options) {
-  BytecodeInterpreter interpreter(import_data, options);
+  ProcIdFactory proc_id_factory;
+  BytecodeInterpreter interpreter(import_data, &proc_id_factory,
+                                  /*proc_id=*/std::nullopt, options);
   XLS_RETURN_IF_ERROR(interpreter.InitFrame(bf, args, bf->type_info()));
   XLS_RETURN_IF_ERROR(interpreter.Run());
   if (options.validate_final_stack_depth()) {
@@ -150,8 +153,12 @@ constexpr int64_t kChannelTraceIndentation = 2;
 }
 
 BytecodeInterpreter::BytecodeInterpreter(
-    ImportData* import_data, const BytecodeInterpreterOptions& options)
+    ImportData* import_data, ProcIdFactory* proc_id_factory,
+    const std::optional<ProcId>& proc_id,
+    const BytecodeInterpreterOptions& options)
     : import_data_(ABSL_DIE_IF_NULL(import_data)),
+      proc_id_factory_(proc_id_factory),
+      proc_id_(proc_id),
       stack_(import_data_->file_table()),
       options_(options) {}
 
@@ -172,10 +179,14 @@ absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeInterpreter>>
-BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
+BytecodeInterpreter::CreateUnique(ImportData* import_data,
+                                  ProcIdFactory* proc_id_factory,
+                                  const std::optional<ProcId>& proc_id,
+                                  BytecodeFunction* bf,
                                   const std::vector<InterpValue>& args,
                                   const BytecodeInterpreterOptions& options) {
-  auto interp = absl::WrapUnique(new BytecodeInterpreter(import_data, options));
+  auto interp = absl::WrapUnique(
+      new BytecodeInterpreter(import_data, proc_id_factory, proc_id, options));
   XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args, bf->type_info()));
   return interp;
 }
@@ -1088,7 +1099,8 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
       options_.trace_hook()(
           bytecode.source_span(),
           absl::StrFormat("Received data on channel `%s`:\n%s",
-                          channel_data->channel_name(), formatted_data));
+                          FormatChannelNameForTracing(*channel_data),
+                          formatted_data));
     }
     stack_.Push(InterpValue::MakeTuple(
         {token, channel->front(), InterpValue::MakeBool(true)}));
@@ -1131,7 +1143,8 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
       options_.trace_hook()(
           bytecode.source_span(),
           absl::StrFormat("Received data on channel `%s`:\n%s",
-                          channel_data->channel_name(), formatted_data));
+                          FormatChannelNameForTracing(*channel_data),
+                          formatted_data));
     }
     stack_.Push(InterpValue::MakeTuple({token, channel->front()}));
     channel->pop_front();
@@ -1160,7 +1173,8 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
       options_.trace_hook()(
           bytecode.source_span(),
           absl::StrFormat("Sent data on channel `%s`:\n%s",
-                          channel_data->channel_name(), formatted_data));
+                          FormatChannelNameForTracing(*channel_data),
+                          formatted_data));
     }
     channel->push_back(payload);
   }
@@ -1567,17 +1581,35 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
+std::string BytecodeInterpreter::FormatChannelNameForTracing(
+    const Bytecode::ChannelData& channel) {
+  // Indicate which instance of the proc it is, only if we are in a
+  // multi-instance network and it's not the root proc (since the root only has
+  // one instance).
+  if (proc_id().has_value() && proc_id()->proc_instance_stack.size() > 1 &&
+      proc_id_factory()->HasMultipleInstancesOfAnyProc()) {
+    return absl::StrFormat("%s (%s)", channel.channel_name(),
+                           proc_id()->ToString());
+  }
+  return std::string(channel.channel_name());
+}
+
 ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
-    ImportData* import_data, std::vector<ProcInstance>* proc_instances,
+    ImportData* import_data, ProcIdFactory* proc_id_factory,
+    const std::optional<ProcId>& proc_id,
+    std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options)
-    : BytecodeInterpreter(import_data, options),
+    : BytecodeInterpreter(import_data, proc_id_factory, proc_id, options),
       proc_instances_(proc_instances) {}
 
 absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
-    ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-    const InterpValue& terminator, std::vector<ProcInstance>* proc_instances,
+    ImportData* import_data, ProcIdFactory* proc_id_factory,
+    TypeInfo* type_info, Proc* root_proc, const InterpValue& terminator,
+    std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options) {
-  return EvalSpawn(import_data, type_info, /*caller_bindings=*/std::nullopt,
+  return EvalSpawn(import_data, proc_id_factory,
+                   /*caller_proc_id=*/std::nullopt, type_info,
+                   /*caller_bindings=*/std::nullopt,
                    /*callee_bindings=*/std::nullopt,
                    /*maybe_spawn=*/std::nullopt, root_proc,
                    /*config_args=*/{terminator}, proc_instances, options);
@@ -1586,19 +1618,22 @@ absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
 absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     const Bytecode& bytecode) {
   Frame& frame = frames().back();
+  XLS_RET_CHECK(proc_id().has_value());
   XLS_ASSIGN_OR_RETURN(const Bytecode::SpawnData* spawn_data,
                        bytecode.spawn_data());
   XLS_ASSIGN_OR_RETURN(
       std::vector<InterpValue> config_args,
       PopArgsRightToLeft(spawn_data->spawn_functions().config->args().size()));
-  return EvalSpawn(import_data(), frame.type_info(),
+  return EvalSpawn(import_data(), proc_id_factory(),
+                   /*caller_proc_id=*/proc_id(), frame.type_info(),
                    spawn_data->caller_bindings(), spawn_data->callee_bindings(),
                    spawn_data->spawn_functions(), spawn_data->proc(),
                    config_args, proc_instances_, options());
 }
 
 /* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
-    ImportData* import_data, const TypeInfo* type_info,
+    ImportData* import_data, ProcIdFactory* proc_id_factory,
+    const std::optional<ProcId>& caller_proc_id, const TypeInfo* type_info,
     const std::optional<ParametricEnv>& caller_bindings,
     const std::optional<ParametricEnv>& callee_bindings,
     std::optional<Bytecode::SpawnFunctions> spawn_functions, Proc* proc,
@@ -1641,7 +1676,9 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
 
-  ProcConfigBytecodeInterpreter cbi(import_data, proc_instances, options);
+  ProcId callee_proc_id = proc_id_factory->CreateProcId(caller_proc_id, proc);
+  ProcConfigBytecodeInterpreter cbi(import_data, proc_id_factory,
+                                    callee_proc_id, proc_instances, options);
   XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args, type_info));
   XLS_RETURN_IF_ERROR(cbi.Run());
   XLS_RET_CHECK_EQ(cbi.stack().size(), 1);
@@ -1686,7 +1723,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                                      options.format_preference()}));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeInterpreter> next_interpreter,
-      CreateUnique(import_data, next_bf.get(), full_next_args, options));
+      CreateUnique(import_data, proc_id_factory, callee_proc_id, next_bf.get(),
+                   full_next_args, options));
   proc_instances->push_back(ProcInstance{proc, std::move(next_interpreter),
                                          std::move(next_bf), full_next_args,
                                          type_info});

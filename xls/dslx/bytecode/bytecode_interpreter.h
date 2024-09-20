@@ -36,6 +36,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -90,12 +91,14 @@ class BytecodeInterpreter {
   const FileTable& file_table() const { return import_data_->file_table(); }
 
  protected:
-  BytecodeInterpreter(ImportData* import_data,
+  BytecodeInterpreter(ImportData* import_data, ProcIdFactory* proc_id_factory,
+                      const std::optional<ProcId>& proc_id,
                       const BytecodeInterpreterOptions& options);
 
   // Creates a new interpreter object with an initialized entry frame.
   static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
-      ImportData* import_data, BytecodeFunction* bf,
+      ImportData* import_data, ProcIdFactory* proc_id_factory,
+      const std::optional<ProcId>& proc_id, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
       const BytecodeInterpreterOptions& options);
 
@@ -103,6 +106,8 @@ class BytecodeInterpreter {
 
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
+  ProcIdFactory* proc_id_factory() const { return proc_id_factory_; }
+  const std::optional<ProcId>& proc_id() const { return proc_id_; }
   const BytecodeInterpreterOptions& options() const { return options_; }
   const std::optional<BlockedChannelInfo>& blocked_channel_info() const {
     return blocked_channel_info_;
@@ -115,6 +120,11 @@ class BytecodeInterpreter {
   // Pops `count` arguments to a function or spawn, assuming they were pushed in
   // left-to-right order and must be popped in right-to-left order.
   absl::StatusOr<std::vector<InterpValue>> PopArgsRightToLeft(size_t count);
+
+  // Formats the name of the given `channel` for logging via the trace hook. The
+  // name is qualified with the proc instantiation context, if it would
+  // otherwise be ambiguous.
+  std::string FormatChannelNameForTracing(const Bytecode::ChannelData& channel);
 
  private:
   friend class ProcInstance;
@@ -208,6 +218,9 @@ class BytecodeInterpreter {
   absl::StatusOr<InterpValue> Pop() { return stack_.Pop(); }
 
   ImportData* const import_data_;
+  ProcIdFactory* const proc_id_factory_;
+  const std::optional<ProcId> proc_id_;
+
   InterpreterStack stack_;
   std::vector<Frame> frames_;
 
@@ -231,8 +244,9 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // Populates `proc_instances` with the instances required to run the proc
   // network rooted at `root_proc`.
   static absl::Status InitializeProcNetwork(
-      ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-      const InterpValue& terminator, std::vector<ProcInstance>* proc_instances,
+      ImportData* import_data, ProcIdFactory* proc_id_factory,
+      TypeInfo* type_info, Proc* root_proc, const InterpValue& terminator,
+      std::vector<ProcInstance>* proc_instances,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
   ~ProcConfigBytecodeInterpreter() override = default;
@@ -241,7 +255,8 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // and EvalSpawn. `next_args` should not include Proc members or the
   // obligatory Token; they're added to the arg list internally.
   static absl::Status EvalSpawn(
-      ImportData* import_data, const TypeInfo* type_info,
+      ImportData* import_data, ProcIdFactory* proc_id_factory,
+      const std::optional<ProcId>& caller_proc_id, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings,
       const std::optional<ParametricEnv>& callee_bindings,
       std::optional<Bytecode::SpawnFunctions> spawn_functions, Proc* proc,
@@ -251,6 +266,8 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
 
  private:
   ProcConfigBytecodeInterpreter(ImportData* import_data,
+                                ProcIdFactory* proc_id_factory,
+                                const std::optional<ProcId>& proc_id,
                                 std::vector<ProcInstance>* proc_instances,
                                 const BytecodeInterpreterOptions& options);
 

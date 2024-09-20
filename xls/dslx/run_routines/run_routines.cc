@@ -57,6 +57,7 @@
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -157,8 +158,10 @@ absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
   std::vector<ProcInstance> proc_instances;
   XLS_ASSIGN_OR_RETURN(InterpValue terminator,
                        ti->GetConstExpr(tp->proc()->config().params()[0]));
+  ProcIdFactory proc_id_factory;
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
-      import_data, ti, tp->proc(), terminator, &proc_instances, options));
+      import_data, &proc_id_factory, ti, tp->proc(), terminator,
+      &proc_instances, options));
 
   std::shared_ptr<InterpValue::Channel> term_chan =
       terminator.GetChannelOrDie();

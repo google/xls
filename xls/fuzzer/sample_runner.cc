@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
-#include <deque>
 #include <filesystem>  // NOLINT
 #include <iterator>
 #include <memory>
@@ -59,6 +58,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -609,8 +609,10 @@ RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
     }
   }
 
+  dslx::ProcIdFactory proc_id_factory;
   XLS_RETURN_IF_ERROR(dslx::ProcConfigBytecodeInterpreter::EvalSpawn(
-      &import_data, proc_type_info, /*caller_bindings=*/std::nullopt,
+      &import_data, &proc_id_factory, /*caller_proc_id=*/std::nullopt,
+      proc_type_info, /*caller_bindings=*/std::nullopt,
       /*callee_bindings=*/std::nullopt, std::nullopt, proc, config_args,
       &proc_instances));
 

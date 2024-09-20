@@ -14,6 +14,7 @@
 
 #include "xls/dslx/frontend/proc_id.h"
 
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -22,14 +23,17 @@
 
 namespace xls::dslx {
 
-ProcId ProcIdFactory::CreateProcId(const ProcId& parent, Proc* spawnee,
-                                   bool count_as_new_instance) {
-  std::vector<std::pair<Proc*, int>> new_stack = parent.proc_instance_stack;
+ProcId ProcIdFactory::CreateProcId(const std::optional<ProcId>& parent,
+                                   Proc* spawnee, bool count_as_new_instance) {
+  ProcId parent_or_empty =
+      parent.has_value() ? *parent : ProcId{.proc_instance_stack = {}};
+  std::vector<std::pair<Proc*, int>> new_stack =
+      parent_or_empty.proc_instance_stack;
   int& instance_count =
-      instance_counts_[std::make_pair(parent, spawnee->identifier())];
+      instance_counts_[std::make_pair(parent_or_empty, spawnee->identifier())];
   new_stack.push_back(std::make_pair(spawnee, instance_count));
-  if (count_as_new_instance) {
-    ++instance_count;
+  if (count_as_new_instance && ++instance_count > 1) {
+    has_multiple_instances_of_any_proc_ = true;
   }
   return ProcId{.proc_instance_stack = std::move(new_stack)};
 }

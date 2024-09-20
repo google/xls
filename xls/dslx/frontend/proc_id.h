@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_FRONTEND_PROC_ID_H_
 #define XLS_DSLX_FRONTEND_PROC_ID_H_
 
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -88,12 +89,20 @@ struct ProcId {
 class ProcIdFactory {
  public:
   // Creates a `ProcId` representing the given `spawnee` spawned by the given
-  // `parent` context. If `count_as_new_instance` is true, then subsequent calls
-  // with the same `parent` and `spawnee` will get a new instance count value.
-  // Otherwise, subsequent calls will get an equivalent `ProcId` to the one
-  // returned by this call.
-  ProcId CreateProcId(const ProcId& parent, Proc* spawnee,
+  // `parent` context. If `parent` is `nullopt` then the `spawnee` is the root
+  // of the proc network. If `count_as_new_instance` is true, then subsequent
+  // calls with the same `parent` and `spawnee` will get a new instance count
+  // value. Otherwise, subsequent calls will get an equivalent `ProcId` to the
+  // one returned by this call.
+  ProcId CreateProcId(const std::optional<ProcId>& parent, Proc* spawnee,
                       bool count_as_new_instance = true);
+
+  // Returns whether any `spawnee` ever passed to `CreateProcId` in this
+  // factory has been passed more than once with the `count_as_new_instance`
+  // flag.
+  bool HasMultipleInstancesOfAnyProc() const {
+    return has_multiple_instances_of_any_proc_;
+  }
 
  private:
   // Maps each `parent` and `spawnee` identifier passed to `CreateProcId` to the
@@ -101,6 +110,7 @@ class ProcIdFactory {
   // `parent` and `spawnee` have been passed in with `true` for
   // `count_as_new_instance`.
   absl::flat_hash_map<std::pair<ProcId, std::string>, int> instance_counts_;
+  bool has_multiple_instances_of_any_proc_ = false;
 };
 
 }  // namespace xls::dslx

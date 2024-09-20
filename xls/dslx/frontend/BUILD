@@ -536,3 +536,23 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+cc_test(
+    name = "proc_id_test",
+    srcs = ["proc_id_test.cc"],
+    deps = [
+        ":ast",
+        ":bindings",
+        ":module",
+        ":parser",
+        ":pos",
+        ":proc",
+        ":proc_id",
+        ":scanner",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
