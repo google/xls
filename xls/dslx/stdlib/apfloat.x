@@ -1431,10 +1431,9 @@ fn test_fp_lt_2() {
     assert_eq(lt_2(nan, nan), u1:0);
 }
 
-// Helper to convert to a signed or unsigned integer as raw bits.
-// to_int and to_uint to interpret the bits as signed or unsigned, respectively.
+// Helper to convert to a signed or unsigned integer.
 fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, FRACTION_SZ: u32>
-    (x: APFloat<EXP_SZ, FRACTION_SZ>) -> bits[RESULT_SZ] {
+    (x: APFloat<EXP_SZ, FRACTION_SZ>) -> xN[RESULT_SIGNED][RESULT_SZ] {
     const WIDE_FRACTION: u32 = FRACTION_SZ + u32:1;
     const MAX_FRACTION_SZ: u32 = std::umax(RESULT_SZ, WIDE_FRACTION);
 
@@ -1481,14 +1480,16 @@ fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, F
         }
     };
 
+    // Needed for matching conditional consequent/alternative types.
+    type ReturnT = xN[RESULT_SIGNED][RESULT_SZ];
     if RESULT_SIGNED {
         // Reduce to the target size, preserving signedness.
         let result = result as sN[RESULT_SZ];
         let result = if !x.sign { result } else { -result };
-        result as bits[RESULT_SZ]
+        result as ReturnT
     } else {
         // Already unsigned, just size correctly.
-        result as bits[RESULT_SZ]
+        result as ReturnT
     }
 }
 
@@ -1503,7 +1504,7 @@ fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, F
 // < sN[RESULT_SZ]::MIN -> sN[RESULT_SZ]::MIN
 pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32>
     (x: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
-    to_signed_or_unsigned_int<RESULT_SZ, true>(x) as sN[RESULT_SZ]
+    to_signed_or_unsigned_int<RESULT_SZ, true>(x)
 }
 
 // TODO(rspringer): Create a broadly-applicable normalize test, that
