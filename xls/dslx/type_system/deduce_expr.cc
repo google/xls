@@ -48,8 +48,8 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<std::unique_ptr<Type>> DeduceEmptyArray(const Array* node,
-                                                       DeduceCtx* ctx) {
+static absl::StatusOr<std::unique_ptr<Type>> DeduceEmptyArray(const Array* node,
+                                                              DeduceCtx* ctx) {
   // We cannot have an array that is just an ellipsis, ellipsis indicates we
   // should replicate the last member.
   if (node->has_ellipsis()) {
