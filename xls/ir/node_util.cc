@@ -15,10 +15,12 @@
 #include "xls/ir/node_util.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -30,6 +32,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -600,6 +603,66 @@ absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
     }
   }
   return channel_users;
+}
+
+namespace {
+// TODO(allight): replace with absl::c_contains once absl is updated.
+template <typename Lst, typename Element>
+bool c_contains(const Lst& lst, const Element& e) {
+  return absl::c_find(lst, e) != lst.end();
+}
+}  // namespace
+
+absl::StatusOr<Node*> CompareLiteral(Node* lhs, int64_t rhs, Op cmp,
+                                     const std::optional<std::string>& name) {
+  XLS_RET_CHECK(c_contains(CompareOp::kOps, cmp)) << "Bad op " << cmp;
+  XLS_RET_CHECK(lhs->GetType()->IsBits());
+  bool is_signed = c_contains(
+      absl::Span<Op const>{Op::kSLe, Op::kSLt, Op::kSGe, Op::kSGt}, cmp);
+  int64_t rhs_bit_cnt = std::max(lhs->BitCountOrDie(),
+                                 is_signed ? Bits::MinBitCountSigned(rhs)
+                                           : Bits::MinBitCountUnsigned(rhs));
+  Bits val = is_signed ? SBits(rhs, rhs_bit_cnt) : UBits(rhs, rhs_bit_cnt);
+  XLS_ASSIGN_OR_RETURN(
+      Node * lit,
+      lhs->function_base()->MakeNodeWithName<Literal>(
+          lhs->loc(), Value(val),
+          name && !name->empty() ? absl::StrCat(*name, "_literal") : ""));
+  if (lhs->BitCountOrDie() < val.bit_count()) {
+    XLS_ASSIGN_OR_RETURN(lhs, lhs->function_base()->MakeNodeWithName<ExtendOp>(
+                                  lhs->loc(), lhs, lit->BitCountOrDie(),
+                                  is_signed ? Op::kSignExt : Op::kZeroExt,
+                                  lhs->HasAssignedName()
+                                      ? absl::StrCat(lhs->GetNameView(), "_ext")
+                                      : ""));
+  }
+  return lhs->function_base()->MakeNodeWithName<CompareOp>(
+      lhs->loc(), lhs, lit, cmp, name.value_or(""));
+}
+
+absl::StatusOr<Node*> CompareNumeric(Node* lhs, Node* rhs, Op cmp,
+                                     const std::optional<std::string>& name) {
+  XLS_RET_CHECK(c_contains(CompareOp::kOps, cmp)) << "Bad op " << cmp;
+  bool is_signed = c_contains(
+      absl::Span<Op const>{Op::kSLe, Op::kSLt, Op::kSGe, Op::kSGt}, cmp);
+  Op ext_op = is_signed ? Op::kSignExt : Op::kZeroExt;
+  XLS_RET_CHECK(lhs->GetType()->IsBits()) << lhs;
+  XLS_RET_CHECK(rhs->GetType()->IsBits()) << rhs;
+  if (lhs->BitCountOrDie() < rhs->BitCountOrDie()) {
+    XLS_ASSIGN_OR_RETURN(lhs, lhs->function_base()->MakeNodeWithName<ExtendOp>(
+                                  lhs->loc(), lhs, rhs->BitCountOrDie(), ext_op,
+                                  lhs->HasAssignedName()
+                                      ? absl::StrCat(lhs->GetNameView(), "_ext")
+                                      : ""));
+  } else if (lhs->BitCountOrDie() > rhs->BitCountOrDie()) {
+    XLS_ASSIGN_OR_RETURN(rhs, rhs->function_base()->MakeNodeWithName<ExtendOp>(
+                                  rhs->loc(), rhs, lhs->BitCountOrDie(), ext_op,
+                                  rhs->HasAssignedName()
+                                      ? absl::StrCat(rhs->GetNameView(), "_ext")
+                                      : ""));
+  }
+  return lhs->function_base()->MakeNodeWithName<CompareOp>(
+      lhs->loc(), lhs, rhs, cmp, name.value_or(""));
 }
 
 }  // namespace xls

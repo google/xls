@@ -21,7 +21,9 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -373,6 +375,22 @@ inline absl::StatusOr<Op> SignedCompareToUnsigned(Op op) {
 absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
     Package* package);
 
+// Compare 'lhs' to the literal value 'rhs'.
+//
+// Both are considered signed if the operation is a signed operation and
+// unsigned if the operation is not signed. kEq and kNe are both considered
+// unsigned.
+absl::StatusOr<Node*> CompareLiteral(
+    Node* lhs, int64_t rhs, Op cmp,
+    const std::optional<std::string>& name = std::nullopt);
+
+// Compare 'lhs' to the 'rhs' extending the shorter value to the appropriate
+// size. Both are considered signed if the operation is a signed operation and
+// unsigned if the operation is not signed. kEq and kNe are both considered
+// unsigned.
+absl::StatusOr<Node*> CompareNumeric(
+    Node* lhs, Node* rhs, Op cmp,
+    const std::optional<std::string>& name = std::nullopt);
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_
