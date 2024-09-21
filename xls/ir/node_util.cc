@@ -665,4 +665,67 @@ absl::StatusOr<Node*> CompareNumeric(Node* lhs, Node* rhs, Op cmp,
       lhs->loc(), lhs, rhs, cmp, name.value_or(""));
 }
 
+absl::StatusOr<Node*> UnsignedBoundByLiterals(Node* v, int64_t low_bound,
+                                              int64_t high_bound) {
+  XLS_RET_CHECK_LE(low_bound, high_bound);
+  XLS_RET_CHECK(v->GetType()->IsBits()) << v;
+  XLS_RET_CHECK_LE(Bits::MinBitCountUnsigned(low_bound), v->BitCountOrDie())
+      << "Low bound (" << low_bound << ") not representable by " << v;
+  if (low_bound == high_bound) {
+    return v->function_base()->MakeNodeWithName<Literal>(
+        v->loc(), Value(UBits(low_bound, v->BitCountOrDie())),
+        v->HasAssignedName() ? absl::StrFormat("%s_bounded", v->GetName())
+                             : "");
+  }
+  auto extend_name =
+      [&](std::string_view suffix) -> std::optional<std::string> {
+    if (v->HasAssignedName()) {
+      return absl::StrCat(v->GetName(), suffix);
+    }
+    return std::nullopt;
+  };
+  std::vector<Node*> select_compares;
+  std::vector<Node*> result_literals;
+  if (low_bound != 0) {
+    XLS_ASSIGN_OR_RETURN(Node * lt_low,
+                         CompareLiteral(v, low_bound, Op::kULt,
+                                        extend_name("_low_bound_check")));
+    XLS_ASSIGN_OR_RETURN(
+        Node * low, v->function_base()->MakeNodeWithName<Literal>(
+                        v->loc(), Value(UBits(low_bound, v->BitCountOrDie())),
+                        extend_name("_low_bound").value_or("")));
+    select_compares.push_back(lt_low);
+    result_literals.push_back(low);
+  }
+  if (v->BitCountOrDie() >= Bits::MinBitCountUnsigned(high_bound) &&
+      !UBits(high_bound, v->BitCountOrDie()).IsAllOnes()) {
+    XLS_ASSIGN_OR_RETURN(Node * gt_high,
+                         CompareLiteral(v, high_bound, Op::kUGt,
+                                        extend_name("_high_bound_check")));
+    XLS_ASSIGN_OR_RETURN(
+        Node * high, v->function_base()->MakeNodeWithName<Literal>(
+                         v->loc(), Value(UBits(high_bound, v->BitCountOrDie())),
+                         extend_name("_high_bound").value_or("")));
+    select_compares.push_back(gt_high);
+    result_literals.push_back(high);
+  }
+  if (select_compares.empty()) {
+    // Nothing to actually bound.
+    return v;
+  }
+  // Need MSB to be first
+  Node* selector;
+  if (select_compares.size() == 1) {
+    selector = select_compares.front();
+  } else {
+    absl::c_reverse(select_compares);
+    XLS_ASSIGN_OR_RETURN(selector, v->function_base()->MakeNodeWithName<Concat>(
+                                       v->loc(), select_compares,
+                                       extend_name("_checks").value_or("")));
+  }
+  return v->function_base()->MakeNodeWithName<PrioritySelect>(
+      v->loc(), selector, result_literals, v,
+      extend_name("_bounded").value_or(""));
+}
+
 }  // namespace xls
