@@ -274,9 +274,18 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       cases.remove_suffix(1);
     }
 
-    XLS_RETURN_IF_ERROR(
-        array_index->ReplaceUsesWithNew<Select>(selector, cases, default_value)
-            .status());
+    // Depending on the exact order of operations we can end up hitting a
+    // one-len array here. This is really simple.
+    if (cases.empty()) {
+      XLS_RET_CHECK(default_value)
+          << array_index << " of array " << array->GetType();
+      XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(*default_value));
+    } else {
+      XLS_RETURN_IF_ERROR(
+          array_index
+              ->ReplaceUsesWithNew<Select>(selector, cases, default_value)
+              .status());
+    }
     return SimplifyResult::Changed(new_array_indexes);
   }
 
