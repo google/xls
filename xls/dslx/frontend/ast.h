@@ -640,7 +640,7 @@ inline bool WeakerThan(Precedence x, Precedence y) {
 // (i.e. can produce runtime values).
 class Expr : public AstNode {
  public:
-  Expr(Module* owner, Span span) : AstNode(owner), span_(std::move(span)) {}
+  Expr(Module* owner, Span span) : AstNode(owner), span_(span) {}
 
   ~Expr() override;
 
@@ -694,7 +694,7 @@ class Expr : public AstNode {
  protected:
   virtual std::string ToStringInternal() const = 0;
 
-  void UpdateSpan(Span new_span) { span_ = std::move(new_span); }
+  void UpdateSpan(Span new_span) { span_ = new_span; }
 
  private:
   Span span_;
@@ -1816,7 +1816,7 @@ class Match : public Expr {
 class Attr : public Expr {
  public:
   Attr(Module* owner, Span span, Expr* lhs, std::string attr)
-      : Expr(owner, std::move(span)), lhs_(lhs), attr_(std::move(attr)) {}
+      : Expr(owner, span), lhs_(lhs), attr_(std::move(attr)) {}
 
   ~Attr() override;
 

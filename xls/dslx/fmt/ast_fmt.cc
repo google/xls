@@ -174,6 +174,8 @@ enum class Joiner : uint8_t {
   kCommaSpace,
   kCommaBreak1,
 
+  kCommaHardlineTrailingCommaAlways,
+
   // Separates via a comma and break1, but groups the element with its
   // delimiter. This is useful when we're packing member elements that we want
   // to be reflowed across lines.
@@ -210,6 +212,11 @@ DocRef FmtJoin(
           pieces.push_back(member);
           pieces.push_back(arena.comma());
           pieces.push_back(arena.space());
+          break;
+        case Joiner::kCommaHardlineTrailingCommaAlways:
+          pieces.push_back(member);
+          pieces.push_back(arena.comma());
+          pieces.push_back(arena.hard_line());
           break;
         case Joiner::kCommaBreak1:
           pieces.push_back(member);
@@ -262,6 +269,10 @@ DocRef FmtJoin(
           }
           break;
         }
+        case Joiner::kCommaHardlineTrailingCommaAlways:
+          pieces.push_back(member);
+          pieces.push_back(arena.comma());
+          break;
         default:
           pieces.push_back(member);
           break;
@@ -451,15 +462,22 @@ DocRef Fmt(const RestOfTuple& n, const Comments& comments, DocArena& arena) {
   return arena.dot_dot();
 }
 
-static DocRef FmtFlat(const Array& n, const Comments& comments,
-                      DocArena& arena) {
-  std::vector<DocRef> flat_pieces;
-  if (TypeAnnotation* t = n.type_annotation()) {
-    flat_pieces.push_back(Fmt(*t, comments, arena));
-    flat_pieces.push_back(arena.colon());
+static DocRef MakeArrayLeader(const Array& n, const Comments& comments,
+                              DocArena& arena) {
+  const TypeAnnotation* t = n.type_annotation();
+  if (t == nullptr) {
+    return arena.obracket();
   }
+  std::vector<DocRef> pieces;
+  pieces.push_back(Fmt(*t, comments, arena));
+  pieces.push_back(arena.colon());
+  pieces.push_back(arena.obracket());
+  return ConcatN(arena, pieces);
+}
 
-  flat_pieces.push_back(arena.obracket());
+static DocRef FmtFlatBody(const Array& n, const Comments& comments,
+                          DocArena& arena) {
+  std::vector<DocRef> flat_pieces;
   flat_pieces.push_back(FmtJoin<const Expr*>(n.members(), Joiner::kCommaSpace,
                                              FmtExprPtr, comments, arena));
   if (n.has_ellipsis()) {
@@ -477,17 +495,10 @@ static DocRef FmtFlat(const Array& n, const Comments& comments,
   return ConcatN(arena, flat_pieces);
 }
 
-DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
-  std::vector<DocRef> leader_pieces;
-  if (TypeAnnotation* t = n.type_annotation()) {
-    leader_pieces.push_back(Fmt(*t, comments, arena));
-    leader_pieces.push_back(arena.colon());
-  }
-  leader_pieces.push_back(arena.obracket());
-
-  std::vector<DocRef> pieces;
-  pieces.push_back(ConcatNGroup(arena, leader_pieces));
-  pieces.push_back(arena.break0());
+static DocRef FmtBreakBody(const Array& n, const Comments& comments,
+                           DocArena& arena) {
+  std::vector<DocRef> rest;
+  rest.push_back(arena.break0());
 
   std::vector<DocRef> member_pieces;
   member_pieces.push_back(FmtJoin<const Expr*>(
@@ -500,14 +511,20 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
   }
 
   DocRef inner = ConcatNGroup(arena, member_pieces);
-  pieces.push_back(arena.MakeFlatChoice(inner, arena.MakeNest(inner)));
-  pieces.push_back(arena.break0());
-  pieces.push_back(arena.cbracket());
+  rest.push_back(arena.MakeFlatChoice(inner, arena.MakeNest(inner)));
+  rest.push_back(arena.break0());
+  rest.push_back(arena.cbracket());
 
-  DocRef non_flat = ConcatN(arena, pieces);
-  DocRef flat = FmtFlat(n, comments, arena);
+  return ConcatNGroup(arena, rest);
+}
 
-  return arena.MakeFlatChoice(/*on_flat=*/flat, /*on_break=*/non_flat);
+DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
+  DocRef on_break_body = FmtBreakBody(n, comments, arena);
+  DocRef on_flat_body = FmtFlatBody(n, comments, arena);
+
+  DocRef body = arena.MakeGroup(arena.MakeFlatChoice(
+      /*on_flat=*/on_flat_body, /*on_break=*/on_break_body));
+  return arena.MakeConcat(MakeArrayLeader(n, comments, arena), body);
 }
 
 DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
@@ -837,11 +854,9 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
                               arena.MakeText(StripAnyDotModifier(n.attr()))});
 }
 
-DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n,
-                      const Comments& comments, DocArena& arena) {
-  CHECK(keyword == Keyword::kFor || keyword == Keyword::kUnrollFor)
-      << static_cast<std::underlying_type_t<Keyword>>(keyword);
-  DocRef names_ref = Fmt(*n.names(), comments, arena);
+DocRef FmtForLoopBaseLeader(Keyword keyword, DocRef names_ref,
+                            const ForLoopBase& n, const Comments& comments,
+                            DocArena& arena) {
   std::vector<DocRef> pieces = {
       arena.Make(keyword),
       arena.MakeNestIfFlatFits(
@@ -864,6 +879,15 @@ DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n,
 
   pieces.push_back(arena.space());
   pieces.push_back(arena.ocurl());
+  return ConcatN(arena, pieces);
+}
+
+DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n,
+                      const Comments& comments, DocArena& arena) {
+  CHECK(keyword == Keyword::kFor || keyword == Keyword::kUnrollFor)
+      << static_cast<std::underlying_type_t<Keyword>>(keyword);
+  DocRef names_ref = Fmt(*n.names(), comments, arena);
+  DocRef leader = FmtForLoopBaseLeader(keyword, names_ref, n, comments, arena);
 
   std::vector<DocRef> body_pieces;
   body_pieces.push_back(arena.hard_line());
@@ -876,7 +900,7 @@ DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n,
       arena,
       {arena.oparen(), Fmt(*n.init(), comments, arena), arena.cparen()}));
 
-  return arena.MakeConcat(ConcatN(arena, pieces), ConcatN(arena, body_pieces));
+  return arena.MakeConcat(leader, ConcatN(arena, body_pieces));
 }
 
 DocRef Fmt(const UnrollFor& n, const Comments& comments, DocArena& arena) {
@@ -1172,11 +1196,11 @@ static DocRef FmtStructLeader(const TypeAnnotation* struct_ref,
                              });
 }
 
-static DocRef FmtStructMembers(
+static DocRef FmtStructMembersFlat(
     absl::Span<const std::pair<std::string, Expr*>> members,
     const Comments& comments, DocArena& arena) {
   return FmtJoin<std::pair<std::string, Expr*>>(
-      members, Joiner::kCommaBreak1,
+      members, Joiner::kCommaSpace,
       [](const auto& member, const Comments& comments, DocArena& arena) {
         const auto& [name, expr] = member;
         // If the expression is an identifier that matches its corresponding
@@ -1188,11 +1212,49 @@ static DocRef FmtStructMembers(
           return arena.MakeText(name);
         }
 
-        return ConcatNGroup(
-            arena, {arena.MakeText(name), arena.colon(), arena.break1(),
-                    Fmt(*expr, comments, arena)});
+        return ConcatN(arena, {arena.MakeText(name), arena.colon(),
+                               arena.space(), Fmt(*expr, comments, arena)});
       },
       comments, arena);
+}
+
+static DocRef FmtStructMembersBreak(
+    absl::Span<const std::pair<std::string, Expr*>> members,
+    const Comments& comments, DocArena& arena) {
+  return FmtJoin<std::pair<std::string, Expr*>>(
+      members, Joiner::kCommaHardlineTrailingCommaAlways,
+      [](const auto& member, const Comments& comments, DocArena& arena) {
+        const auto& [name, expr] = member;
+        // If the expression is an identifier that matches its corresponding
+        // struct member name, we canonically use the shorthand notation of just
+        // providing the identifier and leaving the member name implicitly as
+        // the same symbol.
+        if (const NameRef* name_ref = dynamic_cast<const NameRef*>(expr);
+            name_ref != nullptr && name_ref->identifier() == name) {
+          return arena.MakeText(name);
+        }
+
+        return ConcatNGroup(arena,
+                            {arena.MakeText(name), arena.colon(), arena.space(),
+                             arena.MakeGroup(Fmt(*expr, comments, arena))});
+      },
+      comments, arena);
+}
+
+DocRef FmtFlatRest(const StructInstance& n, const Comments& comments,
+                   DocArena& arena) {
+  return ConcatN(
+      arena, {arena.space(),
+              FmtStructMembersFlat(n.GetUnorderedMembers(), comments, arena),
+              arena.space(), arena.ccurl()});
+}
+
+DocRef FmtBreakRest(const StructInstance& n, const Comments& comments,
+                    DocArena& arena) {
+  return ConcatN(arena, {arena.hard_line(),
+                         arena.MakeNest(FmtStructMembersBreak(
+                             n.GetUnorderedMembers(), comments, arena)),
+                         arena.hard_line(), arena.ccurl()});
 }
 
 DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
@@ -1206,44 +1268,45 @@ DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
   // order as the struct definition in the general case, since the struct
   // definition may be defined an an imported file, and we have auto-formatting
   // work purely at the single-file syntax level.
-  DocRef body_pieces =
-      FmtStructMembers(n.GetUnorderedMembers(), comments, arena);
 
-  return ConcatNGroup(arena,
-                      {leader, arena.break1(), arena.MakeNest(body_pieces),
-                       arena.break1(), arena.ccurl()});
+  DocRef on_flat = FmtFlatRest(n, comments, arena);
+  DocRef on_break = FmtBreakRest(n, comments, arena);
+  return arena.MakeConcat(
+      leader, arena.MakeGroup(arena.MakeFlatChoice(on_flat, on_break)));
 }
 
 DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
            DocArena& arena) {
   DocRef leader = FmtStructLeader(n.struct_ref(), comments, arena);
+  DocRef splatted = Fmt(n.splatted(), comments, arena);
   if (n.members().empty()) {
     return ConcatNGroup(arena, {leader, arena.break1(), arena.dot_dot(),
-                                Fmt(*n.splatted(), comments, arena),
-                                arena.break1(), arena.ccurl()});
+                                splatted, arena.break1(), arena.ccurl()});
   }
 
-  DocRef body_pieces = FmtStructMembers(n.members(), comments, arena);
-
-  return ConcatNGroup(
-      arena,
-      {leader, arena.break1(), arena.MakeNest(body_pieces), arena.comma(),
-       arena.break1(), arena.dot_dot(), Fmt(*n.splatted(), comments, arena),
-       arena.break1(), arena.ccurl()});
-
-  LOG(FATAL) << "handle splat struct instance: " << n.ToString();
+  DocRef on_flat = ConcatN(
+      arena, {arena.space(), FmtStructMembersFlat(n.members(), comments, arena),
+              arena.comma(), arena.space(), arena.dot_dot(), splatted,
+              arena.space(), arena.ccurl()});
+  DocRef on_break = ConcatN(
+      arena, {arena.hard_line(),
+              arena.MakeNest(ConcatN(
+                  arena, {FmtStructMembersBreak(n.members(), comments, arena),
+                          arena.hard_line(), arena.dot_dot(), splatted})),
+              arena.hard_line(), arena.ccurl()});
+  return arena.MakeConcat(
+      leader, arena.MakeGroup(arena.MakeFlatChoice(on_flat, on_break)));
 }
 
 DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
   return arena.MakeText(n.ToString());
 }
 
-// Creates a group that has the "test portion" of the conditional; i.e.
+// Creates a doc that has the "test portion" of the conditional; i.e.
 //
 //  if <break1> $test_expr <break1> {
-static DocRef MakeConditionalTestGroup(const Conditional& n,
-                                       const Comments& comments,
-                                       DocArena& arena) {
+static DocRef MakeConditionalTest(const Conditional& n,
+                                  const Comments& comments, DocArena& arena) {
   return ConcatN(
       arena, {
                  arena.Make(Keyword::kIf),
@@ -1260,7 +1323,7 @@ static DocRef FmtConditionalMultiline(const Conditional& n,
                                       const Comments& comments,
                                       DocArena& arena) {
   std::vector<DocRef> pieces = {
-      MakeConditionalTestGroup(n, comments, arena), arena.hard_line(),
+      MakeConditionalTest(n, comments, arena), arena.hard_line(),
       FmtBlock(*n.consequent(), comments, arena, /*add_curls=*/false),
       arena.hard_line()};
 
@@ -1272,7 +1335,7 @@ static DocRef FmtConditionalMultiline(const Conditional& n,
     pieces.push_back(arena.space());
     pieces.push_back(arena.Make(Keyword::kElse));
     pieces.push_back(arena.space());
-    pieces.push_back(MakeConditionalTestGroup(*elseif, comments, arena));
+    pieces.push_back(MakeConditionalTest(*elseif, comments, arena));
     pieces.push_back(arena.hard_line());
     pieces.push_back(
         FmtBlock(*elseif->consequent(), comments, arena, /*add_curls=*/false));
@@ -1302,8 +1365,9 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
     return FmtConditionalMultiline(n, comments, arena);
   }
 
+  DocRef test = MakeConditionalTest(n, comments, arena);
   std::vector<DocRef> pieces = {
-      MakeConditionalTestGroup(n, comments, arena),
+      test,
       arena.break1(),
       FmtBlock(*n.consequent(), comments, arena, /*add_curls=*/false),
       arena.break1(),
@@ -1320,7 +1384,7 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
   pieces.push_back(arena.break1());
   pieces.push_back(arena.ccurl());
-  return ConcatN(arena, pieces);
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
@@ -1503,6 +1567,62 @@ DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
   return result;
 }
 
+// Creates a document for the "leader" of the given expression.
+//
+// Precondition: `e` must be a blocked expression with a leader component; e.g.
+// invocation (leader is callee), conditional (leader is test), etc.
+DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
+                            DocArena& arena) {
+  CHECK(e.IsBlockedExprWithLeader());
+  switch (e.kind()) {
+    case AstNodeKind::kInvocation: {
+      return arena.MakeConcat(
+          Fmt(static_cast<const Invocation&>(e).callee(), comments, arena),
+          arena.oparen());
+    }
+    case AstNodeKind::kConditional: {
+      const Expr& test = *static_cast<const Conditional&>(e).test();
+      return ConcatN(
+          arena, {arena.Make(Keyword::kIf), arena.space(),
+                  Fmt(test, comments, arena), arena.space(), arena.ocurl()});
+    }
+    case AstNodeKind::kMatch: {
+      const Expr& test = *static_cast<const Match&>(e).matched();
+      return ConcatN(
+          arena, {arena.Make(Keyword::kMatch), arena.space(),
+                  Fmt(test, comments, arena), arena.space(), arena.ocurl()});
+    }
+    case AstNodeKind::kArray: {
+      const TypeAnnotation& type =
+          *static_cast<const Array&>(e).type_annotation();
+      return ConcatN(
+          arena, {Fmt(type, comments, arena), arena.colon(), arena.obracket()});
+    }
+    case AstNodeKind::kStructInstance: {
+      const StructInstance& n = static_cast<const StructInstance&>(e);
+      return ConcatN(arena, {FmtStructLeader(n.struct_ref(), comments, arena),
+                             arena.space(), arena.ocurl()});
+    }
+    case AstNodeKind::kSplatStructInstance: {
+      const SplatStructInstance& n = static_cast<const SplatStructInstance&>(e);
+      return ConcatN(arena, {FmtStructLeader(n.struct_ref(), comments, arena),
+                             arena.space(), arena.ocurl()});
+    }
+    case AstNodeKind::kFor:
+    case AstNodeKind::kUnrollFor: {
+      const ForLoopBase& n = static_cast<const ForLoopBase&>(e);
+      Keyword keyword =
+          e.kind() == AstNodeKind::kFor ? Keyword::kFor : Keyword::kUnrollFor;
+      DocRef names_ref = Fmt(*n.names(), comments, arena);
+      return FmtForLoopBaseLeader(keyword, names_ref, n, comments, arena);
+    }
+    default:
+      LOG(FATAL) << "Unhandled node kind for FmtBlockedExprLeader: `"
+                 << e.ToString() << "` @ "
+                 << e.span().ToString(arena.file_table());
+  }
+}
+
 }  // namespace
 
 DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
@@ -1540,11 +1660,31 @@ DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
     // matter what.
     //
     // Note: if it's an expression that acts as a block of contents, but has
-    // leading chars, e.g. an invocation, so we don't know with reasonable
+    // leading chars, e.g. an invocation, we don't know with reasonable
     // confidence it'll fit on the current line.
+
+    DocRef on_other_ref = ConcatN(arena, {arena.space(), rhs_doc});
+
+    // If the blocky expression has a leader, and that leader doesn't fit in
+    // the line, we want to nest the whole thing so it has space to look
+    // normal and it knows it's in break mode.
+    if (n.rhs()->IsBlockedExprWithLeader()) {
+      // If the leading component fits, then see what we can fit flat from the
+      // RHS, we know we can at least fit that.
+      //
+      // If the leading component does not fit, emit the whole construct nested
+      // on the next line.
+      DocRef leader = arena.MakeConcat(
+          arena.space(), FmtBlockedExprLeader(*n.rhs(), comments, arena));
+      DocRef nested =
+          arena.MakeNest(arena.MakeConcat(arena.hard_line(), rhs_doc));
+      on_other_ref = arena.MakeModeSelect(leader, /*on_flat=*/on_other_ref,
+                                          /*on_break=*/nested);
+    }
+
     body = arena.MakeNestIfFlatFits(
         /*on_nested_flat_ref=*/rhs_doc,
-        /*on_other_ref=*/ConcatN(arena, {arena.space(), rhs_doc}));
+        /*on_other_ref=*/on_other_ref);
   } else {
     // Same as above but with an aligned RHS.
     DocRef aligned_rhs = arena.MakeAlign(arena.MakeGroup(rhs_doc));
@@ -2117,6 +2257,36 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
 
   pieces.push_back(arena.ccurl());
   return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
+}
+
+static DocRef Fmt(const ConstantDef& n, const Comments& comments,
+                  DocArena& arena) {
+  std::vector<DocRef> leader_pieces;
+  if (n.is_public()) {
+    leader_pieces.push_back(arena.Make(Keyword::kPub));
+    leader_pieces.push_back(arena.break1());
+  }
+  leader_pieces.push_back(arena.Make(Keyword::kConst));
+  leader_pieces.push_back(arena.break1());
+  leader_pieces.push_back(arena.MakeText(n.identifier()));
+  if (n.type_annotation() != nullptr) {
+    leader_pieces.push_back(arena.colon());
+    leader_pieces.push_back(arena.space());
+    leader_pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
+  }
+  leader_pieces.push_back(arena.break1());
+  leader_pieces.push_back(arena.equals());
+  leader_pieces.push_back(arena.space());
+
+  DocRef lhs = ConcatNGroup(arena, leader_pieces);
+  // Reduce the width by 1 so we know we can emit the semi inline.
+  DocRef rhs_before_semi =
+      arena.MakeReduceTextWidth(Fmt(*n.value(), comments, arena), 1);
+  DocRef rhs = ConcatNGroup(arena, {
+                                       rhs_before_semi,
+                                       arena.semi(),
+                                   });
+  return arena.MakeConcat(lhs, rhs);
 }
 
 static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,

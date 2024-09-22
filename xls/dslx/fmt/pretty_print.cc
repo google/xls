@@ -48,6 +48,8 @@ using pprint_internal::FlatChoice;
 using pprint_internal::Group;
 using pprint_internal::HardLine;
 using pprint_internal::InfinityRequirement;
+using pprint_internal::IsInfinite;
+using pprint_internal::ModeSelect;
 using pprint_internal::Nest;
 using pprint_internal::NestIfFlatFits;
 using pprint_internal::PrefixedReflow;
@@ -311,11 +313,12 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               int64_t remaining_cols_with_newline =
                   entry.text_width() - entry.indent() - 4;
 
-              VLOG(3) << "NestIfFlatFits; on_other.flat_requirement: "
+              VLOG(3) << "NestIfFlatFits;"
+                      << " on_other.flat_requirement: "
                       << RequirementToString(on_other.flat_requirement)
-                      << " remaining_cols: " << remaining_cols
                       << " on_nested_flat.flat_requirement: "
                       << RequirementToString(on_nested_flat.flat_requirement)
+                      << " remaining_cols: " << remaining_cols
                       << " remaining_cols_with_newline: "
                       << remaining_cols_with_newline;
               if (on_other.flat_requirement <= remaining_cols) {
@@ -352,7 +355,17 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                       << arena.Deref(group.arg).ToDebugString(arena);
               stack.push_back(StackEntry{&arena.Deref(group.arg), mode,
                                          entry.indent(), entry.text_width()});
-            }},
+            },
+            [&](const ModeSelect& mode_select) {
+              int64_t remaining_cols = entry.text_width() - virtual_outcol;
+              bool do_flat = remaining_cols >= mode_select.flat_requirement;
+              Mode mode = do_flat ? Mode::kFlat : Mode::kBreak;
+              const Doc& doc = arena.Deref(do_flat ? mode_select.on_flat
+                                                   : mode_select.on_break);
+              stack.push_back(
+                  StackEntry{&doc, mode, entry.indent(), entry.text_width()});
+            },
+        },
         entry.doc()->value);
   }
 }
@@ -375,6 +388,12 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
           [&](const Group& p) -> std::string {
             return absl::StrFormat("Group{%s}",
                                    arena.Deref(p.arg).ToDebugString(arena));
+          },
+          [&](const ModeSelect& p) -> std::string {
+            return absl::StrFormat(
+                "ModeSelect{%d, .on_flat=%s, .on_break=%s}", p.flat_requirement,
+                arena.Deref(p.on_flat).ToDebugString(arena),
+                arena.Deref(p.on_break).ToDebugString(arena));
           },
           [&](const NestIfFlatFits& p) -> std::string {
             return absl::StrFormat(
@@ -467,6 +486,25 @@ DocRef DocArena::MakeGroup(DocRef arg_ref) {
   int64_t size = items_.size();
   items_.push_back(
       Doc{.flat_requirement = arg.flat_requirement, .value = Group{arg_ref}});
+  return DocRef{size};
+}
+
+DocRef DocArena::MakeModeSelect(DocRef flat_req, DocRef on_flat,
+                                DocRef on_break) {
+  const Doc& flat_req_doc = Deref(flat_req);
+  const Requirement& select_flat_requirement = flat_req_doc.flat_requirement;
+  if (IsInfinite(
+          select_flat_requirement)) {  // We will never select anything else.
+    return on_break;
+  }
+  const Doc& on_flat_doc = Deref(on_flat);
+  int64_t size = items_.size();
+  items_.push_back(
+      Doc{.flat_requirement = on_flat_doc.flat_requirement,
+          .value = ModeSelect{
+              .flat_requirement = std::get<int64_t>(select_flat_requirement),
+              .on_flat = on_flat,
+              .on_break = on_break}});
   return DocRef{size};
 }
 

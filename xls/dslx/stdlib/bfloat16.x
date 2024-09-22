@@ -118,7 +118,9 @@ pub fn increment_fraction(input: BF16) -> BF16 {
         (true, true) => inf(input.sign),
         // Significand overflowed, normalize.
         (true, false) => BF16 {
-            sign: input.sign, bexp: input.bexp + u8:1, fraction: new_fraction[1+:u7]
+            sign: input.sign,
+            bexp: input.bexp + u8:1,
+            fraction: new_fraction[1+:u7],
         },
         // No normalization required.
         (_, _) => BF16 { sign: input.sign, bexp: input.bexp, fraction: new_fraction[:7] },

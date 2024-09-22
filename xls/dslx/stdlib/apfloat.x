@@ -45,7 +45,7 @@ pub fn qnan<EXP_SZ: u32, FRACTION_SZ: u32>() -> APFloat<EXP_SZ, FRACTION_SZ> {
     APFloat<EXP_SZ, FRACTION_SZ> {
         sign: bits[1]:0,
         bexp: std::mask_bits<EXP_SZ>() as bits[EXP_SZ],
-        fraction: bits[FRACTION_SZ]:1 << ((FRACTION_SZ - u32:1) as bits[FRACTION_SZ])
+        fraction: bits[FRACTION_SZ]:1 << ((FRACTION_SZ - u32:1) as bits[FRACTION_SZ]),
     }
 }
 
@@ -68,7 +68,9 @@ pub fn is_nan<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) ->
 // Returns a positive or a negative infinity depending upon the given sign parameter.
 pub fn inf<EXP_SZ: u32, FRACTION_SZ: u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
     APFloat<EXP_SZ, FRACTION_SZ> {
-        sign, bexp: std::mask_bits<EXP_SZ>(), fraction: bits[FRACTION_SZ]:0
+        sign,
+        bexp: std::mask_bits<EXP_SZ>(),
+        fraction: bits[FRACTION_SZ]:0,
     }
 }
 
@@ -118,7 +120,9 @@ fn zero_test() {
 pub fn one<EXP_SZ: u32, FRACTION_SZ: u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
     const MASK_SZ: u32 = EXP_SZ - u32:1;
     APFloat<EXP_SZ, FRACTION_SZ> {
-        sign, bexp: std::mask_bits<MASK_SZ>() as bits[EXP_SZ], fraction: bits[FRACTION_SZ]:0
+        sign,
+        bexp: std::mask_bits<MASK_SZ>() as bits[EXP_SZ],
+        fraction: bits[FRACTION_SZ]:0,
     }
 }
 
@@ -249,7 +253,7 @@ pub fn unflatten<EXP_SZ: u32, FRACTION_SZ: u32, TOTAL_SZ: u32 = {u32:1 + EXP_SZ 
     APFloat<EXP_SZ, FRACTION_SZ> {
         sign: (x >> (SIGN_OFFSET as bits[TOTAL_SZ])) as bits[1],
         bexp: (x >> (FRACTION_SZ as bits[TOTAL_SZ])) as bits[EXP_SZ],
-        fraction: x as bits[FRACTION_SZ]
+        fraction: x as bits[FRACTION_SZ],
     }
 }
 
@@ -476,109 +480,145 @@ fn cast_from_fixed_using_rz_test() {
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:3),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0b10000
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+            fraction: uN[FRAC_SZ]:0b10000,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:3),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0b10000
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+            fraction: uN[FRAC_SZ]:0b10000,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b111000),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11000
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11000,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b111000),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11000
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11000,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1110000),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11000
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11000,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1110000),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11000
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11000,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b111111),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11111
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b111111),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11111
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1111110),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1111110),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1111111),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1111111),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b01111111111111111),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0b11111
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b01111111111111111),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0b11111
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b00000011111111111),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b00000011111111111),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b00000011111111000),
         Float {
-            sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b00000011111111000),
         Float {
-            sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
         });
 
     assert_eq(
@@ -685,11 +725,11 @@ fn upcast_test() {
     let one_f64 = one<F64_EXP_SZ, F64_FRACTION_SZ>(u1:0);
     let one_dot_5_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> {
         fraction: u7:1 << (BF16_FRACTION_SZ - u32:1),
-    ..one_bf16
+        ..one_bf16
     };
     let one_dot_5_f64 = APFloat<F64_EXP_SZ, F64_FRACTION_SZ> {
         fraction: u52:1 << (F64_FRACTION_SZ - u32:1),
-    ..one_f64
+        ..one_f64
     };
     let denormal_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { bexp: u8:0, ..one_dot_5_bf16 };
     let zero_f64 = zero<F64_EXP_SZ, F64_FRACTION_SZ>(u1:0);
@@ -758,12 +798,11 @@ pub fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_S
         APFloat {
             sign: f.sign,
             bexp: if renormalize { f.bexp + uN[EXP_SZ]:1 } else { f.bexp },
-            fraction:
-            if round_up {
+            fraction: if round_up {
                 truncated_fraction + uN[TO_FRACTION_SZ]:1
             } else {
                 truncated_fraction
-            }
+            },
         }
     }
 }
@@ -881,7 +920,9 @@ pub fn normalize<EXP_SZ: u32, FRACTION_SZ: u32, WIDE_FRACTION: u32 = {FRACTION_S
         (true, _) => zero_value,
         // Normalize.
         _ => APFloat {
-            sign, bexp: exp - (leading_zeros as bits[EXP_SZ]), fraction: normalized_fraction
+            sign,
+            bexp: exp - (leading_zeros as bits[EXP_SZ]),
+            fraction: normalized_fraction,
         },
     }
 }
@@ -913,7 +954,7 @@ pub fn ldexp<EXP_SZ: u32, FRACTION_SZ: u32>
     let result = Float {
         sign: fraction.sign,
         bexp: bias<EXP_SZ, FRACTION_SZ>(exp as sN[EXP_SZ]),
-        fraction: fraction.fraction
+        fraction: fraction.fraction,
     };
 
     // Handle overflow.
@@ -922,12 +963,12 @@ pub fn ldexp<EXP_SZ: u32, FRACTION_SZ: u32>
     // Handle underflow, taking into account the case that underflow rounds back
     // up to a normal number. If this was not a DAZ module, we'd have to deal with
     // denormal 'result' here.
-    let underflow_result = if exp == (MIN_EXPONENT - s33:1) &&
-    fraction.fraction == std::mask_bits<FRACTION_SZ>() {
-        Float { sign: fraction.sign, bexp: uN[EXP_SZ]:1, fraction: uN[FRACTION_SZ]:0 }
-    } else {
-        zero<EXP_SZ, FRACTION_SZ>(fraction.sign)
-    };
+    let underflow_result =
+        if exp == (MIN_EXPONENT - s33:1) && fraction.fraction == std::mask_bits<FRACTION_SZ>() {
+            Float { sign: fraction.sign, bexp: uN[EXP_SZ]:1, fraction: uN[FRACTION_SZ]:0 }
+        } else {
+            zero<EXP_SZ, FRACTION_SZ>(fraction.sign)
+        };
 
     let result = if exp < MIN_EXPONENT { underflow_result } else { result };
     // Flush subnormal output.
@@ -1461,11 +1502,11 @@ fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, F
         // Clamp if out of bounds, infinite.
         if x.sign { INT_MIN } else { INT_MAX }
     } else if is_nan(x) {
-        uN[MAX_FRACTION_SZ]:0
+    uN[MAX_FRACTION_SZ]:0
     } else if exp < sN[EXP_SZ]:0 {
-        uN[MAX_FRACTION_SZ]:0
+    uN[MAX_FRACTION_SZ]:0
     } else if exp == sN[EXP_SZ]:0 {
-        uN[MAX_FRACTION_SZ]:1
+    uN[MAX_FRACTION_SZ]:1
     } else {
         // For most cases, we need to either shift the "ones" place from FRACTION_SZ + 1 bits down
         // closer to 0 (if the effective exponent is negative) else we need to move it away from 0
@@ -2041,7 +2082,9 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>
 
     // Finally (finally!), construct the output float.
     APFloat<EXP_SZ, FRACTION_SZ> {
-        sign: result_sign, bexp: result_exponent, fraction: result_fraction as uN[FRACTION_SZ]
+        sign: result_sign,
+        bexp: result_exponent,
+        fraction: result_fraction as uN[FRACTION_SZ],
     }
 }
 
@@ -2489,7 +2532,7 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     APFloat<EXP_SZ, FRACTION_SZ> {
         sign: result_sign,
         bexp: result_exp as uN[EXP_SZ],
-        fraction: result_fraction as uN[FRACTION_SZ]
+        fraction: result_fraction as uN[FRACTION_SZ],
     }
 }
 

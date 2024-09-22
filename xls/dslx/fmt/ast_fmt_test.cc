@@ -562,6 +562,33 @@ TEST_F(FunctionFmtTest, SimpleMatchOnBool) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, SimpleLetEqualsMatchOnBool) {
+  const std::string_view original =
+      "fn f(b:bool)->u32{let x=match b{true=>u32:42,_=>u32:64};x}";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  const std::string_view want =
+      R"(fn f(b: bool) -> u32 {
+    let x = match b {
+        true => u32:42,
+        _ => u32:64,
+    };
+    x
+})";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, LongConstLetStyleBinding) {
+  const std::string_view original = R"(fn f() -> u64[8] {
+    const X = u64[8]:[
+        0x002698ad4b48ead0, 0x1bfb1e0316f2d5de, 0x173a623c9725b477, 0x0a447a02823ad868,
+        0x1df74948b3fbea7e, 0x1bc8b594bcf01a39, 0x07b767ca9520e99a, 0x05e28b4320bfd20e,
+    ];
+    X
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, MatchMultiPattern) {
   const std::string_view original =
       "fn f(b:bool)->u32{match b{true|false=>u32:42,_=>u32:64}}";
@@ -846,6 +873,13 @@ TEST_F(FunctionFmtTest, FunctionWithSmallInlineArrayLiteral) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest,
+       FunctionWithLetBindingOfSmallInlineArrayLiteralWithType) {
+  const std::string_view original = R"(fn f() { let arr = u2[2]:[1, 2]; })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, CharLiteral) {
   const std::string_view original = R"(fn f() -> u8 { u8:'!' })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
@@ -959,14 +993,14 @@ TEST_F(FunctionFmtTest, CommentParagraphThenStatement) {
 TEST_F(FunctionFmtTest, LetRhsIsOverlongFor) {
   const std::string_view original =
       R"(fn f() {
-    let (_, _, _, div_result) = for
-        (idx, (shifted_y, shifted_index_bit, running_product, running_result)) in
-        range(u32:0, REALLY_LONG_NAME_HERE) {
-        idx
-    }((
-        (y as uN[DN]) << (init_shift_amount as uN[DN]), uN[N]:1 << init_shift_amount, uN[DN]:0,
-        uN[N]:0,
-    ));
+    let (_, _, _, div_result) =
+        for (idx, (shifted_y, shifted_index_bit, running_product, running_result)) in
+            range(u32:0, REALLY_LONG_NAME_HERE) {
+            idx
+        }((
+            (y as uN[DN]) << (init_shift_amount as uN[DN]), uN[N]:1 << init_shift_amount, uN[DN]:0,
+            uN[N]:0,
+        ));
 })";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string got, DoFmt(original, {"range", "REALLY_LONG_NAME_HERE", "y",
@@ -1071,6 +1105,25 @@ class ModuleFmtTest : public testing::Test {
  private:
   FileTable file_table_;
 };
+
+// See https://github.com/google/xls/issues/1617
+TEST_F(ModuleFmtTest, OverlongTernary) {
+  Run(R"(type TypeTTTTTTTTTTTTTTTTT = u32;
+
+const test000000000000000000000000000000 = u32:42;
+const consequent000000000000000000000000000000000 = u32:64;
+const alternate0000000000000000000000000 = u32:128;
+
+fn f() {
+    let output0000000000000000000000000000 =
+        if test000000000000000000000000000000 == TypeTTTTTTTTTTTTTTTTT:0 {
+            consequent000000000000000000000000000000000
+        } else {
+            alternate0000000000000000000000000
+        };
+}
+)");
+}
 
 TEST_F(ModuleFmtTest, TwoSimpleFunctions) {
   Run("fn double(x:u32)->u32{u32:2*x}fn triple(x: u32)->u32{u32:3*x}",
@@ -1466,6 +1519,36 @@ const NOTHING = Nothing {};
 )");
 }
 
+TEST_F(ModuleFmtTest, LetEqualStructInstance) {
+  Run(R"(struct Point0000000000000000000000000000000000000000000000000000000000000000000000 {
+    x: u32,
+    y: u32,
+}
+
+fn f() {
+    let q = Point0000000000000000000000000000000000000000000000000000000000000000000000 {
+        x: u32:42,
+        y: u32:64,
+    };
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, LetEqualSplatStructInstance) {
+  Run(R"(struct Point0000000000000000000000000000000000000000000000000000000000000000000000 {
+    x: u32,
+    y: u32,
+}
+
+fn f(p: Point0000000000000000000000000000000000000000000000000000000000000000000000) {
+    let q = Point0000000000000000000000000000000000000000000000000000000000000000000000 {
+        x: u32:42,
+        ..p
+    };
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, StructAttr) {
   Run(
       R"(struct Point { x: u32, y: u32 }
@@ -1513,6 +1596,19 @@ fn f() {
     let x = u32:42;
     let y = u16:64;
     Point { y, x }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, StructInstanceLetBinding) {
+  Run(
+      R"(struct Point { x: u32, y: u16 }
+
+fn f() -> Point {
+    let x = u32:42;
+    let y = u16:64;
+    let p = Point { y, x };
+    p
 }
 )");
 }
@@ -1868,7 +1964,9 @@ TEST_F(ModuleFmtTest, MatchLongWildcardArmExpression) {
 fn f(input_float: float32::F32) -> float32::F32 {
     match f.bexp {
         _ => float32::F32 {
-            sign: input_float.sign, bexp: input_float.bexp - u8:1, fraction: input_float.fraction
+            sign: input_float.sign,
+            bexp: input_float.bexp - u8:1,
+            fraction: input_float.fraction,
         },
     }
 }
@@ -2086,16 +2184,13 @@ fn struct_c_test() {
     assert_eq(
         zero!<StructA>(),
         StructC {
-            b:
-            StructB {
-                a:
-                StructA {
-                    data:
-                    u64[8]:[
+            b: StructB {
+                a: StructA {
+                    data: u64[8]:[
                         0x002698ad4b48ead0, 0x1bfb1e0316f2d5de, 0x173a623c9725b477, 0x0, ...
-                    ]
-                }
-            }
+                    ],
+                },
+            },
         });
 }
 )");
