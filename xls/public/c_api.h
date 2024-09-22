@@ -18,6 +18,7 @@
 #include <stddef.h>  // NOLINT(modernize-deprecated-headers)
 
 #include "xls/public/c_api_format_preference.h"
+#include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_vast.h"
 
 // C API that exposes the functionality in various public headers in a way that
