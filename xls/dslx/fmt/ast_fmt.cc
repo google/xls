@@ -1355,7 +1355,7 @@ static DocRef FmtConditionalMultiline(const Conditional& n,
   pieces.push_back(arena.hard_line());
   pieces.push_back(arena.ccurl());
 
-  return ConcatN(arena, pieces);
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {

@@ -448,6 +448,22 @@ TEST_F(FunctionFmtTest, ConditionalWithElseIf) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, ConditionalWithElseIfAfterLet) {
+  const std::string_view original =
+      R"(fn f(a: bool[2], x: u32[3]) -> u32 {
+    let result = if a[0] {
+        x[0]
+    } else if a[1] {
+        x[1]
+    } else {
+        x[2]
+    };
+    result
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
 TEST_F(FunctionFmtTest, ConditionalWithUnnecessaryParens) {
   const std::string_view original =
       "fn f(a:u32,b:u32)->u32{if(a<b){a}else if(b<a){b}else{a}}";

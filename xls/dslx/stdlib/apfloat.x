@@ -1502,11 +1502,11 @@ fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, F
         // Clamp if out of bounds, infinite.
         if x.sign { INT_MIN } else { INT_MAX }
     } else if is_nan(x) {
-    uN[MAX_FRACTION_SZ]:0
+        uN[MAX_FRACTION_SZ]:0
     } else if exp < sN[EXP_SZ]:0 {
-    uN[MAX_FRACTION_SZ]:0
+        uN[MAX_FRACTION_SZ]:0
     } else if exp == sN[EXP_SZ]:0 {
-    uN[MAX_FRACTION_SZ]:1
+        uN[MAX_FRACTION_SZ]:1
     } else {
         // For most cases, we need to either shift the "ones" place from FRACTION_SZ + 1 bits down
         // closer to 0 (if the effective exponent is negative) else we need to move it away from 0
