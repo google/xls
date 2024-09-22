@@ -31,7 +31,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/vast/vast.h"
 #include "xls/common/init_xls.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/events.h"
@@ -39,78 +38,10 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
-#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/public/c_api_impl_helpers.h"
 #include "xls/public/runtime_build_actions.h"
-
-namespace {
-
-std::vector<std::filesystem::path> ToCpp(const char* additional_search_paths[],
-                                         size_t additional_search_paths_count) {
-  std::vector<std::filesystem::path> additional_search_paths_cpp;
-  additional_search_paths_cpp.reserve(additional_search_paths_count);
-  for (size_t i = 0; i < additional_search_paths_count; ++i) {
-    const char* additional_search_path = additional_search_paths[i];
-    CHECK(additional_search_path != nullptr);
-    additional_search_paths_cpp.push_back(additional_search_path);
-  }
-  return additional_search_paths_cpp;
-}
-
-char* ToOwnedCString(const std::string& s) { return strdup(s.c_str()); }
-
-// Helper function that we can use to adapt to the common C API pattern when
-// we're returning an `absl::StatusOr<std::string>` value.
-bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
-                        char** error_out, char** value_out) {
-  if (to_return.ok()) {
-    *value_out = ToOwnedCString(to_return.value());
-    *error_out = nullptr;
-    return true;
-  }
-
-  *value_out = nullptr;
-  *error_out = ToOwnedCString(to_return.status().ToString());
-  return false;
-}
-
-// Converts a C-API-given format preference value into the XLS internal enum --
-// since these values can be out of normal enum class range when passed to the
-// API, we validate here.
-bool FormatPreferenceFromC(xls_format_preference c_pref,
-                           xls::FormatPreference* cpp_pref, char** error_out) {
-  switch (c_pref) {
-    case xls_format_preference_default:
-      *cpp_pref = xls::FormatPreference::kDefault;
-      break;
-    case xls_format_preference_binary:
-      *cpp_pref = xls::FormatPreference::kBinary;
-      break;
-    case xls_format_preference_signed_decimal:
-      *cpp_pref = xls::FormatPreference::kSignedDecimal;
-      break;
-    case xls_format_preference_unsigned_decimal:
-      *cpp_pref = xls::FormatPreference::kUnsignedDecimal;
-      break;
-    case xls_format_preference_hex:
-      *cpp_pref = xls::FormatPreference::kHex;
-      break;
-    case xls_format_preference_plain_binary:
-      *cpp_pref = xls::FormatPreference::kPlainBinary;
-      break;
-    case xls_format_preference_plain_hex:
-      *cpp_pref = xls::FormatPreference::kPlainHex;
-      break;
-    default:
-      *error_out = ToOwnedCString(
-          absl::StrFormat("Invalid format preference value: %d", c_pref));
-      return false;
-  }
-  return true;
-}
-
-}  // namespace
 
 extern "C" {
 
@@ -130,11 +61,11 @@ bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
   CHECK(error_out != nullptr);
 
   std::vector<std::filesystem::path> additional_search_paths_cpp =
-      ToCpp(additional_search_paths, additional_search_paths_count);
+      xls::ToCpp(additional_search_paths, additional_search_paths_count);
 
   absl::StatusOr<std::string> result = xls::ConvertDslxToIr(
       dslx, path, module_name, dslx_stdlib_path, additional_search_paths_cpp);
-  return ReturnStringHelper(result, error_out, ir_out);
+  return xls::ReturnStringHelper(result, error_out, ir_out);
 }
 
 bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
@@ -146,11 +77,11 @@ bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
   CHECK(error_out != nullptr);
 
   std::vector<std::filesystem::path> additional_search_paths_cpp =
-      ToCpp(additional_search_paths, additional_search_paths_count);
+      xls::ToCpp(additional_search_paths, additional_search_paths_count);
 
   absl::StatusOr<std::string> result = xls::ConvertDslxPathToIr(
       path, dslx_stdlib_path, additional_search_paths_cpp);
-  return ReturnStringHelper(result, error_out, ir_out);
+  return xls::ReturnStringHelper(result, error_out, ir_out);
 }
 
 bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
@@ -159,7 +90,7 @@ bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
   CHECK(top != nullptr);
 
   absl::StatusOr<std::string> result = xls::OptimizeIr(ir, top);
-  return ReturnStringHelper(result, error_out, ir_out);
+  return xls::ReturnStringHelper(result, error_out, ir_out);
 }
 
 bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
@@ -169,7 +100,7 @@ bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
 
   absl::StatusOr<std::string> result =
       xls::MangleDslxName(module_name, function_name);
-  return ReturnStringHelper(result, error_out, mangled_out);
+  return xls::ReturnStringHelper(result, error_out, mangled_out);
 }
 
 bool xls_parse_typed_value(const char* input, char** error_out,
@@ -186,7 +117,7 @@ bool xls_parse_typed_value(const char* input, char** error_out,
   }
 
   *xls_value_out = nullptr;
-  *error_out = ToOwnedCString(value_or.status().ToString());
+  *error_out = xls::ToOwnedCString(value_or.status().ToString());
   return false;
 }
 
@@ -205,7 +136,7 @@ bool xls_value_get_bits(const struct xls_value* value, char** error_out,
   }
 
   *bits_out = nullptr;
-  *error_out = ToOwnedCString(bits_or.status().ToString());
+  *error_out = xls::ToOwnedCString(bits_or.status().ToString());
   return false;
 }
 
@@ -259,7 +190,7 @@ bool xls_value_to_string_format_preference(
   }
 
   std::string s = reinterpret_cast<const xls::Value*>(v)->ToString(cpp_pref);
-  *result_out = ToOwnedCString(s);
+  *result_out = xls::ToOwnedCString(s);
   return true;
 }
 
@@ -296,7 +227,7 @@ bool xls_format_preference_from_string(const char* s, char** error_out,
   } else {
     absl::Status error = absl::InvalidArgumentError(absl::StrFormat(
         "Invalid value for conversion to XLS format preference: `%s`", s));
-    *error_out = ToOwnedCString(error.ToString());
+    *error_out = xls::ToOwnedCString(error.ToString());
     return false;
   }
 
@@ -333,7 +264,7 @@ bool xls_parse_ir_package(const char* ir, const char* filename,
   }
 
   *xls_package_out = nullptr;
-  *error_out = ToOwnedCString(package_or.status().ToString());
+  *error_out = xls::ToOwnedCString(package_or.status().ToString());
   return false;
 }
 
@@ -349,7 +280,7 @@ bool xls_package_get_function(struct xls_package* package,
   }
 
   *result_out = nullptr;
-  *error_out = ToOwnedCString(function_or.status().ToString());
+  *error_out = xls::ToOwnedCString(function_or.status().ToString());
   return false;
 }
 
@@ -374,7 +305,7 @@ bool xls_type_to_string(struct xls_type* type, char** error_out,
   CHECK(result_out != nullptr);
   xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
   *error_out = nullptr;
-  *result_out = ToOwnedCString(xls_type->ToString());
+  *result_out = xls::ToOwnedCString(xls_type->ToString());
   return true;
 }
 
@@ -386,7 +317,7 @@ bool xls_function_get_name(struct xls_function* function, char** error_out,
   xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
 
   *error_out = nullptr;
-  *string_out = ToOwnedCString(xls_function->name());
+  *string_out = xls::ToOwnedCString(xls_function->name());
   return true;
 }
 
@@ -410,7 +341,7 @@ bool xls_function_type_to_string(struct xls_function_type* type,
   CHECK(string_out != nullptr);
   xls::FunctionType* ft = reinterpret_cast<xls::FunctionType*>(type);
   *error_out = nullptr;
-  *string_out = ToOwnedCString(ft->ToString());
+  *string_out = xls::ToOwnedCString(ft->ToString());
   return true;
 }
 
@@ -434,7 +365,7 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
 
   auto return_status = [result_out, error_out](const absl::Status& status) {
     *result_out = nullptr;
-    *error_out = ToOwnedCString(status.ToString());
+    *error_out = xls::ToOwnedCString(status.ToString());
     return false;
   };
 
@@ -459,214 +390,6 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
       new xls::Value(std::move(result_value.value())));
   *error_out = nullptr;
   return true;
-}
-
-// -- VAST
-
-struct xls_vast_verilog_file* xls_vast_make_verilog_file(
-    xls_vast_file_type file_type) {
-  auto* value = new xls::verilog::VerilogFile(
-      static_cast<xls::verilog::FileType>(file_type));
-  return reinterpret_cast<xls_vast_verilog_file*>(value);
-}
-
-void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f) {
-  delete reinterpret_cast<xls::verilog::VerilogFile*>(f);
-}
-
-struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
-    struct xls_vast_verilog_file* f, const char* name) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  xls::verilog::Module* cpp_module =
-      cpp_file->AddModule(name, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_verilog_module*>(cpp_module);
-}
-
-void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
-                                       const char* path) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  cpp_file->AddInclude(path, xls::SourceInfo());
-}
-
-struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
-    struct xls_vast_verilog_module* m, const char* name,
-    struct xls_vast_data_type* type) {
-  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
-  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
-  xls::verilog::LogicRef* logic_ref =
-      cpp_module->AddInput(name, cpp_type, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
-}
-
-struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(
-    struct xls_vast_verilog_module* m, const char* name,
-    struct xls_vast_data_type* type) {
-  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
-  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
-  xls::verilog::LogicRef* logic_ref =
-      cpp_module->AddOutput(name, cpp_type, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
-}
-
-struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
-    struct xls_vast_verilog_module* m, const char* name,
-    struct xls_vast_data_type* type) {
-  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
-  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
-  xls::verilog::LogicRef* logic_ref =
-      cpp_module->AddWire(name, cpp_type, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
-}
-
-char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f) {
-  const auto* cpp_file = reinterpret_cast<const xls::verilog::VerilogFile*>(f);
-  std::string result = cpp_file->Emit();
-  return ToOwnedCString(result);
-}
-
-struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
-    struct xls_vast_verilog_file* f) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  xls::verilog::DataType* type = cpp_file->ScalarType(xls::SourceInfo());
-  return reinterpret_cast<xls_vast_data_type*>(type);
-}
-
-struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
-    struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  xls::verilog::DataType* type =
-      cpp_file->BitVectorType(bit_count, xls::SourceInfo(), is_signed);
-  return reinterpret_cast<xls_vast_data_type*>(type);
-}
-
-void xls_vast_verilog_module_add_member_instantiation(
-    struct xls_vast_verilog_module* m, struct xls_vast_instantiation* member) {
-  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
-  auto* cpp_instantiation =
-      reinterpret_cast<xls::verilog::Instantiation*>(member);
-  cpp_module->AddModuleMember(cpp_instantiation);
-}
-
-void xls_vast_verilog_module_add_member_continuous_assignment(
-    struct xls_vast_verilog_module* m,
-    struct xls_vast_continuous_assignment* member) {
-  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
-  auto* cpp_member =
-      reinterpret_cast<xls::verilog::ContinuousAssignment*>(member);
-  cpp_module->AddModuleMember(cpp_member);
-}
-
-struct xls_vast_literal* xls_vast_verilog_file_make_plain_literal(
-    struct xls_vast_verilog_file* f, int32_t value) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  xls::verilog::Literal* cpp_literal =
-      cpp_file->PlainLiteral(value, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_literal*>(cpp_literal);
-}
-
-bool xls_vast_verilog_file_make_literal(struct xls_vast_verilog_file* f,
-                                        struct xls_bits* bits,
-                                        xls_format_preference format_preference,
-                                        bool emit_bit_count, char** error_out,
-                                        struct xls_vast_literal** literal_out) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  auto* cpp_bits = reinterpret_cast<xls::Bits*>(bits);
-  xls::FormatPreference cpp_pref;
-  if (!FormatPreferenceFromC(format_preference, &cpp_pref, error_out)) {
-    return false;
-  }
-  xls::verilog::Literal* cpp_literal = cpp_file->Make<xls::verilog::Literal>(
-      xls::SourceInfo(), *cpp_bits, cpp_pref, emit_bit_count);
-  *error_out = nullptr;
-  *literal_out = reinterpret_cast<xls_vast_literal*>(cpp_literal);
-  return true;
-}
-
-struct xls_vast_continuous_assignment*
-xls_vast_verilog_file_make_continuous_assignment(
-    struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
-    struct xls_vast_expression* rhs) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
-  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
-  auto* cpp_assignment = cpp_file->Make<xls::verilog::ContinuousAssignment>(
-      xls::SourceInfo(), cpp_lhs, cpp_rhs);
-  return reinterpret_cast<xls_vast_continuous_assignment*>(cpp_assignment);
-}
-
-struct xls_vast_instantiation* xls_vast_verilog_file_make_instantiation(
-    struct xls_vast_verilog_file* f, const char* module_name,
-    const char* instance_name, const char** parameter_port_names,
-    struct xls_vast_expression** parameter_expressions, size_t parameter_count,
-    const char** connection_port_names,
-    struct xls_vast_expression** connection_expressions,
-    size_t connection_count) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-
-  std::vector<xls::verilog::Connection> parameters;
-  parameters.reserve(parameter_count);
-  for (size_t i = 0; i < parameter_count; ++i) {
-    auto* cpp_expression =
-        reinterpret_cast<xls::verilog::Expression*>(parameter_expressions[i]);
-    parameters.push_back(
-        xls::verilog::Connection{parameter_port_names[i], cpp_expression});
-  }
-
-  std::vector<xls::verilog::Connection> connections;
-  connections.reserve(connection_count);
-  for (size_t i = 0; i < connection_count; ++i) {
-    auto* cpp_expression =
-        reinterpret_cast<xls::verilog::Expression*>(connection_expressions[i]);
-    connections.push_back(
-        xls::verilog::Connection{connection_port_names[i], cpp_expression});
-  }
-
-  auto* cpp_instantiation = cpp_file->Make<xls::verilog::Instantiation>(
-      xls::SourceInfo(), module_name, instance_name,
-      absl::MakeConstSpan(parameters), absl::MakeConstSpan(connections));
-  return reinterpret_cast<xls_vast_instantiation*>(cpp_instantiation);
-}
-
-struct xls_vast_expression* xls_vast_literal_as_expression(
-    struct xls_vast_literal* v) {
-  auto* cpp_literal = reinterpret_cast<xls::verilog::Literal*>(v);
-  auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_literal);
-  return reinterpret_cast<xls_vast_expression*>(cpp_expression);
-}
-
-struct xls_vast_expression* xls_vast_logic_ref_as_expression(
-    struct xls_vast_logic_ref* v) {
-  auto* cpp_v = reinterpret_cast<xls::verilog::LogicRef*>(v);
-  auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_v);
-  return reinterpret_cast<xls_vast_expression*>(cpp_expression);
-}
-
-struct xls_vast_expression* xls_vast_slice_as_expression(
-    struct xls_vast_slice* v) {
-  auto* cpp_v = reinterpret_cast<xls::verilog::Slice*>(v);
-  auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_v);
-  return reinterpret_cast<xls_vast_expression*>(cpp_expression);
-}
-
-struct xls_vast_indexable_expression*
-xls_vast_logic_ref_as_indexable_expression(
-    struct xls_vast_logic_ref* logic_ref) {
-  auto* cpp_logic_ref = reinterpret_cast<xls::verilog::LogicRef*>(logic_ref);
-  auto* cpp_indexable_expression =
-      static_cast<xls::verilog::IndexableExpression*>(cpp_logic_ref);
-  return reinterpret_cast<xls_vast_indexable_expression*>(
-      cpp_indexable_expression);
-}
-
-struct xls_vast_slice* xls_vast_verilog_file_make_slice_i64(
-    struct xls_vast_verilog_file* f,
-    struct xls_vast_indexable_expression* subject, int64_t hi, int64_t lo) {
-  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
-  auto* cpp_subject =
-      reinterpret_cast<xls::verilog::IndexableExpression*>(subject);
-  xls::verilog::Slice* cpp_slice =
-      cpp_file->Slice(cpp_subject, hi, lo, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_slice*>(cpp_slice);
 }
 
 }  // extern "C"

@@ -155,25 +155,54 @@ cc_library(
 )
 
 cc_library(
+    name = "c_api_impl_helpers",
+    srcs = ["c_api_impl_helpers.cc"],
+    hdrs = ["c_api_impl_helpers.h"],
+    deps = [
+        ":c_api_format_preference",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir:format_preference",
+    ],
+)
+
+cc_library(
+    name = "c_api_format_preference",
+    hdrs = ["c_api_format_preference.h"],
+)
+
+cc_library(
+    name = "c_api_vast",
+    srcs = ["c_api_vast.cc"],
+    hdrs = ["c_api_vast.h"],
+    deps = [
+        ":c_api_format_preference",
+        ":c_api_impl_helpers",
+        "//xls/codegen/vast",
+        "//xls/ir:source_location",
+    ],
+)
+
+cc_library(
     name = "c_api",
     srcs = ["c_api.cc"],
     hdrs = ["c_api.h"],
     deps = [
+        ":c_api_impl_helpers",
+        ":c_api_vast",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         ":runtime_build_actions",
-        "//xls/codegen/vast",
         "//xls/common:init_xls",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
-        "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -182,12 +211,12 @@ cc_test(
     srcs = ["c_api_test.cc"],
     deps = [
         ":c_api",
-        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_googletest//:gtest",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
+        "//xls/common:xls_gunit_main",
         "//xls/dslx:default_dslx_stdlib_path",
-        "@com_google_absl//absl/cleanup",
-        "@com_google_googletest//:gtest",
     ],
 )
