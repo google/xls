@@ -267,6 +267,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dev_tools:tool_timeout",
         "//xls/interpreter:block_evaluator",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:interpreter_proc_runtime",

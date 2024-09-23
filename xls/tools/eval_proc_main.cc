@@ -55,6 +55,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/tool_timeout.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
@@ -1081,6 +1082,7 @@ static absl::Status RealMain(
     std::string_view idle_channel_name, const int random_seed,
     const double prob_input_valid_assert, bool show_trace,
     std::string_view output_stats_path, bool fail_on_assert) {
+  auto timeout = StartTimeoutTimer();
   // Don't waste time and memory parsing more input than can possibly be
   // consumed.
   const int64_t total_ticks =
