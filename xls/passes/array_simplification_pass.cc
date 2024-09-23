@@ -19,6 +19,8 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -27,12 +29,14 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
@@ -50,6 +54,13 @@
 
 namespace xls {
 namespace {
+
+// How small an array needs to be before we just eliminate it in favor of the
+// better dependency analysis provided by selects etc. This turns an
+// array-update into a select of the old array-index and the new value and
+// indexes with a select on the various indexes. In many cases this will allow
+// us to entierly remove the array.
+constexpr int64_t kSmallArrayLimit = 3;
 
 // Returns true if the given index value is definitely out of bounds for the
 // given array type.
@@ -177,9 +188,15 @@ struct SimplifyResult {
   }
 };
 
+bool IsSmallArray(Node* node) {
+  return node->GetType()->IsArray() &&
+         node->GetType()->AsArrayOrDie()->size() <= kSmallArrayLimit;
+}
+
 // Try to simplify the given array index operation.
 absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
-    ArrayIndex* array_index, const QueryEngine& query_engine) {
+    ArrayIndex* array_index, const QueryEngine& query_engine,
+    int64_t opt_level) {
   // An array index with a nil index (no index operands) can be replaced by the
   // array operand:
   //
@@ -369,11 +386,15 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   // Only perform this optimization if the array_index is the only user.
   // Otherwise the array index(es) are duplicated which can outweigh the benefit
   // of selecting the smaller element.
+  //
+  // For very small arrays (when narrowing is enabled) we will perform this
+  // unconditionally since we totally remove the array in these circumstances.
   // TODO(meheff): Consider cases where selects with multiple users are still
   // advantageous to transform.
   if ((array_index->array()->Is<Select>() ||
        array_index->array()->Is<PrioritySelect>()) &&
-      HasSingleUse(array_index->array())) {
+      (HasSingleUse(array_index->array()) ||
+       (IsSmallArray(array_index->array()) && SplitsEnabled(opt_level)))) {
     VLOG(2) << absl::StrFormat(
         "Replacing array-index of select with select of array-indexes: %s",
         array_index->ToString());
@@ -508,6 +529,61 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     XLS_RETURN_IF_ERROR(
         array_index->ReplaceOperandNumber(0, array_update->array_to_update()));
     return SimplifyResult::Changed({array_index});
+  }
+
+  // If the array is really small we unconditionally unwind the array-update to
+  // give other transforms a chance to fully remove the array.
+  //
+  // We only do this if they both are 1-long indexes to avoid having to recreate
+  // the other array elements.
+  //
+  // (array-index (array-update C V {update-idx}) {arr-idx})
+  //
+  // Transforms to:
+  //
+  // (let ((effective-read-idx (if (> arr-idx (array-len C))
+  //                               (- (array-len C) 1)
+  //                               arr-idx)))
+  //   (if (= effective-read-idx update-idx)
+  //       V
+  //       (array-index C arr-idx)))
+  //
+  // NB Since in the case where an update did not actually change the array the
+  // update-idx must be out-of-bounds that means the only way the bounded
+  // arr-idx can match the update-idx is if the update-idx is in bounds and so
+  // the update acctually happened.
+  if (IsSmallArray(array_update) && array_update->indices().size() == 1 &&
+      array_index->indices().size() == 1 && SplitsEnabled(opt_level)) {
+    VLOG(2) << "Replacing " << array_index << " with select using "
+            << array_update << " context";
+    FunctionBase* fb = array_update->function_base();
+    auto name_fmt = [&](Node* src, std::string_view postfix) -> std::string {
+      if (src->HasAssignedName()) {
+        return absl::StrCat(src->GetNameView(), postfix);
+      }
+      return "";
+    };
+    int64_t array_bounds = array_update->GetType()->AsArrayOrDie()->size() - 1;
+    XLS_ASSIGN_OR_RETURN(Node * bounded_arr_idx,
+                         UnsignedUpperBoundLiteral(
+                             array_index->indices().front(), array_bounds));
+    XLS_ASSIGN_OR_RETURN(
+        Node * index_is_updated_value,
+        CompareNumeric(array_update->indices().front(), bounded_arr_idx,
+                       Op::kEq, name_fmt(array_index, "_is_updated_value")));
+    XLS_ASSIGN_OR_RETURN(
+        Node * old_value_get,
+        fb->MakeNodeWithName<ArrayIndex>(
+            array_index->loc(), array_update->array_to_update(),
+            array_index->indices(), name_fmt(array_index, "_former_value")));
+    XLS_RETURN_IF_ERROR(
+        array_index
+            ->ReplaceUsesWithNew<PrioritySelect>(
+                index_is_updated_value,
+                absl::MakeConstSpan({array_update->update_value()}),
+                old_value_get)
+            .status());
+    return SimplifyResult::Changed({old_value_get});
   }
 
   return SimplifyResult::Unchanged();
@@ -1380,6 +1456,8 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   }
 
   while (!worklist.empty()) {
+    VLOG(2) << "Worklist is " << worklist.size() << "/" << func->node_count()
+            << " nodes for " << func->name();
     Node* node = remove_from_worklist();
 
     if (node->IsDead()) {
@@ -1389,8 +1467,8 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     SimplifyResult result = {.changed = false, .new_worklist_nodes = {}};
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
-      XLS_ASSIGN_OR_RETURN(result,
-                           SimplifyArrayIndex(array_index, query_engine));
+      XLS_ASSIGN_OR_RETURN(
+          result, SimplifyArrayIndex(array_index, query_engine, opt_level_));
     } else if (node->Is<ArrayUpdate>()) {
       XLS_ASSIGN_OR_RETURN(
           result, SimplifyArrayUpdate(node->As<ArrayUpdate>(), query_engine,

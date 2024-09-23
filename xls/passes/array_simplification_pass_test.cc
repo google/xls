@@ -26,6 +26,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -39,6 +40,9 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using ::testing::Each;
+using ::testing::Not;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 class ArraySimplificationPassTest : public IrTestBase {
  protected:
@@ -269,8 +273,9 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayUpdateOperationUnknownIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
-  BValue a = fb.Array(
-      {fb.Param("x", u32), fb.Param("y", u32), fb.Param("z", u32)}, u32);
+  BValue a = fb.Array({fb.Param("w", u32), fb.Param("x", u32),
+                       fb.Param("y", u32), fb.Param("z", u32)},
+                      u32);
   BValue update_index = fb.Param("idx", u32);
   BValue array_update = fb.ArrayUpdate(a, fb.Param("q", u32), {update_index});
   BValue index = fb.Literal(Value(UBits(1, 16)));
@@ -287,8 +292,9 @@ TEST_F(ArraySimplificationPassTest,
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
-  BValue a = fb.Array(
-      {fb.Param("x", u32), fb.Param("y", u32), fb.Param("z", u32)}, u32);
+  BValue a = fb.Array({fb.Param("w", u32), fb.Param("x", u32),
+                       fb.Param("y", u32), fb.Param("z", u32)},
+                      u32);
   BValue index = fb.Param("idx", u32);
   BValue array_update = fb.ArrayUpdate(a, fb.Param("q", u32), {index});
   fb.ArrayIndex(array_update, {index});
@@ -1348,6 +1354,63 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayConcatNonConstant) {
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_THAT(f->return_value(),
               m::ArrayIndex(m::ArrayConcat(), {m::Param(), m::Param()}));
+}
+
+TEST_F(ArraySimplificationPassTest, BasicRemoval) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue arr = fb.Array(
+      {fb.Param("v1", p->GetBitsType(32)), fb.Param("v2", p->GetBitsType(32))},
+      p->GetBitsType(32));
+  fb.ArrayIndex(arr, {fb.Param("idx", p->GetBitsType(32))});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("idx"), {m::Param("v1")}, m::Param("v2")));
+}
+
+TEST_F(ArraySimplificationPassTest, RemovalOfUpdateIndexLiteral) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue arr = fb.Array(
+      {fb.Param("v1", p->GetBitsType(32)), fb.Param("v2", p->GetBitsType(32))},
+      p->GetBitsType(32));
+  BValue updated = fb.ArrayUpdate(arr, fb.Param("v3", p->GetBitsType(32)),
+                                  {fb.Param("idx", p->GetBitsType(32))});
+  fb.ArrayIndex(updated, {fb.Literal(UBits(0, 32))});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(testing::A<const Node*>(), {m::Param("v3")},
+                                m::Param("v1")));
+  EXPECT_THAT(f->nodes(), Each(Not(m::Array())));
+}
+
+TEST_F(ArraySimplificationPassTest, RemovalOfUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue arr = fb.Array(
+      {fb.Param("v1", p->GetBitsType(32)), fb.Param("v2", p->GetBitsType(32))},
+      p->GetBitsType(32), SourceInfo(), "arr");
+  BValue updated = fb.ArrayUpdate(arr, fb.Param("v3", p->GetBitsType(32)),
+                                  {fb.Param("idx", p->GetBitsType(32))},
+                                  SourceInfo(), "updated_arr");
+  fb.ArrayIndex(updated, {fb.Param("idx2", p->GetBitsType(32))}, SourceInfo(),
+                "arr_read");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  auto original_value =
+      m::Select(m::Param("idx2"), {m::Param("v1")}, m::Param("v2"));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(testing::A<const Node*>(), {m::Param("v3")},
+                                original_value));
+  EXPECT_THAT(f->nodes(), Each(Not(m::Array())));
 }
 
 }  // namespace
