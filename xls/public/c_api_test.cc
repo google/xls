@@ -595,16 +595,18 @@ enum MyEnum : u5 {
     xls_dslx_expr* member2_expr = xls_dslx_enum_member_get_value(member2);
 
     xls_dslx_interp_value* member2_value = nullptr;
-    ASSERT_TRUE(xls_dslx_type_info_get_const_expr(type_info, member2_expr, &error, &member2_value));
+    ASSERT_TRUE(xls_dslx_type_info_get_const_expr(type_info, member2_expr,
+                                                  &error, &member2_value));
     absl::Cleanup free_member2_value(
         [=] { xls_dslx_interp_value_free(member2_value); });
     ASSERT_NE(member2_value, nullptr);
 
     xls_value* member2_ir_value = nullptr;
-    ASSERT_TRUE(xls_dslx_interp_value_convert_to_ir(member2_value, &error, &member2_ir_value));
+    ASSERT_TRUE(xls_dslx_interp_value_convert_to_ir(member2_value, &error,
+                                                    &member2_ir_value));
     absl::Cleanup free_member2_ir_value(
         [=] { xls_value_free(member2_ir_value); });
-    
+
     char* value_str = nullptr;
     ASSERT_TRUE(xls_value_to_string(member2_ir_value, &value_str));
     absl::Cleanup free_value_str([=] { xls_c_str_free(value_str); });

@@ -114,11 +114,14 @@ struct xls_dslx_enum_member* xls_dslx_enum_def_get_member(
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_enum_member_get_name(struct xls_dslx_enum_member*);
 
-struct xls_dslx_expr* xls_dslx_enum_member_get_value(struct xls_dslx_enum_member*);
+struct xls_dslx_expr* xls_dslx_enum_member_get_value(
+    struct xls_dslx_enum_member*);
 
 // -- interp_value
 
-bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v, char** error_out, struct xls_value** result_out);
+bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
+                                         char** error_out,
+                                         struct xls_value** result_out);
 
 void xls_dslx_interp_value_free(struct xls_dslx_interp_value*);
 
@@ -139,7 +142,9 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_type_annotation(
 
 // Note: the outparam is owned by the caller and must be freed via
 // `xls_dslx_interp_value_free`.
-bool xls_dslx_type_info_get_const_expr(struct xls_dslx_type_info* type_info, struct xls_dslx_expr* expr, char** error_out, struct xls_dslx_interp_value** result_out);
+bool xls_dslx_type_info_get_const_expr(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_expr* expr,
+    char** error_out, struct xls_dslx_interp_value** result_out);
 
 bool xls_dslx_type_get_total_bit_count(const struct xls_dslx_type*,
                                        char** error_out, int64_t* result_out);

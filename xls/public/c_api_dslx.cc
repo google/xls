@@ -175,7 +175,8 @@ char* xls_dslx_enum_member_get_name(struct xls_dslx_enum_member* m) {
   return xls::ToOwnedCString(cpp_member->name_def->identifier());
 }
 
-struct xls_dslx_expr* xls_dslx_enum_member_get_value(struct xls_dslx_enum_member* m) {
+struct xls_dslx_expr* xls_dslx_enum_member_get_value(
+    struct xls_dslx_enum_member* m) {
   auto* cpp_member = reinterpret_cast<xls::dslx::EnumMember*>(m);
   xls::dslx::Expr* cpp_value = cpp_member->value;
   return reinterpret_cast<xls_dslx_expr*>(cpp_value);
@@ -237,10 +238,13 @@ struct xls_dslx_type_annotation* xls_dslx_struct_member_get_type(
   return reinterpret_cast<xls_dslx_type_annotation*>(cpp_type_annotation);
 }
 
-bool xls_dslx_type_info_get_const_expr(struct xls_dslx_type_info* type_info, struct xls_dslx_expr* expr, char** error_out, struct xls_dslx_interp_value** result_out) {
+bool xls_dslx_type_info_get_const_expr(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_expr* expr,
+    char** error_out, struct xls_dslx_interp_value** result_out) {
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   auto* cpp_expr = reinterpret_cast<xls::dslx::Expr*>(expr);
-  absl::StatusOr<xls::dslx::InterpValue> value_or = cpp_type_info->GetConstExpr(cpp_expr);
+  absl::StatusOr<xls::dslx::InterpValue> value_or =
+      cpp_type_info->GetConstExpr(cpp_expr);
   if (!value_or.ok()) {
     *result_out = nullptr;
     *error_out = xls::ToOwnedCString(value_or.status().ToString());
@@ -260,7 +264,9 @@ void xls_dslx_interp_value_free(struct xls_dslx_interp_value* v) {
   delete cpp_interp_value;
 }
 
-bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v, char** error_out, struct xls_value** result_out) {
+bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
+                                         char** error_out,
+                                         struct xls_value** result_out) {
   auto* cpp_interp_value = reinterpret_cast<xls::dslx::InterpValue*>(v);
   absl::StatusOr<xls::Value> ir_value_or = cpp_interp_value->ConvertToIr();
   if (!ir_value_or.ok()) {
