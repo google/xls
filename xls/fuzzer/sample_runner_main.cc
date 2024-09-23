@@ -60,11 +60,13 @@ namespace {
 // returns the basename of the file.
 std::filesystem::path MaybeCopyFile(const std::filesystem::path& file_path,
                                     const std::filesystem::path& dir_path) {
-  DCHECK(std::filesystem::is_directory(dir_path));
-  std::filesystem::path canonical_file = std::filesystem::canonical(file_path);
-  std::filesystem::path basename = file_path.filename();
-  if (canonical_file.parent_path() != dir_path) {
-    std::filesystem::copy_file(file_path, dir_path / basename);
+  namespace fs = std::filesystem;
+  DCHECK(fs::is_directory(dir_path));
+  const fs::path canonical_dir = fs::canonical(dir_path);
+  const fs::path canonical_file = fs::canonical(file_path);
+  const fs::path basename = file_path.filename();
+  if (canonical_file.parent_path() != canonical_dir) {
+    fs::copy_file(file_path, dir_path / basename);
   }
   return dir_path / basename;
 }

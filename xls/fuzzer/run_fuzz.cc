@@ -220,15 +220,16 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
     argv.push_back("--ir_channel_names_file=ir_channel_names.txt");
   }
 
-  argv.push_back(run_dir.string());
+  argv.push_back("\"$RUNDIR\"");
 
   std::filesystem::path run_script_path = run_dir / "run.sh";
-  XLS_RETURN_IF_ERROR(SetFileContents(
-      run_script_path, absl::StrFormat(R"(#!/bin/sh
-cd '%s'
-%s
-)",
-                                       run_dir, ArgvToCmdline(argv))));
+  XLS_RETURN_IF_ERROR(
+      SetFileContents(run_script_path, absl::StrFormat(R"""(#!/bin/sh
+RUNDIR=`dirname $0`
+cd "$RUNDIR"
+%s "$@"
+)""",
+                                                       ArgvToCmdline(argv))));
   std::filesystem::permissions(run_script_path,
                                std::filesystem::perms::owner_exec,
                                std::filesystem::perm_options::add);
