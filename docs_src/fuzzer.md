@@ -27,7 +27,9 @@ which may be disabled/enabled via flags (run with `--help` for more details):
 *   Optimizes the converted IR
 *   Interprets the pre-optimized and optimized IR with the batch of arguments
 *   Generates the Verilog from the IR with randomly selected codegen options
+    (with `--codegen`)
 *   Simulates the generated Verilog using the batch of arguments
+    (with `--simulate`)
 *   Performs a multi-way comparison of the DSLX interpreter results, the
     pre-optimized IR interpreter results, post-optimized IR interpreter results,
     and the simulator results
@@ -53,12 +55,18 @@ To avoid collisions the subdirectory is named using a hash of the DSLX code.
 Each crasher subdirectory has the following contents:
 
 ```
-$ ls /tmp/crashers-2019-06-25/05adbd50
-args.txt                   ir_converter_main.stderr   run.sh
-cl.txt                     ir_minimizer.options.json  sample.ir
-crasher_2020-04-23_9b05.x  ir_minimizer_test.sh       sample.ir.results
-eval_ir_main.stderr        options.json               sample.x
-exception.txt              opt_main.stderr            sample.x.results
+$ ls /tmp/crashers-2024-09-19/433f5244
+args.txt                        run.sh
+codegen_main.stderr             sample.block.ir
+crasher_2024-09-19_433f.x       sample.ir
+eval_ir_main.stderr             sample.ir.results
+exception.txt                   sample.opt.ir
+ir_converter_main.stderr        sample.opt.ir.results
+minimized.ir                    sample.v
+module_sig.textproto            sample.x
+options.pbtxt                   sample.x.results
+opt_main.stderr                 simulate_module_main.stderr
+revision.txt
 ```
 
 The directory includes the problematic DSLX sample (`sample.x`) and the input
@@ -66,10 +74,11 @@ arguments (`args.txt`) as well as all artifacts generated and stderr output
 emitted by the various utilities invoked to test the sample. Notable files
 include:
 
-*   `options.json` : Options used to run the sample.
+*   `options.pbtxt` : Options used to run the sample (text protobuffer).
 *   `sample.ir` : Unoptimized IR generated from the DSLX sample.
 *   `sample.opt.ir` : IR after optimizations.
-*   `sample.v` : Generated Verilog.
+*   `sample.v` : Generated Verilog (or `sample.sv` with
+     `--use_system_verilog=true` on fuzz runner)
 *   `*.results` : The results (numeric values) produced by interpreting or
     simulating the respective input (DSLX, IR, or Verilog).
 *   `exception.txt` : The exception raised when running the sample. Typically
@@ -77,6 +86,7 @@ include:
     status (for example, the IR optimizer crashed).
 *   `crasher_*.x`: A single file reproducer which includes the DSLX code,
     arguments, and options. See [below](#reproducers) for details.
+*   `run.sh`: a script to re-run this example.
 
 Typically the exact nature of the failure can be identified by reading the file
 `exception.txt` and possibly the stderr outputs of the various tools.
