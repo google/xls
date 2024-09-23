@@ -70,7 +70,7 @@ conveniently called
 against the above example with the command:
 
 ```
-$ ./bazel-bin/xls/tools/repl hello_xls.x
+$ ./bazel-bin/xls/dev_tools/repl hello_xls.x
 ```
 
 This tool first examines the specified module for language correctness, and will
