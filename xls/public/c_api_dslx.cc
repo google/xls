@@ -238,6 +238,12 @@ struct xls_dslx_type_annotation* xls_dslx_struct_member_get_type(
   return reinterpret_cast<xls_dslx_type_annotation*>(cpp_type_annotation);
 }
 
+char* xls_dslx_struct_member_get_name(struct xls_dslx_struct_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::StructMember*>(member);
+  const std::string& name = cpp_member->name;
+  return xls::ToOwnedCString(name);
+}
+
 bool xls_dslx_type_info_get_const_expr(
     struct xls_dslx_type_info* type_info, struct xls_dslx_expr* expr,
     char** error_out, struct xls_dslx_interp_value** result_out) {

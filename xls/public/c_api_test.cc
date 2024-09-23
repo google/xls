@@ -559,6 +559,11 @@ enum MyEnum : u5 {
     xls_dslx_struct_member* member1 =
         xls_dslx_struct_def_get_member(struct_def, 1);
 
+    char* member0_name = xls_dslx_struct_member_get_name(member0);
+    absl::Cleanup free_member0_name([=] { xls_c_str_free(member0_name); });
+    ASSERT_NE(member0_name, nullptr);
+    EXPECT_EQ(std::string_view{member0_name}, "some_field");
+
     xls_dslx_type_annotation* member0_type_annotation =
         xls_dslx_struct_member_get_type(member0);
     xls_dslx_type_annotation* member1_type_annotation =
@@ -593,6 +598,11 @@ enum MyEnum : u5 {
 
     xls_dslx_enum_member* member2 = xls_dslx_enum_def_get_member(enum_def, 2);
     xls_dslx_expr* member2_expr = xls_dslx_enum_member_get_value(member2);
+
+    char* member2_name = xls_dslx_enum_member_get_name(member2);
+    absl::Cleanup free_member2_name([=] { xls_c_str_free(member2_name); });
+    ASSERT_NE(member2_name, nullptr);
+    EXPECT_EQ(std::string_view{member2_name}, "C");
 
     xls_dslx_interp_value* member2_value = nullptr;
     ASSERT_TRUE(xls_dslx_type_info_get_const_expr(type_info, member2_expr,
