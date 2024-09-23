@@ -72,7 +72,8 @@ class ProcMember : public AstNode {
 };
 
 // TODO(leary): 2024-02-09 Extend this to allow for constant definitions, etc.
-using ProcStmt = std::variant<Function*, ProcMember*, TypeAlias*, ConstAssert*>;
+using ProcStmt = std::variant<Function*, ProcMember*, TypeAlias*, ConstAssert*,
+                              ConstantDef*>;
 
 absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n);
 
@@ -138,11 +139,12 @@ class ProcLike : public AstNode {
     return result;
   }
 
-  std::vector<const ConstAssert*> GetConstAssertStmts() const {
-    std::vector<const ConstAssert*> result;
+  template <typename T>
+  std::vector<const T*> GetStmtsOfType() const {
+    std::vector<const T*> result;
     for (const ProcStmt& stmt : stmts()) {
-      if (std::holds_alternative<ConstAssert*>(stmt)) {
-        result.push_back(std::get<ConstAssert*>(stmt));
+      if (std::holds_alternative<T*>(stmt)) {
+        result.push_back(std::get<T*>(stmt));
       }
     }
     return result;

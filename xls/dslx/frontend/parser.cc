@@ -2485,6 +2485,11 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
       XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
                            ParseTypeAlias(/*is_public=*/false, proc_bindings));
       proc_like_body.stmts.push_back(type_alias);
+    } else if (peek->IsKeyword(Keyword::kConst)) {
+      XLS_ASSIGN_OR_RETURN(
+          ConstantDef * constant,
+          ParseConstantDef(/*is_public=*/false, proc_bindings));
+      proc_like_body.stmts.push_back(constant);
     } else if (peek->IsIdentifier("config")) {
       XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_like_body.config, peek));
 

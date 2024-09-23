@@ -1603,6 +1603,23 @@ TEST_F(ModuleFmtTest, SimpleProc) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcWithConstant) {
+  Run(
+      R"(pub proc p {
+    // My constant.
+    const MY_CONST = u32:8;
+    // My second constant.
+    const ANOTHER_CONST = "second";
+
+    config() { () }
+
+    init { () }
+
+    next(state: ()) { () }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleProcWithComments) {
   Run(
       R"(// Proc-level comment.

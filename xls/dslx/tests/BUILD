@@ -1180,6 +1180,18 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "parametric_proc_with_const",
+    # No meaningful entry function to convert.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "proc_with_const",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
     name = "proc_two_level",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,

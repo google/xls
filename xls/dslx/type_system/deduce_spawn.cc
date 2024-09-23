@@ -56,11 +56,18 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
                                              ref->attr(), ref->span());
 }
 
+absl::Status TypecheckProcConstantDefs(const Proc& p, DeduceCtx* ctx) {
+  for (const ConstantDef* n : p.GetStmtsOfType<ConstantDef>()) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(n).status());
+  }
+  return absl::OkStatus();
+}
+
 // We need to evaluate/check `const_assert!`s at typechecking time; things like
 // parametrics are only instantiated when a `spawn` is encountered, at which
 // point we can check `const_assert!`s pass.
 absl::Status TypecheckProcConstAsserts(const Proc& p, DeduceCtx* ctx) {
-  for (const ConstAssert* n : p.GetConstAssertStmts()) {
+  for (const ConstAssert* n : p.GetStmtsOfType<ConstAssert>()) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(n).status());
   }
   return absl::OkStatus();
@@ -109,6 +116,13 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
                              DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     return &proc->init();
   };
+
+  {
+    std::unique_ptr<DeduceCtx> proc_level_ctx =
+        ctx->MakeCtx(ctx->type_info(), proc->owner());
+    proc_level_ctx->fn_stack().push_back(FnStackEntry::MakeTop(proc->owner()));
+    XLS_RETURN_IF_ERROR(TypecheckProcConstantDefs(*proc, proc_level_ctx.get()));
+  }
 
   XLS_RETURN_IF_ERROR(
       DeduceInstantiation(ctx, down_cast<Invocation*>(node->next()->args()[0]),

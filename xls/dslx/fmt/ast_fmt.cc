@@ -1331,6 +1331,33 @@ DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
                              });
 }
 
+static DocRef Fmt(const ConstantDef& n, const Comments& comments,
+                  DocArena& arena) {
+  std::vector<DocRef> leader_pieces;
+  if (n.is_public()) {
+    leader_pieces.push_back(arena.Make(Keyword::kPub));
+    leader_pieces.push_back(arena.break1());
+  }
+  leader_pieces.push_back(arena.Make(Keyword::kConst));
+  leader_pieces.push_back(arena.break1());
+  leader_pieces.push_back(arena.MakeText(n.identifier()));
+  if (n.type_annotation() != nullptr) {
+    leader_pieces.push_back(arena.colon());
+    leader_pieces.push_back(arena.space());
+    leader_pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
+  }
+  leader_pieces.push_back(arena.break1());
+  leader_pieces.push_back(arena.equals());
+  leader_pieces.push_back(arena.space());
+
+  DocRef lhs = ConcatNGroup(arena, leader_pieces);
+  DocRef rhs = ConcatNGroup(arena, {
+                                       Fmt(*n.value(), comments, arena),
+                                       arena.semi(),
+                                   });
+  return arena.MakeConcat(lhs, rhs);
+}
+
 DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   if (WeakerThan(n.lhs()->GetPrecedence(), n.GetPrecedence())) {
@@ -1823,6 +1850,17 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
               stmt_pieces.push_back(arena.hard_line());
               last_stmt_limit = n->span().limit();
             },
+            [&](const ConstantDef* n) {
+              if (std::optional<DocRef> maybe_doc =
+                      EmitCommentsBetween(last_stmt_limit, n->span().start(),
+                                          comments, arena, nullptr)) {
+                stmt_pieces.push_back(
+                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+              }
+              stmt_pieces.push_back(Fmt(*n, comments, arena));
+              stmt_pieces.push_back(arena.hard_line());
+              last_stmt_limit = n->span().limit();
+            },
             [&](const TypeAlias* n) {
               if (std::optional<DocRef> maybe_doc =
                       EmitCommentsBetween(last_stmt_limit, n->span().start(),
@@ -2079,33 +2117,6 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
 
   pieces.push_back(arena.ccurl());
   return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
-}
-
-static DocRef Fmt(const ConstantDef& n, const Comments& comments,
-                  DocArena& arena) {
-  std::vector<DocRef> leader_pieces;
-  if (n.is_public()) {
-    leader_pieces.push_back(arena.Make(Keyword::kPub));
-    leader_pieces.push_back(arena.break1());
-  }
-  leader_pieces.push_back(arena.Make(Keyword::kConst));
-  leader_pieces.push_back(arena.break1());
-  leader_pieces.push_back(arena.MakeText(n.identifier()));
-  if (n.type_annotation() != nullptr) {
-    leader_pieces.push_back(arena.colon());
-    leader_pieces.push_back(arena.space());
-    leader_pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
-  }
-  leader_pieces.push_back(arena.break1());
-  leader_pieces.push_back(arena.equals());
-  leader_pieces.push_back(arena.space());
-
-  DocRef lhs = ConcatNGroup(arena, leader_pieces);
-  DocRef rhs = ConcatNGroup(arena, {
-                                       Fmt(*n.value(), comments, arena),
-                                       arena.semi(),
-                                   });
-  return arena.MakeConcat(lhs, rhs);
 }
 
 static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,

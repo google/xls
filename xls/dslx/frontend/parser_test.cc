@@ -461,6 +461,124 @@ TEST_F(ParserTest, ParseSimpleProc) {
   EXPECT_EQ(p->ToString(), text);
 }
 
+TEST_F(ParserTest, ParseProcWithConst) {
+  RoundTrip(R"(proc simple {
+    const MAX_X = u32:10;
+    x: u32;
+    config() {
+        ()
+    }
+    init {
+        u32:0
+    }
+    next(addend: u32) {
+        if x > MAX_X { x } else { x + addend }
+    }
+})");
+}
+
+TEST_F(ParserTest, ParseParametricProcWithConstant) {
+  RoundTrip(R"(proc MyProc<X: u32> {
+    const INC = u32:20;
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(state: ()) {
+        state + INC
+    }
+})");
+}
+
+TEST_F(ParserTest, ParseParametricProcWithConstantRefParam) {
+  RoundTrip(R"(proc MyProc<X: u32> {
+    const DOUBLE_X = u32:2 * X;
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(state: ()) {
+        state + DOUBLE_X
+    }
+})");
+}
+
+TEST_F(ParserTest, ParseProcWithConstantRefFunction) {
+  RoundTrip(R"(fn double(x: u32) -> u32 {
+    x * u32:2
+}
+proc MyProc<X: u32> {
+    const DOUBLE_X = double(X);
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(state: ()) {
+        state + DOUBLE_X
+    }
+})");
+}
+
+TEST_F(ParserTest, ParseProcWithConstantRefGlobalConstant) {
+  RoundTrip(R"(const MY_VAL = u32:15;
+proc MyProc {
+    const DOUBLE_VAL = u32:2 * MY_VAL;
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(state: ()) {
+        state + DOUBLE_VAL
+    }
+})");
+}
+
+TEST_F(ParserTest, ParseProcWithConstantInType) {
+  RoundTrip(R"(const MY_VAL = u32:15;
+proc MyProc {
+    const DOUBLE_VAL = u32:2 * MY_VAL;
+    c: chan<uN[DOUBLE_VAL]> in;
+    config(c: chan<uN[DOUBLE_VAL]> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(state: ()) {
+        state + DOUBLE_VAL
+    }
+})");
+}
+
+TEST_F(ParserTest, ParseProcWithConstantRefConstant) {
+  RoundTrip(R"(proc MyProc {
+    const MY_VAL = u32:15;
+    const DOUBLE_VAL = u32:2 * MY_VAL;
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(state: ()) {
+        state + DOUBLE_VAL
+    }
+})");
+}
+
 TEST_F(ParserTest, ParseNextTooManyArgs) {
   const char* text = R"(proc confused {
     config() { () }
