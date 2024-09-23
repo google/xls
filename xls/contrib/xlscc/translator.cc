@@ -4567,7 +4567,7 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
 absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node,
                                                     const xls::SourceInfo& loc,
                                                     bool do_check) {
-  xls::IrInterpreter visitor({});
+  xls::IrInterpreter visitor;
   absl::Status status = node->Accept(&visitor);
   if (!status.ok()) {
     auto err = absl::UnavailableError(
