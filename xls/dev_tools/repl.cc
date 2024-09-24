@@ -309,7 +309,13 @@ absl::Status CommandReload() {
   XLS_ASSIGN_OR_RETURN(std::string dslx_contents,
                        GetFileContents(globals.dslx_path));
 
-  dslx::FileTable& file_table = globals.dslx->import_data.file_table();
+  dslx::ImportData import_data(dslx::CreateImportData(
+      /*dslx_stdlib_path=*/"",
+      /*additional_search_paths=*/{},
+      /*enabled_warnings=*/dslx::kDefaultWarningsSet));
+
+  dslx::FileTable& file_table = import_data.file_table();
+
   dslx::Fileno fileno = file_table.GetOrCreate(globals.dslx_path);
   dslx::Scanner scanner(file_table, fileno, dslx_contents);
   dslx::Parser parser("main", &scanner);
@@ -323,10 +329,6 @@ absl::Status CommandReload() {
   }
 
   std::unique_ptr<dslx::Module> module = std::move(maybe_module).value();
-  dslx::ImportData import_data(dslx::CreateImportData(
-      /*dslx_stdlib_path=*/"",
-      /*additional_search_paths=*/{},
-      /*enabled_warnings=*/dslx::kDefaultWarningsSet));
   dslx::WarningCollector warnings(import_data.enabled_warnings());
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * type_info,
                        TypecheckModule(module.get(), &import_data, &warnings));
