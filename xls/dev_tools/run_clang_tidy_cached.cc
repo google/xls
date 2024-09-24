@@ -79,7 +79,8 @@ inline bool ConsiderExtension(const std::string& extension) {
 
 // Configuration of clang-tidy itself.
 static constexpr std::string_view kClangConfigFile = ".clang-tidy";
-static constexpr std::string_view kExtraArgs[] = {"-Wno-unknown-pragmas"};
+static constexpr std::string_view kExtraArgs[] = {"-Wno-unknown-pragmas",
+                                                  "-std=c++20"};
 
 // If the compilation DB changed, it might be worthwhile revisiting
 // sources that previously had issues. This flag enables that.
