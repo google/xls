@@ -59,49 +59,21 @@ If no entry point is given all functions within the module are converted:
   ir_converter_main path/to/frobulator.x
 )";
 
-absl::Status RealMain(absl::Span<const std::string_view> paths) {
-  XLS_ASSIGN_OR_RETURN(IrConverterOptionsFlagsProto ir_converter_options,
-                       GetIrConverterOptionsFlagsProto());
-
-  std::optional<std::filesystem::path> output_file =
-      ir_converter_options.has_output_file()
-          ? std::make_optional<std::filesystem::path>(
-                ir_converter_options.output_file())
-          : std::nullopt;
-
-  std::string_view stdlib_path = ir_converter_options.stdlib_path();
-  std::string_view dslx_path = ir_converter_options.dslx_path();
-  std::vector<std::string_view> dslx_path_strs = absl::StrSplit(dslx_path, ':');
-
-  std::vector<std::filesystem::path> dslx_paths;
-  dslx_paths.reserve(dslx_path_strs.size());
-  for (const auto& path : dslx_path_strs) {
-    dslx_paths.push_back(std::filesystem::path(path));
-  }
-
-  std::optional<std::string_view> top;
-  if (ir_converter_options.has_top()) {
-    top = ir_converter_options.top();
-  }
-
-  std::optional<std::string_view> package_name;
-  if (ir_converter_options.has_package_name()) {
-    package_name = ir_converter_options.package_name();
-  }
-
-  bool emit_fail_as_assert = ir_converter_options.emit_fail_as_assert();
-  bool verify_ir = ir_converter_options.verify();
-  bool convert_tests = ir_converter_options.convert_tests();
-  bool warnings_as_errors = ir_converter_options.warnings_as_errors();
-  XLS_ASSIGN_OR_RETURN(WarningKindSet enabled_warnings,
-                       WarningKindSetFromDisabledString(
-                           ir_converter_options.disable_warnings()));
-  std::optional<FifoConfig> default_fifo_config;
-  if (ir_converter_options.has_default_fifo_config()) {
-    XLS_ASSIGN_OR_RETURN(
-        default_fifo_config,
-        FifoConfig::FromProto(ir_converter_options.default_fifo_config()));
-  }
+absl::Status RealMain(
+    std::optional<std::filesystem::path> output_file,
+    absl::Span<const std::string_view> paths,
+    std::optional<std::string_view> top,
+    std::optional<std::string_view> package_name,
+    const std::string& dslx_stdlib_path,
+    absl::Span<const std::filesystem::path> dslx_paths,
+    bool emit_fail_as_assert, bool verify_ir, bool warnings_as_errors,
+    bool* printed_error,
+    std::optional<std::filesystem::path> interface_proto_file,
+    std::optional<std::filesystem::path> interface_textproto_file,
+    bool convert_tests) {
+  XLS_ASSIGN_OR_RETURN(
+      WarningKindSet enabled_warnings,
+      WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
   const ConvertOptions convert_options = {
       .emit_positions = true,
       .emit_fail_as_assert = emit_fail_as_assert,
@@ -128,7 +100,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool printed_error = false;
   XLS_ASSIGN_OR_RETURN(
       PackageConversionData result,
-      ConvertFilesToPackage(paths, stdlib_path, dslx_paths, convert_options,
+      ConvertFilesToPackage(paths, dslx_stdlib_path, dslx_paths, convert_options,
                             /*top=*/top,
                             /*package_name=*/package_name, &printed_error));
   if (output_file) {
