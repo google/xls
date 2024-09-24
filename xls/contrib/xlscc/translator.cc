@@ -68,6 +68,7 @@
 #include "llvm/include/llvm/ADT/FloatingPointMode.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
@@ -5395,12 +5396,9 @@ absl::StatusOr<bool> Translator::BitMustBe(bool assert_value, xls::BValue& bval,
 
   XLS_RETURN_IF_ERROR(ShortCircuitBVal(bval, loc));
 
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator,
-      xls::solvers::z3::IrTranslator::CreateAndTranslate(
-          /*ctx=*/ctx,
-          /*source=*/bval.node(),
-          /*allow_unsupported=*/false));
+  XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator,
+                       GetZ3Translator(bval.builder()->function()));
+  XLS_RETURN_IF_ERROR(bval.node()->Accept(z3_translator));
 
   absl::Span<xls::Node*> positive_assumptions, negative_assumptions;
   xls::Node* assumptions[] = {bval.node()};
@@ -6114,6 +6112,21 @@ absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
     const clang::PresumedLoc& ploc, bool ignore_label) {
   CHECK_NE(parser_.get(), nullptr);
   return parser_->FindPragmaForLoc(ploc, ignore_label);
+}
+
+absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
+    xls::FunctionBase* func) {
+  XLS_RET_CHECK(!func->IsBlock());
+  auto [iter, inserted] = z3_translators_.insert({func, nullptr});
+  if (inserted) {
+    XLS_ASSIGN_OR_RETURN(
+        iter->second,
+        xls::solvers::z3::IrTranslator::CreateAndTranslate(
+            // Don't preemptively convert everything as this is expensive and we
+            // might get away with converting less.
+            /*function_base=*/nullptr, /*allow_unsupported=*/false));
+  }
+  return iter->second.get();
 }
 
 }  // namespace xlscc

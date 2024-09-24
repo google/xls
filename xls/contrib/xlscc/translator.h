@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -2249,6 +2250,13 @@ class Translator {
   }
   clang::PresumedLoc GetPresumedLoc(const clang::Stmt& stmt);
   clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
+
+  absl::StatusOr<xls::solvers::z3::IrTranslator*> GetZ3Translator(
+      xls::FunctionBase* func) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  absl::flat_hash_map<xls::FunctionBase*,
+                      std::unique_ptr<xls::solvers::z3::IrTranslator>>
+      z3_translators_;
 };
 
 }  // namespace xlscc

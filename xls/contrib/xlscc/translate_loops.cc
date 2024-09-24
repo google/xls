@@ -163,12 +163,8 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
                                                  const clang::Stmt* body,
                                                  clang::ASTContext& ctx,
                                                  const xls::SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator_parent,
-      xls::solvers::z3::IrTranslator::CreateAndTranslate(
-          /*source=*/nullptr,
-          /*allow_unsupported=*/false));
-
+  XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator_parent,
+                       GetZ3Translator(context().fb->function()));
   Z3_solver solver =
       xls::solvers::z3::CreateSolver(z3_translator_parent->ctx(), 1);
 
