@@ -684,27 +684,6 @@ std::string MatchArm::ToString() const {
   return absl::StrFormat("%s => %s", patterns_or, expr_->ToString());
 }
 
-std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results;
-  results.reserve(members_.size());
-  for (auto& item : members_) {
-    results.push_back(item.second);
-  }
-  return results;
-}
-
-std::string StructInstance::ToStringInternal() const {
-  std::string type_name = ToAstNode(struct_ref_)->ToString();
-
-  std::string members_str = absl::StrJoin(
-      members_, ", ",
-      [](std::string* out, const std::pair<std::string, Expr*>& member) {
-        absl::StrAppendFormat(out, "%s: %s", member.first,
-                              member.second->ToString());
-      });
-  return absl::StrFormat("%s { %s }", type_name, members_str);
-}
-
 For::~For() = default;
 
 UnrollFor::~UnrollFor() = default;
@@ -910,8 +889,6 @@ std::string ArrayTypeAnnotation::ToString() const {
 
 BuiltinNameDef::~BuiltinNameDef() = default;
 
-// -- class SplatStructInstance
-
 bool IsConstant(AstNode* node) {
   if (IsOneOf<ConstantArray, Number, ConstRef, ColonRef>(node)) {
     return true;
@@ -935,29 +912,6 @@ bool IsConstant(AstNode* node) {
     return std::all_of(children.begin(), children.end(), IsConstant);
   }
   return false;
-}
-
-std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results;
-  results.reserve(members_.size() + 1);
-  for (auto& item : members_) {
-    results.push_back(item.second);
-  }
-  results.push_back(splatted_);
-  return results;
-}
-
-std::string SplatStructInstance::ToStringInternal() const {
-  std::string type_name = ToAstNode(struct_ref_)->ToString();
-
-  std::string members_str = absl::StrJoin(
-      members_, ", ",
-      [](std::string* out, const std::pair<std::string, Expr*>& member) {
-        absl::StrAppendFormat(out, "%s: %s", member.first,
-                              member.second->ToString());
-      });
-  return absl::StrFormat("%s { %s, ..%s }", type_name, members_str,
-                         splatted_->ToString());
 }
 
 std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {
@@ -1370,6 +1324,27 @@ absl::StatusOr<Expr*> StructInstance::GetExpr(std::string_view name) const {
       absl::StrFormat("Name is not present in struct instance: \"%s\"", name));
 }
 
+std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results;
+  results.reserve(members_.size());
+  for (auto& item : members_) {
+    results.push_back(item.second);
+  }
+  return results;
+}
+
+std::string StructInstance::ToStringInternal() const {
+  std::string type_name = ToAstNode(struct_ref_)->ToString();
+
+  std::string members_str = absl::StrJoin(
+      members_, ", ",
+      [](std::string* out, const std::pair<std::string, Expr*>& member) {
+        absl::StrAppendFormat(out, "%s: %s", member.first,
+                              member.second->ToString());
+      });
+  return absl::StrFormat("%s { %s }", type_name, members_str);
+}
+
 // -- class SplatStructInstance
 
 SplatStructInstance::SplatStructInstance(
@@ -1381,6 +1356,29 @@ SplatStructInstance::SplatStructInstance(
       splatted_(splatted) {}
 
 SplatStructInstance::~SplatStructInstance() = default;
+
+std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results;
+  results.reserve(members_.size() + 1);
+  for (auto& item : members_) {
+    results.push_back(item.second);
+  }
+  results.push_back(splatted_);
+  return results;
+}
+
+std::string SplatStructInstance::ToStringInternal() const {
+  std::string type_name = ToAstNode(struct_ref_)->ToString();
+
+  std::string members_str = absl::StrJoin(
+      members_, ", ",
+      [](std::string* out, const std::pair<std::string, Expr*>& member) {
+        absl::StrAppendFormat(out, "%s: %s", member.first,
+                              member.second->ToString());
+      });
+  return absl::StrFormat("%s { %s, ..%s }", type_name, members_str,
+                         splatted_->ToString());
+}
 
 // -- class Unop
 
