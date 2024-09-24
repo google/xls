@@ -384,6 +384,11 @@ bool IntervalSet::Covers(const Bits& bits) const {
 bool IntervalSet::IsPrecise() const {
   CHECK_GE(bit_count_, 0);
   std::optional<Interval> precisely;
+  if (intervals_.empty()) {
+    // A valueless interval is not precise. This can only happen if some
+    // analysis hits a contradiction.
+    return false;
+  }
   for (const Interval& interval : intervals_) {
     if (precisely.has_value() && !(precisely.value() == interval)) {
       return false;
