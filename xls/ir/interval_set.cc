@@ -300,17 +300,28 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
 }
 
 IntervalSet IntervalSet::Complement(const IntervalSet& set) {
-  // The complement of an interval set is the intersection of the complements of
-  // the component intervals.
-  IntervalSet result = Maximal(set.BitCount());
-  for (const Interval& interval : set.Intervals()) {
-    IntervalSet complement_set(set.BitCount());
-    for (const Interval& complement : Interval::Complement(interval)) {
-      complement_set.AddInterval(complement);
-    }
-    complement_set.Normalize();
-    result = Intersect(result, complement_set);
+  if (set.IsEmpty()) {
+    return IntervalSet::Maximal(set.BitCount());
   }
+
+  IntervalSet result(set.BitCount());
+  Bits last_taken = Bits::AllOnes(set.BitCount());
+  for (const Interval& interval : set.Intervals()) {
+    // We rely on the fact that `set` is normalized if `Intervals()` was safe to
+    // call, and that therefore:
+    //   1. the intervals are sorted in increasing order by lower bound, and
+    //   2. the intervals are not abutting or overlapping.
+    Bits last_free = bits_ops::Decrement(interval.LowerBound());
+    if (last_free != last_taken) {
+      result.AddInterval(Interval::LeftOpen(last_taken, last_free));
+    }
+    last_taken = interval.UpperBound();
+  }
+  if (!last_taken.IsAllOnes()) {
+    result.AddInterval(
+        Interval::LeftOpen(last_taken, Bits::AllOnes(set.BitCount())));
+  }
+  result.Normalize();
   return result;
 }
 
