@@ -1,98 +1,134 @@
-# clang-diagnostic-builtin-macro-redefined : Don't complain about bazel
-#    defining __TIMESTAMP__ and __DATE__ for hermeticity.
-#
-# readability-make-member-function-const is great, but it also suggests that
-#    in cases where we return a non-const pointer. So good to check, not by
-#    default.
-#
-# readability-qualified-auto is useful in general, however it suggests
-#    to convert iterators (e.g. std::string_view::begin()) to the pointer it
-#    returns; however since the iterator is implementation defined, this is not
-#    a valid assertion. Running the check every now and then manually and
-#    fixing all the non-iterator cases is useful though. Off by default.
-#
-# readability-use-anyofallof is overly aggressive, suggesting conversion of for
-#    loops into std::any_of/all_of in cases where it makes the code less
-#    readable.
-#
-# misc-const-correctness: useful, but it seems to be overzealous at times,
-#    arriving at incorrect conclusions.
-#
-# modernize-make-unique: mostly correct, but wants to also replace .reset()
-#    which is a more readable way than assign.
-#
-# modernize-loop-convert: Improper use of auto for loop variable.
-#
-# misc-use-anonymous-namespace: Using static on non-member functions has the
-#    essentially the same effect as putting them in an anonymous namespace and
-#    has added benefits -- including, having the statement of internal linkage
-#    right by the function definition.
+# clang-tidy configuration. Explicitly listing all relevant rules without
+# wildcards to be robust against clang-tidy version changes.
 ###
 Checks: >
-  clang-diagnostic-*,
-  -clang-diagnostic-sign-conversion,
-  -clang-diagnostic-builtin-macro-redefined,
-  clang-analyzer-*,
-  -clang-analyzer-core.CallAndMessage,
-  -clang-analyzer-core.NullDereference,
-  -clang-analyzer-cplusplus.NewDeleteLeaks,
-  abseil-*,
-  -abseil-no-namespace,
-  readability-*,
-  -readability-convert-member-functions-to-static,
-  -readability-function-cognitive-complexity,
-  -readability-identifier-length,
-  -readability-isolate-declaration,
-  -readability-magic-numbers,
-  -readability-make-member-function-const,
-  -readability-named-parameter,
-  -readability-qualified-auto,
-  -readability-redundant-access-specifiers,
-  -readability-simplify-boolean-expr,
-  -readability-static-definition-in-anonymous-namespace,
-  -readability-uppercase-literal-suffix,
-  -readability-use-anyofallof,
-  google-*,
-  -google-readability-braces-around-statements,
-  -google-readability-todo,
-  performance-*,
-  -performance-noexcept-*,
-  bugprone-*,
-  -bugprone-branch-clone,
-  -bugprone-easily-swappable-parameters,
-  -bugprone-exception-escape,
-  -bugprone-macro-parentheses,
-  -bugprone-move-forwarding-reference,
-  -bugprone-narrowing-conversions,
-  -bugprone-suspicious-missing-comma,
-  -bugprone-unchecked-optional-access,
-  modernize-*,
-  -modernize-avoid-bind,
-  -modernize-avoid-c-arrays,
-  -modernize-concat-nested-namespaces,
-  -modernize-loop-convert,
-  -modernize-make-unique,
-  -modernize-pass-by-value,
-  -modernize-raw-string-literal,
-  -modernize-return-braced-init-list,
-  -modernize-use-auto,
-  -modernize-use-default-member-init,
-  -modernize-use-emplace,
-  -modernize-use-nodiscard,
-  -modernize-use-std-format,
-  -modernize-use-trailing-return-type,
-  -modernize-use-transparent-functors,
-  misc-*,
-  -misc-const-correctness,
-  -misc-no-recursion,
-  -misc-non-private-member-variables-in-classes,
-  -misc-redundant-expression,
-  -misc-unused-parameters,
-  -misc-use-anonymous-namespace,
-  -cppcoreguidelines-narrowing-conversions,
+  -*,
+  abseil-duration-addition,
+  abseil-duration-comparison,
+  abseil-duration-conversion-cast,
+  abseil-duration-division,
+  abseil-duration-factory-float,
+  abseil-duration-factory-scale,
+  abseil-duration-subtraction,
+  abseil-duration-unnecessary-conversion,
+  abseil-faster-strsplit-delimiter,
+  abseil-no-internal-dependencies,
+  abseil-redundant-strcat-calls,
+  abseil-str-cat-append,
+  abseil-string-find-startswith,
+  abseil-string-find-str-contains,
+  abseil-time-comparison,
+  abseil-time-subtraction,
+  bugprone-argument-comment,
+  bugprone-assert-side-effect,
+  bugprone-bool-pointer-implicit-conversion,
+  bugprone-dangling-handle,
+  bugprone-fold-init-type,
+  bugprone-forward-declaration-namespace,
+  bugprone-inaccurate-erase,
+  bugprone-macro-repeated-side-effects,
+  bugprone-move-forwarding-reference,
+  bugprone-multiple-statement-macro,
+  bugprone-string-constructor,
+  bugprone-stringview-nullptr,
+  bugprone-suspicious-memset-usage,
+  bugprone-undefined-memory-manipulation,
+  bugprone-undelegated-constructor,
+  bugprone-unused-raii,
+  bugprone-use-after-move,
+  clang-diagnostic-dangling-assignment-gsl,
+  clang-diagnostic-deprecated-declarations,
+  clang-diagnostic-deprecated-register,
+  clang-diagnostic-expansion-to-defined,
+  clang-diagnostic-ignored-attributes,
+  clang-diagnostic-non-pod-varargs,
+  clang-diagnostic-shadow-field,
+  clang-diagnostic-shift-sign-overflow,
+  clang-diagnostic-tautological-undefined-compare,
+  clang-diagnostic-thread-safety*,
+  clang-diagnostic-undefined-bool-conversion,
+  clang-diagnostic-unreachable-code,
+  clang-diagnostic-unreachable-code-loop-increment,
+  clang-diagnostic-unused-const-variable,
+  clang-diagnostic-unused-function,
+  clang-diagnostic-unused-lambda-capture,
+  clang-diagnostic-unused-local-typedef,
+  clang-diagnostic-unused-private-field,
+  clang-diagnostic-user-defined-warnings,
+  google-build-explicit-make-pair,
+  google-build-namespaces,
+  google-build-using-namespace,
+  google-default-arguments,
+  google-explicit-constructor,
+  google-global-names-in-headers,
+  google-readability-function-size,
+  google-readability-namespace-comments,
+  google-runtime-int,
+  google-runtime-memset,
+  google-runtime-operator,
+  misc-coroutine-hostile-raii,
+  misc-definitions-in-headers,
+  misc-include-cleaner,
+  misc-static-assert,
+  misc-unconventional-assign-operator,
+  misc-uniqueptr-reset-release,
+  misc-unused-alias-decls,
+  misc-unused-using-decls,
+  modernize-make-unique,
+  modernize-redundant-void-arg,
+  modernize-replace-auto-ptr,
+  modernize-shrink-to-fit,
+  modernize-use-bool-literals,
+  modernize-use-equals-default,
+  modernize-use-nullptr,
+  modernize-use-override,
+  performance-faster-string-find,
+  performance-for-range-copy,
+  performance-implicit-conversion-in-loop,
+  performance-inefficient-algorithm,
+  performance-inefficient-vector-operation,
+  performance-move-constructor-init,
+  performance-unnecessary-copy-initialization,
+  portability-std-allocator-const,
+  readability-avoid-const-params-in-decls,
+  readability-const-return-type,
+  readability-container-size-empty,
+  readability-deleted-default,
+  readability-inconsistent-declaration-parameter-name,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-redundant-smartptr-get,
+  readability-string-compare,
+  readability-braces-around-statements,
 
 CheckOptions:
-  - key:             readability-implicit-bool-conversion.AllowPointerConditions
-    value:           'true'
-  - key:             readability-implicit-bool-conversion.AllowIntegerConditions
-    value:           'true'
+  - key: 'bugprone-assert-side-effect.AssertMacros'
+    value: 'assert,DCHECK'
+  - key: 'bugprone-string-constructor.WarnOnLargeLength'
+    value: '0'
+  - key: 'google-readability-function-size.ParameterThreshold'
+    value: '100'
+  - key: 'modernize-make-unique.IncludeStyle'
+    value: 'google'
+  - key: 'performance-inefficient-vector-operation.EnableProto'
+    value: '1'
+  - key: 'abseil-string-find-startswith.IncludeStyle'
+    value: 'google'
+  - key: 'abseil-string-find-startswith.AbseilStringsMatchHeader'
+    value: 'absl/strings/match.h'
+  - key: 'abseil-string-find-startswith.StringLikeClasses'
+    value: '::std::string_view;::absl::string_view;::basic_string;::std::basic_string;'
+  - key: 'abseil-string-find-str-contains.IncludeStyle'
+    value: 'google'
+  - key: 'abseil-string-find-str-contains.AbseilStringsMatchHeader'
+    value: 'absl/strings/match.h'
+  - key: 'abseil-string-find-str-contains.StringLikeClasses'
+    value: '::std::basic_string_view;::absl::string_view;::basic_string;::std::basic_string;'
+  - key: 'readability-function-cognitive-complexity.Threshold'
+    value: '15'
+  - key: 'readability-function-cognitive-complexity.DescribeBasicIncrements'
+    value: 'false'
+  - key: 'readability-function-cognitive-complexity.IgnoreMacros'
+    value: 'true'
+  - key: 'google-runtime-int.TypeSuffix'
+    value: '_t'
