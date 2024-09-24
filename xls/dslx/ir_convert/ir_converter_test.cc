@@ -1079,7 +1079,7 @@ fn test(x:u32, y:u32) -> u32 {
 TEST(IrConverterTest, UnrollForWithNonBitsIterable) {
   const char* kProgram = R"(
 fn test() -> u32 {
-  unroll_for!(i, acc): (u32, u32) in [(u32:0, u32:5)] {
+  unroll_for!(i, acc): ((u32, u32), u32) in [(u32:0, u32:5)] {
     i + acc
   }(u32:0)
 }
@@ -1095,27 +1095,6 @@ fn test() -> u32 {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("unroll_for! must iterate through a range or "
                          "aggregate type whose elements are all bits")));
-}
-
-TEST(IrConverterTest, UnrollForWithIndexTypeTooSmallForRange) {
-  const char* kProgram = R"(
-fn test() -> u4 {
-  unroll_for!(i, acc): (u4, u4) in u32:0..u32:120 {
-    i + acc
-  }(u4:0)
-}
-)";
-
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
-  auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Value '16' does not fit in the bitwidth of a uN[4]")));
 }
 
 TEST(IrConverterTest, UnrollForWithParametric) {

@@ -453,10 +453,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
   return Type::MakeUnit();
 }
 
-absl::StatusOr<std::unique_ptr<Type>> DeduceFor(const For* node,
-                                                DeduceCtx* ctx) {
-  VLOG(5) << "DeduceFor: " << node->ToString();
-
+// Deduces and type-checks the init and iterable expressions of a loop,
+// returning the init type.
+absl::StatusOr<std::unique_ptr<Type>> DeduceLoopInitAndIterable(
+    const ForLoopBase* node, DeduceCtx* ctx) {
   // Type of the init value to the for loop (also the accumulator type).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> init_type,
                        ctx->DeduceAndResolve(node->init()));
@@ -490,11 +490,37 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFor(const For* node,
                        node->type_annotation()->span(),
                        "for-loop annotated type", ctx->file_table()));
 
-    if (*target_annotated_type != *annotated_type) {
+    const TupleType* annotated_tuple_type =
+        dynamic_cast<const TupleType*>(annotated_type.get());
+    if (annotated_tuple_type == nullptr) {
       return ctx->TypeMismatchError(
           node->span(), node->type_annotation(), *annotated_type, nullptr,
           *target_annotated_type,
-          "For-loop annotated type did not match inferred type.");
+          "For-loop annotated type should be a tuple containing a type for the "
+          "iterable and a type for the accumulator.");
+    }
+    const std::vector<std::unique_ptr<Type>>& annotated_tuple_members =
+        annotated_tuple_type->members();
+    if (annotated_tuple_members.size() != 2) {
+      return ctx->TypeMismatchError(
+          node->span(), node->type_annotation(), *annotated_type, nullptr,
+          *target_annotated_type,
+          absl::StrFormat(
+              "For-loop annotated type should specify a type for the iterable "
+              "and a type for the accumulator; got %d types.",
+              annotated_tuple_members.size()));
+    }
+    if (iterable_element_type != *annotated_tuple_members[0]) {
+      return ctx->TypeMismatchError(
+          node->span(), node->type_annotation(), *annotated_type, nullptr,
+          *target_annotated_type,
+          "For-loop annotated index type did not match inferred type.");
+    }
+    if (*init_type != *annotated_tuple_members[1]) {
+      return ctx->TypeMismatchError(
+          node->span(), node->type_annotation(), *annotated_type, nullptr,
+          *target_annotated_type,
+          "For-loop annotated accumulator type did not match inferred type.");
     }
   }
 
@@ -512,17 +538,32 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFor(const For* node,
   XLS_RETURN_IF_ERROR(
       BindNames(bindings, *target_annotated_type, ctx, std::nullopt));
 
-  // Now we can deduce the body.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> body_type,
-                       ctx->DeduceAndResolve(node->body()));
+  return init_type;
+}
 
-  if (*init_type != *body_type) {
-    return ctx->TypeMismatchError(node->span(), node->init(), *init_type,
-                                  node->body(), *body_type,
+// Type-checks the body of a loop, whose type should match that of the init
+// expression (previously determined by the caller). The `actual_body` is either
+// `node->body()` or the modified version of it, if modified by the caller (e.g.
+// the unrolled copy of an `unroll_for!` body).
+absl::Status TypecheckLoopBody(const ForLoopBase* node, const Expr* actual_body,
+                               const Type& init_type, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> body_type,
+                       ctx->DeduceAndResolve(actual_body));
+  if (init_type != *body_type) {
+    return ctx->TypeMismatchError(node->span(), node->init(), init_type,
+                                  actual_body, *body_type,
                                   "For-loop init value type did not match "
                                   "for-loop body's result type.");
   }
+  return absl::OkStatus();
+}
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceFor(const For* node,
+                                                DeduceCtx* ctx) {
+  VLOG(5) << "DeduceFor: " << node->ToString();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> init_type,
+                       DeduceLoopInitAndIterable(node, ctx));
+  XLS_RETURN_IF_ERROR(TypecheckLoopBody(node, node->body(), *init_type, ctx));
   return init_type;
 }
 
@@ -530,7 +571,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
                                                       DeduceCtx* ctx) {
   VLOG(5) << "DeduceUnrollFor: " << node->ToString();
 
-  XLS_RETURN_IF_ERROR(ctx->DeduceAndResolve(node->type_annotation()).status());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> init_type,
+                       DeduceLoopInitAndIterable(node, ctx));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> iterable_type,
                        ctx->DeduceAndResolve(node->iterable()));
   absl::StatusOr<InterpValue> iterable =
@@ -615,7 +657,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
   unrolled->SetParentNonLexical(node->parent());
   ctx->type_info()->NoteUnrolledLoop(node, ctx->GetCurrentParametricEnv(),
                                      unrolled);
-  return ctx->DeduceAndResolve(unrolled);
+  XLS_RETURN_IF_ERROR(TypecheckLoopBody(node, unrolled, *init_type, ctx));
+  return init_type;
 }
 
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
