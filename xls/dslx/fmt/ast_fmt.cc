@@ -1415,8 +1415,11 @@ static DocRef Fmt(const ConstantDef& n, const Comments& comments,
   leader_pieces.push_back(arena.space());
 
   DocRef lhs = ConcatNGroup(arena, leader_pieces);
+  // Reduce the width by 1 so we know we can emit the semi inline.
+  DocRef rhs_before_semi =
+      arena.MakeReduceTextWidth(Fmt(*n.value(), comments, arena), 1);
   DocRef rhs = ConcatNGroup(arena, {
-                                       Fmt(*n.value(), comments, arena),
+                                       rhs_before_semi,
                                        arena.semi(),
                                    });
   return arena.MakeConcat(lhs, rhs);
@@ -2257,36 +2260,6 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
 
   pieces.push_back(arena.ccurl());
   return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
-}
-
-static DocRef Fmt(const ConstantDef& n, const Comments& comments,
-                  DocArena& arena) {
-  std::vector<DocRef> leader_pieces;
-  if (n.is_public()) {
-    leader_pieces.push_back(arena.Make(Keyword::kPub));
-    leader_pieces.push_back(arena.break1());
-  }
-  leader_pieces.push_back(arena.Make(Keyword::kConst));
-  leader_pieces.push_back(arena.break1());
-  leader_pieces.push_back(arena.MakeText(n.identifier()));
-  if (n.type_annotation() != nullptr) {
-    leader_pieces.push_back(arena.colon());
-    leader_pieces.push_back(arena.space());
-    leader_pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
-  }
-  leader_pieces.push_back(arena.break1());
-  leader_pieces.push_back(arena.equals());
-  leader_pieces.push_back(arena.space());
-
-  DocRef lhs = ConcatNGroup(arena, leader_pieces);
-  // Reduce the width by 1 so we know we can emit the semi inline.
-  DocRef rhs_before_semi =
-      arena.MakeReduceTextWidth(Fmt(*n.value(), comments, arena), 1);
-  DocRef rhs = ConcatNGroup(arena, {
-                                       rhs_before_semi,
-                                       arena.semi(),
-                                   });
-  return arena.MakeConcat(lhs, rhs);
 }
 
 static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,
