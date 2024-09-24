@@ -22,7 +22,6 @@
 #include <string>
 #include <string_view>
 
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 
 namespace xls::dslx {
@@ -89,9 +88,6 @@ inline constexpr Builtin kAllBuiltins[] = {
     XLS_DSLX_BUILTIN_EACH(ELEMIFY)
 #undef ELEMIFY
 };
-
-// Gets the names of all the unary parametric builtins; e.g. {"ctz", "clz"}.
-const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames();
 
 }  // namespace xls::dslx
 

@@ -113,8 +113,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
         bindings_(std::move(bindings)),
         type_(type) {}
 
-  bool IsConstExpr(const Expr* expr);
-
   // Interprets the given expression. Prior to calling this function, it's
   // necessary to determine that all expression components are constexpr.
   absl::Status InterpretExpr(const Expr* expr);

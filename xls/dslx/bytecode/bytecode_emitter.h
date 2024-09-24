@@ -99,7 +99,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleAllOnesMacro(const AllOnesMacro* node) override;
   absl::Status HandleIndex(const Index* node) override;
   absl::Status HandleInvocation(const Invocation* node) override;
-  absl::Status HandleCastImpl(const Invocation* node);
   absl::Status HandleLet(const Let* node) override;
   absl::Status HandleMatch(const Match* node) override;
   absl::Status HandleNameRef(const NameRef* node) override;

@@ -18,8 +18,6 @@
 #include <string>
 #include <string_view>
 
-#include "absl/base/no_destructor.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -47,17 +45,6 @@ std::string BuiltinToString(Builtin builtin) {
   }
   return absl::StrFormat("<invalid Builtin(%d)>",
                          static_cast<int64_t>(builtin));
-}
-
-// TODO(leary): 2019-12-12 These *could* be automatically made by interpreting
-// the signature string, but just typing in the limited set we use is easier for
-// now.
-const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames() {
-  // Set of unary builtins appropriate as functions - that transform values.
-  // TODO(b/144724970): Add enumerate here (and maybe move to ir_converter.py).
-  static const absl::NoDestructor<absl::flat_hash_set<std::string>> set(
-      {"clz", "ctz"});
-  return *set;
 }
 
 }  // namespace xls::dslx
