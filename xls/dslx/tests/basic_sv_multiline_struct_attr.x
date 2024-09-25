@@ -26,7 +26,7 @@ fn main() -> u32 {
     f(
         Point {
             some_super_long_and_wordy_field_name: u32:42,
-            another_long_and_wordy_field_reach_line_limit: u32:64
+            another_long_and_wordy_field_reach_line_limit: u32:64,
         })
 }
 

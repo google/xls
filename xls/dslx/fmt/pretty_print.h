@@ -54,6 +54,10 @@ using Requirement = std::variant<int64_t, std::monostate>;
 // width requirement, i.e. a hard line break) as described above.
 inline Requirement InfinityRequirement() { return std::monostate{}; }
 
+inline bool IsInfinite(const Requirement& r) {
+  return std::holds_alternative<std::monostate>(r);
+}
+
 // Command for the pretty printer that says we should insert a newline.
 struct HardLine {};
 
@@ -64,6 +68,9 @@ struct FlatChoice {
   DocRef on_break;
 };
 
+// See `DocArena::MakeNestIfFlatFits()` for details -- in a nutshell, emits a
+// nested line if that fits in flat mode (with the doc contents
+// `on_nested_flat`).
 struct NestIfFlatFits {
   DocRef on_nested_flat;
 
@@ -102,6 +109,22 @@ struct Align {
   DocRef arg;
 };
 
+// Command that differs slightly from `FlatChoice`:
+// * if `flat_requirement` doesn't fit in the current available characters we
+//   enter break mode and emit `on_break`
+// * if `flat_requirement` does fit in the current available characters we
+//   enter flat mode and emit `on_flat`
+//
+// This is slightly more powerful than `FlatChoice` for less common scenarios
+// where we know we want to trigger a document being emitted in flat mode /
+// break mode based on some a priori knowledge; e.g. if we know some leading
+// text will fit if we emit `on_flat` in flat mode.
+struct ModeSelect {
+  int64_t flat_requirement;
+  DocRef on_flat;
+  DocRef on_break;
+};
+
 // Command that reduces the text width of the document by "cols" count for the
 // duration of emitting "arg". This is useful if you know you need to tack
 // something on afterwards that should be inline. It generally has to be
@@ -138,7 +161,7 @@ struct Doc {
   // The value can carry more information on what to do in flat/break
   // situations, or nested documents within commands.
   std::variant<std::string, HardLine, FlatChoice, Group, Concat, Nest, Align,
-               PrefixedReflow, NestIfFlatFits, ReduceTextWidth>
+               PrefixedReflow, NestIfFlatFits, ReduceTextWidth, ModeSelect>
       value;
 
   std::string ToDebugString(const DocArena& arena) const;
@@ -151,7 +174,7 @@ struct Doc {
 // on this object.
 class DocArena {
  public:
-  DocArena(const FileTable& file_table);
+  explicit DocArena(const FileTable& file_table);
 
   const FileTable& file_table() { return file_table_; }
 
@@ -176,6 +199,13 @@ class DocArena {
   // inline if in flat mode" and give an alternative option for how to emit it
   // when we're not in flat mode.
   DocRef MakeGroup(DocRef arg_ref);
+
+  // Creates a "mode select" doc -- we emit `on_flat` starting in flat mode in
+  // flat_req fits, otherwise we switch to break mode and emit `on_break`.
+  //
+  // This still gives the flat requirement of `on_flat` to the surrounding
+  // context, there is just a mode switch forced when this doc is encountered.
+  DocRef MakeModeSelect(DocRef flat_req, DocRef on_flat, DocRef on_break);
 
   // Creates a "nest" doc that nests "arg_ref" by "delta" spaces.
   DocRef MakeNest(DocRef arg_ref, int64_t delta = 4);

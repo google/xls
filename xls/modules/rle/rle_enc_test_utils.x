@@ -42,7 +42,7 @@ proc GenerateCount {
             GeneratorState {
                 cur_sym: sym + u32:1,
                 cur_rep: u32:0,
-                target_rep: if next_rep == u32:0 { u32:1 } else { next_rep }
+                target_rep: if next_rep == u32:0 { u32:1 } else { next_rep },
             }
         } else {
             GeneratorState { cur_sym: sym, cur_rep: reps, target_rep: state.target_rep }
