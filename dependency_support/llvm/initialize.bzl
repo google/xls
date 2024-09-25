@@ -22,5 +22,7 @@ def initialize():
     llvm_configure(
         # Name of resulting repo (e.g., "@llvm-project")
         name = "llvm-project",
-        targets = ["AArch64", "X86"],
+        # TODO(jpienaar): NVPTX is merely here as a config to generate additional BUILD targets. It
+        # is not actually compiled or linked in. Change upstream build deps to enable removing it.
+        targets = ["AArch64", "X86", "NVPTX"],
     )

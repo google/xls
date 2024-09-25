@@ -52,6 +52,13 @@ package_group(
     packages = ["//..."],
 )
 
+# XLS MLIR dialect users.
+package_group(
+    name = "xls_mlir_users",
+    includes = [":xls_internal"],
+    packages = ["//..."],
+)
+
 # "Best effort" users are ones that are using some XLS internals
 # (ideally temporarily) and are agreeing to be broken at any
 # time if we can't figure out how to fix them, since we need to
