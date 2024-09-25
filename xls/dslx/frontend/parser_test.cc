@@ -1362,7 +1362,10 @@ TEST_F(ParserTest, LocalParametricStructArray) {
   ParseProgram(R"(struct my_struct<N: u32> {
     my_field: uN[N],
 }
-const local_struct = my_struct<5>[1]:[my_struct { my_field: u5:10 }];)");
+const local_struct = my_struct<5>[1]:[
+  my_struct { my_field: u5:10 },
+  my_struct { my_field: u5:11 }
+];)");
 }
 
 TEST_F(ParserTest, ImportedStruct) {
@@ -1413,9 +1416,19 @@ fn main() -> () {
 })");
 }
 
-TEST_F(ParserTest, DISABLED_ImportedParametricStructArray) {
+TEST_F(ParserTest, ImportedParametricStructArray) {
   ParseProgram(R"(import lib;
-const local_struct = lib::my_struct<5>[1]:[lib::my_struct { my_field: u5:10 }];)");
+const imported_structs = lib::my_struct<5>[2]:[
+  lib::my_struct { my_field: u5:10 },
+  lib::my_struct { my_field: u5:11 }
+];)");
+}
+
+TEST_F(ParserTest, ImportedParametricStructArrayField) {
+  ParseProgram(R"(import lib;
+const imported_structs = lib::my_struct<5>[1]:[lib::my_struct { my_field: u5:10 }];
+const imported_field = imported_structs[0].my_field;
+)");
 }
 
 TEST_F(ParserTest, ImportedParametricLt) {

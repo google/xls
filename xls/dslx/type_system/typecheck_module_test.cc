@@ -3329,6 +3329,51 @@ fn main() -> u5 {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
+TEST(TypecheckTest, InstantiateImportedParametricStructArray) {
+  constexpr std::string_view kImported = R"(
+pub struct my_struct<N: u32> {
+    my_field: uN[N],
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const imported_structs = imported::my_struct<5>[2]:[
+  imported::my_struct { my_field: u5:10 },
+  imported::my_struct { my_field: u5:11 }
+];
+
+fn main() -> u5 {
+  imported_structs[1].my_field
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, InstantiateParametricStructArray) {
+  constexpr std::string_view kProgram = R"(
+struct my_struct<N: u32> {
+    my_field: uN[N],
+}
+
+const local_structs = my_struct<5>[1]:[
+  //my_struct { my_field: u5:10 },
+  my_struct { my_field: u5:11 }
+];
+
+fn main() -> u5 {
+  local_structs[0].my_field
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
 TEST(TypecheckTest, CallImportedParametricFn) {
   constexpr std::string_view kImported = R"(
 pub fn my_fn<N: u32>(x: uN[N]) -> uN[N] {

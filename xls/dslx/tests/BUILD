@@ -364,6 +364,11 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "array_of_imported_parametric_struct",
+    dslx_deps = [":parametric_import_dslx"],
+)
+
+dslx_lang_test(
     name = "import_enum_alias",
     dslx_deps = [":mod_enum_importer_dslx"],
 )

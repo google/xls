@@ -1739,13 +1739,13 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
         VLOG(5) << "ParseTerm, kind is ColonRef then oAngle; trying parametric";
         type_ref = module_->Make<TypeRef>(colon_ref->span(), colon_ref);
 
-        // We're possibly look at an imported parametric struct, an imported
+        // We're looking either at an imported parametric struct, an imported
         // parametric enum comparison, or an imported parametric function call.
         // This block only deals with parametric struct instantiation; the other
         // possibilities are handled in different places, so we will rollback
-        // if it's not actually an imported parametric struct.
+        // if it's not actually an imported parametric struct instantiation.
         auto type_and_dims = ParseTypeRefParametricsAndDims(
-            outer_bindings, peek->span(), type_ref);
+            outer_bindings, colon_ref->span(), type_ref);
         if (!type_and_dims.ok()) {
           // Probably a comparison, so the oAngle wasn't part of a parametric
           // reference, and we won't be doing a struct instantiation.
@@ -1755,12 +1755,12 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
           type_ref = nullptr;
         } else {
           type = *type_and_dims;
+          VLOG(5) << "ParseTerm, kind is ColonRef then oAngle, and parametric "
+                     "type *and dims* "
+                  << type->ToString();
         }
-
-        // TODO: google/xls#1030 - Support array literals of imported parametric
-        // structs. (In that case, the next token won't be an oBrace, and it
-        // will fail to parse the array literal.)
       }
+
       XLS_ASSIGN_OR_RETURN(bool found_obrace, PeekTokenIs(TokenKind::kOBrace));
       if (found_obrace) {
         VLOG(5) << "ParseTerm, kind is ColonRef then oBrace";
@@ -1776,13 +1776,26 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
         }
         return ParseStructInstance(outer_bindings, type);
       }
-      VLOG(5) << "ParseTerm, kind is ColonRef, but not a struct instantiation";
 
-      // Roll back the transaction, so we can continue as if we never
-      // processed the kOAngle.
-      parse_oangle_txn.Rollback();
+      XLS_ASSIGN_OR_RETURN(bool found_colon, PeekTokenIs(TokenKind::kColon));
+      if (type != nullptr && found_colon) {
+        VLOG(5) << "ParseTerm, kind is ColonRef then oColon";
+        // Probably a literal array. Commit the parsing of the LHS so far, and
+        // continue processing as if it's a cast.
+        parse_oangle_txn.Commit();
+        XLS_ASSIGN_OR_RETURN(lhs, ParseCast(outer_bindings, type));
+      } else {
+        VLOG(5)
+            << "ParseTerm, kind is ColonRef, but not a struct instantiation ";
+
+        // Roll back the transaction, so we can continue as if we
+        // never processed the kOAngle.
+        parse_oangle_txn.Rollback();
+      }
     }
-    lhs = ToExprNode(name_or_colon_ref);
+    if (lhs == nullptr) {
+      lhs = ToExprNode(name_or_colon_ref);
+    }
   } else if (peek->kind() == TokenKind::kOParen) {
     XLS_ASSIGN_OR_RETURN(
         lhs, ParseParentheticalOrCastLhs(outer_bindings, start_pos));
