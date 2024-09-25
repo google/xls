@@ -75,6 +75,7 @@ absl::Status ChannelQueue::Write(const Value& value) {
 }
 
 void ChannelQueue::WriteInternal(const Value& value) {
+  CallWriteCallbacks(value);
   if (channel()->kind() == ChannelKind::kSingleValue) {
     if (queue_.empty()) {
       queue_.push_back(value);
@@ -114,6 +115,7 @@ std::optional<Value> ChannelQueue::ReadInternal() {
     return std::nullopt;
   }
   Value value = queue_.front();
+  CallReadCallbacks(value);
   if (channel()->kind() != ChannelKind::kSingleValue) {
     queue_.pop_front();
   }

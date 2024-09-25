@@ -21,6 +21,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/proc_interpreter.h"
 #include "xls/interpreter/serial_proc_runtime.h"
@@ -32,7 +33,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
-    ProcElaboration elaboration) {
+    ProcElaboration elaboration, const EvaluatorOptions& options) {
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ChannelQueueManager> queue_manager,
@@ -46,9 +47,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   }
 
   // Create a runtime.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> proc_runtime,
-                       SerialProcRuntime::Create(std::move(proc_interpreters),
-                                                 std::move(queue_manager)));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<SerialProcRuntime> proc_runtime,
+      SerialProcRuntime::Create(std::move(proc_interpreters),
+                                std::move(queue_manager), options));
 
   // Inject initial values into channel queues.
   for (ChannelInstance* channel_instance :
@@ -61,23 +63,24 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
     }
   }
 
-  return std::move(proc_runtime);
+  return proc_runtime;
 }
 
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
-CreateInterpreterSerialProcRuntime(Package* package) {
+CreateInterpreterSerialProcRuntime(Package* package,
+                                   const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return CreateRuntime(std::move(elaboration));
+  return CreateRuntime(std::move(elaboration), options);
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
-CreateInterpreterSerialProcRuntime(Proc* top) {
+CreateInterpreterSerialProcRuntime(Proc* top, const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
-  return CreateRuntime(std::move(elaboration));
+  return CreateRuntime(std::move(elaboration), options);
 }
 
 }  // namespace xls

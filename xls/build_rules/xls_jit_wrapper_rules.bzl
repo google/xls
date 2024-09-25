@@ -402,15 +402,16 @@ def cc_xls_ir_jit_wrapper(
         hdrs = [":" + header_filename],
         deps = extra_lib_deps + [
             _BASE_JIT_WRAPPER_DEPS[wrapper_type],
-            "@com_google_absl//absl/status",
-            "//xls/common/status:status_macros",
-            "@com_google_absl//absl/status:statusor",
-            "//xls/public:ir_parser",
-            "//xls/public:ir",
             "@com_google_absl//absl/container:flat_hash_map",
-            "//xls/public:function_builder",
-            "//xls/public:value",
+            "@com_google_absl//absl/status",
+            "@com_google_absl//absl/status:statusor",
+            "//xls/common/status:status_macros",
+            "//xls/interpreter:evaluator_options",
             "//xls/jit:function_jit",
+            "//xls/public:function_builder",
+            "//xls/public:ir",
+            "//xls/public:ir_parser",
+            "//xls/public:value",
         ],
         **kwargs
     )

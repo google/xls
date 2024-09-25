@@ -20,6 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/package.h"
 #include "xls/jit/aot_entrypoint.pb.h"
@@ -31,12 +32,12 @@ namespace xls {
 // Create a SerialProcRuntime composed of ProcJits. Supports old-style
 // procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Package* package);
+    Package* package, const EvaluatorOptions& options = EvaluatorOptions());
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the
 // elaboration of the given proc. Supports new-style procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Proc* top);
+    Proc* top, const EvaluatorOptions& options = EvaluatorOptions());
 
 struct ProcAotEntrypoints {
   // What proc these entrypoints are associated with.
@@ -54,7 +55,8 @@ struct ProcAotEntrypoints {
 // but it would be nice to not need to parse the package in the aot case.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     Proc* top, const AotPackageEntrypointsProto& entrypoints,
-    absl::Span<ProcAotEntrypoints const> impls);
+    absl::Span<ProcAotEntrypoints const> impls,
+    const EvaluatorOptions& options = EvaluatorOptions());
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the
 // elaboration of the given package using the given impls. All procs in the
@@ -63,7 +65,8 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
 // but it would be nice to not need to parse the package in the aot case.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     Package* package, const AotPackageEntrypointsProto& entrypoints,
-    absl::Span<ProcAotEntrypoints const> impls);
+    absl::Span<ProcAotEntrypoints const> impls,
+    const EvaluatorOptions& options = EvaluatorOptions());
 
 // Generate AOT code for the given proc elaboration.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(

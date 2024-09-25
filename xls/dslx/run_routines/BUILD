@@ -173,6 +173,7 @@ cc_library(
         "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/type_system:type_info",
+        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:interpreter_proc_runtime",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:proc_runtime",

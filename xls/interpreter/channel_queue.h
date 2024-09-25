@@ -37,6 +37,21 @@
 
 namespace xls {
 
+// Abstract base class for handling callbacks for channel read/write actions.
+class ChannelQueueCallback {
+ public:
+  ChannelQueueCallback() = default;
+  virtual ~ChannelQueueCallback() = default;
+
+  // Called when a value is read from the channel.
+  virtual void ReadValue(ChannelInstance* channel_instance,
+                         const Value& value) = 0;
+
+  // Called when a value is written to the channel.
+  virtual void WriteValue(ChannelInstance* channel_instance,
+                          const Value& value) = 0;
+};
+
 // Abstract base class for queues which represent channels during IR
 // interpretation. During interpretation of a network of procs each channel
 // instance is backed by exactly one ChannelQueue. ChannelQueues are
@@ -82,7 +97,22 @@ class ChannelQueue {
   using GeneratorFn = std::function<std::optional<Value>()>;
   absl::Status AttachGenerator(GeneratorFn generator);
 
+  void AddCallback(std::unique_ptr<ChannelQueueCallback> callback) {
+    callbacks_.push_back(std::move(callback));
+  }
+
  protected:
+  void CallReadCallbacks(const Value& value) const {
+    for (const std::unique_ptr<ChannelQueueCallback>& callback : callbacks_) {
+      callback->ReadValue(channel_instance(), value);
+    }
+  }
+  void CallWriteCallbacks(const Value& value) const {
+    for (const std::unique_ptr<ChannelQueueCallback>& callback : callbacks_) {
+      callback->WriteValue(channel_instance(), value);
+    }
+  }
+
   mutable absl::Mutex mutex_;
 
   virtual int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_);
@@ -97,6 +127,8 @@ class ChannelQueue {
   // TODO(meheff): 2022/09/27 Fix this, potentially by obviating the need for
   // the thread-unsafe version of the queue.
   std::optional<GeneratorFn> generator_ ABSL_GUARDED_BY_FIXME(mutex_);
+
+  std::vector<std::unique_ptr<ChannelQueueCallback>> callbacks_;
 };
 
 // A functor which returns a sequence of Values when called. Maybe be attached

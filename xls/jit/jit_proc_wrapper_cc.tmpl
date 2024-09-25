@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/jit/proc_base_jit_wrapper.h"
 
 extern "C" {
@@ -39,7 +40,7 @@ static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToStr
 
 static constexpr std::array<BaseProcJitWrapper::AotEntrypoint, {{len(wrapped.aot_entrypoint.entrypoint)}}> kFunctionPointers = {
 {% for e in wrapped.aot_entrypoint.entrypoint %}
-  BaseProcJitWrapper::AotEntrypoint{ 
+  BaseProcJitWrapper::AotEntrypoint{
       .proc_name = "{{e.xls_function_identifier}}",
       .function_ptr = {{e.function_symbol}}
   },
@@ -51,12 +52,13 @@ static constexpr std::string_view kIrText =
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
-{{ wrapped.class_name }}::Create() {
+{{ wrapped.class_name }}::Create(const EvaluatorOptions& options) {
   return xls::BaseProcJitWrapper::Create<{{wrapped.class_name}}>(
             kIrText,
             kProcName,
             kAotPackageEntrypointProtoBin,
-            kFunctionPointers);
+            kFunctionPointers,
+            options);
 }
 
 }  // namespace {{ wrapped.namespace }}

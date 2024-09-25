@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "absl/status/statusor.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/package.h"
 
@@ -26,12 +27,14 @@ namespace xls {
 // Create a SerialProcRuntime composed of ProcInterpreters. Supports old-style
 // procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
-CreateInterpreterSerialProcRuntime(Package* package);
+CreateInterpreterSerialProcRuntime(
+    Package* package, const EvaluatorOptions& options = EvaluatorOptions());
 
 // Create a SerialProcRuntime composed of ProcInterpreters. Constructed from the
 // elaboration of the given proc. Supports new-style procs.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
-CreateInterpreterSerialProcRuntime(Proc* top);
+CreateInterpreterSerialProcRuntime(
+    Proc* top, const EvaluatorOptions& options = EvaluatorOptions());
 
 }  // namespace xls
 

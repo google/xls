@@ -144,6 +144,9 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
   void WriteRaw(const uint8_t* data) override {
     absl::MutexLock lock(&mutex_);
     byte_queue_.Write(data);
+    if (!callbacks_.empty()) {
+      CallWriteCallbacks(jit_runtime_->UnpackBuffer(data, channel()->type()));
+    }
   }
 
   // Reads raw bytes representing a value in LLVM's native format. Returns
@@ -156,7 +159,11 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
         WriteInternal(generated_value.value());
       }
     }
-    return byte_queue_.Read(buffer);
+    bool value_read = byte_queue_.Read(buffer);
+    if (value_read && !callbacks_.empty()) {
+      CallReadCallbacks(jit_runtime_->UnpackBuffer(buffer, channel()->type()));
+    }
+    return value_read;
   }
 
  protected:
@@ -180,7 +187,12 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
             channel_instance->channel->kind() == ChannelKind::kSingleValue) {}
   ~ThreadUnsafeJitChannelQueue() override = default;
 
-  void WriteRaw(const uint8_t* data) override { byte_queue_.Write(data); }
+  void WriteRaw(const uint8_t* data) override {
+    byte_queue_.Write(data);
+    if (!callbacks_.empty()) {
+      CallWriteCallbacks(jit_runtime_->UnpackBuffer(data, channel()->type()));
+    }
+  }
   bool ReadRaw(uint8_t* buffer) override {
     if (generator_.has_value()) {
       std::optional<Value> generated_value = (*generator_)();
@@ -188,7 +200,11 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
         WriteInternal(generated_value.value());
       }
     }
-    return byte_queue_.Read(buffer);
+    bool value_read = byte_queue_.Read(buffer);
+    if (value_read && !callbacks_.empty()) {
+      CallReadCallbacks(jit_runtime_->UnpackBuffer(buffer, channel()->type()));
+    }
+    return value_read;
   }
 
  protected:

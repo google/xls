@@ -28,26 +28,68 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/synchronization/mutex.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/events.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
 
 namespace xls {
 
+// Functor for recording channel activity as trace messages.
+class ChannelTraceRecorder : public ChannelQueueCallback {
+ public:
+  ChannelTraceRecorder(ProcRuntime* runtime, FormatPreference format_preference)
+      : runtime_(runtime), format_preference_(format_preference) {}
+  ~ChannelTraceRecorder() override = default;
+
+  void ReadValue(ChannelInstance* channel_instance,
+                 const Value& value) override {
+    runtime_->AddTraceMessage(TraceMessage{
+        .message = absl::StrFormat("Received data on channel `%s`: %s",
+                                   channel_instance->ToString(),
+                                   value.ToString(format_preference_)),
+        .verbosity = 0});
+  }
+
+  void WriteValue(ChannelInstance* channel_instance,
+                  const Value& value) override {
+    runtime_->AddTraceMessage(TraceMessage{
+        .message = absl::StrFormat("Sent data on channel `%s`: %s",
+                                   channel_instance->ToString(),
+                                   value.ToString(format_preference_)),
+        .verbosity = 0});
+  }
+
+ private:
+  ProcRuntime* runtime_;
+  FormatPreference format_preference_;
+};
+
 ProcRuntime::ProcRuntime(
     absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
-    std::unique_ptr<ChannelQueueManager>&& queue_manager)
+    std::unique_ptr<ChannelQueueManager>&& queue_manager,
+    const EvaluatorOptions& options)
     : queue_manager_(std::move(queue_manager)),
       evaluators_(std::move(evaluators)) {
   for (ProcInstance* instance : elaboration().proc_instances()) {
     std::unique_ptr<ProcContinuation> continuation =
         evaluators_.at(instance->proc())->NewContinuation(instance);
     continuations_[instance] = std::move(continuation);
+  }
+  if (options.trace_channels()) {
+    for (ChannelQueue* queue : queue_manager_->queues()) {
+      queue->AddCallback(std::make_unique<ChannelTraceRecorder>(
+          this, options.format_preference()));
+    }
   }
 }
 
@@ -61,7 +103,7 @@ absl::Status ProcRuntime::Tick() {
         "Proc network is deadlocked. Blocked channel instances: %s",
         absl::StrJoin(result.blocked_channel_instances, ", ",
                       [](std::string* s, ChannelInstance* c) {
-                        return absl::StrAppend(s, c->ToString());
+                        absl::StrAppend(s, c->ToString());
                       })));
   }
   return absl::OkStatus();
@@ -168,6 +210,26 @@ ProcRuntime::GetJitChannelQueueManager() {
     return absl::InternalError("Queue manager is not a JitChannelQueueManager");
   }
   return jit_qm;
+}
+
+InterpreterEvents ProcRuntime::GetGlobalEvents() const {
+  absl::MutexLock lock(&global_events_mutex_);
+  return global_events_;
+}
+
+void ProcRuntime::ClearInterpreterEvents() {
+  for (const auto& [_, continuation] : continuations_) {
+    continuation->ClearEvents();
+  }
+  {
+    absl::MutexLock lock(&global_events_mutex_);
+    global_events_.Clear();
+  }
+}
+
+void ProcRuntime::AddTraceMessage(TraceMessage message) {
+  absl::MutexLock lock(&global_events_mutex_);
+  global_events_.trace_msgs.push_back(std::move(message));
 }
 
 }  // namespace xls

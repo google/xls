@@ -31,6 +31,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -55,7 +56,8 @@ class BaseProcJitWrapper {
   static absl::StatusOr<std::unique_ptr<RealType>> Create(
       std::string_view ir_text, std::string_view function_name,
       absl::Span<uint8_t const> aot_proto,
-      absl::Span<AotEntrypoint const> entrypoints)
+      absl::Span<AotEntrypoint const> entrypoints,
+      const EvaluatorOptions& options)
     requires(std::is_base_of_v<BaseProcJitWrapper, RealType>)
   {
     XLS_ASSIGN_OR_RETURN(auto package,
@@ -73,8 +75,9 @@ class BaseProcJitWrapper {
       real_entrypoints.push_back(
           ProcAotEntrypoints{.proc = p, .unpacked = e.function_ptr});
     }
-    XLS_ASSIGN_OR_RETURN(auto aot, CreateAotSerialProcRuntime(
-                                       package.get(), proto, real_entrypoints));
+    XLS_ASSIGN_OR_RETURN(auto aot,
+                         CreateAotSerialProcRuntime(package.get(), proto,
+                                                    real_entrypoints, options));
 
     XLS_ASSIGN_OR_RETURN(auto* man, aot->GetJitChannelQueueManager());
     JitRuntime& runtime = man->runtime();

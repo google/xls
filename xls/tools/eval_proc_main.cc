@@ -59,6 +59,7 @@
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
@@ -171,6 +172,9 @@ ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
 ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
+ABSL_FLAG(bool, trace_channels, false,
+          "If true, values sent and received on channels are recorded as trace "
+          "messages");
 ABSL_FLAG(int64_t, max_trace_verbosity, 0,
           "Maximum verbosity for traces. Traces with higher verbosity are "
           "stripped from codegen output. 0 by default.");
@@ -219,10 +223,14 @@ static absl::Status EvaluateProcs(
         expected_outputs_for_channels,
     const EvaluateProcsOptions& options = {}) {
   std::unique_ptr<SerialProcRuntime> runtime;
+  EvaluatorOptions evaluator_options;
+  evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels));
   if (options.use_jit) {
-    XLS_ASSIGN_OR_RETURN(runtime, CreateJitSerialProcRuntime(package));
+    XLS_ASSIGN_OR_RETURN(
+        runtime, CreateJitSerialProcRuntime(package, evaluator_options));
   } else {
-    XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(package));
+    XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(
+                                      package, evaluator_options));
   }
 
   ChannelQueueManager& queue_manager = runtime->queue_manager();
@@ -309,6 +317,8 @@ static absl::Status EvaluateProcs(
 
       std::vector<std::string> asserts;
 
+      XLS_RETURN_IF_ERROR(
+          LogInterpreterEvents("[global]", runtime->GetGlobalEvents()));
       for (Proc* proc : sorted_procs) {
         const xls::InterpreterEvents& events =
             runtime->GetInterpreterEvents(proc);

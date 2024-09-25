@@ -27,6 +27,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
@@ -37,7 +38,8 @@ namespace xls {
 /* static */ absl::StatusOr<std::unique_ptr<SerialProcRuntime>>
 SerialProcRuntime::Create(
     std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
-    std::unique_ptr<ChannelQueueManager>&& queue_manager) {
+    std::unique_ptr<ChannelQueueManager>&& queue_manager,
+    const EvaluatorOptions& options) {
   // Verify there exists exactly one evaluator per proc in the package.
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>> evaluator_map;
   for (std::unique_ptr<ProcEvaluator>& evaluator : evaluators) {
@@ -54,7 +56,7 @@ SerialProcRuntime::Create(
                    queue_manager->elaboration().procs().size())
       << "More evaluators than procs given.";
   auto network_interpreter = absl::WrapUnique(new SerialProcRuntime(
-      std::move(evaluator_map), std::move(queue_manager)));
+      std::move(evaluator_map), std::move(queue_manager), options));
   return std::move(network_interpreter);
 }
 

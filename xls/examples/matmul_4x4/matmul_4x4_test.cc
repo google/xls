@@ -22,6 +22,7 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
@@ -64,8 +65,9 @@ TEST(Matmul4x4Test, Works) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
-                           CreateInterpreterSerialProcRuntime(package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto interpreter,
+      CreateInterpreterSerialProcRuntime(package.get(), EvaluatorOptions()));
 
   // Four input queues: (0,0)x, (1,0)x, (2,0)x, (3,0)x
   std::vector<std::unique_ptr<ChannelQueue>> rx_queues;

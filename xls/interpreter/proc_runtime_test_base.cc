@@ -28,10 +28,13 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/events.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
@@ -44,6 +47,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Optional;
@@ -1020,6 +1024,89 @@ TEST_P(ProcRuntimeTestBase, ProcSetState) {
   EXPECT_THAT(ch0_queue.Read(), Optional(Value(UBits(100, 32))));
 
   EXPECT_TRUE(ch0_queue.IsEmpty());
+}
+
+TEST_P(ProcRuntimeTestBase, TraceChannels) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_channel,
+      package->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_channel,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
+
+  TokenlessProcBuilder pb("incrementer", "tkn", package.get());
+  pb.Send(out_channel,
+          pb.Add(pb.Literal(UBits(1, 32)), pb.Receive(in_channel)));
+  XLS_ASSERT_OK(pb.Build({}).status());
+
+  {
+    // Test with channel tracing on with decimal formatting.
+    std::unique_ptr<ProcRuntime> runtime = GetParam().CreateRuntime(
+        package.get(),
+        EvaluatorOptions().set_trace_channels(true).set_format_preference(
+            FormatPreference::kUnsignedDecimal));
+    ChannelQueue& in_queue = runtime->queue_manager().GetQueue(in_channel);
+    XLS_ASSERT_OK(in_queue.Write({Value(UBits(42, 32))}));
+    XLS_ASSERT_OK(in_queue.Write({Value(UBits(123, 32))}));
+    XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
+
+    InterpreterEvents events = runtime->GetGlobalEvents();
+    std::vector<std::string> event_messages;
+    event_messages.reserve(events.trace_msgs.size());
+    for (const TraceMessage& message : events.trace_msgs) {
+      event_messages.push_back(message.message);
+    }
+    EXPECT_THAT(
+        event_messages,
+        ElementsAre(ContainsRegex("Sent data on channel `in`.*:42"),
+                    ContainsRegex("Sent data on channel `in`.*:123"),
+                    ContainsRegex("Received data on channel `in`.*:42"),
+                    ContainsRegex("Sent data on channel `out`.*:43"),
+                    ContainsRegex("Received data on channel `in`.*:123"),
+                    ContainsRegex("Sent data on channel `out`.*:124")));
+  }
+
+  {
+    // Test with channel tracing on with hexadecimal formatting.
+    std::unique_ptr<ProcRuntime> runtime = GetParam().CreateRuntime(
+        package.get(),
+        EvaluatorOptions().set_trace_channels(true).set_format_preference(
+            FormatPreference::kHex));
+    ChannelQueue& in_queue = runtime->queue_manager().GetQueue(in_channel);
+    XLS_ASSERT_OK(in_queue.Write({Value(UBits(42, 32))}));
+    XLS_ASSERT_OK(in_queue.Write({Value(UBits(123, 32))}));
+    XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
+
+    InterpreterEvents events = runtime->GetGlobalEvents();
+    std::vector<std::string> event_messages;
+    event_messages.reserve(events.trace_msgs.size());
+    for (const TraceMessage& message : events.trace_msgs) {
+      event_messages.push_back(message.message);
+    }
+    EXPECT_THAT(
+        event_messages,
+        ElementsAre(ContainsRegex("Sent data on channel `in`.*:0x2a"),
+                    ContainsRegex("Sent data on channel `in`.*:0x7b"),
+                    ContainsRegex("Received data on channel `in`.*:0x2a"),
+                    ContainsRegex("Sent data on channel `out`.*:0x2b"),
+                    ContainsRegex("Received data on channel `in`.*:0x7b"),
+                    ContainsRegex("Sent data on channel `out`.*:0x7c")));
+  }
+
+  {
+    // Test with channel tracing off.
+    std::unique_ptr<ProcRuntime> runtime = GetParam().CreateRuntime(
+        package.get(), EvaluatorOptions().set_trace_channels(false));
+    ChannelQueue& in_queue = runtime->queue_manager().GetQueue(in_channel);
+    XLS_ASSERT_OK(in_queue.Write({Value(UBits(42, 32))}));
+    XLS_ASSERT_OK(in_queue.Write({Value(UBits(123, 32))}));
+    XLS_ASSERT_OK(in_queue.Write({Value(UBits(100, 32))}));
+    XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
+    EXPECT_TRUE(runtime->GetGlobalEvents().trace_msgs.empty());
+  }
 }
 
 }  // namespace

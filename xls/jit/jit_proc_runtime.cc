@@ -37,6 +37,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/package.h"
@@ -163,7 +164,8 @@ struct AotProcJitArgs {
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
     ProcElaboration elaboration, const AotPackageEntrypointsProto& entrypoints,
-    absl::Span<ProcAotEntrypoints const> impls) {
+    absl::Span<ProcAotEntrypoints const> impls,
+    const EvaluatorOptions& options) {
   XLS_RET_CHECK_EQ(elaboration.procs().size(), entrypoints.entrypoint_size());
   XLS_RET_CHECK_EQ(elaboration.procs().size(), impls.size());
   absl::flat_hash_map<std::string, AotProcJitArgs> procs_by_name;
@@ -214,9 +216,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
   }
 
   // Create a runtime.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> proc_runtime,
-                       SerialProcRuntime::Create(std::move(proc_jits),
-                                                 std::move(queue_manager)));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<SerialProcRuntime> proc_runtime,
+      SerialProcRuntime::Create(std::move(proc_jits), std::move(queue_manager),
+                                options));
 
   XLS_RETURN_IF_ERROR(InsertInitialChannelValues(
       proc_runtime->elaboration(), proc_runtime->queue_manager()));
@@ -224,7 +227,7 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
-    ProcElaboration elaboration) {
+    ProcElaboration elaboration, const EvaluatorOptions& options) {
   // We use the compiler to know the data layout.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> comp, OrcJit::Create());
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout layout, comp->CreateDataLayout());
@@ -245,9 +248,10 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   }
 
   // Create a runtime.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> proc_runtime,
-                       SerialProcRuntime::Create(std::move(proc_jits),
-                                                 std::move(queue_manager)));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<SerialProcRuntime> proc_runtime,
+      SerialProcRuntime::Create(std::move(proc_jits), std::move(queue_manager),
+                                options));
 
   XLS_RETURN_IF_ERROR(InsertInitialChannelValues(
       proc_runtime->elaboration(), proc_runtime->queue_manager()));
@@ -257,17 +261,17 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Package* package) {
+    Package* package, const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return CreateRuntime(std::move(elaboration));
+  return CreateRuntime(std::move(elaboration), options);
 }
 
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
-    Proc* top) {
+    Proc* top, const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
-  return CreateRuntime(std::move(elaboration));
+  return CreateRuntime(std::move(elaboration), options);
 }
 
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Package* package,
@@ -289,10 +293,11 @@ absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Proc* top, bool with_msan,
 // elaboration must have an associated entry in the entrypoints and impls lists.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     Proc* top, const AotPackageEntrypointsProto& entrypoints,
-    absl::Span<ProcAotEntrypoints const> impls) {
+    absl::Span<ProcAotEntrypoints const> impls,
+    const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
-  return CreateAotRuntime(std::move(elaboration), entrypoints, impls);
+  return CreateAotRuntime(std::move(elaboration), entrypoints, impls, options);
 }
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the
@@ -300,10 +305,11 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
 // elaboration must have an associated entry in the entrypoints and impls lists.
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
     Package* package, const AotPackageEntrypointsProto& entrypoints,
-    absl::Span<ProcAotEntrypoints const> impls) {
+    absl::Span<ProcAotEntrypoints const> impls,
+    const EvaluatorOptions& options) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
-  return CreateAotRuntime(std::move(elaboration), entrypoints, impls);
+  return CreateAotRuntime(std::move(elaboration), entrypoints, impls, options);
 }
 
 }  // namespace xls

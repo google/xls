@@ -9,6 +9,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
 #include "xls/jit/proc_base_jit_wrapper.h"
 #include "xls/public/value.h"
 
@@ -21,7 +22,8 @@ class {{ wrapped.class_name }} final : public xls::BaseProcJitWrapper {
     return BaseProcJitWrapper::TakeRuntimeBase(std::move(r));
   }
 
-  static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create();
+  static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create(
+    const EvaluatorOptions& options = EvaluatorOptions());
 
 {% for chan in wrapped.incoming_channels %}
   absl::Status SendTo{{ chan.camel_name }}(xls::Value v) {

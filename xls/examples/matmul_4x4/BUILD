@@ -45,6 +45,7 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/interpreter:channel_queue",
+        "//xls/interpreter:evaluator_options",
         "//xls/interpreter:interpreter_proc_runtime",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:bits",

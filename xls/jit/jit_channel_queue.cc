@@ -107,11 +107,17 @@ int64_t ThreadSafeJitChannelQueue::GetSizeInternal() const {
 }
 
 void ThreadSafeJitChannelQueue::WriteInternal(const Value& value) {
+  CallWriteCallbacks(value);
   WriteValueOnQueue(value, channel()->type(), *jit_runtime_, byte_queue_);
 }
 
 std::optional<Value> ThreadSafeJitChannelQueue::ReadInternal() {
-  return ReadValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
+  std::optional<Value> value =
+      ReadValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
+  if (value.has_value()) {
+    CallReadCallbacks(value.value());
+  }
+  return value;
 }
 
 int64_t ThreadUnsafeJitChannelQueue::GetSizeInternal() const {
@@ -119,11 +125,17 @@ int64_t ThreadUnsafeJitChannelQueue::GetSizeInternal() const {
 }
 
 void ThreadUnsafeJitChannelQueue::WriteInternal(const Value& value) {
+  CallWriteCallbacks(value);
   WriteValueOnQueue(value, channel()->type(), *jit_runtime_, byte_queue_);
 }
 
 std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
-  return ReadValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
+  std::optional<Value> value =
+      ReadValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
+  if (value.has_value()) {
+    CallReadCallbacks(value.value());
+  }
+  return value;
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
