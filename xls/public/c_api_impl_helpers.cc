@@ -14,7 +14,7 @@
 
 #include "xls/public/c_api_impl_helpers.h"
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <vector>
 
 #include "absl/log/check.h"

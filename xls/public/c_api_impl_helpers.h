@@ -20,7 +20,7 @@
 #define XLS_PUBLIC_C_API_IMPL_HELPERS_H_
 
 #include <cstddef>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <vector>
 
 #include "absl/status/statusor.h"
