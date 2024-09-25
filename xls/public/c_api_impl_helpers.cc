@@ -14,10 +14,17 @@
 
 #include "xls/public/c_api_impl_helpers.h"
 
+#include <string.h>
+
+#include <cstddef>
 #include <filesystem>  // NOLINT
+#include <string>
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/strings/str_format.h"
+#include "xls/ir/format_preference.h"
+#include "xls/public/c_api_format_preference.h"
 
 namespace xls {
 

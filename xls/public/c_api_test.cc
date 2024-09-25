@@ -18,13 +18,15 @@
 #include <string>
 #include <string_view>
 
+#include "absl/cleanup/cleanup.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/cleanup/cleanup.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/public/c_api_format_preference.h"
+#include "xls/public/c_api_vast.h"
 
 namespace {
 

@@ -17,7 +17,6 @@
 #include <string.h>  // NOLINT(modernize-deprecated-headers)
 
 #include <cstddef>
-#include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <memory>
@@ -33,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/init_xls.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
@@ -40,7 +40,9 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
+#include "xls/public/c_api_vast.h"
 #include "xls/public/runtime_build_actions.h"
 
 extern "C" {

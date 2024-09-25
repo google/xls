@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <filesystem>  // NOLINT
+#include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"

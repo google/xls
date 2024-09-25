@@ -14,8 +14,17 @@
 
 #include "xls/public/c_api_vast.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "absl/types/span.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/source_location.h"
+#include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
 
 extern "C" {
