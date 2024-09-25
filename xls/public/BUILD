@@ -155,19 +155,48 @@ cc_library(
 )
 
 cc_library(
+    name = "c_api_impl_helpers",
+    srcs = ["c_api_impl_helpers.cc"],
+    hdrs = ["c_api_impl_helpers.h"],
+    deps = [
+        ":c_api_format_preference",
+        "//xls/ir:format_preference",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "c_api_format_preference",
+    hdrs = ["c_api_format_preference.h"],
+)
+
+cc_library(
+    name = "c_api_vast",
+    srcs = ["c_api_vast.cc"],
+    hdrs = ["c_api_vast.h"],
+    deps = [
+        ":c_api_format_preference",
+        ":c_api_impl_helpers",
+        "//xls/codegen/vast",
+        "//xls/ir:source_location",
+    ],
+)
+
+cc_library(
     name = "c_api",
     srcs = ["c_api.cc"],
     hdrs = ["c_api.h"],
     deps = [
+        ":c_api_impl_helpers",
+        ":c_api_vast",
         ":runtime_build_actions",
-        "//xls/codegen/vast",
         "//xls/common:init_xls",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
-        "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_absl//absl/log:check",
