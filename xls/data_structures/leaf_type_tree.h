@@ -401,7 +401,19 @@ class LeafTypeTree {
 
   // Creates a leaf type tree in which each data member is initialized to the
   // value returned by the given function `f`. `f` takes the type of the leaf
-  // element and index of the element as an argument.
+  // element and (optionally) the index of the element as an argument.
+  static absl::StatusOr<LeafTypeTree<T>> CreateFromFunction(
+      Type* type, std::function<absl::StatusOr<T>(Type* leaf_type)> f) {
+    LeafTypeTree<T> ltt;
+    ltt.type_ = type;
+    ltt.leaf_types_ = leaf_type_tree_internal::GetLeafTypes(type);
+    ltt.elements_.reserve(ltt.leaf_types_.size());
+    for (Type* leaf_type : ltt.leaf_types_) {
+      XLS_ASSIGN_OR_RETURN(T value, f(leaf_type));
+      ltt.elements_.push_back(std::move(value));
+    }
+    return ltt;
+  }
   static absl::StatusOr<LeafTypeTree<T>> CreateFromFunction(
       Type* type,
       std::function<absl::StatusOr<T>(Type* leaf_type,
@@ -848,10 +860,8 @@ template <typename T>
 void ForEach(MutableLeafTypeTreeView<T> ltt,
              const std::function<void(
                  typename MutableLeafTypeTreeView<T>::DataT& element)>& f) {
-  leaf_type_tree_internal::LeafTypeTreeIterator it(ltt.type());
-  while (!it.AtEnd()) {
-    f(ltt.elements()[it.linear_index()]);
-    it.Advance();
+  for (T& x : ltt.elements()) {
+    f(x);
   }
 }
 
@@ -860,10 +870,8 @@ void ForEach(
     LeafTypeTreeView<T> ltt,
     const std::function<void(typename LeafTypeTreeView<T>::DataT& element)>&
         f) {
-  leaf_type_tree_internal::LeafTypeTreeIterator it(ltt.type());
-  while (!it.AtEnd()) {
-    f(ltt.elements()[it.linear_index()]);
-    it.Advance();
+  for (const T& x : ltt.elements()) {
+    f(x);
   }
 }
 

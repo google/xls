@@ -296,11 +296,10 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
 
   // Returns a LeafTypeTree of all kUnknown values of the given type
   absl::StatusOr<CompoundValue> UnconstrainedOf(Type* type) {
-    return CompoundValue::CreateFromFunction(
-        type, [](Type* type, absl::Span<int64_t const> idx) {
-          return TernaryEvaluator::Vector(type->GetFlatBitCount(),
-                                          TernaryValue::kUnknown);
-        });
+    return CompoundValue::CreateFromFunction(type, [](Type* type) {
+      return TernaryEvaluator::Vector(type->GetFlatBitCount(),
+                                      TernaryValue::kUnknown);
+    });
   }
 };
 

@@ -924,5 +924,17 @@ TEST_F(LeafTypeTreeTest, CreateFromFunction) {
             "([bits[32]@{0,0}, bits[32]@{0,1}], bits[2]@{1})");
 }
 
+TEST_F(LeafTypeTreeTest, CreateFromFunctionSimple) {
+  Type* type = AsType("(bits[32][2], bits[2])");
+  LeafTypeTree<std::string> result =
+      LeafTypeTree<std::string>::CreateFromFunction(
+          type,
+          [](Type* leaf_type) -> absl::StatusOr<std::string> {
+            return absl::StrCat(leaf_type->ToString());
+          })
+          .value();
+  EXPECT_EQ(result.ToString(), "([bits[32], bits[32]], bits[2])");
+}
+
 }  // namespace
 }  // namespace xls

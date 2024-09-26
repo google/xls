@@ -60,27 +60,21 @@ namespace {
 
 IntervalSetTree UnconstrainedIntervalSetTree(Type* type) {
   return *IntervalSetTree::CreateFromFunction(
-      type,
-      [](Type* leaf_type,
-         absl::Span<const int64_t>) -> absl::StatusOr<IntervalSet> {
+      type, [](Type* leaf_type) -> absl::StatusOr<IntervalSet> {
         return IntervalSet::Maximal(leaf_type->GetFlatBitCount());
       });
 }
 
 IntervalSetTree EmptyIntervalSetTree(Type* type) {
   return *IntervalSetTree::CreateFromFunction(
-      type,
-      [](Type* leaf_type,
-         absl::Span<const int64_t> index) -> absl::StatusOr<IntervalSet> {
+      type, [](Type* leaf_type) -> absl::StatusOr<IntervalSet> {
         return IntervalSet(leaf_type->GetFlatBitCount());
       });
 }
 
 IntervalSetTree ZeroIntervalSetTree(Type* type) {
   return *IntervalSetTree::CreateFromFunction(
-      type,
-      [](Type* leaf_type,
-         absl::Span<const int64_t> index) -> absl::StatusOr<IntervalSet> {
+      type, [](Type* leaf_type) -> absl::StatusOr<IntervalSet> {
         return IntervalSet::Precise(UBits(0, leaf_type->GetFlatBitCount()));
       });
 }

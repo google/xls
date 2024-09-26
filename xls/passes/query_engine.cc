@@ -79,9 +79,7 @@ LeafTypeTree<IntervalSet> QueryEngine::GetIntervals(Node* node) const {
   std::optional<LeafTypeTree<TernaryVector>> tern = GetTernary(node);
   if (!tern.has_value()) {
     return *LeafTypeTree<IntervalSet>::CreateFromFunction(
-        node->GetType(),
-        [](Type* leaf_type,
-           absl::Span<const int64_t>) -> absl::StatusOr<IntervalSet> {
+        node->GetType(), [](Type* leaf_type) -> absl::StatusOr<IntervalSet> {
           return IntervalSet::Maximal(leaf_type->GetFlatBitCount());
         });
   }
@@ -340,9 +338,7 @@ std::string QueryEngine::ToString(Node* node) const {
   std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(node);
   if (!ternary.has_value()) {
     ternary = *LeafTypeTree<TernaryVector>::CreateFromFunction(
-        node->GetType(),
-        [](Type* leaf_type,
-           absl::Span<const int64_t>) -> absl::StatusOr<TernaryVector> {
+        node->GetType(), [](Type* leaf_type) -> absl::StatusOr<TernaryVector> {
           return TernaryVector(leaf_type->GetFlatBitCount(),
                                TernaryValue::kUnknown);
         });

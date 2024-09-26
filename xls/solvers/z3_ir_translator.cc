@@ -1207,8 +1207,7 @@ Z3_ast IrTranslator::UnflattenZ3Ast(Type* type, absl::Span<const Z3_ast> flat,
   auto it = flat.cbegin();
   absl::StatusOr<LeafTypeTree<Z3_ast>> z3_tree =
       LeafTypeTree<Z3_ast>::CreateFromFunction(
-          type,
-          [&](Type* leaf, absl::Span<int64_t const>) -> absl::StatusOr<Z3_ast> {
+          type, [&](Type* leaf) -> absl::StatusOr<Z3_ast> {
             int64_t bit_count = leaf->AsBitsOrDie()->bit_count();
             auto start = it;
             it += bit_count;
