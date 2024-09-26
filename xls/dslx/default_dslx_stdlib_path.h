@@ -15,10 +15,15 @@
 #ifndef XLS_DSLX_DEFAULT_DSLX_STDLIB_PATH_H_
 #define XLS_DSLX_DEFAULT_DSLX_STDLIB_PATH_H_
 
-namespace xls {
+#include <string_view>
+#include <type_traits>
 
-extern const char* kDefaultDslxStdlibPath;
+#include "xls/dslx/default_dslx_stdlib_path.inc"
 
-}  // namespace xls
+// Check that the included file defines ::xls::kDefaultDslxStdlibPath as a
+// std::string_view.
+static_assert(std::is_same_v<
+              std::string_view,
+              std::remove_cvref_t<decltype(::xls::kDefaultDslxStdlibPath)>>);
 
 #endif  // XLS_DSLX_DEFAULT_DSLX_STDLIB_PATH_H_

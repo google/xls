@@ -502,7 +502,7 @@ cc_library(
 
 cc_library(
     name = "default_dslx_stdlib_path",
-    srcs = ["default_dslx_stdlib_path.cc"],
+    srcs = ["default_dslx_stdlib_path.inc"],
     hdrs = ["default_dslx_stdlib_path.h"],
 )
 

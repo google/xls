@@ -43,7 +43,8 @@ ABSL_FLAG(std::string, namespaces, "",
           "Double-colon-delimited namespaces with which to wrap the "
           "generated code, e.g., \"my::namespace\" or "
           "\"::my::explicitly::top::level::namespace\".");
-ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+ABSL_FLAG(std::string, dslx_stdlib_path,
+          std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library");
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");

@@ -183,7 +183,8 @@ ABSL_FLAG(std::string, input_validator_expr, "",
 ABSL_FLAG(std::string, input_validator_path, "",
           "Path to a file containing DSLX for an input validator as with "
           "the `--input_validator` flag.");
-ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+ABSL_FLAG(std::string, dslx_stdlib_path,
+          std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library");
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");

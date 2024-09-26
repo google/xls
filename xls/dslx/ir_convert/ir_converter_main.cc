@@ -49,7 +49,7 @@ ABSL_FLAG(std::string, top, "",
           "top entity in the generated IR. When not provided, all functions "
           "and procs are converted, there is no top entity defined in the "
           "generated IR.");
-ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
+ABSL_FLAG(std::string, stdlib_path, std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library files.");
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");

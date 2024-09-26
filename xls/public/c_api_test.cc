@@ -38,9 +38,10 @@ TEST(XlsCApiTest, ConvertDslxToIrSimple) {
   const char* additional_search_paths[] = {};
   char* error_out = nullptr;
   char* ir_out = nullptr;
+  std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
   bool ok =
       xls_convert_dslx_to_ir(kProgram.c_str(), "my_module.x", "my_module",
-                             /*dslx_stdlib_path=*/xls::kDefaultDslxStdlibPath,
+                             /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(),
                              additional_search_paths, 0, &error_out, &ir_out);
 
   absl::Cleanup free_cstrs([&] {
@@ -67,10 +68,11 @@ TEST(XlsCApiTest, ConvertDslxToIrError) {
     xls_c_str_free(ir_out);
   });
 
+  const std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
   bool ok = xls_convert_dslx_to_ir(
       kInvalidProgram.c_str(), "my_module.x", "my_module",
-      /*dslx_stdlib_path=*/xls::kDefaultDslxStdlibPath, additional_search_paths,
-      0, &error_out, &ir_out);
+      /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths, 0,
+      &error_out, &ir_out);
   ASSERT_FALSE(ok);
 
   // We should get an error and not get IR.
@@ -92,9 +94,11 @@ TEST(XlsCApiTest, ConvertDslxPathToIr) {
   const char* additional_search_paths[] = {};
   char* error_out = nullptr;
   char* ir_out = nullptr;
+  const std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
   bool ok = xls_convert_dslx_path_to_ir(
-      module_path.c_str(), /*dslx_stdlib_path=*/xls::kDefaultDslxStdlibPath,
-      additional_search_paths, 0, &error_out, &ir_out);
+      module_path.c_str(),
+      /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths, 0,
+      &error_out, &ir_out);
 
   absl::Cleanup free_cstrs([&] {
     xls_c_str_free(error_out);
@@ -274,9 +278,10 @@ TEST(XlsCApiTest, InterpretDslxFailFunction) {
   const char* additional_search_paths[] = {};
   char* error = nullptr;
   char* ir = nullptr;
+  const std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
   ASSERT_TRUE(
       xls_convert_dslx_to_ir(kDslxModule.c_str(), "my_module.x", "my_module",
-                             /*dslx_stdlib_path=*/xls::kDefaultDslxStdlibPath,
+                             /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(),
                              additional_search_paths, 0, &error, &ir))
       << error;
 

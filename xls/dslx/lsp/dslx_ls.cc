@@ -44,7 +44,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/lsp/language_server_adapter.h"
 
-ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
+ABSL_FLAG(std::string, stdlib_path, std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library files.");
 
 static constexpr char kDslxPath[] = "DSLX_PATH";

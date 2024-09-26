@@ -42,7 +42,8 @@
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
-ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+ABSL_FLAG(std::string, dslx_stdlib_path,
+          std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library");
 ABSL_FLAG(std::string, output_path, "",
           "Path to dump the type information to as a protobin -- if not "

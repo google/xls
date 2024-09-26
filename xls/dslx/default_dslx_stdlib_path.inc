@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/default_dslx_stdlib_path.h"
+#include <string_view>
 
 namespace xls {
 
-const char* kDefaultDslxStdlibPath = "xls/dslx/stdlib";
+inline constexpr std::string_view kDefaultDslxStdlibPath = "xls/dslx/stdlib";
 
 }  // namespace xls

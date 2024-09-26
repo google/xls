@@ -42,7 +42,8 @@
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
-ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
+ABSL_FLAG(std::string, dslx_stdlib_path,
+          std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library directory.");
 ABSL_FLAG(std::string, test_filter, "",
           "Regexp that must be a full match of test name(s) to run.");
