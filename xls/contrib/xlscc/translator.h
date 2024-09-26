@@ -2085,10 +2085,14 @@ class Translator {
                                           const xls::SourceInfo& loc,
                                           bool do_check = true);
 
-  absl::Status ShortCircuitNode(xls::Node* node, xls::BValue& top_bval,
-                                xls::Node* parent,
-                                absl::flat_hash_set<xls::Node*>& visited,
-                                const xls::SourceInfo& loc);
+  // Simplifies `bval` (or any dependencies) where AND or OR ops can be
+  // short-circuited.
+  //
+  // Performs constexpr evaluation to perform:
+  // 1) OR(0, a, b) => OR(a, b)
+  // 2) OR(1, a, b) => 1
+  // 3) AND(0, a, b) => 0
+  // 4) AND(1, a, b) => AND(a, b)
   absl::Status ShortCircuitBVal(xls::BValue& bval, const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
                                           const xls::SourceInfo& loc,
