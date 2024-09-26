@@ -27,6 +27,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
@@ -80,7 +81,8 @@ using ChannelOrArray = std::variant<Channel*, ChannelArray*>;
 // An object that manages definition and access to channels used in a proc.
 class ChannelScope {
  public:
-  ChannelScope(PackageConversionData* conversion_info, ImportData* import_data);
+  ChannelScope(PackageConversionData* conversion_info, ImportData* import_data,
+               std::optional<FifoConfig> default_fifo_config = std::nullopt);
 
   // The owner (IR converter driving the overall procedure) should invoke this
   // with the `type_info` and `bindings` for the function, before converting
@@ -163,6 +165,10 @@ class ChannelScope {
   // Owns all arrays that are pointed to by ChannelOrArray objects dealt out by
   // this scope. A `list` is used for pointer stability.
   std::list<ChannelArray> arrays_;
+
+  // If present, the default FIFO config to use for any FIFO that does not
+  // specify a depth.
+  std::optional<FifoConfig> default_fifo_config_;
 
   absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>
       decl_to_channel_or_array_;

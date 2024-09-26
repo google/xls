@@ -59,6 +59,7 @@ class FifoConfig {
   bool operator==(const FifoConfig& other) const = default;
   bool operator<=>(const FifoConfig& other) const = default;
 
+  static absl::StatusOr<FifoConfig> FromProto(const FifoConfigProto& proto);
   FifoConfigProto ToProto(int64_t width) const;
 
   std::string ToString() const;

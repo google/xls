@@ -38,6 +38,7 @@
 #include "xls/dslx/ir_convert/ir_converter_options_flags.h"
 #include "xls/dslx/ir_convert/ir_converter_options_flags.pb.h"
 #include "xls/dslx/warning_kind.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 
 namespace xls::dslx {
@@ -95,6 +96,12 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   XLS_ASSIGN_OR_RETURN(WarningKindSet enabled_warnings,
                        WarningKindSetFromDisabledString(
                            ir_converter_options.disable_warnings()));
+  std::optional<FifoConfig> default_fifo_config;
+  if (ir_converter_options.has_default_fifo_config()) {
+    XLS_ASSIGN_OR_RETURN(
+        default_fifo_config,
+        FifoConfig::FromProto(ir_converter_options.default_fifo_config()));
+  }
   const ConvertOptions convert_options = {
       .emit_positions = true,
       .emit_fail_as_assert = emit_fail_as_assert,
@@ -102,6 +109,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .warnings_as_errors = warnings_as_errors,
       .enabled_warnings = enabled_warnings,
       .convert_tests = convert_tests,
+      .default_fifo_config = default_fifo_config,
   };
 
   // The following checks are performed inside ConvertFilesToPackage(), but we

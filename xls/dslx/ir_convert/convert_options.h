@@ -15,7 +15,10 @@
 #ifndef XLS_DSLX_IR_CONVERT_CONVERT_OPTIONS_H_
 #define XLS_DSLX_IR_CONVERT_CONVERT_OPTIONS_H_
 
+#include <optional>
+
 #include "xls/dslx/warning_kind.h"
+#include "xls/ir/channel.h"
 
 namespace xls::dslx {
 
@@ -44,6 +47,10 @@ struct ConvertOptions {
 
   // Should #[test] and #[test_proc] entities be emitted to IR.
   bool convert_tests = false;
+
+  // If present, the default FIFO config to use for any FIFO that does not
+  // specify a config.
+  std::optional<FifoConfig> default_fifo_config;
 };
 
 }  // namespace xls::dslx

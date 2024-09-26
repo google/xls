@@ -296,7 +296,8 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   // we need one instance to span all functions. However, most uses of it need
   // to be in the context of a function, and it needs to be aware of the current
   // function context, for e.g. index expression interpretation.
-  ChannelScope channel_scope(package_data.conversion_info, import_data);
+  ChannelScope channel_scope(package_data.conversion_info, import_data,
+                             options.default_fifo_config);
 
   // The top-level proc's input/output channels need to come from _somewhere_.
   // At conversion time, though, we won't have that info. To enable forward

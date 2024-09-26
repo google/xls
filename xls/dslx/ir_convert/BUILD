@@ -33,6 +33,7 @@ cc_library(
     hdrs = ["channel_scope.h"],
     deps = [
         ":conversion_info",
+        ":convert_options",
         ":ir_conversion_utils",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -230,6 +231,7 @@ cc_library(
     hdrs = ["convert_options.h"],
     deps = [
         "//xls/dslx:warning_kind",
+        "//xls/ir:channel",
     ],
 )
 
@@ -439,6 +441,7 @@ cc_library(
 proto_library(
     name = "ir_converter_options_flags_proto",
     srcs = ["ir_converter_options_flags.proto"],
+    deps = ["//xls/ir:channel_proto"],
 )
 
 cc_proto_library(
@@ -455,6 +458,7 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/ir:channel_cc_proto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -478,6 +482,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/dslx:warning_kind",
         "//xls/ir",
+        "//xls/ir:channel",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

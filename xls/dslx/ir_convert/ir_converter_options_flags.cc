@@ -24,6 +24,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/ir/channel.pb.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::optional<std::string>, output_file, std::nullopt,
@@ -62,6 +63,9 @@ ABSL_FLAG(std::optional<std::string>, interface_textproto_file, std::nullopt,
           "information and interface specs in textproto format");
 ABSL_FLAG(std::optional<std::string>, ir_converter_options_proto, std::nullopt,
           "Path to a protobuf containing all ir converter options args.");
+ABSL_FLAG(std::optional<std::string>, default_fifo_config, std::nullopt,
+          "Textproto description of a default FifoConfigProto. If unspecified, "
+          "no default FIFO config is specified and codegen may fail.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(std::optional<std::string>, ir_converter_options_used_textproto_file,
           std::nullopt,
@@ -100,6 +104,19 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
 
 #undef POPULATE_FLAG
+
+  // Populate default fifo config.
+  {
+    const std::optional<std::string>& default_fifo_config =
+        absl::GetFlag(FLAGS_default_fifo_config);
+    if (default_fifo_config.has_value()) {
+      any_flags_set = true;
+
+      XLS_RETURN_IF_ERROR(ParseTextProto(*default_fifo_config,
+                                         std::filesystem::path("<cmdline arg>"),
+                                         proto.mutable_default_fifo_config()));
+    }
+  }
 
   return any_flags_set;
 }

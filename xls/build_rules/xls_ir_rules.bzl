@@ -139,6 +139,7 @@ def _convert_to_ir(ctx, src):
         "warnings_as_errors",
         "disable_warnings",
         "convert_tests",
+        "default_fifo_config",
     )
 
     # With runs outside a monorepo, the execution root for the workspace of

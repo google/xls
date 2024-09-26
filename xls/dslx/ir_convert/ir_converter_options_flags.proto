@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package xls;
 
+import "xls/ir/channel.proto";
+
 // Flags passed to the ir_converter_main binary.
 //
 // See ir_converter_options_flags.cc ABSL_FLAG() definitions for the meaning of
@@ -33,4 +35,5 @@ message IrConverterOptionsFlagsProto {
   optional bool warnings_as_errors = 10;
   optional string interface_proto_file = 11;
   optional string interface_textproto_file = 12;
+  optional FifoConfigProto default_fifo_config = 13;
 }

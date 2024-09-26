@@ -50,10 +50,12 @@
 namespace xls::dslx {
 
 ChannelScope::ChannelScope(PackageConversionData* conversion_info,
-                           ImportData* import_data)
+                           ImportData* import_data,
+                           std::optional<FifoConfig> default_fifo_config)
     : conversion_info_(conversion_info),
       import_data_(import_data),
-      channel_name_uniquer_(/*separator=*/"__") {
+      channel_name_uniquer_(/*separator=*/"__"),
+      default_fifo_config_(default_fifo_config) {
   // Populate channel name uniquer with pre-existing channel names.
   for (Channel* channel : conversion_info_->package->channels()) {
     channel_name_uniquer_.GetSanitizedUniqueName(channel->name());
@@ -241,7 +243,7 @@ absl::StatusOr<std::optional<FifoConfig>> ChannelScope::CreateFifoConfig(
   }
 
   if (!fifo_depth.has_value()) {
-    return std::nullopt;
+    return default_fifo_config_;
   }
   // We choose bypass=true FIFOs by default and register push outputs (ready).
   // The idea is to avoid combo loops introduced by pop->push ready
