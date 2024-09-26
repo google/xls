@@ -25,8 +25,9 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/btree_set.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -103,13 +104,15 @@ class ConditionCmp {
 // A set of Conditions which can be assumed to hold at a particular point in the
 // graph.
 class ConditionSet {
- public:
-  // Use a btree to hold the conditions for a well defined order (determined by
-  // ConditionCmp).
-  using ConditionBTree = absl::btree_set<Condition, ConditionCmp>;
+ private:
+  // The maximum size limit on the number of conditions to avoid superlinear
+  // behavior.
+  static constexpr int64_t kMaxConditions = 64;
+  using ConditionVector = absl::InlinedVector<Condition, kMaxConditions + 1>;
 
+ public:
   explicit ConditionSet(const absl::flat_hash_map<Node*, int64_t>& topo_index)
-      : condition_cmp_(topo_index), conditions_(condition_cmp_) {}
+      : condition_cmp_(topo_index) {}
 
   ConditionSet(const ConditionSet&) = default;
   ConditionSet(ConditionSet&&) = default;
@@ -118,7 +121,7 @@ class ConditionSet {
   // Perform a set intersection with this set and `other` and assign the result
   // to this set.
   void Intersect(const ConditionSet& other) {
-    ConditionBTree original = std::move(conditions_);
+    ConditionVector original = std::move(conditions_);
     conditions_.clear();
     std::set_intersection(other.conditions_.begin(), other.conditions_.end(),
                           original.begin(), original.end(),
@@ -138,22 +141,26 @@ class ConditionSet {
         "ConditionSet for (%s, %s) : %s", condition.node->GetName(),
         xls::ToString(condition.value), this->ToString());
     CHECK(!condition.node->Is<Literal>());
-    conditions_.insert(condition);
+    if (auto it = absl::c_lower_bound(conditions_, condition, condition_cmp_);
+        it == conditions_.end() || *it != condition) {
+      conditions_.insert(it, condition);
+    }
     // The conditions are ordering in topological sort order (based on
     // Condition.node) and transformation occurs in reverse topological sort
     // order so the most distant conditions should be at the end of the
     // condition set.  Just pop the last condition off the end if it exceeds the
     // limit.
     if (conditions_.size() > kMaxConditions) {
-      conditions_.erase(std::next(conditions_.end(), -1));
+      conditions_.pop_back();
     }
     CHECK_LE(conditions_.size(), kMaxConditions);
   }
 
-  const ConditionBTree& conditions() const { return conditions_; }
+  absl::Span<const Condition> conditions() const { return conditions_; }
 
   std::string ToString() const {
     std::vector<std::string> pieces;
+    pieces.reserve(conditions_.size());
     for (const Condition& condition : conditions_) {
       pieces.push_back(condition.ToString());
     }
@@ -176,11 +183,11 @@ class ConditionSet {
   }
 
  private:
-  // The maximum size limit on the number of conditions to avoid superlinear
-  // behavior.
-  static constexpr int64_t kMaxConditions = 64;
   ConditionCmp condition_cmp_;
-  ConditionBTree conditions_;
+
+  // Kept sorted at all times (according to `condition_cmp_`), retaining only
+  // unique elements.
+  ConditionVector conditions_;
 };
 
 // A map containing the set of conditions which can be assumed at each node (and
