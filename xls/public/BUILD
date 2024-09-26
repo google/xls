@@ -192,13 +192,13 @@ cc_library(
     srcs = ["c_api_dslx.cc"],
     hdrs = ["c_api_dslx.h"],
     deps = [
-        "//xls/common:visitor",
-        "@com_google_absl//absl/types:variant",
-        "//xls/dslx:warning_kind",
-        "//xls/dslx/type_system:unwrap_meta_type",
         ":c_api_impl_helpers",
-        "//xls/dslx:parse_and_typecheck",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/type_system:unwrap_meta_type",
+        "//xls/dslx:warning_kind",
     ],
 )
 
@@ -211,10 +211,6 @@ cc_library(
         ":c_api_format_preference",
         ":c_api_impl_helpers",
         ":c_api_vast",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         ":runtime_build_actions",
         "//xls/common:init_xls",
         "//xls/interpreter:ir_interpreter",
@@ -225,6 +221,10 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
