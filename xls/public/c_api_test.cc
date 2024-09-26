@@ -507,7 +507,8 @@ enum MyEnum : u5 {
   const char* additional_search_paths[] = {};
 
   xls_dslx_import_data* import_data = xls_dslx_import_data_create(
-      xls::kDefaultDslxStdlibPath, additional_search_paths, 0);
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(),
+      additional_search_paths, 0);
   ASSERT_NE(import_data, nullptr);
   absl::Cleanup free_import_data(
       [=] { xls_dslx_import_data_free(import_data); });
