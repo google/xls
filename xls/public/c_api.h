@@ -17,6 +17,7 @@
 
 #include <stddef.h>  // NOLINT(modernize-deprecated-headers)
 
+#include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_vast.h"
 

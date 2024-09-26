@@ -270,8 +270,7 @@ inline std::vector<AstNode*> ToAstNodes(absl::Span<NodeT* const> source) {
 // Abstract base class for type annotations.
 class TypeAnnotation : public AstNode {
  public:
-  TypeAnnotation(Module* owner, Span span)
-      : AstNode(owner), span_(std::move(span)) {}
+  TypeAnnotation(Module* owner, Span span) : AstNode(owner), span_(span) {}
 
   ~TypeAnnotation() override;
 
@@ -2105,7 +2104,7 @@ class AllOnesMacro : public Expr {
 class Slice : public AstNode {
  public:
   Slice(Module* owner, Span span, Expr* start, Expr* limit)
-      : AstNode(owner), span_(std::move(span)), start_(start), limit_(limit) {}
+      : AstNode(owner), span_(span), start_(start), limit_(limit) {}
 
   ~Slice() override;
 
@@ -2194,7 +2193,10 @@ class EnumDef : public AstNode {
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
   NameDef* name_def() const { return name_def_; }
+
   const std::vector<EnumMember>& values() const { return values_; }
+  std::vector<EnumMember>& mutable_values() { return values_; }
+
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   bool is_public() const { return is_public_; }
 
@@ -2270,7 +2272,10 @@ class StructDef : public AstNode {
   const std::vector<ParametricBinding*>& parametric_bindings() const {
     return parametric_bindings_;
   }
+
   const std::vector<StructMember>& members() const { return members_; }
+  std::vector<StructMember>& mutable_members() { return members_; }
+
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }

@@ -490,4 +490,148 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
 
+TEST(XlsCApiTest, DslxInspectTypeDefinitions) {
+  const char kProgram[] = R"(const EIGHT = u5:8;
+
+struct MyStruct {
+    some_field: u42,
+    other_field: u64,
+}
+
+enum MyEnum : u5 {
+    A = u5:2,
+    B = u5:4,
+    C = EIGHT,
+}
+)";
+  const char* additional_search_paths[] = {};
+
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram, "foo.x", "foo", import_data,
+                                         &error, &tm);
+  absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
+  ASSERT_TRUE(ok) << "got not-ok result from parse-and-typecheck; error: "
+                  << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  xls_dslx_type_info* type_info = xls_dslx_typechecked_module_get_type_info(tm);
+
+  int64_t type_definition_count =
+      xls_dslx_module_get_type_definition_count(module);
+  ASSERT_EQ(type_definition_count, 2);
+
+  xls_dslx_type_definition_kind kind0 =
+      xls_dslx_module_get_type_definition_kind(module, 0);
+  xls_dslx_type_definition_kind kind1 =
+      xls_dslx_module_get_type_definition_kind(module, 1);
+  EXPECT_EQ(kind0, xls_dslx_type_definition_kind_struct_def);
+  EXPECT_EQ(kind1, xls_dslx_type_definition_kind_enum_def);
+
+  {
+    xls_dslx_struct_def* struct_def =
+        xls_dslx_module_get_type_definition_as_struct_def(module, 0);
+    char* identifier = xls_dslx_struct_def_get_identifier(struct_def);
+    absl::Cleanup free_identifier([=] { xls_c_str_free(identifier); });
+    EXPECT_EQ(std::string_view{identifier}, std::string_view{"MyStruct"});
+
+    // Get the concrete type that this resolves to.
+    const xls_dslx_type* struct_def_type =
+        xls_dslx_type_info_get_type_struct_def(type_info, struct_def);
+    int64_t total_bit_count = 0;
+    ASSERT_TRUE(xls_dslx_type_get_total_bit_count(struct_def_type, &error,
+                                                  &total_bit_count))
+        << "got not-ok result from get-total-bit-count; error: " << error;
+    ASSERT_EQ(error, nullptr);
+    EXPECT_EQ(total_bit_count, 42 + 64);
+
+    // Get the two members and see how many bits they resolve to.
+    xls_dslx_struct_member* member0 =
+        xls_dslx_struct_def_get_member(struct_def, 0);
+    xls_dslx_struct_member* member1 =
+        xls_dslx_struct_def_get_member(struct_def, 1);
+
+    char* member0_name = xls_dslx_struct_member_get_name(member0);
+    absl::Cleanup free_member0_name([=] { xls_c_str_free(member0_name); });
+    ASSERT_NE(member0_name, nullptr);
+    EXPECT_EQ(std::string_view{member0_name}, "some_field");
+
+    xls_dslx_type_annotation* member0_type_annotation =
+        xls_dslx_struct_member_get_type(member0);
+    xls_dslx_type_annotation* member1_type_annotation =
+        xls_dslx_struct_member_get_type(member1);
+
+    const xls_dslx_type* member0_type =
+        xls_dslx_type_info_get_type_type_annotation(type_info,
+                                                    member0_type_annotation);
+    const xls_dslx_type* member1_type =
+        xls_dslx_type_info_get_type_type_annotation(type_info,
+                                                    member1_type_annotation);
+
+    ASSERT_TRUE(xls_dslx_type_get_total_bit_count(member0_type, &error,
+                                                  &total_bit_count));
+    EXPECT_EQ(total_bit_count, 42);
+
+    ASSERT_TRUE(xls_dslx_type_get_total_bit_count(member1_type, &error,
+                                                  &total_bit_count));
+    EXPECT_EQ(total_bit_count, 64);
+  }
+
+  {
+    xls_dslx_enum_def* enum_def =
+        xls_dslx_module_get_type_definition_as_enum_def(module, 1);
+    char* enum_identifier = xls_dslx_enum_def_get_identifier(enum_def);
+    absl::Cleanup free_enum_identifier(
+        [=] { xls_c_str_free(enum_identifier); });
+    EXPECT_EQ(std::string_view{enum_identifier}, std::string_view{"MyEnum"});
+
+    int64_t enum_member_count = xls_dslx_enum_def_get_member_count(enum_def);
+    EXPECT_EQ(enum_member_count, 3);
+
+    xls_dslx_enum_member* member2 = xls_dslx_enum_def_get_member(enum_def, 2);
+    xls_dslx_expr* member2_expr = xls_dslx_enum_member_get_value(member2);
+
+    char* member2_name = xls_dslx_enum_member_get_name(member2);
+    absl::Cleanup free_member2_name([=] { xls_c_str_free(member2_name); });
+    ASSERT_NE(member2_name, nullptr);
+    EXPECT_EQ(std::string_view{member2_name}, "C");
+
+    xls_dslx_interp_value* member2_value = nullptr;
+    ASSERT_TRUE(xls_dslx_type_info_get_const_expr(type_info, member2_expr,
+                                                  &error, &member2_value));
+    absl::Cleanup free_member2_value(
+        [=] { xls_dslx_interp_value_free(member2_value); });
+    ASSERT_NE(member2_value, nullptr);
+
+    xls_value* member2_ir_value = nullptr;
+    ASSERT_TRUE(xls_dslx_interp_value_convert_to_ir(member2_value, &error,
+                                                    &member2_ir_value));
+    absl::Cleanup free_member2_ir_value(
+        [=] { xls_value_free(member2_ir_value); });
+
+    char* value_str = nullptr;
+    ASSERT_TRUE(xls_value_to_string(member2_ir_value, &value_str));
+    absl::Cleanup free_value_str([=] { xls_c_str_free(value_str); });
+    EXPECT_EQ(std::string_view{value_str}, "bits[5]:8");
+
+    const xls_dslx_type* enum_def_type =
+        xls_dslx_type_info_get_type_enum_def(type_info, enum_def);
+    int64_t total_bit_count = 0;
+    ASSERT_TRUE(xls_dslx_type_get_total_bit_count(enum_def_type, &error,
+                                                  &total_bit_count))
+        << "got not-ok result from get-total-bit-count; error: " << error;
+    ASSERT_EQ(error, nullptr);
+    EXPECT_EQ(total_bit_count, 5);
+  }
+}
+
 }  // namespace

@@ -188,10 +188,26 @@ cc_library(
 )
 
 cc_library(
+    name = "c_api_dslx",
+    srcs = ["c_api_dslx.cc"],
+    hdrs = ["c_api_dslx.h"],
+    deps = [
+        ":c_api_impl_helpers",
+        "//xls/common:visitor",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
+        "//xls/dslx/type_system:unwrap_meta_type",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
     name = "c_api",
     srcs = ["c_api.cc"],
     hdrs = ["c_api.h"],
     deps = [
+        ":c_api_dslx",
         ":c_api_format_preference",
         ":c_api_impl_helpers",
         ":c_api_vast",
