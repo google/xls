@@ -35,13 +35,6 @@
 #include "xls/ir/value_utils.h"
 
 namespace xls {
-FifoConfig::FifoConfig(int64_t depth, bool bypass, bool register_push_outputs,
-                       bool register_pop_outputs)
-    : depth_(depth),
-      bypass_(bypass),
-      register_push_outputs_(register_push_outputs),
-      register_pop_outputs_(register_pop_outputs) {}
-
 /* static */ absl::StatusOr<FifoConfig> FifoConfig::FromProto(
     const FifoConfigProto& proto) {
   if (!proto.has_depth()) {

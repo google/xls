@@ -48,8 +48,12 @@ enum class ChannelKind : uint8_t {
 
 class FifoConfig {
  public:
-  FifoConfig(int64_t depth, bool bypass, bool register_push_outputs,
-             bool register_pop_outputs);
+  constexpr FifoConfig(int64_t depth, bool bypass, bool register_push_outputs,
+                       bool register_pop_outputs)
+      : depth_(depth),
+        bypass_(bypass),
+        register_push_outputs_(register_push_outputs),
+        register_pop_outputs_(register_pop_outputs) {}
 
   int64_t depth() const { return depth_; }
   bool bypass() const { return bypass_; }
