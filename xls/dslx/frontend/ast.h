@@ -2195,7 +2195,7 @@ class EnumDef : public AstNode {
   NameDef* name_def() const { return name_def_; }
 
   const std::vector<EnumMember>& values() const { return values_; }
-  std::vector<EnumMember>& values() { return values_; }
+  std::vector<EnumMember>& mutable_values() { return values_; }
 
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   bool is_public() const { return is_public_; }
@@ -2274,7 +2274,7 @@ class StructDef : public AstNode {
   }
 
   const std::vector<StructMember>& members() const { return members_; }
-  std::vector<StructMember>& members() { return members_; }
+  std::vector<StructMember>& mutable_members() { return members_; }
 
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }

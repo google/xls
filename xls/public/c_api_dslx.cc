@@ -166,7 +166,7 @@ int64_t xls_dslx_enum_def_get_member_count(struct xls_dslx_enum_def* n) {
 struct xls_dslx_enum_member* xls_dslx_enum_def_get_member(
     struct xls_dslx_enum_def* n, int64_t i) {
   auto* cpp_enum_def = reinterpret_cast<xls::dslx::EnumDef*>(n);
-  xls::dslx::EnumMember& cpp_member = cpp_enum_def->values().at(i);
+  xls::dslx::EnumMember& cpp_member = cpp_enum_def->mutable_values().at(i);
   return reinterpret_cast<xls_dslx_enum_member*>(&cpp_member);
 }
 
@@ -227,7 +227,7 @@ bool xls_dslx_type_get_total_bit_count(const struct xls_dslx_type* type,
 struct xls_dslx_struct_member* xls_dslx_struct_def_get_member(
     struct xls_dslx_struct_def* struct_def, int64_t i) {
   auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(struct_def);
-  xls::dslx::StructMember& cpp_member = cpp_struct_def->members().at(i);
+  xls::dslx::StructMember& cpp_member = cpp_struct_def->mutable_members().at(i);
   return reinterpret_cast<xls_dslx_struct_member*>(&cpp_member);
 }
 
