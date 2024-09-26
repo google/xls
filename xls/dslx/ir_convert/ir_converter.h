@@ -111,7 +111,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module, Function* fn,
 //   printed_error: If a non-null pointer is passes, sets the contents to a
 //     boolean value indicating if an error was printed during conversion.
 absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
-    absl::Span<const std::string_view> paths, const std::string& stdlib_path,
+    absl::Span<const std::string_view> paths, std::string_view stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths,
     const ConvertOptions& convert_options,
     std::optional<std::string_view> top = std::nullopt,

@@ -15,6 +15,7 @@
 # Conversion from frontend representation to XLS IR.
 
 # pytype tests are present in this file
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -435,6 +436,31 @@ cc_library(
     ],
 )
 
+proto_library(
+    name = "ir_converter_options_flags_proto",
+    srcs = ["ir_converter_options_flags.proto"],
+)
+
+cc_proto_library(
+    name = "ir_converter_options_flags_cc_proto",
+    deps = [":ir_converter_options_flags_proto"],
+)
+
+cc_library(
+    name = "ir_converter_options_flags",
+    srcs = ["ir_converter_options_flags.cc"],
+    hdrs = ["ir_converter_options_flags.h"],
+    deps = [
+        ":ir_converter_options_flags_cc_proto",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:default_dslx_stdlib_path",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 cc_binary(
     name = "ir_converter_main",
     srcs = ["ir_converter_main.cc"],
@@ -443,15 +469,15 @@ cc_binary(
         ":conversion_info",
         ":convert_options",
         ":ir_converter",
+        ":ir_converter_options_flags",
+        ":ir_converter_options_flags_cc_proto",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:warning_kind",
         "//xls/ir",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

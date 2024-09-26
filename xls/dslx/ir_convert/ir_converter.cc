@@ -548,7 +548,7 @@ absl::Status AddContentsToPackage(
 }  // namespace
 
 absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
-    absl::Span<const std::string_view> paths, const std::string& stdlib_path,
+    absl::Span<const std::string_view> paths, std::string_view stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths,
     const ConvertOptions& convert_options, std::optional<std::string_view> top,
     std::optional<std::string_view> package_name, bool* printed_error) {
