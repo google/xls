@@ -25,11 +25,14 @@ namespace xls {
 // cases, use an std::variant type which holds one of the two possible
 // representations for a Node:
 //
-//  1) Expression* : node is represented directly by a Verilog expression. This
-//     is the common case.
-//
-//  2) UnrepresentedSentinel : node has no representation in the Verilog. For
+//  1) UnrepresentedSentinel : node has no representation in the Verilog. For
 //     example, the node emits a token type.
+//
+//  2) Statement* : node is represented by a Verilog statement. This is used by
+//  some op overrides that don't have a direct expression representation.
+//
+//  3) Expression* : node is represented directly by a Verilog expression. This
+//     is the common case.
 struct UnrepresentedSentinel {};
 using NodeRepresentation =
     std::variant<UnrepresentedSentinel, xls::verilog::Statement*,
