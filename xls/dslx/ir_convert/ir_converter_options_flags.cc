@@ -34,7 +34,7 @@ ABSL_FLAG(std::optional<std::string>, top, std::nullopt,
           "top entity in the generated IR. When not provided, all functions "
           "and procs are converted, there is no top entity defined in the "
           "generated IR.");
-ABSL_FLAG(std::string, stdlib_path, std::string(xls::kDefaultDslxStdlibPath),
+ABSL_FLAG(std::string, dslx_stdlib_path, std::string(xls::kDefaultDslxStdlibPath),
           "Path to DSLX standard library files.");
 ABSL_FLAG(std::optional<std::string>, dslx_path, std::nullopt,
           "Additional paths to search for modules (colon delimited).");
@@ -92,7 +92,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   }
   POPULATE_OPTIONAL_FLAG(output_file);
   POPULATE_OPTIONAL_FLAG(top);
-  POPULATE_FLAG(stdlib_path);
+  POPULATE_FLAG(dslx_stdlib_path);
   POPULATE_OPTIONAL_FLAG(dslx_path);
   POPULATE_OPTIONAL_FLAG(package_name);
   POPULATE_FLAG(emit_fail_as_assert);
