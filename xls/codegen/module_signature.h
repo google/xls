@@ -95,19 +95,15 @@ class ModuleSignatureBuilder {
   absl::Status RemoveData(std::string_view name);
 
   // Add a single value channel to the interface.
-  ModuleSignatureBuilder& AddSingleValueChannel(std::string_view name,
-                                                ChannelOps supported_ops,
-                                                std::string_view port_name);
+  ModuleSignatureBuilder& AddSingleValueChannel(
+      std::string_view name, ChannelOps supported_ops,
+      const ChannelMetadataProto& metadata);
 
   // Add a streaming channel to the interface.
   ModuleSignatureBuilder& AddStreamingChannel(
       std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
       Type* type, std::optional<FifoConfig> fifo_config,
-      std::string_view port_name,
-      std::optional<std::string_view> valid_port_name =
-          std::optional<std::string_view>(),
-      std::optional<std::string_view> ready_port_name =
-          std::optional<std::string_view>());
+      const ChannelMetadataProto& metadata);
 
   struct NameAndType {
     std::string_view name;
@@ -128,7 +124,7 @@ class ModuleSignatureBuilder {
       FifoConfig fifo_config);
 
   // Remove a streaming channel from the interface.
-  absl::Status RemoveStreamingChannel(std::string_view name);
+  absl::Status RemoveChannel(std::string_view name);
 
   // Struct to emulate named arguments for AddRam1RW as there are a lot of
   // arguments with the same type.

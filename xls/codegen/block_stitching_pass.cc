@@ -30,13 +30,13 @@
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
@@ -250,11 +250,10 @@ absl::Status ExposeStreamingOutput(
   VLOG(5) << "Exposing output port: " << output->port.value()->GetName();
   VLOG(5) << "Exposing output port valid: " << output->port_valid->GetName();
   VLOG(5) << "Exposing output port ready: " << output->port_ready->GetName();
-  output->channel->SetBlockName(block->name());
-
-  output->channel->SetDataPortName(output->port.value()->GetName());
-  output->channel->SetValidPortName(output->port_valid->GetName());
-  output->channel->SetReadyPortName(output->port_ready->GetName());
+  down_cast<StreamingChannel*>(output->channel)
+      ->AddBlockPortMapping(block->name(), output->port.value()->GetName(),
+                            output->port_valid->GetName(),
+                            output->port_ready->GetName());
 
   Block* instantiated_block =
       output->port.value()->function_base()->AsBlockOrDie();
@@ -294,10 +293,10 @@ absl::Status ExposeStreamingOutput(
 absl::Status ExposeStreamingInput(
     const absl::flat_hash_map<Block*, ::xls::Instantiation*>& instantiations,
     Block* block, const StreamingInput* input) {
-  input->channel->SetDataPortName(input->port.value()->GetName());
-  input->channel->SetValidPortName(input->port_valid->GetName());
-  input->channel->SetReadyPortName(input->port_ready->GetName());
-  input->channel->SetBlockName(block->name());
+  down_cast<StreamingChannel*>(input->channel)
+      ->AddBlockPortMapping(block->name(), input->port.value()->GetName(),
+                            input->port_valid->GetName(),
+                            input->port_ready->GetName());
 
   Block* instantiated_block =
       input->port.value()->function_base()->AsBlockOrDie();
@@ -368,6 +367,8 @@ absl::Status StitchSingleValueChannel(
                              SourceInfo(), subblock_inst_iter->second,
                              subblock_output->port->GetName()));
   } else {
+    channel->AddBlockPortMapping(container->name(),
+                                 subblock_input->port->GetName());
     XLS_ASSIGN_OR_RETURN(
         input_node, container->AddInputPort(subblock_input->port->GetName(),
                                             subblock_input->port->GetType()));
@@ -385,6 +386,8 @@ absl::Status StitchSingleValueChannel(
                                        subblock_input->port->GetName())
         .status();
   }
+  channel->AddBlockPortMapping(container->name(),
+                               subblock_output->port->GetName());
   return container->AddOutputPort(subblock_output->port->GetName(), input_node)
       .status();
 }
@@ -513,6 +516,28 @@ absl::StatusOr<Block*> AddBlockWithName(
     block_with_name->SetName(new_name);
     if (metadata) {
       metadata_map.insert({block_with_name, std::move(metadata.mapped())});
+    }
+    // Clean up channel metadata that referenced the old name and should now
+    // reference the new name.
+    for (Channel* channel : package->channels()) {
+      std::optional<const BlockPortMappingProto*> old_metadata =
+          channel->GetMetadataBlockPort(name);
+      if (!old_metadata.has_value()) {
+        continue;
+      }
+      switch (channel->kind()) {
+        case ChannelKind::kStreaming:
+          down_cast<StreamingChannel*>(channel)->AddBlockPortMapping(
+              new_name, old_metadata.value()->data_port_name(),
+              old_metadata.value()->valid_port_name(),
+              old_metadata.value()->ready_port_name());
+          break;
+        case ChannelKind::kSingleValue:
+          down_cast<SingleValueChannel*>(channel)->AddBlockPortMapping(
+              new_name, old_metadata.value()->data_port_name());
+          break;
+      }
+      XLS_RETURN_IF_ERROR(channel->RemoveBlockPortMapping(name));
     }
   }
   return package->AddBlock(std::make_unique<Block>(name, package));

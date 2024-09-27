@@ -59,5 +59,7 @@ message ChannelMetadataProto {
     ModulePortProto module_port = 1;
   }
 
-  optional BlockPortMappingProto block_ports = 2;
+  // Different sides of a channel can be associated with different ports in
+  // different blocks.
+  repeated BlockPortMappingProto block_ports = 2;
 }

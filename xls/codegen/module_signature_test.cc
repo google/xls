@@ -26,6 +26,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/package.h"
@@ -37,7 +38,10 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::Property;
+
 namespace m = ::xls::op_matchers;
 
 std::string TestName() {
@@ -135,10 +139,19 @@ TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
   b.AddDataInputAsBits("single_val_in_port", 32);
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
+  ChannelMetadataProto single_val_in_metadata;
+  BlockPortMappingProto* block_port_mapping =
+      single_val_in_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("single_val_in_port");
   b.AddSingleValueChannel("single_val_in", ChannelOps::kReceiveOnly,
-                          "single_val_in_port");
+                          single_val_in_metadata);
+  ChannelMetadataProto single_val_out_metadata;
+  block_port_mapping = single_val_out_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("single_val_out_port");
   b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
-                          "single_val_out_port");
+                          single_val_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -152,8 +165,9 @@ TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
             CHANNEL_OPS_RECEIVE_ONLY);
   EXPECT_EQ(signature.single_value_channels().at(0).flow_control(),
             CHANNEL_FLOW_CONTROL_NONE);
-  EXPECT_EQ(signature.single_value_channels().at(0).data_port_name(),
-            "single_val_in_port");
+  EXPECT_THAT(signature.single_value_channels().at(0).metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::data_port_name,
+                                   "single_val_in_port")));
 
   EXPECT_EQ(signature.single_value_channels().at(1).name(), "single_val_out");
   EXPECT_EQ(signature.single_value_channels().at(1).kind(),
@@ -162,8 +176,9 @@ TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
             CHANNEL_OPS_SEND_ONLY);
   EXPECT_EQ(signature.single_value_channels().at(1).flow_control(),
             CHANNEL_FLOW_CONTROL_NONE);
-  EXPECT_EQ(signature.single_value_channels().at(1).data_port_name(),
-            "single_val_out_port");
+  EXPECT_THAT(signature.single_value_channels().at(1).metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::data_port_name,
+                                   "single_val_out_port")));
 }
 
 TEST(ModuleSignatureTest, StreamingChannelsInterface) {
@@ -177,17 +192,28 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
 
   b.AddDataOutputAsBits("streaming_out_data", 16);
 
+  ChannelMetadataProto streaming_in_metadata;
+  BlockPortMappingProto* block_port_mapping =
+      streaming_in_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("streaming_in_data");
+  block_port_mapping->set_valid_port_name("streaming_in_valid");
+  block_port_mapping->set_ready_port_name("streaming_in_ready");
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetTupleType({p.GetBitsType(32)}),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
+      streaming_in_metadata);
 
+  ChannelMetadataProto streaming_out_metadata;
+  block_port_mapping = streaming_out_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("streaming_out_data");
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
                         FlowControl::kNone, p.GetBitsType(32),
-                        /*fifo_config=*/std::nullopt, "streaming_out_data");
+                        /*fifo_config=*/std::nullopt, streaming_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -204,12 +230,14 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   EXPECT_THAT(p.GetTypeFromProto(signature.streaming_channels().at(0).type()),
               IsOkAndHolds(p.GetTupleType({p.GetBitsType(32)})));
   EXPECT_EQ(signature.streaming_channels().at(0).fifo_config().depth(), 42);
-  EXPECT_EQ(signature.streaming_channels().at(0).data_port_name(),
-            "streaming_in_data");
-  EXPECT_EQ(signature.streaming_channels().at(0).valid_port_name(),
-            "streaming_in_valid");
-  EXPECT_EQ(signature.streaming_channels().at(0).ready_port_name(),
-            "streaming_in_ready");
+  EXPECT_THAT(
+      signature.streaming_channels().at(0).metadata().block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::data_port_name, "streaming_in_data"),
+          Property(&BlockPortMappingProto::valid_port_name,
+                   "streaming_in_valid"),
+          Property(&BlockPortMappingProto::ready_port_name,
+                   "streaming_in_ready"))));
 
   EXPECT_EQ(signature.streaming_channels().at(1).name(), "streaming_out");
   EXPECT_EQ(signature.streaming_channels().at(1).kind(),
@@ -221,10 +249,13 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   EXPECT_THAT(p.GetTypeFromProto(signature.streaming_channels().at(1).type()),
               IsOkAndHolds(p.GetBitsType(32)));
   EXPECT_FALSE(signature.streaming_channels().at(1).has_fifo_config());
-  EXPECT_EQ(signature.streaming_channels().at(1).data_port_name(),
-            "streaming_out_data");
-  EXPECT_FALSE(signature.streaming_channels().at(1).has_valid_port_name());
-  EXPECT_FALSE(signature.streaming_channels().at(1).has_ready_port_name());
+  EXPECT_THAT(
+      signature.streaming_channels().at(1).metadata().block_ports(),
+      ElementsAre(
+          AllOf(Property(&BlockPortMappingProto::data_port_name,
+                         "streaming_out_data"),
+                Property(&BlockPortMappingProto::has_valid_port_name, false),
+                Property(&BlockPortMappingProto::has_ready_port_name, false))));
 }
 
 TEST(ModuleSignatureTest, GetByName) {
@@ -236,18 +267,29 @@ TEST(ModuleSignatureTest, GetByName) {
   b.AddDataInputAsBits("streaming_in_valid", 1);
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
+  ChannelMetadataProto streaming_in_metadata;
+  BlockPortMappingProto* block_port_mapping =
+      streaming_in_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("streaming_in_data");
+  block_port_mapping->set_valid_port_name("streaming_in_valid");
+  block_port_mapping->set_ready_port_name("streaming_in_ready");
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
+      streaming_in_metadata);
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
+  ChannelMetadataProto single_val_out_metadata;
+  block_port_mapping = single_val_out_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("single_val_out_port");
   b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
-                          "single_val_out_port");
+                          single_val_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -292,18 +334,29 @@ TEST(ModuleSignatureTest, GetChannels) {
   b.AddDataInputAsBits("streaming_in_valid", 1);
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
+  ChannelMetadataProto streaming_in_metadata;
+  BlockPortMappingProto* block_port_mapping =
+      streaming_in_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("streaming_in_data");
+  block_port_mapping->set_valid_port_name("streaming_in_valid");
+  block_port_mapping->set_ready_port_name("streaming_in_ready");
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
+      streaming_in_metadata);
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
+  ChannelMetadataProto single_val_out_metadata;
+  block_port_mapping = single_val_out_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("single_val_out_port");
   b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
-                          "single_val_out_port");
+                          single_val_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -326,18 +379,29 @@ TEST(ModuleSignatureTest, GetChannelNameWith) {
   b.AddDataInputAsBits("streaming_in_valid", 1);
   b.AddDataOutputAsBits("streaming_in_ready", 1);
 
+  ChannelMetadataProto streaming_in_metadata;
+  BlockPortMappingProto* block_port_mapping =
+      streaming_in_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("streaming_in_data");
+  block_port_mapping->set_valid_port_name("streaming_in_valid");
+  block_port_mapping->set_ready_port_name("streaming_in_ready");
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
+      streaming_in_metadata);
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
 
+  ChannelMetadataProto single_val_out_metadata;
+  block_port_mapping = single_val_out_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("single_val_out_port");
   b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
-                          "single_val_out_port");
+                          single_val_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -356,7 +420,7 @@ TEST(ModuleSignatureTest, GetChannelNameWith) {
                        HasSubstr("is not referenced by a channel")));
 }
 
-TEST(ModuleSignatureTest, RemoveStreamingChannel) {
+TEST(ModuleSignatureTest, RemoveChannel) {
   Package p(TestName());
   ModuleSignatureBuilder b(TestName());
 
@@ -367,28 +431,40 @@ TEST(ModuleSignatureTest, RemoveStreamingChannel) {
 
   b.AddDataOutputAsBits("streaming_out_data", 16);
 
+  ChannelMetadataProto streaming_in_metadata;
+  BlockPortMappingProto* block_port_mapping =
+      streaming_in_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("streaming_in_data");
+  block_port_mapping->set_valid_port_name("streaming_in_valid");
+  block_port_mapping->set_ready_port_name("streaming_in_ready");
+
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "streaming_in_data", "streaming_in_valid", "streaming_in_ready");
+      streaming_in_metadata);
 
+  ChannelMetadataProto streaming_out_metadata;
+  block_port_mapping = streaming_out_metadata.add_block_ports();
+  block_port_mapping->set_block_name(TestName());
+  block_port_mapping->set_data_port_name("streaming_out_data");
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
                         FlowControl::kNone, p.GetBitsType(24),
-                        /*fifo_config=*/std::nullopt, "streaming_out_data");
+                        /*fifo_config=*/std::nullopt, streaming_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   EXPECT_EQ(signature.streaming_channels().size(), 2);
 
-  XLS_EXPECT_OK(b.RemoveStreamingChannel("streaming_in"));
+  XLS_EXPECT_OK(b.RemoveChannel("streaming_in"));
   XLS_ASSERT_OK_AND_ASSIGN(signature, b.Build());
   EXPECT_EQ(signature.streaming_channels().size(), 1);
   EXPECT_EQ(signature.streaming_channels()[0].name(), "streaming_out");
 
-  XLS_EXPECT_OK(b.RemoveStreamingChannel("streaming_out"));
+  XLS_EXPECT_OK(b.RemoveChannel("streaming_out"));
   XLS_ASSERT_OK_AND_ASSIGN(signature, b.Build());
   EXPECT_EQ(signature.streaming_channels().size(), 0);
 }

@@ -47,6 +47,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/side_effect_condition_pass.h"
+#include "xls/codegen/signature_generation_pass.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -130,7 +131,8 @@ CodegenOptions DefaultCodegenOptions() {
 // in it.
 absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
     Package* p, std::string_view top_name = "top_proc",
-    CodegenOptions options = DefaultCodegenOptions()) {
+    CodegenOptions options = DefaultCodegenOptions(),
+    bool generate_signature = true) {
   options.module_name(top_name);
   if (!p->GetTop().has_value()) {
     XLS_RETURN_IF_ERROR(p->SetTop(p->GetFunctionBases().front()));
@@ -163,6 +165,9 @@ absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
   // of side-effecting ops.
   ccp.Add<SideEffectConditionPass>();
   ccp.Add<BlockStitchingPass>();
+  if (generate_signature) {
+    ccp.Add<SignatureGenerationPass>();
+  }
   CodegenPassResults results;
   XLS_ASSIGN_OR_RETURN(
       bool ccp_changed,
@@ -186,7 +191,12 @@ TEST_F(BlockStitchingPassTest, SingleBlockIsNoop) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK(p->SetTop(proc));
 
-  EXPECT_THAT(RunBlockStitchingPass(p.get()), IsOkAndHolds(Pair(false, _)));
+  EXPECT_THAT(
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"top_proc", /*options=*/DefaultCodegenOptions(),
+          /*generate_signature=*/false),  // Don't generate signature, otherwise
+                                          // we'll always get changed=true.
+      IsOkAndHolds(Pair(false, _)));
 }
 
 TEST_F(BlockStitchingPassTest, StitchNetworkWithFifos) {
@@ -1141,8 +1151,13 @@ TEST_F(ProcInliningPassTest, SingleProc) {
   b.Send(ch_out, b.TupleIndex(rcv, 0), b.TupleIndex(rcv, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
 
-  ASSERT_THAT(RunBlockStitchingPass(p.get(), proc->name()),
-              IsOkAndHolds(Pair(false, _)));
+  ASSERT_THAT(
+      RunBlockStitchingPass(
+          p.get(), proc->name(),
+          /*options=*/DefaultCodegenOptions(),
+          /*generate_signature=*/false),  // Don't generate signature, otherwise
+                                          // we'll always get changed=true.
+      IsOkAndHolds(Pair(false, _)));
 }
 
 TEST_F(ProcInliningPassTest, NestedProcs) {

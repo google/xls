@@ -81,12 +81,15 @@ namespace verilog {
 namespace {
 
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Ge;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::Optional;
 using ::testing::Pair;
+using ::testing::Property;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 using ::xls::status_testing::IsOkAndHolds;
@@ -3349,10 +3352,10 @@ TEST_F(BlockConversionTest, IOSignatureFunctionBaseToPipelinedBlock) {
   pb.Send(out_streaming_rv, in1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
-  EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
-  EXPECT_FALSE(in_streaming_rv->HasCompletedBlockPortNames());
-  EXPECT_FALSE(out_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_THAT(in_single_val->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(out_single_val->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(in_streaming_rv->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(out_streaming_rv->metadata_block_ports(), IsEmpty());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -3371,28 +3374,39 @@ TEST_F(BlockConversionTest, IOSignatureFunctionBaseToPipelinedBlock) {
                                                      schedule, options, proc));
   XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
-  EXPECT_TRUE(in_single_val->HasCompletedBlockPortNames());
-  EXPECT_TRUE(out_single_val->HasCompletedBlockPortNames());
-  EXPECT_TRUE(in_streaming_rv->HasCompletedBlockPortNames());
-  EXPECT_TRUE(out_streaming_rv->HasCompletedBlockPortNames());
-
-  EXPECT_EQ(in_single_val->GetBlockName().value(), "pipelined_proc");
-  EXPECT_EQ(in_single_val->GetDataPortName().value(), "in_single_val");
-
-  EXPECT_EQ(out_single_val->GetBlockName().value(), "pipelined_proc");
-  EXPECT_EQ(out_single_val->GetDataPortName().value(), "out_single_val");
-
-  EXPECT_EQ(in_streaming_rv->GetBlockName().value(), "pipelined_proc");
-  EXPECT_EQ(in_streaming_rv->GetDataPortName().value(), "in_streaming_data");
-  EXPECT_EQ(in_streaming_rv->GetValidPortName().value(), "in_streaming_valid");
-  EXPECT_EQ(in_streaming_rv->GetReadyPortName().value(), "in_streaming_ready");
-
-  EXPECT_EQ(out_streaming_rv->GetBlockName().value(), "pipelined_proc");
-  EXPECT_EQ(out_streaming_rv->GetDataPortName().value(), "out_streaming_data");
-  EXPECT_EQ(out_streaming_rv->GetValidPortName().value(),
-            "out_streaming_valid");
-  EXPECT_EQ(out_streaming_rv->GetReadyPortName().value(),
-            "out_streaming_ready");
+  EXPECT_THAT(
+      in_single_val->metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
+          Property(&BlockPortMappingProto::data_port_name, "in_single_val"),
+          Property(&BlockPortMappingProto::has_ready_port_name, false),
+          Property(&BlockPortMappingProto::has_valid_port_name, false))));
+  EXPECT_THAT(
+      out_single_val->metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
+          Property(&BlockPortMappingProto::data_port_name, "out_single_val"),
+          Property(&BlockPortMappingProto::has_ready_port_name, false),
+          Property(&BlockPortMappingProto::has_valid_port_name, false))));
+  EXPECT_THAT(
+      in_streaming_rv->metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
+          Property(&BlockPortMappingProto::data_port_name, "in_streaming_data"),
+          Property(&BlockPortMappingProto::ready_port_name,
+                   "in_streaming_ready"),
+          Property(&BlockPortMappingProto::valid_port_name,
+                   "in_streaming_valid"))));
+  EXPECT_THAT(
+      out_streaming_rv->metadata_block_ports(),
+      ElementsAre(
+          AllOf(Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
+                Property(&BlockPortMappingProto::data_port_name,
+                         "out_streaming_data"),
+                Property(&BlockPortMappingProto::ready_port_name,
+                         "out_streaming_ready"),
+                Property(&BlockPortMappingProto::valid_port_name,
+                         "out_streaming_valid"))));
 }
 
 TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
@@ -3427,10 +3441,10 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
-  EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
-  EXPECT_FALSE(in_streaming_rv->HasCompletedBlockPortNames());
-  EXPECT_FALSE(out_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_THAT(in_single_val->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(out_single_val->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(in_streaming_rv->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(out_streaming_rv->metadata_block_ports(), IsEmpty());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
@@ -3438,26 +3452,37 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
                                codegen_options().module_name("the_proc")));
   XLS_VLOG_LINES(2, unit.top_block->DumpIr());
 
-  EXPECT_TRUE(in_single_val->HasCompletedBlockPortNames());
-  EXPECT_TRUE(out_single_val->HasCompletedBlockPortNames());
-  EXPECT_TRUE(in_streaming_rv->HasCompletedBlockPortNames());
-  EXPECT_TRUE(out_streaming_rv->HasCompletedBlockPortNames());
-
-  EXPECT_EQ(in_single_val->GetBlockName().value(), "the_proc");
-  EXPECT_EQ(in_single_val->GetDataPortName().value(), "in_single_val");
-
-  EXPECT_EQ(out_single_val->GetBlockName().value(), "the_proc");
-  EXPECT_EQ(out_single_val->GetDataPortName().value(), "out_single_val");
-
-  EXPECT_EQ(in_streaming_rv->GetBlockName().value(), "the_proc");
-  EXPECT_EQ(in_streaming_rv->GetDataPortName().value(), "in_streaming");
-  EXPECT_EQ(in_streaming_rv->GetValidPortName().value(), "in_streaming_vld");
-  EXPECT_EQ(in_streaming_rv->GetReadyPortName().value(), "in_streaming_rdy");
-
-  EXPECT_EQ(out_streaming_rv->GetBlockName().value(), "the_proc");
-  EXPECT_EQ(out_streaming_rv->GetDataPortName().value(), "out_streaming");
-  EXPECT_EQ(out_streaming_rv->GetValidPortName().value(), "out_streaming_vld");
-  EXPECT_EQ(out_streaming_rv->GetReadyPortName().value(), "out_streaming_rdy");
+  EXPECT_THAT(
+      in_single_val->metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "the_proc"),
+          Property(&BlockPortMappingProto::data_port_name, "in_single_val"),
+          Property(&BlockPortMappingProto::has_ready_port_name, false),
+          Property(&BlockPortMappingProto::has_valid_port_name, false))));
+  EXPECT_THAT(
+      out_single_val->metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "the_proc"),
+          Property(&BlockPortMappingProto::data_port_name, "out_single_val"),
+          Property(&BlockPortMappingProto::has_ready_port_name, false),
+          Property(&BlockPortMappingProto::has_valid_port_name, false))));
+  EXPECT_THAT(
+      in_streaming_rv->metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "the_proc"),
+          Property(&BlockPortMappingProto::data_port_name, "in_streaming"),
+          Property(&BlockPortMappingProto::ready_port_name, "in_streaming_rdy"),
+          Property(&BlockPortMappingProto::valid_port_name,
+                   "in_streaming_vld"))));
+  EXPECT_THAT(
+      out_streaming_rv->metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "the_proc"),
+          Property(&BlockPortMappingProto::data_port_name, "out_streaming"),
+          Property(&BlockPortMappingProto::ready_port_name,
+                   "out_streaming_rdy"),
+          Property(&BlockPortMappingProto::valid_port_name,
+                   "out_streaming_vld"))));
 }
 
 TEST_F(ProcConversionTestFixture, ProcSendDuringReset) {

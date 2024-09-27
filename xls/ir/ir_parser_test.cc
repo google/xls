@@ -48,6 +48,7 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Optional;
+using ::testing::Property;
 
 // EXPECTS that the two given strings are similar modulo extra whitespace.
 static void ExpectStringsSimilar(
@@ -723,16 +724,13 @@ TEST(IrParserTest, ParseStreamingValueChannelWithBlockPortMapping) {
     EXPECT_EQ(ch->name(), "meh");
     EXPECT_EQ(ch->id(), 0);
     EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
-    EXPECT_TRUE(ch->metadata().has_block_ports());
 
-    EXPECT_TRUE(ch->metadata().block_ports().has_data_port_name());
-    EXPECT_TRUE(ch->metadata().block_ports().has_ready_port_name());
-    EXPECT_TRUE(ch->metadata().block_ports().has_valid_port_name());
-
-    EXPECT_EQ(ch->metadata().block_ports().block_name(), "blk");
-    EXPECT_EQ(ch->metadata().block_ports().data_port_name(), "data");
-    EXPECT_EQ(ch->metadata().block_ports().ready_port_name(), "rdy");
-    EXPECT_EQ(ch->metadata().block_ports().valid_port_name(), "vld");
+    EXPECT_THAT(ch->metadata().block_ports(),
+                ElementsAre(AllOf(
+                    Property(&BlockPortMappingProto::block_name, "blk"),
+                    Property(&BlockPortMappingProto::data_port_name, "data"),
+                    Property(&BlockPortMappingProto::valid_port_name, "vld"),
+                    Property(&BlockPortMappingProto::ready_port_name, "rdy"))));
 
     ch_ir_text = ch->ToString();
   }
@@ -746,17 +744,13 @@ TEST(IrParserTest, ParseStreamingValueChannelWithBlockPortMapping) {
     EXPECT_EQ(ch->id(), 0);
 
     EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
-    EXPECT_TRUE(ch->metadata().has_block_ports());
 
-    EXPECT_TRUE(ch->GetBlockName().has_value());
-    EXPECT_TRUE(ch->GetDataPortName().has_value());
-    EXPECT_TRUE(ch->GetValidPortName().has_value());
-    EXPECT_TRUE(ch->GetReadyPortName().has_value());
-
-    EXPECT_EQ(ch->GetBlockName().value(), "blk");
-    EXPECT_EQ(ch->GetDataPortName().value(), "data");
-    EXPECT_EQ(ch->GetValidPortName().value(), "vld");
-    EXPECT_EQ(ch->GetReadyPortName().value(), "rdy");
+    EXPECT_THAT(ch->metadata().block_ports(),
+                ElementsAre(AllOf(
+                    Property(&BlockPortMappingProto::block_name, "blk"),
+                    Property(&BlockPortMappingProto::data_port_name, "data"),
+                    Property(&BlockPortMappingProto::valid_port_name, "vld"),
+                    Property(&BlockPortMappingProto::ready_port_name, "rdy"))));
   }
 }
 
@@ -780,11 +774,13 @@ TEST(IrParserTest, ParseSingleValueChannelWithBlockPortMapping) {
               ChannelMetadataProto::kModulePort);
     EXPECT_TRUE(ch->metadata().module_port().flopped());
 
-    EXPECT_TRUE(ch->metadata().has_block_ports());
-    EXPECT_EQ(ch->metadata().block_ports().block_name(), "blk");
-    EXPECT_EQ(ch->metadata().block_ports().data_port_name(), "data");
-    EXPECT_FALSE(ch->metadata().block_ports().has_ready_port_name());
-    EXPECT_FALSE(ch->metadata().block_ports().has_valid_port_name());
+    EXPECT_THAT(
+        ch->metadata().block_ports(),
+        ElementsAre(AllOf(
+            Property(&BlockPortMappingProto::block_name, "blk"),
+            Property(&BlockPortMappingProto::data_port_name, "data"),
+            Property(&BlockPortMappingProto::has_valid_port_name, false),
+            Property(&BlockPortMappingProto::has_ready_port_name, false))));
 
     ch_ir_text = ch->ToString();
   }
@@ -797,15 +793,14 @@ TEST(IrParserTest, ParseSingleValueChannelWithBlockPortMapping) {
 
     EXPECT_EQ(ch->id(), 0);
     EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
-    EXPECT_TRUE(ch->metadata().has_block_ports());
 
-    EXPECT_TRUE(ch->GetBlockName().has_value());
-    EXPECT_TRUE(ch->GetDataPortName().has_value());
-    EXPECT_FALSE(ch->GetValidPortName().has_value());
-    EXPECT_FALSE(ch->GetReadyPortName().has_value());
-
-    EXPECT_EQ(ch->GetBlockName().value(), "blk");
-    EXPECT_EQ(ch->GetDataPortName().value(), "data");
+    EXPECT_THAT(
+        ch->metadata().block_ports(),
+        ElementsAre(AllOf(
+            Property(&BlockPortMappingProto::block_name, "blk"),
+            Property(&BlockPortMappingProto::data_port_name, "data"),
+            Property(&BlockPortMappingProto::has_valid_port_name, false),
+            Property(&BlockPortMappingProto::has_ready_port_name, false))));
   }
 }
 

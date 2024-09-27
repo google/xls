@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <iosfwd>
+#include <iterator>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -25,9 +26,12 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/type.h"
@@ -122,49 +126,16 @@ class Channel {
            supported_ops() == ChannelOps::kSendReceive;
   }
 
-  // Returns true if the metadata for block ports is complete.
-  virtual bool HasCompletedBlockPortNames() const = 0;
-
-  // Returns / sets name of block this channel is associated with.
-  void SetBlockName(std::string_view name) {
-    metadata_.mutable_block_ports()->set_block_name(std::string(name));
-  }
-  std::optional<std::string> GetBlockName() const {
-    if (metadata_.block_ports().has_block_name()) {
-      return metadata_.block_ports().block_name();
-    }
-    return std::nullopt;
+  absl::Span<const BlockPortMappingProto* const> metadata_block_ports() const {
+    return absl::MakeSpan(metadata_.block_ports());
   }
 
-  // Returns / sets name of data port this channel is associated with.
-  void SetDataPortName(std::string_view name) {
-    metadata_.mutable_block_ports()->set_data_port_name(std::string(name));
-  }
-  std::optional<std::string> GetDataPortName() const {
-    if (metadata_.block_ports().has_data_port_name()) {
-      return metadata_.block_ports().data_port_name();
-    }
-    return std::nullopt;
-  }
-
-  // Returns / sets name of valid port this channel is associated with.
-  void SetValidPortName(std::string_view name) {
-    metadata_.mutable_block_ports()->set_valid_port_name(std::string(name));
-  }
-  std::optional<std::string> GetValidPortName() const {
-    if (metadata_.block_ports().has_valid_port_name()) {
-      return metadata_.block_ports().valid_port_name();
-    }
-    return std::nullopt;
-  }
-
-  // Returns / sets name of ready port this channel is associated with.
-  void SetReadyPortName(std::string_view name) {
-    metadata_.mutable_block_ports()->set_ready_port_name(std::string(name));
-  }
-  std::optional<std::string> GetReadyPortName() const {
-    if (metadata_.block_ports().has_valid_port_name()) {
-      return metadata_.block_ports().ready_port_name();
+  std::optional<const BlockPortMappingProto*> GetMetadataBlockPort(
+      std::string_view block_name) const {
+    for (const BlockPortMappingProto& block_port : metadata_.block_ports()) {
+      if (block_port.block_name() == block_name) {
+        return &block_port;
+      }
     }
     return std::nullopt;
   }
@@ -189,6 +160,20 @@ class Channel {
       return Channel::NameLessThan(a, b);
     }
   };
+
+  // Removes the block port mapping for the given block from metadata.
+  absl::Status RemoveBlockPortMapping(std::string_view block_name) {
+    std::vector<BlockPortMappingProto> updated_block_ports;
+    updated_block_ports.reserve(metadata_.block_ports().size() - 1);
+    absl::c_remove_copy_if(
+        metadata_.block_ports(), std::back_inserter(updated_block_ports),
+        [block_name](const BlockPortMappingProto& block_port) {
+          return block_port.block_name() == block_name;
+        });
+    metadata_.mutable_block_ports()->Assign(updated_block_ports.begin(),
+                                            updated_block_ports.end());
+    return absl::OkStatus();
+  }
 
  protected:
   Channel(std::string_view name, int64_t id, ChannelOps supported_ops,
@@ -296,13 +281,15 @@ class StreamingChannel final : public Channel {
         flow_control_(flow_control),
         strictness_(strictness) {}
 
-  bool HasCompletedBlockPortNames() const final {
-    if (GetFlowControl() == FlowControl::kReadyValid) {
-      return GetBlockName().has_value() && GetDataPortName().has_value() &&
-             GetReadyPortName().has_value() && GetValidPortName().has_value();
-    }
-
-    return GetBlockName().has_value() && GetDataPortName().has_value();
+  void AddBlockPortMapping(std::string_view block_name,
+                           std::string_view data_port_name,
+                           std::string_view valid_port_name,
+                           std::string_view ready_port_name) {
+    BlockPortMappingProto& block_port = *metadata_.mutable_block_ports()->Add();
+    block_port.set_block_name(block_name);
+    block_port.set_data_port_name(data_port_name);
+    block_port.set_valid_port_name(valid_port_name);
+    block_port.set_ready_port_name(ready_port_name);
   }
 
   std::optional<int64_t> GetFifoDepth() const {
@@ -338,8 +325,11 @@ class SingleValueChannel final : public Channel {
       : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,
                 /*initial_values=*/{}, metadata) {}
 
-  bool HasCompletedBlockPortNames() const final {
-    return GetBlockName().has_value() && GetDataPortName().has_value();
+  void AddBlockPortMapping(std::string_view block_name,
+                           std::string_view data_port_name) {
+    BlockPortMappingProto& block_port = *metadata_.mutable_block_ports()->Add();
+    block_port.set_block_name(block_name);
+    block_port.set_data_port_name(data_port_name);
   }
 };
 

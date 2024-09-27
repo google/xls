@@ -1,3 +1,5 @@
+# proto-file: xls/codegen/module_signature.proto
+# proto-message: ModuleSignatureProto
 module_name: "Test_proc"
 data_ports {
   direction: DIRECTION_INPUT
@@ -122,18 +124,28 @@ data_channels {
   kind: CHANNEL_KIND_STREAMING
   supported_ops: CHANNEL_OPS_RECEIVE_ONLY
   flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
-  data_port_name: "in_data"
-  ready_port_name: "in_rdy"
-  valid_port_name: "in_vld"
+  metadata {
+    block_ports {
+      block_name: "Test_proc"
+      data_port_name: "in_data"
+      ready_port_name: "in_rdy"
+      valid_port_name: "in_vld"
+    }
+  }
 }
 data_channels {
   name: "out"
   kind: CHANNEL_KIND_STREAMING
   supported_ops: CHANNEL_OPS_SEND_ONLY
   flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
-  data_port_name: "out_data"
-  ready_port_name: "out_rdy"
-  valid_port_name: "out_vld"
+  metadata {
+    block_ports {
+      block_name: "Test_proc"
+      data_port_name: "out_data"
+      ready_port_name: "out_rdy"
+      valid_port_name: "out_vld"
+    }
+  }
 }
 rams {
   name: "mem"

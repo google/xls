@@ -45,7 +45,11 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace verilog {
 namespace {
+
 using status_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
+using ::testing::Property;
 
 TEST(SignatureGeneratorTest, CombinationalBlock) {
   Package package("test");
@@ -278,10 +282,10 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
   pb.Send(out_streaming_rv, in1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
-  EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
-  EXPECT_FALSE(in_streaming_rv->HasCompletedBlockPortNames());
-  EXPECT_FALSE(out_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_THAT(in_single_val->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(out_single_val->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(in_streaming_rv->metadata_block_ports(), IsEmpty());
+  EXPECT_THAT(out_streaming_rv->metadata_block_ports(), IsEmpty());
 
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
                            GetDelayEstimator("unit"));
@@ -314,9 +318,12 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
     EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_RECEIVE_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-    EXPECT_EQ(ch.data_port_name(), "in_single_val");
-    EXPECT_FALSE(ch.has_ready_port_name());
-    EXPECT_FALSE(ch.has_valid_port_name());
+    EXPECT_THAT(
+        ch.metadata().block_ports(),
+        ElementsAre(AllOf(
+            Property(&BlockPortMappingProto::data_port_name, "in_single_val"),
+            Property(&BlockPortMappingProto::has_ready_port_name, false),
+            Property(&BlockPortMappingProto::has_valid_port_name, false))));
   }
 
   {
@@ -325,9 +332,14 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
     EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_RECEIVE_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-    EXPECT_EQ(ch.data_port_name(), "in_streaming_data");
-    EXPECT_EQ(ch.ready_port_name(), "in_streaming_ready");
-    EXPECT_EQ(ch.valid_port_name(), "in_streaming_valid");
+    EXPECT_THAT(
+        ch.metadata().block_ports(),
+        ElementsAre(AllOf(Property(&BlockPortMappingProto::data_port_name,
+                                   "in_streaming_data"),
+                          Property(&BlockPortMappingProto::ready_port_name,
+                                   "in_streaming_ready"),
+                          Property(&BlockPortMappingProto::valid_port_name,
+                                   "in_streaming_valid"))));
   }
 
   {
@@ -336,9 +348,12 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
     EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_SEND_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-    EXPECT_EQ(ch.data_port_name(), "out_single_val");
-    EXPECT_FALSE(ch.has_ready_port_name());
-    EXPECT_FALSE(ch.has_valid_port_name());
+    EXPECT_THAT(
+        ch.metadata().block_ports(),
+        ElementsAre(AllOf(
+            Property(&BlockPortMappingProto::data_port_name, "out_single_val"),
+            Property(&BlockPortMappingProto::has_ready_port_name, false),
+            Property(&BlockPortMappingProto::has_valid_port_name, false))));
   }
 
   {
@@ -347,9 +362,14 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
     EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_SEND_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-    EXPECT_EQ(ch.data_port_name(), "out_streaming_data");
-    EXPECT_EQ(ch.ready_port_name(), "out_streaming_ready");
-    EXPECT_EQ(ch.valid_port_name(), "out_streaming_valid");
+    EXPECT_THAT(
+        ch.metadata().block_ports(),
+        ElementsAre(AllOf(Property(&BlockPortMappingProto::data_port_name,
+                                   "out_streaming_data"),
+                          Property(&BlockPortMappingProto::ready_port_name,
+                                   "out_streaming_ready"),
+                          Property(&BlockPortMappingProto::valid_port_name,
+                                   "out_streaming_valid"))));
   }
 }
 

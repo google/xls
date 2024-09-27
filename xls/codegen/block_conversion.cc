@@ -864,15 +864,14 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       // Ports are either all external IOs or all from instantiations.
       CHECK(input.IsExternal() || input.IsInstantiation());
 
-      input.channel->SetBlockName(block->name());
-      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(*input.port));
-      input.channel->SetDataPortName(name);
-      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(input.port_valid));
-      input.channel->SetValidPortName(name);
-      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(input.port_ready));
-      input.channel->SetReadyPortName(name);
-
-      CHECK(input.channel->HasCompletedBlockPortNames());
+      XLS_ASSIGN_OR_RETURN(std::string data_name, StreamingIOName(*input.port));
+      XLS_ASSIGN_OR_RETURN(std::string valid_name,
+                           StreamingIOName(input.port_valid));
+      XLS_ASSIGN_OR_RETURN(std::string ready_name,
+                           StreamingIOName(input.port_ready));
+      down_cast<StreamingChannel*>(input.channel)
+          ->AddBlockPortMapping(block->name(), data_name, valid_name,
+                                ready_name);
     }
   }
 
@@ -885,15 +884,15 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       // Ports are either all external IOs or all from instantiations.
       CHECK(output.IsExternal() || output.IsInstantiation());
 
-      output.channel->SetBlockName(block->name());
-      XLS_ASSIGN_OR_RETURN(std::string name, StreamingIOName(*output.port));
-      output.channel->SetDataPortName(name);
-      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(output.port_valid));
-      output.channel->SetValidPortName(name);
-      XLS_ASSIGN_OR_RETURN(name, StreamingIOName(output.port_ready));
-      output.channel->SetReadyPortName(name);
-
-      CHECK(output.channel->HasCompletedBlockPortNames());
+      XLS_ASSIGN_OR_RETURN(std::string data_name,
+                           StreamingIOName(*output.port));
+      XLS_ASSIGN_OR_RETURN(std::string valid_name,
+                           StreamingIOName(output.port_valid));
+      XLS_ASSIGN_OR_RETURN(std::string ready_name,
+                           StreamingIOName(output.port_ready));
+      down_cast<StreamingChannel*>(output.channel)
+          ->AddBlockPortMapping(block->name(), data_name, valid_name,
+                                ready_name);
     }
   }
 
@@ -901,20 +900,16 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
     CHECK_NE(input.port, nullptr);
     CHECK_NE(input.channel, nullptr);
 
-    input.channel->SetBlockName(block->name());
-    input.channel->SetDataPortName(input.port->name());
-
-    CHECK(input.channel->HasCompletedBlockPortNames());
+    down_cast<SingleValueChannel*>(input.channel)
+        ->AddBlockPortMapping(block->name(), input.port->name());
   }
 
   for (const SingleValueOutput& output : io.single_value_outputs) {
     CHECK_NE(output.port, nullptr);
     CHECK_NE(output.channel, nullptr);
 
-    output.channel->SetBlockName(block->name());
-    output.channel->SetDataPortName(output.port->name());
-
-    CHECK(output.channel->HasCompletedBlockPortNames());
+    down_cast<SingleValueChannel*>(output.channel)
+        ->AddBlockPortMapping(block->name(), output.port->name());
   }
 
   return absl::OkStatus();

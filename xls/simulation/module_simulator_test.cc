@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -33,6 +34,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
@@ -55,13 +57,23 @@ constexpr char kTestdataPath[] = "xls/simulation/testdata";
 // Returns a test module which can be used to monitor the ready/valid interface
 // of a streaming channel.
 absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
-  const std::string kModulePath = "xls/simulation/input_channel_monitor.v";
+  constexpr std::string_view kModulePath =
+      "xls/simulation/input_channel_monitor.v";
   XLS_ASSIGN_OR_RETURN(std::string runfile_path,
                        GetXlsRunfilePath(kModulePath));
   XLS_ASSIGN_OR_RETURN(std::string verilog_text, GetFileContents(runfile_path));
   const testing::TestInfo* const test_info =
       testing::UnitTest::GetInstance()->current_test_info();
   Package p(test_info->name());
+
+  ChannelMetadataProto input_metadata;
+  {
+    BlockPortMappingProto& block_port_proto = *input_metadata.add_block_ports();
+    block_port_proto.set_block_name("input_channel_monitor");
+    block_port_proto.set_data_port_name("input_data");
+    block_port_proto.set_valid_port_name("input_valid");
+    block_port_proto.set_ready_port_name("input_ready");
+  }
 
   ModuleSignatureBuilder b("input_channel_monitor");
   b.WithReset("rst", /*asynchronous=*/false, /*active_low=*/false);
@@ -71,16 +83,23 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
   b.AddDataInputAsBits("input_valid", 1);
   b.AddStreamingChannel("input", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(8),
-                        /*fifo_config=*/std::nullopt, "input_data",
-                        "input_valid", "input_ready");
+                        /*fifo_config=*/std::nullopt, input_metadata);
 
   b.AddDataOutputAsBits("monitor_data", 9);
   b.AddDataInputAsBits("monitor_ready", 1);
   b.AddDataOutputAsBits("monitor_valid", 1);
+  ChannelMetadataProto output_metadata;
+  {
+    BlockPortMappingProto& block_port_proto =
+        *output_metadata.add_block_ports();
+    block_port_proto.set_block_name("input_channel_monitor");
+    block_port_proto.set_data_port_name("monitor_data");
+    block_port_proto.set_valid_port_name("monitor_valid");
+    block_port_proto.set_ready_port_name("monitor_ready");
+  }
   b.AddStreamingChannel("monitor", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(9),
-                        /*fifo_config=*/std::nullopt, "monitor_data",
-                        "monitor_valid", "monitor_ready");
+                        /*fifo_config=*/std::nullopt, output_metadata);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = verilog_text,
                                .verilog_line_map = VerilogLineMap(),
@@ -90,7 +109,7 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
 // Returns a pipelined proc which reads from two channels `operand_0` and
 // `operand_1` and writes the sum to channel `result`.
 absl::StatusOr<ModuleGeneratorResult> GetPipelinedProc() {
-  const std::string text = R"(
+  constexpr std::string_view text = R"(
 module proc_adder_pipeline(
   input wire clk,
   input wire rst,
@@ -191,29 +210,56 @@ endmodule
   b.AddDataOutputAsBits("result_vld", 1);
   b.AddDataOutputAsBits("operand_0_rdy", 1);
   b.AddDataOutputAsBits("operand_1_rdy", 1);
+  ChannelMetadataProto channel0_metadata;
+  {
+    BlockPortMappingProto& block_port_proto =
+        *channel0_metadata.add_block_ports();
+    block_port_proto.set_block_name("proc_adder_pipeline");
+    block_port_proto.set_data_port_name("operand_0");
+    block_port_proto.set_valid_port_name("operand_0_vld");
+    block_port_proto.set_ready_port_name("operand_0_rdy");
+  }
   b.AddStreamingChannel(
       "operand_0", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "operand_0", "operand_0_vld", "operand_0_rdy");
+      channel0_metadata);
+  ChannelMetadataProto channel1_metadata;
+  {
+    BlockPortMappingProto& block_port_proto =
+        *channel1_metadata.add_block_ports();
+    block_port_proto.set_block_name("proc_adder_pipeline");
+    block_port_proto.set_data_port_name("operand_1");
+    block_port_proto.set_valid_port_name("operand_1_vld");
+    block_port_proto.set_ready_port_name("operand_1_rdy");
+  }
   b.AddStreamingChannel(
       "operand_1", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "operand_1", "operand_1_vld", "operand_1_rdy");
+      channel1_metadata);
+  ChannelMetadataProto channel2_metadata;
+  {
+    BlockPortMappingProto& block_port_proto =
+        *channel2_metadata.add_block_ports();
+    block_port_proto.set_block_name("proc_adder_pipeline");
+    block_port_proto.set_data_port_name("result");
+    block_port_proto.set_valid_port_name("result_vld");
+    block_port_proto.set_ready_port_name("result_rdy");
+  }
   b.AddStreamingChannel(
       "result", ChannelOps::kSendOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "result", "result_vld", "result_rdy");
+      channel2_metadata);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
-  return ModuleGeneratorResult{.verilog_text = text,
+  return ModuleGeneratorResult{.verilog_text = std::string(text),
                                .verilog_line_map = VerilogLineMap(),
                                .signature = signature};
 }
@@ -225,9 +271,9 @@ class ModuleSimulatorTest : public VerilogTestBase {
   // Verilog text and Module signature. Output is the sum of the input and a
   // delayed version of the input. For a correct result the input must be driven
   // for the duration of the computation.
-  absl::StatusOr<std::pair<std::string, ModuleSignature>>
+  absl::StatusOr<std::pair<std::string_view, ModuleSignature>>
   MakeFixedLatencyModule() const {
-    const std::string text = R"(
+    constexpr std::string_view text = R"(
 module fixed_latency_3(
   input wire clk,
   input wire [7:0] x,
@@ -258,9 +304,9 @@ endmodule
 
   // Returns a combinatorial Verilog module as a pair of Verilog text and Module
   // signature. Output is the difference between the two inputs.
-  absl::StatusOr<std::pair<std::string, ModuleSignature>>
+  absl::StatusOr<std::pair<std::string_view, ModuleSignature>>
   MakeCombinationalModule() const {
-    const std::string text =
+    constexpr std::string_view text =
         R"(
 module comb_diff(
   input wire clk,
@@ -285,9 +331,9 @@ endmodule
 
   // Returns a Verilog module with a ready-valid interface as a pair of Verilog
   // text and Module signature. Output is the difference between the two inputs.
-  absl::StatusOr<std::pair<std::string, ModuleSignature>> MakeReadyValidModule()
-      const {
-    const std::string text =
+  absl::StatusOr<std::pair<std::string_view, ModuleSignature>>
+  MakeReadyValidModule() const {
+    constexpr std::string_view text =
         R"(
 module comb_diff(
   input wire clk,
@@ -363,8 +409,28 @@ TEST_P(ModuleSimulatorTest, CombinationalBatched) {
   EXPECT_THAT(outputs[2], ElementsAre(Pair("out", UBits(100, 8))));
 }
 
+TEST_P(ModuleSimulatorTest, ReadyValidBatched) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto verilog_signature, MakeReadyValidModule());
+  ModuleSimulator simulator =
+      NewModuleSimulator(verilog_signature.first, verilog_signature.second);
+
+  // Test using bits
+  using BitsMap = ModuleSimulator::BitsMap;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<BitsMap> outputs,
+      simulator.RunBatched(
+          {BitsMap{{"x", UBits(99, 8)}, {"y", UBits(12, 8)}},
+           BitsMap{{"x", UBits(100, 8)}, {"y", UBits(25, 8)}},
+           BitsMap{{"x", UBits(255, 8)}, {"y", UBits(155, 8)}}}));
+
+  EXPECT_EQ(outputs.size(), 3);
+  EXPECT_THAT(outputs[0], ElementsAre(Pair("out", UBits(87, 8))));
+  EXPECT_THAT(outputs[1], ElementsAre(Pair("out", UBits(75, 8))));
+  EXPECT_THAT(outputs[2], ElementsAre(Pair("out", UBits(100, 8))));
+}
+
 TEST_P(ModuleSimulatorTest, MultipleOutputs) {
-  const std::string text = R"(
+  constexpr std::string_view text = R"(
 module delay_3(
   input wire the_clk,
   input wire [7:0] x,
@@ -399,7 +465,7 @@ endmodule
 }
 
 TEST_P(ModuleSimulatorTest, BadInputs) {
-  const std::string text = R"(
+  constexpr std::string_view text = R"(
 module delay_3(
   input wire clk,
   input wire [7:0] x,
@@ -452,7 +518,7 @@ endmodule
 }
 
 TEST_P(ModuleSimulatorTest, RunInputSeriesProcCombinational) {
-  const std::string text = R"(
+  constexpr std::string_view text = R"(
 module proc_adder(
   input wire [31:0] operand_0,
   input wire operand_0_vld,
@@ -488,27 +554,48 @@ endmodule
   b.AddDataOutputAsBits("result_vld", 1);
   b.AddDataOutputAsBits("operand_0_rdy", 1);
   b.AddDataOutputAsBits("operand_1_rdy", 1);
+  ChannelMetadataProto channel0_metadata;
+  BlockPortMappingProto& block_port_proto0 =
+      *channel0_metadata.add_block_ports();
+  block_port_proto0.set_block_name("proc_adder");
+  block_port_proto0.set_data_port_name("operand_0");
+  block_port_proto0.set_valid_port_name("operand_0_vld");
+  block_port_proto0.set_ready_port_name("operand_0_rdy");
   b.AddStreamingChannel(
       "operand_0", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "operand_0", "operand_0_vld", "operand_0_rdy");
+      channel0_metadata);
+  ChannelMetadataProto channel1_metadata;
+  BlockPortMappingProto& block_port_proto1 =
+      *channel1_metadata.add_block_ports();
+  block_port_proto1.set_block_name("proc_adder");
+  block_port_proto1.set_data_port_name("operand_1");
+  block_port_proto1.set_valid_port_name("operand_1_vld");
+  block_port_proto1.set_ready_port_name("operand_1_rdy");
   b.AddStreamingChannel(
       "operand_1", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "operand_1", "operand_1_vld", "operand_1_rdy");
+      channel1_metadata);
+  ChannelMetadataProto channel2_metadata;
+  BlockPortMappingProto& block_port_proto2 =
+      *channel2_metadata.add_block_ports();
+  block_port_proto2.set_block_name("proc_adder");
+  block_port_proto2.set_data_port_name("result");
+  block_port_proto2.set_valid_port_name("result_vld");
+  block_port_proto2.set_ready_port_name("result_rdy");
   b.AddStreamingChannel(
       "result", ChannelOps::kSendOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
       /*fifo_config=*/
       FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
                  /*register_pop_outputs=*/false),
-      "result", "result_vld", "result_rdy");
+      channel2_metadata);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   ModuleSimulator simulator = NewModuleSimulator(text, signature);
@@ -772,7 +859,7 @@ TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenX) {
 }
 
 TEST_P(ModuleSimulatorTest, RunInputSeriesEmptyModule) {
-  const std::string text = R"(
+  constexpr std::string_view text = R"(
 module proc_adder_pipeline(
   input wire clk,
   input wire rst

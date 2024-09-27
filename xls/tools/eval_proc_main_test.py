@@ -365,7 +365,7 @@ def run_command(args):
       args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8"
   )
   if comp.returncode != 0:
-    logging.error("Failed to run: %s", " ".join(args))
+    logging.error("Failed to run: %s", repr(args))
     logging.error("stderr: %s", comp.stderr)
     logging.error("stdout: %s", comp.stdout)
   comp.check_returncode()

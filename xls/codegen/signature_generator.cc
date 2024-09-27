@@ -50,10 +50,7 @@ namespace xls::verilog {
 absl::StatusOr<ModuleSignature> GenerateSignature(
     const CodegenOptions& options, Block* block,
     const absl::flat_hash_map<Node*, Stage>& stage_map) {
-  std::string module_name = options.module_name().has_value()
-                                ? std::string{options.module_name().value()}
-                                : block->name();
-  ModuleSignatureBuilder b(module_name);
+  ModuleSignatureBuilder b(block->name());
 
   // Optionally add clock and reset.
   if (options.clock_name().has_value()) {
@@ -109,33 +106,25 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
   VLOG(5) << "GenerateSignature called on package:";
   XLS_VLOG_LINES(5, p->DumpIr());
   for (const Channel* const ch : p->channels()) {
-    VLOG(5) << absl::StreamFormat("Channel block name: %s\nblock name: %s",
-                                  ch->GetBlockName().value_or("<none>"),
-                                  block->name());
-    if (ch->GetBlockName() != block->name()) {
+    if (!ch->GetMetadataBlockPort(block->name()).has_value()) {
       continue;
     }
 
-    if (!ch->HasCompletedBlockPortNames()) {
-      return absl::InternalError(absl::StrFormat(
-          "Unable to generate signature - channel %s associated with "
-          "block %s does not have completed metadata : %s",
-          ch->name(), block->name(), ch->ToString()));
-    }
+    XLS_RET_CHECK(ch->kind() == ChannelKind::kStreaming ||
+                  ch->kind() == ChannelKind::kSingleValue);
 
-    CHECK(ch->kind() == ChannelKind::kStreaming ||
-          ch->kind() == ChannelKind::kSingleValue);
-
-    if (ch->kind() == ChannelKind::kStreaming) {
-      b.AddStreamingChannel(
-          ch->name(), ch->supported_ops(),
-          down_cast<const StreamingChannel*>(ch)->GetFlowControl(), ch->type(),
-          down_cast<const StreamingChannel*>(ch)->fifo_config(),
-          ch->GetDataPortName().value(), ch->GetValidPortName(),
-          ch->GetReadyPortName());
-    } else {
-      b.AddSingleValueChannel(ch->name(), ch->supported_ops(),
-                              ch->GetDataPortName().value());
+    switch (ch->kind()) {
+      case ChannelKind::kStreaming:
+        b.AddStreamingChannel(
+            ch->name(), ch->supported_ops(),
+            down_cast<const StreamingChannel*>(ch)->GetFlowControl(),
+            ch->type(), down_cast<const StreamingChannel*>(ch)->fifo_config(),
+            ch->metadata());
+        break;
+      case ChannelKind::kSingleValue:
+        b.AddSingleValueChannel(ch->name(), ch->supported_ops(),
+                                ch->metadata());
+        break;
     }
   }
   for (const ::xls::Instantiation* instantiation : block->GetInstantiations()) {

@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -38,6 +39,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"
 #include "xls/simulation/module_testbench.h"
@@ -120,27 +122,28 @@ absl::Status VerifyReadyValidHoldoffs(
 // behavior specified in `holdoffs`.
 absl::Status HoldoffValid(int64_t input_number, int64_t input_bit_count,
                           const ValidHoldoff& valid_holdoff,
-                          const ChannelProto& channel_proto,
+                          std::string_view channel_name,
+                          const BlockPortMappingProto& port_mapping_proto,
                           SequentialBlock& seq_block) {
   if (valid_holdoff.cycles == 0) {
     // Nothing to do as the valid holdoff is zero cycles.
   } else if (valid_holdoff.driven_values.empty()) {
     // Values to drive on the data port not specified. Drive X and wait
     // the specified number of cycles.
-    seq_block.Set(channel_proto.valid_port_name(), UBits(0, 1));
-    seq_block.SetX(channel_proto.data_port_name());
+    seq_block.Set(port_mapping_proto.valid_port_name(), UBits(0, 1));
+    seq_block.SetX(port_mapping_proto.data_port_name());
     seq_block.AdvanceNCycles(valid_holdoff.cycles);
   } else {
     XLS_RET_CHECK_EQ(valid_holdoff.driven_values.size(), valid_holdoff.cycles)
         << absl::StreamFormat(
                "Unexpected number of driven values for channel `%s`",
-               channel_proto.name());
-    seq_block.Set(channel_proto.valid_port_name(), UBits(0, 1));
+               channel_name);
+    seq_block.Set(port_mapping_proto.valid_port_name(), UBits(0, 1));
     for (const BitsOrX& bits_or_x : valid_holdoff.driven_values) {
       if (std::holds_alternative<IsX>(bits_or_x)) {
-        seq_block.SetX(channel_proto.data_port_name());
+        seq_block.SetX(port_mapping_proto.data_port_name());
       } else {
-        seq_block.Set(channel_proto.data_port_name(),
+        seq_block.Set(port_mapping_proto.data_port_name(),
                       std::get<Bits>(bits_or_x));
       }
       seq_block.NextCycle();
@@ -151,27 +154,28 @@ absl::Status HoldoffValid(int64_t input_number, int64_t input_bit_count,
 
 // Sets up the test bench to drive the specified inputs on to the given channel.
 absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
-                               const ChannelProto& channel_proto,
+                               std::string_view channel_name,
+                               const BlockPortMappingProto& port_mapping_proto,
                                absl::Span<const ValidHoldoff> valid_holdoffs,
                                ModuleTestbench& tb) {
   std::vector<DutInput> dut_inputs;
-  std::string_view data_port_name = channel_proto.data_port_name();
+  std::string_view data_port_name = port_mapping_proto.data_port_name();
   dut_inputs.push_back(DutInput{.port_name = std::string{data_port_name},
                                 .initial_value = IsX()});
   std::optional<std::string> valid_port_name;
   std::optional<std::string> ready_port_name;
-  if (channel_proto.has_valid_port_name()) {
-    valid_port_name = channel_proto.valid_port_name();
+  if (port_mapping_proto.has_valid_port_name()) {
+    valid_port_name = port_mapping_proto.valid_port_name();
     dut_inputs.push_back(DutInput{.port_name = valid_port_name.value(),
                                   .initial_value = UBits(0, 1)});
   }
-  if (channel_proto.has_ready_port_name()) {
-    ready_port_name = channel_proto.ready_port_name();
+  if (port_mapping_proto.has_ready_port_name()) {
+    ready_port_name = port_mapping_proto.ready_port_name();
   }
   XLS_ASSIGN_OR_RETURN(
       ModuleTestbenchThread * tbt,
-      tb.CreateThread(absl::StrFormat("%s driver", channel_proto.name()),
-                      dut_inputs, /*wait_until_done=*/false));
+      tb.CreateThread(absl::StrFormat("%s driver", channel_name), dut_inputs,
+                      /*wait_until_done=*/false));
   SequentialBlock& seq_block = tbt->MainBlock();
   for (int64_t input_number = 0; input_number < inputs.size(); ++input_number) {
     const Bits& value = inputs[input_number];
@@ -179,10 +183,10 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
       XLS_RET_CHECK(valid_port_name.has_value()) << absl::StreamFormat(
           "Valid hold-off specified for channel without a valid signal: "
           "`%s`",
-          channel_proto.name());
-      XLS_RETURN_IF_ERROR(HoldoffValid(input_number, value.bit_count(),
-                                       valid_holdoffs[input_number],
-                                       channel_proto, seq_block));
+          channel_name);
+      XLS_RETURN_IF_ERROR(HoldoffValid(
+          input_number, value.bit_count(), valid_holdoffs[input_number],
+          channel_name, port_mapping_proto, seq_block));
     }
     seq_block.Set(data_port_name, value);
     if (valid_port_name.has_value()) {
@@ -204,18 +208,19 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
 // channel. Returns the sequence of placeholder Bits objects which will hold the
 // values after the test bench is run.
 absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
-    const ChannelProto& channel_proto, int64_t output_count,
+    std::string_view channel_name,
+    const BlockPortMappingProto& port_mapping_proto, int64_t output_count,
     absl::Span<const int64_t> ready_holdoffs, ModuleTestbench& tb) {
-  if (channel_proto.has_ready_port_name()) {
-    std::string_view ready_port_name = channel_proto.ready_port_name();
+  if (port_mapping_proto.has_ready_port_name()) {
+    std::string_view ready_port_name = port_mapping_proto.ready_port_name();
     // Create a separate thread to drive ready and any necessary holdoffs
     std::vector<DutInput> dut_inputs = {
         DutInput{.port_name = std::string{ready_port_name},
                  .initial_value = UBits(0, 1)}};
     XLS_ASSIGN_OR_RETURN(
         ModuleTestbenchThread * ready_tbt,
-        tb.CreateThread(absl::StrFormat("%s driver", channel_proto.name()),
-                        dut_inputs, /*wait_until_done=*/false));
+        tb.CreateThread(absl::StrFormat("%s driver", channel_name), dut_inputs,
+                        /*wait_until_done=*/false));
     // Collapse consecutive 0's in the ready holdoff sequence into a single
     // multi-cycle assertion of ready. E.g., the sequence {7, 0, 0, 42, 0}
     // should lower to:
@@ -245,30 +250,45 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
   }
 
   // Create thread for capturing outputs. This thread drives no signals.
-  XLS_ASSIGN_OR_RETURN(ModuleTestbenchThread * tbt,
-                       tb.CreateThread(absl ::StrFormat("output %s capture",
-                                                        channel_proto.name()),
-                                       /*dut_inputs=*/{}));
+  XLS_ASSIGN_OR_RETURN(
+      ModuleTestbenchThread * tbt,
+      tb.CreateThread(absl ::StrFormat("output %s capture", channel_name),
+                      /*dut_inputs=*/{}));
   std::vector<std::string> flow_control_signals;
-  if (channel_proto.has_valid_port_name()) {
-    flow_control_signals.push_back(channel_proto.valid_port_name());
+  if (port_mapping_proto.has_valid_port_name()) {
+    flow_control_signals.push_back(port_mapping_proto.valid_port_name());
   }
-  if (channel_proto.has_ready_port_name()) {
-    flow_control_signals.push_back(channel_proto.ready_port_name());
+  if (port_mapping_proto.has_ready_port_name()) {
+    flow_control_signals.push_back(port_mapping_proto.ready_port_name());
   }
   std::vector<std::unique_ptr<Bits>> outputs;
   for (int64_t read_count = 0; read_count < output_count; ++read_count) {
     outputs.push_back(std::make_unique<Bits>());
     if (flow_control_signals.empty()) {
-      tbt->MainBlock().AtEndOfCycle().Capture(channel_proto.data_port_name(),
-                                              outputs.back().get());
+      tbt->MainBlock().AtEndOfCycle().Capture(
+          port_mapping_proto.data_port_name(), outputs.back().get());
     } else {
       tbt->MainBlock()
           .AtEndOfCycleWhenAll(flow_control_signals)
-          .Capture(channel_proto.data_port_name(), outputs.back().get());
+          .Capture(port_mapping_proto.data_port_name(), outputs.back().get());
     }
   }
   return outputs;
+}
+
+absl::StatusOr<const BlockPortMappingProto*> BlockPortMappingForModule(
+    const ChannelProto& channel_proto, std::string_view module_name) {
+  auto iter = absl::c_find_if(
+      channel_proto.metadata().block_ports(),
+      [&](const BlockPortMappingProto& block_port_mapping_proto) {
+        return block_port_mapping_proto.block_name() == module_name;
+      });
+  if (iter == channel_proto.metadata().block_ports().end()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Block port mapping for channel '%s' not found for module '%s'.",
+        channel_proto.name(), module_name));
+  }
+  return &*iter;
 }
 
 }  // namespace
@@ -543,8 +563,11 @@ ModuleSimulator::CreateProcTestbench(
       XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
                            signature_.GetInputChannelProtoByName(channel_name));
       XLS_ASSIGN_OR_RETURN(
-          PortProto data_port,
-          signature_.GetInputPortProtoByName(channel_proto.data_port_name()));
+          const BlockPortMappingProto* block_port_proto,
+          BlockPortMappingForModule(channel_proto, signature_.module_name()));
+      XLS_ASSIGN_OR_RETURN(PortProto data_port,
+                           signature_.GetInputPortProtoByName(
+                               block_port_proto->data_port_name()));
       XLS_ASSIGN_OR_RETURN(
           channel_inputs_values[channel_name],
           BitsListToValueList(channel_values, data_port.type()));
@@ -603,8 +626,12 @@ ModuleSimulator::CreateProcTestbench(
         holdoffs->valid_holdoffs.contains(channel_name)) {
       valid_holdoffs = holdoffs->valid_holdoffs.at(channel_name);
     }
+    XLS_ASSIGN_OR_RETURN(
+        const BlockPortMappingProto* block_port_proto,
+        BlockPortMappingForModule(channel_proto, signature_.module_name()));
     XLS_RETURN_IF_ERROR(DriveInputChannel(channel_inputs.at(channel_name),
-                                          channel_proto, valid_holdoffs, *tb));
+                                          channel_name, *block_port_proto,
+                                          valid_holdoffs, *tb));
   }
 
   // Use std::unique_ptr for pointer stability necessary for
@@ -619,8 +646,11 @@ ModuleSimulator::CreateProcTestbench(
       ready_holdoffs = holdoffs->ready_holdoffs.at(channel_name);
     }
     XLS_ASSIGN_OR_RETURN(
+        const BlockPortMappingProto* block_port_proto,
+        BlockPortMappingForModule(channel_proto, signature_.module_name()));
+    XLS_ASSIGN_OR_RETURN(
         stable_outputs[channel_name],
-        CaptureOutputChannel(channel_proto,
+        CaptureOutputChannel(channel_name, *block_port_proto,
                              output_channel_counts.at(channel_proto.name()),
                              ready_holdoffs, *tb));
   }
@@ -657,8 +687,11 @@ ModuleSimulator::RunInputSeriesProc(
           ChannelProto channel_proto,
           signature_.GetOutputChannelProtoByName(channel_name));
       XLS_ASSIGN_OR_RETURN(
-          PortProto data_port,
-          signature_.GetOutputPortProtoByName(channel_proto.data_port_name()));
+          const BlockPortMappingProto* block_port_proto,
+          BlockPortMappingForModule(channel_proto, signature_.module_name()));
+      XLS_ASSIGN_OR_RETURN(PortProto data_port,
+                           signature_.GetOutputPortProtoByName(
+                               block_port_proto->data_port_name()));
       XLS_ASSIGN_OR_RETURN(
           result_channel_values[channel_name],
           BitsListToValueList(channel_values, data_port.type()));
@@ -693,8 +726,11 @@ ModuleSimulator::RunInputSeriesProc(
     XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
                          signature_.GetOutputChannelProtoByName(channel_name));
     XLS_ASSIGN_OR_RETURN(
-        PortProto data_port,
-        signature_.GetOutputPortProtoByName(channel_proto.data_port_name()));
+        const BlockPortMappingProto* block_port_proto,
+        BlockPortMappingForModule(channel_proto, signature_.module_name()));
+    XLS_ASSIGN_OR_RETURN(PortProto data_port,
+                         signature_.GetOutputPortProtoByName(
+                             block_port_proto->data_port_name()));
     XLS_ASSIGN_OR_RETURN(std::vector<Value> values,
                          BitsListToValueList(channel_bits, data_port.type()));
     channel_outputs[channel_proto.name()] = values;

@@ -32,7 +32,6 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"
@@ -42,8 +41,12 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using testing::Contains;
 using testing::ElementsAre;
 using testing::HasSubstr;
+using testing::IsEmpty;
+using testing::Not;
+using testing::Property;
 
 class PackageTest : public IrTestBase {};
 
@@ -439,15 +442,18 @@ TEST_F(PackageTest, CloneSingleValueChannelSetParams) {
                          "streaming channel parameter overrides")));
 
   ChannelMetadataProto new_metadata;
-  new_metadata.mutable_block_ports()->set_block_name("new_block_name");
+  new_metadata.add_block_ports()->set_block_name("new_block_name");
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch4,
       p.CloneChannel(
           ch0, "ch4",
           Package::CloneChannelOverrides().OverrideMetadata(new_metadata)));
-  EXPECT_EQ(ch4->metadata().block_ports().block_name(), "new_block_name");
-  EXPECT_NE(ch0->metadata().block_ports().block_name(),
-            ch4->metadata().block_ports().block_name());
+  EXPECT_THAT(ch4->metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::block_name,
+                                   "new_block_name")));
+  EXPECT_THAT(ch0->metadata().block_ports(),
+              Not(Contains(Property(&BlockPortMappingProto::block_name,
+                                    "new_block_name"))));
 }
 
 TEST_F(PackageTest, CloneSingleValueChannelSamePackageButDifferentOps) {
@@ -521,7 +527,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   Package p(TestName());
 
   ChannelMetadataProto original_metadata;
-  original_metadata.mutable_block_ports()->set_block_name("original_name");
+  original_metadata.add_block_ports()->set_block_name("original_name");
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0,
       p.CreateStreamingChannel(
@@ -549,7 +555,9 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch1->GetFifoDepth(), 3);
   EXPECT_EQ(ch1->GetFlowControl(), FlowControl::kNone);
   EXPECT_EQ(ch1->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_EQ(ch1->metadata().block_ports().block_name(), "original_name");
+  EXPECT_THAT(ch1->metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::block_name,
+                                   "original_name")));
 
   EXPECT_EQ(ch1->initial_values(), initial_values_override);
 
@@ -571,7 +579,9 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch2->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch2->GetFlowControl(), FlowControl::kNone);
   EXPECT_EQ(ch2->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_EQ(ch2->metadata().block_ports().block_name(), "original_name");
+  EXPECT_THAT(ch2->metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::block_name,
+                                   "original_name")));
 
   EXPECT_EQ(ch2->GetFifoDepth(), std::nullopt);
 
@@ -589,7 +599,9 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch3->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch3->GetFifoDepth(), 3);
   EXPECT_EQ(ch3->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_EQ(ch3->metadata().block_ports().block_name(), "original_name");
+  EXPECT_THAT(ch3->metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::block_name,
+                                   "original_name")));
 
   EXPECT_EQ(ch3->GetFlowControl(), FlowControl::kReadyValid);
 
@@ -608,8 +620,10 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch4->GetFifoDepth(), 3);
   EXPECT_EQ(ch4->GetFlowControl(), FlowControl::kNone);
   EXPECT_EQ(ch4->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_EQ(ch0->metadata().block_ports().block_name(), "original_name");
-  EXPECT_EQ(ch4->metadata().block_ports().block_name(), "");
+  EXPECT_THAT(ch0->metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::block_name,
+                                   "original_name")));
+  EXPECT_THAT(ch4->metadata().block_ports(), IsEmpty());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch5_base,
@@ -625,7 +639,9 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch5->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch5->GetFifoDepth(), 3);
   EXPECT_EQ(ch5->GetFlowControl(), FlowControl::kNone);
-  EXPECT_EQ(ch5->metadata().block_ports().block_name(), "original_name");
+  EXPECT_THAT(ch5->metadata().block_ports(),
+              ElementsAre(Property(&BlockPortMappingProto::block_name,
+                                   "original_name")));
   EXPECT_EQ(ch5->GetStrictness(), ChannelStrictness::kArbitraryStaticOrder);
 }
 

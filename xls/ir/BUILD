@@ -1565,6 +1565,8 @@ cc_library(
         ":value",
         ":value_utils",
         "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

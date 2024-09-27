@@ -42,6 +42,8 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::Property;
 
 TEST(ChannelTest, ChannelOpsToString) {
   EXPECT_EQ(ChannelOpsToString(ChannelOps::kSendOnly), "send_only");
@@ -205,14 +207,15 @@ TEST(ChannelTest, SingleValueChannelSetAndGetMetadata) {
   SingleValueChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                         p.GetBitsType(32), ChannelMetadataProto());
 
-  EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-  ch.SetBlockName("my_block");
-  EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-  ch.SetDataPortName("my_block_data");
-  EXPECT_TRUE(ch.HasCompletedBlockPortNames());
-
-  EXPECT_EQ(ch.GetBlockName().value(), "my_block");
-  EXPECT_EQ(ch.GetDataPortName().value(), "my_block_data");
+  EXPECT_THAT(ch.metadata_block_ports(), IsEmpty());
+  ch.AddBlockPortMapping("my_block", "my_block_data");
+  EXPECT_THAT(
+      ch.metadata_block_ports(),
+      ElementsAre(AllOf(
+          Property(&BlockPortMappingProto::block_name, "my_block"),
+          Property(&BlockPortMappingProto::data_port_name, "my_block_data"),
+          Property(&BlockPortMappingProto::has_valid_port_name, false),
+          Property(&BlockPortMappingProto::has_ready_port_name, false))));
 }
 
 TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
@@ -220,40 +223,21 @@ TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
 
   {
     StreamingChannel ch(
-        "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
-        /*initial_values=*/{},
-        /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
-        ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
-
-    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-    ch.SetBlockName("my_block");
-    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-    ch.SetDataPortName("my_block_data");
-    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-    ch.SetReadyPortName("my_block_ready");
-    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-    ch.SetValidPortName("my_block_valid");
-    EXPECT_TRUE(ch.HasCompletedBlockPortNames());
-
-    EXPECT_EQ(ch.GetBlockName().value(), "my_block");
-    EXPECT_EQ(ch.GetDataPortName().value(), "my_block_data");
-    EXPECT_EQ(ch.GetReadyPortName().value(), "my_block_ready");
-    EXPECT_EQ(ch.GetValidPortName().value(), "my_block_valid");
-  }
-
-  {
-    StreamingChannel ch(
         "my_channel_2", 45, ChannelOps::kSendOnly, p.GetBitsType(32),
         /*initial_values=*/{}, /*fifo_config=*/std::nullopt, FlowControl::kNone,
         ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
-    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-    ch.SetDataPortName("my_block_data");
-    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
-    ch.SetBlockName("my_block");
-    EXPECT_TRUE(ch.HasCompletedBlockPortNames());
-    EXPECT_EQ(ch.GetBlockName().value(), "my_block");
-    EXPECT_EQ(ch.GetDataPortName().value(), "my_block_data");
+    EXPECT_THAT(ch.metadata_block_ports(), IsEmpty());
+    ch.AddBlockPortMapping("my_block", "my_block_data", "my_block_valid",
+                           "my_block_ready");
+    EXPECT_THAT(
+        ch.metadata_block_ports(),
+        ElementsAre(AllOf(
+            Property(&BlockPortMappingProto::block_name, "my_block"),
+            Property(&BlockPortMappingProto::data_port_name, "my_block_data"),
+            Property(&BlockPortMappingProto::ready_port_name, "my_block_ready"),
+            Property(&BlockPortMappingProto::valid_port_name,
+                     "my_block_valid"))));
   }
 }
 
