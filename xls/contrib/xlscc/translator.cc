@@ -4592,7 +4592,7 @@ namespace {
 class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
  public:
   static std::optional<xls::Value> TryResolveAsValue(xls::Node* node) {
-    xls::IrInterpreter ir_interpreter({});
+    xls::IrInterpreter ir_interpreter;
     absl::Status status = node->Accept(&ir_interpreter);
     if (status.ok()) {
       return ir_interpreter.ResolveAsValue(node);
@@ -4612,7 +4612,7 @@ class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
   }
 
   absl::Status HandleNaryAnd(xls::NaryOp* op) final {
-    xls::IrInterpreter ir_interpreter({});
+    xls::IrInterpreter ir_interpreter;
     absl::Status status = op->Accept(&ir_interpreter);
     if (status.ok()) {
       const xls::Value& value = ir_interpreter.ResolveAsValue(op);
@@ -4655,7 +4655,7 @@ class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
     return absl::OkStatus();
   }
   absl::Status HandleNaryOr(xls::NaryOp* op) final {
-    xls::IrInterpreter ir_interpreter({});
+    xls::IrInterpreter ir_interpreter;
     absl::Status status = op->Accept(&ir_interpreter);
     if (status.ok()) {
       const xls::Value& value = ir_interpreter.ResolveAsValue(op);
@@ -4702,7 +4702,7 @@ class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
       // Don't bother evaluating nodes with no users
       return absl::OkStatus();
     }
-    xls::IrInterpreter ir_interpreter({});
+    xls::IrInterpreter ir_interpreter;
     absl::Status status = node->Accept(&ir_interpreter);
     if (status.ok()) {
       const xls::Value& value = ir_interpreter.ResolveAsValue(node);
