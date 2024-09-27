@@ -393,6 +393,11 @@ absl::Status ModuleBuilder::AssignFromSlice(
 absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
     std::string_view name, Type* type,
     std::optional<std::string_view> sv_type) {
+  if (sv_type && options_.emit_sv_types() && type->IsArray()) {
+    return absl::UnimplementedError(
+        "Codegen packs arrays at port boundaries, see "
+        "https://github.com/google/xls/issues/1637.");
+  }
   LogicRef* port =
       AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount(), sv_type);
   if (!type->IsArray()) {
@@ -432,6 +437,11 @@ absl::Status ModuleBuilder::AddOutputPort(
   DataType* bits_type =
       file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
   if (sv_type && options_.emit_sv_types()) {
+    if (type->IsArray()) {
+      return absl::UnimplementedError(
+          "Codegen packs arrays at port boundaries, see "
+          "https://github.com/google/xls/issues/1637.");
+    }
     output_port = module_->AddOutput(
         SanitizeIdentifier(name),
         file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());
